@@ -1,0 +1,175 @@
+/* Starlight reads its own `--sl-color-*` variables. Mapping them onto the toolkit's palette
+   is what makes /docs/ the same product as the page it was linked from, rather than a
+   default-blue documentation theme sitting next to a violet site. The palette itself is
+   generated; nothing here restates a tone. */
+@import "./tokens.generated.css";
+/* The top bar's one stylesheet: the guide renders the same bar as the marketing pages and
+   as the API reference, and this is where that look is written. */
+@import "./bar.css";
+
+:root,
+:root[data-theme="dark"],
+:root[data-theme="light"] {
+  --sl-color-accent: var(--limn-primary);
+  --sl-color-accent-high: var(--limn-primary-hover);
+  /* accent-low is a BACKGROUND in Starlight (a focused search result sits on it), and mapping
+     it to the pressed accent painted body text over saturated violet at ~1.3:1. A real low
+     tint, mixed from the palette so it flips with it. */
+  --sl-color-accent-low: color-mix(in srgb, var(--limn-primary) 16%, var(--limn-background));
+  --sl-color-white: var(--limn-text);
+  --sl-color-gray-1: var(--limn-text);
+  --sl-color-gray-2: var(--limn-text-muted);
+  --sl-color-gray-3: var(--limn-text-muted);
+  --sl-color-gray-4: var(--limn-outline);
+  --sl-color-gray-5: var(--limn-surface-raised);
+  --sl-color-gray-6: var(--limn-surface);
+  --sl-color-black: var(--limn-background);
+  --sl-color-bg: var(--limn-background);
+  --sl-color-bg-nav: var(--limn-background);
+  --sl-color-bg-sidebar: var(--limn-background);
+  --sl-color-bg-inline-code: var(--limn-surface);
+  --sl-color-hairline: color-mix(in srgb, var(--limn-outline) 40%, transparent);
+  --sl-color-hairline-light: color-mix(in srgb, var(--limn-outline) 28%, transparent);
+  --sl-color-hairline-shade: color-mix(in srgb, var(--limn-outline) 40%, transparent);
+  --sl-color-text: var(--limn-text);
+  --sl-color-text-accent: var(--limn-primary);
+  --sl-color-text-invert: var(--limn-on-primary);
+
+  /* The guide is prose with wide code samples in it, so it gets a wider measure than
+     Starlight's default and a slightly larger body size to match the marketing pages. */
+  --sl-content-width: 48rem;
+  --sl-text-body: 1rem;
+
+  /* The bar's height, pinned to the shared value. Starlight's own default grows from
+     3.5rem to 4rem at 50rem, which is exactly the width at which a reader is most likely
+     to have the guide and another page of the site open side by side. The vertical padding
+     goes with it: the bar centres its own row, and a second inset would push it out of a
+     fixed-height header. */
+  --sl-nav-height: var(--limn-bar-height);
+  --sl-nav-pad-y: 0rem;
+}
+
+/* Starlight's sidebar button is the guide's mobile menu control, the same job the bar's
+   own button does on the other two surfaces, so it is given the same shape. Its default is
+   a filled circle in the inverted text colour, which beside an outlined square on the page
+   a reader clicked in from reads as a different site. */
+starlight-menu-button button {
+  inline-size: auto;
+  block-size: auto;
+  padding: 0.45rem;
+  border: 1px solid var(--limn-outline);
+  border-radius: 9px;
+  background-color: transparent;
+  color: var(--limn-text-muted);
+  box-shadow: none;
+}
+
+starlight-menu-button button:hover {
+  color: var(--limn-text);
+}
+
+.sl-markdown-content {
+  line-height: 1.7;
+}
+
+.sl-markdown-content :is(h2, h3) {
+  letter-spacing: -0.02em;
+}
+
+/* A rule under every section heading, the same drawing motif the marketing pages use. */
+.sl-markdown-content h2 {
+  padding-block-end: 0.4rem;
+  border-block-end: 1px solid var(--sl-color-hairline-light);
+}
+
+/* Guide pages are wide: several carry tables with long cells and code blocks with long
+   lines. They scroll inside their own box; the page body never scrolls horizontally. */
+.sl-markdown-content :is(table, pre) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.sl-markdown-content table {
+  border-collapse: collapse;
+}
+
+.sl-markdown-content :is(th, td) {
+  padding: 0.5rem 0.9rem;
+  border-block-end: 1px solid var(--sl-color-hairline-light);
+  text-align: start;
+  vertical-align: top;
+}
+
+.sl-markdown-content th {
+  color: var(--limn-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 560;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------------- captured figures
+
+   `{% shot … %}` in a guide page expands to this. The two palettes are both in the HTML
+   and one is hidden per theme, never a script that picks after hydration, which shows a
+   dark screenshot on a white page for a frame. The BASE state must match the tokens' no-JS
+   default, which is light. */
+
+.guide-shot {
+  margin-block: 1.75rem;
+}
+
+.guide-shot .shot {
+  padding: clamp(0.6rem, 2vw, 1rem);
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 14px;
+  background-color: var(--limn-background);
+}
+
+.guide-shot img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: 8px;
+}
+
+.guide-shot figcaption {
+  margin-block-start: 0.7rem;
+  color: var(--limn-text-muted);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+}
+
+.shot__dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  .shot__dark {
+    display: block;
+  }
+  .shot__light {
+    display: none;
+  }
+}
+:root[data-theme="light"] .shot__light {
+  display: block;
+}
+:root[data-theme="light"] .shot__dark {
+  display: none;
+}
+:root[data-theme="dark"] .shot__dark {
+  display: block;
+}
+:root[data-theme="dark"] .shot__light {
+  display: none;
+}
+
+/* Starlight's own no-JS baseline is dark; the mapped tokens' baseline is light. Without
+   this a reader with JavaScript off on a light system got light surfaces under dark UA
+   chrome: scrollbars, form internals. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+  }
+}

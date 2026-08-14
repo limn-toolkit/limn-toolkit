@@ -1,0 +1,461 @@
+/* ==========================================================================
+   Limn UI: the site's stylesheet.
+
+   Colour comes from the toolkit and from nowhere else: the palettes below are
+   generated out of `limn.components.Theme`, so the page and the screenshots on
+   it can never drift apart. Everything this file adds (the type scale, the
+   rhythm, the rules) is web typography the toolkit has no opinion about.
+
+   Regenerate the palettes with `./gradlew :limn-demo:exportThemeTokens`.
+   ========================================================================== */
+
+@import "./tokens.generated.css";
+/* The top bar's one stylesheet, shared with the guide and with the API reference. */
+@import "./bar.css";
+
+/* --------------------------------------------------------------- the reset */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body,
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote,
+dl,
+dd,
+ul,
+ol {
+  margin: 0;
+}
+
+img,
+picture,
+svg,
+video {
+  display: block;
+  max-inline-size: 100%;
+}
+
+/* The user agent's own `[hidden] { display: none }` is a bare element rule, so ANY author
+   `display` on the same element beats it, which is how the component filter came to hide
+   nothing at all: every card carried `display: flex`. */
+[hidden] {
+  display: none !important;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* ------------------------------------------------------------- the measures */
+
+:root {
+  /* A fifth-based scale. Written out rather than computed so a heading's size is
+     a value someone chose, not the output of a ratio nobody can override. */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1.0625rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.4375rem;
+  --text-2xl: clamp(1.625rem, 1.2rem + 1.6vw, 2.125rem);
+  --text-3xl: clamp(2rem, 1.4rem + 2.6vw, 3rem);
+  --text-4xl: clamp(2.5rem, 1.3rem + 5.4vw, 4.5rem);
+
+  --page: 76rem;
+  --prose: 40rem;
+  --gutter: clamp(1.25rem, 4vw, 3rem);
+  --section: clamp(4rem, 8vw, 7.5rem);
+
+  /* Hairlines. The toolkit's outline is solved for a control border, which is
+     heavier than a page rule wants; these are that tone, thinned. */
+  --rule: color-mix(in srgb, var(--limn-outline) 48%, transparent);
+  --rule-soft: color-mix(in srgb, var(--limn-outline) 26%, transparent);
+  --tint: color-mix(in srgb, var(--limn-primary) 6%, var(--limn-background));
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html {
+  /* On the ROOT, not on body: Chromium does not propagate body's clip to the
+     viewport, and the hero's glow is deliberately wider than the text column.
+     `clip` rather than `hidden`, which would create a scroll container and stop
+     the header from sticking. */
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-block-size: 100vh;
+  background-color: var(--limn-background);
+  color: var(--limn-text);
+  font-family: var(--sans);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* --------------------------------------------------------------- typography */
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--limn-text);
+  font-weight: 680;
+  line-height: 1.1;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--text-4xl);
+  line-height: 0.98;
+  letter-spacing: -0.038em;
+}
+
+h2 {
+  font-size: var(--text-3xl);
+  letter-spacing: -0.03em;
+}
+
+h3 {
+  font-size: var(--text-xl);
+}
+
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--limn-primary);
+  text-decoration-color: color-mix(in srgb, var(--limn-primary) 35%, transparent);
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+:where(p, li) > code {
+  padding: 0.1em 0.34em;
+  border-radius: 4px;
+  background-color: var(--limn-surface);
+  color: var(--limn-text);
+  font-size: 0.86em;
+}
+
+/* Focus is a real ring, never a glow: the page stays usable in greyscale and in
+   forced-colors mode. `summary` is focusable in its own right and belongs here. */
+:where(a, button, summary, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--limn-focus-ring);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--limn-primary) 22%, transparent);
+}
+
+/* ------------------------------------------------------------------ layout */
+
+.wrap {
+  inline-size: min(100% - calc(var(--gutter) * 2), var(--page));
+  margin-inline: auto;
+}
+
+.wrap--prose {
+  inline-size: min(100% - calc(var(--gutter) * 2), var(--prose));
+}
+
+.section {
+  padding-block: var(--section);
+}
+
+.section + .section {
+  padding-block-start: 0;
+}
+
+.stack > * + * {
+  margin-block-start: var(--stack-gap, 1rem);
+}
+
+.lede {
+  max-inline-size: 46ch;
+  color: var(--limn-text-muted);
+  font-size: var(--text-lg);
+  line-height: 1.55;
+}
+
+.muted {
+  color: var(--limn-text-muted);
+}
+
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ motifs
+
+   The name means to outline, to draw. The page's own furniture is drawn the same
+   way the mark is: hairlines, corner ticks, and one saturated violet. Nothing
+   here is decoration that also carries state; every state on this site is a
+   contrast change or a real ring. */
+
+/* An overline in the monospace face. It is the one place the site raises its
+   voice, so it is small, spaced, and never more than a few words. */
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-block-end: 1.25rem;
+  color: var(--limn-primary);
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* A corner tick, which is the motif this file already declares above: hairlines, corner
+   ticks, and one saturated violet. The figures draw the same two strokes, so the overline
+   is furniture the reader has already met rather than a mark introduced for one slot.
+
+   Two earlier attempts are worth not repeating. A 1.75rem rule said nothing about the
+   product and read as punctuation that had escaped the sentence. A 2x2 grid of 3px squares
+   said the right thing about a toolkit that places pixels, and could not survive it: at
+   that size the squares fill in on a low-density display and disappear under a phone's
+   text zoom, so the mark was legible only on the machine it was designed on.
+
+   Borders rather than a background, so the two strokes stay 1.5px at every zoom and the
+   box is empty in forced-colors mode instead of a filled block. */
+.eyebrow::before {
+  content: "";
+  inline-size: 9px;
+  block-size: 9px;
+  border-inline-start: 1.5px solid currentColor;
+  border-block-start: 1.5px solid currentColor;
+  /* The tick is drawn from its top-left, so its mass sits above the text's optical centre;
+     the nudge puts the corner on the cap height rather than on the baseline. */
+  transform: translateY(-1px);
+}
+
+/* A heading with the rule running out to the edge of the column. */
+.heading-rule {
+  display: flex;
+  align-items: baseline;
+  gap: clamp(1rem, 3vw, 2.5rem);
+  margin-block-end: 1.25rem;
+}
+
+.heading-rule::after {
+  content: "";
+  flex: 1;
+  block-size: 1px;
+  background-color: var(--rule);
+  translate: 0 -0.35em;
+}
+
+/* A figure plate: the picture, a hairline frame, and four corner ticks. The ticks
+   are the drawing motif and are one gradient each rather than four elements. */
+.plate {
+  position: relative;
+  padding: clamp(0.75rem, 2vw, 1.25rem);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background-color: var(--limn-background);
+}
+
+.plate::before,
+.plate::after {
+  content: "";
+  position: absolute;
+  inline-size: 13px;
+  block-size: 13px;
+  border: 1.5px solid var(--limn-primary);
+  pointer-events: none;
+}
+
+.plate::before {
+  inset-block-start: -1px;
+  inset-inline-start: -1px;
+  border-inline-end: 0;
+  border-block-end: 0;
+  border-start-start-radius: 14px;
+}
+
+.plate::after {
+  inset-block-end: -1px;
+  inset-inline-end: -1px;
+  border-inline-start: 0;
+  border-block-start: 0;
+  border-end-end-radius: 14px;
+}
+
+.plate img {
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: 8px;
+}
+
+.plate__caption {
+  margin-block-start: 0.85rem;
+  padding-inline: 0.15rem;
+  color: var(--limn-text-muted);
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.01em;
+}
+
+/* ----------------------------------------------------------------- controls */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-block-size: 44px;
+  padding-inline: 1.15rem;
+  border: 1px solid var(--limn-outline);
+  border-radius: 10px;
+  background-color: transparent;
+  color: var(--limn-text);
+  font-size: var(--text-sm);
+  font-weight: 560;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 140ms var(--ease),
+    border-color 140ms var(--ease),
+    translate 140ms var(--ease);
+}
+
+.button:hover {
+  background-color: var(--limn-surface);
+  border-color: var(--limn-primary);
+}
+
+.button:active {
+  translate: 0 1px;
+}
+
+/* The accent carries a solved label tone read from the palette, never a CSS
+   filter, which is the defect the toolkit's ramp exists to avoid: a button whose
+   own label gets harder to read while it is being pressed. */
+.button--primary {
+  border-color: transparent;
+  background-color: var(--limn-primary);
+  color: var(--limn-on-primary);
+}
+
+.button--primary:hover {
+  background-color: var(--limn-primary-hover);
+  border-color: transparent;
+}
+
+.button--primary:active {
+  background-color: var(--limn-primary-pressed);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* ------------------------------------------------------------------- light
+
+   One source, at the top of the page, behind the hero. Not a violet haze laid
+   over everything, which is the tell of a page that reached for a gradient instead of a
+   layout. Decoration only: pointer-events off, no state carried. */
+
+.aura {
+  position: relative;
+  isolation: isolate;
+}
+
+.aura::before {
+  content: "";
+  position: absolute;
+  inset-block-start: -14rem;
+  inset-inline: 0;
+  block-size: 46rem;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      58rem 26rem at 62% 16rem,
+      color-mix(in srgb, var(--limn-primary) 14%, transparent) 0%,
+      transparent 68%
+    ),
+    radial-gradient(
+      34rem 20rem at 8% 8rem,
+      color-mix(in srgb, var(--limn-primary) 9%, transparent) 0%,
+      transparent 70%
+    );
+}
+
+/* 3.5% grain over the gradients. A wide, low-alpha gradient bands visibly on an
+   8-bit panel; dithering it is the fix, and inline SVG noise costs no request. */
+.aura::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

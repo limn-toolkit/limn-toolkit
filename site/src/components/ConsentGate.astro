@@ -1,0 +1,28 @@
+---
+/**
+ * The page's half of the consent gate: the text, in the page's language, and the tag that
+ * loads the runtime.
+ *
+ * The runtime is `public/consent.js`, a file rather than a component, because `/api/` is a
+ * generated Javadoc tree that no bundler touches and it has to run the same gate. See the
+ * note at the top of that file.
+ */
+import { messages } from "../i18n";
+import { consentStrings } from "../i18n/shared.mjs";
+import { localePath, type Locale } from "../lib/i18n";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const strings = consentStrings(messages(locale), localePath(base, locale, "privacy/"));
+
+// `<` is escaped rather than trusted: a `</script>` anywhere in a translated string would
+// otherwise close this block and drop the rest of it into the document as markup.
+const json = JSON.stringify(strings).replace(/</g, "\\u003c");
+---
+
+<script type="application/json" id="limn-consent-strings" is:inline set:html={json} />
+<script is:inline defer src={`${base}consent.js`}></script>

@@ -1,0 +1,89 @@
+---
+/**
+ * A marketing page: the shell, the header, the footer, and the alternates.
+ *
+ * Every localized page emits `hreflang` for each published locale plus `x-default`, and a
+ * correct `<html lang>`, and both come from one helper so a page cannot forget either.
+ */
+import Base from "./Base.astro";
+import ConsentGate from "../components/ConsentGate.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import { DEFAULT_LOCALE, alternates, localePath, localeUrl, type Locale } from "../lib/i18n";
+import { languageScript } from "../lib/language-script.mjs";
+import { messages, publishedLocales } from "../i18n";
+
+interface Props {
+  locale: Locale;
+  /** Route below the locale, no leading slash; `""` is the home page. */
+  path?: string;
+  titleKey: Parameters<ReturnType<typeof messages>>[0];
+  descriptionKey: Parameters<ReturnType<typeof messages>>[0];
+  /**
+   * Error pages set this: GitHub Pages serves 404.html for every unknown URL, and a page
+   * that canonicalises those responses to the home page is a soft-404 signal. `noindex`
+   * drops canonical/alternates and asks crawlers to ignore the page instead.
+   */
+  noindex?: boolean;
+}
+
+const { locale, path = "", titleKey, descriptionKey, noindex = false } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const msg = messages(locale);
+// Absolute URLs (canonical, hreflang, og:url) are only honest when the real hostname is
+// configured. With the localhost fallback they would ship `http://localhost:4321/...`
+// into every page's head, which is worse than absent, so they are omitted until SITE_URL is set.
+const siteConfigured = Boolean(process.env.SITE_URL) && !noindex;
+const links = siteConfigured ? alternates(Astro.site, base, publishedLocales(), path) : [];
+const canonical = siteConfigured ? localeUrl(Astro.site, base, locale, path) : undefined;
+// The link-unfurl image: the same kitchen-sink capture the hero shows. Absolute by
+// definition, so it exists only when the real hostname does. WebP, because the gallery
+// publishes AVIF + WebP and nothing else, so pointing this at a `.png` names a file that
+// no longer exists.
+const ogImage = siteConfigured
+  ? new URL(`${base}gallery/showcase-kitchen-dark@2x.webp`, Astro.site).href
+  : undefined;
+
+// The language negotiation, and only on the default locale's routes: a prefixed URL is an
+// explicit request and is never redirected away from. `noindex` pages (the 404 and the
+// moved page) are left alone too, because the reader is already somewhere they did not
+// mean to be and a second involuntary jump is not a kindness.
+//
+// The URLs are resolved HERE, by the same `localePath` the picker's links go through, so
+// the script joins no paths of its own.
+const negotiates = locale === DEFAULT_LOCALE && !noindex && publishedLocales().length > 1;
+const localeUrls = negotiates
+  ? Object.fromEntries(
+      publishedLocales().map((option) => [option, localePath(base, option, path)]),
+    )
+  : {};
+---
+
+<Base title={msg(titleKey)} description={msg(descriptionKey)} lang={locale}>
+  <Fragment slot="head">
+    {/* Before the body, so a reader whose language is published never sees this page
+        paint first. `is:inline` keeps it as written; a bundled module would be deferred,
+        which is exactly one frame too late. */}
+    {negotiates && <script is:inline set:html={languageScript(locale, localeUrls)} />}
+    {canonical && <link rel="canonical" href={canonical} />}
+    {links.map((alt) => <link rel="alternate" hreflang={alt.hreflang} href={alt.href} />)}
+    <meta property="og:title" content={msg(titleKey)} />
+    <meta property="og:description" content={msg(descriptionKey)} />
+    <meta property="og:type" content="website" />
+    {canonical && <meta property="og:url" content={canonical} />}
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    {ogImage && <meta name="twitter:card" content="summary_large_image" />}
+    {noindex && <meta name="robots" content="noindex" />}
+    {/* Forwarded, so a page can add to the head without reaching past this layout. Without
+        it a page's own `slot="head"` is not dropped: it is rendered into the body, which
+        is how a meta refresh ended up as invisible text inside <main>. */}
+    <slot name="head" />
+  </Fragment>
+
+  <SiteHeader locale={locale} path={path} />
+  <main id="content">
+    <slot />
+  </main>
+  <SiteFooter locale={locale} />
+  <ConsentGate locale={locale} />
+</Base>

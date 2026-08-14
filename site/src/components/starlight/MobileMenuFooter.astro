@@ -1,0 +1,87 @@
+---
+/**
+ * Below Starlight's breakpoint the top bar has no room for the site's navigation or the
+ * theme control, so both live here, at the bottom of the open sidebar, which is where a
+ * phone reader looks for them. Without this override they would simply be missing on a
+ * phone, which is the failure mode of replacing Starlight's header.
+ */
+import ThemeToggle from "../ThemeToggle.astro";
+import { messages } from "../../i18n";
+import {
+  DEFAULT_LOCALE,
+  LOCALE_LINK_ATTR,
+  NAV_KEY_ATTR,
+  NAV_LABEL_ATTR,
+  localePath,
+} from "../../lib/i18n";
+
+const locale = DEFAULT_LOCALE;
+const base = import.meta.env.BASE_URL;
+const msg = messages(locale);
+const repo = process.env.REPO_SLUG ?? "limn-ui/limn";
+
+// `continuity` marks a link for the locale-continuity rewrite, so the way out of the guide
+// keeps the language the reader chose on the marketing pages. The script itself comes from
+// the Header override, which renders on the same pages, so do not emit a second copy here.
+// `/api/` and the repository stay unmarked: neither has a locale-routed counterpart, and a
+// rewritten href would point at a page that does not exist.
+// `key` is for `NAV_KEY_ATTR`, and only the words that have a translation carry one: the
+// site's name is a name, and so is GitHub, in all ten catalogs.
+const links: Array<{ href: string; label: string; key?: string; continuity?: string }> = [
+  { href: localePath(base, locale), label: msg("site.name"), continuity: "" },
+  { href: localePath(base, locale, "components/"), label: msg("nav.components"), key: "nav.components", continuity: "components/" },
+  { href: localePath(base, locale, "showcase/"), label: msg("nav.showcase"), key: "nav.showcase", continuity: "showcase/" },
+  { href: `${base}api/`, label: msg("nav.api"), key: "nav.api" },
+  { href: `https://github.com/${repo}`, label: msg("nav.repository") },
+];
+---
+
+<div class="mobile-footer">
+  <nav aria-label={msg("nav.primaryLabel")} {...{ [NAV_LABEL_ATTR]: "nav.primaryLabel" }}>
+    {
+      links.map((link) => (
+        <a
+          href={link.href}
+          {...(link.continuity !== undefined ? { [LOCALE_LINK_ATTR]: link.continuity } : {})}
+          {...(link.key !== undefined ? { [NAV_KEY_ATTR]: link.key } : {})}
+        >
+          {link.label}
+        </a>
+      ))
+    }
+  </nav>
+
+  {/* A name of its own: the guide's header carries the other toggle, and two radio groups
+      sharing a name are one group; see the note on the component. */}
+  <ThemeToggle
+    group="limn-theme-mobile"
+    label={msg("theme.label")}
+    labels={{ system: msg("theme.system"), light: msg("theme.light"), dark: msg("theme.dark") }}
+  />
+</div>
+
+<style>
+  .mobile-footer {
+    display: grid;
+    gap: 1rem;
+    padding-block: 1rem;
+    border-block-start: 1px solid var(--sl-color-gray-6);
+  }
+
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+  }
+
+  nav a {
+    color: var(--limn-text-muted);
+    font-size: 0.875rem;
+    font-weight: 520;
+    text-decoration: none;
+  }
+
+  nav a:hover {
+    color: var(--limn-text);
+  }
+</style>

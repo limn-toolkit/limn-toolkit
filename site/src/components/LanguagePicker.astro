@@ -1,0 +1,185 @@
+---
+/**
+ * The language picker: a disclosure holding one link per published language.
+ *
+ * Links and not a `<select>`, so the control works with scripting off, and so that every
+ * translation is a real URL a search engine can reach, which is the other half of the
+ * `hreflang` promise the page's head makes.
+ *
+ * It appears on the marketing pages and nowhere else. The guide and the API reference are
+ * published in English only, and a picker on those pages could not honour a choice: it
+ * would have to throw the reader from the page they are reading to a home page in another
+ * language. Their header links back here instead, and those bars mark their site-bound
+ * links for `locale-continuity-script.mjs`, so the language chosen here is the one the way
+ * back out lands in.
+ */
+import { messages, publishedLocales } from "../i18n";
+import { LOCALE_NAMES, LOCALE_SHORT_NAMES, localePath, type Locale } from "../lib/i18n";
+
+interface Props {
+  locale: Locale;
+  /** Route below the locale, no leading slash: the same page is what each link opens. */
+  path?: string;
+}
+
+const { locale, path = "" } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const msg = messages(locale);
+const locales = publishedLocales();
+---
+
+{
+  locales.length > 1 && (
+    <details class="lang" data-dismiss>
+      <summary aria-label={`${msg("language.label")}: ${LOCALE_NAMES[locale]}`}>
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M3.6 9h16.8M3.6 15h16.8" />
+          <path d="M11.5 3a17 17 0 0 0 0 18M12.5 3a17 17 0 0 1 0 18" />
+        </svg>
+        <span class="lang__current">{LOCALE_SHORT_NAMES[locale]}</span>
+      </summary>
+
+      <ul class="lang__menu">
+        {locales.map((option) => (
+          <li>
+            <a
+              href={localePath(base, option, path)}
+              lang={option}
+              hreflang={option}
+              data-language={option}
+              aria-current={option === locale ? "true" : undefined}
+            >
+              {LOCALE_NAMES[option]}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
+<style>
+  .lang {
+    position: relative;
+  }
+
+  /* The marker is drawn by the summary's own glyph below, not by the UA triangle. */
+  .lang summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-block: 0.5rem;
+    padding-inline: 0.1rem;
+    color: var(--limn-text-muted);
+    font-size: var(--text-sm);
+    font-weight: 520;
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .lang summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .lang summary:hover {
+    color: var(--limn-text);
+  }
+
+  .lang summary::after {
+    content: "";
+    inline-size: 6px;
+    block-size: 6px;
+    border: solid currentColor;
+    border-width: 0 1.5px 1.5px 0;
+    rotate: 45deg;
+    translate: 0 -2px;
+  }
+
+  .lang[open] summary::after {
+    rotate: 225deg;
+    translate: 0 1px;
+  }
+
+  .lang__menu {
+    position: absolute;
+    inset-block-start: calc(100% + 0.4rem);
+    inset-inline-end: 0;
+    z-index: 30;
+    min-inline-size: 12rem;
+    max-block-size: min(70vh, 24rem);
+    overflow-y: auto;
+    padding: 0.35rem;
+    border: 1px solid var(--limn-outline);
+    border-radius: 12px;
+    background-color: var(--limn-background);
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--limn-focus-ring) 18%, transparent);
+    list-style: none;
+  }
+
+  .lang__menu a {
+    display: block;
+    padding: 0.5rem 0.65rem;
+    border-radius: 8px;
+    color: var(--limn-text);
+    font-size: var(--text-sm);
+    text-decoration: none;
+  }
+
+  .lang__menu a:hover {
+    background-color: var(--limn-surface);
+  }
+
+  /* A weight and a leading tick, not colour alone, so the current row still reads in
+     greyscale and in forced-colors mode. */
+  .lang__menu a[aria-current] {
+    font-weight: 620;
+  }
+
+  .lang__menu a[aria-current]::before {
+    content: "✓ ";
+    color: var(--limn-primary);
+  }
+
+  .lang__menu a:not([aria-current])::before {
+    content: "";
+    display: inline-block;
+    inline-size: 1.15em;
+  }
+
+  /* Inside the bar's own dropdown the picker is one row of a column, and its menu drops
+     from the start edge; anchored to the end edge it would leave the panel. */
+  @media (max-width: 50rem) {
+    .lang__menu {
+      inset-inline: 0 auto;
+    }
+  }
+</style>
+
+<script>
+  import { LANGUAGE_STORAGE_KEY } from "../lib/language-script.mjs";
+
+  // Choosing here is what makes a language stick: the negotiation in the page head reads
+  // this key and never writes it, so what the browser asks for stays a first guess and
+  // what the reader picks is the answer.
+  //
+  // Without this script the links still navigate; the choice simply is not remembered,
+  // which is the right way for it to degrade.
+  for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-language]")) {
+    link.addEventListener("click", (event) => {
+      const chosen = link.dataset.language;
+      if (!chosen) return;
+      try {
+        localStorage.setItem(LANGUAGE_STORAGE_KEY, chosen);
+      } catch {
+        // Storage blocked: the navigation below still takes the reader where they asked.
+      }
+      // Picking the language already on screen is a decision, not a navigation. Reloading
+      // the identical page to record it would throw away their scroll position.
+      if (link.getAttribute("aria-current") === "true") {
+        event.preventDefault();
+        link.closest("details")?.removeAttribute("open");
+      }
+    });
+  }
+</script>

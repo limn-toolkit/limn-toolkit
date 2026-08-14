@@ -1,0 +1,142 @@
+---
+/**
+ * A capture, in both palettes, swapped in CSS.
+ *
+ * Both variants are in the HTML and one is hidden per theme, never a JavaScript pick.
+ * The picture has to be correct in the same paint as the page around it; a script that
+ * chooses after hydration shows a dark screenshot on a white page for a frame.
+ */
+interface ShotImage {
+  avif: string;
+  /**
+   * The `<img src>` last resort: the widest-supported format the gallery publishes.
+   * There is no PNG rail: every browser that renders this site's CSS reads WebP, so a PNG
+   * would be megabytes served to nobody.
+   */
+  webp: string;
+  width: number;
+  height: number;
+  /**
+   * The filmed version, when the entry has one. Its `src` is NOT set here: it is carried on
+   * a data attribute and assigned when a reader asks to play, so a page of thirty cards
+   * downloads thirty stills and no animations.
+   */
+  animation?: { webp: string; frames: number; durationMs: number };
+}
+
+interface Props {
+  images: Record<string, ShotImage>;
+  alt: string;
+  base: string;
+  eager?: boolean;
+  /**
+   * Lets the capture fill its container rather than stopping at its own point size. Every
+   * capture is taken at 2×, so filling is still inside the source resolution. But a
+   * single-widget capture blown up to a column width is a blurry poster of a checkbox,
+   * which is why it is opt-in and off by default.
+   */
+  fill?: boolean;
+  class?: string;
+}
+
+const { images, alt, base, eager = false, fill = false, class: className } = Astro.props;
+const asset = (file: string) => `${base}gallery/${file}`;
+const CAPTURE_SCALE = 2;
+---
+
+<div class:list={["shot", className]}>
+  {
+    (["dark", "light"] as const).map((theme) => {
+      const image = images[theme];
+      if (!image) return null;
+      return (
+        <div class={`shot__${theme}`}>
+        <picture class="shot__still">
+          <source srcset={asset(image.avif)} type="image/avif" />
+          <img
+            src={asset(image.webp)}
+            width={image.width}
+            height={image.height}
+            /* The ceiling, as a custom property rather than a `max-inline-size`: an inline
+               max would beat every stylesheet rule, and a card narrower than the capture
+               needs to win. The rule below composes the two. */
+            style={`--shot-intrinsic: ${image.width * (fill ? CAPTURE_SCALE : 1)}px`}
+            loading={eager ? "eager" : "lazy"}
+            fetchpriority={eager ? "high" : undefined}
+            decoding={eager ? "sync" : "async"}
+            alt={alt}
+          />
+        </picture>
+        {image.animation && (
+          <img
+            class="shot__anim"
+            data-anim
+            data-src={asset(image.animation.webp)}
+            width={image.width}
+            height={image.height}
+            style={`--shot-intrinsic: ${image.width * (fill ? CAPTURE_SCALE : 1)}px`}
+            /* Empty: the still beside it carries the description, and a screen reader
+               announcing the same picture twice is noise. */
+            alt=""
+          />
+        )}
+        </div>
+      );
+    })
+  }
+</div>
+
+<style>
+  .shot {
+    display: grid;
+    justify-items: center;
+  }
+
+  /* Never upscaled past its own resolution: a component capture is a few hundred points
+     wide, and stretched to a feature column it is a blurry poster of a checkbox. It is
+     never wider than what is holding it either. */
+  .shot img {
+    display: block;
+    inline-size: 100%;
+    max-inline-size: min(100%, var(--shot-intrinsic, 100%));
+    block-size: auto;
+    border-radius: 8px;
+  }
+
+  /* The film is present in the markup and absent from the network until it is asked for:
+     it has no `src` until the control assigns one. Never autoplaying is also what makes
+     this honest under `prefers-reduced-motion`: nothing here moves unprompted, so there is
+     no motion to suppress, and a reader who does ask still gets what they asked for. */
+  /* `img.` on both, not the bare class: `.shot img` above sets `display: block` and carries
+     a type selector, so it outweighs a class on its own and the film was never hidden.
+     That is what shifted every filmed card before its first play and left the animation on
+     screen after the stop. */
+  .shot img.shot__anim {
+    display: none;
+  }
+
+  .shot[data-playing] .shot__still {
+    display: none;
+  }
+
+  .shot[data-playing] img.shot__anim {
+    display: block;
+  }
+
+  /* The BASE state must match the tokens' no-JS default, which is light. With the dark
+     image as the default, a no-JS reader on a light-scheme system got every screenshot in
+     the dark palette on a light page, the exact failure this component exists to prevent.
+     The media query supplies the system default; the data-theme rules win in both
+     directions once the inline script has stamped the resolved choice. */
+  .shot__dark {
+    display: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    .shot__dark { display: block; }
+    .shot__light { display: none; }
+  }
+  :root[data-theme="light"] .shot__light { display: block; }
+  :root[data-theme="light"] .shot__dark { display: none; }
+  :root[data-theme="dark"] .shot__dark { display: block; }
+  :root[data-theme="dark"] .shot__light { display: none; }
+</style>

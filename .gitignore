@@ -1,0 +1,85 @@
+.gradle/
+build/
+out/
+
+# The site's toolchain. `site/.gitignore` already covers these under site/, but Astro and
+# pnpm write them wherever they are invoked from, and a command run one directory up leaves
+# a second copy here, which is how an empty `node_modules/` and a generated `.astro/`
+# appeared at the root of a Java repository.
+node_modules/
+dist/
+.astro/
+
+# FFmpeg source, objects and every build tree scripts/build-ffmpeg.sh produces: all of it,
+# including the `player` profile that ships. No binary this project did not write lives in git.
+#
+# What publishes the decoder is the release build, which produces the six desktop slices and
+# packages them into the jar; a developer who wants MP4 locally fetches that payload with
+# scripts/fetch-ffmpeg.sh or builds it with scripts/build-ffmpeg.sh. Neither is required to work
+# on anything else: without a payload the decoder reports itself unavailable, its tests skip, and
+# the rest of the toolkit does not notice.
+#
+# The one thing that must NOT be silent is publishing without it. limn-video-ffmpeg/build.gradle.kts
+# refuses a publish whose payload is absent or short a platform. An empty resource directory
+# contributes nothing rather than failing, so without that check the jar would ship with no decoder
+# in it and one line in the log.
+limn-video-ffmpeg/native/
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+.vscode/
+.classpath
+.project
+.settings/
+bin/
+
+# Editor and tooling state. One machine's local configuration, none of it a fact about the
+# toolkit. Ignored by directory rather than by file: a per-file list misses the next one.
+.playwright-mcp/
+.claude/
+.cursor/
+.continue/
+.codeium/
+.windsurf/
+.gemini/
+.aider*
+graphify-out/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.cursorrules
+.github/copilot-instructions.md
+.mcp.json
+
+# A JVM that dies in native code writes its report where it was started, and this one drives
+# GL, GLFW and a decoder through JNI, so the crash files are the normal outcome of a bad day
+# here, not an exotic case. Heap dumps land the same way, and the benchmarks are what produce
+# them: a 2 GB .hprof is one `git add -A` away from being unpushable.
+hs_err_pid*
+replay_pid*
+*.hprof
+*.log
+
+# macOS resource forks. They appear when this tree is copied through anything that is not
+# APFS (a zip, a USB stick, a network share), and they arrive as a sibling `._name` for
+# every file, which is a few hundred of them.
+._*
+.AppleDouble
+.Spotlight-V100
+.Trashes
+Thumbs.db
+
+# NetBeans and Kotlin's own scratch directory, beside the IntelliJ, Eclipse and VS Code
+# entries above: whoever opens this project should not have to notice.
+nbproject/
+.nb-gradle/
+.kotlin/
+
+# Merge leftovers, and anything an environment file might carry. Neither exists here today;
+# both are cheap insurance on a repository that is public.
+*.orig
+*.rej
+.env
+.env.*

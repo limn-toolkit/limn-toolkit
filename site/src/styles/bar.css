@@ -1,0 +1,359 @@
+/* ==========================================================================
+   The top bar: one stylesheet, three renderers.
+
+   The site's pages render it from `SiteHeader.astro`, the guide from the
+   Starlight header override, and the API reference from static HTML that
+   `scripts/build-api.mjs` writes into every Javadoc page. They are three
+   renderers because the three surfaces are built by three different things;
+   they are ONE look because this file is the only place the look is written.
+   A bar that measured 56px here and 64px there is exactly what a reader
+   notices when clicking from /docs/ to /api/.
+
+   Loaded by `app.css`, by `starlight.css`, and by the concatenation
+   `build-api.mjs` writes next to the Javadoc. Add a fourth surface and it
+   must load this too.
+
+   The mobile rule: below 50rem the navigation collapses behind ONE control
+   on the trailing edge. On the site and in the API reference that control is
+   the `<details>` disclosure below, which needs no script. In the guide it is
+   Starlight's own sidebar button, which was already there; a second
+   hamburger beside it would be the inconsistency, not the fix.
+   ========================================================================== */
+
+:root {
+  /* One height for all three. Starlight's own variable is pinned to it in
+     starlight.css; its default grows at 50rem and would break the match. */
+  --limn-bar-height: 3.5rem;
+  --limn-bar-gap: clamp(0.75rem, 2vw, 1.75rem);
+}
+
+/* The bar brings its own box model. The site's stylesheet sets `border-box` globally and
+   Javadoc's does not, which is the whole reason the same rules measured 57px on one surface
+   and 73px on the other. Nothing about this bar may depend on the page around it. */
+.limn-bar,
+.limn-bar *,
+.limn-bar *::before,
+.limn-bar *::after {
+  box-sizing: border-box;
+}
+
+.limn-bar {
+  border-block-end: 1px solid color-mix(in srgb, var(--limn-outline) 26%, transparent);
+  background-color: var(--limn-background);
+}
+
+/* The site's pages only: the guide and the API reference sit in frames that
+   position their own bar. */
+/*
+ * A sticky bar with a backdrop-filter is the one thing on these pages that costs work on every
+ * scrolled frame: the compositor re-reads and re-filters the full-width strip behind it, and on
+ * the home page what is behind it is two large radial gradients and a noise layer.
+ *
+ * So the filter is kept as small as it can be while still reading as frosted glass:
+ *
+ *  - one function, not two. `saturate()` was a second pass over the same pixels for an effect
+ *    that is nearly invisible at this opacity;
+ *  - a smaller radius. Cost grows with it, and the background below carries more of the
+ *    separation now, which is why that value moved with it.
+ *
+ * If scrolling still stutters on a weak GPU, the next step is not a smaller radius. It is
+ * dropping the filter and making the bar opaque while the page is scrolled, which costs nothing
+ * per frame. That is a visible change, so it is a decision rather than a tweak.
+ */
+.limn-bar--sticky {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 10;
+  background-color: color-mix(in srgb, var(--limn-background) 90%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.limn-bar__inner {
+  display: flex;
+  gap: var(--limn-bar-gap);
+  align-items: center;
+  min-block-size: var(--limn-bar-height);
+}
+
+/* Full-bleed variant, for the frames that supply their own page gutter. */
+.limn-bar__inner--flush {
+  padding-inline: clamp(0.75rem, 3vw, 1.5rem);
+}
+
+.limn-bar__brand {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  text-decoration: none;
+}
+
+.limn-bar__nav ul {
+  display: flex;
+  gap: clamp(0.7rem, 1.6vw, 1.4rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A primary touch control: bare 14px text is a ~18px hit box, under the 24px
+   minimum, and a mis-tap between two links is the likely failure. */
+.limn-bar__nav a {
+  display: inline-block;
+  padding-block: 0.5rem;
+  color: var(--limn-text-muted);
+  font-size: 0.875rem;
+  font-weight: 520;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.limn-bar__nav a:hover,
+.limn-bar__nav a[aria-current="page"] {
+  color: var(--limn-text);
+}
+
+.limn-bar__nav a[aria-current="page"] {
+  box-shadow: inset 0 -2px 0 var(--limn-primary);
+}
+
+.limn-bar__tools {
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+}
+
+.limn-bar__repo {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  padding-block: 0.5rem;
+  color: var(--limn-text-muted);
+  font-size: 0.875rem;
+  font-weight: 520;
+  text-decoration: none;
+}
+
+.limn-bar__repo:hover {
+  color: var(--limn-text);
+}
+
+/* ------------------------------------------------------------- the lockup */
+
+.limn-bar__logo {
+  display: block;
+  block-size: 26px;
+  inline-size: auto;
+}
+
+/* The base state matches the tokens' no-JS default, which is light: the same
+   swap the site's Logo component uses, so a reader never sees dark ink on a
+   dark bar for a frame. */
+.limn-bar__logo--dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .limn-bar__logo--dark {
+    display: block;
+  }
+  :root:not([data-theme="light"]) .limn-bar__logo--light {
+    display: none;
+  }
+}
+:root[data-theme="dark"] .limn-bar__logo--dark {
+  display: block;
+}
+:root[data-theme="dark"] .limn-bar__logo--light {
+  display: none;
+}
+
+/* ---------------------------------------------------- the theme control
+
+   Here and not in `ThemeToggle.astro`, for the same reason as the rest of this
+   file: Astro scopes a component's styles with a hash, and the API reference's
+   copy of this control is static markup no component ever rendered. One control,
+   one appearance, three surfaces. */
+
+.theme-toggle {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0;
+  padding: 2px;
+  border: 1px solid var(--limn-outline);
+  border-radius: var(--limn-radius-medium);
+  background-color: var(--limn-surface);
+}
+
+.theme-toggle__legend {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.theme-toggle__option {
+  display: inline-flex;
+}
+
+/* The input carries focus and state; the span is what is painted. Hiding the
+   input with `display:none` would take it out of the tab order and out of the
+   accessibility tree, which is why it is clipped instead. */
+.theme-toggle__option input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+}
+
+.theme-toggle__option span {
+  display: inline-block;
+  padding-block: 4px;
+  padding-inline: 10px;
+  border-radius: calc(var(--limn-radius-medium) - 2px);
+  color: var(--limn-text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: color 120ms ease-out, background-color 120ms ease-out;
+}
+
+/* A contrast change, not a glow: this still reads in greyscale. The weight is the
+   cue that survives forced-colors mode, where author backgrounds are stripped and
+   the visually-hidden native radio cannot show its check. */
+.theme-toggle__option input:checked + span {
+  background-color: var(--limn-primary);
+  color: var(--limn-on-primary);
+  font-weight: 600;
+}
+
+@media (forced-colors: active) {
+  .theme-toggle__option input:checked + span {
+    outline: 2px solid ButtonText;
+    outline-offset: -2px;
+  }
+}
+
+.theme-toggle__option input:focus-visible + span {
+  outline: 2px solid var(--limn-focus-ring);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------- the menu itself
+
+   A row in the bar on a desktop, a dropdown behind one button on a phone,
+   with the same elements either way, never a second copy of the navigation.
+
+   The collapse is opt-in through `data-collapsible`, which a script sets, and
+   that is deliberate: with no script the panel simply WRAPS onto a second row
+   below the breakpoint, so a reader without JavaScript still has the whole
+   navigation. The button is `hidden` in the markup for the same reason: a
+   control that would open nothing must not be on screen.
+
+   Not a `<details>`: current Chrome hides unopened content through the
+   `::details-content` pseudo-element, which an author `display` on the child no
+   longer overrides, so "inline above the breakpoint, disclosure below it" is
+   not something the element can express any more. */
+
+.limn-bar__menu {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--limn-bar-gap);
+  align-items: center;
+  justify-content: space-between;
+  min-inline-size: 0;
+}
+
+.limn-bar__panel {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--limn-bar-gap);
+  align-items: center;
+  justify-content: space-between;
+  min-inline-size: 0;
+}
+
+.limn-bar__toggle {
+  padding: 0.45rem;
+  border: 1px solid var(--limn-outline);
+  border-radius: 9px;
+  background-color: transparent;
+  color: var(--limn-text-muted);
+  cursor: pointer;
+}
+
+.limn-bar__toggle:hover {
+  color: var(--limn-text);
+}
+
+.limn-bar__toggle svg {
+  display: block;
+}
+
+@media (max-width: 50rem) {
+  /* No script: the bar grows a second row rather than losing its links. */
+  .limn-bar__inner {
+    flex-wrap: wrap;
+    padding-block: 0.5rem;
+  }
+
+  .limn-bar__menu[data-collapsible] {
+    position: relative;
+    flex: 0 0 auto;
+    /* The control sits at the trailing edge, where the guide's sidebar button is. */
+    margin-inline-start: auto;
+    justify-content: flex-end;
+  }
+
+  .limn-bar__menu[data-collapsible]:not([data-open]) .limn-bar__panel {
+    display: none;
+  }
+
+  .limn-bar__menu[data-collapsible] .limn-bar__panel {
+    position: absolute;
+    inset-block-start: calc(100% + 0.5rem);
+    inset-inline-end: 0;
+    z-index: 30;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    inline-size: max-content;
+    min-inline-size: 13rem;
+    max-inline-size: min(80vw, 20rem);
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--limn-outline);
+    border-radius: 12px;
+    background-color: var(--limn-background);
+    box-shadow: 0 14px 36px color-mix(in srgb, var(--limn-focus-ring) 22%, transparent);
+  }
+
+  .limn-bar__menu[data-collapsible] .limn-bar__nav ul {
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .limn-bar__menu[data-collapsible] .limn-bar__tools {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding-block-start: 0.75rem;
+    border-block-start: 1px solid color-mix(in srgb, var(--limn-outline) 40%, transparent);
+  }
+}
+
+/* Above the breakpoint the button never applies, script or no script. */
+@media (min-width: 50.0625rem) {
+  .limn-bar__toggle {
+    display: none;
+  }
+}
+
+/* For the frame that already owns a mobile control: the guide hides these rather
+   than collapsing them, because Starlight's sidebar button opens a menu that
+   carries them (see the MobileMenuFooter override). Declared after the block
+   above so that it wins over `.limn-bar__panel` at equal specificity. */
+@media (max-width: 50rem) {
+  .limn-bar__hide-mobile {
+    display: none;
+  }
+}

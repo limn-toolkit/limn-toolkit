@@ -1,0 +1,30 @@
+{
+  "name": "limn-site",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.1.3",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "sync:docs": "node scripts/sync-docs.mjs",
+    "build:api": "node scripts/build-api.mjs",
+    "build:gallery": "node scripts/build-gallery.mjs",
+    "build:icons": "node scripts/build-icons.mjs",
+    "since:review": "node scripts/since-review.mjs",
+    "generate": "pnpm since:review && pnpm build:gallery && pnpm sync:docs && pnpm build:api && pnpm build:icons",
+    "dev": "pnpm generate && astro dev",
+    "build": "pnpm generate && astro build",
+    "check:links": "node scripts/check-links.mjs",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.3",
+    "@astrojs/starlight": "^0.41.7",
+    "astro": "^7.2.0"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.3"
+  }
+}

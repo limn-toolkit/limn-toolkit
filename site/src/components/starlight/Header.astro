@@ -1,0 +1,137 @@
+---
+/**
+ * The guide's top bar, replacing Starlight's, so that a reader who clicks "Docs" stays on
+ * the same site rather than arriving at a documentation theme that happens to share a
+ * palette. Same mark, same navigation, same theme control, same height as every other page:
+ * the look comes from `src/styles/bar.css`, which all three bars load.
+ *
+ * It is a component of its own rather than `SiteHeader.astro` reused: Starlight's frame
+ * gives this slot a fixed height and supplies the bar's own background, border and
+ * stickiness, and it already owns the mobile control. So this bar hides its links below the
+ * breakpoint instead of collapsing them into a second hamburger; the MobileMenuFooter
+ * override is where they land.
+ *
+ * Search stays Starlight's, and the sidebar toggle is not here at all: the page frame
+ * renders that outside this slot, so it keeps working untouched.
+ */
+import Search from "virtual:starlight/components/Search";
+import ConsentGate from "../ConsentGate.astro";
+import Logo from "../Logo.astro";
+import ThemeToggle from "../ThemeToggle.astro";
+import { messages, prefixedLocales } from "../../i18n";
+import { SHARED_NAV_TRANSLATIONS } from "../../i18n/shared.mjs";
+import {
+  DEFAULT_LOCALE,
+  LOCALE_LINK_ATTR,
+  NAV_KEY_ATTR,
+  NAV_LABEL_ATTR,
+  localeContinuityScript,
+  localePath,
+  navLanguageScript,
+} from "../../lib/i18n";
+
+// The guide is published in English only, so this bar is English and carries no language
+// picker: it could not honour a choice made here without throwing the reader out of the
+// page they are reading. The marketing pages are where the languages are, and a language
+// chosen there survives the trip through here: the links back out are marked below and
+// rewritten to the stored choice by the continuity script this bar emits.
+const locale = DEFAULT_LOCALE;
+const base = import.meta.env.BASE_URL;
+const msg = messages(locale);
+
+// `continuity` is the link's path below the locale segment, for `LOCALE_LINK_ATTR`. Only
+// the links with a locale-routed counterpart carry it: marking Docs or API (the two
+// English-only sections themselves) would rewrite their hrefs to routes that do not exist.
+// `key` rides along for `NAV_KEY_ATTR`: this bar renders in English on an English-only
+// section, and the script below puts the reader's language back into the four words.
+const links: Array<{
+  href: string;
+  key: "nav.components" | "nav.showcase" | "nav.docs" | "nav.api";
+  label: string;
+  current: boolean;
+  continuity?: string;
+}> = [
+  {
+    href: localePath(base, locale, "components/"),
+    key: "nav.components",
+    label: msg("nav.components"),
+    current: false,
+    continuity: "components/",
+  },
+  {
+    href: localePath(base, locale, "showcase/"),
+    key: "nav.showcase",
+    label: msg("nav.showcase"),
+    current: false,
+    continuity: "showcase/",
+  },
+  { href: `${base}docs/`, key: "nav.docs", label: msg("nav.docs"), current: true },
+  { href: `${base}api/`, key: "nav.api", label: msg("nav.api"), current: false },
+];
+---
+
+<div class="limn-bar__inner">
+  <a
+    class="limn-bar__brand"
+    href={localePath(base, locale)}
+    aria-label={msg("site.name")}
+    {...{ [LOCALE_LINK_ATTR]: "" }}
+  >
+    <Logo size={26} lockup />
+  </a>
+
+  <nav
+    class="limn-bar__nav limn-bar__hide-mobile"
+    aria-label={msg("nav.primaryLabel")}
+    {...{ [NAV_LABEL_ATTR]: "nav.primaryLabel" }}
+  >
+    <ul>
+      {
+        links.map((link) => (
+          <li>
+            <a
+              href={link.href}
+              aria-current={link.current ? "page" : undefined}
+              {...(link.continuity !== undefined ? { [LOCALE_LINK_ATTR]: link.continuity } : {})}
+              {...{ [NAV_KEY_ATTR]: link.key }}
+            >
+              {link.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
+
+  <Search />
+
+  <div class="limn-bar__tools limn-bar__hide-mobile">
+    <ThemeToggle
+      label={msg("theme.label")}
+      labels={{ system: msg("theme.system"), light: msg("theme.light"), dark: msg("theme.dark") }}
+    />
+  </div>
+</div>
+
+{/* Rewrites the marked links (here and in the MobileMenuFooter override, which renders on
+    the same pages) to the reader's stored language. English-only pages only: the note in
+    `locale-continuity-script.mjs` is the rule, and the marketing bar must not emit this. */}
+<script is:inline set:html={localeContinuityScript(prefixedLocales())} />
+
+{/* And the words on those links, from the same stored choice. The bar only: the guide
+    under it is English, and `nav-language-script.mjs` says why that boundary is where it
+    is. Same rule as above — English-only pages, never the marketing bar. */}
+<script is:inline set:html={navLanguageScript(SHARED_NAV_TRANSLATIONS, ".limn-bar__inner")} />
+
+{/* Position-independent: it emits a JSON block and a script tag, and this is the one
+    override that renders on every page of the guide. */}
+<ConsentGate locale={locale} />
+
+<style>
+  /* Search and the theme control sit at the trailing edge, the navigation next to the
+     mark, the same order as the site's own bar. `:global` because the search box is
+     Starlight's component and a scoped selector would never reach it. */
+  .limn-bar__inner :global(site-search) {
+    margin-inline-start: auto;
+  }
+</style>

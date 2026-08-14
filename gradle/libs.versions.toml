@@ -1,0 +1,18 @@
+[versions]
+lwjgl = "3.4.1"
+jlayer = "1.0.1"
+junit = "6.1.1"
+
+[libraries]
+lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
+jlayer = { module = "javazoom:jlayer", version.ref = "jlayer" }
+lwjgl-core = { module = "org.lwjgl:lwjgl" }
+lwjgl-glfw = { module = "org.lwjgl:lwjgl-glfw" }
+lwjgl-opengl = { module = "org.lwjgl:lwjgl-opengl" }
+lwjgl-openal = { module = "org.lwjgl:lwjgl-openal" }
+lwjgl-stb = { module = "org.lwjgl:lwjgl-stb" }
+lwjgl-nanovg = { module = "org.lwjgl:lwjgl-nanovg" }
+lwjgl-tinyfd = { module = "org.lwjgl:lwjgl-tinyfd" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

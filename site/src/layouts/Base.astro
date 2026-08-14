@@ -1,0 +1,43 @@
+---
+/**
+ * The page shell. Its one load-bearing job is the inline theme script: it is synchronous,
+ * it is the first thing in `<head>`, and moving it below anything that blocks (a
+ * stylesheet link, a deferred module) reintroduces the flash of the wrong theme that
+ * the reader would otherwise see on every navigation.
+ */
+import { NO_FLASH_SCRIPT, THEME_COLOR_SCRIPT } from "../lib/theme";
+import "../styles/app.css";
+
+interface Props {
+  title: string;
+  description?: string;
+  /** BCP-47 tag for `<html lang>`; every localized page passes its own. */
+  lang?: string;
+}
+
+const { title, description, lang = "en" } = Astro.props;
+---
+
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <script is:inline set:html={NO_FLASH_SCRIPT} />
+    {/* After the no-flash script, because it reads the palette the stylesheet defines and
+        therefore waits for the document rather than racing it; see THEME_COLOR_SCRIPT. */}
+    <script is:inline set:html={THEME_COLOR_SCRIPT} />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href={`${import.meta.env.BASE_URL}favicon.svg`} type="image/svg+xml" />
+    {/* The PNG fallbacks: a browser with no SVG-favicon support takes the 32, and a phone
+        adding the site to its home screen takes the 180. Both are generated from the mark
+        by `pnpm build:icons`, along with the manifest. */}
+    <link rel="icon" href={`${import.meta.env.BASE_URL}icon-32.png`} sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href={`${import.meta.env.BASE_URL}icon-180.png`} />
+    <link rel="manifest" href={`${import.meta.env.BASE_URL}site.webmanifest`} />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    <slot name="head" />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

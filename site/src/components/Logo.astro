@@ -1,0 +1,116 @@
+---
+/**
+ * The mark, and optionally the wordmark locked to it.
+ *
+ * Both variants of the artwork are inlined and one is hidden per theme, exactly as a
+ * screenshot is: the tones are baked into the delivered SVG, so there is no version that
+ * follows a custom property, and a script that picked after hydration would show dark ink
+ * on a dark header for a frame.
+ *
+ * The paths are the delivered artwork verbatim: `src/brand/limn-{symbol,lockup}-*.svg`.
+ * They are NOT repainted to the toolkit's accent: the brand's violet is its own, and the
+ * one place that matters is here.
+ */
+interface Props {
+  /** Rendered height in px. The lockup's width follows its own ratio. */
+  size?: number;
+  /** Draws the wordmark beside the mark. */
+  lockup?: boolean;
+  /** Accessible name; omit for a mark that sits beside the name in text. */
+  title?: string;
+}
+
+const { size = 32, lockup = false, title } = Astro.props;
+const width = lockup ? Math.round((size * 210) / 64) : size;
+const viewBox = lockup ? "0 0 210 64" : "0 0 64 64";
+
+// light = dark ink for a light background; dark = light ink for a dark one.
+const INK = { light: "#23252f", dark: "#e9e9ed" };
+const RULE = { light: "#7a6cc9", dark: "#9184d9" };
+const FILL = { light: "rgba(122,108,201,0.08)", dark: "rgba(145,132,217,0.10)" };
+const RULE_OPACITY = { light: "0.8", dark: "0.75" };
+---
+
+<span class="logo" style={`--logo-h:${size}px;--logo-w:${width}px`}>
+  {
+    (["light", "dark"] as const).map((scheme) => (
+      <svg
+        class={`logo__${scheme}`}
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox={viewBox}
+        width={width}
+        height={size}
+        role={title ? "img" : "presentation"}
+        aria-hidden={title ? undefined : "true"}
+      >
+        {title && <title>{title}</title>}
+        <path
+          d="M18 16 L28 16 L28 44 L48 44 L48 54 L18 54 Z"
+          fill="none"
+          stroke={RULE[scheme]}
+          stroke-width="2"
+          opacity={RULE_OPACITY[scheme]}
+          stroke-linejoin="round"
+        />
+        <path
+          d="M14 12 L24 12 L24 40 L44 40 L44 50 L14 50 Z"
+          fill={FILL[scheme]}
+          stroke={INK[scheme]}
+          stroke-width="2.6"
+          stroke-linejoin="round"
+        />
+        {lockup && (
+          <text
+            x="76"
+            y="44"
+            font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+            font-size="34"
+            font-weight="500"
+            letter-spacing="0.3"
+            fill={INK[scheme]}
+          >
+            limn
+          </text>
+        )}
+      </svg>
+    ))
+  }
+</span>
+
+<style>
+  .logo {
+    display: inline-flex;
+    flex: none;
+    inline-size: var(--logo-w);
+    block-size: var(--logo-h);
+  }
+
+  .logo svg {
+    display: block;
+  }
+
+  /* The base state matches the tokens' no-JS default, which is light. */
+  .logo__dark {
+    display: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    .logo__dark {
+      display: block;
+    }
+    .logo__light {
+      display: none;
+    }
+  }
+  :root[data-theme="light"] .logo__light {
+    display: block;
+  }
+  :root[data-theme="light"] .logo__dark {
+    display: none;
+  }
+  :root[data-theme="dark"] .logo__dark {
+    display: block;
+  }
+  :root[data-theme="dark"] .logo__light {
+    display: none;
+  }
+</style>

@@ -1,0 +1,23 @@
+{
+  "$comment": [
+    "What this site's CONTENT was last read against, not what the last build ran on.",
+    "The footer already records the build's commit, and that one moves every time anyone",
+    "types `pnpm build`. This one moves only when somebody has gone through the toolkit's",
+    "changes and updated the pages for them, so the difference between the two is exactly",
+    "the set of commits the site has not been told about yet.",
+    "",
+    "`pnpm since:review` prints that set, and `pnpm generate` runs it. Read them, update",
+    "the pages that need it, then move `contentReviewedAt` to the commit you read up to."
+  ],
+  "contentReviewedAt": "ee43d13c9ab4c2bd9848549a83b4f384c1f13936",
+  "contentReviewedOn": "2026-08-11",
+  "coveredByThatReview": [
+    "The natives travel with the backend now: the published artifact declares every desktop platform, so the classifier dance both pages taught is gone: /docs/install/ and /docs/packaging/",
+    "The library modules publish to a local Maven repository, so the install page finally says where its coordinates resolve from: /docs/install/",
+    "The FFmpeg decoder ships inside its jar for macOS on both architectures, with the LGPL text and notice riding along, and both pages said the native is never published: /docs/images-and-media/ and /docs/packaging/",
+    "What a modal blocks: a non-modal panel freezes under a modal while dropdowns stay live, and an in-scene dialog over a locked window opens native and says so through displayMode(): /docs/menus-and-dialogs/",
+    "A machine can be asked which graphics stack it gave Limn, and Backend.graphicsInfo() joins the pre-flight checklist: /docs/packaging/",
+    "Read and needed no page change: the filmed gallery and the guide examples becoming compiled classes (the site's own machinery, where every snippet region and shot id the guides name still resolves), the demo transport's glass buttons, the Windows build path for the decoder's native (the published jar still carries macOS only), the ADR corrections, the review brief, and the root .gitignore",
+    "Read and needed no page change: the decoder's native building on Windows ARM64 and the two loader tests becoming portable, which is contributor-side plumbing; what the published jar carries did not move"
+  ]
+}

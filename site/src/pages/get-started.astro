@@ -1,0 +1,43 @@
+---
+/**
+ * `/get-started/` used to be a page of its own and is now the guide's first chapter. The
+ * route stays as a redirect rather than becoming a 404: it is the URL anyone who saw this
+ * site early would have bookmarked, and the shortest sentence about a moved page is the
+ * page it moved to.
+ *
+ * Meta refresh rather than a header, because a static host serves files and cannot be told
+ * to answer 301, and the link below it is what a reader gets if the refresh is blocked.
+ */
+import Page from "../layouts/Page.astro";
+import { messages } from "../i18n";
+import { DEFAULT_LOCALE } from "../lib/i18n";
+
+const locale = DEFAULT_LOCALE;
+const msg = messages(locale);
+const base = import.meta.env.BASE_URL;
+const target = `${base}docs/install/`;
+---
+
+<Page locale={locale} titleKey="moved.title" descriptionKey="moved.body" noindex>
+  <Fragment slot="head">
+    <meta http-equiv="refresh" content={`0; url=${target}`} />
+    <link rel="canonical" href={target} />
+  </Fragment>
+
+  <section class="section aura">
+    <div class="wrap wrap--prose">
+      <p class="eyebrow">{msg("moved.eyebrow")}</p>
+      <h1>{msg("moved.heading")}</h1>
+      <p class="lede">{msg("moved.body")}</p>
+      <div class="button-row">
+        <a class="button button--primary" href={target}>{msg("moved.link")}</a>
+      </div>
+    </div>
+  </section>
+</Page>
+
+<style>
+  .lede {
+    margin-block: 1.25rem 2rem;
+  }
+</style>

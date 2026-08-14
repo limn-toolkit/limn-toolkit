@@ -1,0 +1,185 @@
+---
+/**
+ * The gallery. Every entry comes from the manifest the capture run wrote, so adding a scene
+ * to the demo adds it here and no list is maintained twice.
+ *
+ * The filter is one of the two interactive pieces on this surface. It is a few lines of
+ * inline script over markup that is already complete: with JavaScript off, every card is
+ * present and the field is simply gone.
+ */
+import Page from "../../layouts/Page.astro";
+import GalleryCard from "../../components/GalleryCard.astro";
+import { localeRoutes, messages } from "../../i18n";
+import type { Locale } from "../../lib/i18n";
+import gallery from "../../generated/gallery.json";
+
+export const getStaticPaths = localeRoutes;
+
+const { locale } = Astro.props as { locale: Locale };
+const msg = messages(locale);
+const base = import.meta.env.BASE_URL;
+// Manifest order, deliberately not sorted: the capture writes the entries in the order
+// `GalleryScenes.entries()` declares them, which runs from what nearly every window needs
+// to what almost none does. Sorting here, as this page did alphabetically, threw that
+// away and opened the gallery on BackdropPanel.
+const entries = gallery.entries;
+
+// What a reader types into the filter is not always the class name: they arrive with the
+// vocabulary of HTML, Swing, or the last toolkit they used. Each list is the honest set of
+// other names for that entry: a word belongs here only if a reader searching it should
+// land on this card. Padding an entry with loose associations to make it "findable" makes
+// the filter lie, and that is the wrong edit this comment exists to prevent. Titles and
+// entry ids match already; never repeat them here.
+const FILTER_KEYWORDS: Record<string, string[]> = {
+  "text-field": ["input", "textbox"],
+  "text-area": ["input", "multiline"],
+  checkbox: ["toggle"],
+  "combo-box": ["dropdown", "select"],
+  "list-view": ["listbox"],
+  dialog: ["modal", "popup"],
+  "tabbed-pane": ["tabs"],
+  separator: ["divider"],
+  "progress-bar": ["loading"],
+  "progress-indeterminate": ["loading", "busy", "spinner"],
+  "image-view": ["picture", "photo"],
+  slider: ["range"],
+  spinner: ["stepper", "number"],
+  "split-pane": ["splitter", "divider"],
+  "segmented-control": ["toggle"],
+  "bar-chart": ["graph"],
+  "line-chart": ["graph", "plot"],
+  "donut-chart": ["graph", "pie"],
+  "color-picker": ["colour", "palette"],
+  "backdrop-panel": ["blur", "glass", "frosted"],
+  "video-view": ["player", "media"],
+  "viewport-3d": ["scene", "opengl"],
+};
+
+// A renamed or retired entry must not leave its synonyms behind silently; the words would
+// simply stop matching anything and nobody would notice. Failing the build is the notice.
+{
+  const known = new Set(entries.map((entry) => entry.id));
+  for (const id of Object.keys(FILTER_KEYWORDS)) {
+    if (!known.has(id)) {
+      throw new Error(`components.astro: FILTER_KEYWORDS names "${id}", which is not in the gallery manifest`);
+    }
+  }
+}
+---
+
+<Page
+  locale={locale}
+  path="components/"
+  titleKey="components.title"
+  descriptionKey="components.description"
+>
+  <section class="section aura">
+    <div class="wrap">
+      <p class="eyebrow">{msg("components.eyebrow")}</p>
+      <div class="head">
+        <h1>{msg("components.heading")}</h1>
+        <p class="lede">{msg("components.lede")}</p>
+      </div>
+
+      <div class="filter" data-filter>
+        <label class="sr-only" for="component-filter">{msg("components.filterLabel")}</label>
+        <input
+          id="component-filter"
+          type="search"
+          placeholder={msg("components.filterPlaceholder")}
+          autocomplete="off"
+          hidden
+        />
+      </div>
+
+      <div class="grid" data-grid>
+        {
+          entries.map((entry) => (
+            <GalleryCard
+              id={entry.id}
+              title={entry.title}
+              snippet={entry.snippet}
+              images={entry.images}
+              base={base}
+              keywords={FILTER_KEYWORDS[entry.id]}
+              showCodeLabel={msg("components.showCode")}
+              copyLabel={msg("codeBlock.copy")}
+              copiedLabel={msg("codeBlock.copied")}
+              playLabel={msg("components.play")}
+              stopLabel={msg("components.stop")}
+              note={entry.id === "video-view" ? msg("components.videoNote") : undefined}
+            />
+          ))
+        }
+      </div>
+      <p class="empty" data-empty hidden>{msg("components.empty")}</p>
+    </div>
+  </section>
+</Page>
+
+<style>
+  .head {
+    display: grid;
+    gap: 1.25rem;
+    max-inline-size: 60rem;
+  }
+
+  .head .lede {
+    max-inline-size: 58ch;
+  }
+
+  .filter {
+    margin-block: 2.5rem 1.75rem;
+  }
+
+  .filter input {
+    inline-size: min(100%, 20rem);
+    min-block-size: 44px;
+    padding-inline: 0.9rem;
+    border: 1px solid var(--limn-outline);
+    border-radius: 10px;
+    background-color: var(--limn-background);
+    color: var(--limn-text);
+    font-size: var(--text-sm);
+  }
+
+  .filter input::placeholder {
+    color: var(--limn-text-muted);
+  }
+
+  .grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
+  }
+
+  .empty {
+    margin-block-start: 2rem;
+    color: var(--limn-text-muted);
+  }
+</style>
+
+<script>
+  const field = document.querySelector<HTMLInputElement>("[data-filter] input");
+  const grid = document.querySelector<HTMLElement>("[data-grid]");
+  const empty = document.querySelector<HTMLElement>("[data-empty]");
+  if (field && grid && empty) {
+    // Rendered hidden and revealed here: a filter field that does nothing is worse than no
+    // field, and without a script this one would do nothing.
+    field.hidden = false;
+    field.addEventListener("input", () => {
+      // Word by word, each a substring, all required: "text field" and "field text" both
+      // find TextField. Matching the query as one string would make word order and every
+      // stray space significant, which is exactly what a reader's typing is not.
+      const tokens = field.value.toLowerCase().split(/\s+/).filter(Boolean);
+      let shown = 0;
+      for (const card of grid.querySelectorAll<HTMLElement>("[data-name]")) {
+        const name = card.dataset.name ?? "";
+        const match = tokens.every((token) => name.includes(token));
+        card.hidden = !match;
+        if (match) shown++;
+      }
+      empty.hidden = shown > 0;
+    });
+  }
+</script>

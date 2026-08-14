@@ -1,0 +1,123 @@
+---
+/**
+ * A capture presented as a plate: hairline frame, corner ticks, caption underneath. The
+ * ticks are the site's drawing motif and come from `.plate` in app.css, so a figure here
+ * and a figure in the guide are the same object.
+ *
+ * When the capture carries a film, the plate gets a play control. It is not optional and not a
+ * prop: `Screenshot` publishes the film into the markup with no `src`, so a plate that omitted
+ * the control would ship the bytes of a film nobody can start, which is exactly what the
+ * showcase page did until the control moved here.
+ */
+import Screenshot from "./Screenshot.astro";
+
+interface Props {
+  images: Record<
+    string,
+    /** `webp` is the `<img src>` last resort: the gallery publishes no PNG. */
+    {
+      avif: string;
+      webp: string;
+      width: number;
+      height: number;
+      animation?: { webp: string; frames: number; durationMs: number };
+    }
+  >;
+  alt: string;
+  base: string;
+  caption?: string;
+  eager?: boolean;
+  /** Labels for the play control. Required only when a capture here has a film. */
+  playLabel?: string;
+  stopLabel?: string;
+}
+
+const { images, alt, base, caption, eager = false, playLabel, stopLabel } = Astro.props;
+
+// One control per plate, however many palettes it holds: the two variants are the same film and
+// only one of them is on screen. The control toggles the plate, and CSS decides which is visible.
+const filmed = Object.values(images).some((image) => image.animation);
+---
+
+<figure class="figure" data-film={filmed ? "" : undefined}>
+  <div class="plate">
+    <Screenshot images={images} alt={alt} base={base} eager={eager} fill />
+    {
+      filmed && (
+        <button
+          class="figure__play"
+          type="button"
+          hidden
+          aria-pressed="false"
+          data-play
+          data-play-label={playLabel}
+          data-stop-label={stopLabel}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path class="figure__glyph-play" d="M8 5.5v13l11-6.5z" fill="currentColor" />
+            <path class="figure__glyph-stop" d="M7 7h10v10H7z" fill="currentColor" />
+          </svg>
+          <span data-play-text>{playLabel}</span>
+        </button>
+      )
+    }
+  </div>
+  {caption && <figcaption class="plate__caption">{caption}</figcaption>}
+</figure>
+
+<style>
+  .figure {
+    margin: 0;
+  }
+
+  /* The plate is the positioning context, so the control sits over the capture's own corner
+     rather than under the caption, where a reader looking at the picture would not find it. */
+  .figure :global(.plate) {
+    position: relative;
+  }
+
+  .figure__play {
+    position: absolute;
+    inset-block-end: clamp(1.15rem, 2.5vw, 1.65rem);
+    inset-inline-end: clamp(1.15rem, 2.5vw, 1.65rem);
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
+    /* Tighter on the icon side than on the label side, so the glyph is not floating in a gap
+       twice its own size, the same asymmetry the gallery card's control uses. */
+    padding: 0.2rem 0.7rem 0.2rem 0.45rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    /* Opaque, not tinted: it lands on a screenshot, and a translucent control over a window
+       full of controls reads as part of the window. */
+    background-color: var(--limn-background);
+    color: var(--limn-text);
+    font-family: var(--mono);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+
+  .figure__play:hover {
+    border-color: var(--limn-primary);
+    color: var(--limn-primary);
+  }
+
+  .figure__glyph-stop {
+    display: none;
+  }
+
+  .figure__play[aria-pressed="true"] .figure__glyph-play {
+    display: none;
+  }
+
+  .figure__play[aria-pressed="true"] .figure__glyph-stop {
+    display: inline;
+  }
+</style>
+
+<script>
+  // Shared with the component gallery's cards; see src/lib/film-toggle.ts.
+  import { bindFilmControls } from "../lib/film-toggle";
+
+  bindFilmControls();
+</script>

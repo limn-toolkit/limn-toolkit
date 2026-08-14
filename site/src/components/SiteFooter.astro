@@ -1,0 +1,103 @@
+---
+/**
+ * The site's footer: the mark, the project links, nothing about how this build was made.
+ *
+ * There is deliberately no build provenance here: no commit, no timestamp. Which commit the
+ * pages were generated from is a fact about this repository's working state, and a reader
+ * building an application has no use for it; the repository link is the thing they can act on.
+ */
+import Logo from "./Logo.astro";
+import { messages } from "../i18n";
+import { localePath, type Locale } from "../lib/i18n";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const msg = messages(locale);
+
+const repo = process.env.REPO_SLUG ?? "limn-ui/limn";
+---
+
+<footer class="footer">
+  <div class="footer__inner wrap">
+    <div class="footer__brand">
+      <Logo size={22} lockup title={msg("site.name")} />
+      <span class="footer__tagline">{msg("site.tagline")}</span>
+    </div>
+
+    <nav aria-label={msg("footer.linksLabel")}>
+      <a href={`${base}docs/`}>{msg("nav.docs")}</a>
+      <a href={`${base}api/`}>{msg("nav.api")}</a>
+      <a href={localePath(base, locale, "licence/")}>{msg("nav.licence")}</a>
+      <a href={localePath(base, locale, "privacy/")}>{msg("nav.privacy")}</a>
+      <a href={`https://github.com/${repo}`}>{msg("nav.repository")}</a>
+    </nav>
+
+  </div>
+</footer>
+
+<style>
+  .footer {
+    margin-block-start: var(--section);
+    border-block-start: 1px solid var(--rule-soft);
+  }
+
+  .footer__inner {
+    display: grid;
+    gap: 1.5rem;
+    padding-block: 2.5rem 3.5rem;
+  }
+
+  @media (min-width: 52rem) {
+    .footer__inner {
+      grid-template-columns: 1fr auto;
+      align-items: start;
+    }
+
+  }
+
+  .footer__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--limn-text);
+    font-weight: 640;
+    letter-spacing: -0.02em;
+  }
+
+  .footer__tagline {
+    padding-inline-start: 0.65rem;
+    border-inline-start: 1px solid var(--rule);
+    color: var(--limn-text-muted);
+    font-size: var(--text-sm);
+    font-weight: 400;
+    letter-spacing: normal;
+  }
+
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+  }
+
+  nav a {
+    color: var(--limn-text-muted);
+    font-size: var(--text-sm);
+    text-decoration: none;
+  }
+
+  nav a:hover {
+    color: var(--limn-primary);
+  }
+
+
+
+  @media (max-width: 34rem) {
+    .footer__tagline {
+      display: none;
+    }
+  }
+</style>

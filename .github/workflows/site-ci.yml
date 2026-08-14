@@ -1,0 +1,125 @@
+# Pull-request gate for the Limn site: build everything, deploy nothing.
+#
+# The whole pipeline runs here, not just the Node half, because every page is generated
+# from this repository's own sources: a Java change can break a screenshot, a Javadoc
+# page or a code sample, and only the full build says so before the merge. It also runs
+# `./gradlew check` on a runner, which is the proof that the site's presence does not
+# affect the toolkit's own gate (see docs/design/website.md).
+
+name: site-ci
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One live run per branch: a force-push mid-build otherwise leaves two runs racing to
+# report on the same PR, and the stale one can finish last.
+concurrency:
+  group: site-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # Temurin 17, because the build itself targets 17: every module compiles with
+      # `options.release.set(17)` and the aggregate Javadoc links the Java 17 API.
+      # Raising this without raising those lets 18+ API slip into review builds that the
+      # published jars' own compile then rejects.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Caches the wrapper and the dependency cache; nothing else about the Gradle build
+      # is configured here, so the workflow cannot drift from what a developer runs.
+      - uses: gradle/actions/setup-gradle@v4
+
+      # GLFW needs a display and Mesa needs its software rasteriser: llvmpipe provides
+      # the OpenGL 3.3 core profile the backend requires, with no GPU on the runner.
+      # Trimming this list does not fail the install step; it fails GLFW initialisation
+      # later, inside a Gradle task, where the cause is much harder to read.
+      - name: Install Xvfb and Mesa
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libgl1-mesa-dri libglx-mesa0 libxrandr2 libxinerama1 \
+            libxcursor1 libxi6 libxxf86vm1
+
+      # Under xvfb-run so GL-backed tests get a real context instead of skipping.
+      - name: Gradle check
+        run: xvfb-run -a ./gradlew check
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+
+      # The three generators, in the order the site build consumes them. None is wired
+      # into `check` (the site is a consumer of this repository, not a module of it),
+      # so each is invoked by name.
+      - name: Export theme tokens
+        run: ./gradlew :limn-demo:exportThemeTokens
+
+      - name: Aggregate Javadoc
+        run: ./gradlew aggregateJavadoc
+
+      - name: Capture the component gallery
+        run: xvfb-run -a ./gradlew :limn-demo:captureGallery
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+
+      # pnpm before setup-node: setup-node's `cache: pnpm` shells out to pnpm to locate
+      # the store, so reversing these two steps fails the cache setup. The version comes
+      # from `packageManager` in site/package.json and from nowhere else.
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: site/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+
+      - name: Install site dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: site
+
+      # SITE_URL/SITE_BASE are derived from the repository slug rather than read from the
+      # Pages API: actions/configure-pages needs permissions a fork PR's token does not
+      # have, and Pages may not even be enabled yet. The deploy workflow uses the real
+      # values; here they only give the reviewed artifact realistic canonical and
+      # hreflang URLs. Removing this env block does not fall back to a default;
+      # site/astro.config.ts refuses any CI build without SITE_URL.
+      - name: Build the site
+        run: pnpm build
+        working-directory: site
+        env:
+          SITE_URL: https://${{ github.repository_owner }}.github.io
+          SITE_BASE: /${{ github.event.repository.name }}
+          REPO_SLUG: ${{ github.repository }}
+
+      # Every internal link and asset reference in the build, resolved against the files it
+      # emitted. It belongs here rather than in the deploy workflow for the reason this gate
+      # exists: a broken link should stop the pull request, and a check that can veto a deploy
+      # after the merge already happened is a check that gets disabled.
+      #
+      # SITE_BASE must be the one the build above used. Check a base-path build without it and
+      # every root-absolute href is reported as leaving the site.
+      - name: Check internal links
+        run: pnpm check:links
+        working-directory: site
+        env:
+          SITE_BASE: /${{ github.event.repository.name }}
+
+      # The built site, so a reviewer can look at the pages a PR produces without
+      # checking the branch out and rebuilding.
+      - name: Upload the built site
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-dist
+          path: site/dist

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.astro/
+
+# Generated at build time, never authored. Each has a generator and a documented command;
+# a checked-in copy is a second source of truth, and it drifts.
+#
+# `captures/` is the pristine gallery input (`./gradlew :limn-demo:captureGallery`);
+# `public/gallery/` is the derivative `pnpm build:gallery` cuts from it. Both are
+# generated, so both are ignored, but they are not interchangeable: the captures are the
+# only copy the derivation may read.
+captures/
+src/styles/tokens.generated.css
+src/content/docs/
+src/generated/
+public/gallery/
+public/api/
+public/icon-*.png
+public/site.webmanifest

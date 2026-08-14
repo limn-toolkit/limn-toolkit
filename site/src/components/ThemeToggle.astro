@@ -1,0 +1,98 @@
+---
+/**
+ * Three states (system, light, dark) as a real radio group, so it is operable from the
+ * keyboard and announced as a choice rather than as three unrelated buttons.
+ *
+ * `system` is a state and not the absence of one: it is the default, and choosing it back
+ * again has to be possible after an explicit choice, which a two-state toggle cannot do.
+ */
+import { THEME_STORAGE_KEY } from "../lib/theme";
+
+interface Props {
+  /** Accessible name for the group; translated by the caller. */
+  label: string;
+  labels: { system: string; light: string; dark: string };
+  /**
+   * The radio group's `name`, and it must be UNIQUE ON THE PAGE. Radio buttons are grouped
+   * by name across the whole document, not by their fieldset: a second toggle sharing this
+   * value joins the first one's group, and checking either clears the other, which is how
+   * the guide's header and its mobile menu ended up with no selected option at all.
+   */
+  group?: string;
+}
+
+const { label, labels, group = "limn-theme" } = Astro.props;
+const options = [
+  { value: "system", label: labels.system },
+  { value: "light", label: labels.light },
+  { value: "dark", label: labels.dark },
+] as const;
+---
+
+<fieldset class="theme-toggle" data-theme-toggle data-storage-key={THEME_STORAGE_KEY}>
+  <legend class="theme-toggle__legend">{label}</legend>
+  {
+    options.map((option) => (
+      <label class="theme-toggle__option">
+        <input type="radio" name={group} value={option.value} />
+        <span>{option.label}</span>
+      </label>
+    ))
+  }
+</fieldset>
+
+<script>
+  import { THEME_STORAGE_KEY, fromStored, toStored, type ThemeChoice } from "../lib/theme";
+
+  function resolve(choice: ThemeChoice): "light" | "dark" {
+    if (choice !== "system") return choice;
+    return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+
+  function stored(): ThemeChoice {
+    try {
+      return fromStored(localStorage.getItem(THEME_STORAGE_KEY));
+    } catch {
+      return "system";
+    }
+  }
+
+  function apply(choice: ThemeChoice) {
+    document.documentElement.setAttribute("data-theme", resolve(choice));
+  }
+
+  const groups = document.querySelectorAll<HTMLElement>("[data-theme-toggle]");
+
+  /** Every toggle on the page shows the same choice, because a page may carry more than one. */
+  function show(choice: ThemeChoice) {
+    for (const group of groups) {
+      for (const input of group.querySelectorAll<HTMLInputElement>('input[type="radio"]')) {
+        input.checked = input.value === choice;
+      }
+    }
+  }
+
+  show(stored());
+
+  for (const group of groups) {
+    for (const input of group.querySelectorAll<HTMLInputElement>('input[type="radio"]')) {
+      input.addEventListener("change", () => {
+        if (!input.checked) return;
+        const next = input.value as ThemeChoice;
+        try {
+          localStorage.setItem(THEME_STORAGE_KEY, toStored(next));
+        } catch {
+          // A reader with storage blocked still gets the change for this page.
+        }
+        show(next);
+        apply(next);
+      });
+    }
+  }
+
+  // Only while the choice is `system`: an explicit choice wins until the reader clears
+  // it, including when the OS flips underneath them.
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (stored() === "system") apply("system");
+  });
+</script>

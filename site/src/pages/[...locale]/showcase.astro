@@ -1,0 +1,107 @@
+---
+/**
+ * Whole screens, at the size they were captured. Each one has a heading and a sentence
+ * saying what it is evidence of, because a picture with no claim attached is decoration.
+ */
+import Page from "../../layouts/Page.astro";
+import Figure from "../../components/Figure.astro";
+import { localeRoutes, messages } from "../../i18n";
+import type { Locale } from "../../lib/i18n";
+import showcase from "../../generated/showcase.json";
+
+export const getStaticPaths = localeRoutes;
+
+const { locale } = Astro.props as { locale: Locale };
+const msg = messages(locale);
+const base = import.meta.env.BASE_URL;
+
+const byId = new Map(showcase.entries.map((entry) => [entry.id, entry]));
+const plates = [
+  { key: "kitchen", id: "kitchen" },
+  { key: "forms", id: "form" },
+  { key: "layout", id: "layout" },
+  { key: "density", id: "control-size" },
+  { key: "threeD", id: "viewport-3d" },
+  // Last, and the only filmed one: it is the module an application opts into rather than part
+  // of the toolkit, and what it claims (a window re-skinning as you drag) is the one thing on
+  // this page a still cannot carry. Screenshot draws the play control when the entry has frames.
+  { key: "editor", id: "theme-editor" },
+] as const;
+
+---
+
+<Page
+  locale={locale}
+  path="showcase/"
+  titleKey="showcase.title"
+  descriptionKey="showcase.description"
+>
+  <section class="section aura">
+    <div class="wrap">
+      <p class="eyebrow">{msg("showcase.eyebrow")}</p>
+      <h1>{msg("showcase.heading")}</h1>
+      <p class="lede intro">{msg("showcase.lede")}</p>
+
+      <div class="plates">
+        {
+          plates.map(({ key, id }) => {
+            const entry = byId.get(id)!;
+            return (
+              <section class="item">
+                <div class="item__copy">
+                  <h2>{msg(`showcase.${key}.heading` as never)}</h2>
+                  <p>{msg(`showcase.${key}.body` as never)}</p>
+                </div>
+                <Figure
+                  images={entry.images}
+                  alt={entry.title}
+                  base={base}
+                  playLabel={msg("components.play")}
+                  stopLabel={msg("components.stop")}
+                />
+              </section>
+            );
+          })
+        }
+
+      </div>
+    </div>
+  </section>
+</Page>
+
+<style>
+  .intro {
+    margin-block: 1.25rem 0;
+  }
+
+  .plates {
+    display: grid;
+    gap: clamp(3rem, 7vw, 5.5rem);
+    margin-block-start: clamp(2.5rem, 6vw, 4rem);
+  }
+
+  .item {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .item__copy {
+    display: grid;
+    gap: 0.75rem;
+    max-inline-size: 62ch;
+  }
+
+  .item h2 {
+    font-size: var(--text-2xl);
+  }
+
+  .item p {
+    color: var(--limn-text-muted);
+  }
+
+  .locales {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  }
+</style>

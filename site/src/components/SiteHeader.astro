@@ -1,0 +1,191 @@
+---
+/**
+ * The site's top bar.
+ *
+ * Its look and its mobile rule are not here; they are in `src/styles/bar.css`, which the
+ * guide's header and the API reference's injected bar load as well. This file is one of
+ * three renderers of that bar; a style written here instead would be the one the other two
+ * do not get.
+ */
+import Logo from "./Logo.astro";
+import LanguagePicker from "./LanguagePicker.astro";
+import ThemeToggle from "./ThemeToggle.astro";
+import { messages } from "../i18n";
+import { localePath, type Locale } from "../lib/i18n";
+
+interface Props {
+  locale: Locale;
+  /** Route below the locale, no leading slash. Marks the current link. */
+  path?: string;
+  /**
+   * Marks a section that is not one of the locale-routed pages. `/docs/` and `/api/` are
+   * outside the locale routing, so `path` cannot say which of them a reader is in.
+   */
+  section?: "docs" | "api";
+  /** Off inside a frame that positions the bar itself. */
+  sticky?: boolean;
+  /** Off inside `/docs/`, which ships a skip link of its own. */
+  skipLink?: boolean;
+  /** Off wherever the page is published in English only; see LanguagePicker. */
+  languages?: boolean;
+}
+
+const {
+  locale,
+  path = "",
+  section,
+  sticky = true,
+  skipLink = true,
+  languages = true,
+} = Astro.props;
+const base = import.meta.env.BASE_URL;
+const msg = messages(locale);
+const repo = process.env.REPO_SLUG ?? "limn-ui/limn";
+
+// Every href goes through `localePath`, never a bare leading slash, so `base` is applied in
+// one place and a deploy under a project path cannot break half the navigation.
+//
+// No link here carries `LOCALE_LINK_ATTR`, and this bar must not emit the locale-continuity
+// script: it renders the locale-routed pages, where every href already says which language
+// it opens, and a rewrite would fight the URL the reader explicitly chose. The attribute
+// belongs to the English-only bars: the guide's Header override and the Javadoc injector's.
+const links: Array<{ href: string; label: string; at?: string; section?: "docs" | "api" }> = [
+  { href: localePath(base, locale, "components/"), label: msg("nav.components"), at: "components/" },
+  { href: localePath(base, locale, "showcase/"), label: msg("nav.showcase"), at: "showcase/" },
+  { href: `${base}docs/`, label: msg("nav.docs"), section: "docs" },
+  { href: `${base}api/`, label: msg("nav.api"), section: "api" },
+];
+
+const isCurrent = (link: (typeof links)[number]) =>
+  (link.at !== undefined && link.at === path) ||
+  (link.section !== undefined && link.section === section);
+---
+
+{skipLink && <a class="skip" href="#content">{msg("nav.skipToContent")}</a>}
+
+<header class:list={["limn-bar", sticky && "limn-bar--sticky"]}>
+  <div class="limn-bar__inner wrap">
+    <a class="limn-bar__brand" href={localePath(base, locale)} aria-label={msg("site.name")}>
+      <Logo size={26} lockup />
+    </a>
+
+    {/* A row on a desktop, a dropdown on a phone, with one set of elements either way. The
+        button starts hidden and the collapse starts off: with no script the panel wraps
+        onto a second row instead of disappearing behind a control nothing would open. */}
+    <div class="limn-bar__menu" data-bar-menu>
+      <button
+        class="limn-bar__toggle"
+        type="button"
+        aria-label={msg("nav.menu")}
+        aria-expanded="false"
+        aria-controls="limn-bar-panel"
+        hidden
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M4 7h16M4 12h16M4 17h16"></path>
+        </svg>
+      </button>
+
+      <div class="limn-bar__panel" id="limn-bar-panel">
+        <nav class="limn-bar__nav" aria-label={msg("nav.primaryLabel")}>
+          <ul>
+            {
+              links.map((link) => (
+                <li>
+                  <a href={link.href} aria-current={isCurrent(link) ? "page" : undefined}>
+                    {link.label}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </nav>
+
+        <div class="limn-bar__tools">
+          {languages && <LanguagePicker locale={locale} path={path} />}
+          <a class="limn-bar__repo" href={`https://github.com/${repo}`}>
+            <svg viewBox="0 0 16 16" width="17" height="17" aria-hidden="true" fill="currentColor">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              ></path>
+            </svg>
+            <span>{msg("nav.repository")}</span>
+          </a>
+          <ThemeToggle
+            label={msg("theme.label")}
+            labels={{ system: msg("theme.system"), light: msg("theme.light"), dark: msg("theme.dark") }}
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<style>
+  /* Visible only on focus, and the first tab stop on every page. */
+  .skip {
+    position: absolute;
+    inset-block-start: -4rem;
+    inset-inline-start: 1rem;
+    z-index: 20;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    background-color: var(--limn-primary);
+    color: var(--limn-on-primary);
+    text-decoration: none;
+    transition: inset-block-start 120ms var(--ease);
+  }
+
+  .skip:focus {
+    inset-block-start: 0.75rem;
+  }
+</style>
+
+<script>
+  // The bar's menu. Everything here is enhancement: the markup ships open and uncollapsed,
+  // and it is this script that opts the bar into collapsing and reveals the control that
+  // does it, so a reader with no JavaScript keeps the whole navigation on a phone.
+  for (const menu of document.querySelectorAll<HTMLElement>("[data-bar-menu]")) {
+    const toggle = menu.querySelector<HTMLButtonElement>(".limn-bar__toggle");
+    if (!toggle) continue;
+
+    menu.dataset.collapsible = "";
+    toggle.hidden = false;
+
+    const setOpen = (open: boolean) => {
+      if (open) menu.dataset.open = "";
+      else delete menu.dataset.open;
+      toggle.setAttribute("aria-expanded", String(open));
+    };
+
+    toggle.addEventListener("click", () => setOpen(menu.dataset.open === undefined));
+
+    document.addEventListener("click", (event) => {
+      if (menu.dataset.open === undefined) return;
+      if (event.target instanceof Node && menu.contains(event.target)) return;
+      setOpen(false);
+    });
+
+    menu.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || menu.dataset.open === undefined) return;
+      setOpen(false);
+      toggle.focus();
+    });
+  }
+
+  // The language picker is a real disclosure and needs only what a reader expects of a
+  // menu: click away, or press Escape.
+  for (const disclosure of document.querySelectorAll<HTMLDetailsElement>("details[data-dismiss]")) {
+    document.addEventListener("click", (event) => {
+      if (!disclosure.open) return;
+      if (event.target instanceof Node && disclosure.contains(event.target)) return;
+      disclosure.open = false;
+    });
+
+    disclosure.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !disclosure.open) return;
+      disclosure.open = false;
+      disclosure.querySelector("summary")?.focus();
+    });
+  }
+</script>

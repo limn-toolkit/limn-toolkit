@@ -1,0 +1,480 @@
+---
+/**
+ * The home page. Its first job is to show the toolkit rendering, so the hero capture is
+ * above the fold, eagerly loaded, and carries its intrinsic size, because the page must not
+ * shift as it lands.
+ *
+ * Its second job is to answer "what would it take to try this" before the reader has to
+ * click anything, which is why the whole install is a section here and not a separate page.
+ */
+import Page from "../../layouts/Page.astro";
+import Figure from "../../components/Figure.astro";
+import Screenshot from "../../components/Screenshot.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import { localeRoutes, messages } from "../../i18n";
+import { localePath, type Locale } from "../../lib/i18n";
+import { snippet } from "../../lib/snippets";
+import showcase from "../../generated/showcase.json";
+import gallery from "../../generated/gallery.json";
+import mosaic from "../../generated/mosaic.json";
+import languages from "../../generated/languages.json";
+
+export const getStaticPaths = localeRoutes;
+
+const { locale } = Astro.props as { locale: Locale };
+const msg = messages(locale);
+const base = import.meta.env.BASE_URL;
+
+/**
+ * The mosaic is ONE file and it is theme-independent, so it does not go through `Screenshot`:
+ * that component publishes a light and a dark variant and swaps them in CSS, and here both
+ * would be the same bytes fetched twice.
+ */
+const asset = (file: string) => `${base}gallery/${file}`;
+
+const shot = (id: string) => showcase.entries.find((entry) => entry.id === id)!;
+const component = (id: string) => gallery.entries.find((entry) => entry.id === id)!;
+
+const hero = shot("kitchen");
+
+const gradle = `dependencies {
+    implementation("dev.limn:limn-components:0.1.0-SNAPSHOT")
+    implementation("dev.limn:limn-backend-lwjgl:0.1.0-SNAPSHOT")
+}`;
+
+// The components row shows a handful of widgets rather than one, because "a set" is the
+// claim it is making. Picked for variety of shape, not for importance.
+const thumbs = ["button", "combo-box", "slider", "segmented-control", "checkbox", "spinner"].map(
+  component,
+);
+
+const features = [
+  {
+    // `keys` and not `key`: every entry but the last lives under home.features.<name>, and the
+    // languages quilt keeps the namespace its ten translations already use.
+    keys: "home.features.layout",
+    href: `${base}docs/layout/`,
+    images: shot("layout").images,
+    alt: "A window laid out with Limn",
+    caption: msg("home.features.layout.caption"),
+  },
+  {
+    keys: "home.features.forms",
+    href: `${base}docs/forms/`,
+    images: shot("form").images,
+    alt: "A form built with Limn",
+    caption: msg("home.features.forms.caption"),
+  },
+  {
+    keys: "home.features.media",
+    href: `${base}docs/images-and-media/`,
+    images: shot("viewport-3d").images,
+    alt: "The Limn 3D viewport",
+    caption: msg("home.features.media.caption"),
+  },
+  {
+    keys: "home.languages",
+    href: `${base}docs/text-and-languages/`,
+    images: languages.images,
+    alt: msg("home.languages.alt"),
+    caption: msg("home.languages.caption"),
+  },
+] as const;
+
+const limits = ["scripts", "a11y", "version"] as const;
+---
+
+<Page locale={locale} titleKey="home.title" descriptionKey="home.description">
+  <section class="hero aura">
+    <div class="hero__inner wrap">
+      <div class="hero__copy">
+        <p class="eyebrow">{msg("home.hero.eyebrow")}</p>
+        <h1>{msg("home.hero.headline")}</h1>
+        <p class="lede">{msg("home.hero.sub")}</p>
+        <div class="button-row">
+          <a class="button button--primary" href={`${base}docs/install/`}>
+            {msg("home.hero.cta")}
+          </a>
+          <a class="button" href={localePath(base, locale, "components/")}>
+            {msg("home.hero.secondary")}
+          </a>
+        </div>
+        <p class="hero__meta">{msg("home.hero.meta")}</p>
+      </div>
+
+      <Figure
+        images={hero.images}
+        alt={msg("home.hero.caption")}
+        caption={msg("home.hero.caption")}
+        base={base}
+        eager
+      />
+    </div>
+  </section>
+
+  <section class="section" id="install">
+    <div class="wrap">
+      <p class="eyebrow">{msg("home.install.eyebrow")}</p>
+      <h2 class="heading-rule"><span>{msg("home.install.heading")}</span></h2>
+      <div class="install">
+        <div class="install__copy">
+          <p class="lede">{msg("home.install.body")}</p>
+          <aside class="note">
+            <Fragment set:html={msg("home.install.macos")} />
+          </aside>
+          <a class="arrow" href={`${base}docs/install/`}>{msg("home.install.more")}</a>
+        </div>
+        <div class="install__code">
+          <CodeBlock
+            code={gradle}
+            language="kotlin"
+            file={msg("home.install.gradleLabel")}
+            label={msg("codeBlock.copy")}
+            copiedLabel={msg("codeBlock.copied")}
+          />
+          <CodeBlock
+            code={snippet("hello-window")}
+            language="java"
+            file={msg("home.install.helloLabel")}
+            label={msg("codeBlock.copy")}
+            copiedLabel={msg("codeBlock.copied")}
+          />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <p class="eyebrow">{msg("home.features.eyebrow")}</p>
+      <div class="features">
+        <article class="feature">
+          <div class="feature__copy">
+            <h2>{msg("home.features.components.heading")}</h2>
+            <p>{msg("home.features.components.body")}</p>
+            <a class="arrow" href={localePath(base, locale, "components/")}>
+              {msg("home.features.components.link")}
+            </a>
+          </div>
+          <div class="thumbs plate">
+            {
+              thumbs.map((entry) => (
+                <Screenshot images={entry.images} alt={entry.title} base={base} />
+              ))
+            }
+          </div>
+        </article>
+
+        {
+          features.map((feature) => (
+            <article class="feature">
+              <div class="feature__copy">
+                <h2>{msg(`${feature.keys}.heading` as never)}</h2>
+                <p>{msg(`${feature.keys}.body` as never)}</p>
+                <a class="arrow" href={feature.href}>
+                  {msg(`${feature.keys}.link` as never)}
+                </a>
+              </div>
+              <Figure
+                images={feature.images}
+                alt={feature.alt}
+                caption={feature.caption}
+                base={base}
+              />
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <article class="themes">
+        <div class="themes__copy">
+          <h2>{msg("home.themes.heading")}</h2>
+          <p>{msg("home.themes.body")}</p>
+          {/* NOT localePath: the guide is English-only, one Starlight root locale, so a
+              locale-prefixed /docs/ URL is a 404. Every other link into the guide on this page
+              is built the same way, and this is the reason. */}
+          <a class="arrow" href={`${base}docs/theming/`}>{msg("home.themes.link")}</a>
+        </div>
+        <figure class="figure">
+          <div class="plate">
+            <picture>
+              <source type="image/avif" srcset={asset(mosaic.images.avif)} />
+              <img
+                src={asset(mosaic.images.webp)}
+                width={mosaic.width}
+                height={mosaic.height}
+                loading="lazy"
+                decoding="async"
+                alt={msg("home.themes.alt")}
+              />
+            </picture>
+          </div>
+          <figcaption class="plate__caption">{msg("home.themes.caption")}</figcaption>
+        </figure>
+      </article>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <p class="eyebrow">{msg("home.limits.eyebrow")}</p>
+      <h2 class="heading-rule"><span>{msg("home.limits.heading")}</span></h2>
+      <p class="lede">{msg("home.limits.body")}</p>
+      <ul class="limits">
+        {
+          limits.map((key) => (
+            <li>
+              <h3>{msg(`home.limits.${key}.heading` as never)}</h3>
+              <p>{msg(`home.limits.${key}.body` as never)}</p>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="closing">
+        <h2>{msg("home.closing.heading")}</h2>
+        <p>{msg("home.closing.body")}</p>
+        <div class="button-row">
+          <a class="button button--primary" href={`${base}docs/install/`}>
+            {msg("home.hero.cta")}
+          </a>
+          <a class="button" href={`${base}docs/`}>{msg("nav.docs")}</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</Page>
+
+<style>
+  /* ------------------------------------------------------------------ hero */
+
+  .hero {
+    padding-block: clamp(3rem, 8vw, 6.5rem) 0;
+  }
+
+  .hero__inner {
+    display: grid;
+    gap: clamp(2.5rem, 5vw, 4rem);
+    align-items: center;
+  }
+
+  /* 5/7 rather than half and half: the headline wants a narrow measure and the capture
+     wants every pixel it can get. */
+  @media (min-width: 62rem) {
+    .hero__inner {
+      grid-template-columns: 5fr 7fr;
+    }
+  }
+
+  .hero__copy .lede {
+    margin-block: 1.5rem 2rem;
+  }
+
+  .hero__meta {
+    margin-block-start: 1.5rem;
+    color: var(--limn-text-muted);
+    font-family: var(--mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.02em;
+  }
+
+  /* --------------------------------------------------------------- install */
+
+  .install {
+    display: grid;
+    gap: clamp(1.75rem, 4vw, 3rem);
+    align-items: start;
+    margin-block-start: 2.25rem;
+  }
+
+  /* The prose column is the narrow one: a Java sample is the widest thing on this page,
+     and splitting the width evenly puts its longest line behind a horizontal scroll on a
+     desktop, which is the one place there is no excuse for it. */
+  @media (min-width: 62rem) {
+    .install {
+      grid-template-columns: 4fr 8fr;
+    }
+  }
+
+  .install__copy,
+  .install__code {
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  /* A callout is a border and a tint, never a glow, because it has to survive greyscale. */
+  .note {
+    padding: 1rem 1.15rem;
+    border-inline-start: 2px solid var(--limn-primary);
+    border-radius: 0 8px 8px 0;
+    background-color: var(--tint);
+    color: var(--limn-text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.65;
+  }
+
+  .arrow {
+    justify-self: start;
+    font-size: var(--text-sm);
+    font-weight: 560;
+    text-decoration: none;
+  }
+
+  .arrow::after {
+    content: " →";
+    transition: translate 140ms var(--ease);
+    display: inline-block;
+  }
+
+  .arrow:hover::after {
+    translate: 3px 0;
+  }
+
+  /* -------------------------------------------------------------- features */
+
+  .features {
+    display: grid;
+    gap: clamp(3rem, 6vw, 5.5rem);
+  }
+
+  .feature {
+    display: grid;
+    gap: clamp(1.5rem, 4vw, 3rem);
+    align-items: center;
+  }
+
+  @media (min-width: 58rem) {
+    .feature {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    /* Alternating, so the eye zig-zags down the page instead of running down one gutter. */
+    .feature:nth-child(even) .feature__copy {
+      order: 2;
+    }
+  }
+
+  .feature h2 {
+    font-size: var(--text-2xl);
+  }
+
+  .feature p {
+    margin-block: 1rem 1.5rem;
+    max-inline-size: 46ch;
+    color: var(--limn-text-muted);
+  }
+
+  .thumbs {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(2, 1fr);
+    align-items: center;
+    background-color: var(--tint);
+  }
+
+  .thumbs :global(.shot) {
+    padding: 0.75rem;
+    border-radius: 10px;
+    background-color: var(--limn-background);
+    block-size: 100%;
+    align-content: center;
+  }
+
+  /* ---------------------------------------------------------------- themes */
+
+  /* The mosaic sits BESIDE the copy, and it takes the wider column. Seven strips inside half
+     a page are eighty pixels each: a texture, not a screenshot, and this section's whole
+     argument is that a reader can see real controls wearing different clothes. */
+  .themes {
+    display: grid;
+    gap: clamp(1.5rem, 4vw, 3rem);
+    align-items: center;
+  }
+
+  @media (min-width: 58rem) {
+    .themes {
+      /* minmax(0, …) rather than a bare fraction: a grid column defaults to min-content, and
+         a 1024px-wide image then pushes the column past its share and the copy off the page. */
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    }
+
+    /* Picture first, because the feature above this one ends picture-right: the zig-zag down the
+       page does not stop where the features grid does. */
+    .themes__copy {
+      order: 2;
+    }
+  }
+
+  .themes__copy h2 {
+    font-size: var(--text-2xl);
+  }
+
+  .themes__copy p {
+    margin-block: 1rem 1.5rem;
+    max-inline-size: 42ch;
+    color: var(--limn-text-muted);
+  }
+
+
+  /* ---------------------------------------------------------------- limits */
+
+  .limits {
+    display: grid;
+    gap: 1.75rem;
+    margin-block-start: 2.5rem;
+    padding: 0;
+    list-style: none;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+  }
+
+  .limits li {
+    padding-block-start: 1.25rem;
+    border-block-start: 1px solid var(--rule);
+  }
+
+  .limits h3 {
+    font-size: var(--text-lg);
+  }
+
+  .limits p {
+    margin-block-start: 0.65rem;
+    color: var(--limn-text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.7;
+  }
+
+  /* --------------------------------------------------------------- closing */
+
+  .closing {
+    display: grid;
+    justify-items: center;
+    gap: 1.25rem;
+    padding: clamp(2.5rem, 6vw, 4.5rem) 1.5rem;
+    border: 1px solid var(--rule);
+    border-radius: 18px;
+    background-color: var(--tint);
+    text-align: center;
+  }
+
+  .closing h2 {
+    max-inline-size: 18ch;
+  }
+
+  .closing p {
+    max-inline-size: 48ch;
+    color: var(--limn-text-muted);
+  }
+
+  .closing .button-row {
+    margin-block-start: 0.5rem;
+    justify-content: center;
+  }
+</style>

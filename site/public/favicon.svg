@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- The delivered mark (src/brand/limn-symbol-*.svg), with both variants in one file: a
+       favicon cannot read the page's custom properties, so the two sets of tones are inlined
+       and a media query picks between them. Everything else about the artwork is verbatim. -->
+  <style>
+    .ink { stroke: #23252f; fill: rgba(122,108,201,0.08); }
+    .rule { stroke: #7a6cc9; opacity: 0.8; }
+    @media (prefers-color-scheme: dark) {
+      .ink { stroke: #e9e9ed; fill: rgba(145,132,217,0.10); }
+      .rule { stroke: #9184d9; opacity: 0.75; }
+    }
+  </style>
+  <path class="rule" d="M18 16 L28 16 L28 44 L48 44 L48 54 L18 54 Z" fill="none" stroke-width="2" stroke-linejoin="round"/>
+  <path class="ink" d="M14 12 L24 12 L24 40 L44 40 L44 50 L14 50 Z" stroke-width="2.6" stroke-linejoin="round"/>
+</svg>

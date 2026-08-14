@@ -1,0 +1,65 @@
+---
+import Page from "../../layouts/Page.astro";
+import { localeRoutes, messages } from "../../i18n";
+import type { Locale } from "../../lib/i18n";
+
+export const getStaticPaths = localeRoutes;
+
+const { locale } = Astro.props as { locale: Locale };
+const msg = messages(locale);
+
+const sections = ["core", "fonts", "mp3", "ffmpeg"] as const;
+---
+
+<Page locale={locale} path="licence/" titleKey="licence.title" descriptionKey="licence.description">
+  <section class="section aura">
+    <div class="wrap wrap--prose">
+      <p class="eyebrow">{msg("licence.eyebrow")}</p>
+      <h1>{msg("licence.heading")}</h1>
+      <p class="lede">{msg("licence.lede")}</p>
+
+      <div class="body">
+        {
+          sections.map((key) => (
+            <section>
+              <h2>{msg(`licence.${key}.heading` as never)}</h2>
+              <p set:html={msg(`licence.${key}.body` as never)} />
+            </section>
+          ))
+        }
+      </div>
+
+      <p class="disclaimer">{msg("licence.notAdvice")}</p>
+    </div>
+  </section>
+</Page>
+
+<style>
+  .lede {
+    margin-block-start: 1.25rem;
+  }
+
+  .body {
+    display: grid;
+    gap: 2.25rem;
+    margin-block-start: 3rem;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+  }
+
+  .body p {
+    margin-block-start: 0.75rem;
+    color: var(--limn-text-muted);
+    line-height: 1.7;
+  }
+
+  .disclaimer {
+    margin-block-start: 3rem;
+    padding-block-start: 1.25rem;
+    border-block-start: 1px solid var(--rule);
+    color: var(--limn-text-muted);
+    font-size: var(--text-sm);
+  }
+</style>

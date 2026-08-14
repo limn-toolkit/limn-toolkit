@@ -1,0 +1,147 @@
+Limn UI
+Copyright 2026 Dyorgio Nascimento
+
+This product includes software developed by the Limn project.
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+================================================================================
+Third-party components
+================================================================================
+
+The following components are redistributed with Limn or resolved as
+dependencies. Each remains under its own license; the terms below govern those
+components, not Limn itself.
+
+--------------------------------------------------------------------------------
+Bundled in this repository (limn-backend-lwjgl resources)
+--------------------------------------------------------------------------------
+
+Roboto (font family: Regular, Bold, Italic, Bold Italic)
+  Copyright Google Inc.
+  Apache License 2.0: full text in
+  limn-backend-lwjgl/src/main/resources/limn/backend/lwjgl/fonts/Roboto-LICENSE.txt
+
+Noto Sans CJK (optional script fallback; committed here, refreshed by
+scripts/fetch-fonts.sh)
+  Copyright Google Inc. and contributors
+  SIL Open Font License 1.1: full text in
+  limn-backend-lwjgl/src/main/resources/limn/backend/lwjgl/fonts/NotoSansCJK-LICENSE.txt
+
+Noto Color Emoji (optional emoji fallback; committed here, refreshed by
+scripts/fetch-fonts.sh)
+  Copyright Google Inc. and contributors
+  SIL Open Font License 1.1: full text in
+  limn-backend-lwjgl/src/main/resources/limn/backend/lwjgl/fonts/NotoColorEmoji-LICENSE.txt
+
+Mosaic display faces (limn-demo/fonts, the demo only; no library jar carries them)
+  Each under the SIL Open Font License 1.1, with the full text beside it in
+  limn-demo/fonts/<name>-LICENSE.txt. Every file is pinned by upstream commit and
+  verified against a SHA-256 in scripts/fetch-fonts.sh before it lands.
+
+    Comic Neue (Regular, Bold): Copyright (c) 2014 Craig Rozynski
+    Inter (variable; the default instance is Regular): Copyright (c) 2016 The Inter
+      Project Authors
+    Silkscreen (Regular): Copyright (c) 2001 Jason Kottke
+    Archivo Black (Regular): Copyright (c) 2011 Omnibus-Type
+
+  They exist for the site's mosaic, which shows one screen under several themes, size
+  steps and typefaces. They are here and not in limn-backend-lwjgl because nothing
+  published should grow for a screenshot: limn-demo is a library nobody depends on, so
+  an application built on Limn ships none of these bytes. The demo loads them by path
+  through Fonts.load, the same public call an application would use for a typeface it
+  ships itself.
+
+Tabler Icons (limn-icons-tabler resources: the drawings, and the names generated from them)
+  Copyright (c) 2020-2026 Paweł Kuna
+  MIT License: full text in
+  limn-icons-tabler/src/main/resources/limn/icons/tabler/LICENSE.txt
+  Version 3.46.0, from https://registry.npmjs.org/@tabler/icons/-/icons-3.46.0.tgz
+  SHA-256 6d727ad0489854d2d7d07ba9baa6476af7ee415aaa2eba1adc0deab48556852b
+  The tarball is not committed; scripts/generate-tabler-icons.py verifies that checksum
+  before reading a byte of it, and regenerates the blob, the index and the enums from it.
+
+  Nothing depends on limn-icons-tabler. An application that wants none of these icons
+  excludes the module and ships none of them, the way limn-video-ffmpeg works.
+
+--------------------------------------------------------------------------------
+Dependencies (limn-backend-lwjgl only; limn-toolkit and limn-components have
+none beyond the JDK)
+--------------------------------------------------------------------------------
+
+LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -openal, -stb, -nanovg, -tinyfd)
+  Copyright Lightweight Java Game Library contributors
+  BSD 3-Clause: https://github.com/LWJGL/lwjgl3/blob/master/LICENSE
+  LWJGL in turn bundles native libraries under their own permissive licenses,
+  notably: GLFW (zlib), OpenAL Soft (LGPL 2.1, dynamically linked native
+  library), stb (public domain / MIT), NanoSVG (zlib), tinyfiledialogs (zlib).
+
+JLayer 1.0.1 (javazoom:jlayer), for MP3 decoding
+  Copyright JavaZOOM
+  GNU Lesser General Public License 2.1:
+  https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+  Used as an unmodified, separately distributable jar dependency. Applications
+  that need to avoid LGPL obligations can exclude this dependency; Limn keeps
+  MP3 support isolated behind the AudioDecoder SPI, and every other audio
+  format (WAV, OGG) works without it.
+
+JUnit 5 / JUnit Platform (test-only, not distributed)
+  Eclipse Public License 2.0: https://www.eclipse.org/legal/epl-2.0/
+
+--------------------------------------------------------------------------------
+Native libraries built by this repository (limn-video-ffmpeg only)
+--------------------------------------------------------------------------------
+
+FFmpeg: libavcodec, libavformat, libavutil, libswresample
+  Copyright the FFmpeg developers
+  GNU Lesser General Public License 2.1 or later:
+  https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+  Source: https://ffmpeg.org/releases/
+  The exact version, its checksum and the complete configure line are in
+  scripts/build-ffmpeg.sh, which is what produced the binaries and is sufficient
+  to reproduce them.
+
+  Built WITHOUT --enable-gpl and WITHOUT --enable-nonfree, so no GPL component
+  (libpostproc, the three GPL x86 optimisation files, the GPL filters) and no
+  nonfree component (Fraunhofer FDK AAC, OpenSSL) is present. x264 and x265 are
+  not linked. A test reads the licence and the configure line back out of the
+  built library, so this paragraph cannot quietly stop being true.
+
+  DYNAMICALLY LINKED. The four FFmpeg libraries are shipped as separate shared
+  libraries beside Limn's shim (liblimnffmpeg), never statically linked into it,
+  so they can be replaced with a modified build without relinking anything,
+  which is the freedom the LGPL exists to protect. See docs/adr/011.
+
+  No FFmpeg binary is in this repository. The libraries a published jar carries
+  are produced by the release build from the source and the configure line named
+  above, packaged into the jar for every desktop target, and the licence text and
+  this notice travel in the jar beside them: a jar's reader has no repository to
+  look in. A developer who wants them locally fetches that payload with
+  scripts/fetch-ffmpeg.sh or builds it with scripts/build-ffmpeg.sh; without one,
+  the decoder reports itself unavailable and nothing else changes.
+
+  Applications that do not play video can exclude limn-video-ffmpeg entirely; it
+  is a separate module and nothing else depends on it.
+
+--------------------------------------------------------------------------------
+Sample media (media/)
+--------------------------------------------------------------------------------
+
+Big Buck Bunny: three ten-second H.264 excerpts
+  (c) copyright 2008, Blender Foundation
+  https://peach.blender.org/ and https://www.bigbuckbunny.org/
+  Creative Commons Attribution 3.0 Unported:
+  https://creativecommons.org/licenses/by/3.0/
+  Full text in media/LICENSE-CC-BY-3.0.txt.
+
+  Redistributed unmodified. The excerpts were transcoded from the original by
+  https://test-videos.co.uk/bigbuckbunny/mp4-h264, which publishes them on the
+  same terms; provenance and the digest of each file are in media/README.md.
+
+  They exist because the FFmpeg build here carries no H.264 encoder and never
+  will (that encoder is x264, which is GPL), so a clip exercising the decoder
+  this project ships cannot be produced by this project.
+
+  Note on patents: FFmpeg states that it does not know whether its code uses
+  patented algorithms. Distributing a decoder for a standardised codec may
+  attract obligations from a patent pool in some jurisdictions, independently of
+  the copyright licence above. See docs/adr/011 §5.

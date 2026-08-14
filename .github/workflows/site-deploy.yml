@@ -1,0 +1,119 @@
+# Publishes the site to GitHub Pages on every push to main.
+#
+# Build and deploy are separate jobs because that is actions/deploy-pages' contract: the
+# build job uploads a Pages artifact, the deploy job turns it into a deployment. Merging
+# them into one job silently skips the deployment environment's protection rules.
+#
+# One-time setup when this repository first gets a remote: in the repository settings,
+# set Pages to deploy from GitHub Actions. Until then actions/configure-pages fails with
+# instructions rather than deploying anywhere.
+
+name: site-deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Serialises deploys so two merges cannot race: later runs queue behind the live one.
+# `cancel-in-progress` stays false: cancelling a deployment mid-flight can leave the
+# published site half-updated, which is worse than publishing twice in a row.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # Temurin 17, because the build itself targets 17: every module compiles with
+      # `options.release.set(17)` and the aggregate Javadoc links the Java 17 API.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # GLFW needs a display and Mesa needs its software rasteriser: llvmpipe provides
+      # the OpenGL 3.3 core profile the backend requires, with no GPU on the runner.
+      - name: Install Xvfb and Mesa
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libgl1-mesa-dri libglx-mesa0 libxrandr2 libxinerama1 \
+            libxcursor1 libxi6 libxxf86vm1
+
+      # The three generators, in the order the site build consumes them. `check` is not
+      # run here: the PR workflow is the gate, and a deploy that re-runs the whole test
+      # suite is a deploy that a flaky test can veto after the merge already happened.
+      - name: Export theme tokens
+        run: ./gradlew :limn-demo:exportThemeTokens
+
+      - name: Aggregate Javadoc
+        run: ./gradlew aggregateJavadoc
+
+      - name: Capture the component gallery
+        run: xvfb-run -a ./gradlew :limn-demo:captureGallery
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+
+      # pnpm before setup-node: setup-node's `cache: pnpm` shells out to pnpm to locate
+      # the store, so reversing these two steps fails the cache setup. The version comes
+      # from `packageManager` in site/package.json and from nowhere else.
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: site/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+
+      - name: Install site dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: site
+
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      # The origin and base path come from the Pages configuration itself and from
+      # nowhere else: a default project site serves under /<repo>/, a custom domain
+      # under /. Writing a hostname or a path into this file breaks every asset URL the
+      # moment the site moves, which is why no hostname appears anywhere in .github/.
+      # See docs/design/website.md, "Invariants".
+      # `base_path` is empty on a custom domain, hence the fallback to "/".
+      - name: Build the site
+        run: pnpm build
+        working-directory: site
+        env:
+          SITE_URL: ${{ steps.pages.outputs.origin }}
+          SITE_BASE: ${{ steps.pages.outputs.base_path || '/' }}
+          REPO_SLUG: ${{ github.repository }}
+
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,178 @@
+---
+/**
+ * A code sample with an optional file label and a copy button.
+ *
+ * The button is added by script rather than rendered into the HTML: a copy button that does
+ * nothing without JavaScript is worse than no button. Both labels come through props from
+ * the page's catalog; a literal here would bypass the raw-key guarantee in en.ts.
+ */
+import { highlight, type Language } from "../lib/highlight";
+
+interface Props {
+  code: string;
+  language?: Language;
+  /** Shown as a file tab above the block; omit for an unlabelled sample. */
+  file?: string;
+  /** Accessible label for the copy button; the caller passes `msg("codeBlock.copy")`. */
+  label: string;
+  /** Announced via a live region after a successful copy. */
+  copiedLabel: string;
+}
+
+const { code, language = "text", file, label, copiedLabel } = Astro.props;
+const html = highlight(code, language);
+---
+
+<div class="code" data-copy data-label={label} data-copied={copiedLabel}>
+  {file && <div class="code__file">{file}</div>}
+  <pre><code set:html={html} /></pre>
+</div>
+
+<style>
+  .code {
+    position: relative;
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    background-color: var(--tint);
+    overflow: hidden;
+  }
+
+  .code__file {
+    /* A row, so a copy control injected into it is laid out rather than positioned over it. */
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.4rem 0.5rem 0.4rem 1rem;
+    border-block-end: 1px solid var(--rule);
+    color: var(--limn-text-muted);
+    font-family: var(--mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.02em;
+  }
+
+  pre {
+    margin: 0;
+    padding: 1.15rem 1.25rem;
+    /* Long lines scroll inside the block; the page body never scrolls sideways. */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  code {
+    color: var(--limn-text);
+    font-size: 0.8125rem;
+    line-height: 1.75;
+    tab-size: 4;
+  }
+
+  /* Four hues plus the ink, all of them read off the palette so the block flips with the
+     rest of the page. Comments are the muted text tone rather than a green of their own,
+     because a comment is prose and it should recede. */
+  .code :global(.tok-comment) {
+    color: var(--limn-text-muted);
+    font-style: italic;
+  }
+  .code :global(.tok-keyword) {
+    color: var(--limn-primary);
+    font-weight: 560;
+  }
+  .code :global(.tok-string) {
+    color: var(--limn-success);
+  }
+  .code :global(.tok-number) {
+    color: var(--limn-warning);
+  }
+  .code :global(.tok-type) {
+    color: var(--limn-info);
+  }
+  .code :global(.tok-meta) {
+    color: var(--limn-info);
+  }
+  .code :global(.tok-call) {
+    color: var(--limn-text);
+  }
+
+  /* Room for the injected button, and only once it exists: the script adds the class when
+     it adds the button. Without the guard the overlay sat on the tail of the first code
+     line, and on a phone that tail was unreachable at any scroll position, because the
+     button does not scroll with the code. */
+  .code--copyable pre {
+    padding-inline-end: 4.5rem;
+  }
+
+  .code :global(button) {
+    position: absolute;
+    inset-block-start: 0.55rem;
+    inset-inline-end: 0.55rem;
+    min-block-size: 26px;
+    padding-inline: 0.55rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background-color: var(--limn-background);
+    color: var(--limn-text-muted);
+    font-family: var(--mono);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+
+  /* In the row: no absolute placement at all, so nothing can be flush with the rule below it. */
+  .code--copy-in-row :global(button) {
+    position: static;
+  }
+
+  /* Only the overlay case needs the gutter. Inside the file row the button takes no code width. */
+  .code--copy-in-row pre {
+    padding-inline-end: 1.25rem;
+  }
+
+  .code :global(button:hover) {
+    color: var(--limn-text);
+    border-color: var(--limn-primary);
+  }
+
+  .code :global(.sr-live) {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+</style>
+
+<script>
+  for (const block of document.querySelectorAll<HTMLElement>("[data-copy]")) {
+    const code = block.querySelector("code");
+    if (!code || !navigator.clipboard) continue;
+    const label = block.dataset.label ?? "";
+    const copied = block.dataset.copied ?? "";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    // The confirmation goes to a live region, not into the button: swapping the button's
+    // own text renames the control mid-press for a screen reader.
+    const live = document.createElement("span");
+    live.className = "sr-live";
+    live.setAttribute("aria-live", "polite");
+    button.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(code.textContent ?? "");
+      live.textContent = copied;
+      button.textContent = "✓";
+      setTimeout(() => {
+        button.textContent = label;
+        live.textContent = "";
+      }, 1500);
+    });
+    // Into the file row when there is one, and only over the code when there is not. As an
+    // overlay it sat 1.4 px above the row's own bottom rule, flush with the line, at every
+    // font size, because the row's height comes from its padding and the button's from its
+    // own. Inside the row it is a flex item and cannot touch anything.
+    const row = block.querySelector<HTMLElement>(".code__file");
+    (row ?? block).append(button);
+    block.append(live);
+    block.classList.add("code--copyable");
+    if (row) block.classList.add("code--copy-in-row");
+  }
+</script>

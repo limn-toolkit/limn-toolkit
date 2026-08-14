@@ -1,0 +1,388 @@
+/* Added to Javadoc's own stylesheet rather than replacing it, and it overrides only the
+   custom properties the JDK's stylesheet already declares in its `:root`. That is the
+   whole file, on purpose:
+
+   The first attempt overrode selectors instead (`.block`, `.top-nav`, `.summary-table`
+   and the rest) and produced dark ink on light panels across half the page, because
+   Javadoc sets backgrounds on containers those selectors do not reach. Every one of these
+   variables is consumed by the JDK's own rules, so recolouring them recolours everything
+   consistently and leaves the layout untouched. If a future JDK renames one, that panel
+   falls back to its default colour: a slightly-odd page, never an unreadable one.
+
+   The tokens are prepended by scripts/build-api.mjs from the generated palette file, so
+   nothing here restates a tone the toolkit already defines. */
+
+:root {
+  --body-font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --block-font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --code-font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --body-font-size: 15px;
+  --code-font-size: 14px;
+
+  --body-text-color: var(--limn-text);
+  --block-text-color: var(--limn-text);
+  --title-color: var(--limn-text);
+
+  --body-background-color: var(--limn-background);
+  --detail-background-color: var(--limn-background);
+  --section-background-color: var(--limn-surface);
+
+  --navbar-background-color: var(--limn-surface);
+  --navbar-text-color: var(--limn-text);
+  --subnav-background-color: var(--limn-surface);
+
+  /* Javadoc's "selected" is an orange tab with dark ink. The accent already carries a
+     solved label colour for exactly this pairing, so it is used rather than derived. */
+  --selected-background-color: var(--limn-primary);
+  --selected-text-color: var(--limn-on-primary);
+  --selected-link-color: var(--limn-on-primary);
+
+  --even-row-color: var(--limn-background);
+  --odd-row-color: var(--limn-surface);
+
+  --link-color: var(--limn-primary);
+  --link-color-active: var(--limn-primary-hover);
+
+  --snippet-background-color: var(--limn-surface);
+  --snippet-text-color: var(--limn-text);
+  --snippet-highlight-color: color-mix(in srgb, var(--limn-primary) 25%, var(--limn-background));
+
+  --border-color: var(--limn-outline);
+  --table-border-color: var(--limn-outline);
+
+  --search-input-background-color: var(--limn-surface);
+  --search-input-text-color: var(--limn-text);
+  --search-input-placeholder-color: var(--limn-text-muted);
+  /* Backgrounds behind UNCHANGED body text. The JDK's defaults here are highlighter
+     tints expecting dark ink on top, so a saturated accent makes the searched-for phrase
+     the one illegible thing on the page. Mixed tints follow both palettes. */
+  --search-tag-highlight-color: color-mix(in srgb, var(--limn-primary) 25%, var(--limn-background));
+
+  --invalid-tag-background-color: var(--limn-danger);
+  --invalid-tag-text-color: var(--limn-background);
+}
+
+/* The copy-to-clipboard glyphs are dark PNGs; on a dark canvas they need inverting, and
+   the JDK exposes exactly this knob for the purpose. */
+:root[data-theme="dark"] {
+  --copy-icon-brightness: 700%;
+}
+
+/* The real color-scheme property, not just the exported custom prop: without it a dark
+   /api/ page keeps light UA chrome: scrollbars on every wide signature, the overscroll
+   canvas, form-control internals. Mirrors app.css. */
+:root {
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Glow is never the only signal for state: this is a real ring, and Javadoc ships
+   no focus style of its own worth keeping. */
+:where(a, button, summary, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--limn-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ controls
+
+   The one place this file styles the JDK's own selectors rather than recolouring through
+   its variables, and the boundary is drawn at the CONTROLS: the search box and its
+   suggestion list, the copy buttons, the summary tabs. Panels, tables and prose stay on
+   the variables above, because that is where overriding selectors went wrong before, and this
+   section does not touch any of them.
+
+   The reason for the exception is that a control is where a reader can tell they have
+   left the site. Javadoc ships the JDK's 2011 defaults: a square text box with a bitmap
+   magnifier baked into it, a `reset` input drawn as a 12px PNG cross, and flat rectangles
+   for tabs. Beside `/docs/`, whose search is a rounded control with the same focus ring as
+   every field on the site, they read as another product.
+
+   Every glyph below is an inline SVG in a custom property rather than the JDK's PNGs: the
+   PNGs are dark artwork with no inversion knob of their own, which is why the dark palette
+   used to have to drop them and leave the field with no icon at all. */
+
+:root {
+  /* Both glyphs, per palette, because a background image cannot take `currentColor` and
+     the JDK's markup gives these two inputs no element to hang a mask on. */
+  --limn-glyph-search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23615c73' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.8-3.8'/%3E%3C/svg%3E");
+  --limn-glyph-clear: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23615c73' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --limn-glyph-search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a8a2bb' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.8-3.8'/%3E%3C/svg%3E");
+    --limn-glyph-clear: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a8a2bb' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E");
+  }
+}
+
+:root[data-theme="dark"] {
+  --limn-glyph-search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a8a2bb' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.8-3.8'/%3E%3C/svg%3E");
+  --limn-glyph-clear: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a8a2bb' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------- the search box */
+
+#search-input,
+#page-search-input {
+  box-sizing: border-box;
+  block-size: 34px;
+  inline-size: 260px;
+  max-inline-size: 100%;
+  margin: 0;
+  padding-block: 0;
+  padding-inline: 2.1rem 2rem;
+  border: 1px solid var(--limn-outline);
+  border-radius: 9px;
+  background-color: var(--limn-surface);
+  background-image: var(--limn-glyph-search);
+  background-repeat: no-repeat;
+  background-size: 15px;
+  background-position: 9px center;
+  color: var(--limn-text);
+  font-family: var(--body-font-family);
+  font-size: 0.875rem;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out;
+}
+
+/* Javadoc's own rule adds a left margin to the navbar copy only; the field is placed by
+   the flex row it sits in now. */
+#search-input {
+  margin-inline-start: 8px;
+}
+
+#search-input:hover,
+#page-search-input:hover {
+  border-color: var(--limn-primary);
+}
+
+#search-input:disabled,
+#page-search-input:disabled {
+  opacity: 0.6;
+}
+
+/* The JDK draws this as a bare 12x12 bitmap pinned to a fixed offset, under the 24px
+   minimum for a touch target, and misaligned the moment the field's height changes. */
+#reset-button {
+  inset-inline-end: 6px;
+  inset-block-start: 50%;
+  translate: 0 -50%;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: 6px;
+  background-image: var(--limn-glyph-clear);
+  background-repeat: no-repeat;
+  background-size: 13px;
+  background-position: center;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+#reset-button:hover {
+  background-color: var(--limn-surface-raised);
+  opacity: 1;
+}
+
+/* The search page's own Reset, which is an `<input type="reset">` and therefore arrives
+   with the operating system's button drawn on it: the one control on `/api/` that still
+   looked like a dialog from 1995. It is a sibling of the field, not an overlay, so it gets
+   the site's button rather than the navbar's icon treatment. */
+#page-search-reset {
+  min-block-size: 34px;
+  margin-inline-start: 0.5rem;
+  padding-inline: 0.9rem;
+  border: 1px solid var(--limn-outline);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--limn-text);
+  font-family: var(--body-font-family);
+  font-size: 0.875rem;
+  font-weight: 560;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+
+#page-search-reset:hover {
+  border-color: var(--limn-primary);
+  background: var(--limn-surface);
+}
+
+/* The disclosure beside it, so the two read as one row of controls. */
+#page-search-expand {
+  color: var(--limn-text-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+#page-search-expand:hover {
+  color: var(--limn-text);
+}
+
+/* The link to the full search page, which sits beside the field as shouting uppercase. */
+.nav-list-search > a {
+  color: var(--limn-text-muted);
+  font-size: 0.75rem;
+  font-weight: 560;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+}
+
+.nav-list-search > a:hover {
+  color: var(--limn-primary);
+}
+
+/* --------------------------------------------------------- the suggestion list
+
+   jQuery UI's menu, given the same shape as every other dropdown on the site: the
+   language picker's and the bar's mobile panel. */
+
+ul.ui-autocomplete {
+  padding: 0.35rem;
+  border: 1px solid var(--limn-outline);
+  border-radius: 12px;
+  background-color: var(--limn-background);
+  box-shadow: 0 14px 36px color-mix(in srgb, var(--limn-focus-ring) 22%, transparent);
+}
+
+ul.ui-autocomplete li {
+  border-radius: 8px;
+}
+
+.ui-autocomplete .ui-menu-item-wrapper {
+  display: block;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+}
+
+/* The JDK's active row is the full accent with inverted ink. Class names are monospace and
+   long; a tint of the accent keeps them at body contrast, and is what the guide's own
+   search results sit on. */
+.ui-autocomplete .ui-state-active,
+.ui-autocomplete .ui-menu-item-wrapper.ui-state-active {
+  margin: 0;
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--limn-primary) 18%, var(--limn-background));
+  color: var(--limn-text);
+}
+
+.ui-autocomplete-category {
+  padding: 0.55rem 0.6rem 0.3rem;
+  background-color: transparent;
+  color: var(--limn-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 560;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+ul.ui-autocomplete li.ui-static-link {
+  border-radius: 0;
+  border-block-start: 1px solid color-mix(in srgb, var(--limn-outline) 40%, transparent);
+  background: var(--limn-background);
+  font-family: var(--body-font-family);
+  font-size: 0.8125rem;
+  font-weight: 560;
+}
+
+.ui-autocomplete .result-highlight {
+  color: var(--limn-primary);
+  font-weight: 640;
+}
+
+/* ------------------------------------------------------------------- buttons
+
+   The site's button, at the size each of these had. Shape, weight and hover come from one
+   place so that a tab on `/api/` and a button on the marketing pages are the same object. */
+
+div.table-tabs > button,
+button.page-search-header,
+.page-search-header {
+  min-block-size: 32px;
+  margin-inline-end: 6px;
+  padding-block: 0;
+  padding-inline: 0.85rem;
+  border: 1px solid var(--limn-outline);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--limn-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 560;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+
+div.table-tabs > button:hover,
+button.page-search-header:hover {
+  border-color: var(--limn-primary);
+  background: var(--limn-surface);
+  color: var(--limn-text);
+}
+
+div.table-tabs > .active-table-tab,
+.page-search-header {
+  border-color: transparent;
+  background: var(--limn-primary);
+  color: var(--limn-on-primary);
+}
+
+/* The current item in Javadoc's own navigation row, which the JDK paints as a hard-edged
+   accent block. The same corner as every other selected thing on the site. */
+.nav-bar-cell1-rev {
+  border-radius: 7px;
+}
+
+/* The copy-to-clipboard buttons, which the JDK ships as a bare glyph at 70% opacity.
+   A real surface is what makes them findable; the fade-in on hover stays. */
+button.copy {
+  border: 1px solid var(--limn-outline);
+  border-radius: 8px;
+  background-color: var(--limn-surface);
+}
+
+button.copy:hover {
+  border-color: var(--limn-primary);
+}
+
+button.copy:active {
+  background-color: var(--limn-surface-raised);
+}
+
+/* Search-page checkboxes: the accent, so the one saturated colour on the page is the
+   toolkit's rather than the browser's. */
+div.checkboxes > label > input {
+  accent-color: var(--limn-primary);
+}
+
+/* The site's bar that `scripts/build-api.mjs` injects into every page is styled by
+   `src/styles/bar.css`, which that script concatenates ahead of this file, so the guide and
+   the marketing pages load the very same stylesheet. Nothing about the bar is written
+   here, so it cannot drift from the other two.
+
+   Except this: the bar is injected INSIDE `div.flex-box`, the fixed-height column that owns
+   the page's scrolling, and a flex child defaults to shrinking. Without this the bar is
+   squeezed as the content grows, and it is the only rule the other two surfaces must not
+   have, because neither of them puts the bar in a flex column. */
+.flex-box > .limn-bar {
+  flex: 0 0 auto;
+}
+
+/* Contributor-facing signatures and tables run wide; they scroll inside their own box so
+   the page body never scrolls horizontally. */
+.summary-table,
+.details-table,
+.member-signature,
+pre,
+/* The JDK's search-results grid declares an 800px min-content floor that overflows the
+   viewport in the band just above its own mobile breakpoint. */
+.two-column-search-results {
+  max-width: 100%;
+  overflow-x: auto;
+}

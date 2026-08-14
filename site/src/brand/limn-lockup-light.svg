@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 64" width="840" height="256">
+<g>
+<path d="M18 16 L28 16 L28 44 L48 44 L48 54 L18 54 Z" fill="none" stroke="#7a6cc9" stroke-width="2" opacity="0.8" stroke-linejoin="round"></path>
+<path d="M14 12 L24 12 L24 40 L44 40 L44 50 L14 50 Z" fill="rgba(122,108,201,0.08)" stroke="#23252f" stroke-width="2.6" stroke-linejoin="round"></path>
+</g>
+<text x="76" y="44" font-family="Inter, system-ui, sans-serif" font-size="34" font-weight="500" letter-spacing="0.3" fill="#23252f">limn</text>
+</svg>

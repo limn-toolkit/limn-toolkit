@@ -1,0 +1,98 @@
+---
+/**
+ * What the site stores, in full: the page the consent prompt links to.
+ *
+ * It is written as a list of claims a reader can check rather than as a policy: every
+ * statement here is about something visible in the browser's own storage inspector, and the
+ * page says what is NOT there as plainly as what is.
+ */
+import Page from "../../layouts/Page.astro";
+import { localeRoutes, messages } from "../../i18n";
+import type { Locale } from "../../lib/i18n";
+
+export const getStaticPaths = localeRoutes;
+
+const { locale } = Astro.props as { locale: Locale };
+const msg = messages(locale);
+
+const sections = [
+  "storage",
+  "language",
+  "cookies",
+  "analytics",
+  "thirdParty",
+  "hosting",
+] as const;
+---
+
+<Page locale={locale} path="privacy/" titleKey="privacy.title" descriptionKey="privacy.description">
+  <section class="section aura">
+    <div class="wrap wrap--prose">
+      <p class="eyebrow">{msg("privacy.eyebrow")}</p>
+      <h1>{msg("privacy.heading")}</h1>
+      <p class="lede">{msg("privacy.lede")}</p>
+
+      <div class="body">
+        {
+          sections.map((key) => (
+            <section>
+              <h2>{msg(`privacy.${key}.heading` as never)}</h2>
+              <p set:html={msg(`privacy.${key}.body` as never)} />
+            </section>
+          ))
+        }
+
+        <section>
+          <h2>{msg("privacy.change.heading")}</h2>
+          <p>{msg("privacy.change.body")}</p>
+          {/* Rendered hidden and revealed by the consent runtime: with scripting off the
+              prompt never appears, so a button that would open it must not either. */}
+          <p class="change">
+            <button class="button" type="button" data-consent-open hidden>
+              {msg("privacy.change.action")}
+            </button>
+          </p>
+          <p class="fallback">{msg("privacy.noScript")}</p>
+        </section>
+      </div>
+    </div>
+  </section>
+</Page>
+
+<style>
+  .lede {
+    margin-block-start: 1.25rem;
+  }
+
+  .body {
+    display: grid;
+    gap: 2.25rem;
+    margin-block-start: 3rem;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+  }
+
+  .body p {
+    margin-block-start: 0.75rem;
+    color: var(--limn-text-muted);
+    line-height: 1.7;
+  }
+
+  .change {
+    margin-block-start: 1.25rem;
+  }
+
+  .fallback {
+    font-size: var(--text-sm);
+  }
+</style>
+
+<script>
+  // The runtime binds the click; this only makes the control appear once it is known that
+  // something will answer it.
+  for (const button of document.querySelectorAll<HTMLElement>("[data-consent-open]")) {
+    button.hidden = false;
+  }
+</script>
