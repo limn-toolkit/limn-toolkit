@@ -47,9 +47,6 @@ them pays for none of them:
 > primitives of `limn.scene`, because they depend on the theme (the shared
 > `ScrollBar`). The `limn.scene` layouts are Column/Row/Stack/Padding/SizedBox.
 
-(The old `limn-scene` module was **merged** into `limn-toolkit`; the
-`limn.scene.*` packages are unchanged, only the module moved.)
-
 Only `limn-backend-lwjgl` may import `org.lwjgl.*`; AWT/Swing/SWT are forbidden
 in every module. Both rules are enforced at build time by the
 `checkArchitecture` task (wired into `check`).
@@ -330,8 +327,7 @@ file decoder, installed at startup (mirrors `limn.graphics.Images`).
 
 - **Synthesis**: `AudioClip.tone(freq, duration, amplitude)` generates a sine
   with a raised-cosine envelope (no clicks). It is the primitive behind the
-  system **beep**, previously isolated, now just a `tone(...)` played through
-  this package.
+  system **beep**, which is a `tone(...)` played through this package.
 - **Loading**: `Sounds.load(path)`/`fromResource(...)`/`decode(bytes)` decode
   **WAV** (PCM 8/16/24-bit and float32, mono/stereo), **Ogg Vorbis** (via
   stb_vorbis) and **MP3** (via JLayer, pure Java, no natives; note: JLayer is

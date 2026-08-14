@@ -39,7 +39,9 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          # Must match the toolchain in build.gradle.kts: the Javadoc doclet
+          # differs between 17 and 21 and /api/ is themed against 21.
+          java-version: "21"
 
       - uses: gradle/actions/setup-gradle@v4
 

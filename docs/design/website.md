@@ -96,7 +96,8 @@ success.
 - **A promised image that was not rendered fails the build.** One shot went missing from an otherwise
   green run and was caught only by counting files.
 - **The animation budget is asserted after the re-encode**, not before it (`ANIMATION_BUDGET` 400 KB,
-  `SHOWCASE_ANIMATION_BUDGET` 900 KB). The lossy pass used to publish whatever it produced.
+  `SHOWCASE_ANIMATION_BUDGET` 1800 KB). A film still over budget at the lowest quality the encoder
+  is willing to try fails the build rather than publishing the overrun.
 - **`build-api.mjs` fails if a page declares the wrong `lang`.** The javadoc tool inherits the build
   machine's locale into `<html lang>`, which is why `aggregateJavadoc` pins `locale = "en"`.
 

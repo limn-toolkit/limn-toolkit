@@ -35,7 +35,9 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          # Must match the toolchain in build.gradle.kts: the Javadoc doclet
+          # differs between 17 and 21 and /api/ is themed against 21.
+          java-version: "21"
 
       # Caches the wrapper and the dependency cache; nothing else about the Gradle build
       # is configured here, so the workflow cannot drift from what a developer runs.

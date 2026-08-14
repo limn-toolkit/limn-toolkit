@@ -36,7 +36,7 @@ public class BackdropPanel extends Padding {
     /** {@link #setCornerRadius} takes this to mean "follow the resolved size row". */
     public static final float RADIUS_FROM_TOKENS = -1;
 
-    private BackdropEffect effect;
+    private java.util.List<BackdropEffect> effects;
     private float cornerRadius = RADIUS_FROM_TOKENS;
 
     /** A panel with 12pt of padding around {@code child}. */
@@ -46,18 +46,47 @@ public class BackdropPanel extends Padding {
 
     public BackdropPanel(BackdropEffect effect, Insets insets, Widget child) {
         super(insets, child);
-        this.effect = Objects.requireNonNull(effect, "effect");
+        this.effects = java.util.List.of(Objects.requireNonNull(effect, "effect"));
     }
 
-    /** The effect painted behind the child. */
+    /** The first effect painted behind the child; see {@link #effects()} for the whole stack. */
     public final BackdropEffect effect() {
-        return effect;
+        return effects.get(0);
+    }
+
+    /** Every effect painted behind the child, in the order they are drawn. */
+    public final java.util.List<BackdropEffect> effects() {
+        return effects;
+    }
+
+    /**
+     * Replaces the effect with a <b>stack</b>, drawn in order over the same shape.
+     *
+     * <p>This is how the effects compose, and it needs nothing from the renderer: each one reads
+     * the framebuffer and writes it, so the second samples what the first left. It is what makes
+     * a frosted pane out of the pieces rather than out of a variant with four parameters, and
+     * what makes {@link BackdropEffect.Blur} affordable, since a separable blur IS two passes.
+     *
+     * <p>Each pass costs one batch flush and one copy of the panel's own bounds, so a stack of
+     * three costs three of each. Over a small panel that is cheap and over a full-window one it
+     * is not; the cost is proportional to the shape, not to the window.
+     *
+     * @throws IllegalArgumentException if the stack is empty
+     */
+    public BackdropPanel setEffects(BackdropEffect... stack) {
+        Ui.checkUiThread();
+        if (stack.length == 0) {
+            throw new IllegalArgumentException("a backdrop panel needs at least one effect");
+        }
+        this.effects = java.util.List.of(stack);
+        invalidate();
+        return this;
     }
 
     /** Replaces the effect. UI thread only. */
     public BackdropPanel setEffect(BackdropEffect newEffect) {
         Ui.checkUiThread();
-        this.effect = Objects.requireNonNull(newEffect, "newEffect");
+        this.effects = java.util.List.of(Objects.requireNonNull(newEffect, "newEffect"));
         invalidate();
         return this;
     }
@@ -78,6 +107,9 @@ public class BackdropPanel extends Padding {
         float radius = cornerRadius >= 0
                 ? cornerRadius
                 : Theme.current().tokensFor(this).radiusLarge();
-        canvas.fillBackdropRoundRect(0, 0, width(), height(), radius, effect);
+        // In order: each pass reads what the one before it wrote.
+        for (BackdropEffect each : effects) {
+            canvas.fillBackdropRoundRect(0, 0, width(), height(), radius, each);
+        }
     }
 }

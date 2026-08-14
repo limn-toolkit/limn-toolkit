@@ -39,6 +39,21 @@ val publishedModules = mapOf(
 subprojects {
     plugins.withId("java") {
         extensions.configure<JavaPluginExtension> {
+            // The JDK this build runs on, pinned.
+            //
+            // Without it Gradle uses whichever JDK launched it, and the two ends of this
+            // project disagreed silently: a developer on 21 and a CI runner on 17 compiled
+            // the same bytecode (see options.release below) but generated DIFFERENT Javadoc.
+            // The 21 doclet declares its palette as CSS custom properties and the 17 one
+            // writes literal colours, so `site/src/styles/javadoc-theme.css`, which works by
+            // redefining those properties, had nothing to redefine on CI: /api/ published
+            // with the stock Javadoc colours and no 404 anywhere to say so.
+            //
+            // release stays 17: what the artifacts target is a promise to whoever consumes
+            // them, and it is not the same decision as which compiler builds them.
+            toolchain {
+                languageVersion.set(JavaLanguageVersion.of(21))
+            }
             withSourcesJar()
             // Only for what is published, and it is not a formality: this repository splits its
             // documentation on the premise that a member's contract stands alone because a user

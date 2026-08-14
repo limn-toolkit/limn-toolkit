@@ -7,15 +7,15 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "sync:docs": "node scripts/sync-docs.mjs",
-    "build:api": "node scripts/build-api.mjs",
-    "build:gallery": "node scripts/build-gallery.mjs",
-    "build:icons": "node scripts/build-icons.mjs",
-    "since:review": "node scripts/since-review.mjs",
+    "sync:docs": "node scripts/timed.mjs sync:docs node scripts/sync-docs.mjs",
+    "build:api": "node scripts/timed.mjs build:api node scripts/build-api.mjs",
+    "build:gallery": "node scripts/timed.mjs build:gallery node scripts/build-gallery.mjs",
+    "build:icons": "node scripts/timed.mjs build:icons node scripts/build-icons.mjs",
+    "since:review": "node scripts/timed.mjs since:review node scripts/since-review.mjs",
     "generate": "pnpm since:review && pnpm build:gallery && pnpm sync:docs && pnpm build:api && pnpm build:icons",
     "dev": "pnpm generate && astro dev",
-    "build": "pnpm generate && astro build",
-    "check:links": "node scripts/check-links.mjs",
+    "build": "pnpm generate && node scripts/timed.mjs astro-build npx astro build",
+    "check:links": "node scripts/timed.mjs check:links node scripts/check-links.mjs",
     "preview": "astro preview",
     "check": "astro check"
   },
