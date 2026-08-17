@@ -83,3 +83,11 @@ nbproject/
 *.rej
 .env
 .env.*
+
+# The release signing key, which is an ASCII-armored PGP block in a .asc file. It does not
+# live here and is not supposed to: the key and the environment file that reads it sit one
+# directory ABOVE this repository, outside any git tree, precisely so that no ignore rule is
+# what stands between a private key and a public repository. This line is the second lock,
+# for the day somebody copies one in to "just test something". Nothing legitimate in this
+# tree is a .asc: the signatures a release produces are written under build/, ignored above.
+*.asc

@@ -1,0 +1,117 @@
+# Publishes the library modules to Maven Central, off a tag.
+#
+# The version comes from the tag and from nowhere else: build.gradle.kts reads -PlimnVersion and
+# otherwise says -SNAPSHOT, so `v0.1.0` is what makes 0.1.0 exist. Nothing in the tree has to be
+# edited to release, and nothing is left saying "0.1.0" after one.
+#
+# The upload STOPS at the Portal. What arrives there is a deployment, validated and staged, and
+# somebody has to press Publish on central.sonatype.com for it to reach the world. That step is
+# manual on purpose: it is the last moment at which a release can still be dropped, and Central
+# keeps what it accepts. A wrong artifact cannot be replaced, only superseded by a version number
+# nobody wanted to spend.
+#
+# Secrets this needs (repository settings → Secrets and variables → Actions):
+#
+#   MAVEN_CENTRAL_USERNAME / MAVEN_CENTRAL_PASSWORD   the Portal USER TOKEN, not the login
+#   SIGNING_KEY                                       `gpg --armor --export-secret-keys <id>`,
+#                                                     BEGIN/END lines included
+#   SIGNING_PASSWORD                                  that key's passphrase
+#
+# The public half of the key has to be on a public keyserver (keyserver.ubuntu.com,
+# keys.openpgp.org) before this runs: Central verifies the signature against one, and a key it
+# cannot find fails validation after the upload, not before it.
+
+name: publish
+
+on:
+  push:
+    tags: ["v*"]
+  # For a re-run of a release whose upload failed after the tag already existed. Same job, same
+  # inputs; the version is typed instead of read off the ref.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, without the leading v (e.g. 0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# A release is not something to run twice at once, and unlike the site's, a queued second run is
+# not harmless: two uploads of one version race for the same deployment on the Portal.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Must match the toolchain in build.gradle.kts, for the reason that file gives: the
+          # Javadoc doclet differs between 17 and 21, and a published javadoc jar is an artifact
+          # like any other. What the classes TARGET is 17 either way (options.release).
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The version, from the tag or from the dispatch input, with the leading v removed.
+      # Rejected here rather than by Gradle if it is not a version: the tag is a human's typing,
+      # and `v0.1` or `0.1.0-SNAPSHOT` should not reach an upload.
+      - name: Resolve the version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)[0-9]+)?$'; then
+            echo "::error::'$VERSION' is not a release version (expected 1.2.3, or 1.2.3-rc1)"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "publishing $VERSION"
+
+      # GLFW needs a display and Mesa needs its software rasteriser: llvmpipe provides the
+      # OpenGL 3.3 core profile the backend requires, with no GPU on the runner. Same list as
+      # site-ci.yml, and for the same reason: trimming it does not fail here, it fails inside a
+      # Gradle task where the cause is much harder to read.
+      - name: Install Xvfb and Mesa
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libgl1-mesa-dri libglx-mesa0 libxrandr2 libxinerama1 \
+            libxcursor1 libxi6 libxxf86vm1
+
+      # The whole gate, before the upload, and this is the one workflow where skipping it is not
+      # a trade: the PR gate protects a merge, which can be reverted. This protects a publication,
+      # which cannot. `check` also builds the javadoc that ships in the jars.
+      - name: Gradle check
+        run: xvfb-run -a ./gradlew check -PlimnVersion=${{ steps.version.outputs.version }}
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+
+      # ORG_GRADLE_PROJECT_<name> is how a Gradle property arrives from an environment, which is
+      # what keeps every one of these out of the repository and out of the command line (a -P
+      # would put the passphrase in the process list and in the log).
+      - name: Publish to Maven Central
+        run: ./gradlew publishToMavenCentral -PlimnVersion=${{ steps.version.outputs.version }} --no-daemon
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+
+      - name: What happens next
+        run: |
+          echo "### Uploaded ${{ steps.version.outputs.version }} to the Central Portal" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "It is staged, not published. Open <https://central.sonatype.com/publishing/deployments>," >> "$GITHUB_STEP_SUMMARY"
+          echo "check the deployment's contents, and press **Publish** to release it." >> "$GITHUB_STEP_SUMMARY"

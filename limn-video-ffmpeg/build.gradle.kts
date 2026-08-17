@@ -11,12 +11,18 @@
 // scripts/build-ffmpeg.sh; Gradle never invokes a C compiler, because a toolkit build must not
 // need one. What the build does is package it.
 //
-// The `player` profile IS committed, so a fresh clone and a published jar both carry a working
-// decoder for macOS without anyone running the script. `full` (the developer build, with the
-// encoders and the mov muxer a test needs to write an MP4 and read it back) is gitignored and
-// local. On a platform with no committed native this module still compiles, its tests still skip
-// the way the GL-backed ones do, and the demo still runs with the decoder reporting itself
-// uninstallable.
+// NO native is committed either: .gitignore excludes this module's whole native/ tree, because
+// nothing this project did not write lives in git. A fresh clone therefore has no decoder, and
+// that is a supported state, not a broken one: the module still compiles, its tests skip the way
+// the GL-backed ones do, and the demo still runs with the decoder reporting itself unavailable.
+// A payload arrives one of two ways, `player` (what ships) or `full` (the developer build, with
+// the encoders and the mov muxer a test needs to write an MP4 and read it back): built here with
+// scripts/build-ffmpeg.sh, or fetched with scripts/fetch-ffmpeg.sh.
+//
+// Which is also why this module is NOT in the root's publishedModules yet, and the only one of
+// the libraries that is not: fetch-ffmpeg.sh pins its archive to a release, no release exists to
+// pin, and the guard below refuses to publish a decoder module with no decoder in it. The way
+// back in is written out at that map.
 
 plugins {
     `java-library`

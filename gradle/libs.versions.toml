@@ -2,6 +2,7 @@
 lwjgl = "3.4.1"
 jlayer = "1.0.1"
 junit = "6.1.1"
+central-publish = "0.37.0"
 
 [libraries]
 lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
@@ -16,3 +17,9 @@ lwjgl-tinyfd = { module = "org.lwjgl:lwjgl-tinyfd" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
+[plugins]
+# Maven Central's own upload API takes a signed bundle, which `maven-publish` alone cannot
+# produce: this plugin is what turns the publications below into that bundle, signs every
+# artifact in it, and hands it to the Central Portal.
+central-publish = { id = "com.vanniktech.maven.publish", version.ref = "central-publish" }

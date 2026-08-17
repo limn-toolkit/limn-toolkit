@@ -8,13 +8,21 @@
 // The backend module IMPLEMENTS the SPI (limn.backend.*) defined in limn-toolkit
 // (dependency inversion): no module above it sees LWJGL/OpenGL.
 
+import com.vanniktech.maven.publish.MavenPublishBaseExtension
+
 plugins {
     base
+    // Applied to each published module below and never to the root, which builds no artifact.
+    alias(libs.plugins.central.publish) apply false
 }
 
 allprojects {
-    group = "dev.limn"
-    version = "0.1.0-SNAPSHOT"
+    group = "io.github.limn-toolkit"
+    // The release version comes from the tag, through the workflow, and lives nowhere in this
+    // file: a version written here is one that has to be edited twice per release (once to
+    // release, once to reopen the snapshot) and is wrong in the tree in between. A working
+    // clone therefore always reads -SNAPSHOT, which is also what publishToMavenLocal wants.
+    version = (findProperty("limnVersion") as String?) ?: "0.1.0-SNAPSHOT"
 }
 
 // What is published, and what a one-line description of it says in the POM.
@@ -29,12 +37,20 @@ val publishedModules = mapOf(
     "limn-icons-tabler" to "The Tabler icon pack as Limn icons; an application opts in.",
     "limn-theme-editor" to "The screen that authors a Theme; an application opts in.",
     "limn-video" to "Pure-Java video decoders: no native, no third-party dependency.",
-    "limn-video-ffmpeg" to
-            "H.264/AAC in MP4 via FFmpeg. Carries native libraries for macOS (aarch64, x86_64) " +
-            "under LGPL-2.1-or-later; see NOTICE-ffmpeg.txt in the jar. On any other platform " +
-            "the decoder reports itself unavailable and the rest of the toolkit is unaffected.",
     "limn-backend-lwjgl" to "The LWJGL backend: GLFW, OpenGL and stb behind the toolkit's SPIs.",
 )
+
+// limn-video-ffmpeg is absent for a reason that is temporary and NOT the one that keeps
+// limn-demo out. It is a library, and it belongs here; what it does not have yet is its payload.
+// The natives are not in this repository (.gitignore excludes the whole native/ tree), they come
+// from a release build, and scripts/fetch-ffmpeg.sh refuses to run until a release exists to pin.
+// Publishing it today would either fail on its own guard or ship a decoder that decodes nothing.
+//
+// Its own module also gates publication on all six desktop slices being present, so the way back
+// in is: build them (scripts/build-ffmpeg.sh), attach the archive to a GitHub release, pin
+// RELEASE and ARCHIVE_SHA256 in the fetch script, and add the entry here. Until then an
+// application that wants MP4 builds the module itself, and everything else on this list is
+// unaffected: nothing published depends on it.
 
 subprojects {
     plugins.withId("java") {
@@ -55,12 +71,15 @@ subprojects {
                 languageVersion.set(JavaLanguageVersion.of(21))
             }
             withSourcesJar()
-            // Only for what is published, and it is not a formality: this repository splits its
-            // documentation on the premise that a member's contract stands alone because a user
-            // with the artifact has no repository. The jar is where that promise is kept.
-            if (name in publishedModules) {
-                withJavadocJar()
-            }
+            // No withJavadocJar() here, and the published modules still get one: the publishing
+            // plugin builds it (`plainJavadocJar`), because Maven Central requires a javadoc jar
+            // in every deployment. Asking for both produces two tasks writing one file, which
+            // Gradle rejects outright rather than picking a winner.
+            //
+            // What that jar carries is not a formality: this repository splits its documentation
+            // on the premise that a member's contract stands alone because a user with the
+            // artifact has no repository. The `check` → `javadoc` wiring below is what keeps
+            // that promise buildable; the plugin only packages it.
         }
 
         tasks.withType<JavaCompile>().configureEach {
@@ -170,44 +189,74 @@ subprojects {
 
 // ---------------------------------------------------------------------------- publishing
 //
-// Two repositories, both local, because there is no remote to publish to yet:
+// Three destinations, and which one a task means:
 //
 //   publishToMavenLocal        the ~/.m2 that another build on this machine resolves from. It is
 //                              how a consuming project (a composite build, an experiment) gets
 //                              Limn as a real dependency rather than as a project reference.
 //   publishAllPublicationsToBuildDirRepository
 //                              a plain file repository under build/repo, for looking at what
-//                              would ship, or for a CI to attach.
+//                              would ship without sending it anywhere.
+//   publishToMavenCentral      the real one: uploads a signed bundle to the Central Portal, where
+//                              it sits as a deployment until somebody presses Publish. The
+//                              publish workflow runs this, off a tag, with -PlimnVersion.
 //
-// Adding a remote later is a `repositories { maven { url = ... } }` here and credentials; the
-// POM below is already what a remote would want, minus the URL and SCM, which are omitted rather
-// than invented because this repository has no remote.
+// Central is not a repository you can point `maven { url = ... }` at: its API takes a bundle of
+// the whole publication, signed, which is what the plugin applied here builds. A release it
+// accepts is permanent, and it checks what a file repository never would: every artifact carries
+// a signature, by a key it can find on a public keyserver. A -SNAPSHOT version goes to a separate
+// repository under the same task, where neither of those holds and nothing is permanent.
 subprojects {
-    val description = publishedModules[name] ?: return@subprojects
-    apply(plugin = "maven-publish")
+    val moduleDescription = publishedModules[name] ?: return@subprojects
+    apply(plugin = "com.vanniktech.maven.publish")
 
     plugins.withId("java") {
-        extensions.configure<PublishingExtension> {
-            publications {
-                create<MavenPublication>("maven") {
-                    from(components["java"])
-                    pom {
-                        name.set(this@subprojects.name)
-                        this.description.set(description)
-                        licenses {
-                            license {
-                                name.set("The Apache License, Version 2.0")
-                                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
-                            }
-                        }
-                        developers {
-                            developer {
-                                name.set("Dyorgio Nascimento")
-                            }
-                        }
+        extensions.configure<MavenPublishBaseExtension> {
+            // Uploads and stops. The last step stays a human pressing Publish on the Portal,
+            // because that is the last moment at which a release can still be dropped: what
+            // Central accepts, it keeps, and a wrong artifact cannot be replaced, only
+            // superseded by a version number that nobody wanted to spend.
+            publishToMavenCentral()
+
+            // Signing is conditional on a key being configured, and the guard below is the other
+            // half of that sentence. Unconditional, it would break the one workflow this
+            // repository documents for everybody else: install.md tells a reader with no GPG key
+            // to run publishToMavenLocal, and that reader is not releasing anything.
+            if (providers.gradleProperty("signingInMemoryKey").isPresent ||
+                    providers.gradleProperty("signing.keyId").isPresent) {
+                signAllPublications()
+            }
+
+            pom {
+                name.set(this@subprojects.name)
+                description.set(moduleDescription)
+                url.set("https://limn-toolkit.github.io/limn-toolkit")
+                scm {
+                    url.set("https://github.com/limn-toolkit/limn-toolkit")
+                    connection.set(
+                        "scm:git:https://github.com/limn-toolkit/limn-toolkit.git")
+                    developerConnection.set(
+                        "scm:git:ssh://git@github.com/limn-toolkit/limn-toolkit.git")
+                }
+                licenses {
+                    license {
+                        name.set("The Apache License, Version 2.0")
+                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("dyorgio")
+                        name.set("Dyorgio Nascimento")
+                        url.set("https://github.com/dyorgio")
                     }
                 }
             }
+        }
+
+        // The plugin configures the publication; this adds the local file repository back, which
+        // is a different question from where a release goes and is worth keeping either way.
+        extensions.configure<PublishingExtension> {
             repositories {
                 maven {
                     name = "buildDir"
@@ -215,6 +264,45 @@ subprojects {
                 }
             }
         }
+    }
+}
+
+// What the conditional signing above must never become: a release that Central rejects on
+// validation, or one it accepts unsigned. A missing key is a missing secret in the workflow, and
+// the moment to say so is before anything leaves the machine.
+//
+// The check hangs off the task graph rather than off the tasks themselves, and that is the whole
+// reason it is here rather than in the block above: `publishToMavenCentral` aggregates, so a
+// doFirst on it runs AFTER the upload it depends on has already happened. whenReady is the last
+// point that is still before execution, and it sees the graph for every module at once.
+gradle.taskGraph.whenReady {
+    val releasing = allTasks.any {
+        it.name == "publishToMavenCentral" || it.name == "publishAndReleaseToMavenCentral" ||
+                it.name.startsWith("publishAllPublicationsToMavenCentral")
+    }
+    if (!releasing) return@whenReady
+
+    // A snapshot is not a release and is not held to a release's rules: the Portal routes it to
+    // the snapshot repository, where it is replaceable and where a signature is optional. Said
+    // out loud, because the task that sends it there is spelled exactly like the one that
+    // releases, and the difference is a suffix in a version somebody passed on the command line.
+    if (project.version.toString().endsWith("-SNAPSHOT")) {
+        logger.lifecycle(
+            "publishing ${project.version} to Central's SNAPSHOT repository. This is not a " +
+                    "release: pass -PlimnVersion=<version> for one."
+        )
+        return@whenReady
+    }
+
+    if (!providers.gradleProperty("signingInMemoryKey").isPresent &&
+            !providers.gradleProperty("signing.keyId").isPresent) {
+        throw GradleException(
+            "refusing to publish ${project.version} to Maven Central unsigned: no signing key " +
+                    "is configured, and Central requires a signature on every artifact of a " +
+                    "release. Set signingInMemoryKey and signingInMemoryKeyPassword in " +
+                    "~/.gradle/gradle.properties, or as ORG_GRADLE_PROJECT_ environment " +
+                    "variables (which is what .github/workflows/publish.yml does)."
+        )
     }
 }
 
