@@ -729,11 +729,20 @@ class MediaPlayerTest {
             // The recycler throws when a slot comes back twice, and a throw on the decode thread
             // would land in the player's failure. Both are checked below.
             for (int i = 0; i < 40; i++) {
+                long decodedBefore = player.decodedFrames();
                 VideoFrame picture = player.takePicture();
                 if (picture != null) {
                     picture.release();
+                    // Waiting on the COUNTER and not on "something is buffered", which is the
+                    // difference between waiting for the decode thread and waiting for nothing.
+                    // The ring is normally full here, so `bufferedPictures() > 0` is already true
+                    // of the pictures sitting in it: the loop would spin forty times in
+                    // microseconds without the thread being scheduled once, and then assert that
+                    // it had decoded more than the three it started with. That is the whole of
+                    // the CI failure — two loaded cores, not a bug in the player.
+                    await(() -> player.decodedFrames() > decodedBefore,
+                            "the decode thread to refill the slot just released");
                 }
-                await(() -> player.bufferedPictures() > 0, "the decode thread to make progress");
             }
             assertNull(player.failure(),
                     "a picture released twice across the handoff would surface here: "
