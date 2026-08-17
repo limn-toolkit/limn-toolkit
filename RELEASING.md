@@ -90,9 +90,34 @@ Consumers add `https://central.sonatype.com/repository/maven-snapshots/` as a re
 also the honest dress rehearsal for the credentials and the upload path, because it exercises
 both without spending a version number.
 
+## The native payload, and where it comes from
+
+`limn-video-ffmpeg` carries FFmpeg for six desktop platforms, and **none of those binaries is in
+this repository**. The release builds them: `natives.yml` runs `scripts/build-ffmpeg.sh` on five
+runners — macOS covers two slices at once, each Linux architecture builds in a `manylinux_2_28`
+container because the script enforces a glibc floor of 2.28, and Windows builds under MSYS2's
+CLANG64 and CLANGARM64 — and hands the six back as artifacts that the publish job merges into the
+jar. They exist for the length of the run.
+
+The module refuses to publish without all six, so a slice that fails to build stops the release
+rather than shipping a decoder that is missing a platform and says nothing.
+
+### Working on it locally
+
+You need a payload only if you want MP4 playback while developing; without one the decoder
+reports itself unavailable, its tests skip, and everything else works.
+
+```
+./scripts/build-ffmpeg.sh                  # your platform, about a minute, needs a C compiler
+./scripts/build-ffmpeg.sh --profile full   # + encoders and the mov muxer the writer tests need
+./scripts/fetch-ffmpeg.sh                  # no toolchain: unpack the natives from the published jar
+```
+
+`fetch-ffmpeg.sh` takes them out of the jar on Maven Central, verified against the digest Central
+publishes, so what you run locally is what an application gets. It needs a release to exist; until
+one does, it says so and points at the build script. Neither route puts anything in git.
+
 ## What is not published
 
-`limn-demo` is not a library. `limn-video-ffmpeg` is one, and is temporarily out: its native
-payload is not in this repository, it comes from a release build, and the module refuses to
-publish without all six desktop slices. The way back in is written at `publishedModules` in
-`build.gradle.kts`.
+`limn-demo`: it is the kitchen sink and the verification scenes, not a library, and publishing it
+would invite an application to depend on it.

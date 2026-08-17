@@ -37,20 +37,13 @@ val publishedModules = mapOf(
     "limn-icons-tabler" to "The Tabler icon pack as Limn icons; an application opts in.",
     "limn-theme-editor" to "The screen that authors a Theme; an application opts in.",
     "limn-video" to "Pure-Java video decoders: no native, no third-party dependency.",
+    "limn-video-ffmpeg" to
+            "H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis out of MP4 and Matroska, via FFmpeg. Carries " +
+            "native libraries for macOS, Linux and Windows on x86_64 and aarch64 under " +
+            "LGPL-2.1-or-later; see NOTICE-ffmpeg.txt in the jar. On any other platform the " +
+            "decoder reports itself unavailable and the rest of the toolkit is unaffected.",
     "limn-backend-lwjgl" to "The LWJGL backend: GLFW, OpenGL and stb behind the toolkit's SPIs.",
 )
-
-// limn-video-ffmpeg is absent for a reason that is temporary and NOT the one that keeps
-// limn-demo out. It is a library, and it belongs here; what it does not have yet is its payload.
-// The natives are not in this repository (.gitignore excludes the whole native/ tree), they come
-// from a release build, and scripts/fetch-ffmpeg.sh refuses to run until a release exists to pin.
-// Publishing it today would either fail on its own guard or ship a decoder that decodes nothing.
-//
-// Its own module also gates publication on all six desktop slices being present, so the way back
-// in is: build them (scripts/build-ffmpeg.sh), attach the archive to a GitHub release, pin
-// RELEASE and ARCHIVE_SHA256 in the fetch script, and add the entry here. Until then an
-// application that wants MP4 builds the module itself, and everything else on this list is
-// unaffected: nothing published depends on it.
 
 subprojects {
     plugins.withId("java") {

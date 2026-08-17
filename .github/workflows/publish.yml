@@ -49,9 +49,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  # The version and the tag, checked before six native builds are spent on a typo. It is the
+  # cheapest job in the file and everything else waits on it.
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -62,16 +64,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          # Must match the toolchain in build.gradle.kts, for the reason that file gives: the
-          # Javadoc doclet differs between 17 and 21, and a published javadoc jar is an artifact
-          # like any other. What the classes TARGET is 17 either way (options.release).
-          java-version: "21"
-
-      - uses: gradle/actions/setup-gradle@v4
 
       # The version, from the tag or from the dispatch input, with the leading v removed.
       # Rejected here rather than by Gradle if it is not a version: the tag is a human's typing,
@@ -100,8 +92,7 @@ jobs:
         run: |
           TAG="v${{ steps.version.outputs.version }}"
           if ! git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
-            echo "::error::$TAG does not exist. Tag the commit you mean to release first:"
-            echo "::error::  git tag -a $TAG -m '$TAG' && git push origin $TAG"
+            echo "::error::$TAG does not exist. Tag the commit you mean to release first."
             exit 1
           fi
           TAGGED="$(git rev-parse "$TAG^{commit}")"
@@ -110,6 +101,55 @@ jobs:
             exit 1
           fi
           echo "$TAG is $TAGGED"
+
+  # The decoder's six slices, built here and nowhere else. They are not in the repository and
+  # never will be: they exist for the length of this run, go into the jar, and are gone.
+  natives:
+    needs: verify
+    uses: ./.github/workflows/natives.yml
+
+  publish:
+    needs: [verify, natives]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ needs.verify.outputs.version }}
+    steps:
+      # Full depth, for the tag check below: a shallow clone has the tag object without the
+      # commit it points at, which cannot be compared to anything.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Must match the toolchain in build.gradle.kts, for the reason that file gives: the
+          # Javadoc doclet differs between 17 and 21, and a published javadoc jar is an artifact
+          # like any other. What the classes TARGET is 17 either way (options.release).
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The six slices the natives job built, merged back into the one tree the module packages
+      # from. `merge-multiple` is what makes six artifacts one directory: each carries the same
+      # `limn/video/ffmpeg/native/` shape with a different platform inside it.
+      #
+      # This is the only moment those binaries exist in a checkout. They are not committed, the
+      # tree ignores them, and the jar built below is the only place they are meant to live.
+      - name: Fetch the native payload
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ffmpeg-native-*
+          merge-multiple: true
+          path: limn-video-ffmpeg/native/dist/player
+
+      - name: Check the payload is complete
+        run: |
+          echo "slices present:"
+          ls limn-video-ffmpeg/native/dist/player/limn/video/ffmpeg/native
 
       # GLFW needs a display and Mesa needs its software rasteriser: llvmpipe provides the
       # OpenGL 3.3 core profile the backend requires, with no GPU on the runner. Same list as
@@ -126,7 +166,10 @@ jobs:
       # a trade: the PR gate protects a merge, which can be reverted. This protects a publication,
       # which cannot. `check` also builds the javadoc that ships in the jars.
       - name: Gradle check
-        run: xvfb-run -a ./gradlew check -PlimnVersion=${{ steps.version.outputs.version }}
+        run: >-
+          xvfb-run -a ./gradlew check
+          -PlimnVersion=${{ needs.verify.outputs.version }}
+          -PlimnFfmpegProfile=player
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
 
@@ -134,7 +177,11 @@ jobs:
       # what keeps every one of these out of the repository and out of the command line (a -P
       # would put the passphrase in the process list and in the log).
       - name: Publish to Maven Central
-        run: ./gradlew publishToMavenCentral -PlimnVersion=${{ steps.version.outputs.version }} --no-daemon
+        run: >-
+          ./gradlew publishToMavenCentral
+          -PlimnVersion=${{ needs.verify.outputs.version }}
+          -PlimnFfmpegProfile=player
+          --no-daemon
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}

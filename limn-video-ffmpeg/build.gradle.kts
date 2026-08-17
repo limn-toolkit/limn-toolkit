@@ -11,18 +11,27 @@
 // scripts/build-ffmpeg.sh; Gradle never invokes a C compiler, because a toolkit build must not
 // need one. What the build does is package it.
 //
-// NO native is committed either: .gitignore excludes this module's whole native/ tree, because
-// nothing this project did not write lives in git. A fresh clone therefore has no decoder, and
-// that is a supported state, not a broken one: the module still compiles, its tests skip the way
-// the GL-backed ones do, and the demo still runs with the decoder reporting itself unavailable.
-// A payload arrives one of two ways, `player` (what ships) or `full` (the developer build, with
-// the encoders and the mov muxer a test needs to write an MP4 and read it back): built here with
-// scripts/build-ffmpeg.sh, or fetched with scripts/fetch-ffmpeg.sh.
+// NO native is committed, and none ever will be. .gitignore excludes this module's whole native/
+// tree, because nothing this project did not write lives in git, and because a binary in a source
+// repository is a binary nobody can review. The published jar is the only place these libraries
+// are meant to exist.
 //
-// Which is also why this module is NOT in the root's publishedModules yet, and the only one of
-// the libraries that is not: fetch-ffmpeg.sh pins its archive to a release, no release exists to
-// pin, and the guard below refuses to publish a decoder module with no decoder in it. The way
-// back in is written out at that map.
+// WHERE A PAYLOAD COMES FROM, then:
+//
+//   a release      .github/workflows/natives.yml builds all six desktop slices, on five runners,
+//                  and hands them to the publish job as artifacts. They live for the length of
+//                  that run, go into the jar, and are gone. Nothing is pinned, downloaded or
+//                  trusted: the release builds what it ships.
+//   a developer    ./scripts/build-ffmpeg.sh — about a minute per platform, and it needs a C
+//                  compiler and nothing else. `--profile full` adds the encoders and the mov
+//                  muxer the writer tests need.
+//   a developer    ./scripts/fetch-ffmpeg.sh — no toolchain at all: it takes the natives out of
+//   in a hurry     the published jar on Maven Central, which is the same signed artifact an
+//                  application gets, and unpacks them where Gradle looks.
+//
+// A clone with none of the above is a supported state, not a broken one: the module compiles, its
+// tests skip the way the GL-backed ones do, and the demo runs with the decoder reporting itself
+// unavailable.
 
 plugins {
     `java-library`
@@ -107,9 +116,12 @@ tasks.withType<AbstractPublishToMaven>().configureEach {
                         "${missing.joinToString(", ")} " +
                         (if (missing.size == 1) "is" else "are") + " missing from " +
                         "${root.relativeTo(rootDir)}.\n" +
-                        "The binaries are not in this repository; they come from the release " +
-                        "build. Fetch them with scripts/fetch-ffmpeg.sh, or build them here with " +
-                        "scripts/build-ffmpeg.sh, before publishing."
+                        "The binaries are not in this repository and are not meant to be: a " +
+                        "release builds all six on its own runners (.github/workflows/" +
+                        "natives.yml) and merges them in before this task runs. Reaching this " +
+                        "message means either that job did not, or that this is a local publish " +
+                        "from a machine that has only its own platform — which is what " +
+                        "scripts/build-ffmpeg.sh produces, and is not enough to publish."
             )
         }
     }

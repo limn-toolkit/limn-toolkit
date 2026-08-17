@@ -2,11 +2,14 @@
 #
 # Builds the trimmed FFmpeg that limn-video-ffmpeg loads, and the JNI shim in front of it.
 #
-# One output is committed and the rest are not: native/dist/player is what a published jar ships,
-# so it is in git and a clone carries a working decoder for the platforms already built. Every
-# other profile, and every intermediate, is gitignored. A machine with no build for its own
-# platform still builds and tests the whole repository; the decoder reports itself unavailable
-# and its tests skip.
+# NOTHING THIS PRODUCES IS COMMITTED. The whole native/ tree is gitignored: a binary in a source
+# repository is a binary nobody can review, and the published jar is the only place these
+# libraries are meant to exist. A release builds its own on six machines
+# (.github/workflows/natives.yml); this script is how a DEVELOPER gets one locally, and
+# scripts/fetch-ffmpeg.sh is the same thing without a C toolchain, out of the published jar.
+#
+# A machine with neither still builds and tests the whole repository; the decoder reports itself
+# unavailable and its tests skip.
 #
 #   ./scripts/build-ffmpeg.sh                  # the shipped decode-only library, for this JVM's arch
 #   ./scripts/build-ffmpeg.sh --profile full   # + encoders and the mov muxer, for the tests and the demo
@@ -758,6 +761,5 @@ done
 echo
 echo "Built. The Gradle build picks it up from"
 echo "  ${WORK_DIR}/dist/${PROFILE}"
-if [ "${PROFILE}" = "player" ]; then
-    echo "This is the profile that ships, so ${LIMN_OS}-* under dist/player belongs in a commit."
-fi
+echo "It is yours and it is local: nothing under native/ is committed, ever. What a release"
+echo "ships is built by .github/workflows/natives.yml, on six machines, into the jar."
