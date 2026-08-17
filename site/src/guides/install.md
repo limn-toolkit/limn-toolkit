@@ -14,8 +14,8 @@ description: "The JDK you need, the two dependencies, the one macOS flag, and a 
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-components:0.1.0-SNAPSHOT")
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.1.0-SNAPSHOT")
+    implementation("io.github.limn-toolkit:limn-components:0.1.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.1.0")
 }
 ```
 
@@ -27,10 +27,9 @@ macOS and Linux, x64 and ARM alike. There is nothing per-platform to add: the JV
 slice that matches the machine it is running on, and the rest sit inert on the classpath,
 costing download size and nothing else.
 
-There is no public repository yet. From a clone of the toolkit,
-`./gradlew publishToMavenLocal -PlimnFfmpegProfile=player` publishes every library module to
-your local Maven repository, and `mavenLocal()` in your `repositories` block resolves the
-coordinates above.
+Both come from Maven Central, so `mavenCentral()` in your `repositories` block is the whole
+of the setup. If you want what is on `main` rather than what was released, development builds
+are published as snapshots to `https://central.sonatype.com/repository/maven-snapshots/`.
 
 :::caution[On macOS, read this first]
 macOS requires the window event loop on the process's very first thread, so the JVM needs
