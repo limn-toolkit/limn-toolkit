@@ -138,14 +138,16 @@ h4 {
 }
 
 h1 {
-  font-size: var(--text-4xl);
-  line-height: 0.98;
-  letter-spacing: -0.038em;
+  font-size: var(--text-3xl);
+  line-height: 1.02;
+  /* Tracking follows the size down. -0.038em was tuned for a 4.5rem cap and reads pinched
+     at 3rem: the smaller the type, the more room the letters want. */
+  letter-spacing: -0.03em;
 }
 
 h2 {
-  font-size: var(--text-3xl);
-  letter-spacing: -0.03em;
+  font-size: var(--text-2xl);
+  /* No override: at this size the shared heading tracking above is already right. */
 }
 
 h3 {

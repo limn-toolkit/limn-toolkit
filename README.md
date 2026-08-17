@@ -4,6 +4,10 @@ A GUI toolkit for desktop Java built **from scratch**: no `java.awt`, no
 `javax.swing`, no SWT. Its own graphics stack on top of LWJGL 3 (GLFW + OpenGL
 3.3 core + stb), with a high-level API inspired by Flutter/Compose.
 
+**[limn-toolkit.github.io/limn-toolkit](https://limn-toolkit.github.io/limn-toolkit)** —
+the guide, the component gallery with every widget captured from a real build, and the
+full API reference.
+
 > Backend decision and post-OpenGL/macOS migration routes:
 > [docs/adr/001-backend.md](docs/adr/001-backend.md)
 
