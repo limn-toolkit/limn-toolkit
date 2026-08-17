@@ -1,4 +1,19 @@
-# Publishes the site to GitHub Pages on every push to main.
+# Publishes the site to GitHub Pages when a release is published, or on demand.
+#
+# NOT on every push to main, which is what this used to do. The site is generated from this
+# repository's own sources — Javadoc, theme tokens, a gallery captured from a real build — so a
+# push deploy means a full Gradle build, an xvfb session and a screenshot run for a typo in a
+# comment. During the stretch where the project changes constantly and the site changes rarely,
+# that is most of the CI budget spent on rebuilding an identical page.
+#
+# `release: published` is also the honest moment. The site documents coordinates a reader is
+# meant to copy, and until the deployment is published on the Portal those coordinates resolve to
+# nothing. Publishing the GitHub release IS the human's last step of a release (see
+# publish.yml), so the page goes live exactly when what it describes does — which is why the
+# documentation for a version belongs in the commit that gets tagged, rather than in a follow-up.
+#
+# workflow_dispatch is the other half: a fix to the prose, a broken link, a screenshot that
+# needs retaking, none of which should wait for a version.
 #
 # Build and deploy are separate jobs because that is actions/deploy-pages' contract: the
 # build job uploads a Pages artifact, the deploy job turns it into a deployment. Merging
@@ -11,8 +26,8 @@
 name: site-deploy
 
 on:
-  push:
-    branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -32,7 +47,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      # The ref is spelled out rather than left to the event's default, which is not the same
+      # thing for the two triggers here and is not obvious for either. A release deploys the
+      # TAG's tree: the site then describes the version that was just published, and not
+      # whatever main has drifted to since. A manual run deploys whatever branch or tag the
+      # person picked in the UI.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
 
       # Temurin 17, because the build itself targets 17: every module compiles with
       # `options.release.set(17)` and the aggregate Javadoc links the Java 17 API.

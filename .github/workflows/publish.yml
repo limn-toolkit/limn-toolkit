@@ -1,14 +1,14 @@
-# Publishes the library modules to Maven Central, off a tag.
+# Publishes the library modules to Maven Central, off a tag, and drafts the GitHub release.
 #
 # The version comes from the tag and from nowhere else: build.gradle.kts reads -PlimnVersion and
 # otherwise says -SNAPSHOT, so `v0.1.0` is what makes 0.1.0 exist. Nothing in the tree has to be
 # edited to release, and nothing is left saying "0.1.0" after one.
 #
-# The upload STOPS at the Portal. What arrives there is a deployment, validated and staged, and
-# somebody has to press Publish on central.sonatype.com for it to reach the world. That step is
-# manual on purpose: it is the last moment at which a release can still be dropped, and Central
-# keeps what it accepts. A wrong artifact cannot be replaced, only superseded by a version number
-# nobody wanted to spend.
+# Neither half of a release publishes itself. The upload STOPS at the Portal, where what arrives
+# is a deployment, validated and staged, that somebody opens and presses Publish on; the GitHub
+# release is created as a DRAFT. Both last steps are manual and belong together: until they
+# happen a release can still be dropped, and Central keeps what it accepts — a wrong artifact
+# cannot be replaced, only superseded by a version number nobody wanted to spend.
 #
 # Secrets this needs (repository settings → Secrets and variables → Actions):
 #
@@ -26,8 +26,8 @@ name: publish
 on:
   push:
     tags: ["v*"]
-  # For a re-run of a release whose upload failed after the tag already existed. Same job, same
-  # inputs; the version is typed instead of read off the ref.
+  # For a re-run of a release whose upload failed after the tag already existed. It is not a way
+  # to release something untagged: the tag is verified below, in both paths.
   workflow_dispatch:
     inputs:
       version:
@@ -35,6 +35,10 @@ on:
         required: true
         type: string
 
+# Read-only for the workflow, and widened per JOB rather than here. The job that holds the
+# credentials and runs the build gets nothing to write; the job that writes gets no credentials
+# and no code. Granting write at this level would hand both to the same job, and that job
+# executes the repository's own build.
 permissions:
   contents: read
 
@@ -48,8 +52,16 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
+      # Full depth, for the tag check below: a shallow clone has the tag object without the
+      # commit it points at, which cannot be compared to anything.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
@@ -78,6 +90,26 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "publishing $VERSION"
+
+      # Every published version is a tag, and this is what makes that true rather than customary.
+      # On a tag push it passes by construction; on a dispatch it is the whole point, because
+      # that trigger otherwise publishes whatever branch it was pointed at and leaves no record
+      # of what the artifact was built from. A release nobody can check out is not one anybody
+      # can support.
+      - name: Verify the tag
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          if ! git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
+            echo "::error::$TAG does not exist. Tag the commit you mean to release first:"
+            echo "::error::  git tag -a $TAG -m '$TAG' && git push origin $TAG"
+            exit 1
+          fi
+          TAGGED="$(git rev-parse "$TAG^{commit}")"
+          if [ "$TAGGED" != "$GITHUB_SHA" ]; then
+            echo "::error::$TAG points at $TAGGED, not at the commit being built ($GITHUB_SHA)"
+            exit 1
+          fi
+          echo "$TAG is $TAGGED"
 
       # GLFW needs a display and Mesa needs its software rasteriser: llvmpipe provides the
       # OpenGL 3.3 core profile the backend requires, with no GPU on the runner. Same list as
@@ -109,9 +141,53 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
 
-      - name: What happens next
+  # The only job in this file that can write to the repository, and deliberately the smallest:
+  # no checkout, no build, no secrets, one CLI call. It cannot run anything the tag brought with
+  # it, because it never fetches it.
+  draft-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Draft the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.publish.outputs.version }}
         run: |
-          echo "### Uploaded ${{ steps.version.outputs.version }} to the Central Portal" >> "$GITHUB_STEP_SUMMARY"
+          TAG="v$VERSION"
+          # A re-run after a failed upload finds its own draft from the first attempt. Editing it
+          # would overwrite notes somebody may have already written by hand.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "a release already exists for $TAG; leaving it untouched"
+            exit 0
+          fi
+          # --notes is PREPENDED to what --generate-notes produces, so the coordinates lead and
+          # the commit list follows.
+          gh release create "$TAG" \
+            --draft \
+            --title "$TAG" \
+            --generate-notes \
+            --notes "$(cat <<NOTES
+          Published to Maven Central as \`io.github.limn-toolkit\`.
+
+          \`\`\`kotlin
+          dependencies {
+              implementation("io.github.limn-toolkit:limn-components:$VERSION")
+              implementation("io.github.limn-toolkit:limn-backend-lwjgl:$VERSION")
+          }
+          \`\`\`
+
+          Also published: \`limn-toolkit\`, \`limn-video\`, \`limn-icons-tabler\`, \`limn-theme-editor\`.
+
+          ---
+          NOTES
+          )"
+          echo "### Drafted $TAG" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "It is staged, not published. Open <https://central.sonatype.com/publishing/deployments>," >> "$GITHUB_STEP_SUMMARY"
-          echo "check the deployment's contents, and press **Publish** to release it." >> "$GITHUB_STEP_SUMMARY"
+          echo "Two things are staged and neither is public yet:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "1. The deployment on <https://central.sonatype.com/publishing/deployments> — inspect it, then **Publish** (or **Drop**)." >> "$GITHUB_STEP_SUMMARY"
+          echo "2. The draft release on <https://github.com/$GH_REPO/releases> — edit the notes, then publish it." >> "$GITHUB_STEP_SUMMARY"
