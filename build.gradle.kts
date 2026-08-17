@@ -116,6 +116,21 @@ subprojects {
 
         tasks.withType<Test>().configureEach {
             useJUnitPlatform()
+            // A failing test has to name itself in the CONSOLE, because on CI the console is the
+            // only artefact that survives. Gradle's default points at an HTML report under
+            // build/, which on a runner is a directory that ceases to exist with the machine:
+            // the first red build this repository ever had on Linux said "4 failed" and not one
+            // word about which four, and diagnosing it started by reproducing the whole runner.
+            testLogging {
+                // `skipped` beside `failed`, because a test this project skips is a claim it
+                // stopped checking, and the reason is environmental every time: no GL context, no
+                // FFmpeg native, no device precise enough for ten bits. Silent on a runner, that
+                // reads as coverage nobody has.
+                events("failed", "skipped")
+                exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+                showStackTraces = true
+                showCauses = true
+            }
             // The audio tests open a REAL OpenAL device and play real tones (that is the point:
             // they cover the device path, not a mock). Audible from a build, they are a bug in
             // someone's afternoon, so the bundled OpenAL Soft is pointed at its null backend.

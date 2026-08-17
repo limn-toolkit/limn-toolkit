@@ -5,6 +5,8 @@ import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL33C;
 
+import java.util.Locale;
+
 /**
  * A real GL context for tests that have to measure what a GPU actually
  * produces, from a hidden GLFW window created once per JVM. Tests that need one
@@ -48,6 +50,33 @@ final class HeadlessGl {
     /** @return the context's capabilities; only valid after {@link #assumeAvailable()} */
     static org.lwjgl.opengl.GLCapabilities capabilities() {
         return capabilities;
+    }
+
+    /**
+     * Whether the context is a software rasteriser rather than a GPU.
+     *
+     * <p>Asked by tests that hold the device to an exact number: what a rasteriser computes in
+     * software is a legitimate GL implementation and a different precision, so a test that pins
+     * arithmetic has to know which one it is talking to. This is CI's answer, always, and the
+     * answer on any machine whose driver fell back to Mesa.
+     *
+     * <p>Matched on {@code GL_RENDERER}, which is the only handle the API offers: Mesa reports
+     * "llvmpipe" or "softpipe", a swrast fallback says so, and Windows' own fallback is the
+     * "GDI Generic"/"Software Rasterizer" pair. A device this list misses is treated as a GPU,
+     * which fails loudly rather than silently loosening an assertion.
+     */
+    static boolean isSoftware() {
+        if (!open()) {
+            return false;
+        }
+        String renderer = GL33C.glGetString(GL33C.GL_RENDERER);
+        if (renderer == null) {
+            return false;
+        }
+        String lower = renderer.toLowerCase(Locale.ROOT);
+        return lower.contains("llvmpipe") || lower.contains("softpipe")
+                || lower.contains("swrast") || lower.contains("software rasterizer")
+                || lower.contains("gdi generic");
     }
 
     /** @return a short description of the device, for a failure message worth reading */
