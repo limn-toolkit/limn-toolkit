@@ -43,7 +43,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Whether this release is the one the site should show. A release event is not enough on its
+  # own: publishing a maintenance release of an older line is a normal thing to do, and it must
+  # not roll the site back to that line's documentation, which is exactly what deploying its tag
+  # would do. The site follows the NEWEST version and nothing else.
+  #
+  # Highest published version wins, computed here rather than taken from GitHub's own "latest"
+  # flag: that flag is decided by tag creation date, so a 0.1.4 tagged today would claim it while
+  # 0.2.0 sits above it. `sort -V` compares the numbers, which is the question actually being
+  # asked. Prereleases and drafts are excluded, and a manual run always proceeds — a person
+  # dispatching this has already decided.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
+    steps:
+      - name: Is this the newest release?
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "manual run: deploying whatever was chosen"
+            exit 0
+          fi
+          NEWEST="$(gh release list --limit 100 --exclude-drafts --exclude-pre-releases \
+                      --json tagName --jq '.[].tagName' \
+                    | sed 's/^v//' | sort -V | tail -1)"
+          THIS="${TAG#v}"
+          echo "this release: $THIS   newest published: $NEWEST"
+          if [ "$THIS" = "$NEWEST" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG is not the newest release ($NEWEST); the site stays where it is."
+          fi
+
   build:
+    needs: gate
+    if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
