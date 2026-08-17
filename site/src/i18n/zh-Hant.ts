@@ -34,7 +34,7 @@ export const zhHant: Catalog = {
   "language.label": "語言",
 
   "consent.label": "隱私選擇",
-  "consent.title": "本站不使用 Cookie",
+  "consent.title": "除非你允許統計，本站不使用 Cookie",
   "consent.body": "只有三樣東西存在這個瀏覽器裡，別處都沒有：你選的主題、你選的語言，以及你在這裡給的答覆。任何選用項目在你親自開啟之前都維持關閉。",
   "consent.more": "完整說明：儲存了什麼",
   "consent.accept": "全部允許",
@@ -46,7 +46,7 @@ export const zhHant: Catalog = {
   "consent.necessaryBody": "你選的淺色或深色主題、你選的語言，以及這則答覆。三者都只存在於這個瀏覽器，都不是 Cookie，也都不會離開這台機器。",
   "consent.analyticsName": "統計",
   "consent.analyticsBody":
-    "今天沒有任何東西在用它。本站根本沒有內建任何分析工具。這個開關的用意在於：日後若有任何東西要統計造訪，在你於此允許之前都不會執行。",
+    "Google Analytics，從 googletagmanager.com 載入。它會設定自己的 Cookie，並告訴專案哪些頁面被閱讀。它以被攔截的形式發布，只有你在此允許之後才會執行。",
 
   // ------------------------------------------------------------------- home
   "home.title": "Limn：為桌面 Java 打造的 UI 工具組",
@@ -202,26 +202,26 @@ export const zhHant: Catalog = {
   // ----------------------------------------------------------------- privacy
   "privacy.title": "Limn：隱私",
   "privacy.description":
-    "本站儲存什麼、不儲存什麼，以及如何更改你的選擇。沒有 Cookie，沒有統計分析，沒有第三方請求。",
+    "本站儲存什麼、不儲存什麼，以及如何更改你的選擇。在你允許統計之前，沒有 Cookie，也沒有第三方請求；統計預設關閉。",
   "privacy.eyebrow": "隱私",
   "privacy.heading": "本站儲存了什麼",
   "privacy.lede":
-    "簡版：沒有 Cookie，沒有統計分析，沒有第三方請求，也沒有任何能辨識你的資訊。詳版在下面，因為簡版只有在詳版與之一致時才值得一讀。",
+    "簡版：統計關閉時——它就是這樣送到你手上的——沒有 Cookie，沒有第三方請求，也沒有任何能辨識你的資訊。只有在你允許之後，本站才會載入 Google Analytics。詳版在下面，因為簡版只有在詳版與之一致時才值得一讀。",
   "privacy.storage.heading": "瀏覽器裡的三個值",
   "privacy.storage.body":
     "你選的主題儲存在 <code>starlight-theme</code> 下，你選的語言儲存在 <code>limn-language</code> 下，你對隱私提示的答覆儲存在 <code>limn-consent</code> 下。三者都位於這個瀏覽器的本機儲存空間，都只被本站自己的指令碼讀取，清除網站資料即可刪除。三者都不存在時，這裡的一切照常運作。",
   "privacy.language.heading": "語言是怎麼決定的",
   "privacy.language.body":
     "當你開啟一個英文頁面時，本站會讀取瀏覽器本來就會告知每個網站的語言清單；若其中有本站已發布的語言，就把你帶到那份譯文。這份清單只在你的瀏覽器裡被讀取一次，用來選一個網址：既不儲存，也不傳送。只有在頁首選擇語言才算作一次選擇，此後就用它而不是瀏覽器的清單。譯文網址永遠不會被重新導向，所以別人傳給你的連結會以傳送時的語言開啟。",
-  "privacy.cookies.heading": "沒有 Cookie",
+  "privacy.cookies.heading": "只有你允許統計時才有 Cookie",
   "privacy.cookies.body":
-    "本站不設定任何 Cookie，因此不會有東西附在請求上，也不會有東西跟著你去別的網站。本機儲存空間不是 Cookie：它從不被傳送，伺服器也無法索取。",
-  "privacy.analytics.heading": "沒有統計分析，卻仍留了一個開關",
+    "本站自身不設定任何 Cookie：統計關閉時，不會有東西附在請求上，也不會有東西跟著你去別的網站。一旦允許，Google Analytics 會設定它自己的 Cookie（<code>_ga</code>、<code>_ga_…</code>）。本機儲存空間不是 Cookie：它從不被傳送，伺服器也無法索取。",
+  "privacy.analytics.heading": "統計預設關閉，直到你允許",
   "privacy.analytics.body":
-    "這裡沒有分析工具，沒有標籤管理員，也沒有追蹤像素。隱私提示中的統計開關預設關閉，並管控日後可能加入的任何東西：該類別的指令碼以無法執行的形式發布，只有在你允許之後才會變成真正執行的指令碼。",
-  "privacy.thirdParty.heading": "不從別處載入任何東西",
+    "本站使用 Google Analytics，且僅在你允許時。隱私提示中的統計開關預設關閉，而這個關閉是被強制執行的，不是口頭承諾：標籤以 <code>text/plain</code> 區塊的形式發布，任何瀏覽器都不會執行它；只有在你允許的那一刻，它才會變成真正執行的指令碼，在此之前不會。撤回允許後，它不會再被載入。",
+  "privacy.thirdParty.heading": "在你允許統計之前，不從別處載入任何東西",
   "privacy.thirdParty.body":
-    "每一個字型、圖片、樣式表與指令碼都來自本網域。沒有網頁字型服務，沒有 CDN，沒有嵌入影片，也沒有社群小工具。所以在這裡讀一個頁面，只會與一台伺服器通訊。",
+    "每一個字型、圖片、樣式表與指令碼都來自本網域。沒有網頁字型服務，沒有 CDN，沒有嵌入影片，也沒有社群小工具：統計關閉時，在這裡讀一個頁面只會與一台伺服器通訊。一旦允許，標籤還會從 <code>googletagmanager.com</code> 取得。",
   "privacy.hosting.heading": "代管方能看到什麼",
   "privacy.hosting.body":
     "頁面是代管服務上的靜態檔案。和任何網頁伺服器一樣，它能看到請求本身（IP 位址、被請求的頁面、瀏覽器的 User-Agent），這由它自己的記錄政策決定。本專案不營運伺服器，沒有帳號系統，也沒有資料庫，這些內容一概不會到達我們這裡。",

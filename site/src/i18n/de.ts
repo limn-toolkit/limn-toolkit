@@ -34,7 +34,7 @@ export const de: Catalog = {
   "language.label": "Sprache",
 
   "consent.label": "Datenschutzeinstellungen",
-  "consent.title": "Diese Website setzt keine Cookies",
+  "consent.title": "Keine Cookies, solange Sie die Messung nicht erlauben",
   "consent.body":
     "Drei Dinge werden in diesem Browser gespeichert und sonst nirgends: das von Ihnen gewählte Design, die von Ihnen gewählte Sprache und Ihre Antwort hier. Alles Optionale bleibt ausgeschaltet, bis Sie es einschalten.",
   "consent.more": "Was gespeichert wird, vollständig",
@@ -48,7 +48,7 @@ export const de: Catalog = {
     "Das gewählte helle oder dunkle Design, die gewählte Sprache und diese Antwort. Alle drei bleiben lokal in diesem Browser, keines davon ist ein Cookie, und keines verlässt den Rechner.",
   "consent.analyticsName": "Messung",
   "consent.analyticsBody":
-    "Dafür gibt es derzeit keinen Verwender; die Website liefert überhaupt keine Analyse-Werkzeuge aus. Der Schalter existiert, damit alles, was jemals einen Besuch misst, blockiert bleibt, bis Sie es hier erlauben.",
+    "Google Analytics, geladen von googletagmanager.com. Es setzt eigene Cookies und zeigt dem Projekt, welche Seiten gelesen werden. Es wird blockiert ausgeliefert und läuft erst, wenn Sie es hier erlauben.",
 
   // ------------------------------------------------------------------- home
   "home.title": "Limn: ein UI-Toolkit für Java auf dem Desktop",
@@ -207,26 +207,26 @@ export const de: Catalog = {
   // ----------------------------------------------------------------- privacy
   "privacy.title": "Limn: Datenschutz",
   "privacy.description":
-    "Was diese Website speichert, was nicht, und wie Sie Ihre Auswahl ändern. Keine Cookies, keine Analyse, keine Anfragen an Dritte.",
+    "Was diese Website speichert, was nicht, und wie Sie Ihre Auswahl ändern. Keine Cookies und keine Anfragen an Dritte, solange Sie die Messung nicht erlauben — sie kommt ausgeschaltet an.",
   "privacy.eyebrow": "Datenschutz",
   "privacy.heading": "Was diese Website speichert",
   "privacy.lede":
-    "Kurzfassung: keine Cookies, keine Analyse, keine Anfragen an Dritte und nichts, was Sie identifiziert. Die Langfassung steht unten, denn eine Kurzfassung ist nur dann lesenswert, wenn die Langfassung ihr zustimmt.",
+    "Kurzfassung: Solange die Messung aus ist — und so kommt sie an — gibt es keine Cookies, keine Anfragen an Dritte und nichts, was Sie identifiziert. Erlauben Sie sie, lädt die Website Google Analytics, und erst dann. Die Langfassung steht unten, denn eine Kurzfassung ist nur dann lesenswert, wenn die Langfassung ihr zustimmt.",
   "privacy.storage.heading": "Drei Werte, in Ihrem Browser",
   "privacy.storage.body":
     "Das gewählte Design wird unter <code>starlight-theme</code> gespeichert, die gewählte Sprache unter <code>limn-language</code>, Ihre Antwort auf die Datenschutzabfrage unter <code>limn-consent</code>. Alle drei liegen im lokalen Speicher dieses Browsers, alle drei werden nur von den eigenen Skripten dieser Website gelesen, und das Löschen der Websitedaten entfernt sie. Alles hier funktioniert auch, wenn alle drei fehlen.",
   "privacy.language.heading": "Wie Ihre Sprache gewählt wird",
   "privacy.language.body":
     "Auf einer englischen Seite liest die Website die Sprachen, die Ihr Browser ohnehin jeder Website mitteilt, und schickt Sie zu einer davon, sofern sie hier veröffentlicht ist. Diese Liste wird einmal gelesen, in Ihrem Browser, um eine Adresse zu wählen: sie wird weder gespeichert noch übertragen. Erst die Auswahl im Kopfbereich hält eine Entscheidung fest, und von da an gilt sie statt der Browserliste. Von einer übersetzten Adresse werden Sie nie weggeleitet; ein Link, den Ihnen jemand schickt, öffnet in der Sprache, in der er geschickt wurde.",
-  "privacy.cookies.heading": "Keine Cookies",
+  "privacy.cookies.heading": "Cookies nur, wenn Sie die Messung erlauben",
   "privacy.cookies.body":
-    "Die Website setzt keinerlei Cookies, also wird an keine Anfrage etwas angehängt und nichts folgt Ihnen auf eine andere Website. Lokaler Speicher ist kein Cookie: er wird nie übertragen, und ein Server kann ihn nicht anfordern.",
-  "privacy.analytics.heading": "Keine Analyse, und trotzdem ein Schalter",
+    "Die Website selbst setzt keinerlei Cookies: Solange die Messung aus ist, wird an keine Anfrage etwas angehängt und nichts folgt Ihnen auf eine andere Website. Erlauben Sie sie, setzt Google Analytics eigene, <code>_ga</code> und <code>_ga_…</code>. Lokaler Speicher ist kein Cookie: er wird nie übertragen, und ein Server kann ihn nicht anfordern.",
+  "privacy.analytics.heading": "Messung, aus bis Sie sie erlauben",
   "privacy.analytics.body":
-    "Es gibt kein Analysewerkzeug, keinen Tag-Manager und kein Zählpixel. Der Mess-Schalter in der Datenschutzabfrage ist standardmäßig aus und kontrolliert alles, was jemals hinzukommen könnte: ein Skript dieser Kategorie wird inaktiv ausgeliefert und erst dann in ein laufendes Skript verwandelt, wenn Sie es erlauben.",
-  "privacy.thirdParty.heading": "Nichts von anderswo geladen",
+    "Die Website nutzt Google Analytics, und zwar nur mit Ihrer Erlaubnis. Der Mess-Schalter in der Datenschutzabfrage ist standardmäßig aus, und dieses Aus wird erzwungen statt versprochen: Das Tag wird als <code>text/plain</code>-Block ausgeliefert, den kein Browser ausführt, und wird genau in dem Moment zu einem laufenden Skript, in dem Sie es erlauben — vorher nicht. Ziehen Sie die Erlaubnis zurück, wird es nicht wieder geladen.",
+  "privacy.thirdParty.heading": "Nichts von anderswo geladen, bis Sie die Messung erlauben",
   "privacy.thirdParty.body":
-    "Jede Schrift, jedes Bild, jedes Stylesheet und jedes Skript kommt von dieser Domain. Kein Webfont-Dienst, kein CDN, kein eingebettetes Video und kein Social-Widget. Deshalb spricht das Lesen einer Seite hier mit genau einem Server.",
+    "Jede Schrift, jedes Bild, jedes Stylesheet und jedes Skript kommt von dieser Domain. Kein Webfont-Dienst, kein CDN, kein eingebettetes Video und kein Social-Widget: Solange die Messung aus ist, spricht das Lesen einer Seite hier mit genau einem Server. Erlauben Sie sie, kommt das Tag zusätzlich von <code>googletagmanager.com</code>.",
   "privacy.hosting.heading": "Was der Hoster sieht",
   "privacy.hosting.body":
     "Die Seiten sind statische Dateien bei einem Hosting-Dienst. Wie jeder Webserver sieht er die Anfrage selbst (eine IP-Adresse, die angeforderte Seite, den User Agent des Browsers), und dessen eigene Protokollierungsrichtlinie regelt das. Das Projekt betreibt keinen Server, kein Kontosystem und keine Datenbank und erhält nichts davon.",

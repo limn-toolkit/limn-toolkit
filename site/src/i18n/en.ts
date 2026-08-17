@@ -182,26 +182,26 @@ export const en = {
   // ----------------------------------------------------------------- privacy
   "privacy.title": "Limn: Privacy",
   "privacy.description":
-    "What this site stores, what it does not, and how to change your choice. No cookies, no analytics, no third-party requests.",
+    "What this site stores, what it does not, and how to change your choice. No cookies and no third-party requests until you allow measurement, which arrives switched off.",
   "privacy.eyebrow": "Privacy",
   "privacy.heading": "What this site stores",
   "privacy.lede":
-    "Short version: no cookies, no analytics, no third-party requests, and nothing that identifies you. The long version is below, because a short version is only worth reading if the long one agrees with it.",
+    "Short version: with measurement off, which is how it arrives, there are no cookies, no third-party requests and nothing that identifies you. Allow it and the site loads Google Analytics, and only then. The long version is below, because a short version is only worth reading if the long one agrees with it.",
   "privacy.storage.heading": "Three values, in your browser",
   "privacy.storage.body":
     "The theme you pick is stored under <code>starlight-theme</code>, the language you pick under <code>limn-language</code>, and your answer to the privacy prompt under <code>limn-consent</code>. All three live in this browser's local storage, all three are read only by this site's own scripts, and clearing site data removes them. Everything on the site works with all three absent.",
   "privacy.language.heading": "How your language is chosen",
   "privacy.language.body":
     "Arriving at an English page, the site reads the languages your browser already advertises to every site you visit, and if one of them is published here it sends you to that translation. That list is read once, in your browser, to pick a URL: it is not stored and not transmitted. Choosing a language in the header is what records a choice, and from then on that choice is used instead of the browser's list. A translated address is never redirected away from, so a link someone sends you opens in the language they sent.",
-  "privacy.cookies.heading": "No cookies",
+  "privacy.cookies.heading": "Cookies only if you allow measurement",
   "privacy.cookies.body":
-    "The site sets no cookie of any kind, so nothing is attached to a request and nothing follows you to another site. Local storage is not a cookie: it is never transmitted, and a server cannot ask for it.",
-  "privacy.analytics.heading": "No analytics, and a switch anyway",
+    "The site itself sets no cookie of any kind: with measurement off, nothing is attached to a request and nothing follows you to another site. Allow it and Google Analytics sets its own, <code>_ga</code> and <code>_ga_…</code>. Local storage is not a cookie: it is never transmitted, and a server cannot ask for it.",
+  "privacy.analytics.heading": "Measurement, off until you allow it",
   "privacy.analytics.body":
-    "There is no analytics tool, no tag manager and no pixel. The measurement switch in the privacy prompt is off by default and gates anything that might ever be added: a script in that category is shipped inert and is only turned into a running script once you allow it.",
-  "privacy.thirdParty.heading": "Nothing loaded from anywhere else",
+    "The site uses Google Analytics, and only with your permission. The measurement switch in the privacy prompt is off by default, and that off is enforced rather than promised: the tag is shipped as a <code>text/plain</code> block, which no browser executes, and is turned into a running script at the moment you allow it and not before. Withdraw the permission and it is never loaded again.",
+  "privacy.thirdParty.heading": "Nothing loaded from anywhere else, until you allow measurement",
   "privacy.thirdParty.body":
-    "Every font, image, stylesheet and script comes from this domain. No web font service, no CDN, no embedded video and no social widget, which is why reading a page here contacts exactly one server.",
+    "Every font, image, stylesheet and script comes from this domain. No web font service, no CDN, no embedded video and no social widget: with measurement off, reading a page here contacts exactly one server. Allow it and the tag is fetched from <code>googletagmanager.com</code> as well.",
   "privacy.hosting.heading": "What the host can see",
   "privacy.hosting.body":
     "The pages are static files on a hosting service. Like any web server, it can see the request itself (an IP address, the page asked for, the browser's user agent), and its own logging policy governs that. The project runs no server, no account system and no database, and receives none of it.",

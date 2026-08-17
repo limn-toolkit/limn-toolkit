@@ -34,7 +34,7 @@ export const fr: Catalog = {
   "language.label": "Langue",
 
   "consent.label": "Choix de confidentialité",
-  "consent.title": "Ce site ne dépose aucun cookie",
+  "consent.title": "Aucun cookie tant que vous n’autorisez pas la mesure",
   "consent.body":
     "Trois choses sont conservées dans ce navigateur et nulle part ailleurs : le thème que vous choisissez, la langue que vous choisissez et la réponse que vous donnez ici. Tout ce qui est facultatif reste désactivé jusqu’à ce que vous l’activiez.",
   "consent.more": "Ce qui est conservé, en détail",
@@ -48,7 +48,7 @@ export const fr: Catalog = {
     "Le thème clair ou sombre que vous choisissez, la langue que vous choisissez, et cette réponse. Les trois restent locaux à ce navigateur, aucun n’est un cookie, et aucun ne quitte la machine.",
   "consent.analyticsName": "Mesure d’audience",
   "consent.analyticsBody":
-    "Rien ne s’en sert aujourd’hui ; le site n’embarque aucun outil de mesure. L’interrupteur existe pour que tout ce qui mesurerait un jour une visite reste bloqué tant que vous ne l’autorisez pas ici.",
+    "Google Analytics, chargé depuis googletagmanager.com. Il dépose ses propres cookies et indique au projet quelles pages sont lues. Il est livré bloqué et ne s’exécute qu’une fois que vous l’autorisez ici.",
 
   // ------------------------------------------------------------------- home
   "home.title": "Limn : une boîte à outils d’interface pour Java sur le bureau",
@@ -207,26 +207,26 @@ export const fr: Catalog = {
   // ----------------------------------------------------------------- privacy
   "privacy.title": "Limn : Confidentialité",
   "privacy.description":
-    "Ce que ce site conserve, ce qu’il ne conserve pas, et comment changer votre choix. Aucun cookie, aucune mesure d’audience, aucune requête vers un tiers.",
+    "Ce que ce site conserve, ce qu’il ne conserve pas, et comment changer votre choix. Aucun cookie ni requête vers un tiers tant que vous n’autorisez pas la mesure, qui arrive désactivée.",
   "privacy.eyebrow": "Confidentialité",
   "privacy.heading": "Ce que ce site conserve",
   "privacy.lede":
-    "Version courte : aucun cookie, aucune mesure d’audience, aucune requête vers un tiers et rien qui vous identifie. La version longue est ci-dessous, car une version courte ne mérite d’être lue que si la longue lui donne raison.",
+    "Version courte : tant que la mesure est désactivée, et elle l’est à l’arrivée, il n’y a aucun cookie, aucune requête vers un tiers et rien qui vous identifie. Si vous l’autorisez, le site charge Google Analytics, et pas avant. La version longue est ci-dessous, car une version courte ne mérite d’être lue que si la longue lui donne raison.",
   "privacy.storage.heading": "Trois valeurs, dans votre navigateur",
   "privacy.storage.body":
     "Le thème que vous choisissez est conservé sous <code>starlight-theme</code>, la langue que vous choisissez sous <code>limn-language</code>, et votre réponse à la demande de confidentialité sous <code>limn-consent</code>. Les trois vivent dans le stockage local de ce navigateur, les trois ne sont lus que par les scripts de ce site, et effacer les données du site les supprime. Tout fonctionne ici en l’absence des trois.",
   "privacy.language.heading": "Comment votre langue est choisie",
   "privacy.language.body":
     "En arrivant sur une page en anglais, le site lit les langues que votre navigateur annonce déjà à tous les sites que vous visitez et, si l’une d’elles est publiée ici, vous envoie vers cette traduction. Cette liste est lue une fois, dans votre navigateur, pour choisir une adresse : elle n’est ni conservée ni transmise. C’est le choix d’une langue dans l’en-tête qui enregistre une décision, et elle prévaut ensuite sur la liste du navigateur. Une adresse traduite n’est jamais redirigée : un lien qu’on vous envoie s’ouvre dans la langue où il a été envoyé.",
-  "privacy.cookies.heading": "Aucun cookie",
+  "privacy.cookies.heading": "Des cookies seulement si vous autorisez la mesure",
   "privacy.cookies.body":
-    "Le site ne dépose aucun cookie, donc rien n’est joint à une requête et rien ne vous suit sur un autre site. Le stockage local n’est pas un cookie : il n’est jamais transmis, et un serveur ne peut pas le demander.",
-  "privacy.analytics.heading": "Aucune mesure d’audience, et un interrupteur quand même",
+    "Le site lui-même ne dépose aucun cookie : tant que la mesure est désactivée, rien n’est joint à une requête et rien ne vous suit sur un autre site. Si vous l’autorisez, Google Analytics dépose les siens, <code>_ga</code> et <code>_ga_…</code>. Le stockage local n’est pas un cookie : il n’est jamais transmis, et un serveur ne peut pas le demander.",
+  "privacy.analytics.heading": "La mesure, désactivée tant que vous ne l’autorisez pas",
   "privacy.analytics.body":
-    "Il n’y a ni outil de mesure, ni gestionnaire de balises, ni pixel espion. L’interrupteur de mesure dans la demande de confidentialité est désactivé par défaut et contrôle tout ce qui pourrait être ajouté un jour : un script de cette catégorie est livré inerte et ne devient un script actif qu’une fois que vous l’autorisez.",
-  "privacy.thirdParty.heading": "Rien de chargé depuis ailleurs",
+    "Le site utilise Google Analytics, et uniquement avec votre autorisation. L’interrupteur de mesure dans la demande de confidentialité est désactivé par défaut, et cette désactivation est imposée plutôt que promise : la balise est livrée sous forme de bloc <code>text/plain</code>, qu’aucun navigateur n’exécute, et ne devient un script actif qu’au moment où vous l’autorisez, pas avant. Si vous retirez l’autorisation, elle n’est plus jamais chargée.",
+  "privacy.thirdParty.heading": "Rien de chargé depuis ailleurs, tant que la mesure est désactivée",
   "privacy.thirdParty.body":
-    "Chaque police, image, feuille de style et script vient de ce domaine. Aucun service de polices web, aucun CDN, aucune vidéo intégrée et aucun widget social. C’est pourquoi lire une page ici ne contacte qu’un seul serveur.",
+    "Chaque police, image, feuille de style et script vient de ce domaine. Aucun service de polices web, aucun CDN, aucune vidéo intégrée et aucun widget social : tant que la mesure est désactivée, lire une page ici ne contacte qu’un seul serveur. Si vous l’autorisez, la balise est en plus téléchargée depuis <code>googletagmanager.com</code>.",
   "privacy.hosting.heading": "Ce que l’hébergeur voit",
   "privacy.hosting.body":
     "Les pages sont des fichiers statiques chez un service d’hébergement. Comme tout serveur web, il voit la requête elle-même (une adresse IP, la page demandée, l’agent utilisateur du navigateur), et c’est sa propre politique de journalisation qui s’applique. Le projet n’exploite aucun serveur, aucun système de comptes ni base de données, et n’en reçoit rien.",

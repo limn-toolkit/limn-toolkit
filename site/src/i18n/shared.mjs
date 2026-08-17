@@ -28,7 +28,7 @@ export const SHARED_EN = {
   "theme.dark": "Dark",
 
   "consent.label": "Privacy choices",
-  "consent.title": "This site sets no cookies",
+  "consent.title": "No cookies unless you allow measurement",
   "consent.body":
     "Three things are kept in this browser and nowhere else: the theme you pick, the language you pick, and the answer you give here. Anything optional stays switched off until you turn it on.",
   "consent.more": "What is stored, in full",
@@ -42,7 +42,7 @@ export const SHARED_EN = {
     "The light or dark theme you pick, the language you pick, and this answer. All three are local to this browser, none of them is a cookie, and none of them leaves the machine.",
   "consent.analyticsName": "Measurement",
   "consent.analyticsBody":
-    "Nothing is using this today; the site ships no analytics at all. The switch exists so that anything which ever measures a visit is blocked until you allow it here.",
+    "Google Analytics, loaded from googletagmanager.com. It sets its own cookies and tells the project which pages get read. It ships blocked and starts running only once you allow it here.",
 };
 
 /**

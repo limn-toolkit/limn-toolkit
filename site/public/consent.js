@@ -26,8 +26,17 @@
   "use strict";
 
   var KEY = "limn-consent";
-  /** Bumped when the categories change: an old record no longer answers the new question. */
-  var VERSION = 1;
+  /**
+   * Bumped when the categories change: an old record no longer answers the new question.
+   *
+   * 2: measurement stopped being hypothetical. Version 1 asked about a category the site
+   * described, in every language, as empty — "nothing is using this today; the site ships no
+   * analytics at all" — so a reader who allowed it allowed nothing in particular. Google
+   * Analytics is a different question, and a stored yes to the old one is not an answer to
+   * it. Everyone is asked again; a stored no would have been honoured either way, but
+   * silently reusing a yes is precisely the trade this gate exists to refuse.
+   */
+  var VERSION = 2;
   /** Everything the reader can decide. `necessary` is listed so the panel can name it. */
   var OPTIONAL = ["analytics"];
 

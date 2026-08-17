@@ -34,7 +34,7 @@ export const ptBR: Catalog = {
   "language.label": "Idioma",
 
   "consent.label": "Escolhas de privacidade",
-  "consent.title": "Este site não usa cookies",
+  "consent.title": "Nenhum cookie enquanto você não permitir a medição",
   "consent.body":
     "Três coisas ficam guardadas neste navegador e em nenhum outro lugar: o tema que você escolhe, o idioma que você escolhe e a resposta que você dá aqui. Tudo o que é opcional permanece desligado até você ligar.",
   "consent.more": "O que é guardado, na íntegra",
@@ -48,7 +48,7 @@ export const ptBR: Catalog = {
     "O tema claro ou escuro que você escolhe, o idioma que você escolhe e esta resposta. Os três são locais a este navegador, nenhum deles é cookie e nenhum sai da máquina.",
   "consent.analyticsName": "Medição",
   "consent.analyticsBody":
-    "Nada usa isto hoje; o site não embarca nenhuma ferramenta de analytics. A chave existe para que qualquer coisa que venha a medir uma visita fique bloqueada até você permitir aqui.",
+    "O Google Analytics, carregado de googletagmanager.com. Ele define cookies próprios e informa ao projeto quais páginas são lidas. Vai publicado bloqueado e só passa a rodar depois que você permite aqui.",
 
   // ------------------------------------------------------------------- home
   "home.title": "Limn: um toolkit de UI para Java no desktop",
@@ -205,26 +205,26 @@ export const ptBR: Catalog = {
   // ----------------------------------------------------------------- privacy
   "privacy.title": "Limn: Privacidade",
   "privacy.description":
-    "O que este site guarda, o que ele não guarda e como mudar a sua escolha. Sem cookies, sem analytics, sem requisições a terceiros.",
+    "O que este site guarda, o que ele não guarda e como mudar a sua escolha. Sem cookies e sem requisições a terceiros enquanto você não permitir a medição, que chega desligada.",
   "privacy.eyebrow": "Privacidade",
   "privacy.heading": "O que este site guarda",
   "privacy.lede":
-    "Versão curta: sem cookies, sem analytics, sem requisições a terceiros e nada que identifique você. A versão longa está abaixo, porque uma versão curta só vale a leitura se a longa concordar com ela.",
+    "Versão curta: com a medição desligada, que é como ela chega, não há cookies, não há requisições a terceiros e não há nada que identifique você. Se você permitir, o site carrega o Google Analytics, e só então. A versão longa está abaixo, porque uma versão curta só vale a leitura se a longa concordar com ela.",
   "privacy.storage.heading": "Três valores, no seu navegador",
   "privacy.storage.body":
     "O tema que você escolhe é guardado em <code>starlight-theme</code>, o idioma que você escolhe em <code>limn-language</code>, e a sua resposta ao aviso de privacidade em <code>limn-consent</code>. Os três vivem no armazenamento local deste navegador, os três são lidos apenas pelos scripts do próprio site, e limpar os dados do site os remove. Tudo aqui funciona com os três ausentes.",
   "privacy.language.heading": "Como o seu idioma é escolhido",
   "privacy.language.body":
     "Ao chegar a uma página em inglês, o site lê os idiomas que o seu navegador já anuncia a todos os sites que você visita e, se um deles for publicado aqui, leva você para essa tradução. Essa lista é lida uma vez, no seu navegador, para escolher um endereço: ela não é guardada nem transmitida. Escolher um idioma no cabeçalho é o que registra uma escolha, e a partir daí ela é usada no lugar da lista do navegador. De um endereço traduzido você nunca é redirecionado, então um link que alguém lhe enviar abre no idioma em que foi enviado.",
-  "privacy.cookies.heading": "Nenhum cookie",
+  "privacy.cookies.heading": "Cookies só se você permitir a medição",
   "privacy.cookies.body":
-    "O site não define cookie de espécie alguma, então nada é anexado a uma requisição e nada segue você até outro site. Armazenamento local não é cookie: ele nunca é transmitido, e um servidor não pode pedi-lo.",
-  "privacy.analytics.heading": "Sem analytics, e uma chave mesmo assim",
+    "O site em si não define cookie de espécie alguma: com a medição desligada, nada é anexado a uma requisição e nada segue você até outro site. Se você permitir, o Google Analytics define os dele, <code>_ga</code> e <code>_ga_…</code>. Armazenamento local não é cookie: ele nunca é transmitido, e um servidor não pode pedi-lo.",
+  "privacy.analytics.heading": "Medição, desligada até você permitir",
   "privacy.analytics.body":
-    "Não há ferramenta de analytics, nem gerenciador de tags, nem pixel. A chave de medição no aviso de privacidade vem desligada e controla qualquer coisa que venha a ser acrescentada: um script dessa categoria é publicado inerte e só vira um script em execução depois que você permite.",
-  "privacy.thirdParty.heading": "Nada carregado de outro lugar",
+    "O site usa o Google Analytics, e só com a sua permissão. A chave de medição no aviso de privacidade vem desligada, e esse desligado é imposto em vez de prometido: a tag é publicada como um bloco <code>text/plain</code>, que navegador nenhum executa, e vira um script em execução no momento em que você permite, não antes. Se você retirar a permissão, ela não é carregada de novo.",
+  "privacy.thirdParty.heading": "Nada carregado de outro lugar, até você permitir a medição",
   "privacy.thirdParty.body":
-    "Toda fonte, imagem, folha de estilo e script vem deste domínio. Sem serviço de webfont, sem CDN, sem vídeo embutido e sem widget social. É por isso que ler uma página daqui conversa com exatamente um servidor.",
+    "Toda fonte, imagem, folha de estilo e script vem deste domínio. Sem serviço de webfont, sem CDN, sem vídeo embutido e sem widget social: com a medição desligada, ler uma página daqui conversa com exatamente um servidor. Se você permitir, a tag também é buscada em <code>googletagmanager.com</code>.",
   "privacy.hosting.heading": "O que a hospedagem enxerga",
   "privacy.hosting.body":
     "As páginas são arquivos estáticos em um serviço de hospedagem. Como qualquer servidor web, ele enxerga a própria requisição (um endereço IP, a página pedida, o user agent do navegador), e a política de registro dele governa isso. O projeto não roda servidor, não tem sistema de contas nem banco de dados, e não recebe nada disso.",

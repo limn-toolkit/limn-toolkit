@@ -34,7 +34,7 @@ export const zhHans: Catalog = {
   "language.label": "语言",
 
   "consent.label": "隐私选择",
-  "consent.title": "本站不使用 Cookie",
+  "consent.title": "除非你允许统计，本站不使用 Cookie",
   "consent.body": "只有三样东西保存在这个浏览器里，别处都没有：你选择的主题、你选择的语言，以及你在这里给出的答复。任何可选项在你亲自打开之前都保持关闭。",
   "consent.more": "完整说明：保存了什么",
   "consent.accept": "全部允许",
@@ -46,7 +46,7 @@ export const zhHans: Catalog = {
   "consent.necessaryBody": "你选择的浅色或深色主题、你选择的语言，以及这条答复。三者都只存在于这个浏览器中，都不是 Cookie，也都不会离开这台机器。",
   "consent.analyticsName": "统计",
   "consent.analyticsBody":
-    "今天没有任何东西在用它。本站根本没有内置任何分析工具。这个开关的意义在于：将来若有任何东西要统计访问，在你于此允许之前它都不会运行。",
+    "Google Analytics，从 googletagmanager.com 载入。它会设置自己的 Cookie，并告诉项目哪些页面被阅读。它以被拦截的形式发布，只有你在此允许之后才会运行。",
 
   // ------------------------------------------------------------------- home
   "home.title": "Limn：面向桌面 Java 的 UI 工具包",
@@ -202,26 +202,26 @@ export const zhHans: Catalog = {
   // ----------------------------------------------------------------- privacy
   "privacy.title": "Limn：隐私",
   "privacy.description":
-    "本站保存什么、不保存什么，以及如何更改你的选择。没有 Cookie，没有统计分析，没有第三方请求。",
+    "本站保存什么、不保存什么，以及如何更改你的选择。在你允许统计之前，没有 Cookie，也没有第三方请求；统计默认关闭。",
   "privacy.eyebrow": "隐私",
   "privacy.heading": "本站保存了什么",
   "privacy.lede":
-    "简版：没有 Cookie，没有统计分析，没有第三方请求，也没有任何能识别你的信息。详版在下面，因为简版只有在详版与之一致时才值得一读。",
+    "简版：统计关闭时——它就是这样送到你手上的——没有 Cookie，没有第三方请求，也没有任何能识别你的信息。只有在你允许之后，本站才会载入 Google Analytics。详版在下面，因为简版只有在详版与之一致时才值得一读。",
   "privacy.storage.heading": "浏览器里的三个值",
   "privacy.storage.body":
     "你选择的主题保存在 <code>starlight-theme</code> 下，你选择的语言保存在 <code>limn-language</code> 下，你对隐私提示的答复保存在 <code>limn-consent</code> 下。三者都位于这个浏览器的本地存储中，都只被本站自己的脚本读取，清除站点数据即可删除。三者都不存在时，这里的一切照常工作。",
   "privacy.language.heading": "语言是怎么选定的",
   "privacy.language.body":
     "当你打开一个英文页面时，本站会读取浏览器本来就会告知每个网站的语言列表；如果其中有本站已发布的语言，就把你带到那份译文。这份列表只在你的浏览器里被读取一次，用来选一个网址：既不保存，也不发送。只有在页头选择语言才算作一次选择，此后就用它而不是浏览器的列表。译文网址永远不会被重定向，所以别人发给你的链接会以发送时的语言打开。",
-  "privacy.cookies.heading": "没有 Cookie",
+  "privacy.cookies.heading": "只有你允许统计时才有 Cookie",
   "privacy.cookies.body":
-    "本站不设置任何 Cookie，因此不会有东西附在请求上，也不会有东西跟着你去别的网站。本地存储不是 Cookie：它从不被传输，服务器也无法索取。",
-  "privacy.analytics.heading": "没有统计分析，却仍留了一个开关",
+    "本站自身不设置任何 Cookie：统计关闭时，不会有东西附在请求上，也不会有东西跟着你去别的网站。一旦允许，Google Analytics 会设置它自己的 Cookie（<code>_ga</code>、<code>_ga_…</code>）。本地存储不是 Cookie：它从不被传输，服务器也无法索取。",
+  "privacy.analytics.heading": "统计默认关闭，直到你允许",
   "privacy.analytics.body":
-    "这里没有分析工具，没有标签管理器，也没有跟踪像素。隐私提示中的统计开关默认关闭，并管控将来可能加入的任何东西：该类别的脚本以不可执行的形式发布，只有在你允许之后才会变成真正运行的脚本。",
-  "privacy.thirdParty.heading": "不从别处加载任何东西",
+    "本站使用 Google Analytics，且仅在你允许时。隐私提示中的统计开关默认关闭，而这个关闭是被强制执行的，不是口头承诺：标签以 <code>text/plain</code> 区块的形式发布，任何浏览器都不会执行它；只有在你允许的那一刻，它才会变成真正运行的脚本，在此之前不会。撤回允许后，它不会再被载入。",
+  "privacy.thirdParty.heading": "在你允许统计之前，不从别处加载任何东西",
   "privacy.thirdParty.body":
-    "每一个字体、图片、样式表和脚本都来自本域名。没有网络字体服务，没有 CDN，没有嵌入视频，也没有社交组件。所以在这里读一个页面，只会与一台服务器通信。",
+    "每一个字体、图片、样式表和脚本都来自本域名。没有网络字体服务，没有 CDN，没有嵌入视频，也没有社交组件：统计关闭时，在这里读一个页面只会与一台服务器通信。一旦允许，标签还会从 <code>googletagmanager.com</code> 取得。",
   "privacy.hosting.heading": "托管方能看到什么",
   "privacy.hosting.body":
     "页面是托管服务上的静态文件。和任何 Web 服务器一样，它能看到请求本身（IP 地址、被请求的页面、浏览器的 User-Agent），这由它自己的日志策略决定。本项目不运行服务器，没有账号系统，也没有数据库，这些内容一概不会到达我们这里。",

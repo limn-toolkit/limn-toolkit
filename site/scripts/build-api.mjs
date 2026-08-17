@@ -52,6 +52,7 @@ import {
   SHARED_NAV_TRANSLATIONS,
   consentStrings,
 } from "../src/i18n/shared.mjs";
+import { measurementTags } from "../src/lib/analytics.mjs";
 
 const SITE_DIR = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const REPO_DIR = path.resolve(SITE_DIR, "..");
@@ -203,6 +204,11 @@ async function main() {
         "</head>",
         `<link rel="stylesheet" href="${href}">` +
           `<script defer src="${toApi}/${CHROME_SCRIPT_NAME}"></script>` +
+          // Blocked measurement, before the gate that can unblock it, exactly as
+          // ConsentGate.astro pairs them on every other page. `type="text/plain"` means the
+          // browser treats this as data: nothing is fetched from Google until the reader
+          // grants the category, and `/api/` must not be the one tree where that is untrue.
+          measurementTags() +
           `<script defer src="${toSite}/consent.js"></script>` +
           "</head>",
       )

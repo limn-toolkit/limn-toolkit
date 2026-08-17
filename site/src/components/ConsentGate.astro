@@ -1,12 +1,19 @@
 ---
 /**
- * The page's half of the consent gate: the text, in the page's language, and the tag that
- * loads the runtime.
+ * The page's half of the consent gate: the text, in the page's language, the tag that loads
+ * the runtime, and the blocked measurement tag the runtime is there to unblock.
  *
  * The runtime is `public/consent.js`, a file rather than a component, because `/api/` is a
  * generated Javadoc tree that no bundler touches and it has to run the same gate. See the
  * note at the top of that file.
+ *
+ * The measurement tag lives HERE, beside the gate, rather than in the page shell: a page that
+ * renders the tag without the gate is a page that measures a reader who was never asked, and
+ * keeping the two in one component is what makes that combination impossible to write by
+ * accident. `/api/` is the exception that proves it, and pairs them by hand in
+ * `scripts/build-api.mjs`.
  */
+import { measurementTags } from "../lib/analytics.mjs";
 import { messages } from "../i18n";
 import { consentStrings } from "../i18n/shared.mjs";
 import { localePath, type Locale } from "../lib/i18n";
@@ -25,4 +32,5 @@ const json = JSON.stringify(strings).replace(/</g, "\\u003c");
 ---
 
 <script type="application/json" id="limn-consent-strings" is:inline set:html={json} />
+<Fragment set:html={measurementTags()} />
 <script is:inline defer src={`${base}consent.js`}></script>
