@@ -18,11 +18,11 @@ plugins {
 }
 
 dependencies {
-    api(project(":limn-components"))
+    api(project(":limn-toolkit"))
 
     // The backend is for ThemeEditorApp, and for nothing else in this module. compileOnly plus
     // runtimeOnly rather than implementation, so the PUBLISHED jar still declares only
-    // limn-components: an application that embeds ThemeEditor must not inherit a window toolkit
+    // limn-toolkit: an application that embeds ThemeEditor must not inherit a window toolkit
     // it already has, and the module keeps the property this file opens with. The consequence is
     // deliberate and small: ThemeEditorApp is a class that will not load without a backend on
     // the classpath, which is exactly what running it means.

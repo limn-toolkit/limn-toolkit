@@ -32,11 +32,11 @@ allprojects {
 // something an application legitimately puts on its classpath, including the two it OPTS IN to
 // (the icon pack and the theme editor), which are modules precisely so that choice exists.
 val publishedModules = mapOf(
-    "limn-toolkit" to "Widgets, layout, scene graph and the backend SPIs; depends on nothing.",
-    "limn-components" to "The widget set: buttons, fields, lists, menus, dialogs, charts.",
+    "limn-toolkit" to
+            "The widget set, layout, the scene graph, the backend SPIs and the pure-Java video " +
+            "decoders; depends on nothing.",
     "limn-icons-tabler" to "The Tabler icon pack as Limn icons; an application opts in.",
     "limn-theme-editor" to "The screen that authors a Theme; an application opts in.",
-    "limn-video" to "Pure-Java video decoders: no native, no third-party dependency.",
     "limn-video-ffmpeg" to
             "H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis out of MP4 and Matroska, via FFmpeg. Carries " +
             "native libraries for macOS, Linux and Windows on x86_64 and aarch64 under " +

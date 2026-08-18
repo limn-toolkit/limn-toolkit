@@ -5,7 +5,7 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":limn-components"))
+    implementation(project(":limn-toolkit"))
     implementation(project(":limn-backend-lwjgl"))
     // The APPLICATION ships decoders, not the backend: limn-backend-lwjgl must never see these
     // modules, or which decoders exist would stop being the application's decision.
@@ -13,13 +13,11 @@ dependencies {
     // Same shape as the icon pack: a module nothing in the toolkit depends on, taken here
     // because the demo is an application and this one is a screen an application embeds.
     implementation(project(":limn-theme-editor"))
-    implementation(project(":limn-video"))
     // The one dependency in this build with a native payload, and the demo is the only thing that
     // takes it. Its library is not committed and not built by Gradle, so on a machine that never
     // ran scripts/build-ffmpeg.sh this contributes some classes that report themselves
     // unavailable; the demo still builds, still runs, and still plays everything else.
     implementation(project(":limn-video-ffmpeg"))
-    // (limn-components → limn-scene → limn-toolkit arrive via api)
 }
 
 val isMacOs = System.getProperty("os.name").lowercase().contains("mac")

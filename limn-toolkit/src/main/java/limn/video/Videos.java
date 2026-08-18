@@ -299,8 +299,9 @@ public final class Videos {
         if (DECODERS.isEmpty()) {
             throw new IllegalStateException(
                     "No VideoDecoder installed: call Videos.installDecoder before opening video"
-                            + " (e.g. new Y4mDecoder() from limn-video, or new FfmpegVideoDecoder()"
-                            + " from limn-video-ffmpeg). A backend does not supply one.");
+                            + " (e.g. new Y4mDecoder(), which ships in this module, or new"
+                            + " FfmpegVideoDecoder() from limn-video-ffmpeg). A backend does not"
+                            + " supply one.");
         }
         StringBuilder asked = new StringBuilder();
         for (VideoDecoder decoder : DECODERS) {
