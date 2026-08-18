@@ -34,6 +34,11 @@ on:
         description: "Version to publish, without the leading v (e.g. 0.1.0)"
         required: true
         type: string
+      force:
+        description: "Upload again even though this version was already uploaded once"
+        required: false
+        default: false
+        type: boolean
 
 # Read-only for the workflow, and widened per JOB rather than here. The job that holds the
 # credentials and runs the build gets nothing to write; the job that writes gets no credentials
@@ -56,6 +61,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      # To ask what this workflow has already done with this tag; see the last step.
+      actions: read
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -101,6 +108,34 @@ jobs:
             exit 1
           fi
           echo "$TAG is $TAGGED"
+
+      # One upload per version, enforced rather than assumed.
+      #
+      # Pushing a branch and a tag together makes GitHub emit an event per ref, and it has
+      # produced TWO identical publish runs for one tag — created in the same second, the second
+      # queued behind the first by the concurrency group. Left alone it would upload 0.2.0 to the
+      # Portal a second time, and the person deciding what to release would find two deployments
+      # of one version and have to work out which.
+      #
+      # A SUCCESSFUL earlier run is the signal, which is what makes this safe for the case the
+      # dispatch trigger exists for: a run that failed leaves nothing behind, so re-running after
+      # a fix still works. Deliberately replacing an upload — after dropping its deployment on the
+      # Portal — is what `force` is for.
+      - name: Refuse a second upload of the same version
+        if: ${{ !inputs.force }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ steps.version.outputs.version }}
+        run: |
+          PRIOR="$(gh run list --workflow publish.yml --branch "$TAG" --status success \
+                     --limit 20 --json url --jq '.[0].url // empty')"
+          if [ -n "$PRIOR" ]; then
+            echo "::error::$TAG has already been uploaded, by $PRIOR. Nothing was sent this time."
+            echo "::error::If that deployment was dropped on the Portal and you mean to replace it, re-run this workflow from the Actions tab with 'force' ticked."
+            exit 1
+          fi
+          echo "no successful publish run for $TAG yet"
 
   # The decoder's six slices, built here and nowhere else. They are not in the repository and
   # never will be: they exist for the length of this run, go into the jar, and are gone.
