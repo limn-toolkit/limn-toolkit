@@ -85,6 +85,11 @@ val requiredNativePlatforms = listOf(
     "windows-aarch64", "windows-x86_64",
 )
 
+// The shim's file-name stem, and the two licence files, named once: the publish guard, the
+// main jar's filter and the classifier jars all have to agree on which file is which.
+val shimName = "liblimnffmpeg."
+val ffmpegLicences = listOf("LICENSE-ffmpeg.txt", "NOTICE-ffmpeg.txt")
+
 // A release ships `player`, and this is what turns that from a sentence into a rule. The default
 // above prefers `full` when a developer has built it, which is right for running the tests and
 // wrong for an artifact, because `full` carries encoders and a muxer that nothing published uses.
@@ -105,8 +110,18 @@ tasks.withType<AbstractPublishToMaven>().configureEach {
             )
         }
         val root = file("native/dist/player/limn/video/ffmpeg/native")
+        // A platform counts as carried only if its CLASSIFIER would have something in it. Since
+        // the split, a directory holding nothing but the shim is the new way to publish a decoder
+        // that cannot decode: the main jar would look complete, and the natives-<platform> jar
+        // beside it would be an empty archive. So the manifest and at least one library that is
+        // not the shim are both required, which is exactly what that jar is made of.
         val carried = (root.listFiles() ?: emptyArray())
-            .filter { it.isDirectory && (it.listFiles()?.isNotEmpty() ?: false) }
+            .filter { platform ->
+                if (!platform.isDirectory) return@filter false
+                val files = platform.listFiles() ?: emptyArray()
+                files.any { it.name == "libraries.txt" }
+                        && files.any { it.isFile && !it.name.startsWith(shimName) && it.name != "libraries.txt" }
+            }
             .map { it.name }
             .toSet()
         val missing = requiredNativePlatforms.filterNot { carried.contains(it) }
@@ -127,13 +142,78 @@ tasks.withType<AbstractPublishToMaven>().configureEach {
     }
 }
 
-tasks.named("processResources") {
+// ------------------------------------------------------------------ how the payload is split
+//
+// The main jar carries the JNI shim for every platform; the FFmpeg libraries ride in one
+// classifier artifact per platform, `natives-<os>-<arch>`. An application therefore downloads
+// about two megabytes for the machine it runs on instead of all six.
+//
+// The split is invisible to the loader, and that is not luck: FfmpegLibrary resolves everything
+// under `limn/video/ffmpeg/native/<platform>/` as a CLASSPATH resource, and a classpath spans
+// jars. The shim comes out of this jar and the libraries out of the classifier's, and neither
+// end knows the difference.
+//
+// libraries.txt goes with the FFmpeg libraries rather than with the shim, and that placement is
+// the whole diagnostic. It is the file FfmpegLibrary looks for first, so an application that
+// forgot its classifier gets "this build carries no FFmpeg native for <platform>" — the sentence
+// that was already written for a platform nobody built — instead of a link error halfway through
+// extraction naming a file it has never heard of.
+//
+// LICENSE-ffmpeg.txt and NOTICE-ffmpeg.txt go in BOTH. They are cheap, and a reader who has only
+// one of the two jars in front of them should still find the licence that jar answers to.
+
+tasks.named<ProcessResources>("processResources") {
+    exclude {
+        it.path.startsWith("limn/video/ffmpeg/native/")
+                && !it.isDirectory
+                && !it.name.startsWith(shimName)
+                && it.name !in ffmpegLicences
+    }
     doFirst {
         if (ffmpegNatives.isDirectory) {
-            logger.lifecycle("limn-video-ffmpeg: bundling the '$ffmpegProfile' native from $ffmpegNatives")
+            logger.lifecycle("limn-video-ffmpeg: bundling the '$ffmpegProfile' shim from $ffmpegNatives")
         } else {
             logger.lifecycle("limn-video-ffmpeg: no native built (run scripts/build-ffmpeg.sh); " +
                     "the decoder will report itself unavailable and its tests will skip")
         }
     }
+}
+
+/**
+ * One jar per platform, carrying that platform's FFmpeg libraries and its manifest.
+ *
+ * Registered for all six whether or not a payload exists: a developer who built only their own
+ * slice gets five empty jars nobody publishes, and the guard above is what stops an empty one
+ * from ever reaching Central.
+ */
+val nativeJars = requiredNativePlatforms.map { platform ->
+    val suffix = platform.split("-").joinToString("") { part -> part.replaceFirstChar(Char::uppercase) }
+    tasks.register<Jar>("nativesJar$suffix") {
+        description = "The FFmpeg libraries for $platform, published as natives-$platform."
+        group = "build"
+        archiveClassifier.set("natives-$platform")
+        from(ffmpegNatives) {
+            include("limn/video/ffmpeg/native/$platform/**")
+            exclude("**/$shimName*")
+        }
+        from(ffmpegNatives) {
+            ffmpegLicences.forEach { include("limn/video/ffmpeg/native/$it") }
+        }
+    }
+}
+
+plugins.withId("maven-publish") {
+    extensions.configure<PublishingExtension> {
+        publications.withType<MavenPublication>().configureEach {
+            nativeJars.forEach { artifact(it) }
+        }
+    }
+}
+
+// The native payload reaches the main source set through resources.srcDir above, which is what a
+// sources jar copies as well: without this the -sources artifact carried every binary a release
+// builds, all six platforms of it, and was the largest thing this module published. A sources jar
+// answers "what was this compiled from", and no part of that answer is a .dylib.
+tasks.named<Jar>("sourcesJar") {
+    exclude("limn/video/ffmpeg/native/**")
 }
