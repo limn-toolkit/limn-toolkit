@@ -111,7 +111,14 @@ jobs:
         if: startsWith(matrix.slice, 'windows')
         with:
           msystem: ${{ matrix.msystem }}
-          update: true
+          # No `update`, and that is the measured decision rather than the cautious-looking one.
+          # `release: true` (the default) fetches the base from MSYS2's newest upstream release,
+          # so a full `pacman -Syuu` on top of it re-syncs a database that is days old at worst.
+          # It cost 259s on the ARM slice, where every pacman operation runs emulated, and
+          # trimming the package list before it changed nothing: 245s to 259s. The partial-upgrade
+          # failure `update` guards against is a hazard of a STALE installation, which this is
+          # not. If a build here ever breaks on a package mismatch, put it back — that is the
+          # trade, and it is one line.
           # base-devel carries make, sed and pkg-config, which is what FFmpeg's configure needs,
           # and the environment's own clang toolchain is what puts the right runtime beside the
           # DLLs instead of MINGW64's. Nothing else: this build has no cmake step and fetches its
