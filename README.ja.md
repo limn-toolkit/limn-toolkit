@@ -1,0 +1,168 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/lockup-dark.svg">
+    <img src="media/readme/lockup-light.svg" alt="Limn" height="72">
+  </picture>
+</p>
+
+<p align="center"><b>Java のデスクトップアプリを、ゼロから描く。</b></p>
+
+<p align="center">
+  <a href="https://central.sonatype.com/artifact/io.github.limn-toolkit/limn-components"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/io.github.limn-toolkit/limn-components?label=Maven%20Central&color=6d4aff"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
+  <img alt="Java 17+" src="https://img.shields.io/badge/Java-17%2B-orange">
+  <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey">
+  <a href="https://limn-toolkit.github.io/limn-toolkit"><img alt="Documentation" src="https://img.shields.io/badge/docs-limn--toolkit.github.io-6d4aff"></a>
+</p>
+
+<p align="center">
+  <a href="https://limn-toolkit.github.io/limn-toolkit">ウェブサイト</a> ·
+  <a href="https://limn-toolkit.github.io/limn-toolkit/docs/install/">はじめる</a> ·
+  <a href="https://limn-toolkit.github.io/limn-toolkit/components/">コンポーネント</a> ·
+  <a href="https://limn-toolkit.github.io/limn-toolkit/api/">API リファレンス</a>
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="README.pt-BR.md">Português (Brasil)</a> ·
+  <a href="README.es.md">Español</a> ·
+  <a href="README.de.md">Deutsch</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <b>日本語</b> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.ru.md">Русский</a> ·
+  <a href="README.zh-Hans.md">简体中文</a> ·
+  <a href="README.zh-Hant.md">繁體中文</a>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-kitchen-dark.webp">
+    <img src="media/readme/showcase-kitchen-light.webp" alt="メニューバー、タブ、フォーム、チャート、テーマ切り替えを備えた Limn アプリケーション" width="900">
+  </picture>
+</p>
+
+Limn はピクセルを自分で描きます。ウィジェット、レイアウト、テキスト、チャート、メディア、3D ビューポートが依存 2 つで手に入り、**Swing も JavaFX も、下敷きになるネイティブツールキットもありません**。
+
+## インストール
+
+```kotlin
+dependencies {
+    implementation("io.github.limn-toolkit:limn-components:0.2.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.2.0")
+}
+```
+
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-components</artifactId>
+  <version>0.2.0</version>
+</dependency>
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-backend-lwjgl</artifactId>
+  <version>0.2.0</version>
+</dependency>
+```
+
+</details>
+
+`limn-components` はウィジェット一式、`limn-backend-lwjgl` はウィンドウとレンダラーです。バックエンドはすべてのデスクトッププラットフォーム向けの LWJGL のネイティブを同梱するので、選ぶべき classifier はありません。
+
+> [!IMPORTANT]
+> macOS では JVM に `-XstartOnFirstThread` が必要です。初日に必ず出会う唯一のプラットフォーム固有の癖であり、これは macOS だけの話です。ほかのプラットフォームの JVM にこのフラグを渡すと、起動しません。
+
+## 画面にウィンドウを
+
+```java
+public static void main(String[] args) {
+    try (Backend backend = new LwjglBackend()) {
+        NativeWindow window = backend.createWindow(
+                new WindowConfig("Hello, Limn", 480, 320, true, true));
+
+        Column column = new Column();
+        column.gap(12);
+        column.add(new Label("A window, drawn by Limn."));
+        column.add(new Button("Close").onAction(window::requestClose));
+
+        Scene scene = new Scene(new Padding(Insets.all(24), column));
+        scene.bind(window);
+
+        backend.runEventLoop();
+    }
+}
+```
+
+マークアップ言語も、アノテーションプロセッサーも、ビルドプラグインもありません。ウィジェットは、あなたが組み立てるオブジェクトです。
+
+## 手に入るもの
+
+**自分で作らなくていいコンポーネント一式。** ボタン、入力欄、リスト、タブ、メニュー、ダイアログ、分割ペイン、カラーピッカー、棒・折れ線・ドーナツのチャート、そして 100 万行でも 20 行と同じコストで済む仮想化リスト。どれも色・形・密度をテーマから読みます。
+
+**頭に収まるレイアウト。** ウィジェット 4 つとマーカー 1 つ。列は積み、行は並べ、スタックは重ね、パディングは内側に寄せ、`Expanded` が残りの空間を誰が取るかを決めます。設定すべき制約ソルバーも、導入すべきレイアウトマネージャーもありません。
+
+**あなたの製品の見た目に、ツールキットの見た目を持ち込まない。** テーマは単なるデータ——すべての色、角の丸み、各コントロールが継承するサイズ段階——で、実行中に一度の呼び出しで差し替わります。
+
+<p align="center">
+  <img src="media/readme/home-mosaic.webp" alt="七つのテーマで描画した同じ画面" width="900">
+</p>
+
+**ユーザーの言語。** テキストは描画に使うのと同じ送り幅で測られ、フォントフォールバックは 1 文字ずつ働きます。だからラテン、ギリシャ、キリル、CJK が 1 つの文字列に混ざっても書体を選ぶ必要がありません。入力メソッドは入力欄の中で変換し、編集は書記素クラスタ単位で動きます。
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/home-languages-dark.webp">
+    <img src="media/readme/home-languages-light.webp" alt="同じ画面を日本語・簡体中国語・韓国語・ロシア語で撮影したもの" width="900">
+  </picture>
+</p>
+
+**動画も 3D もウィジェット。** 物理ベースの 3D ビューポートと動画プレーヤーが、普通のウィジェットとして合成されます。スクロールビューが切り取り、スタックが上に描き、ラベルと同じようにレイアウトに参加します。
+
+<p align="center">
+  <img src="media/readme/showcase-viewport-3d-light.webp" alt="普通のウィンドウに合成された 3D ビューポート" width="900">
+</p>
+
+## モジュール
+
+| | |
+| --- | --- |
+| `limn-toolkit` | ウィジェット、レイアウト、シーングラフ、そしてバックエンドの SPI。何にも依存しません |
+| `limn-components` | ウィジェット一式 |
+| `limn-backend-lwjgl` | その SPI の背後にある GLFW、OpenGL、stb |
+| `limn-video` | 純 Java のデコーダー。ネイティブなし、サードパーティ依存なし |
+| `limn-video-ffmpeg` | FFmpeg 経由の H.264/HEVC/VP9/VP8 と AAC/Opus/Vorbis。6 つのデスクトップ対象向けのネイティブを jar に同梱 |
+| `limn-icons-tabler` | 必要なら使える Tabler のアイコンパック |
+| `limn-theme-editor` | テーマを作る画面。あなたのアプリケーションに組み込めます |
+
+## 採用を決める前に
+
+どんなツールキットにも引き換えにするものがあります。3 週目に気づくより今読むほうがよいので、最初に書いておきます。
+
+- **複雑なスクリプトのシェーピングは非対応。** アラビア文字、ヘブライ文字、インド系文字には、テキストスタックが実装していない文脈依存の結合と並べ替えが必要で、右から左へのレイアウト方向もありません。これらの言語の翻訳は、誤った形で描くくらいならと、意図的に公開していません。
+- **スクリーンリーダーへの橋渡しなし。** キーボード操作とフォーカスリングは完成していますが、プラットフォームのアクセシビリティ API には何も公開していません。
+- **1.0 より前。** API はリリース間でまだ動きますし、描画経路は OpenGL だけです。バージョンを固定して、リリースノートを読んでください。
+
+## ドキュメント
+
+[ウェブサイト](https://limn-toolkit.github.io/limn-toolkit)がドキュメントです。動くプログラムで終わる[インストールガイド](https://limn-toolkit.github.io/limn-toolkit/docs/install/)、そのビルド中にすべての画像をツールキット自身が描画した[コンポーネントギャラリー](https://limn-toolkit.github.io/limn-toolkit/components/)、そして完全な [API リファレンス](https://limn-toolkit.github.io/limn-toolkit/api/)。
+
+設計上の判断は [`docs/adr/`](docs/adr/) に、リリースの作り方は [`RELEASING.md`](RELEASING.md) にあります。
+
+## ソースからビルドする
+
+```bash
+./gradlew check          # compiles, tests and builds the Javadoc every module publishes
+./gradlew :limn-demo:run # the demo application, every component in one window
+```
+
+成果物が対象とするのは JDK 17 で、ビルド自体は 21 で動きます。GPU のないマシンでは、GL を使うテストは失敗ではなくスキップされます。
+
+MP4 の再生には、このリポジトリに**含まれていない**ネイティブのペイロードが必要です。リリースはそれを 6 つのプラットフォーム向けにビルドし、jar の中に同梱します。手元に用意するなら、`./scripts/build-ffmpeg.sh` が 1 分ほどで 1 つビルドし、`./scripts/fetch-ffmpeg.sh` が公開済みの jar から 1 つ取り出します。
+
+## ライセンス
+
+[Apache-2.0](LICENSE)。明示的な特許許諾を含みます。同梱コンポーネントとそれぞれのライセンスは [`NOTICE`](NOTICE) に記載しています。FFmpeg のデコーダーは LGPL-2.1-or-later で、ライセンス本文を自身の jar の中に併せて運びます。

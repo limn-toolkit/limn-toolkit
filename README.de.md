@@ -1,0 +1,205 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/lockup-dark.svg">
+    <img src="media/readme/lockup-light.svg" alt="Limn" height="72">
+  </picture>
+</p>
+
+<p align="center"><b>Desktop-Anwendungen in Java, von Grund auf gezeichnet.</b></p>
+
+<p align="center">
+  <a href="https://central.sonatype.com/artifact/io.github.limn-toolkit/limn-components"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/io.github.limn-toolkit/limn-components?label=Maven%20Central&color=6d4aff"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
+  <img alt="Java 17+" src="https://img.shields.io/badge/Java-17%2B-orange">
+  <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey">
+  <a href="https://limn-toolkit.github.io/limn-toolkit"><img alt="Documentation" src="https://img.shields.io/badge/docs-limn--toolkit.github.io-6d4aff"></a>
+</p>
+
+<p align="center">
+  <a href="https://limn-toolkit.github.io/limn-toolkit">Website</a> ·
+  <a href="https://limn-toolkit.github.io/limn-toolkit/docs/install/">Loslegen</a> ·
+  <a href="https://limn-toolkit.github.io/limn-toolkit/components/">Komponenten</a> ·
+  <a href="https://limn-toolkit.github.io/limn-toolkit/api/">API-Referenz</a>
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="README.pt-BR.md">Português (Brasil)</a> ·
+  <a href="README.es.md">Español</a> ·
+  <b>Deutsch</b> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.ru.md">Русский</a> ·
+  <a href="README.zh-Hans.md">简体中文</a> ·
+  <a href="README.zh-Hant.md">繁體中文</a>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-kitchen-dark.webp">
+    <img src="media/readme/showcase-kitchen-light.webp" alt="Eine Limn-Anwendung: Menüleiste, Reiter, Formulare, Diagramme und eine Designwahl" width="900">
+  </picture>
+</p>
+
+Limn zeichnet seine Pixel selbst. Widgets, Layout, Text, Diagramme, Medien und ein 3D-Viewport, in
+zwei Abhängigkeiten, **ohne Swing, ohne JavaFX und ohne natives Toolkit darunter**.
+
+## Installation
+
+```kotlin
+dependencies {
+    implementation("io.github.limn-toolkit:limn-components:0.2.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.2.0")
+}
+```
+
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-components</artifactId>
+  <version>0.2.0</version>
+</dependency>
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-backend-lwjgl</artifactId>
+  <version>0.2.0</version>
+</dependency>
+```
+
+</details>
+
+`limn-components` ist der Komponentensatz; `limn-backend-lwjgl` ist das Fenster und der Renderer.
+Das Backend bringt die nativen Bibliotheken von LWJGL für jede Desktop-Plattform mit, es gibt also
+keinen Classifier zu wählen.
+
+> [!IMPORTANT]
+> Unter macOS braucht die JVM `-XstartOnFirstThread`. Das ist die eine Plattform-Eigenheit, die
+> Ihnen am ersten Tag begegnet, und sie gilt nur für macOS — eine JVM anderswo startet mit diesem
+> Flag nicht.
+
+## Ein Fenster auf dem Bildschirm
+
+```java
+public static void main(String[] args) {
+    try (Backend backend = new LwjglBackend()) {
+        NativeWindow window = backend.createWindow(
+                new WindowConfig("Hello, Limn", 480, 320, true, true));
+
+        Column column = new Column();
+        column.gap(12);
+        column.add(new Label("A window, drawn by Limn."));
+        column.add(new Button("Close").onAction(window::requestClose));
+
+        Scene scene = new Scene(new Padding(Insets.all(24), column));
+        scene.bind(window);
+
+        backend.runEventLoop();
+    }
+}
+```
+
+Keine Auszeichnungssprache, kein Annotation Processor, kein Build-Plugin. Widgets sind Objekte,
+die Sie konstruieren.
+
+## Was Sie bekommen
+
+**Ein Komponentensatz, den Sie nicht selbst bauen müssen.** Schaltflächen, Felder, Listen, Reiter,
+Menüs, Dialoge, geteilte Bereiche, ein Farbwähler, Balken-, Linien- und Ringdiagramme sowie eine
+virtualisierte Liste, in der eine Million Zeilen so viel kostet wie zwanzig. Jede davon liest
+Farbe, Form und Dichte aus dem Design.
+
+**Layout, das in den Kopf passt.** Vier Widgets und ein Marker: eine Spalte stapelt, eine Zeile
+verteilt, ein Stapel überlagert, Padding rückt ein, und `Expanded` sagt, wer den übrigen Platz
+bekommt. Es gibt keinen Constraint-Solver zu konfigurieren und keinen Layout-Manager zu
+installieren.
+
+**Das Aussehen Ihres Produkts, nicht das des Toolkits.** Ein Theme sind reine Daten — jede Farbe,
+der Eckenradius, die Größenstufe, die jedes Steuerelement erbt — und ein Aufruf tauscht es zur
+Laufzeit.
+
+<p align="center">
+  <img src="media/readme/home-mosaic.webp" alt="Dieselbe Oberfläche, unter sieben Themes gerendert" width="900">
+</p>
+
+**Die Sprachen Ihrer Nutzer.** Text wird mit denselben Vorschüben gemessen, mit denen er gezeichnet
+wird, und der Schrift-Fallback läuft pro Zeichen, so mischen sich Latein, Griechisch, Kyrillisch
+und CJK in einer Zeichenkette, ohne dass Sie eine Schrift wählen. Eingabemethoden komponieren im
+Feld selbst, und die Bearbeitung bewegt sich in Graphem-Clustern.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/home-languages-dark.webp">
+    <img src="media/readme/home-languages-light.webp" alt="Derselbe Bildschirm, aufgenommen auf Japanisch, vereinfachtem Chinesisch, Koreanisch und Russisch" width="900">
+  </picture>
+</p>
+
+**Video und 3D sind auch nur Widgets.** Ein physikalisch basierter 3D-Viewport und ein Videoplayer,
+zusammengesetzt wie gewöhnliche Widgets: eine Scroll-Ansicht beschneidet sie, ein Stapel zeichnet
+darüber, und sie nehmen am Layout teil wie eine Beschriftung.
+
+<p align="center">
+  <img src="media/readme/showcase-viewport-3d-light.webp" alt="Der 3D-Viewport, eingesetzt in ein gewöhnliches Fenster" width="900">
+</p>
+
+## Die Module
+
+| | |
+| --- | --- |
+| `limn-toolkit` | Widgets, Layout, der Szenengraph und die Backend-SPIs; ohne jede Abhängigkeit |
+| `limn-components` | der Komponentensatz |
+| `limn-backend-lwjgl` | GLFW, OpenGL und stb hinter diesen SPIs |
+| `limn-video` | reine Java-Decoder: nichts Natives, keine Fremdabhängigkeit |
+| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 und AAC/Opus/Vorbis über FFmpeg, native Bibliotheken für sechs Desktop-Ziele im Jar |
+| `limn-icons-tabler` | das Tabler-Icon-Paket, falls Sie es wollen |
+| `limn-theme-editor` | der Bildschirm, der ein Theme erstellt, einbettbar in Ihre Anwendung |
+
+## Bevor Sie sich festlegen
+
+Jedes Toolkit tauscht etwas ein. Das sind die Tauschgeschäfte, vorab genannt; sie in Woche drei zu
+entdecken ist schlimmer, als sie jetzt zu lesen.
+
+- **Kein Shaping komplexer Schriften.** Arabisch, Hebräisch und die indischen Schriften brauchen
+  kontextabhängige Verbindungen und Umstellungen, die der Textstack nicht umsetzt, und eine
+  Layout-Richtung von rechts nach links gibt es nicht. Übersetzungen für diese Sprachen werden
+  bewusst nicht ausgeliefert, statt sie falsch zu zeichnen.
+- **Keine Screenreader-Brücke.** Tastaturnavigation und Fokusringe sind vollständig, aber nichts
+  wird an die Barrierefreiheits-APIs der Plattform gemeldet.
+- **Vor 1.0.** Die API bewegt sich zwischen Releases noch, und OpenGL ist der einzige Renderpfad.
+  Pinnen Sie Ihre Version und lesen Sie die Release Notes.
+
+## Dokumentation
+
+Die [Website](https://limn-toolkit.github.io/limn-toolkit) ist die Dokumentation: eine
+[Installationsanleitung](https://limn-toolkit.github.io/limn-toolkit/docs/install/), die mit einem
+laufenden Programm endet, eine
+[Komponentengalerie](https://limn-toolkit.github.io/limn-toolkit/components/), in der jedes Bild
+während dieses Builds vom Toolkit gerendert wurde, und die vollständige
+[API-Referenz](https://limn-toolkit.github.io/limn-toolkit/api/).
+
+Entwurfsentscheidungen stehen in [`docs/adr/`](docs/adr/), und wie ein Release entsteht, in
+[`RELEASING.md`](RELEASING.md).
+
+## Aus dem Quelltext bauen
+
+```bash
+./gradlew check          # compiles, tests and builds the Javadoc every module publishes
+./gradlew :limn-demo:run # the demo application, every component in one window
+```
+
+Die Artefakte zielen auf JDK 17; der Build selbst läuft auf 21. Auf einem Rechner ohne GPU werden
+die GL-gestützten Tests übersprungen, statt zu scheitern.
+
+Die MP4-Wiedergabe braucht eine native Nutzlast, die **nicht** in diesem Repository liegt — ein
+Release baut sie für sechs Plattformen und liefert sie im Jar mit. Um sie lokal zu haben, baut
+`./scripts/build-ffmpeg.sh` eine in etwa einer Minute, oder `./scripts/fetch-ffmpeg.sh` packt eine
+aus dem veröffentlichten Jar aus.
+
+## Lizenz
+
+[Apache-2.0](LICENSE), mit einer ausdrücklichen Patentgewährung. Die mitgelieferten Komponenten
+sind mit ihren eigenen Lizenzen in [`NOTICE`](NOTICE) aufgeführt; der FFmpeg-Decoder steht unter
+LGPL-2.1-oder-später und führt seinen Lizenztext im eigenen Jar mit.
