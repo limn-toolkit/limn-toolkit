@@ -53,21 +53,21 @@ export const de: Catalog = {
   // ------------------------------------------------------------------- home
   "home.title": "Limn: ein UI-Toolkit für Java auf dem Desktop",
   "home.description":
-    "Desktop-Anwendungen in Java bauen, mit eigenen Widgets, Layout, Text, Diagrammen, Medien und 3D. Zwei Abhängigkeiten, JDK 17, Windows, macOS und Linux. Apache-2.0.",
+    "Desktop-Anwendungen in Java bauen, mit eigenen Widgets, Layout, Text, Diagrammen, Medien und 3D. Eine Abhängigkeit, JDK 17, Windows, macOS und Linux. Apache-2.0.",
 
   "home.hero.eyebrow": "Desktop-UI für Java",
   "home.hero.headline": "Desktop-Anwendungen in Java, von Grund auf gezeichnet.",
   "home.hero.sub":
-    "Limn zeichnet seine Pixel selbst. Widgets, Layout, Text, Diagramme, Medien und ein 3D-Viewport, in zwei Abhängigkeiten, ohne Swing, ohne JavaFX und ohne natives Toolkit darunter.",
+    "Limn zeichnet seine Pixel selbst. Widgets, Layout, Text, Diagramme, Medien und ein 3D-Viewport, in einer Abhängigkeit, ohne Swing, ohne JavaFX und ohne natives Toolkit darunter.",
   "home.hero.cta": "Loslegen",
   "home.hero.secondary": "Komponenten ansehen",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
   "home.hero.caption": "Die Demo-Anwendung, von Limn während dieses Builds gerendert.",
 
   "home.install.eyebrow": "Fünf Minuten",
-  "home.install.heading": "Zwei Abhängigkeiten und eine main-Methode",
+  "home.install.heading": "Eine Abhängigkeit und eine main-Methode",
   "home.install.body":
-    "Keine Auszeichnungssprache, kein Annotation Processor, kein Build-Plugin. Toolkit und Backend hinzufügen, einfaches Java schreiben, und Sie haben ein Fenster.",
+    "Keine Auszeichnungssprache, kein Annotation Processor, kein Build-Plugin. Das Backend hinzufügen, das das Toolkit mitbringt, einfaches Java schreiben, und Sie haben ein Fenster.",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
   "home.install.macos":
@@ -191,7 +191,7 @@ export const de: Catalog = {
     "Apache License 2.0, einschließlich einer ausdrücklichen Patentgewährung. Kommerzielle Nutzung, Änderung und Weitergabe sind allesamt erlaubt.",
   "licence.core.heading": "Das Toolkit selbst",
   "licence.core.body":
-    "<code>limn-toolkit</code> und <code>limn-components</code> haben außer dem JDK keine Abhängigkeiten, für diese beiden ist Apache-2.0 also die ganze Geschichte. Das Render-Backend fügt LWJGL hinzu, das unter BSD-3-Clause steht.",
+    "<code>limn-toolkit</code> hat außer dem JDK keine Abhängigkeiten, dafür ist Apache-2.0 also die ganze Geschichte. Das Render-Backend fügt LWJGL hinzu, das unter BSD-3-Clause steht.",
   "licence.fonts.heading": "Schriften",
   "licence.fonts.body":
     "Roboto und die Noto-Fallback-Schriften stehen unter der SIL Open Font License. Jede mitgelieferte Komponente ist mit ihrer Lizenz in der NOTICE-Datei des Projekts aufgeführt.",
@@ -200,7 +200,7 @@ export const de: Catalog = {
     "Die MP3-Unterstützung stammt von JLayer, das unter LGPL-2.1 steht und als isoliertes Jar hinter der Audio-Decoder-Schnittstelle gehalten wird. Schließen Sie diese eine Abhängigkeit aus, wenn Ihre Distribution LGPL-Pflichten vermeiden muss; WAV und Ogg Vorbis funktionieren weiter.",
   "licence.ffmpeg.heading": "FFmpeg-Video, und was damit ausgeliefert wird",
   "licence.ffmpeg.body":
-    "Der optionale H.264-Decoder bindet ein reduziertes FFmpeg dynamisch ein, gebaut als LGPL-2.1-oder-später. <b>Seine nativen Bibliotheken liegen im veröffentlichten Jar, für alle Desktop-Ziele</b>. Eine Distribution, die <code>limn-video-ffmpeg</code> enthält, verteilt also FFmpeg, und das Jar führt den Lizenztext und den erforderlichen Hinweis mit. Sie sind dynamisch gebunden und austauschbar, genau das verlangt diese Lizenz. Nichts sonst hängt von diesem Modul ab: lassen Sie es weg, und jedes andere Medienformat funktioniert weiter.",
+    "Der optionale H.264-Decoder bindet ein reduziertes FFmpeg dynamisch ein, gebaut als LGPL-2.1-oder-später. <b>Seine nativen Bibliotheken liegen in je einem Classifier pro Desktop-Ziel und in <code>natives-all</code> für ein Bundle, das überall hin geht</b>. Eine Distribution, die <code>limn-video-ffmpeg</code> enthält, verteilt also FFmpeg, und das Jar führt den Lizenztext und den erforderlichen Hinweis mit. Sie sind dynamisch gebunden und austauschbar, genau das verlangt diese Lizenz. Nichts sonst hängt von diesem Modul ab: lassen Sie es weg, und jedes andere Medienformat funktioniert weiter.",
   "licence.notAdvice":
     "Nichts davon ist Rechtsberatung. Lesen Sie die Lizenzen und fragen Sie Ihren eigenen Anwalt.",
 

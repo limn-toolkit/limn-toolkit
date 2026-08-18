@@ -31,21 +31,21 @@ export const en = {
   // ------------------------------------------------------------------- home
   "home.title": "Limn: a UI toolkit for desktop Java",
   "home.description":
-    "Build desktop applications in Java with your own widgets, layout, text, charts, media and 3D. Two dependencies, JDK 17, Windows, macOS and Linux. Apache-2.0.",
+    "Build desktop applications in Java with your own widgets, layout, text, charts, media and 3D. One dependency, JDK 17, Windows, macOS and Linux. Apache-2.0.",
 
   "home.hero.eyebrow": "Desktop UI for Java",
   "home.hero.headline": "Desktop apps in Java, drawn from scratch.",
   "home.hero.sub":
-    "Limn draws its own pixels. Widgets, layout, text, charts, media and a 3D viewport, in two dependencies, with no Swing, no JavaFX and no native toolkit underneath.",
+    "Limn draws its own pixels. Widgets, layout, text, charts, media and a 3D viewport, in one dependency, with no Swing, no JavaFX and no native toolkit underneath.",
   "home.hero.cta": "Get started",
   "home.hero.secondary": "Browse the components",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
   "home.hero.caption": "The demo application, rendered by Limn during this build.",
 
   "home.install.eyebrow": "Five minutes",
-  "home.install.heading": "Two dependencies and a main method",
+  "home.install.heading": "One dependency and a main method",
   "home.install.body":
-    "No markup language, no annotation processor, no build plugin. Add the toolkit and the backend, write plain Java, and you have a window.",
+    "No markup language, no annotation processor, no build plugin. Add the backend, which brings the toolkit with it, write plain Java, and you have a window.",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
   "home.install.macos":
@@ -167,7 +167,7 @@ export const en = {
     "Apache License 2.0, including an explicit patent grant. Commercial use, modification and redistribution are all permitted.",
   "licence.core.heading": "The toolkit itself",
   "licence.core.body":
-    "<code>limn-toolkit</code> and <code>limn-components</code> have no dependencies beyond the JDK, so for those two Apache-2.0 is the whole story. The rendering backend adds LWJGL, which is BSD-3-Clause.",
+    "<code>limn-toolkit</code> has no dependencies beyond the JDK, so for it Apache-2.0 is the whole story. The rendering backend adds LWJGL, which is BSD-3-Clause.",
   "licence.fonts.heading": "Fonts",
   "licence.fonts.body":
     "Roboto and the Noto fallback faces ship under the SIL Open Font License. Every bundled component is listed with its licence in the project's NOTICE file.",
@@ -176,7 +176,7 @@ export const en = {
     "MP3 support comes from JLayer, which is LGPL-2.1 and is kept as an isolated jar behind the audio decoder interface. Exclude that one dependency if your distribution needs to avoid LGPL obligations; WAV and Ogg Vorbis keep working.",
   "licence.ffmpeg.heading": "FFmpeg video, and what ships with it",
   "licence.ffmpeg.body":
-    "The optional H.264 decoder links a trimmed FFmpeg dynamically, built as LGPL-2.1-or-later. <b>Its native libraries ride inside the published jar, for every desktop target</b>, so a distribution that includes <code>limn-video-ffmpeg</code> is distributing FFmpeg, and the jar carries the licence text and the notice that requires. They are dynamically linked and replaceable, which is what that licence asks. Nothing else depends on this module: leave it out and every other media format keeps working.",
+    "The optional H.264 decoder links a trimmed FFmpeg dynamically, built as LGPL-2.1-or-later. <b>Its native libraries ride in one classifier per desktop target, and in <code>natives-all</code> for a bundle that ships everywhere</b>, so a distribution that includes <code>limn-video-ffmpeg</code> is distributing FFmpeg, and the jar carries the licence text and the notice that requires. They are dynamically linked and replaceable, which is what that licence asks. Nothing else depends on this module: leave it out and every other media format keeps working.",
   "licence.notAdvice": "None of this is legal advice. Read the licences, and ask your own counsel.",
 
   // ----------------------------------------------------------------- privacy

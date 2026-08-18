@@ -53,21 +53,21 @@ export const es: Catalog = {
   // ------------------------------------------------------------------- home
   "home.title": "Limn: un kit de interfaz para Java en el escritorio",
   "home.description":
-    "Crea aplicaciones de escritorio en Java con tus propios widgets, disposición, texto, gráficos, medios y 3D. Dos dependencias, JDK 17, Windows, macOS y Linux. Apache-2.0.",
+    "Crea aplicaciones de escritorio en Java con tus propios widgets, disposición, texto, gráficos, medios y 3D. Una dependencia, JDK 17, Windows, macOS y Linux. Apache-2.0.",
 
   "home.hero.eyebrow": "Interfaz de escritorio para Java",
   "home.hero.headline": "Aplicaciones de escritorio en Java, dibujadas desde cero.",
   "home.hero.sub":
-    "Limn dibuja sus propios píxeles. Widgets, disposición, texto, gráficos, medios y una vista 3D, en dos dependencias, sin Swing, sin JavaFX y sin ningún kit nativo por debajo.",
+    "Limn dibuja sus propios píxeles. Widgets, disposición, texto, gráficos, medios y una vista 3D, en una dependencia, sin Swing, sin JavaFX y sin ningún kit nativo por debajo.",
   "home.hero.cta": "Empezar",
   "home.hero.secondary": "Ver los componentes",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
   "home.hero.caption": "La aplicación de demostración, renderizada por Limn durante esta compilación.",
 
   "home.install.eyebrow": "Cinco minutos",
-  "home.install.heading": "Dos dependencias y un método main",
+  "home.install.heading": "Una dependencia y un método main",
   "home.install.body":
-    "Sin lenguaje de marcado, sin procesador de anotaciones, sin complemento de compilación. Añade el kit y el backend, escribe Java normal y ya tienes una ventana.",
+    "Sin lenguaje de marcado, sin procesador de anotaciones, sin complemento de compilación. Añade el backend, que trae el kit consigo, escribe Java normal y ya tienes una ventana.",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
   "home.install.macos":
@@ -191,7 +191,7 @@ export const es: Catalog = {
     "Apache License 2.0, con concesión explícita de patentes. El uso comercial, la modificación y la redistribución están todos permitidos.",
   "licence.core.heading": "El kit en sí",
   "licence.core.body":
-    "<code>limn-toolkit</code> y <code>limn-components</code> no tienen dependencias más allá del JDK, así que para esos dos Apache-2.0 es toda la historia. El backend de renderizado añade LWJGL, que es BSD-3-Clause.",
+    "<code>limn-toolkit</code> no tiene dependencias más allá del JDK, así que para él Apache-2.0 es toda la historia. El backend de renderizado añade LWJGL, que es BSD-3-Clause.",
   "licence.fonts.heading": "Tipografías",
   "licence.fonts.body":
     "Roboto y las tipografías de respaldo Noto se distribuyen bajo la SIL Open Font License. Cada componente incluido aparece con su licencia en el archivo NOTICE del proyecto.",
@@ -200,7 +200,7 @@ export const es: Catalog = {
     "La compatibilidad con MP3 viene de JLayer, que es LGPL-2.1 y se mantiene como un jar aislado detrás de la interfaz de decodificación de audio. Excluye esa única dependencia si tu distribución necesita evitar obligaciones LGPL; WAV y Ogg Vorbis siguen funcionando.",
   "licence.ffmpeg.heading": "Vídeo con FFmpeg, y qué se distribuye con él",
   "licence.ffmpeg.body":
-    "El decodificador H.264 opcional enlaza dinámicamente un FFmpeg reducido, compilado como LGPL-2.1-o-posterior. <b>Sus bibliotecas nativas viajan dentro del jar publicado, para todos los destinos de escritorio</b>, así que una distribución que incluya <code>limn-video-ffmpeg</code> está distribuyendo FFmpeg, y el jar lleva el texto de la licencia y el aviso que exige. Están enlazadas dinámicamente y son reemplazables, que es lo que esa licencia pide. Nada más depende de este módulo: déjalo fuera y todos los demás formatos siguen funcionando.",
+    "El decodificador H.264 opcional enlaza dinámicamente un FFmpeg reducido, compilado como LGPL-2.1-o-posterior. <b>Sus bibliotecas nativas viajan en un classifier por cada destino de escritorio, y en <code>natives-all</code> para un paquete que sirve en todas partes</b>, así que una distribución que incluya <code>limn-video-ffmpeg</code> está distribuyendo FFmpeg, y el jar lleva el texto de la licencia y el aviso que exige. Están enlazadas dinámicamente y son reemplazables, que es lo que esa licencia pide. Nada más depende de este módulo: déjalo fuera y todos los demás formatos siguen funcionando.",
   "licence.notAdvice":
     "Nada de esto es asesoramiento legal. Lee las licencias y consulta a tu propio abogado.",
 

@@ -33,7 +33,7 @@ import java.nio.file.Path;
  *
  * <p><b>The backend is not a dependency of this module's library half.</b> It is
  * {@code compileOnly} plus {@code runtimeOnly}, so this class compiles and runs while the
- * published jar still declares only {@code limn-components}. An application that embeds
+ * published jar still declares only {@code limn-toolkit}. An application that embeds
  * {@link ThemeEditor} therefore does not inherit a window toolkit it already has, and the module
  * keeps the property its build file opens with: nothing depends on it, and it depends on as
  * little as it can.

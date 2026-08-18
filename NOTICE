@@ -64,8 +64,7 @@ Tabler Icons (limn-icons-tabler resources: the drawings, and the names generated
   excludes the module and ships none of them, the way limn-video-ffmpeg works.
 
 --------------------------------------------------------------------------------
-Dependencies (limn-backend-lwjgl only; limn-toolkit and limn-components have
-none beyond the JDK)
+Dependencies (limn-backend-lwjgl only; limn-toolkit has none beyond the JDK)
 --------------------------------------------------------------------------------
 
 LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -openal, -stb, -nanovg, -tinyfd)

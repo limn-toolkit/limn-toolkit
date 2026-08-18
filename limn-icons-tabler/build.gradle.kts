@@ -1,6 +1,6 @@
 // limn-icons-tabler: the Tabler icon set, as an opt-in icon pack.
 //
-// It sits where limn-video sits: it implements a vocabulary the toolkit publishes
+// It sits where limn-video-ffmpeg sits: it implements a vocabulary the toolkit publishes
 // (limn.graphics.Icon) and NOTHING depends on it, so an application that draws a button
 // never pulls six thousand icons onto its classpath. That is also what leaves room for a
 // second pack beside this one: the pack is a dependency an application chooses, and the

@@ -51,21 +51,21 @@ export const zhHant: Catalog = {
   // ------------------------------------------------------------------- home
   "home.title": "Limn：為桌面 Java 打造的 UI 工具組",
   "home.description":
-    "用你自己的元件、版面、文字、圖表、媒體與 3D，在 Java 上打造桌面應用程式。兩個相依套件，JDK 17，支援 Windows、macOS 與 Linux，Apache-2.0。",
+    "用你自己的元件、版面、文字、圖表、媒體與 3D，在 Java 上打造桌面應用程式。一個相依套件，JDK 17，支援 Windows、macOS 與 Linux，Apache-2.0。",
 
   "home.hero.eyebrow": "Java 的桌面 UI",
   "home.hero.headline": "用 Java 寫桌面應用程式，像素自己畫。",
   "home.hero.sub":
-    "Limn 自己畫出每一個像素。元件、版面、文字、圖表、媒體與 3D 視埠，只要兩個相依套件，沒有 Swing，沒有 JavaFX，底下也沒有原生工具組。",
+    "Limn 自己畫出每一個像素。元件、版面、文字、圖表、媒體與 3D 視埠，只要一個相依套件，沒有 Swing，沒有 JavaFX，底下也沒有原生工具組。",
   "home.hero.cta": "開始使用",
   "home.hero.secondary": "瀏覽元件",
   "home.hero.meta": "JDK 17 · Windows、macOS、Linux · Apache-2.0",
   "home.hero.caption": "本次建置期間由 Limn 繪製的示範應用程式。",
 
   "home.install.eyebrow": "五分鐘",
-  "home.install.heading": "兩個相依套件和一個 main 方法",
+  "home.install.heading": "一個相依套件和一個 main 方法",
   "home.install.body":
-    "沒有標記語言，沒有註解處理器，沒有建置外掛。加上工具組與後端，寫普通的 Java，你就有了一個視窗。",
+    "沒有標記語言，沒有註解處理器，沒有建置外掛。加上後端，它會把工具組一起帶來，寫普通的 Java，你就有了一個視窗。",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
   "home.install.macos":
@@ -187,7 +187,7 @@ export const zhHant: Catalog = {
     "Apache License 2.0，含明確的專利授權。商業使用、修改與再散布皆獲允許。",
   "licence.core.heading": "工具組本身",
   "licence.core.body":
-    "<code>limn-toolkit</code> 與 <code>limn-components</code> 除 JDK 外沒有任何相依套件，所以對這兩者而言，Apache-2.0 就是全部。繪製後端會引入 LWJGL，它採用 BSD-3-Clause。",
+    "<code>limn-toolkit</code> 除 JDK 外沒有任何相依套件，所以對它而言，Apache-2.0 就是全部。繪製後端會引入 LWJGL，它採用 BSD-3-Clause。",
   "licence.fonts.heading": "字型",
   "licence.fonts.body":
     "Roboto 與 Noto 遞補字型以 SIL Open Font License 散布。每個隨附元件及其授權都列在專案的 NOTICE 檔案中。",
@@ -196,7 +196,7 @@ export const zhHant: Catalog = {
     "MP3 支援來自 JLayer，它是 LGPL-2.1，並作為一個獨立的 jar 保存在音訊解碼介面之後。若你的散布需要避開 LGPL 義務，只排除這一個相依套件即可。WAV 與 Ogg Vorbis 照常可用。",
   "licence.ffmpeg.heading": "FFmpeg 影片，以及隨之散布的東西",
   "licence.ffmpeg.body":
-    "選用的 H.264 解碼器動態連結一份精簡的 FFmpeg，以 LGPL-2.1-或更高版本 建置。<b>它的原生庫隨發布的 jar 一起提供，涵蓋所有桌面目標</b>，因此包含 <code>limn-video-ffmpeg</code> 的散布就是在散布 FFmpeg，而 jar 裡帶著授權條款全文與必要的聲明。它們是動態連結且可替換的，這正是該授權的要求。沒有別的東西依賴這個模組：拿掉它，其他媒體格式照舊運作。",
+    "選用的 H.264 解碼器動態連結一份精簡的 FFmpeg，以 LGPL-2.1-或更高版本 建置。<b>它的原生庫按每個桌面目標一個 classifier 發布，另有一個涵蓋所有平台的 <code>natives-all</code></b>，因此包含 <code>limn-video-ffmpeg</code> 的散布就是在散布 FFmpeg，而 jar 裡帶著授權條款全文與必要的聲明。它們是動態連結且可替換的，這正是該授權的要求。沒有別的東西依賴這個模組：拿掉它，其他媒體格式照舊運作。",
   "licence.notAdvice": "以上皆不構成法律意見。請閱讀授權全文，並諮詢你自己的律師。",
 
   // ----------------------------------------------------------------- privacy

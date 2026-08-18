@@ -51,21 +51,21 @@ export const zhHans: Catalog = {
   // ------------------------------------------------------------------- home
   "home.title": "Limn：面向桌面 Java 的 UI 工具包",
   "home.description":
-    "用你自己的组件、布局、文本、图表、媒体与 3D，在 Java 上构建桌面应用。两个依赖，JDK 17，支持 Windows、macOS 与 Linux，Apache-2.0。",
+    "用你自己的组件、布局、文本、图表、媒体与 3D，在 Java 上构建桌面应用。一个依赖，JDK 17，支持 Windows、macOS 与 Linux，Apache-2.0。",
 
   "home.hero.eyebrow": "Java 的桌面 UI",
   "home.hero.headline": "用 Java 写桌面应用，像素由自己绘制。",
   "home.hero.sub":
-    "Limn 自己绘制每一个像素。组件、布局、文本、图表、媒体与 3D 视口，只需两个依赖，没有 Swing，没有 JavaFX，底下也没有原生工具包。",
+    "Limn 自己绘制每一个像素。组件、布局、文本、图表、媒体与 3D 视口，只需一个依赖，没有 Swing，没有 JavaFX，底下也没有原生工具包。",
   "home.hero.cta": "开始使用",
   "home.hero.secondary": "浏览组件",
   "home.hero.meta": "JDK 17 · Windows、macOS、Linux · Apache-2.0",
   "home.hero.caption": "本次构建期间由 Limn 渲染的演示应用。",
 
   "home.install.eyebrow": "五分钟",
-  "home.install.heading": "两个依赖和一个 main 方法",
+  "home.install.heading": "一个依赖和一个 main 方法",
   "home.install.body":
-    "没有标记语言，没有注解处理器，没有构建插件。加上工具包和后端，写普通的 Java，你就有了一个窗口。",
+    "没有标记语言，没有注解处理器，没有构建插件。加上后端，它会把工具包一起带来，写普通的 Java，你就有了一个窗口。",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
   "home.install.macos":
@@ -187,7 +187,7 @@ export const zhHans: Catalog = {
     "Apache License 2.0，含明确的专利授权。商业使用、修改与再分发均获允许。",
   "licence.core.heading": "工具包本身",
   "licence.core.body":
-    "<code>limn-toolkit</code> 与 <code>limn-components</code> 除 JDK 外没有任何依赖，所以对这两者而言，Apache-2.0 就是全部。渲染后端会引入 LWJGL，它采用 BSD-3-Clause。",
+    "<code>limn-toolkit</code> 除 JDK 外没有任何依赖，所以对它而言，Apache-2.0 就是全部。渲染后端会引入 LWJGL，它采用 BSD-3-Clause。",
   "licence.fonts.heading": "字体",
   "licence.fonts.body":
     "Roboto 与 Noto 回退字体以 SIL Open Font License 分发。每个随附组件及其许可都列在项目的 NOTICE 文件中。",
@@ -196,7 +196,7 @@ export const zhHans: Catalog = {
     "MP3 支持来自 JLayer，它是 LGPL-2.1，并作为一个独立的 jar 保存在音频解码接口之后。如果你的分发需要避免 LGPL 义务，只排除这一个依赖即可。WAV 与 Ogg Vorbis 照常可用。",
   "licence.ffmpeg.heading": "FFmpeg 视频，以及随之分发的东西",
   "licence.ffmpeg.body":
-    "可选的 H.264 解码器动态链接一份精简的 FFmpeg，按 LGPL-2.1-或更高版本 构建。<b>它的原生库随发布的 jar 一起提供，覆盖所有桌面目标</b>，因此包含 <code>limn-video-ffmpeg</code> 的分发就是在分发 FFmpeg，而 jar 里带着许可证文本和必需的声明。它们是动态链接且可替换的，这正是该许可证的要求。没有别的东西依赖这个模块：去掉它，其他媒体格式照旧工作。",
+    "可选的 H.264 解码器动态链接一份精简的 FFmpeg，按 LGPL-2.1-或更高版本 构建。<b>它的原生库按每个桌面目标一个 classifier 发布，另有一个走遍所有平台的 <code>natives-all</code></b>，因此包含 <code>limn-video-ffmpeg</code> 的分发就是在分发 FFmpeg，而 jar 里带着许可证文本和必需的声明。它们是动态链接且可替换的，这正是该许可证的要求。没有别的东西依赖这个模块：去掉它，其他媒体格式照旧工作。",
   "licence.notAdvice": "以上均不构成法律意见。请阅读许可全文，并咨询你自己的律师。",
 
   // ----------------------------------------------------------------- privacy

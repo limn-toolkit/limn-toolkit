@@ -329,7 +329,7 @@ final class GalleryScenes {
 
     // #region gallery:video-view
     static Built videoView() {
-        // The PURE-JAVA source, deliberately: limn-video's synthetic generator needs no
+        // The PURE-JAVA source, deliberately: the toolkit's synthetic generator needs no
         // native, no third-party codec and no media file, so this renders identically on
         // any machine and on a CI runner that has never built FFmpeg. The still therefore
         // shows the WIDGET working, not a codec; the caption on the site says so, because

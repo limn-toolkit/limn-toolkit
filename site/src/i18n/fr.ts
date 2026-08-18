@@ -53,21 +53,21 @@ export const fr: Catalog = {
   // ------------------------------------------------------------------- home
   "home.title": "Limn : une boîte à outils d’interface pour Java sur le bureau",
   "home.description":
-    "Créez des applications de bureau en Java avec vos propres widgets, mise en page, texte, graphiques, médias et 3D. Deux dépendances, JDK 17, Windows, macOS et Linux. Apache-2.0.",
+    "Créez des applications de bureau en Java avec vos propres widgets, mise en page, texte, graphiques, médias et 3D. Une dépendance, JDK 17, Windows, macOS et Linux. Apache-2.0.",
 
   "home.hero.eyebrow": "Interface de bureau pour Java",
   "home.hero.headline": "Des applications de bureau en Java, dessinées de zéro.",
   "home.hero.sub":
-    "Limn dessine ses propres pixels. Widgets, mise en page, texte, graphiques, médias et une vue 3D, en deux dépendances, sans Swing, sans JavaFX et sans boîte à outils native en dessous.",
+    "Limn dessine ses propres pixels. Widgets, mise en page, texte, graphiques, médias et une vue 3D, en une dépendance, sans Swing, sans JavaFX et sans boîte à outils native en dessous.",
   "home.hero.cta": "Commencer",
   "home.hero.secondary": "Parcourir les composants",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
   "home.hero.caption": "L’application de démonstration, rendue par Limn pendant cette compilation.",
 
   "home.install.eyebrow": "Cinq minutes",
-  "home.install.heading": "Deux dépendances et une méthode main",
+  "home.install.heading": "Une dépendance et une méthode main",
   "home.install.body":
-    "Pas de langage de balisage, pas de processeur d’annotations, pas de greffon de build. Ajoutez la boîte à outils et le backend, écrivez du Java ordinaire, et vous avez une fenêtre.",
+    "Pas de langage de balisage, pas de processeur d’annotations, pas de greffon de build. Ajoutez le backend, qui apporte la boîte à outils avec lui, écrivez du Java ordinaire, et vous avez une fenêtre.",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
   "home.install.macos":
@@ -191,7 +191,7 @@ export const fr: Catalog = {
     "Apache License 2.0, avec une concession de brevets explicite. Usage commercial, modification et redistribution sont tous permis.",
   "licence.core.heading": "La boîte à outils elle-même",
   "licence.core.body":
-    "<code>limn-toolkit</code> et <code>limn-components</code> n’ont aucune dépendance en dehors du JDK : pour ces deux-là, Apache-2.0 est toute l’histoire. Le backend de rendu ajoute LWJGL, qui est en BSD-3-Clause.",
+    "<code>limn-toolkit</code> n’a aucune dépendance en dehors du JDK : pour lui, Apache-2.0 est toute l’histoire. Le backend de rendu ajoute LWJGL, qui est en BSD-3-Clause.",
   "licence.fonts.heading": "Polices",
   "licence.fonts.body":
     "Roboto et les polices de repli Noto sont distribuées sous la SIL Open Font License. Chaque composant embarqué est listé avec sa licence dans le fichier NOTICE du projet.",
@@ -200,7 +200,7 @@ export const fr: Catalog = {
     "La prise en charge du MP3 vient de JLayer, en LGPL-2.1, gardé comme un jar isolé derrière l’interface de décodage audio. Excluez cette seule dépendance si votre distribution doit éviter les obligations LGPL ; WAV et Ogg Vorbis continuent de fonctionner.",
   "licence.ffmpeg.heading": "Vidéo FFmpeg, et ce qui est livré avec",
   "licence.ffmpeg.body":
-    "Le décodeur H.264 optionnel lie dynamiquement un FFmpeg réduit, compilé en LGPL-2.1-ou-ultérieure. <b>Ses bibliothèques natives voyagent dans le jar publié, pour toutes les cibles de bureau</b>. Une distribution qui inclut <code>limn-video-ffmpeg</code> distribue donc FFmpeg, et le jar porte le texte de la licence et l'avis qu'elle exige. Elles sont liées dynamiquement et remplaçables, ce que cette licence demande précisément. Rien d'autre ne dépend de ce module : retirez-le et tous les autres formats continuent de fonctionner.",
+    "Le décodeur H.264 optionnel lie dynamiquement un FFmpeg réduit, compilé en LGPL-2.1-ou-ultérieure. <b>Ses bibliothèques natives voyagent dans un classifier par cible de bureau, et dans <code>natives-all</code> pour un ensemble qui va partout</b>. Une distribution qui inclut <code>limn-video-ffmpeg</code> distribue donc FFmpeg, et le jar porte le texte de la licence et l'avis qu'elle exige. Elles sont liées dynamiquement et remplaçables, ce que cette licence demande précisément. Rien d'autre ne dépend de ce module : retirez-le et tous les autres formats continuent de fonctionner.",
   "licence.notAdvice":
     "Rien de tout cela n’est un avis juridique. Lisez les licences et consultez votre propre conseil.",
 

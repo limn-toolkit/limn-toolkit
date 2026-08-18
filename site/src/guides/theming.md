@@ -96,7 +96,7 @@ Theme loaded = ThemeFormat.load(file);
 ```
 
 The extension is `.limntheme` (`ThemeFormat.EXTENSION`). Loading is one line and needs
-nothing but `limn-components`, which is the point of the split below.
+nothing but `limn-toolkit`, which is the point of the split below.
 
 ## Letting your users build one
 

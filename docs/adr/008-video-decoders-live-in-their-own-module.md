@@ -2,6 +2,11 @@
 
 - **Status:** Accepted, 2026-08-03. Implemented as phase 3 of the video player: the `limn-video`
   module, its `limn.video.decode` package, and the demo's Video tab.
+- **Superseded in part** by
+  [ADR 030](030-the-toolkit-carries-the-widgets-and-the-native-decoder-carries-its-own-platform.md)
+  on 2026-08-18: `limn-video` moved into `limn-toolkit`, because it was the pure-Java half of what
+  this ADR separated. Everything here about the decoder that arrives WITH a native payload still
+  holds, and `limn-video-ffmpeg` is still a module of its own for the reason section 2 gives.
 - **Date:** 2026-08-03
 - **Scope:** where a decoder lives, who decides which ones exist, and how a stream that has no file
   behind it is opened through a facade whose entry point takes a path.

@@ -7,7 +7,7 @@ description: "Turning your application into something you can send someone: nati
 
 Two things beyond your own code:
 
-1. **The toolkit jars**: `limn-components`, `limn-toolkit`, `limn-backend-lwjgl`. The
+1. **The toolkit jars**: `limn-toolkit` and `limn-backend-lwjgl`. The
    dependency block you develop with is the one you ship: the backend declares LWJGL's
    native binaries for every desktop platform, x64 and ARM alike, so there is no
    per-platform classifier to remember at packaging time. The JVM loads the slice for the

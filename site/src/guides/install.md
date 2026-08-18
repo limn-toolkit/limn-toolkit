@@ -14,13 +14,13 @@ description: "The JDK you need, the two dependencies, the one macOS flag, and a 
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-components:0.2.0")
     implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.2.0")
 }
 ```
 
-`limn-components` is the widget set and `limn-backend-lwjgl` is the window and the renderer.
-Everything else (video decoding, the icon set) is optional and separate.
+That one line is the whole install. `limn-backend-lwjgl` is the window and the renderer, and
+it exports `limn-toolkit` — the widget set, the layout and the scene graph — to whatever
+depends on it. Everything else (FFmpeg video decoding, the icon set) is optional and separate.
 
 The backend brings LWJGL's native binaries with it for every desktop platform: Windows,
 macOS and Linux, x64 and ARM alike. There is nothing per-platform to add: the JVM loads the

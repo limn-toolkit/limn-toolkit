@@ -53,21 +53,21 @@ export const ko: Catalog = {
   // ------------------------------------------------------------------- home
   "home.title": "Limn: 데스크톱 자바를 위한 UI 툴킷",
   "home.description":
-    "직접 만든 위젯, 레이아웃, 텍스트, 차트, 미디어, 3D로 자바 데스크톱 애플리케이션을 만드세요. 의존성 두 개, JDK 17, Windows·macOS·Linux, Apache-2.0.",
+    "직접 만든 위젯, 레이아웃, 텍스트, 차트, 미디어, 3D로 자바 데스크톱 애플리케이션을 만드세요. 의존성 하나, JDK 17, Windows·macOS·Linux, Apache-2.0.",
 
   "home.hero.eyebrow": "자바를 위한 데스크톱 UI",
   "home.hero.headline": "자바 데스크톱 앱을, 처음부터 직접 그립니다.",
   "home.hero.sub":
-    "Limn은 픽셀을 스스로 그립니다. 위젯, 레이아웃, 텍스트, 차트, 미디어, 3D 뷰포트를 의존성 두 개로 제공합니다. Swing도, JavaFX도, 아래에 깔린 네이티브 툴킷도 없습니다.",
+    "Limn은 픽셀을 스스로 그립니다. 위젯, 레이아웃, 텍스트, 차트, 미디어, 3D 뷰포트를 의존성 하나로 제공합니다. Swing도, JavaFX도, 아래에 깔린 네이티브 툴킷도 없습니다.",
   "home.hero.cta": "시작하기",
   "home.hero.secondary": "컴포넌트 둘러보기",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
   "home.hero.caption": "이번 빌드 중에 Limn이 그린 데모 애플리케이션.",
 
   "home.install.eyebrow": "5분",
-  "home.install.heading": "의존성 두 개와 main 메서드",
+  "home.install.heading": "의존성 하나와 main 메서드",
   "home.install.body":
-    "마크업 언어도, 애너테이션 프로세서도, 빌드 플러그인도 없습니다. 툴킷과 백엔드를 추가하고 평범한 자바를 쓰면 창이 생깁니다.",
+    "마크업 언어도, 애너테이션 프로세서도, 빌드 플러그인도 없습니다. 툴킷을 함께 가져오는 백엔드를 추가하고 평범한 자바를 쓰면 창이 생깁니다.",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
   "home.install.macos":
@@ -189,7 +189,7 @@ export const ko: Catalog = {
     "Apache License 2.0이며 명시적 특허 허여를 포함합니다. 상업적 이용, 수정, 재배포가 모두 허용됩니다.",
   "licence.core.heading": "툴킷 자체",
   "licence.core.body":
-    "<code>limn-toolkit</code>과 <code>limn-components</code>는 JDK 외에 의존성이 없으므로, 이 둘에 대해서는 Apache-2.0이 전부입니다. 렌더링 백엔드는 BSD-3-Clause인 LWJGL을 더합니다.",
+    "<code>limn-toolkit</code>은 JDK 외에 의존성이 없으므로, 이에 대해서는 Apache-2.0이 전부입니다. 렌더링 백엔드는 BSD-3-Clause인 LWJGL을 더합니다.",
   "licence.fonts.heading": "글꼴",
   "licence.fonts.body":
     "Roboto와 Noto 대체 글꼴은 SIL Open Font License로 배포됩니다. 함께 배포되는 구성 요소는 모두 라이선스와 함께 프로젝트의 NOTICE 파일에 적혀 있습니다.",
@@ -198,7 +198,7 @@ export const ko: Catalog = {
     "MP3 지원은 LGPL-2.1인 JLayer에서 오며, 오디오 디코더 인터페이스 뒤에 독립된 jar로 유지됩니다. 배포판이 LGPL 의무를 피해야 한다면 이 의존성 하나만 제외하세요. WAV와 Ogg Vorbis는 그대로 동작합니다.",
   "licence.ffmpeg.heading": "FFmpeg 영상과, 함께 배포되는 것",
   "licence.ffmpeg.body":
-    "선택적인 H.264 디코더는 축소한 FFmpeg을 LGPL-2.1-or-later로 동적 링크합니다. <b>그 네이티브 라이브러리는 모든 데스크톱 대상에 대해 배포되는 jar 안에 함께 들어갑니다.</b> 따라서 <code>limn-video-ffmpeg</code>을 포함한 배포물은 FFmpeg을 배포하는 것이며, jar는 라이선스 본문과 요구되는 고지를 함께 담고 있습니다. 동적으로 링크되어 교체할 수 있고, 그것이 이 라이선스가 요구하는 바입니다. 이 모듈에 의존하는 것은 아무것도 없습니다. 빼버려도 다른 미디어 형식은 모두 그대로 동작합니다.",
+    "선택적인 H.264 디코더는 축소한 FFmpeg을 LGPL-2.1-or-later로 동적 링크합니다. <b>그 네이티브 라이브러리는 데스크톱 대상마다 하나씩인 classifier로, 그리고 어디서나 쓸 수 있는 묶음인 <code>natives-all</code>로 배포됩니다.</b> 따라서 <code>limn-video-ffmpeg</code>을 포함한 배포물은 FFmpeg을 배포하는 것이며, jar는 라이선스 본문과 요구되는 고지를 함께 담고 있습니다. 동적으로 링크되어 교체할 수 있고, 그것이 이 라이선스가 요구하는 바입니다. 이 모듈에 의존하는 것은 아무것도 없습니다. 빼버려도 다른 미디어 형식은 모두 그대로 동작합니다.",
   "licence.notAdvice":
     "이 가운데 어느 것도 법률 자문이 아닙니다. 라이선스를 직접 읽고, 귀하의 법률 자문을 구하십시오.",
 

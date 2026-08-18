@@ -5,7 +5,7 @@
 // depends on it, so an application that only wears a theme never ships the screen that
 // authors one. The dependency can only point this way (see settings.gradle.kts).
 //
-// What comes out of the editor is a Theme, and ThemeFormat (in limn-components) is what
+// What comes out of the editor is a Theme, and ThemeFormat (in limn-toolkit) is what
 // writes one down. That split is the reason an application can load a palette its designer
 // saved without this module anywhere near the build.
 

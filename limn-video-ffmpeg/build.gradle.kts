@@ -1,11 +1,11 @@
 // limn-video-ffmpeg: the H.264/AAC-in-MP4 decoder, and the only module in this repository with a
 // native payload.
 //
-// It is a module of its own rather than a package in limn-video for the reason ADR 008 gave when
-// it drew that boundary: limn-video is pure Java and carries no native and no third-party
-// dependency at all, and that sentence had to survive the arrival of the decoder that has both.
-// An application that plays a Y4M pulls no FFmpeg; an application that plays neither pulls
-// nothing at all.
+// It is a module of its own rather than a package in limn-toolkit for the reason ADR 008 gave
+// when it drew that boundary, and ADR 030 kept: the toolkit is pure Java and carries no native
+// and no third-party dependency at all, and that sentence had to survive the arrival of the
+// decoder that has both. An application that plays a Y4M pulls no FFmpeg; an application that
+// plays neither pulls nothing at all.
 //
 // NOTHING HERE IS BUILT BY GRADLE. The library this module loads comes from
 // scripts/build-ffmpeg.sh; Gradle never invokes a C compiler, because a toolkit build must not
@@ -38,9 +38,8 @@ plugins {
 }
 
 dependencies {
-    // limn-toolkit and nothing else. Not limn-video: this needs the SPI (limn.video), not the
-    // pure-Java decoders, and depending on them would tie a native module to a codec-free one for
-    // no gain.
+    // limn-toolkit, for the SPI (limn.video). The pure-Java decoders live there too now, and
+    // this module uses none of them: what it implements is the same interface they do.
     api(project(":limn-toolkit"))
 
     testImplementation(platform(libs.junit.bom))

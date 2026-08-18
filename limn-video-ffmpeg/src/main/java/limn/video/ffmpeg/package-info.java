@@ -2,9 +2,9 @@
  * H.264 and AAC out of MP4, through a trimmed FFmpeg behind a hand-written JNI shim.
  *
  * <p>This is the only package in Limn with a native payload, and it is a module of its own so that
- * it stays the only one. {@code limn-toolkit} depends on nothing, {@code limn-video} carries no
- * native and no third-party dependency, and an application that never plays an MP4 never puts a
- * codec on its classpath.
+ * it stays the only one. {@code limn-toolkit} depends on nothing and carries no native, so its
+ * pure-Java decoders cost an application that never plays an MP4 no codec on its classpath, and
+ * no FFmpeg at all.
  *
  * <p><b>The library is not committed and Gradle does not build it.</b> It is produced by
  * {@code scripts/build-ffmpeg.sh} and is absent on every machine that has not run that script,

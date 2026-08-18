@@ -8,7 +8,7 @@
 <p align="center"><b>Java のデスクトップアプリを、ゼロから描く。</b></p>
 
 <p align="center">
-  <a href="https://central.sonatype.com/artifact/io.github.limn-toolkit/limn-components"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/io.github.limn-toolkit/limn-components?label=Maven%20Central&color=6d4aff"></a>
+  <a href="https://central.sonatype.com/artifact/io.github.limn-toolkit/limn-toolkit"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/io.github.limn-toolkit/limn-toolkit?label=Maven%20Central&color=6d4aff"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <img alt="Java 17+" src="https://img.shields.io/badge/Java-17%2B-orange">
   <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey">
@@ -42,13 +42,12 @@
   </picture>
 </p>
 
-Limn はピクセルを自分で描きます。ウィジェット、レイアウト、テキスト、チャート、メディア、3D ビューポートが依存 2 つで手に入り、**Swing も JavaFX も、下敷きになるネイティブツールキットもありません**。
+Limn はピクセルを自分で描きます。ウィジェット、レイアウト、テキスト、チャート、メディア、3D ビューポートが依存 1 つで手に入り、**Swing も JavaFX も、下敷きになるネイティブツールキットもありません**。
 
 ## インストール
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-components:0.2.0")
     implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.2.0")
 }
 ```
@@ -59,11 +58,6 @@ dependencies {
 ```xml
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
-  <artifactId>limn-components</artifactId>
-  <version>0.2.0</version>
-</dependency>
-<dependency>
-  <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
   <version>0.2.0</version>
 </dependency>
@@ -71,10 +65,32 @@ dependencies {
 
 </details>
 
-`limn-components` はウィジェット一式、`limn-backend-lwjgl` はウィンドウとレンダラーです。バックエンドはすべてのデスクトッププラットフォーム向けの LWJGL のネイティブを同梱するので、選ぶべき classifier はありません。
+その 1 行だけでインストールは終わりです。`limn-backend-lwjgl` はウィンドウとレンダラーであり、`limn-toolkit`——ウィジェット、レイアウト、シーングラフ——を、それに依存するものへエクスポートします。バックエンドはすべてのデスクトッププラットフォーム向けの LWJGL のネイティブを同梱するので、選ぶべき classifier はありません。
 
 > [!IMPORTANT]
 > macOS では JVM に `-XstartOnFirstThread` が必要です。初日に必ず出会う唯一のプラットフォーム固有の癖であり、これは macOS だけの話です。ほかのプラットフォームの JVM にこのフラグを渡すと、起動しません。
+
+### 動画の再生
+
+`VideoView` は上の 1 行に入っていますし、その背後にある純 Java のデコーダーも同じです。それで再生できるのは Y4M と合成ソースで、MP4 と Matroska には FFmpeg が必要です。FFmpeg が別の依存になっているのは、ネイティブのペイロードと独自のライセンスを持つ、Limn で唯一の部分だからです。
+
+```kotlin
+dependencies {
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0:natives-macos-aarch64")
+}
+```
+
+1 行目は Java と、すべてのプラットフォーム向けの JNI シムを持ってきます。2 行目は FFmpeg のライブラリを持ってきます。こちらは対象ごとに 1 つの classifier で公開されるので、1 台のマシンがダウンロードするのは 6 つすべてではなく 2 メガバイトほどで済みます。
+
+```
+natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
+natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
+```
+
+1 つのビルドをすべてのプラットフォームへ配布し、どのマシンに届くか知りようがないときは、代わりに `natives-all` を使ってください。複数を並べても構いません——2 つの対象向けの配布物なら 2 つです。
+
+classifier を書かないままでも、ツールキットはビルドも実行もできます。デコーダーは、探したプラットフォームの名を挙げて自身が利用できないことを報告し、FFmpeg でないものはすべてそのまま動きます。FFmpeg のビルドは LGPL-2.1-or-later で、動的リンクで差し替え可能であり、ライセンス本文をそれを収める jar の中に併せて運びます。
 
 ## 画面にウィンドウを
 
@@ -130,11 +146,9 @@ public static void main(String[] args) {
 
 | | |
 | --- | --- |
-| `limn-toolkit` | ウィジェット、レイアウト、シーングラフ、そしてバックエンドの SPI。何にも依存しません |
-| `limn-components` | ウィジェット一式 |
+| `limn-toolkit` | ウィジェット一式、レイアウト、シーングラフ、バックエンドの SPI、そして純 Java の動画デコーダー。何にも依存しません |
 | `limn-backend-lwjgl` | その SPI の背後にある GLFW、OpenGL、stb |
-| `limn-video` | 純 Java のデコーダー。ネイティブなし、サードパーティ依存なし |
-| `limn-video-ffmpeg` | FFmpeg 経由の H.264/HEVC/VP9/VP8 と AAC/Opus/Vorbis。6 つのデスクトップ対象向けのネイティブを jar に同梱 |
+| `limn-video-ffmpeg` | FFmpeg 経由の H.264/HEVC/VP9/VP8 と AAC/Opus/Vorbis。デスクトップ対象ごとに 1 つの classifier |
 | `limn-icons-tabler` | 必要なら使える Tabler のアイコンパック |
 | `limn-theme-editor` | テーマを作る画面。あなたのアプリケーションに組み込めます |
 
@@ -161,7 +175,7 @@ public static void main(String[] args) {
 
 成果物が対象とするのは JDK 17 で、ビルド自体は 21 で動きます。GPU のないマシンでは、GL を使うテストは失敗ではなくスキップされます。
 
-MP4 の再生には、このリポジトリに**含まれていない**ネイティブのペイロードが必要です。リリースはそれを 6 つのプラットフォーム向けにビルドし、jar の中に同梱します。手元に用意するなら、`./scripts/build-ffmpeg.sh` が 1 分ほどで 1 つビルドし、`./scripts/fetch-ffmpeg.sh` が公開済みの jar から 1 つ取り出します。
+MP4 の再生には、このリポジトリに**含まれていない**ネイティブのペイロードが必要です。リリースはそれを 6 つのプラットフォーム向けにビルドし、それぞれを 1 つの classifier として公開します。手元に用意するなら、`./scripts/build-ffmpeg.sh` が 1 分ほどで 1 つビルドし、`./scripts/fetch-ffmpeg.sh` が公開済みの jar から 1 つ取り出します。
 
 ## ライセンス
 

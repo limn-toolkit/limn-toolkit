@@ -8,7 +8,7 @@
 <p align="center"><b>用 Java 写桌面应用，像素由自己绘制。</b></p>
 
 <p align="center">
-  <a href="https://central.sonatype.com/artifact/io.github.limn-toolkit/limn-components"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/io.github.limn-toolkit/limn-components?label=Maven%20Central&color=6d4aff"></a>
+  <a href="https://central.sonatype.com/artifact/io.github.limn-toolkit/limn-toolkit"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/io.github.limn-toolkit/limn-toolkit?label=Maven%20Central&color=6d4aff"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <img alt="Java 17+" src="https://img.shields.io/badge/Java-17%2B-orange">
   <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey">
@@ -42,13 +42,12 @@
   </picture>
 </p>
 
-Limn 自己绘制每一个像素。组件、布局、文本、图表、媒体与 3D 视口，只需两个依赖，**没有 Swing，没有 JavaFX，底下也没有原生工具包**。
+Limn 自己绘制每一个像素。组件、布局、文本、图表、媒体与 3D 视口，只需一个依赖，**没有 Swing，没有 JavaFX，底下也没有原生工具包**。
 
 ## 安装
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-components:0.2.0")
     implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.2.0")
 }
 ```
@@ -59,11 +58,6 @@ dependencies {
 ```xml
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
-  <artifactId>limn-components</artifactId>
-  <version>0.2.0</version>
-</dependency>
-<dependency>
-  <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
   <version>0.2.0</version>
 </dependency>
@@ -71,10 +65,32 @@ dependencies {
 
 </details>
 
-`limn-components` 是组件集，`limn-backend-lwjgl` 是窗口与渲染器。后端自带 LWJGL 在每个桌面平台上的原生库，所以没有 classifier 要选。
+这一行就是全部的安装。`limn-backend-lwjgl` 是窗口与渲染器，而它会把 `limn-toolkit`——组件、布局与场景图——导出给依赖它的一切。后端自带 LWJGL 在每个桌面平台上的原生库，所以没有 classifier 要选。
 
 > [!IMPORTANT]
 > 在 macOS 上，JVM 需要 `-XstartOnFirstThread`。这是你第一天就会遇到的唯一平台怪癖，而且只在 macOS 上如此——在别的平台上，加了这个参数的 JVM 根本起不来。
+
+### 播放视频
+
+`VideoView` 就在上面那一行里，它背后那些纯 Java 解码器也是。它们能播放的是 Y4M 和一个合成源；MP4 与 Matroska 需要 FFmpeg，而它是一个独立的依赖，因为那是 Limn 中唯一带有原生载荷、又自带一份许可的部分。
+
+```kotlin
+dependencies {
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0:natives-macos-aarch64")
+}
+```
+
+第一行带来 Java 部分和覆盖每个平台的 JNI shim。第二行带来 FFmpeg 库，它们按每个目标发布一个 classifier，所以一台机器下载的大约是两兆字节，而不是全部六份：
+
+```
+natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
+natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
+```
+
+如果一个构建产物要发往所有平台，无从知道自己会落在哪台机器上，那就改用 `natives-all`。同时写上好几个也没什么不可以——面向两个目标的分发包就写两个。
+
+把 classifier 整个省掉，工具包照样能构建、能运行：解码器会报告自己不可用，并说出它找过的平台，而所有不属于 FFmpeg 的部分照常工作。这份 FFmpeg 构建采用 LGPL-2.1-或更高版本，动态链接且可替换，许可证文本就放在装着它的那个 jar 里。
 
 ## 窗口出现在屏幕上
 
@@ -130,11 +146,9 @@ public static void main(String[] args) {
 
 | | |
 | --- | --- |
-| `limn-toolkit` | 组件、布局、场景图与后端 SPI；不依赖任何东西 |
-| `limn-components` | 组件集 |
+| `limn-toolkit` | 组件集、布局、场景图、后端 SPI 与纯 Java 视频解码器；不依赖任何东西 |
 | `limn-backend-lwjgl` | 这些 SPI 背后的 GLFW、OpenGL 与 stb |
-| `limn-video` | 纯 Java 解码器：没有原生库，也没有第三方依赖 |
-| `limn-video-ffmpeg` | 通过 FFmpeg 支持 H.264/HEVC/VP9/VP8 与 AAC/Opus/Vorbis，jar 里带着六个桌面目标的原生库 |
+| `limn-video-ffmpeg` | 通过 FFmpeg 支持 H.264/HEVC/VP9/VP8 与 AAC/Opus/Vorbis；每个桌面目标一个 classifier |
 | `limn-icons-tabler` | Tabler 图标包，如果你需要的话 |
 | `limn-theme-editor` | 编写主题的那个界面，可以嵌入你的应用 |
 
@@ -161,7 +175,7 @@ public static void main(String[] args) {
 
 构件面向的是 JDK 17，构建本身跑在 21 上。在没有 GPU 的机器上，依赖 GL 的测试会跳过，而不是失败。
 
-MP4 播放需要一份**不在**本仓库里的原生载荷——发布时会为六个平台构建它，并放进 jar 里一起分发。想在本地拥有一份，`./scripts/build-ffmpeg.sh` 大约一分钟就能构建出来，或者 `./scripts/fetch-ffmpeg.sh` 从已发布的 jar 中解出一份。
+MP4 播放需要一份**不在**本仓库里的原生载荷——发布时会为六个平台构建它，并为每个平台发布一个 classifier。想在本地拥有一份，`./scripts/build-ffmpeg.sh` 大约一分钟就能构建出来，或者 `./scripts/fetch-ffmpeg.sh` 从已发布的 jar 中解出一份。
 
 ## 许可
 

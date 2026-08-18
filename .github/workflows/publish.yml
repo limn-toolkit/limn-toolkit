@@ -257,12 +257,13 @@ jobs:
 
           \`\`\`kotlin
           dependencies {
-              implementation("io.github.limn-toolkit:limn-components:$VERSION")
               implementation("io.github.limn-toolkit:limn-backend-lwjgl:$VERSION")
           }
           \`\`\`
 
-          Also published: \`limn-toolkit\`, \`limn-video\`, \`limn-icons-tabler\`, \`limn-theme-editor\`.
+          That one line brings \`limn-toolkit\` with it. Also published:
+          \`limn-icons-tabler\`, \`limn-theme-editor\`, and \`limn-video-ffmpeg\` with one
+          \`natives-<os>-<arch>\` classifier per desktop target plus \`natives-all\`.
 
           ---
           NOTES

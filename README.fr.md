@@ -8,7 +8,7 @@
 <p align="center"><b>Des applications de bureau en Java, dessinées de zéro.</b></p>
 
 <p align="center">
-  <a href="https://central.sonatype.com/artifact/io.github.limn-toolkit/limn-components"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/io.github.limn-toolkit/limn-components?label=Maven%20Central&color=6d4aff"></a>
+  <a href="https://central.sonatype.com/artifact/io.github.limn-toolkit/limn-toolkit"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/io.github.limn-toolkit/limn-toolkit?label=Maven%20Central&color=6d4aff"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <img alt="Java 17+" src="https://img.shields.io/badge/Java-17%2B-orange">
   <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey">
@@ -43,13 +43,12 @@
 </p>
 
 Limn dessine ses propres pixels. Widgets, mise en page, texte, graphiques, médias et une vue 3D,
-en deux dépendances, **sans Swing, sans JavaFX et sans boîte à outils native en dessous**.
+en une dépendance, **sans Swing, sans JavaFX et sans boîte à outils native en dessous**.
 
 ## Installation
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-components:0.2.0")
     implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.2.0")
 }
 ```
@@ -60,11 +59,6 @@ dependencies {
 ```xml
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
-  <artifactId>limn-components</artifactId>
-  <version>0.2.0</version>
-</dependency>
-<dependency>
-  <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
   <version>0.2.0</version>
 </dependency>
@@ -72,14 +66,47 @@ dependencies {
 
 </details>
 
-`limn-components` est l’ensemble de widgets ; `limn-backend-lwjgl` est la fenêtre et le moteur de
-rendu. Le backend embarque les bibliothèques natives de LWJGL pour toutes les plateformes de
-bureau : il n’y a donc aucun classifier à choisir.
+Cette seule ligne, c’est toute l’installation. `limn-backend-lwjgl` est la fenêtre et le moteur de
+rendu, et il exporte `limn-toolkit` — les widgets, la mise en page et le graphe de scène — vers
+tout ce qui en dépend. Le backend embarque les bibliothèques natives de LWJGL pour toutes les
+plateformes de bureau : il n’y a donc aucun classifier à choisir.
 
 > [!IMPORTANT]
 > Sur macOS, la JVM a besoin de `-XstartOnFirstThread`. C’est la seule particularité de plateforme
 > que vous rencontrerez dès le premier jour, et elle est propre à macOS — une JVM lancée ailleurs
 > avec cette option ne démarrera pas.
+
+### Lire de la vidéo
+
+`VideoView` est dans la ligne ci-dessus, et les décodeurs en Java pur qui le font fonctionner
+aussi. Ce que cela lit, c’est le Y4M et une source synthétique ; le MP4 et le Matroska demandent
+FFmpeg, qui est une dépendance à part, parce que c’est la seule pièce de Limn avec une charge
+native et une licence à elle.
+
+```kotlin
+dependencies {
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0:natives-macos-aarch64")
+}
+```
+
+La première ligne apporte le Java et la couche JNI pour toutes les plateformes. La seconde apporte
+les bibliothèques FFmpeg, publiées à raison d’un classifier par cible, de sorte qu’une machine
+télécharge environ deux mégaoctets plutôt que les six :
+
+```
+natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
+natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
+```
+
+Utilisez plutôt `natives-all` quand une seule compilation est livrée à toutes les plateformes et ne
+peut pas savoir sur quelle machine elle atterrira. Rien ne vous empêche non plus d’en nommer
+plusieurs : une distribution pour deux cibles en prend deux.
+
+Omettez le classifier et la boîte à outils compile et tourne quand même : le décodeur se déclare
+indisponible, en nommant la plateforme qu’il a cherchée, et tout ce qui n’est pas FFmpeg continue
+de fonctionner. Le FFmpeg compilé est en LGPL-2.1-ou-ultérieure, lié dynamiquement et remplaçable,
+et porte le texte de sa licence dans le jar qui le contient.
 
 ## Une fenêtre à l’écran
 
@@ -149,11 +176,9 @@ dessine par-dessus, et ils participent à la mise en page comme un libellé.
 
 | | |
 | --- | --- |
-| `limn-toolkit` | les widgets, la mise en page, le graphe de scène et les SPI des backends ; ne dépend de rien |
-| `limn-components` | l’ensemble de widgets |
+| `limn-toolkit` | l’ensemble de widgets, la mise en page, le graphe de scène, les SPI des backends et les décodeurs vidéo en Java pur ; ne dépend de rien |
 | `limn-backend-lwjgl` | GLFW, OpenGL et stb derrière ces SPI |
-| `limn-video` | des décodeurs en Java pur : aucun natif, aucune dépendance tierce |
-| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 et AAC/Opus/Vorbis via FFmpeg, les natifs pour six cibles de bureau dans le jar |
+| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 et AAC/Opus/Vorbis via FFmpeg ; un classifier par cible de bureau |
 | `limn-icons-tabler` | le jeu d’icônes Tabler, si vous le voulez |
 | `limn-theme-editor` | l’écran qui compose un thème, intégrable dans votre application |
 
@@ -194,7 +219,7 @@ JDK 17 est ce que visent les artefacts ; la compilation elle-même tourne sur 21
 sans GPU, les tests qui passent par GL sont ignorés plutôt que mis en échec.
 
 La lecture MP4 a besoin d’une charge native qui n’est **pas** dans ce dépôt — une publication la
-compile pour six plateformes et la livre dans le jar. Pour en avoir une localement,
+compile pour six plateformes et en publie un classifier pour chacune. Pour en avoir une localement,
 `./scripts/build-ffmpeg.sh` en construit une en une minute environ, ou `./scripts/fetch-ffmpeg.sh`
 en extrait une du jar publié.
 

@@ -52,21 +52,21 @@ export const ja: Catalog = {
   // ------------------------------------------------------------------- home
   "home.title": "Limn：デスクトップ Java のための UI ツールキット",
   "home.description":
-    "独自のウィジェット、レイアウト、テキスト、チャート、メディア、3D を備えたデスクトップアプリを Java で作れます。依存は 2 つ、JDK 17、Windows・macOS・Linux 対応、Apache-2.0。",
+    "独自のウィジェット、レイアウト、テキスト、チャート、メディア、3D を備えたデスクトップアプリを Java で作れます。依存は 1 つ、JDK 17、Windows・macOS・Linux 対応、Apache-2.0。",
 
   "home.hero.eyebrow": "Java のデスクトップ UI",
   "home.hero.headline": "Java のデスクトップアプリを、ゼロから描く。",
   "home.hero.sub":
-    "Limn はピクセルを自分で描きます。ウィジェット、レイアウト、テキスト、チャート、メディア、3D ビューポートが依存 2 つで手に入り、Swing も JavaFX も、下敷きになるネイティブツールキットもありません。",
+    "Limn はピクセルを自分で描きます。ウィジェット、レイアウト、テキスト、チャート、メディア、3D ビューポートが依存 1 つで手に入り、Swing も JavaFX も、下敷きになるネイティブツールキットもありません。",
   "home.hero.cta": "はじめる",
   "home.hero.secondary": "コンポーネントを見る",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
   "home.hero.caption": "このビルド中に Limn が描画したデモアプリケーション。",
 
   "home.install.eyebrow": "5 分",
-  "home.install.heading": "依存 2 つと main メソッド",
+  "home.install.heading": "依存 1 つと main メソッド",
   "home.install.body":
-    "マークアップ言語も、アノテーションプロセッサーも、ビルドプラグインもありません。ツールキットとバックエンドを追加して素の Java を書けば、ウィンドウができます。",
+    "マークアップ言語も、アノテーションプロセッサーも、ビルドプラグインもありません。ツールキットを連れてくるバックエンドを追加して素の Java を書けば、ウィンドウができます。",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
   "home.install.macos":
@@ -188,7 +188,7 @@ export const ja: Catalog = {
     "Apache License 2.0。明示的な特許許諾を含みます。商用利用も改変も再配布も、すべて認められています。",
   "licence.core.heading": "ツールキット本体",
   "licence.core.body":
-    "<code>limn-toolkit</code> と <code>limn-components</code> は JDK 以外に依存がないので、この 2 つについては Apache-2.0 がすべてです。描画バックエンドは BSD-3-Clause の LWJGL を追加します。",
+    "<code>limn-toolkit</code> は JDK 以外に依存がないので、これについては Apache-2.0 がすべてです。描画バックエンドは BSD-3-Clause の LWJGL を追加します。",
   "licence.fonts.heading": "フォント",
   "licence.fonts.body":
     "Roboto と Noto のフォールバックフォントは SIL Open Font License で配布されています。同梱コンポーネントはすべて、ライセンスとともにプロジェクトの NOTICE ファイルに記載しています。",
@@ -197,7 +197,7 @@ export const ja: Catalog = {
     "MP3 対応は LGPL-2.1 の JLayer によるもので、音声デコーダーのインターフェイスの背後に独立した jar として保たれています。配布物で LGPL の義務を避ける必要があれば、この依存だけを除外してください。WAV と Ogg Vorbis はそのまま動きます。",
   "licence.ffmpeg.heading": "FFmpeg による動画と、一緒に配布されるもの",
   "licence.ffmpeg.body":
-    "任意の H.264 デコーダは、削り込んだ FFmpeg を LGPL-2.1-or-later として動的にリンクします。<b>そのネイティブライブラリは、すべてのデスクトップ対象について、公開される jar の中に同梱されます</b>。したがって <code>limn-video-ffmpeg</code> を含む配布物は FFmpeg を配布していることになり、jar はライセンス本文と必要な告知を併せて運びます。動的リンクで差し替え可能であり、それがこのライセンスの求めるところです。この module に依存しているものは他にありません。外してしまえば、ほかのメディア形式はすべてそのまま動きます。",
+    "任意の H.264 デコーダは、削り込んだ FFmpeg を LGPL-2.1-or-later として動的にリンクします。<b>そのネイティブライブラリは、デスクトップ対象ごとに 1 つの classifier で、そしてどこにでも配れる一括版として <code>natives-all</code> で公開されます</b>。したがって <code>limn-video-ffmpeg</code> を含む配布物は FFmpeg を配布していることになり、jar はライセンス本文と必要な告知を併せて運びます。動的リンクで差し替え可能であり、それがこのライセンスの求めるところです。この module に依存しているものは他にありません。外してしまえば、ほかのメディア形式はすべてそのまま動きます。",
   "licence.notAdvice":
     "以上はいずれも法的助言ではありません。ライセンスを読み、ご自身の弁護士にご相談ください。",
 

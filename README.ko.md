@@ -8,7 +8,7 @@
 <p align="center"><b>자바 데스크톱 앱을, 처음부터 직접 그립니다.</b></p>
 
 <p align="center">
-  <a href="https://central.sonatype.com/artifact/io.github.limn-toolkit/limn-components"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/io.github.limn-toolkit/limn-components?label=Maven%20Central&color=6d4aff"></a>
+  <a href="https://central.sonatype.com/artifact/io.github.limn-toolkit/limn-toolkit"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/io.github.limn-toolkit/limn-toolkit?label=Maven%20Central&color=6d4aff"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <img alt="Java 17+" src="https://img.shields.io/badge/Java-17%2B-orange">
   <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey">
@@ -42,14 +42,13 @@
   </picture>
 </p>
 
-Limn은 픽셀을 스스로 그립니다. 위젯, 레이아웃, 텍스트, 차트, 미디어, 3D 뷰포트를 의존성 두 개로
+Limn은 픽셀을 스스로 그립니다. 위젯, 레이아웃, 텍스트, 차트, 미디어, 3D 뷰포트를 의존성 한 개로
 제공합니다. **Swing도, JavaFX도, 아래에 깔린 네이티브 툴킷도 없습니다**.
 
 ## 설치
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-components:0.2.0")
     implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.2.0")
 }
 ```
@@ -60,11 +59,6 @@ dependencies {
 ```xml
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
-  <artifactId>limn-components</artifactId>
-  <version>0.2.0</version>
-</dependency>
-<dependency>
-  <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
   <version>0.2.0</version>
 </dependency>
@@ -72,12 +66,45 @@ dependencies {
 
 </details>
 
-`limn-components`는 위젯 모음이고, `limn-backend-lwjgl`은 창과 렌더러입니다. 백엔드가 모든
+그 한 줄이 설치의 전부입니다. `limn-backend-lwjgl`은 창과 렌더러이고, 위젯과 레이아웃과 장면
+그래프인 `limn-toolkit`을 자신에게 의존하는 모든 것에 그대로 내보냅니다. 백엔드가 모든
 데스크톱 플랫폼용 LWJGL 네이티브 라이브러리를 함께 가져오므로, 고를 classifier가 없습니다.
 
 > [!IMPORTANT]
 > macOS에서는 JVM에 `-XstartOnFirstThread`가 필요합니다. 첫날 반드시 만나게 되는 유일한 플랫폼
 > 특이사항이며, macOS 전용입니다 — 다른 곳의 JVM은 그 플래그를 받으면 시작되지 않습니다.
+
+### 영상 재생
+
+`VideoView`는 위의 그 한 줄 안에 들어 있고, 그 뒤에 있는 순수 자바 디코더도 마찬가지입니다.
+그것으로 재생되는 것은 Y4M과 합성 소스이며, MP4와 Matroska에는 FFmpeg이 필요합니다. FFmpeg이
+별도 의존성인 것은, Limn에서 네이티브 페이로드와 자체 라이선스를 가진 유일한 부분이기
+때문입니다.
+
+```kotlin
+dependencies {
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0:natives-macos-aarch64")
+}
+```
+
+첫 줄은 모든 플랫폼용 자바 코드와 JNI 연결 계층을 가져옵니다. 둘째 줄은 FFmpeg 라이브러리를
+가져오는데, 대상마다 classifier 하나씩으로 배포되므로 한 대의 기기는 여섯 개 전부가 아니라
+2메가바이트쯤만 내려받습니다:
+
+```
+natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
+natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
+```
+
+빌드 하나를 모든 플랫폼에 배포해 어느 기기에 내려앉을지 알 수 없다면, 대신 `natives-all`을
+쓰세요. 여러 개를 함께 적는 것도 막지 않습니다 — 두 대상을 겨냥한 묶음이라면 두 개를 적으면
+됩니다.
+
+classifier를 빼도 툴킷은 그대로 빌드되고 실행됩니다. 디코더가 어떤 플랫폼을 찾았는지 밝히며
+자신을 쓸 수 없다고 알리고, FFmpeg이 아닌 것은 모두 그대로 동작합니다. 이 FFmpeg 빌드는
+LGPL-2.1-or-later이고, 동적으로 링크되어 교체할 수 있으며, 라이선스 본문을 자신을 담은 jar 안에
+함께 담고 있습니다.
 
 ## 화면에 창 하나
 
@@ -142,11 +169,9 @@ public static void main(String[] args) {
 
 | | |
 | --- | --- |
-| `limn-toolkit` | 위젯, 레이아웃, 장면 그래프, 백엔드 SPI. 의존성 없음 |
-| `limn-components` | 위젯 모음 |
+| `limn-toolkit` | 위젯 모음, 레이아웃, 장면 그래프, 백엔드 SPI, 그리고 순수 자바 영상 디코더. 의존성 없음 |
 | `limn-backend-lwjgl` | 그 SPI 뒤의 GLFW, OpenGL, stb |
-| `limn-video` | 순수 자바 디코더. 네이티브도, 외부 의존성도 없음 |
-| `limn-video-ffmpeg` | FFmpeg을 통한 H.264/HEVC/VP9/VP8과 AAC/Opus/Vorbis. 여섯 데스크톱 대상의 네이티브가 jar 안에 |
+| `limn-video-ffmpeg` | FFmpeg을 통한 H.264/HEVC/VP9/VP8과 AAC/Opus/Vorbis. 데스크톱 대상마다 classifier 하나씩 |
 | `limn-icons-tabler` | 원한다면 쓸 수 있는 Tabler 아이콘 팩 |
 | `limn-theme-editor` | 테마를 만드는 화면, 애플리케이션에 넣을 수 있음 |
 
@@ -184,7 +209,7 @@ public static void main(String[] args) {
 테스트가 실패하는 대신 건너뜁니다.
 
 MP4 재생에는 이 저장소에 **없는** 네이티브 페이로드가 필요합니다 — 릴리스가 여섯 플랫폼용으로
-빌드해 jar 안에 담아 배포합니다. 로컬에 두려면 `./scripts/build-ffmpeg.sh`가 1분쯤이면 하나를
+빌드해 각각 classifier 하나씩으로 배포합니다. 로컬에 두려면 `./scripts/build-ffmpeg.sh`가 1분쯤이면 하나를
 빌드하고, `./scripts/fetch-ffmpeg.sh`는 배포된 jar에서 하나를 꺼내 풉니다.
 
 ## 라이선스

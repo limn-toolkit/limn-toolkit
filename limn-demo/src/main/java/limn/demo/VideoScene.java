@@ -991,7 +991,7 @@ final class VideoScene {
         /**
          * The subtitle, drawn by the APPLICATION over the picture with the toolkit's own text
          * stack, which is the whole demonstration. Nothing in {@code limn-toolkit} or
-         * {@code limn-components} knows a subtitle exists: what the SPI hands over is text and an
+         * {@code limn.components} knows a subtitle exists: what the SPI hands over is text and an
          * interval, and where it goes, how big it is, what colour it is and whether it is shown at
          * all are decided here, in forty lines, by the code that already knows what the rest of
          * this window looks like.

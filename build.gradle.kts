@@ -1,9 +1,10 @@
-// Limn UI: multi-module build root.
+// Limn: multi-module build root.
 //
 // Layers (conceptual, top to bottom):
-//   limn-demo → limn-components → limn-toolkit ← limn-backend-lwjgl
-//   limn-demo also depends on limn-video (decoders), which depends on limn-toolkit and
-//   nothing else, so a codec dependency can never reach a base module.
+//   limn-demo → limn-toolkit ← limn-backend-lwjgl
+//   limn-toolkit carries the widget set and the pure-Java decoders; the decoder with a
+//   native payload is limn-video-ffmpeg, which nothing depends on, so a codec with a
+//   licence and a platform matrix can never reach a base module (ADR 030).
 //
 // The backend module IMPLEMENTS the SPI (limn.backend.*) defined in limn-toolkit
 // (dependency inversion): no module above it sees LWJGL/OpenGL.
@@ -316,7 +317,7 @@ gradle.taskGraph.whenReady {
 
 // One Javadoc across every module, for the site's /api/. Aggregate rather than seven
 // separate trees because the modules link to each other constantly: a @link from
-// limn-components to limn.scene.Widget resolves here and would be a dead word in a
+// limn-video-ffmpeg to limn.scene.Widget resolves here and would be a dead word in a
 // per-module build. Deliberately NOT wired into `check`: each module's own `javadoc`
 // already is, and that is what guards the published jars.
 val aggregateJavadoc = tasks.register<Javadoc>("aggregateJavadoc") {
