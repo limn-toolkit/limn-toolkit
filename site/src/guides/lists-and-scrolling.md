@@ -104,3 +104,23 @@ tabs.addTab("Details", details);
 
 When there are more tabs than fit, the strip scrolls, chevrons appear at the ends, and an
 overflow button lists the rest, so you do not have to decide what happens at what width.
+
+## The scrollbar
+
+There is one, and every scroller uses it: `ListView`, `TextArea` and `ScrollView` all mount the
+same `ScrollBar`, so they behave alike without agreeing to. It reads the theme (the thumb is
+`textMuted`, which is dark on a light palette and light on a dark one), it can be dragged by the
+thumb or paged by clicking the track, and it is thin at rest and widens as the pointer
+approaches, so it is thin to look at and thick to grab.
+
+`setPolicy` decides when it shows:
+
+| | |
+| --- | --- |
+| `HIDDEN` | never |
+| `ALWAYS` | always, which is what `TextArea` uses |
+| `ON_SCROLL` | while scrolling, then fades |
+| `AUTO` | the same, plus while the pointer is over the host — `ListView` and `ScrollView` |
+
+They are overlays. A bar that reserved a lane would take width from the content and give it back
+when it hid, and a list that reflows because you scrolled it is a list nobody trusts.

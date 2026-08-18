@@ -166,3 +166,20 @@ protected void onFileDrop(FileDropEvent event) {
     event.consume();
 }
 ```
+
+## Displays and resolutions
+
+Screen information arrives as value types in `limn.backend`, so every class reads it the same way
+instead of asking the platform its own way:
+
+- `Resolution(width, height, refreshRate)` is a video mode, refresh `0` meaning unspecified;
+- `ScreenRect(x, y, width, height)` is a rectangle in screen coordinates;
+- `Display` is a monitor: `id()` and `name()`, `isPrimary()`, `currentResolution()`,
+  `availableResolutions()`, `bounds()`, `workArea()` — the monitor minus the taskbar or dock —
+  and `contentScale()`.
+
+`Backend.displays()` and `Backend.primaryDisplay()` enumerate them, and a window knows which one
+it is on: `NativeWindow.display()` returns the monitor containing the window's centre. Fullscreen
+takes either form, `enterFullscreen(Resolution)` or the integer one, and native popups clamp
+themselves to `display().workArea()`, which is why a menu near the bottom of the screen does not
+open under the dock.
