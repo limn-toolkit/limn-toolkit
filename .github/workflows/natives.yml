@@ -38,6 +38,12 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     container: ${{ matrix.container }}
     timeout-minutes: 90
+    # Spelled out rather than left to the runner's probe: inside a container it picks `sh` when
+    # it does not find bash, and these steps are written in bash. The Windows build overrides it
+    # with the MSYS2 shell, which is the whole point of that job.
+    defaults:
+      run:
+        shell: bash
     # No fail-fast: when one slice breaks, the other five still say whether they are fine, which
     # is the difference between one problem and five unknowns.
     strategy:
@@ -63,9 +69,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # What the checkout actually produced, before anything tries to run it. A container job
+      # that lands somewhere unexpected fails at the first `./scripts/...` with exit 127 and no
+      # output, which says nothing about why.
+      - name: Where are we
+        run: |
+          echo "pwd: $(pwd)"
+          echo "shell: $(command -v bash || echo 'no bash')"
+          ls -l scripts/build-ffmpeg.sh
+
       # nasm is what the x86_64 assembly needs. Its absence does not fail the build — the script
       # falls back to --disable-x86asm and says so — but the fallback is a slower decoder, and a
       # published one should not be slower by accident.
+      # nasm assembles the x86 optimisations, so it is installed only where an x86_64 slice is
+      # actually produced — macOS builds both architectures, the other two build their own. On
+      # aarch64 it would assemble nothing.
       - name: Install nasm (macOS)
         if: matrix.slice == 'macos'
         run: brew install nasm
@@ -74,7 +92,9 @@ jobs:
         if: startsWith(matrix.slice, 'linux')
         run: |
           dnf install -y --setopt=install_weak_deps=False diffutils file which xz || true
-          dnf install -y nasm || echo "nasm unavailable: the script will build without x86 asm"
+          if [ "${{ matrix.slice }}" = "linux-x86_64" ]; then
+            dnf install -y nasm || echo "nasm unavailable: the build falls back to --disable-x86asm"
+          fi
 
       - uses: msys2/setup-msys2@v2
         if: startsWith(matrix.slice, 'windows')
@@ -92,14 +112,18 @@ jobs:
             toolchain:p
             cmake:p
 
+      # `bash scripts/...` and not `./scripts/...`: invoking the file directly asks the kernel to
+      # honour its execute bit and resolve its shebang, and inside a container that is two ways to
+      # fail with exit 127 and not one word of output, which is exactly what happened here. Naming
+      # the interpreter removes both from the question.
       - name: Build the player payload
         if: ${{ !startsWith(matrix.slice, 'windows') }}
-        run: ./scripts/build-ffmpeg.sh --profile player ${{ matrix.args }}
+        run: bash scripts/build-ffmpeg.sh --profile player ${{ matrix.args }}
 
       - name: Build the player payload (MSYS2)
         if: startsWith(matrix.slice, 'windows')
         shell: msys2 {0}
-        run: ./scripts/build-ffmpeg.sh --profile player
+        run: bash scripts/build-ffmpeg.sh --profile player
 
       # What the module packages, exactly as the module expects to find it:
       # native/dist/player/limn/video/ffmpeg/native/<os>-<arch>/, plus the licence and notice the
