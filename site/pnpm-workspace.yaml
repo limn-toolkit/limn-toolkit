@@ -1,6 +1,20 @@
-# sharp is the image pipeline of website.md §7.3; it must be allowed to run its install
-# script or its native binary is never placed. esbuild is Vite's, same reason. Everything
-# else stays script-less by pnpm's default.
 allowBuilds:
-  esbuild: true
-  sharp: true
+  esbuild: set this to true or false
+  sharp: set this to true or false
+# Where pnpm 10+ keeps its settings; the `pnpm` field in package.json is no longer read.
+#
+# Two transitive dependencies carry advisories that their parents have not yet moved past, so
+# they are pinned forward here rather than waited on. Both are floors, not pins to an exact
+# version: the moment Astro's own tree resolves something newer, this stops having an effect
+# instead of holding it back.
+#
+#   sharp   < 0.35.0 inherits four libvips CVEs (GHSA-f88m-g3jw-g9cj). The site's own dependency
+#           is already 0.35.3; what the advisory finds is the copy Astro pulls in for image
+#           processing, which resolved to 0.34.5.
+#   nanoid  < 3.3.18 loops forever when a custom generator is given size zero
+#           (GHSA-2v37-7h3g-55p8). It arrives under postcss, under vite, under astro, and the
+#           range stays inside 3.x on purpose: postcss is written against that API, and an open
+#           floor resolved it to 6.0.1.
+overrides:
+  sharp: '>=0.35.0'
+  nanoid: '^3.3.18'
