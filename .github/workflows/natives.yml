@@ -62,12 +62,16 @@ jobs:
           - slice: windows-x86_64
             runs-on: windows-latest
             msystem: CLANG64
+            pacboy: toolchain:p nasm:p
           - slice: windows-aarch64
             runs-on: windows-11-arm
             msystem: CLANGARM64
+            # No nasm: it assembles x86 and this slice is ARM. Every package here is fetched
+            # through emulation, so one that builds nothing is minutes of nothing.
+            pacboy: toolchain:p
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # What the checkout actually produced, before anything tries to run it. A container job
       # that lands somewhere unexpected fails at the first `./scripts/...` with exit 127 and no
@@ -108,16 +112,12 @@ jobs:
         with:
           msystem: ${{ matrix.msystem }}
           update: true
-          # make and pkg-config for FFmpeg's build, nasm for the x86_64 assembly, and the
-          # environment's own clang toolchain, which is what puts the right runtime beside the
-          # DLLs instead of MINGW64's.
-          install: >-
-            base-devel
-            git
-            nasm
-          pacboy: >-
-            toolchain:p
-            cmake:p
+          # base-devel carries make, sed and pkg-config, which is what FFmpeg's configure needs,
+          # and the environment's own clang toolchain is what puts the right runtime beside the
+          # DLLs instead of MINGW64's. Nothing else: this build has no cmake step and fetches its
+          # source as a tarball, so cmake and git were minutes bought for nobody.
+          install: base-devel
+          pacboy: ${{ matrix.pacboy }}
 
       # `bash scripts/...` and not `./scripts/...`: invoking the file directly asks the kernel to
       # honour its execute bit and resolve its shebang, and inside a container that is two ways to
@@ -139,7 +139,7 @@ jobs:
         shell: bash
         run: ls -lR limn-video-ffmpeg/native/dist/player
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ffmpeg-native-${{ matrix.slice }}
           path: limn-video-ffmpeg/native/dist/player/
