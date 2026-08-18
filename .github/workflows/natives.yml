@@ -88,10 +88,17 @@ jobs:
         if: matrix.slice == 'macos'
         run: brew install nasm
 
+      # A JDK, because the payload is half a JNI shim and the shim needs jni.h. The macOS and
+      # Windows runners ship one; a manylinux container ships nothing of the sort, which is what
+      # failed both Linux slices with exit 127 and no message: the script probes the JVM's
+      # architecture through `java` inside a command substitution, and a missing `java` there
+      # dies before the clear "a JDK is needed" check further down can be reached.
       - name: Install the toolchain (manylinux)
         if: startsWith(matrix.slice, 'linux')
         run: |
-          dnf install -y --setopt=install_weak_deps=False diffutils file which xz || true
+          dnf install -y --setopt=install_weak_deps=False \
+            diffutils file which xz java-17-openjdk-devel
+          echo "javac: $(command -v javac)"
           if [ "${{ matrix.slice }}" = "linux-x86_64" ]; then
             dnf install -y nasm || echo "nasm unavailable: the build falls back to --disable-x86asm"
           fi

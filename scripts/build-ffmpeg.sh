@@ -181,6 +181,15 @@ if [ -z "${ARCHS}" ]; then
         # no shell can execute. Falling back to the PATH keeps the arch probe working there
         # instead of failing with a message about a directory that plainly exists.
         command -v "${JAVA_BIN}" >/dev/null 2>&1 || JAVA_BIN="java"
+        # Said here, because a JVM that is simply absent used to end this script with status 127
+        # and not one word of explanation: the probe below runs inside a command substitution,
+        # where "command not found" belongs to the subshell and `set -e` takes the rest. The
+        # jni.h check further down has the sentence a reader needs; it was never reached.
+        if ! command -v "${JAVA_BIN}" >/dev/null 2>&1; then
+            echo "no JVM on PATH and no JAVA_HOME: this builds a JNI shim, so it needs a JDK" >&2
+            echo "  (a JRE will not do either — jni.h ships with the JDK)" >&2
+            exit 2
+        fi
         JVM_ARCH="$("${JAVA_BIN}" -XshowSettings:properties -version 2>&1 \
             | sed -n 's/.*os\.arch = \(.*\)/\1/p' | tr -d ' ')"
         case "${JVM_ARCH}" in
