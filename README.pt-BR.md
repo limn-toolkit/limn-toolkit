@@ -49,7 +49,7 @@ uma dependência, **sem Swing, sem JavaFX e sem toolkit nativo por baixo**.
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.2.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.3.0")
 }
 ```
 
@@ -60,7 +60,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
@@ -84,8 +84,8 @@ separada porque é a única peça do Limn com um payload nativo e uma licença p
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0:natives-macos-aarch64")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0:natives-macos-aarch64")
 }
 ```
 

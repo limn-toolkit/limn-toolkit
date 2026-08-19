@@ -49,7 +49,7 @@ Limn은 픽셀을 스스로 그립니다. 위젯, 레이아웃, 텍스트, 차�
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.2.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.3.0")
 }
 ```
 
@@ -60,7 +60,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
@@ -83,8 +83,8 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.2.0:natives-macos-aarch64")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0:natives-macos-aarch64")
 }
 ```
 

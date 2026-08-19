@@ -14,7 +14,7 @@ description: "The JDK you need, the two dependencies, the one macOS flag, and a 
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.2.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.3.0")
 }
 ```
 
