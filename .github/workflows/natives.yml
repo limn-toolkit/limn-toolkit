@@ -62,13 +62,13 @@ jobs:
           - slice: windows-x86_64
             runs-on: windows-latest
             msystem: CLANG64
-            pacboy: toolchain:p nasm:p
+            pacboy: clang:p nasm:p
           - slice: windows-aarch64
             runs-on: windows-11-arm
             msystem: CLANGARM64
             # No nasm: it assembles x86 and this slice is ARM. Every package here is fetched
             # through emulation, so one that builds nothing is minutes of nothing.
-            pacboy: toolchain:p
+            pacboy: clang:p
 
     steps:
       - uses: actions/checkout@v7
@@ -119,10 +119,28 @@ jobs:
           # failure `update` guards against is a hazard of a STALE installation, which this is
           # not. If a build here ever breaks on a package mismatch, put it back — that is the
           # trade, and it is one line.
-          # base-devel carries make, sed and pkg-config, which is what FFmpeg's configure needs,
-          # and the environment's own clang toolchain is what puts the right runtime beside the
-          # DLLs instead of MINGW64's. Nothing else: this build has no cmake step and fetches its
-          # source as a tarball, so cmake and git were minutes bought for nobody.
+          # base-devel carries make, sed and the binutils whose objdump the script's dependency
+          # check calls: 13 packages, 64 MiB, six seconds. Nothing else — this build has no cmake
+          # step and fetches its source as a tarball, so cmake and git were minutes bought for
+          # nobody.
+          #
+          # The compiler is `clang` and NOT `toolchain`, which reads like the safe choice and is
+          # not. `toolchain` is a 26-member group that resolves to 49 packages and 8970 MiB
+          # installed: a whole SECOND LLVM (clang, lld, llvm and compiler-rt at 21, beside the 22
+          # that gets used), lldb and the python, tcl, tk, ncurses, openssl and sqlite3 it drags
+          # behind it, plus clang-analyzer, clang-tools-extra, llvm-openmp and llvm itself.
+          # Installing it cost 122s on x86_64 and 199s on ARM — a third of the first job and half
+          # of the second. `clang` alone depends on clang-libs, compiler-rt, crt, headers, lld and
+          # llvm-tools, so the compiler, the linker and ar/ranlib/strip/nm all still arrive. There
+          # is no pkgconf and there is nothing for it to do: the player profile links no external
+          # library. The environment's own clang is also what puts the right runtime beside the
+          # DLLs instead of MINGW64's.
+          #
+          # The action's own `cache` is on by default and is not the lever here. It stores exactly
+          # one directory, var/cache/pacman/pkg, so it spares the DOWNLOAD and nothing else: the
+          # base is still extracted and every package is still unpacked on every run. It was
+          # hitting cleanly at 1623 MB and the install still took those two minutes. Shortening
+          # the list is the only thing that touches that number, and it shortens the cache too.
           install: base-devel
           pacboy: ${{ matrix.pacboy }}
 
