@@ -72,3 +72,17 @@ tasks.withType<Test>().configureEach {
         jvmArgs("-XstartOnFirstThread")
     }
 }
+
+// The fonts are vendored binaries, and a sources jar is not where a binary belongs.
+//
+// They reach the main source set as resources, which is exactly what a sources jar copies as
+// well: -sources was 23.66 MB against the main jar's 23.72 MB, the same type design twice, and
+// none of it answers the question a sources jar exists to answer. The pan-CJK face alone is
+// 16 MB and the colour emoji face 10 MB; see the README beside them.
+//
+// The licences and that README stay, because those are text and they are what a reader who opens
+// this directory actually needs. Same trade, same three lines, as limn-video-ffmpeg makes for its
+// native payload.
+tasks.named<Jar>("sourcesJar") {
+    exclude("limn/backend/lwjgl/fonts/*.ttf", "limn/backend/lwjgl/fonts/*.otf")
+}
