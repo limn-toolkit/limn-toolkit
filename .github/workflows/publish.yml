@@ -1,8 +1,13 @@
 # Publishes the library modules to Maven Central, off a tag, and drafts the GitHub release.
 #
 # The version comes from the tag and from nowhere else: build.gradle.kts reads -PlimnVersion and
-# otherwise says -SNAPSHOT, so `v0.1.0` is what makes 0.1.0 exist. Nothing in the tree has to be
-# edited to release, and nothing is left saying "0.1.0" after one.
+# otherwise says -SNAPSHOT, so `v0.1.0` is what makes 0.1.0 exist. No artifact in the tree carries
+# a version, and nothing is left saying "0.1.0" after a release.
+#
+# The documentation is the one exception, and it is not one a tag can reach. Ten READMEs are
+# rendered raw by GitHub with no build between the file and the reader, so the coordinates they
+# hand somebody to copy are literals. Run `scripts/set-version.sh <version>` and commit the result
+# in the commit the tag will point at; the `verify` job refuses the tag if that was not done.
 #
 # Neither half of a release publishes itself. The upload STOPS at the Portal, where what arrives
 # is a deployment, validated and staged, that somebody opens and presses Publish on; the GitHub
@@ -108,6 +113,20 @@ jobs:
             exit 1
           fi
           echo "$TAG is $TAGGED"
+
+      # The coordinates in the documentation are literals, because ten READMEs are rendered raw by
+      # GitHub with no build step between the file and the reader. A literal is a thing that gets
+      # forgotten, and this one was: the READMEs described 0.3.0's shape while still carrying
+      # 0.2.0's number, so `limn-video-ffmpeg:0.2.0:natives-macos-aarch64` was a coordinate that
+      # had never existed and copying it failed to resolve rather than resolving to something old.
+      #
+      # This job is where that belongs. It exists to reject a typo before six native builds are
+      # spent on it, and a README promising a version nobody published is the same class of
+      # mistake, caught in the same twenty seconds. The script that REWRITES those coordinates is
+      # the script that checks them — one implementation, two modes — so the check cannot drift
+      # away from the fix it names.
+      - name: The documentation must say the version being tagged
+        run: bash scripts/set-version.sh --check "${{ steps.version.outputs.version }}"
 
       # One upload per version, enforced rather than assumed.
       #
