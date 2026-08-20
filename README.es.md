@@ -45,6 +45,19 @@
 Limn dibuja sus propios píxeles. Widgets, disposición, texto, gráficos, medios y una vista 3D, en
 una dependencia, **sin Swing, sin JavaFX y sin ningún kit nativo por debajo**.
 
+## Pruébalo ahora
+
+El escaparate entero — cada widget, las gráficas, el reproductor, el visor 3D — en un comando.
+Nada que clonar, y nada que instalar salvo
+[jbang](https://www.jbang.dev/download/), que también descarga un JDK si no tienes ninguno:
+
+```bash
+jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
+```
+
+En macOS añade `--java-options=-XstartOnFirstThread`. Esa opción es solo de macOS, y una JVM que
+la reciba en cualquier otro sistema se niega a arrancar.
+
 ## Instalación
 
 ```kotlin
@@ -171,6 +184,18 @@ una pila dibuja encima y ambos participan en la disposición igual que una etiqu
 <p align="center">
   <img src="media/readme/showcase-viewport-3d-light.webp" alt="Una vista 3D compuesta en una ventana corriente" width="900">
 </p>
+
+## Hazlo tuyo
+
+De un tema sale cada color, cada radio de esquina y cada paso de tamaño, y `limn-theme-editor` es
+la pantalla que escribe uno. Inclúyelo en tu propia pantalla de ajustes, o simplemente ejecútalo:
+
+```bash
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.3.0
+```
+
+La misma opción de macOS de arriba. Lo que guarda son datos planos, que tu aplicación carga con
+`ThemeFormat`.
 
 ## Los módulos
 

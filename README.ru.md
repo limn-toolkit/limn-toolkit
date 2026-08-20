@@ -45,6 +45,19 @@
 Limn рисует свои пиксели сам. Виджеты, компоновка, текст, диаграммы, медиа и 3D-вьюпорт умещаются
 в одной зависимости, **без Swing, без JavaFX и без нативного тулкита под низом**.
 
+## Попробуйте прямо сейчас
+
+Вся витрина — каждый виджет, графики, медиаплеер, 3D-вьюпорт — одной командой. Клонировать нечего,
+устанавливать нечего, кроме [jbang](https://www.jbang.dev/download/),
+который заодно скачает JDK, если её у вас нет:
+
+```bash
+jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
+```
+
+На macOS добавьте `--java-options=-XstartOnFirstThread`. Этот флаг существует только на macOS, и
+JVM, получившая его где-то ещё, откажется запускаться.
+
 ## Установка
 
 ```kotlin
@@ -171,6 +184,19 @@ public static void main(String[] args) {
 <p align="center">
   <img src="media/readme/showcase-viewport-3d-light.webp" alt="3D-вьюпорт, встроенный в обычное окно" width="900">
 </p>
+
+## Сделайте его своим
+
+Из темы берётся каждый цвет, каждый радиус скругления и каждый шаг размера, а
+`limn-theme-editor` — экран, который её пишет. Встройте его в свой экран настроек или просто
+запустите:
+
+```bash
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.3.0
+```
+
+Тот же флаг macOS, что и выше. То, что он сохраняет, — обычные данные, которые ваше приложение
+загружает через `ThemeFormat`.
 
 ## Модули
 

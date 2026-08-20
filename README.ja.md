@@ -44,6 +44,16 @@
 
 Limn はピクセルを自分で描きます。ウィジェット、レイアウト、テキスト、チャート、メディア、3D ビューポートが依存 1 つで手に入り、**Swing も JavaFX も、下敷きになるネイティブツールキットもありません**。
 
+## 今すぐ試す
+
+キッチンシンク——すべてのウィジェット、チャート、メディアプレーヤー、3D ビューポート——がコマンド 1 つで動きます。クローンするものはなく、入れるものも [jbang](https://www.jbang.dev/download/) だけです。JDK がなければ、それも取ってきます。
+
+```bash
+jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
+```
+
+macOS では `--java-options=-XstartOnFirstThread` を足してください。このフラグは macOS 専用で、ほかの OS の JVM は受け取ると起動を拒みます。
+
 ## インストール
 
 ```kotlin
@@ -141,6 +151,16 @@ public static void main(String[] args) {
 <p align="center">
   <img src="media/readme/showcase-viewport-3d-light.webp" alt="普通のウィンドウに合成された 3D ビューポート" width="900">
 </p>
+
+## 自分の見た目にする
+
+色も角丸もサイズの刻みも、すべてテーマから来ます。`limn-theme-editor` はそれを書くための画面です。自分の設定画面に埋め込んでもいいですし、そのまま起動しても構いません。
+
+```bash
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.3.0
+```
+
+macOS のフラグは上と同じです。保存されるのはただのデータで、アプリケーションは `ThemeFormat` で読み込みます。
 
 ## モジュール
 

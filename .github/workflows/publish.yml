@@ -242,9 +242,27 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
 
+      # The showcase, as one file a stranger can run: `jbang <url>` and the kitchen sink is on
+      # screen. Built HERE and not in draft-release because this is the job that has the six
+      # native slices merged into the tree, so the jar plays video on every desktop it lands on —
+      # and because that job deliberately has no checkout and no build.
+      - name: Build the runnable demo jar
+        run: >-
+          ./gradlew :limn-demo:fatJar
+          -PlimnVersion=${{ needs.verify.outputs.version }}
+          -PlimnFfmpegProfile=player
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: limn-demo-all
+          path: limn-demo/build/libs/limn-demo-all.jar
+          if-no-files-found: error
+          retention-days: 1
+
   # The only job in this file that can write to the repository, and deliberately the smallest:
-  # no checkout, no build, no secrets, one CLI call. It cannot run anything the tag brought with
-  # it, because it never fetches it.
+  # no checkout, no build, no secrets. It cannot run anything the tag brought with it, because it
+  # never fetches it — the demo jar it attaches is an artifact the job before it produced, and
+  # downloading a built file is not the same as running a tree.
   draft-release:
     needs: publish
     runs-on: ubuntu-latest
@@ -252,6 +270,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: limn-demo-all
+          path: release-assets
+
       - name: Draft the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -285,9 +308,19 @@ jobs:
           \`natives-<os>-<arch>\` classifier per desktop target, plus
           \`limn-video-ffmpeg-natives-all\` for a bundle that ships everywhere.
 
+          Nothing to install to see it: the kitchen sink demo is attached below, and
+          [jbang](https://www.jbang.dev/download/) runs it from the asset URL.
+
+          \`\`\`bash
+          jbang https://github.com/$GH_REPO/releases/latest/download/limn-demo-all.jar
+          \`\`\`
+
+          On macOS add \`--java-options=-XstartOnFirstThread\`, which is macOS-only.
+
           ---
           NOTES
-          )"
+          )" \
+            release-assets/limn-demo-all.jar
           echo "### Drafted $TAG" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Two things are staged and neither is public yet:" >> "$GITHUB_STEP_SUMMARY"

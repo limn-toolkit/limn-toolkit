@@ -44,6 +44,16 @@
 
 Limn 自己绘制每一个像素。组件、布局、文本、图表、媒体与 3D 视口，只需一个依赖，**没有 Swing，没有 JavaFX，底下也没有原生工具包**。
 
+## 立刻试试
+
+整个陈列——每一个控件、图表、媒体播放器、3D 视口——一条命令就跑起来。没有什么要克隆，也没有什么要装，除了 [jbang](https://www.jbang.dev/download/)；你要是没有 JDK，它连 JDK 一起取来。
+
+```bash
+jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
+```
+
+在 macOS 上加 `--java-options=-XstartOnFirstThread`。这个开关只有 macOS 认，别的系统上的 JVM 收到它会拒绝启动。
+
 ## 安装
 
 ```kotlin
@@ -141,6 +151,16 @@ public static void main(String[] args) {
 <p align="center">
   <img src="media/readme/showcase-viewport-3d-light.webp" alt="合成进普通窗口中的 3D 视口" width="900">
 </p>
+
+## 让它长成你的样子
+
+每一种颜色、每一个圆角、每一档尺寸都来自主题，而 `limn-theme-editor` 就是写主题的那块界面。把它嵌进你自己的设置页，或者直接跑起来：
+
+```bash
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.3.0
+```
+
+macOS 的开关和上面一样。它存下来的是纯数据，你的应用用 `ThemeFormat` 读回去。
 
 ## 模块
 

@@ -88,3 +88,52 @@ tasks.named<JavaExec>("run") {
         jvmArgs("--enable-native-access=ALL-UNNAMED")
     }
 }
+
+// ------------------------------------------------------------------ the jar a stranger can run
+//
+// One file, everything inside it, and a Main-Class: `jbang <url>` and the kitchen sink is on
+// screen, with nothing cloned and nothing installed. It exists because this module is
+// deliberately NOT published to Maven Central — it is a showcase, not a library, and publishing
+// it would invite an application to depend on it — and a showcase nobody can start is not one.
+// A jar attached to a GitHub release is a thing somebody runs and not a thing a build file can
+// declare, which is the distinction that keeps both properties.
+//
+// FAT rather than thin, and that is jbang's constraint rather than a preference: a jar it fetches
+// by URL arrives alone, with no POM read and no dependency resolved. Whatever is not in here is
+// not on the classpath.
+//
+// The file name carries no version. GitHub serves the newest release's asset by name at
+// /releases/latest/download/<name>, so the URL in ten READMEs never has to be bumped; which
+// version somebody is holding is in the manifest.
+val demoFfmpegProfile: String = (findProperty("limnFfmpegProfile") as String?)
+    ?: if (project(":limn-video-ffmpeg").file("native/dist/full").isDirectory) "full" else "player"
+
+tasks.register<Jar>("fatJar") {
+    group = "distribution"
+    description = "Everything the demo needs in one runnable jar, for the GitHub release."
+    archiveFileName.set("limn-demo-all.jar")
+    manifest {
+        attributes(
+            "Main-Class" to "limn.demo.Main",
+            "Implementation-Title" to "Limn kitchen sink",
+            "Implementation-Version" to project.version,
+        )
+    }
+    // Dependency jars collide on their metadata and agree on nothing else. First one wins;
+    // nothing here reads any of it at run time.
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    // A signature does not survive its jar being merged into another one, and a JVM that finds
+    // one it cannot verify rejects the whole archive rather than the entry.
+    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.EC")
+    // A dozen module descriptors in one classpath jar describe nothing that exists.
+    exclude("module-info.class", "META-INF/versions/*/module-info.class")
+
+    from(sourceSets["main"].output)
+    from({ configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) } })
+    // The FFmpeg libraries, which limn-video-ffmpeg's main jar deliberately does not carry: they
+    // ride in the natives-<os>-<arch> classifiers and this jar has no classifier to choose. The
+    // publish workflow merges all six here before building this, so the release asset plays
+    // video on every desktop it runs on. A machine that never built a payload contributes
+    // nothing and the video tab reports itself unavailable, exactly as it does today.
+    from(project(":limn-video-ffmpeg").file("native/dist/$demoFfmpegProfile"))
+}

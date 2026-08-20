@@ -45,6 +45,18 @@
 Limn은 픽셀을 스스로 그립니다. 위젯, 레이아웃, 텍스트, 차트, 미디어, 3D 뷰포트를 의존성 한 개로
 제공합니다. **Swing도, JavaFX도, 아래에 깔린 네이티브 툴킷도 없습니다**.
 
+## 지금 실행해 보기
+
+키친 싱크 — 모든 위젯, 차트, 미디어 플레이어, 3D 뷰포트 — 를 명령 하나로. 클론할 것도 없고,
+설치할 것도 [jbang](https://www.jbang.dev/download/) 하나뿐입니다. JDK가 없으면 그것까지 받아 옵니다.
+
+```bash
+jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
+```
+
+macOS에서는 `--java-options=-XstartOnFirstThread`를 덧붙이세요. 이 플래그는 macOS 전용이라, 다른
+곳의 JVM은 받으면 시작을 거부합니다.
+
 ## 설치
 
 ```kotlin
@@ -165,6 +177,18 @@ public static void main(String[] args) {
 <p align="center">
   <img src="media/readme/showcase-viewport-3d-light.webp" alt="평범한 창에 합성된 3D 뷰포트" width="900">
 </p>
+
+## 당신의 것으로
+
+색도, 모서리 반경도, 크기 단계도 모두 테마에서 옵니다. `limn-theme-editor`는 그 테마를 쓰는
+화면입니다. 당신의 설정 화면에 끼워 넣어도 되고, 그냥 실행해도 됩니다.
+
+```bash
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.3.0
+```
+
+macOS 플래그는 위와 같습니다. 저장되는 것은 평범한 데이터이고, 애플리케이션은 `ThemeFormat`으로
+읽어 들입니다.
 
 ## 모듈
 

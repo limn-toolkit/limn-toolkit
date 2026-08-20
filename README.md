@@ -45,6 +45,19 @@
 Limn draws its own pixels. Widgets, layout, text, charts, media and a 3D viewport, in one
 dependency, with **no Swing, no JavaFX and no native toolkit underneath**.
 
+## Try it now
+
+The kitchen sink — every widget, the charts, the media player, the 3D viewport — in one command.
+Nothing to clone, and nothing to install but
+[jbang](https://www.jbang.dev/download/), which fetches a JDK too if you have none:
+
+```bash
+jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
+```
+
+On macOS add `--java-options=-XstartOnFirstThread`. That flag is macOS-only, and a JVM given it
+anywhere else refuses to start.
+
 ## Install
 
 ```kotlin
@@ -165,6 +178,19 @@ the way a label does.
 <p align="center">
   <img src="media/readme/showcase-viewport-3d-light.webp" alt="A 3D viewport composited into an ordinary window" width="900">
 </p>
+
+## Make it yours
+
+A theme is where every colour, every corner radius and every size step comes from, and
+`limn-theme-editor` is the screen that authors one. Embed it in your own settings screen, or just
+run it:
+
+```bash
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.3.0
+```
+
+Same macOS flag as above. What it saves is plain data, which your application loads with
+`ThemeFormat`.
 
 ## The modules
 
