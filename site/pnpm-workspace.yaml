@@ -1,6 +1,10 @@
+# sharp is the image pipeline of website.md §7.3; it must be allowed to run its install
+# script or its native binary is never placed. esbuild is Vite's, same reason. Everything
+# else stays script-less by pnpm's default.
 allowBuilds:
-  esbuild: set this to true or false
-  sharp: set this to true or false
+  esbuild: true
+  sharp: true
+
 # Where pnpm 10+ keeps its settings; the `pnpm` field in package.json is no longer read.
 #
 # Two transitive dependencies carry advisories that their parents have not yet moved past, so
