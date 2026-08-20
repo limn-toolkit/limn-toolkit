@@ -65,7 +65,8 @@ part in layout like a label does. The decoder behind it is a separate concern:
 - **`limn-video-ffmpeg`** decodes H.264 and AAC in MP4 through a trimmed FFmpeg. Its native
   libraries ride in one `natives-<os>-<arch>` classifier per desktop target, for the same
   platforms the backend covers (macOS, Windows and Linux, x64 and ARM64 alike); add the one
-  your machine is, or `natives-all` for a bundle that ships everywhere. Leave it out and the
+  your machine is, or the separate `limn-video-ffmpeg-natives-all` artifact, which names all six,
+  for a bundle that ships everywhere. Leave it out and the
   decoder reports itself unavailable and everything else keeps working. The libraries are LGPL (version 2.1 or later) and the jar carries the licence
   text and notice alongside them; [Packaging](/docs/packaging/) has what shipping them means.
 

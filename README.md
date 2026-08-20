@@ -97,8 +97,10 @@ natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
 natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
-Use `natives-all` instead when one build is shipped to every platform and cannot know the machine
-it will land on. Nothing stops you naming several, either — a bundle for two targets takes two.
+Use `limn-video-ffmpeg-natives-all` instead when one build is shipped to every platform and cannot
+know the machine it will land on: it is an artifact of its own rather than a classifier, and it
+names all six so you do not have to. Nothing stops you naming several classifiers, either — a
+bundle for two targets takes two.
 
 Leave the classifier out and the toolkit still builds and runs: the decoder reports itself
 unavailable, naming the platform it looked for, and everything that is not FFmpeg keeps working.

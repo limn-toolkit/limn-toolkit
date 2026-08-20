@@ -33,6 +33,7 @@ include(
     "limn-icons-tabler",
     "limn-theme-editor",
     "limn-video-ffmpeg",
+    "limn-video-ffmpeg-natives-all",
     "limn-backend-lwjgl",
     "limn-demo",
 )

@@ -98,9 +98,10 @@ natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
 natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
-Usa `natives-all` cuando una misma compilación se distribuya a todas las plataformas y no pueda
-saber en qué máquina acabará. Nada te impide nombrar varios: un paquete para dos destinos lleva
-dos.
+Usa `limn-video-ffmpeg-natives-all` cuando una misma compilación se distribuya a todas las
+plataformas y no pueda saber en qué máquina acabará: es un artefacto propio, no un clasificador, y
+nombra los seis para que tú no tengas que hacerlo. Nada te impide nombrar varios clasificadores: un
+paquete para dos destinos lleva dos.
 
 Omite el clasificador y el kit sigue compilando y ejecutándose: el decodificador se declara no
 disponible, nombrando la plataforma que buscó, y todo lo que no es FFmpeg sigue funcionando. La

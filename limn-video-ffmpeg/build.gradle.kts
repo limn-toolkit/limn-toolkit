@@ -201,30 +201,17 @@ val nativeJars = requiredNativePlatforms.map { platform ->
     }
 }
 
-/**
- * Every platform at once, for a distribution that is not built per machine.
- *
- * An application shipped as one cross-platform bundle cannot name the classifier of the machine
- * it will land on, and asking it to list all six is a footgun: the list goes stale the day a
- * seventh target exists. `natives-all` is that list, kept here instead of in every build file
- * that consumes this module. It is what the single published jar used to be, minus the shim,
- * which now travels in the main artifact and must not be duplicated here.
- */
-val nativesAllJar = tasks.register<Jar>("nativesJarAll") {
-    description = "Every platform's FFmpeg libraries in one artifact, published as natives-all."
-    group = "build"
-    archiveClassifier.set("natives-all")
-    from(ffmpegNatives) {
-        include("limn/video/ffmpeg/native/**")
-        exclude("**/$shimName*")
-    }
-}
+// `natives-all` is no longer here, and it is no longer a classifier: it is the sibling module
+// limn-video-ffmpeg-natives-all, whose whole content is a POM naming the six artifacts below.
+// The classifier CARRIED all six payloads, so a release uploaded every native byte twice, and a
+// classifier cannot do it any other way — classifiers share this module's single POM, so
+// dependencies declared for one apply to the shim as well, and every consumer would drag all six
+// platforms back in. A sibling module has a POM of its own, which is the whole reason it is one.
 
 plugins.withId("maven-publish") {
     extensions.configure<PublishingExtension> {
         publications.withType<MavenPublication>().configureEach {
             nativeJars.forEach { artifact(it) }
-            artifact(nativesAllJar)
         }
     }
 }

@@ -97,9 +97,10 @@ natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
 natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
-빌드 하나를 모든 플랫폼에 배포해 어느 기기에 내려앉을지 알 수 없다면, 대신 `natives-all`을
-쓰세요. 여러 개를 함께 적는 것도 막지 않습니다 — 두 대상을 겨냥한 묶음이라면 두 개를 적으면
-됩니다.
+빌드 하나를 모든 플랫폼에 배포해 어느 기기에 내려앉을지 알 수 없다면, 대신
+`limn-video-ffmpeg-natives-all`을 쓰세요. 이것은 classifier가 아니라 그 자체로 하나의
+아티팩트이며, 여섯 개를 대신 적어 줍니다. 여러 classifier를 함께 적는 것도 막지 않습니다 — 두
+대상을 겨냥한 묶음이라면 두 개를 적으면 됩니다.
 
 classifier를 빼도 툴킷은 그대로 빌드되고 실행됩니다. 디코더가 어떤 플랫폼을 찾았는지 밝히며
 자신을 쓸 수 없다고 알리고, FFmpeg이 아닌 것은 모두 그대로 동작합니다. 이 FFmpeg 빌드는

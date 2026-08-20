@@ -44,6 +44,11 @@ val publishedModules = mapOf(
             "LGPL-2.1-or-later; see NOTICE-ffmpeg.txt in the jar. On any other platform the " +
             "decoder reports itself unavailable and the rest of the toolkit is unaffected.",
     "limn-backend-lwjgl" to "The LWJGL backend: GLFW, OpenGL and stb behind the toolkit's SPIs.",
+    "limn-video-ffmpeg-natives-all" to
+            "Every desktop platform's FFmpeg libraries at once, for a distribution shipped as " +
+            "one cross-platform bundle. It carries no code and no binaries: it names the six " +
+            "natives-<os>-<arch> artifacts of limn-video-ffmpeg so a build that cannot know its " +
+            "machine does not have to name them itself.",
 )
 
 subprojects {

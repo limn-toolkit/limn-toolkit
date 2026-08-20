@@ -263,7 +263,8 @@ jobs:
 
           That one line brings \`limn-toolkit\` with it. Also published:
           \`limn-icons-tabler\`, \`limn-theme-editor\`, and \`limn-video-ffmpeg\` with one
-          \`natives-<os>-<arch>\` classifier per desktop target plus \`natives-all\`.
+          \`natives-<os>-<arch>\` classifier per desktop target, plus
+          \`limn-video-ffmpeg-natives-all\` for a bundle that ships everywhere.
 
           ---
           NOTES

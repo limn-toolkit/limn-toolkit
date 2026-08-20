@@ -88,7 +88,7 @@ natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
 natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
-如果一个构建产物要发往所有平台，无从知道自己会落在哪台机器上，那就改用 `natives-all`。同时写上好几个也没什么不可以——面向两个目标的分发包就写两个。
+如果一个构建产物要发往所有平台，无从知道自己会落在哪台机器上，那就改用 `limn-video-ffmpeg-natives-all`。它不是 classifier，而是独立的一个构件，替你把六个都写上了。同时写上好几个 classifier 也没什么不可以——面向两个目标的分发包就写两个。
 
 把 classifier 整个省掉，工具包照样能构建、能运行：解码器会报告自己不可用，并说出它找过的平台，而所有不属于 FFmpeg 的部分照常工作。这份 FFmpeg 构建采用 LGPL-2.1-或更高版本，动态链接且可替换，许可证文本就放在装着它的那个 jar 里。
 

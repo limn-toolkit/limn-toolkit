@@ -99,9 +99,10 @@ natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
 natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
-Utilisez plutôt `natives-all` quand une seule compilation est livrée à toutes les plateformes et ne
-peut pas savoir sur quelle machine elle atterrira. Rien ne vous empêche non plus d’en nommer
-plusieurs : une distribution pour deux cibles en prend deux.
+Utilisez plutôt `limn-video-ffmpeg-natives-all` quand une seule compilation est livrée à toutes les
+plateformes et ne peut pas savoir sur quelle machine elle atterrira : c’est un artefact à part
+entière et non un classifier, et il nomme les six pour vous. Rien ne vous empêche non plus de
+nommer plusieurs classifiers : une distribution pour deux cibles en prend deux.
 
 Omettez le classifier et la boîte à outils compile et tourne quand même : le décodeur se déclare
 indisponible, en nommant la plateforme qu’il a cherchée, et tout ce qui n’est pas FFmpeg continue
