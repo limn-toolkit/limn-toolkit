@@ -106,7 +106,7 @@ wants a theme editor in it; leave it out and you pay nothing, because **nothing 
 toolkit depends on it**.
 
 ```kotlin
-implementation("io.github.limn-toolkit:limn-theme-editor:0.3.0")
+implementation("io.github.limn-toolkit:limn-theme-editor:0.4.0")
 ```
 
 The dependency points one way only: the editor reads `Theme` and `Theme.Builder`, and no

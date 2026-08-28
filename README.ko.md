@@ -61,7 +61,7 @@ macOS에서는 `--java-options=-XstartOnFirstThread`를 덧붙이세요. 이 플
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.3.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.4.0")
 }
 ```
 
@@ -72,7 +72,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.3.0</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -95,8 +95,8 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0:natives-macos-aarch64")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0:natives-macos-aarch64")
 }
 ```
 
@@ -184,7 +184,7 @@ public static void main(String[] args) {
 화면입니다. 당신의 설정 화면에 끼워 넣어도 되고, 그냥 실행해도 됩니다.
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.3.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.4.0
 ```
 
 macOS 플래그는 위와 같습니다. 저장되는 것은 평범한 데이터이고, 애플리케이션은 `ThemeFormat`으로

@@ -62,7 +62,7 @@ anywhere else refuses to start.
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.3.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.4.0")
 }
 ```
 
@@ -73,7 +73,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.3.0</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -96,8 +96,8 @@ it is the one piece of Limn with a native payload and a licence of its own.
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0:natives-macos-aarch64")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0:natives-macos-aarch64")
 }
 ```
 
@@ -186,7 +186,7 @@ A theme is where every colour, every corner radius and every size step comes fro
 run it:
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.3.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.4.0
 ```
 
 Same macOS flag as above. What it saves is plain data, which your application loads with

@@ -62,7 +62,7 @@ JVM que a receba em qualquer outro sistema se recusa a iniciar.
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.3.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.4.0")
 }
 ```
 
@@ -73,7 +73,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.3.0</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -97,8 +97,8 @@ separada porque é a única peça do Limn com um payload nativo e uma licença p
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0:natives-macos-aarch64")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0:natives-macos-aarch64")
 }
 ```
 
@@ -190,7 +190,7 @@ participam do layout como um rótulo participa.
 simplesmente rode:
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.3.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.4.0
 ```
 
 Mesma flag do macOS de cima. O que ele salva é dado puro, que a sua aplicação carrega com

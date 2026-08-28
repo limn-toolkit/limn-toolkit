@@ -62,7 +62,7 @@ macOS, und eine JVM, die sie anderswo bekommt, startet nicht.
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.3.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.4.0")
 }
 ```
 
@@ -73,7 +73,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.3.0</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -98,8 +98,8 @@ eigenen Lizenz ist.
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.3.0:natives-macos-aarch64")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0:natives-macos-aarch64")
 }
 ```
 
@@ -193,7 +193,7 @@ Aus einem Theme kommt jede Farbe, jeder Eckenradius und jede Größenstufe, und
 Einstellungsbildschirm ein, oder starten Sie ihn einfach:
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.3.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.4.0
 ```
 
 Dieselbe macOS-Option wie oben. Was er speichert, sind schlichte Daten, die Ihre Anwendung mit
