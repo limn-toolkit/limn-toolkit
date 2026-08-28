@@ -58,7 +58,7 @@ jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.4.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
 }
 ```
 
@@ -69,7 +69,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
@@ -86,8 +86,8 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0:natives-macos-aarch64")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
 }
 ```
 
@@ -157,7 +157,7 @@ public static void main(String[] args) {
 每一种颜色、每一个圆角、每一档尺寸都来自主题，而 `limn-theme-editor` 就是写主题的那块界面。把它嵌进你自己的设置页，或者直接跑起来：
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.4.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.5.0
 ```
 
 macOS 的开关和上面一样。它存下来的是纯数据，你的应用用 `ThemeFormat` 读回去。

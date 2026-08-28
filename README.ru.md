@@ -62,7 +62,7 @@ JVM, получившая его где-то ещё, откажется запу
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.4.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
 }
 ```
 
@@ -73,7 +73,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
@@ -97,8 +97,8 @@ Y4M и синтетический источник; для MP4 и Matroska ну�
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0:natives-macos-aarch64")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
 }
 ```
 
@@ -192,7 +192,7 @@ public static void main(String[] args) {
 запустите:
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.4.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.5.0
 ```
 
 Тот же флаг macOS, что и выше. То, что он сохраняет, — обычные данные, которые ваше приложение

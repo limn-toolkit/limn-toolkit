@@ -58,7 +58,7 @@ macOS では `--java-options=-XstartOnFirstThread` を足してください。�
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.4.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
 }
 ```
 
@@ -69,7 +69,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
@@ -86,8 +86,8 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0:natives-macos-aarch64")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
 }
 ```
 
@@ -157,7 +157,7 @@ public static void main(String[] args) {
 色も角丸もサイズの刻みも、すべてテーマから来ます。`limn-theme-editor` はそれを書くための画面です。自分の設定画面に埋め込んでもいいですし、そのまま起動しても構いません。
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.4.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.5.0
 ```
 
 macOS のフラグは上と同じです。保存されるのはただのデータで、アプリケーションは `ThemeFormat` で読み込みます。

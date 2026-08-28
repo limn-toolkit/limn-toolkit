@@ -62,7 +62,7 @@ la reciba en cualquier otro sistema se niega a arrancar.
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.4.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
 }
 ```
 
@@ -73,7 +73,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
@@ -97,8 +97,8 @@ una dependencia aparte porque es la única pieza de Limn con carga nativa y lice
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.4.0:natives-macos-aarch64")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
+    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
 }
 ```
 
@@ -191,7 +191,7 @@ De un tema sale cada color, cada radio de esquina y cada paso de tamaño, y `lim
 la pantalla que escribe uno. Inclúyelo en tu propia pantalla de ajustes, o simplemente ejecútalo:
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.4.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.5.0
 ```
 
 La misma opción de macOS de arriba. Lo que guarda son datos planos, que tu aplicación carga con
