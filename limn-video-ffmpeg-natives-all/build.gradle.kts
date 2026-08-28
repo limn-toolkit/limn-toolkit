@@ -21,20 +21,53 @@ plugins {
  * shim would drag all six platforms back in — which is the split this replaced. A sibling module
  * has its own POM, and that is the whole reason it is one.
  */
-dependencies {
-    // The same six the decoder publishes, and they are spelled out for the same reason they are
-    // spelled out there: a list discovered from what happens to exist calls a missing platform
-    // complete. See requiredNativePlatforms in limn-video-ffmpeg/build.gradle.kts.
-    listOf(
-        "linux-aarch64", "linux-x86_64",
-        "macos-aarch64", "macos-x86_64",
-        "windows-aarch64", "windows-x86_64",
-    ).forEach { platform ->
-        runtimeOnly(project(":limn-video-ffmpeg")) {
-            artifact {
-                name = "limn-video-ffmpeg"
-                type = "jar"
-                classifier = "natives-$platform"
+
+// The same six the decoder publishes, and spelled out for the same reason they are spelled out
+// there: a list discovered from what happens to exist calls a missing platform complete. See
+// requiredNativePlatforms in limn-video-ffmpeg/build.gradle.kts.
+val nativePlatforms = listOf(
+    "linux-aarch64", "linux-x86_64",
+    "macos-aarch64", "macos-x86_64",
+    "windows-aarch64", "windows-x86_64",
+)
+
+// ------------------------------------------------------------------ why the POM is written here
+//
+// The six are WRITTEN INTO the POM rather than declared as Gradle dependencies, and that is a
+// correction rather than a preference.
+//
+// Declared the obvious way — `runtimeOnly(project(":limn-video-ffmpeg")) { artifact { classifier
+// = ... } }` — they are correct in both the POM and the module metadata, and they also land on
+// this module's own testRuntimeClasspath. `check` then tries to RESOLVE them, and cannot: a
+// project dependency that selects a classifier needs the target project to expose that artifact
+// as a consumable variant, and limn-video-ffmpeg's natives-<os>-<arch> jars are publication
+// artifacts, not variants. It failed in the publish workflow's `check` step, which is the gate in
+// front of the upload, and nowhere before it: generating the POM, generating the metadata and
+// publishing to mavenLocal never resolve a test classpath, so every check made while writing this
+// module passed.
+//
+// Gradle module metadata is switched off here for the same reason it would otherwise matter. A
+// consumer that finds a .module prefers it over the POM, and there is no way to put these six
+// into one without also putting them on a configuration that resolves in this project. Without
+// it, Gradle and Maven read the same POM and get the same six — which is all this module is.
+tasks.withType<GenerateModuleMetadata>().configureEach {
+    enabled = false
+}
+
+plugins.withId("maven-publish") {
+    extensions.configure<PublishingExtension> {
+        publications.withType<MavenPublication>().configureEach {
+            pom.withXml {
+                val dependencies = asNode().appendNode("dependencies")
+                nativePlatforms.forEach { platform ->
+                    dependencies.appendNode("dependency").apply {
+                        appendNode("groupId", project.group)
+                        appendNode("artifactId", "limn-video-ffmpeg")
+                        appendNode("version", project.version)
+                        appendNode("classifier", "natives-$platform")
+                        appendNode("scope", "runtime")
+                    }
+                }
             }
         }
     }
