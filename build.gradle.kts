@@ -328,7 +328,18 @@ gradle.taskGraph.whenReady {
 val aggregateJavadoc = tasks.register<Javadoc>("aggregateJavadoc") {
     group = "documentation"
     description = "Javadoc for every module in one tree, for the public site's /api/."
-    val documented = subprojects.filter { it.plugins.hasPlugin("java") }
+    // Java projects that have Java, which is not the same set. limn-video-ffmpeg-natives-all
+    // applies `java-library` to get a jar, a sources jar and a javadoc jar that Central asks for,
+    // and has no source at all: its whole content is its POM. It has nothing to document, and
+    // including it broke this task rather than adding an empty page — a module with no source
+    // never compiles, so its compileClasspath is still unresolved when the line below reaches for
+    // it, and Gradle refuses to resolve another project's configuration from a task that is
+    // already running ("without an exclusive lock"). The six that do compile were resolved by
+    // their own compileJava long before this.
+    val documented = subprojects.filter { sub ->
+        sub.plugins.hasPlugin("java") &&
+                !sub.extensions.getByType<SourceSetContainer>()["main"].allJava.isEmpty
+    }
     dependsOn(documented.map { "${it.path}:classes" })
     setDestinationDir(layout.buildDirectory.dir("docs/aggregate-javadoc").get().asFile)
     title = "Limn UI ${project.version}"
