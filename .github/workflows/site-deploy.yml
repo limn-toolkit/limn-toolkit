@@ -58,6 +58,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       deploy: ${{ steps.decide.outputs.deploy }}
+      # The version the deployed pages should say they document. Computed here because this
+      # job already asks the question a release cannot answer for itself, and a manual run
+      # cannot answer at all: the newest PUBLISHED version, which is what the site follows.
+      version: ${{ steps.decide.outputs.version }}
     steps:
       - name: Is this the newest release?
         id: decide
@@ -66,14 +70,17 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-            echo "manual run: deploying whatever was chosen"
-            exit 0
-          fi
+          # Before the dispatch branch, because a manual run needs this answer too: it is
+          # what the Javadoc's title is built from, and a manual run has no tag to read.
           NEWEST="$(gh release list --limit 100 --exclude-drafts --exclude-pre-releases \
                       --json tagName --jq '.[].tagName' \
                     | sed 's/^v//' | sort -V | tail -1)"
+          echo "version=$NEWEST" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "manual run: deploying whatever was chosen, documenting ${NEWEST:-no release yet}"
+            exit 0
+          fi
           THIS="${TAG#v}"
           echo "this release: $THIS   newest published: $NEWEST"
           if [ "$THIS" = "$NEWEST" ]; then
@@ -124,8 +131,24 @@ jobs:
       - name: Export theme tokens
         run: ./gradlew :limn-demo:exportThemeTokens
 
+      # WITH the version, which is the whole difference between a published page and this
+      # one: build.gradle.kts falls back to "0.1.0-SNAPSHOT" when -PlimnVersion is absent,
+      # and aggregateJavadoc puts project.version in the title. Deployed without it, /api/
+      # announced itself as "Limn UI 0.1.0-SNAPSHOT" while documenting 0.5.0.
+      #
+      # It comes from the gate rather than from the tag because both triggers have to work,
+      # and a manual run has no tag. On a release the two are the same value: the gate only
+      # deploys a release that IS the newest one.
       - name: Aggregate Javadoc
-        run: ./gradlew aggregateJavadoc
+        env:
+          VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          if [ -n "$VERSION" ]; then
+            ./gradlew aggregateJavadoc -PlimnVersion="$VERSION"
+          else
+            echo "::warning::no published release to name; /api/ will carry the build default"
+            ./gradlew aggregateJavadoc
+          fi
 
       - name: Capture the component gallery
         run: xvfb-run -a ./gradlew :limn-demo:captureGallery
