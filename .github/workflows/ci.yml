@@ -1,14 +1,30 @@
-# Pull-request gate for the Limn site: build everything, deploy nothing.
+# The gate between a commit and a release: build everything, publish nothing.
 #
-# The whole pipeline runs here, not just the Node half, because every page is generated
-# from this repository's own sources: a Java change can break a screenshot, a Javadoc
-# page or a code sample, and only the full build says so before the merge. It also runs
-# `./gradlew check` on a runner, which is the proof that the site's presence does not
-# affect the toolkit's own gate (see docs/design/website.md).
+# It runs EVERY GRADLE ENTRY POINT THE TWO RELEASE WORKFLOWS RUN, minus the steps that
+# cannot be taken back. publish.yml runs `check` and `:limn-demo:fatJar`; site-deploy.yml
+# runs exportThemeTokens, aggregateJavadoc, captureGallery and the Astro build. All of
+# them are below, in the same order, and that is the property this file is for: green
+# here means the next tag will not die on a build error.
+#
+# It is here because it was not, and that cost three tags and two releases. The gate was
+# pull_request only, this repository is worked on by pushing to main, and so nothing was
+# compiled until a tag existed — which made every build error cost a version number. One
+# of those errors (`aggregateJavadoc` resolving a sourceless module's classpath) is not
+# reachable from `check` at all, so a cheaper gate that ran only `check` would have let
+# it through twice, which is exactly how often it happened.
+#
+# The whole pipeline runs, not just the Node half, because every page is generated from
+# this repository's own sources: a Java change can break a screenshot, a Javadoc page or
+# a code sample, and only the full build says so (see docs/design/website.md).
+#
+# `push` is main only. A branch gets its run when it opens a pull request, and until then
+# nothing here is protecting anything a release depends on.
 
-name: site-ci
+name: ci
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -18,7 +34,7 @@ permissions:
 # One live run per branch: a force-push mid-build otherwise leaves two runs racing to
 # report on the same PR, and the stale one can finish last.
 concurrency:
-  group: site-ci-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -59,6 +75,12 @@ jobs:
         run: xvfb-run -a ./gradlew check
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
+
+      # The jar publish.yml attaches to the GitHub release. Nothing else in this file
+      # builds it, and a release whose showcase does not assemble is one the READMEs send
+      # a reader to a 404 for.
+      - name: Build the runnable demo jar
+        run: ./gradlew :limn-demo:fatJar
 
       # The three generators, in the order the site build consumes them. None is wired
       # into `check` (the site is a consumer of this repository, not a module of it),

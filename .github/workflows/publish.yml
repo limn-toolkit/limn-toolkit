@@ -207,7 +207,7 @@ jobs:
 
       # GLFW needs a display and Mesa needs its software rasteriser: llvmpipe provides the
       # OpenGL 3.3 core profile the backend requires, with no GPU on the runner. Same list as
-      # site-ci.yml, and for the same reason: trimming it does not fail here, it fails inside a
+      # ci.yml, and for the same reason: trimming it does not fail here, it fails inside a
       # Gradle task where the cause is much harder to read.
       - name: Install Xvfb and Mesa
         run: |
