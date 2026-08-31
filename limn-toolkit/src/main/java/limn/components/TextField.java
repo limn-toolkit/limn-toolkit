@@ -16,6 +16,7 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.input.Keys;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.CharEvent;
@@ -87,6 +88,7 @@ public class TextField extends Widget {
     private long displayVersion = -1; // model.textVersion(); -1 forces the first build
     private Font displayFont;
     private long displayEpoch;
+    private ShapedText.Direction displayBase;
     /** The held composed line and its key while an IME composition is open; see {@link #composedLine}. */
     private ShapedText composed;
     private long composedVersion = -1;
@@ -94,6 +96,7 @@ public class TextField extends Widget {
     private String composedPreedit;
     private Font composedFont;
     private long composedEpoch = -1;
+    private ShapedText.Direction composedBase;
     /** Selection boxes, reused across paints; see {@link #fillSpans}. */
     private float[] spans = new float[8];
     /** Bumped whenever the blink phase restarts; stale scheduled toggles no-op. */
@@ -260,7 +263,7 @@ public class TextField extends Widget {
      * @return the shaped display line; never null
      */
     protected ShapedText shapeDisplay(String text, Font font) {
-        return textRuler().shape(text, font);
+        return textRuler().shape(text, font, ShapedText.Direction.of(text, neutralBase()));
     }
 
     /**
@@ -304,14 +307,36 @@ public class TextField extends Widget {
         Font f = t.body();
         TextRuler ruler = textRuler();
         long version = model.textVersion();
+        // The paragraph direction is part of the key because this cache is hand-written and
+        // never asks ShapedText.matches: the direction a line was shaped for is not recoverable
+        // from the version, the font or the epoch, and a line shaped for the other one is wrong
+        // by a fraction of a point in every geometry query asked of it.
+        ShapedText.Direction base = neutralBase();
         if (display == null || displayVersion != version || !f.equals(displayFont)
-                || displayEpoch != ruler.epoch()) {
+                || displayEpoch != ruler.epoch() || displayBase != base) {
             display = shapeDisplay(model.text(), f);
             displayVersion = version;
             displayFont = f;
             displayEpoch = ruler.epoch();
+            displayBase = base;
         }
         return display;
+    }
+
+    /**
+     * What a string with no strong character of its own falls back to: this field's own resolved
+     * layout direction. A phone number in an Arabic form reads right to left however many Latin
+     * digits it starts with, and the first-strong rule cannot know that; the surrounding
+     * interface can.
+     *
+     * <p>Resolved here and never in a constructor, and read once per pass by every caller that
+     * needs it: two resolutions that disagreed inside one {@code onPaint} would put the caret on
+     * one side and the selection band on the other.
+     */
+    private ShapedText.Direction neutralBase() {
+        return layoutDirection() == LayoutDirection.RTL
+                ? ShapedText.Direction.RTL
+                : ShapedText.Direction.LTR;
     }
 
     /** Entry-point form: resolves the step once for callers that have no tokens in hand. */
@@ -377,17 +402,20 @@ public class TextField extends Widget {
         long version = model.textVersion();
         long epoch = ruler.epoch();
         int cursor = model.cursor();
+        ShapedText.Direction neutral = neutralBase();
         if (composed == null || composedVersion != version || composedCursor != cursor
-                || composedPreedit != preedit || !f.equals(composedFont) || composedEpoch != epoch) {
+                || composedPreedit != preedit || !f.equals(composedFont) || composedEpoch != epoch
+                || composedBase != neutral) {
             String committed = model.text();
             int c = Math.min(cursor, committed.length());
-            composed = ruler.shape(
-                    committed.substring(0, c) + preedit + committed.substring(c), f);
+            String spliced = committed.substring(0, c) + preedit + committed.substring(c);
+            composed = ruler.shape(spliced, f, ShapedText.Direction.of(spliced, neutral));
             composedVersion = version;
             composedCursor = cursor;
             composedPreedit = preedit;
             composedFont = f;
             composedEpoch = epoch;
+            composedBase = neutral;
         }
         return composed;
     }
@@ -415,7 +443,11 @@ public class TextField extends Widget {
         return (height() - metrics.height()) / 2;
     }
 
-    /** Left edge of the text area (after the pad and any leading icon). */
+    /**
+     * Space reserved before the text starts, on the side reading starts from: the pad and any
+     * leading icon. A magnitude and not a coordinate, which is what lets it stay one expression
+     * in both directions; {@link #contentLeft} turns it into an x.
+     */
     private float leadingInset(SizeTokens t) {
         return t.fieldPadH() + (leadingIcon == null ? 0 : t.fieldIcon() + t.gapIcon());
     }
@@ -435,9 +467,56 @@ public class TextField extends Widget {
         return t.fieldTrailing();
     }
 
-    /** Space reserved on the right (pad + any trailing button region). */
+    /**
+     * Space reserved after the text ends, on the side reading ends on: the pad, or the whole
+     * trailing button region when there is one. A magnitude, for {@link #leadingInset}'s reason.
+     */
     private float trailingInset(SizeTokens t) {
         return trailingIcon == null ? t.fieldPadH() : trailingWidth(t);
+    }
+
+    /** Whether this field reads right to left. Resolve it once per pass. */
+    private boolean isRtl() {
+        return layoutDirection() == LayoutDirection.RTL;
+    }
+
+    /**
+     * Physical left edge of the text area: the leading inset reading left to right, and the
+     * trailing one reading right to left. Every coordinate in this widget is composed from this
+     * and {@link #innerWidth}, so the leading icon, the trailing button, the clip, the caret and
+     * the hit test cannot disagree about which side is which.
+     */
+    private float contentLeft(SizeTokens t) {
+        return isRtl() ? trailingInset(t) : leadingInset(t);
+    }
+
+    /**
+     * Where a shaped line of {@code lineWidth} puts its <b>left</b> edge, which is what
+     * {@code drawText} places against.
+     *
+     * <p>Reading left to right the line's leading edge is its left one, so it starts at the
+     * content's left edge and {@code scrollX} pulls it back. Reading right to left the leading
+     * edge is the right one, so the line is pushed out until its right edge meets the content's
+     * right edge, and {@code scrollX} pushes it further. Same convention as a horizontal scroll:
+     * zero is the leading edge, and the offset is a distance travelled.
+     */
+    private float originX(SizeTokens t, float lineWidth) {
+        float left = contentLeft(t);
+        return isRtl() ? left + innerWidth(t) - lineWidth + scrollX : left - scrollX;
+    }
+
+    /**
+     * Where the visible window starts <b>in line coordinates</b>: what {@code scrollX} means once
+     * the direction has been applied. It grows with {@code scrollX} in one direction and shrinks
+     * with it in the other, which is the whole of what {@link #ensureCursorVisible} has to know.
+     */
+    private float viewStart(SizeTokens t, float lineWidth) {
+        return contentLeft(t) - originX(t, lineWidth);
+    }
+
+    /** Physical left edge of the trailing button's region; it sits on the trailing side. */
+    private float trailingRegionX(SizeTokens t) {
+        return isRtl() ? 0 : width() - trailingWidth(t);
     }
 
     @Override
@@ -479,6 +558,16 @@ public class TextField extends Widget {
                 : line.hitTest(px);
     }
 
+    /**
+     * The display-x on the live line under a click at this widget's local {@code lx}: the inverse
+     * of {@link #originX}, and the only place a pointer coordinate becomes a line coordinate.
+     */
+    private float displayX(float lx, SizeTokens t) {
+        float lineWidth = (preedit.isEmpty() ? displayLine(t) : composedLine(t))
+                .metrics().width();
+        return lx - originX(t, lineWidth);
+    }
+
     /** Entry-point form: resolves the step once for callers that have no tokens in hand. */
     private void ensureCursorVisible() {
         ensureCursorVisible(Theme.current().tokensFor(this));
@@ -490,12 +579,22 @@ public class TextField extends Widget {
         }
         float cursorX = caretDisplayX(t); // includes any in-progress composition
         float inner = innerWidth(t);
+        float lineWidth = (preedit.isEmpty() ? displayLine(t) : composedLine(t))
+                .metrics().width();
+        // Where the window onto the line currently starts, and where it would have to start for
+        // the caret to be inside it. Both are line coordinates, so the arithmetic is the one this
+        // always had; only turning the answer back into a scroll offset knows a direction.
+        float view = viewStart(t, lineWidth);
+        float wanted = view;
         // The two CLIP_CLEARANCE terms must stay identical or the caret oscillates per keystroke.
-        if (cursorX - scrollX > inner - Strokes.CLIP_CLEARANCE) {
-            scrollX = cursorX - inner + Strokes.CLIP_CLEARANCE;
+        if (cursorX - wanted > inner - Strokes.CLIP_CLEARANCE) {
+            wanted = cursorX - inner + Strokes.CLIP_CLEARANCE;
         }
-        if (cursorX < scrollX) {
-            scrollX = cursorX;
+        if (cursorX < wanted) {
+            wanted = cursorX;
+        }
+        if (wanted != view) {
+            scrollX = isRtl() ? lineWidth - inner - wanted : wanted;
         }
         clampScrollX(t);
     }
@@ -530,14 +629,19 @@ public class TextField extends Widget {
         Font f = t.body();
         TextMetrics metrics = textRuler().measure("Hg", f);
 
+        // Resolved once for the whole pass: the leading icon, the trailing button, the clip, the
+        // selection band, the text and the caret all compose from this one answer.
+        boolean rtl = isRtl();
+
         Color fill = isEnabled() ? theme.surface : theme.disabledFill;
         canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
         float focus = focusFade.value();
 
-        // Leading icon, tinted to the muted ink, inside the left pad.
+        // Leading icon, tinted to the muted ink, inside the pad on the side reading starts from.
         if (leadingIcon != null) {
             float ico = t.fieldIcon();
-            leadingIcon.paint(canvas, t.fieldPadH(), (height() - ico) / 2, ico,
+            float iconX = rtl ? width() - t.fieldPadH() - ico : t.fieldPadH();
+            leadingIcon.paint(canvas, iconX, (height() - ico) / 2, ico,
                     isEnabled() ? theme.textMuted : theme.disabledText, theme.dark);
         }
         // Trailing coupled button (ComboBox-caret idiom): a themed background that
@@ -547,17 +651,22 @@ public class TextField extends Widget {
         // side), so it reads as one coupled button, not a floating pill.
         if (trailingIcon != null) {
             float regionW = trailingWidth(t);
-            float regionX = width() - regionW;
+            float regionX = trailingRegionX(t);
             if (isEnabled() && (trailingHover || trailingArmed)) {
                 Color bg = trailingArmed
                         ? theme.surfaceRaised.lerp(theme.text, 0.10f)
                         : theme.surfaceRaised;
                 float r = t.radiusMedium();
-                canvas.fillRoundRect(new RoundRect(regionX, 0, regionW, height(),
-                        0, r, r, 0), bg);
+                // Square on the divider side and rounded on the outer one, so the region reads as
+                // one coupled button either way round; which side is which is the direction's.
+                canvas.fillRoundRect(rtl
+                        ? new RoundRect(regionX, 0, regionW, height(), r, 0, 0, r)
+                        : new RoundRect(regionX, 0, regionW, height(), 0, r, r, 0), bg);
             }
-            // Its own inset token: the divider is a paint coordinate, and padV is not one.
-            canvas.drawLine(regionX, t.fieldDividerInset(), regionX,
+            // Its own inset token: the divider is a paint coordinate, and padV is not one. It
+            // stands on the region's inner edge, which is the far one reading right to left.
+            float dividerX = rtl ? regionX + regionW : regionX;
+            canvas.drawLine(dividerX, t.fieldDividerInset(), dividerX,
                     height() - t.fieldDividerInset(), Strokes.BORDER, theme.outline);
             float ico = t.fieldIcon();
             Color tint = !isEnabled() ? theme.disabledText
@@ -571,24 +680,33 @@ public class TextField extends Widget {
         // text is never clipped fully out of view.
         clampScrollX(t);
 
-        float left = leadingInset(t);
+        float left = contentLeft(t);
+        float inner = innerWidth(t);
         canvas.save();
         canvas.clipRect(left - Strokes.AA_BLEED, 0,
-                innerWidth(t) + 2 * Strokes.AA_BLEED, height());
+                inner + 2 * Strokes.AA_BLEED, height());
         float inkTop = textTop(metrics);
         float baseline = inkTop + metrics.ascent();
-        float originX = left - scrollX;
+        float liveWidth = (preedit.isEmpty() ? displayLine(t) : composedLine(t))
+                .metrics().width();
+        float originX = originX(t, liveWidth);
 
         boolean composing = !preedit.isEmpty();
         String hint = placeholder.get();
         // The model's own emptiness, not the display line's: a substituted display form has the
         // model's index space, so the two agree, and asking the model never touches the content.
         if (model.length() == 0 && !composing && !hint.isEmpty()) {
-            // Keep the hint visible even while focused (only the caret joins it).
-            canvas.drawText(hint, left, baseline, f, theme.textMuted);
+            // Keep the hint visible even while focused (only the caret joins it). The hint is a
+            // string and not a held line, so it is shaped here for the field's own direction and
+            // placed against the leading edge, which is the edge the caret is on.
+            ShapedText hintLine = textRuler().shape(hint, f,
+                    ShapedText.Direction.of(hint, neutralBase()));
+            float hintX = rtl ? left + inner - hintLine.metrics().width() : left;
+            float caretX = rtl ? left + inner : left;
+            canvas.drawText(hintLine, hintX, baseline, theme.textMuted);
             if (isFocused() && cursorVisible) {
-                canvas.drawLine(left, inkTop - Strokes.INK_BLEED,
-                        left, inkTop + metrics.height() + Strokes.INK_BLEED,
+                canvas.drawLine(caretX, inkTop - Strokes.INK_BLEED,
+                        caretX, inkTop + metrics.height() + Strokes.INK_BLEED,
                         Strokes.CARET, theme.text);
             }
         } else if (composing) {
@@ -703,7 +821,9 @@ public class TextField extends Widget {
         float ly = sceneToLocalY(event.y());
         // Bounded on both axes: a DRAG that leaves the field vertically used to keep
         // reporting "over the trailing button" because Y was ignored entirely.
-        boolean overTrailing = trailingIcon != null && lx >= width() - trailingWidth(t)
+        float trailingLeft = trailingRegionX(t);
+        boolean overTrailing = trailingIcon != null
+                && lx >= trailingLeft && lx < trailingLeft + trailingWidth(t)
                 && ly >= 0 && ly < height();
         switch (event.type()) {
             case MOVE, ENTER -> {
@@ -742,8 +862,7 @@ public class TextField extends Widget {
                             onTrailing.run(); // the coupled action (e.g. clear/submit)
                         }
                     } else {
-                        float px = lx - leadingInset(t) + scrollX;
-                        model.setCaret(positionAt(px, t),
+                        model.setCaret(positionAt(displayX(lx, t), t),
                                 (event.modifiers() & Keys.MOD_SHIFT) != 0);
                         resetBlink();
                     }
@@ -752,8 +871,7 @@ public class TextField extends Widget {
             }
             case DRAG -> {
                 if (!overTrailing) {
-                    float px = lx - leadingInset(t) + scrollX;
-                    model.setCaret(positionAt(px, t), true);
+                    model.setCaret(positionAt(displayX(lx, t), t), true);
                     ensureCursorVisible(t);
                     resetBlink();
                 }
@@ -950,9 +1068,11 @@ public class TextField extends Widget {
         // is no enclosing measure/paint pass to thread tokens down from.
         SizeTokens t = Theme.current().tokensFor(this);
         TextMetrics metrics = textRuler().measure("Hg", t.body());
-        float left = leadingInset(t);
-        float localX = left - scrollX + caretDisplayX(t);
-        localX = Math.max(left, Math.min(localX, width() - trailingInset(t)));
+        float left = contentLeft(t);
+        float liveWidth = (preedit.isEmpty() ? displayLine(t) : composedLine(t))
+                .metrics().width();
+        float localX = originX(t, liveWidth) + caretDisplayX(t);
+        localX = Math.max(left, Math.min(localX, left + innerWidth(t)));
         float localY = textTop(metrics) - Strokes.INK_BLEED;
         return new Rect(localToSceneX() + localX, localToSceneY() + localY,
                 Strokes.CARET, metrics.height() + 2 * Strokes.INK_BLEED);

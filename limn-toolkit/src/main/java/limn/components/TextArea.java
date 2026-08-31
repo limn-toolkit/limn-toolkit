@@ -13,6 +13,7 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.input.Keys;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.CharEvent;
@@ -299,6 +300,54 @@ public class TextArea extends Widget {
         return Math.max(0, width() - 2 * t.fieldPadH() - gutters.verticalStrip());
     }
 
+    /** Whether this area reads right to left. Resolve it once per pass. */
+    private boolean isRtl() {
+        return layoutDirection() == LayoutDirection.RTL;
+    }
+
+    /**
+     * What a line with no strong character of its own falls back to: this area's own resolved
+     * layout direction. Never read in a constructor, and read once per pass by every caller.
+     */
+    private ShapedText.Direction neutralBase() {
+        return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
+    }
+
+    /**
+     * Where content space puts its <b>left</b> edge in this widget's own coordinates: the paint
+     * translate, and the one conversion every click, caret and clamp goes through.
+     *
+     * <p>Reading left to right the content starts at the pad and {@code scrollX} pulls it back.
+     * Reading right to left it is pushed out until its right edge meets the viewport's right
+     * edge, and {@code scrollX} pushes it further, which is the same convention a
+     * {@link ScrollView} uses: zero is the leading edge and the offset is a distance travelled.
+     */
+    private float contentOriginX(SizeTokens t) {
+        float padX = t.fieldPadH();
+        return isRtl()
+                ? padX + viewWidth(t) - contentWidth(t) + scrollX
+                : padX - scrollX;
+    }
+
+    /**
+     * Where the visible window starts <b>in content coordinates</b>: what {@code scrollX} means
+     * once the direction has been applied. It grows with {@code scrollX} one way round and
+     * shrinks with it the other, which is all {@link #ensureCursorVisible} has to know.
+     */
+    private float viewStartX(SizeTokens t) {
+        return t.fieldPadH() - contentOriginX(t);
+    }
+
+    /**
+     * Where one line puts its left edge inside content space. Reading left to right every line
+     * starts at zero; reading right to left each is flush against the content's <em>right</em>
+     * edge, so a short line and a long one share the edge reading starts from rather than the one
+     * it ends on.
+     */
+    private float lineOriginX(ShapedText line, SizeTokens t) {
+        return isRtl() ? contentWidth(t) - line.metrics().width() : 0;
+    }
+
     private float viewHeight(SizeTokens t) {
         return Math.max(0, height() - 2 * t.areaPad() - gutters.horizontalStrip());
     }
@@ -527,10 +576,13 @@ public class TextArea extends Widget {
             // The composed line, not the committed one plus a measured preedit: Arabic and Indic
             // join across the seam the caret sits on, so three measurements are three wrong
             // numbers.
-            return composedLine(t).caretX(composedCaret(cursorInLine(line)));
+            ShapedText composedForLine = composedLine(t);
+            return lineOriginX(composedForLine, t)
+                    + composedForLine.caretX(composedCaret(cursorInLine(line)));
         }
         ShapedText shaped = shapedLine(line, t);
-        return shaped.caretX(lineLocal(model.caret(), model.lineStartOfLine(line), shaped));
+        return lineOriginX(shaped, t)
+                + shaped.caretX(lineLocal(model.caret(), model.lineStartOfLine(line), shaped));
     }
 
     /**
@@ -568,6 +620,9 @@ public class TextArea extends Widget {
     private ShapedText.Position caretAtContent(float px, float py, SizeTokens t) {
         int line = Math.max(0, Math.min((int) (py / lineHeight(t)), model.lineCount() - 1));
         ShapedText shaped = shapedLine(line, t);
+        // Out of content space and into this line's own: the two differ by where the line was
+        // placed, which reading right to left is its flush-right offset and not zero.
+        px -= lineOriginX(shaped, t);
         // Empty space to the right of the line means the LOGICAL end of the line. On a line that
         // ends in the direction opposite the paragraph's, the nearest cluster to the right edge is
         // not the last character, so hitTest's clamp-to-nearest is wrong exactly here.
@@ -607,13 +662,13 @@ public class TextArea extends Widget {
         if (cachedLines != null && slot >= 0 && slot < cachedLines.length) {
             ShapedText held = cachedLines[slot];
             if (held == null) {
-                held = ruler.shape(model.lineText(line), f);
+                held = shapeOneLine(ruler, model.lineText(line), f);
                 cachedLines[slot] = held;
             }
             return noteShaped(held);
         }
         if (spilledLine == null || spilledLineIndex != line) {
-            spilledLine = ruler.shape(model.lineText(line), f);
+            spilledLine = shapeOneLine(ruler, model.lineText(line), f);
             spilledLineIndex = line;
         }
         return noteShaped(spilledLine);
@@ -634,7 +689,9 @@ public class TextArea extends Widget {
     private void syncLineCache(Font f, TextRuler ruler) {
         long version = model.textVersion();
         long epoch = ruler.epoch();
-        if (version == cachedTextVersion && f.equals(cachedLineFont) && epoch == cachedLineEpoch) {
+        ShapedText.Direction base = neutralBase();
+        if (version == cachedTextVersion && f.equals(cachedLineFont) && epoch == cachedLineEpoch
+                && base == cachedLineBase) {
             return;
         }
         if (cachedLines != null) {
@@ -648,6 +705,16 @@ public class TextArea extends Widget {
         cachedTextVersion = version;
         cachedLineFont = f;
         cachedLineEpoch = epoch;
+        cachedLineBase = base;
+    }
+
+    /**
+     * One line, shaped for the direction the surrounding interface reads. The first-strong rule
+     * still decides everything a strong character can decide; the fallback is what this widget
+     * knows and the string does not.
+     */
+    private ShapedText shapeOneLine(TextRuler ruler, String text, Font f) {
+        return ruler.shape(text, f, ShapedText.Direction.of(text, neutralBase()));
     }
 
     /** Points the window at the lines about to be painted, dropping slots that now name others. */
@@ -683,6 +750,13 @@ public class TextArea extends Widget {
     private Font cachedLineFont;
     /** The ruler epoch they were shaped under, the other half. See {@link #syncLineCache}. */
     private long cachedLineEpoch = -1;
+    /**
+     * The neutral fallback they were shaped under. Part of the key because this cache is
+     * hand-written and never asks {@link ShapedText#matches}: a direction change is invisible to
+     * the version, the font and the epoch alike, and the lines it produced are wrong by a
+     * fraction of a point in every geometry query asked of them.
+     */
+    private ShapedText.Direction cachedLineBase;
     /** One line outside the window, shaped on demand; see {@link #shapedLine}. */
     private ShapedText spilledLine;
     private int spilledLineIndex = -1;
@@ -774,12 +848,20 @@ public class TextArea extends Widget {
         float lineHeight = lineHeight(t);
         float cx = caretContentX(t); // includes any in-progress composition
         float cy = model.lineOf(cursor) * lineHeight;
+        // Where the window onto content space starts, and where it would have to start for the
+        // caret to be inside it. Both are content coordinates, so the arithmetic is the one this
+        // always had; only turning the answer back into a scroll offset knows a direction.
+        float view = viewStartX(t);
+        float wanted = view;
         // The two CLIP_CLEARANCE terms must stay identical or the caret oscillates per keystroke.
-        if (cx - scrollX > viewWidth(t) - Strokes.CLIP_CLEARANCE) {
-            scrollX = cx - viewWidth(t) + Strokes.CLIP_CLEARANCE;
+        if (cx - wanted > viewWidth(t) - Strokes.CLIP_CLEARANCE) {
+            wanted = cx - viewWidth(t) + Strokes.CLIP_CLEARANCE;
         }
-        if (cx < scrollX) {
-            scrollX = cx;
+        if (cx < wanted) {
+            wanted = cx;
+        }
+        if (wanted != view) {
+            scrollX = isRtl() ? contentWidth(t) - viewWidth(t) - wanted : wanted;
         }
         if (cy + lineHeight - scrollY > viewHeight(t)) {
             scrollY = cy + lineHeight - viewHeight(t);
@@ -834,7 +916,7 @@ public class TextArea extends Widget {
         // pad and sit on the rounded border.
         canvas.clipRect(padX - Strokes.AA_BLEED, padY,
                 viewWidth(t) + 2 * Strokes.AA_BLEED, viewHeight(t));
-        canvas.translate(padX - scrollX, padY - scrollY);
+        canvas.translate(contentOriginX(t), padY - scrollY);
 
         int firstLine = Math.max(0, (int) (scrollY / lineHeight));
         int lastLine = Math.min(model.lineCount() - 1,
@@ -851,11 +933,17 @@ public class TextArea extends Widget {
         for (int line = firstLine; line <= lastLine; line++) {
             float top = lineTop(line, lineHeight);
             if (composing && line == composingLine) {
-                paintComposingLine(canvas, theme, composedLine(t), cursorInLine(line), top,
-                        metrics, lineHeight, ink);
+                ShapedText composedForLine = composedLine(t);
+                paintComposingLine(canvas, theme, composedForLine, cursorInLine(line), top,
+                        metrics, lineHeight, ink, lineOriginX(composedForLine, t));
                 continue; // composition suppresses selection painting on this line
             }
             ShapedText shaped = shapedLine(line, t);
+            // Where this line sits inside content space: zero reading left to right, and flush
+            // against the content's right edge reading right to left. Threaded through every x
+            // below rather than applied as a transform, so one line's placement can never leak
+            // into the next one's.
+            float ox = lineOriginX(shaped, t);
             if (selection) {
                 int lineStart = model.lineStartOfLine(line);
                 int lineEnd = lineStart + shaped.text().length();
@@ -870,7 +958,8 @@ public class TextArea extends Widget {
                     int boxes = fillSpans(shaped, from - lineStart, to - lineStart);
                     for (int i = 0; i < boxes; i++) {
                         float x0 = spans[i * 2];
-                        canvas.fillRect(x0, top, spans[i * 2 + 1] - x0, lineHeight, selectionFill);
+                        canvas.fillRect(ox + x0, top, spans[i * 2 + 1] - x0, lineHeight,
+                                selectionFill);
                     }
                     if (breakSelected) {
                         // An optical gap next to the type it trails, so it rides the em-tuned gap
@@ -883,7 +972,8 @@ public class TextArea extends Widget {
                         float hintX = shaped.baseDirection() == ShapedText.Direction.LTR
                                 ? endEdge
                                 : endEdge - t.newlineHint();
-                        canvas.fillRect(hintX, top, t.newlineHint(), lineHeight, selectionFill);
+                        canvas.fillRect(ox + hintX, top, t.newlineHint(), lineHeight,
+                                selectionFill);
                     } else if (boxes == 0) {
                         // selection(i, i) is an empty list — a caret is not a zero-width selection
                         // — and a range of zero-advance clusters yields none either. The band still
@@ -894,12 +984,12 @@ public class TextArea extends Widget {
                         float sliverX = shaped.baseDirection() == ShapedText.Direction.LTR
                                 ? startEdge
                                 : startEdge - Strokes.MIN_SELECTION_SLIVER;
-                        canvas.fillRect(sliverX, top, Strokes.MIN_SELECTION_SLIVER, lineHeight,
-                                selectionFill);
+                        canvas.fillRect(ox + sliverX, top, Strokes.MIN_SELECTION_SLIVER,
+                                lineHeight, selectionFill);
                     }
                 }
             }
-            canvas.drawText(shaped, 0, top + metrics.ascent(), ink);
+            canvas.drawText(shaped, ox, top + metrics.ascent(), ink);
         }
 
         // Normal caret (the composing line draws its own caret inside the preedit). Inset by
@@ -912,7 +1002,7 @@ public class TextArea extends Widget {
         if (isFocused() && cursorVisible && !model.hasSelection() && !composing) {
             int caretLine = model.lineOf(model.cursor());
             ShapedText shaped = shapedLine(caretLine, t);
-            float cx = shaped.caretX(
+            float cx = lineOriginX(shaped, t) + shaped.caretX(
                     lineLocal(model.caret(), model.lineStartOfLine(caretLine), shaped));
             float cy = lineTop(caretLine, lineHeight);
             canvas.drawLine(cx, cy + Strokes.INK_BLEED, cx, cy + lineHeight - Strokes.INK_BLEED,
@@ -936,9 +1026,11 @@ public class TextArea extends Widget {
      * @param line     the composed line: committed text with the preedit spliced in at the caret
      * @param cursorAt the cursor's char offset within the committed line, which is where the
      *                 preedit begins inside {@code line}
+     * @param originX  where this line sits inside content space; zero reading left to right
      */
     private void paintComposingLine(Canvas canvas, Theme theme, ShapedText line, int cursorAt,
-                                    float top, TextMetrics metrics, float lineHeight, Color ink) {
+                                    float top, TextMetrics metrics, float lineHeight, Color ink,
+                                    float originX) {
         float baseline = top + metrics.ascent();
         // Asked once and read twice, and only when there IS a converting block: an empty range
         // still allocates a scratch box array inside selection(), on a path that runs per blink.
@@ -949,9 +1041,10 @@ public class TextArea extends Widget {
 
         // Highlight first, so it sits behind the ink rather than over it.
         for (ShapedText.Span s : focusBoxes) {
-            canvas.fillRect(s.x0(), top, s.width(), lineHeight, theme.primary.withAlpha(0.18f));
+            canvas.fillRect(originX + s.x0(), top, s.width(), lineHeight,
+                    theme.primary.withAlpha(0.18f));
         }
-        canvas.drawText(line, 0, baseline, ink);
+        canvas.drawText(line, originX, baseline, ink);
         // The BOTTOM OF THE INK BOX, from the line's own anchor, not "baseline + 2". A fixed
         // 2 pt drop is inside the descender at every step and cuts it outright at 19 pt, since
         // the descender runs 3.42 pt below the baseline at MEDIUM and 4.64 at XLARGE. TextField
@@ -961,16 +1054,17 @@ public class TextArea extends Widget {
         // One stroke per box, because a preedit that spans a direction boundary is underlined in
         // as many pieces as it is drawn in.
         for (ShapedText.Span s : line.selection(cursorAt, cursorAt + preedit.length())) {
-            canvas.drawLine(s.x0(), underlineY, s.x1(), underlineY,
+            canvas.drawLine(originX + s.x0(), underlineY, originX + s.x1(), underlineY,
                     Strokes.IME_UNDERLINE, theme.textMuted);
         }
         for (ShapedText.Span s : focusBoxes) {
-            canvas.drawLine(s.x0(), underlineY, s.x1(), underlineY,
+            canvas.drawLine(originX + s.x0(), underlineY, originX + s.x1(), underlineY,
                     Strokes.IME_UNDERLINE_ACTIVE, theme.primary);
         }
 
         if (isFocused() && cursorVisible) {
-            float cx = line.caretX(composedCaret(cursorAt)); // the same x the scroll clamp reads
+            // The same x the scroll clamp reads, which composes it the same way.
+            float cx = originX + line.caretX(composedCaret(cursorAt));
             canvas.drawLine(cx, top + Strokes.INK_BLEED, cx, top + lineHeight - Strokes.INK_BLEED,
                     Strokes.CARET, theme.text);
         }
@@ -993,18 +1087,21 @@ public class TextArea extends Widget {
         long version = model.textVersion();
         long epoch = ruler.epoch();
         int cursor = model.cursor();
+        ShapedText.Direction base = neutralBase();
         if (composed == null || composedVersion != version || composedCursor != cursor
-                || composedPreedit != preedit || !f.equals(composedFont) || composedEpoch != epoch) {
+                || composedPreedit != preedit || !f.equals(composedFont) || composedEpoch != epoch
+                || composedBase != base) {
             int line = model.lineOf(cursor);
             String lineText = model.lineText(line);
             int at = cursorInLine(line);
-            composed = ruler.shape(
+            composed = shapeOneLine(ruler,
                     lineText.substring(0, at) + preedit + lineText.substring(at), f);
             composedVersion = version;
             composedCursor = cursor;
             composedPreedit = preedit;
             composedFont = f;
             composedEpoch = epoch;
+            composedBase = base;
         }
         // Into the extent like any other shaped line, and for the same reason: while a composition
         // is up this IS the caret's line, so it is what the scroll clamp has to be able to reach.
@@ -1015,6 +1112,7 @@ public class TextArea extends Widget {
 
     /** The composed line while a preedit is up; see {@link #composedLine}. */
     private ShapedText composed;
+    private ShapedText.Direction composedBase;
     private long composedVersion = -1;
     private int composedCursor = -1;
     private String composedPreedit;
@@ -1049,13 +1147,15 @@ public class TextArea extends Widget {
                 if (event.button() != Keys.MOUSE_LEFT) {
                     return;
                 }
-                model.setCaret(caretAtContent(lx - padX + scrollX, ly - padY + scrollY, t),
+                model.setCaret(
+                        caretAtContent(lx - contentOriginX(t), ly - padY + scrollY, t),
                         (event.modifiers() & Keys.MOD_SHIFT) != 0);
                 resetBlink();
                 event.consume();
             }
             case DRAG -> {
-                model.setCaret(caretAtContent(lx - padX + scrollX, ly - padY + scrollY, t), true);
+                model.setCaret(
+                        caretAtContent(lx - contentOriginX(t), ly - padY + scrollY, t), true);
                 ensureCursorVisible(t);
                 resetBlink();
                 invalidate();
@@ -1387,7 +1487,8 @@ public class TextArea extends Widget {
         // Content space → local (the paint translate is padX/padY - scroll), clamped so
         // the candidate window stays anchored inside the visible padded viewport. The clamp
         // is per axis for the same reason the translate is.
-        float localX = Math.max(padX, Math.min(padX - scrollX + cxContent, width() - padX));
+        float localX = Math.max(padX,
+                Math.min(contentOriginX(t) + cxContent, padX + viewWidth(t)));
         float localY = Math.max(padY, Math.min(padY - scrollY + cyContent, height() - padY));
         return new Rect(localToSceneX() + localX, localToSceneY() + localY, Strokes.CARET, lh);
     }
