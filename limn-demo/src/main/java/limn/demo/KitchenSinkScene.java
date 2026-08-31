@@ -32,6 +32,7 @@ import limn.graphics.Images;
 import limn.graphics.TextMetrics;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
+import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -349,6 +350,15 @@ final class KitchenSinkScene {
         languagePicker.setSelectedIndex(Languages.indexOf(limn.i18n.I18n.locale()));
         languagePicker.onSelect(i -> limn.i18n.I18n.setLocale(Languages.LOCALES.get(i)));
 
+        // The fourth process-wide switch, and it sits beside the language one on purpose:
+        // the two look like one control and are two axes, which is the claim the axis exists
+        // to make. Switching to Arabic leaves this screen reading left to right, and switching
+        // this leaves the words in whatever language they were. Named by the enum, like the
+        // size picker beside it, because the axis is what it is called.
+        ComboBox directionPicker = new ComboBox(
+                java.util.Arrays.stream(LayoutDirection.values()).map(Enum::name).toList());
+        directionPicker.setSelectedIndex(LayoutDirection.processDefault().ordinal());
+
         Row toolbar = new Row();
         toolbar.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         // The title at its natural width with a SPACER taking the slack, not the title
@@ -361,6 +371,7 @@ final class KitchenSinkScene {
         toolbar.add(load);
         toolbar.add(spinner);
         toolbar.add(languagePicker);
+        toolbar.add(directionPicker);
         toolbar.add(sizePicker);
         toolbar.add(themePicker);
 
@@ -520,6 +531,13 @@ final class KitchenSinkScene {
         // itself. Doing it by hand would miss the popups, which is the bug the subscription
         // point was chosen to avoid.
         sizePicker.onSelect(i -> ControlSize.setProcessDefault(ControlSize.values()[i]));
+        // Process-wide for the same reason the step is: this is the ROOT of the inheritance
+        // chain, so it reaches the menus and the combo popups that live in their own scenes,
+        // which a per-scene default could not. No relayout by hand either, and for the same
+        // reason: every live scene subscribes to this in its constructor. A subtree that
+        // declares its own direction keeps it, which is the whole point of an inherited axis.
+        directionPicker.onSelect(i ->
+                LayoutDirection.setProcessDefault(LayoutDirection.values()[i]));
         // The "Toggle theme" menu item flips between light and dark.
         Runnable toggleTheme = () ->
                 applyTheme.accept(Theme.current() == Theme.dark() ? Theme.light() : Theme.dark());
