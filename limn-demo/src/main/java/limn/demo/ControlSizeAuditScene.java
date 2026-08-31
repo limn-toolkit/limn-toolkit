@@ -18,6 +18,7 @@ import limn.graphics.TextMetrics;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.Insets;
+import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -275,22 +276,33 @@ final class ControlSizeAuditScene {
             canvas.drawLine(cx - reach, cy + reach, cx + reach, cy - reach, Strokes.FOCUS_RING, ink);
         }
 
-        /** One row's count, right-aligned in the gutter the rows leave free. */
+        /**
+         * One row's count, in the gutter the ramp leaves free.
+         *
+         * <p>The ramp runs from the edge reading starts on, so the gutter is on the other one and
+         * this annotation has to follow it. Reading right to left it was landing on top of the
+         * controls it annotates, which is what the mirrored capture of this scene showed: the
+         * widgets were placed correctly and the scene's own chrome was not. That is the answer to
+         * whether an audit screen has to be pinned left to right &mdash; it does not, it has to
+         * read the axis like everything else.
+         */
         private void drawVerdict(Canvas canvas, Theme theme, SizeTokens t, float centreY,
                                  Tally row) {
             String text = row.belowFloor == 0
                     ? row.targets + " targets, all pass"
                     : row.targets + " targets, " + row.belowFloor + " short";
             TextMetrics m = canvas.measureText(text, t.label());
+            float x = layoutDirection() == LayoutDirection.RTL ? 0 : width() - m.width();
             // Optical centring on the row: the visual middle of a line of text is the middle of
             // its ink box, which sits above the baseline by (ascent - descent) / 2.
-            canvas.drawText(text, width() - m.width(), centreY + (m.ascent() - m.descent()) / 2,
+            canvas.drawText(text, x, centreY + (m.ascent() - m.descent()) / 2,
                     t.label(), row.belowFloor == 0 ? theme.textMuted : theme.danger);
         }
 
         /** The page total, plus the worst measured extent per offending component. */
         private void drawFooter(Canvas canvas, Theme theme, SizeTokens t, Tally page) {
             TextMetrics ref = canvas.measureText("0", t.label());
+            boolean rtl = layoutDirection() == LayoutDirection.RTL;
             float top = height() - 2 * ref.lineHeight();
             canvas.drawLine(0, top - t.spacingSmall(), width(), top - t.spacingSmall(),
                     Strokes.HAIRLINE, theme.outline);
@@ -298,7 +310,8 @@ final class ControlSizeAuditScene {
             String head = String.format(Locale.ROOT,
                     "WCAG 2.2 SC 2.5.8 (AA), %.0fpt: %d targets, %d short",
                     Strokes.MIN_HIT_TARGET, page.targets, page.belowFloor);
-            canvas.drawText(head, 0, top + ref.ascent(), t.label(), theme.text);
+            canvas.drawText(head, leadingX(canvas, head, t, rtl), top + ref.ascent(),
+                    t.label(), theme.text);
 
             String detail;
             if (page.belowFloor == 0) {
@@ -315,8 +328,14 @@ final class ControlSizeAuditScene {
                 }
                 detail = ellipsize(canvas, sb.toString(), t);
             }
-            canvas.drawText(detail, 0, top + ref.lineHeight() + ref.ascent(), t.label(),
+            canvas.drawText(detail, leadingX(canvas, detail, t, rtl),
+                    top + ref.lineHeight() + ref.ascent(), t.label(),
                     page.belowFloor == 0 ? theme.success : theme.danger);
+        }
+
+        /** Where a line of the footer starts: the edge this overlay reads from. */
+        private float leadingX(Canvas canvas, String text, SizeTokens t, boolean rtl) {
+            return rtl ? width() - canvas.measureText(text, t.label()).width() : 0;
         }
 
         /** Trims the detail line to the overlay's width; it grows with the failure list. */

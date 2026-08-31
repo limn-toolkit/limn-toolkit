@@ -37,6 +37,7 @@ documentation and a guarantee.
 | --- | --- |
 | [background-work.md](background-work.md) | `Ui.post`, `Ui.async`, `Ui.work`: which to reach for, what is ordered and what is not, the discard trap, the rule a loader obeys |
 | [size-axis.md](size-axis.md) | ControlSize, SizeTokens, Strokes: locked vs tabled, the density floor, the constructor trap |
+| [direction-axis.md](direction-axis.md) | LayoutDirection: why mirroring is a placement decision and never a transform, the shared host link, the two epochs, what a direction does to a held value, where a horizontal scroll starts, what deliberately does not mirror |
 | [text-shaping.md](text-shaping.md) | ShapedText, TextRuler and the HarfBuzz backend: the one text path and what holding a value still buys, the visual and logical axes, itemization, the two caches and what sizes them, what a missing native or a missing face costs |
 | [text-and-input.md](text-and-input.md) | TextField, TextArea, PasswordField, Spinner: the held shaped line, the caret's side, visual versus logical movement, the display seam, the drawn password dot, insets, scrollbar geometry |
 | [popups-and-dialogs.md](popups-and-dialogs.md) | Dialog, PopupMenu, ComboBox: window vs in-scene, stacking, the native refit |

@@ -56,8 +56,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * <h2>What a direction change does to a held value</h2>
  * A paragraph's base direction decides which bidi level a boundary neutral takes, which decides
  * which run it extends, which decides which face measures it. A line of mixed content therefore
- * measures a fraction of a point differently in the two directions. The amount is bounded and does
- * not accumulate, and it is nonetheless enough to make a held
+ * measures a fraction of a point differently in the two directions. The amount is one face's
+ * disagreement about a space per neutral at the paragraph's <em>edge</em> &mdash; an interior
+ * neutral does not move at all &mdash; so it is small on any real line, and it is nonetheless
+ * enough to make a held
  * {@link limn.graphics.ShapedText} and a cached measurement both stale across a change &mdash;
  * which is why {@link limn.graphics.ShapedText#matches} takes a direction and why
  * {@link Widget#measure} keys its cache on the resolved one.

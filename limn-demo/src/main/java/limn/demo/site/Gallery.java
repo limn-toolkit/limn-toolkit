@@ -167,11 +167,19 @@ public final class Gallery {
         // components carry translated text of their own (the search field's placeholder is
         // the one that shows), and a capture run on a machine set to another language
         // published that language onto an English page.
+        //
+        // The layout direction is pinned beside it, and for the same reason in a second
+        // dimension: it is a process default that any earlier code in this JVM may have moved,
+        // and a gallery published inside out is the same bug wearing a different hat. The site
+        // has no right-to-left locale and this pin is what keeps it that way on purpose rather
+        // than by luck.
         List<Shot> shots = new ArrayList<>();
         for (GalleryEntry entry : entries) {
             GalleryEntry english = new GalleryEntry(entry.id(), entry.title(), entry.region(),
                     () -> {
                         limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+                        limn.scene.LayoutDirection.setProcessDefault(
+                                limn.scene.LayoutDirection.LTR);
                         return entry.builder().get();
                     },
                     // Attached here rather than in the entry list, so that the scene

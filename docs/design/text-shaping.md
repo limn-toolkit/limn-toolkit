@@ -205,6 +205,36 @@ The memo compares the epoch on the way *in* rather than being cleared when the c
 resolution change costs one counter increment and the first lookup afterwards throws the whole
 generation away.
 
+## The base direction is an input to shaping, not only to placement
+
+A paragraph direction is easy to file under "where the line goes". It is not: it changes what the
+line *is*.
+
+The direction decides which bidi level a **boundary neutral** takes — the space at the seam between
+a right-to-left run and what follows it. That level decides which run the neutral extends, and that
+decides which face measures it. Under a left-to-right base the trailing space of an Arabic word is a
+separate run at level 0 and is measured in the Latin face; under a right-to-left base it joins the
+Arabic run and is measured in the Arabic one. The two faces disagree about how wide a space is, so
+the line comes out a fraction of a point different.
+
+Two properties of that matter, and they pull opposite ways. **It is bounded by the neutrals at the
+paragraph's edge, and linear in them.** An interior neutral does not move at all — it already
+extends the run it follows under either base — and neither does a leading one; but a *trailing* run
+of neutrals sits at the edge in its entirety, so every one of them changes face with the base and
+the difference is one face-difference apiece. Real lines carry a handful at most, which is why the
+effect stays sub-point in practice; it is not constant, and an earlier reading of this that said so
+was generalising the interior case. And **it is not zero**, which is why `ShapedText.matches`
+compares the direction and why
+`Widget.measure` keys its cache on the resolved one. A widget that held a line across a direction
+change and was told it was current would keep drawing yesterday's direction: right-looking, and
+wrong in every geometry query asked of it.
+
+The memo in front of the shaper keys on the direction for the same reason, and always did.
+
+`matches` is not sufficient on its own, because several widgets key their held lines by hand rather
+than calling it — see [text-and-input.md](text-and-input.md) for why, and
+[direction-axis.md](direction-axis.md) for what a hand-written key then owes.
+
 ## When the native is absent, and when a face is
 
 `HarfBuzzShaper.isAvailable()` answers once for the life of the process. Where it says no, every

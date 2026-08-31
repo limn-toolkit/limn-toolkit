@@ -55,6 +55,38 @@ the extent is the larger of the two answers the widget has, floored by the wides
 actually shaped — which is enough precisely because reaching a line is what shapes it, and a line
 nobody has been near can only make the extent too small for text nobody can see yet.
 
+**A direction change is a fourth thing that makes a held line stale**, and the hand-written key is
+exactly why it does not come for free. `ShapedText.matches` learned about the paragraph direction
+when the direction axis landed; a cache that does not call `matches` learned nothing. So the
+resolved direction is part of these keys too — the field's display line, the area's window and its
+spill, and both composed lines. The amount at stake is a fraction of a point on a line of mixed
+content, which is precisely why it has to be a key rather than a judgement: it is invisible in a
+screenshot and wrong in every geometry query asked of the value.
+
+What goes in the key is the widget's direction as the shaper's *neutral fallback*, not the
+paragraph direction the line ended up with. So a direction change drops lines whose resolved base
+did not actually move. That is the cheap direction to be wrong in, and a direction change already
+relayouts the tree.
+
+## Where the text starts, when the interface reads the other way
+
+A field composes every horizontal coordinate from two numbers: the physical left edge of its content
+area, and where the shaped line puts its own left edge inside it. Reading left to right the line's
+leading edge is its left one and the scroll pulls it back; reading right to left the leading edge is
+the right one, so the line is pushed out until its right edge meets the content's right edge and the
+scroll pushes it further. The leading and trailing insets stay *magnitudes* — only turning one into
+an x knows a direction — which is what keeps the leading icon, the trailing button, the clip, the
+selection band, the caret and the hit test from ever disagreeing about which side is which.
+
+An area has one decision a field never takes, because it has a content space wider than one line: a
+short line and a long one share the edge reading **starts** from, not the one it ends on. So content
+space gets an origin inside the viewport and each line gets an origin inside content space, and both
+are threaded through the paint as coordinates rather than applied as a transform — one line's
+placement must not leak into the next one's.
+
+The scroll offset itself is a distance travelled from the leading edge in both directions, never a
+coordinate, so its clamp keeps its form. See [direction-axis.md](direction-axis.md).
+
 ## The caret is an index and a side
 
 An index on a direction boundary is **two** points on the line: the character before it and the

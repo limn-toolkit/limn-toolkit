@@ -1,8 +1,9 @@
 # ADR 032. Layout mirroring: direction is an inherited axis, not a transform
 
-- **Status:** **Proposed.** Nothing here is implemented. This document is written to be approved
-  or rejected before any code is written, which is why §0 is longer than §1: the decisions are
-  cheap and the measurements are what make them defensible.
+- **Status:** **Accepted and implemented, 2026-08-31.** §1's decisions are in the tree, in the
+  six phases of §6. §9 records what the implementation settled, including the places this document
+  turned out to be wrong; read it beside §0, because three of §0's findings do not survive contact
+  and one of them is the finding the design was built on.
 - **Date:** 2026-08-31
 - **Scope:** how a Limn interface lays out right to left — where the direction lives, how it
   resolves, what mirrors and what does not, what the arrow keys mean, where a horizontal scroll
@@ -703,3 +704,272 @@ Stated now, so the document does not overclaim later.
   contain the word `LEFT`.
 - **The `Insets` leading/trailing type.** Decision 4. If a fifth reader of `left()`/`right()` ever
   appears the decision should be re-taken; four is why it was not taken now.
+
+---
+
+## 9. What the implementation settled
+
+Written after the work, against the tree it produced. §0's measurements were re-taken rather than
+trusted, and the ones that moved are recorded here with what they were checked against.
+
+The suite went from **2374 executed tests to 2719, with zero existing expectations changed** —
+only the `matches` call sites gained an argument, and two comments were added. That number is the
+evidence for Decision 2: an LTR default is affordable, and it stayed affordable through 26 widget
+files.
+
+### 9.1 The measurements
+
+**Finding 8's table reproduces exactly**, to the six decimal places it quoted, and it is now
+asserted rather than quoted: `"ريال "` +0.191250, `"שלום world"` +0.351242,
+`"Total: 42 ريال (SAR)"` +0.191254, a leading space 0.000000, and the whole size ramp
+(0.131485 / 0.155390 / 0.191250 / 0.209179 / 0.239063 / 0.382500). The mechanism is exactly as
+described. That is the half of the finding the design rests on, and it held.
+
+**Finding 8's "it does not accumulate" is wrong**, and it is the one measurement error that
+mattered. Measured: one trailing space +0.191250, two +0.382500, three +0.573746, six +1.147499 —
+exactly linear, one face-difference *per trailing neutral*.
+
+The cause is a generalisation from the wrong case. The finding's reasoning — "an interior space
+already extends the run it follows under either base" — is *true*, and was checked: an interior
+neutral between two Arabic words measures 0.000000 either way, and so does a leading one. But a
+**trailing run of neutrals sits at the paragraph's edge in its entirety**, so all of it takes the
+paragraph level and all of it changes face with the base. The finding tested the boundary case and
+described the interior one.
+
+What this costs: the sentence "so this is a bounded sub-point offset, not the linear drift that
+ADR 031 §7 had to defend `TextArea`'s scroll extent against" is not a claim this ADR gets to make.
+It *is* a linear drift, in the number of trailing neutrals. It stays sub-point on any real line
+because real lines carry a handful of trailing spaces at most, which is a different and weaker
+argument than the one that was made. Nothing in §1 changes: the two caches needed the direction
+either way, and they need it slightly more than the ADR thought.
+
+**Finding 11's 108 sites across 29 files reproduces exactly** under its own instrument, and that is
+the problem — see 9.2.
+
+### 9.2 Where this document was wrong
+
+Ordered by what each one would cost a reader who trusted it.
+
+**1. Decision 7 is unreachable for most of the toolkit, and §2 hides it as "mechanical".**
+Decision 7 says widgets "move to the three-argument `shape(text, font, base)` overload". Only a
+widget that *holds* a `ShapedText` can. `Canvas.drawText(String, x, y, font, paint)` and
+`TextRuler.measure(String, Font)` take no base direction at all, and the canvas shapes through the
+ruler's two-argument default, which passes `LTR`. So for every widget that draws a plain string —
+`Button`, `Checkbox`, `RadioButton`, `SegmentedControl`, `Chart`, `Spinner`, `MenuBar`,
+`PopupMenu`, `ComboBox`, `VideoView`, `Viewport3D`, the `Scene`'s own tooltip — honouring
+Decision 7 is not passing an argument, it is converting the widget onto a held shaped line and
+changing where its natural width comes from.
+
+The cause is Finding 7: it observed that the three-argument overload is called from nowhere and
+read that as an unused seam waiting for widgets, rather than as evidence that the widgets which
+draw plain strings *have no seam*. Finding 11 then counted those same call sites as
+leading-or-trailing *placement* decisions without noticing they are shaping decisions too. One
+call, two obligations, counted once. Six implementers reached this independently.
+
+**2. Finding 11's census instrument is structurally blind, so §2's per-file counts are not a
+schedule.** Counting `width() -`, `canvas.drawText(` and `.layoutBox(` cannot see a gradient's
+endpoints, a `clipRect`, a `translate`, a `fillRect`, a hit test, a key handler, or a shaping call.
+`ColorPicker` scores essentially zero on that instrument and has nine real sites, six of them
+gradient endpoints. `SegmentedControl` is filed as "mechanical" and is a hand-rolled scrolled
+viewport with an outbound origin, an inbound inverse that must flip in lockstep, two chevron zones
+that swap gutters and an animated indicator. `Spinner`'s two worst sites contain none of the three
+spellings. In the other direction, `Separator`, `TokenBox` and `DonutChart` are listed as having
+sites and have **none**, and `Dialog` needed no change at all — which Finding 3 predicted and is
+the one place the estimate was right for the right reason.
+
+**3. Decision 8's "one chevron" is at least three.** `TabbedPane`'s PREV and NEXT chevrons and
+`SegmentedControl`'s two scroll arrows are directional toolkit ink, drawn with `drawLine`. The
+cause is Finding 4 sweeping `Path2D` construction; §5 already names that as the wrong instrument
+("the sweep is over *drawn asymmetric marks*, not over one API") without going back and re-running
+the count, so §5 and Finding 4 disagree about the same files and Decision 8 was written from the
+wrong one.
+
+Decision 8's *model* of the fix is also wrong for one of them: a sign flip on a mark's own offsets
+is right for `PopupMenu`'s fixed submenu arrow and wrong for a scroll arrow in a gutter, where the
+correct edit swaps which gutter each arrow occupies and leaves the ink alone. Mechanically
+sign-flipping those would point both arrows into the strip.
+
+**4. Finding 8's cache taxonomy has two holes, and the second one has no rule anywhere.** It
+enumerates a cache holding a *shaped* value and one holding a *measured* size, and Decision 6 fixes
+those two. Neither reaches:
+
+- **A hand-written key that never calls `matches`.** `TextField`'s display line, `TextArea`'s line
+  window and its spill, both composed lines, and `Button`'s caption key on
+  `TextEditModel.textVersion()` or on the text itself, precisely because `matches` would miss its
+  identity fast path and pay a character scan per line per paint. `matches` gaining a direction does
+  nothing for a cache that never asks it. Every such key had to gain the direction itself.
+- **A cache holding a horizontal *coordinate* across frames.** `TabbedPane`'s selected-tab indicator
+  holds two physical x values behind a hand-written snap-versus-animate key; a direction flip that
+  coincided with a tab change would animate the indicator across the whole reflected strip. `Chart`
+  holds a hovered `ChartPoint` anchored at coordinates computed under the previous direction. This
+  is a third kind of stale value and the ADR has no rule for it. Any widget animating an x is one.
+
+**5. Decision 6 does not reach a measured width, and cannot.** `TextRuler.measure(text, font)` has
+no base parameter, so keying a width cache on the direction only re-runs a direction-blind
+measurement and files the same number under a second key. A widget that sizes itself from `measure`
+and paints from `shape(…, base)` is measuring one line and drawing another.
+
+**6. "Merging the epochs would be a defect" is a cost claim, not a correctness one.** §1.1 and §5
+both say a merged counter would be wrong. Measured against the code, a merged counter gives every
+right answer: a memo is a pure function of its inputs, so a spurious bump forces a re-resolution
+that arrives at the same value, and `measure`'s key compares resolved *values* rather than epochs,
+so an unchanged axis still hits its size cache. What merging costs is the re-resolution — every
+widget walking one link on the next read of an axis that did not move — and the ability to say
+which axis a re-measure was for. Worth two `long`s; not a defect. The justification offered ("a
+theme change that bumps the size epoch") also names a bump that does not exist: no theme change
+bumps that counter.
+
+**7. §1.4's "`revealRect`'s arithmetic is unchanged" is false, by exactly one sign.** The rect
+arrives in the scroller's own *physical* coordinates, so nothing the method computes knows a
+direction — which is what made the claim look right. But the offset it hands back moves the content
+one way in one direction and the other way in the other, so the computed `dx` needs one negation at
+the end. Without it, revealing a rectangle scrolls *away* from it by exactly twice the gap;
+verified by removing the flip and watching the assertion move from −40 to −60.
+
+**8. §4's claim that `VideoView`'s message pill mirrors is wrong.** The pill's left edge is
+`(width() - pillWidth) / 2` and the text is centred inside the pill, so the reflection evaluates to
+the same number: there is no leading edge in the expression for a direction to act on. The cause is
+classifying the site by where it sits rather than by where its x comes from. What that site
+genuinely owes the axis is a shaping base, not a placement — and the site taxonomy has no category
+for "owes the shaper a base, owes placement nothing", which is also the whole of `Viewport3D`.
+
+**9. Published physical enums were never enumerated.** Finding 1 audited the published alignment
+enums *by name* — `Flex.MainAlignment`, `Flex.CrossAlignment`, `Label.HAlign` — concluded "no
+published signature has to move", and never reached `TabbedPane.TabAlignment{LEFT, CENTER, RIGHT}`
+or `Chart.LegendPosition{LEFT, RIGHT}`. Under a mechanical mirror their signatures do not move and
+their *meanings* do, which is exactly the breakage Decision 2 forbids. Both were implemented as
+physical, on Decision 5's precedent; Decision 5 is written about `Stack.Alignment` specifically
+rather than as a general rule, so that is an inference the next reader should not have to make.
+
+**10. §1.3 decides per key, and handlers bundle keys per arm.** `Slider` groups `LEFT` with `DOWN`
+and `RIGHT` with `UP` in single switch arms; `RadioButton` does the same. "The horizontal half
+mirrors and the vertical half is untouched" was not *expressible* until those arms were split, and
+flipping an arm as written would have inverted Up and Down. §1.3 reports the cost of these rows as
+zero; it is a handler restructure at every such site.
+
+§1.3 is also silent on `PAGE_UP`/`PAGE_DOWN` while deciding `HOME`/`END`, which are the same class;
+and its `HOME`/`END` rule is justified entirely in text terms ("`Shift+Home` must produce one
+contiguous range of the string") while being relied on by `Slider` and `SplitPane`, which hold no
+string. The honest reason there is that the key names a *value* and not a side.
+
+**11. §1.3 and §2 address sites by `file:line`, and the citations were already stale.** `Label`'s
+two citations pointed at the wrong methods in this worktree before any edit was made, and every
+citation an edit authorises is stale the moment it is applied. The rows should name the key and the
+method, which are stable.
+
+**12. The host link is not the path into an in-scene popup panel.** §1.1 treats it as the way the
+axis reaches every popup. A `ComboBox`'s in-scene panel is *added as a child*, so resolution finds
+the parent and never consults the host link at all. The same hole already existed for `ControlSize`;
+this ADR did not create it and does not fix it.
+
+**13. Live resolution is not live repaint.** A hosted root in its own scene resolves the new
+direction on its next pass, but nothing marks that scene dirty when the owner's axis changes, so an
+open native dropdown paints the old direction indefinitely. `ComboBox` now asks for the pass
+itself. Symmetric with the size axis, and pre-existing there.
+
+**14. §5's "if it is reversed later, both halves reverse together" describes a switch that does not
+exist.** `SplitPane`'s pointer half reverses by converting a coordinate and its key half by choosing
+a sign; they are independent seams in different methods and nothing couples them. What actually
+holds them together is an assertion that the arrow and the drag land the divider in the same place,
+which is why that test exists.
+
+**15. The ADR scopes coordinates and not prose.** Several widgets' Javadoc asserted a physical side
+as the *justification* for something — `Checkbox` and `RadioButton` both explained a damage rect by
+"flush with the widget's left edge". A decision that moves an edge has to name the sentences that
+describe it, or documentation quietly stops being true.
+
+**16. `Scene`'s tooltip is absent from the ADR**, and it is the one surface a `Scene` paints itself
+rather than delegating to a widget. It went out of its way to resolve the hovered anchor's
+`ControlSize` live and never its direction, so the panel opened to the right of the pointer in both
+directions with its text pinned to the left pad. Now reads both.
+
+### 9.3 Where §1 held
+
+Decisions 1, 2, 3 and 5 held without qualification, and the mirrored capture is the evidence for 3:
+26 files' worth of placement decisions and not one transform.
+
+**Decision 4 held, and its one real-world example wants it.** Finding 2's asymmetric
+`Insets(12, 16, 12, 12)` in the demo reserves the extra pad for an overlay scrollbar. `Padding`
+reads it as the *leading* inset, which right-to-left is the physical left — which is exactly where
+the list's own bar moves to. The repository's single asymmetric inset is direction-sensitive by
+nature, so the physical type was correctly not added.
+
+**One thing was added that §1 did not have**, after review: `Flex.MainAlignment` and `Label.HAlign`
+gain physical `LEFT` and `RIGHT` beside their logical constants, on the precedent Decision 5 set for
+`Stack`. Without them there was no way to say "physically left, whatever the direction" for a single
+property, and the only escape was pinning a whole subtree — which pins the text direction along with
+the edge. Additive, and no existing call site moves.
+
+### 9.4 §7's five open questions, closed
+
+**Should `Flex` mirror, or should `Row`?** `Flex`, as §1 chose. The reflection is one expression on
+the placed coordinate guarded by `!vertical`, and a `Column` is provably untouched by it. Mirroring
+only `Row` would have left a raw horizontal `Flex` — which the toolkit itself constructs — reading
+the wrong way, and would have put the axis in a subclass rather than in the layout.
+
+**Does `TabbedPane`'s overflow scrolling mirror its chevrons or its content?** Both, and the
+question was already answered by §1.4 rather than needing the widget. Because the scroll offset is a
+distance from the leading edge and stays a positive magnitude, the enable tests and both scroll
+calls are direction-free by construction. What remains is forced: the three control boxes reflect,
+because PREV must sit beside the tab it scrolls toward, and the two chevrons swap gutters so each
+still points away from the strip. §7 was written before §1.4 was fixed as a decision.
+
+**Does `ControlSizeAuditScene` have to stay LTR forever?** No, and the capture is the evidence. Every
+widget in it mirrors correctly — the ramp reads the other way, which is what a mirrored audit should
+show — because its rows are `Row`s and its padding is symmetric. What broke was the scene's own
+annotation overlay, which pinned its per-row verdict to the physical right edge and landed on top of
+the controls it annotates. The overlay reads the axis now. The general lesson is worth more than the
+answer: the first thing a mirrored screen breaks is the chrome that was drawn *over* it, not the
+widgets in it.
+
+**Is one process default enough, or does direction want a per-`Scene` default only?** The process
+default earns its place, and not for the reason `ControlSize`'s does. It is not a global gesture — an
+application is in one direction at startup — but it is what makes `LayoutDirection.forLocale` a
+one-line bridge at an application's own call site, and it is what the demo's `--direction` and the
+gallery's per-entry pin both use. A per-scene default alone would have forced every capture harness
+to reach into every scene.
+
+**Should `forLocale` ship at all?** Yes, and the fear was worth taking seriously. §1.2's worry is
+that once it exists someone will call it from inside a widget. What makes that acceptable is that
+nothing in the toolkit calls it and a test says so, so the day someone does, it is a diff and not a
+discovery. The alternative — every application writing the same script table — is worse, and the
+table is not two lines: it is thirty-two right-to-left script subtags checked before the language,
+because a language can be written in either and only the script says which.
+
+### 9.5 §8 re-read against what shipped
+
+§8's list is still accurate, with three corrections and one addition.
+
+- **Bold and italic in the four RTL faces** and **soft wrap in `TextArea`**: unchanged, still not
+  done.
+- **Vertical writing, Arabic-Indic digits, per-subtree locale, collation**: unchanged.
+- **A mirrored website**: unchanged, and the gallery now pins `LTR` per entry so it stays that way
+  deliberately rather than by luck.
+- **Icon classification**: correct as written. All six setters named in §1.5 gained their overload
+  and every icon is `NEVER` until a call site says otherwise.
+- **The `Insets` leading/trailing type**: correct, and 9.3 strengthens the reason.
+- **New:** the toolkit's **two text paths** are not both direction-aware. Everything that holds a
+  shaped line takes a base; everything that draws through `Canvas.drawText(String, …)` or sizes
+  through `TextRuler.measure` still resolves its paragraph direction with a hard-coded left-to-right
+  fallback. Several widgets were converted onto held lines to close this for themselves; the seam
+  itself is untouched, and closing it means giving those two signatures a direction. That is the
+  largest thing this ADR leaves behind, and it is the direct consequence of 9.2's first item.
+
+### 9.6 Noticed, and deliberately not fixed
+
+- **`ShapedText.matches` treats epoch 0 as current under every ruler**, and `TextRuler.NONE` — what
+  a detached widget gets — stamps 0 and measures everything as zero-width. A widget whose first
+  shaping happened while detached holds a zero-width line that every real ruler afterwards certifies
+  as current. Pre-existing, from ADR 031's held-value idiom, and reachable by any test that measures
+  a detached tree.
+- **`Scene.windowClosed` unsubscribes three of its four global listeners**, omitting `I18n`. The new
+  axis is handled; the omission is pre-existing and is the exact symmetry the axis review looked for.
+- **A memo resolved inside `onDetached` survives the detach as a stale answer**, on both axes: the
+  scene funnel bumps up front and the scene field is cleared afterwards, with nothing bumping
+  between. Latent — no `onDetached` in the repository reads either axis.
+- **`ContextMenus.showForFocus` has two candidate widgets** and can only give the popup one. It
+  takes the focused widget's direction for the anchor point while the cascade's own growth still
+  comes from the region, so a right-to-left field inside a left-to-right region opens away from
+  itself. Correct whenever the two agree, which is every ordinary tree.
+- **The demo's bottom statistics bar does not mirror.** It is demo chrome and outside §2's file
+  list.

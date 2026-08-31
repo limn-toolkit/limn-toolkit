@@ -78,4 +78,59 @@ public interface Icon {
             canvas.drawImage(bitmap, dx, dy, w, h);
         }
     }
+
+    /**
+     * Whether an icon turns around when the interface does.
+     *
+     * <p>The toolkit classifies <b>nothing</b>. Only the code that placed an icon knows whether
+     * its arrow means "back" (which mirrors), "download" (which does not), or is a shape inside a
+     * logo (which must not). An icon pack is an application's vocabulary, and a curated list of
+     * which of its glyphs are directional would be wrong for every application shipping its own.
+     *
+     * <p>{@link #NEVER} is the default, and the asymmetry is deliberate: a wrong {@code NEVER} is
+     * one back-arrow pointing the wrong way in one place, and a wrong {@link #IN_RTL} is every
+     * logo, brand mark, chart glyph and photograph in the application flipped.
+     */
+    enum Mirroring {
+        /** Drawn as authored, whichever way the interface reads. The default. */
+        NEVER,
+        /** Flipped horizontally about its own box in a right-to-left subtree. */
+        IN_RTL
+    }
+
+    /**
+     * Paints this icon, flipped horizontally about its own box when {@code mirrored}.
+     *
+     * <p>The flip is a negative x scale about the destination rect, and it is the <b>one</b> legal
+     * negative scale in this toolkit: it acts on a single image, never on a tree. Mirroring a
+     * layout is a placement decision taken by the widget that owns the coordinate, and a transform
+     * at any root would turn correctly shaped text into a mirror image, flip every picture and
+     * every video frame, and put an inverse transform on the hot path of every hit test.
+     *
+     * <p>A caller passes {@code mirrored} as
+     * {@code mirroring == Mirroring.IN_RTL && widget.layoutDirection() == RTL}: the flag says what
+     * the icon means and the axis says which way the interface reads, and neither alone is the
+     * answer.
+     *
+     * @param mirrored whether to flip; {@code false} is exactly
+     *                 {@link #paint(Canvas, float, float, float, Color, boolean)}
+     */
+    default void paint(Canvas canvas, float x, float y, float size, Color tint, boolean dark,
+                       boolean mirrored) {
+        if (!mirrored) {
+            paint(canvas, x, y, size, tint, dark);
+            return;
+        }
+        // Reflected about the box's own vertical centre line, so the icon stays exactly where it
+        // was placed: translate the axis to the centre, negate x, translate back.
+        canvas.save();
+        try {
+            canvas.translate(x + size / 2f, 0);
+            canvas.scale(-1, 1);
+            canvas.translate(-(x + size / 2f), 0);
+            paint(canvas, x, y, size, tint, dark);
+        } finally {
+            canvas.restore();
+        }
+    }
 }
