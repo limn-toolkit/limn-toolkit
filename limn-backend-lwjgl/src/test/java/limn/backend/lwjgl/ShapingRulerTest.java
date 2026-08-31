@@ -294,7 +294,7 @@ class ShapingRulerTest {
             // A held value is current the moment it is made, which is not automatic: resolving a
             // face is itself one of the things that moves the epoch, so a value stamped before its
             // own resolution would be born stale and re-shape on every frame forever.
-            assertTrue(first.matches("hello", FONT, ruler));
+            assertTrue(first.matches("hello", FONT, ShapedText.Direction.LTR, ruler));
             assertEquals(store.epoch(), first.epoch());
             assertNotEquals(0, first.epoch(), "a ruler that resolves a face never stamps 0");
 
@@ -314,7 +314,8 @@ class ShapingRulerTest {
             ShapedText bold = ruler.shape("hello", FONT.bold());
             assertNotSame(first, bold, "the font is part of the key too");
             assertNotEquals(before, store.epoch(), "a face parsed is an epoch moved");
-            assertFalse(first.matches("hello", FONT, ruler), "the held value went stale");
+            assertFalse(first.matches("hello", FONT, ShapedText.Direction.LTR, ruler),
+                    "the held value went stale");
             assertNotSame(first, ruler.shape("hello", FONT), "and the memo did not serve it");
         }
     }

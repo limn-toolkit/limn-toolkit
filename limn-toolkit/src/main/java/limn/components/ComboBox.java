@@ -48,7 +48,7 @@ import java.util.function.Consumer;
  *
  * <p>Field and dropdown share one {@link limn.scene.ControlSize} step: the panel is the root
  * of its own window-bound {@link Scene}, so it inherits through
- * {@link Widget#setControlSizeHost} rather than through the tree. A dropdown at a different
+ * {@link Widget#setInheritanceHost} rather than through the tree. A dropdown at a different
  * density from the field that opened it is simply a bug, so there is no setter on the panel.
  */
 public class ComboBox extends Widget {
@@ -400,7 +400,7 @@ public class ComboBox extends Widget {
         // Before the overlay is pushed, for the reason the native path resolves it before
         // binding: a panel that resolved the process default would lay its rows out at one step
         // inside a box measured at another.
-        popupPanel.setControlSizeHost(this);
+        popupPanel.setInheritanceHost(this);
         scenePopup = new ScenePopup(popupPanel);
         // Assigned before pushOverlay, which moves focus off the field: onFocusLost reads this
         // field to tell "the user clicked elsewhere" from "our own overlay took the keyboard",
@@ -460,7 +460,7 @@ public class ComboBox extends Widget {
         popupPanel = new PopupPanel();
         // Before the scene binds: binding measures the panel, and a panel that resolved the
         // process default there would lay rows out at one step inside a window sized at another.
-        popupPanel.setControlSizeHost(this);
+        popupPanel.setInheritanceHost(this);
         popupScene = new Scene(popupPanel);
         popupScene.inheritRenderingFlags(scene()); // partial/debug follow the owner window
         popupScene.bind(popupWindow);

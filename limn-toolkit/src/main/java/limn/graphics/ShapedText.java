@@ -21,11 +21,17 @@ import java.util.Objects;
  * private ShapedText shaped;
  * ...
  * TextRuler ruler = textRuler();
- * if (shaped == null || !shaped.matches(text, font, ruler)) {
- *     shaped = ruler.shape(text, font);
+ * ShapedText.Direction base = ShapedText.Direction.of(text, neutralBase);
+ * if (shaped == null || !shaped.matches(text, font, base, ruler)) {
+ *     shaped = ruler.shape(text, font, base);
  * }
  * canvas.drawText(shaped, x, baseline, ink);
  * }</pre>
+ *
+ * <p>{@code neutralBase} there is the direction of the widget that owns the text: what a string
+ * with no strong character of its own falls back to. A widget with no direction axis under it
+ * passes {@link Direction#LTR} and has the two-argument {@link TextRuler#shape(String, Font)}
+ * written out.
  *
  * <p><b>Why a value and not a measurement.</b> With a shaper in the pipeline the width of the first
  * {@code n} characters of a string is not the width of those characters measured alone: inside
@@ -239,31 +245,48 @@ public final class ShapedText {
     }
 
     /**
-     * Whether this value is still the right answer for {@code text} and {@code font} under
-     * {@code ruler}: the whole invalidation test in one call, so no caller has to remember that
-     * there are three parts to it.
+     * Whether this value is still the right answer for {@code text} and {@code font} in a
+     * paragraph that reads {@code base}, under {@code ruler}: the whole invalidation test in one
+     * call, so no caller has to remember that there are four parts to it.
      *
      * <p>{@code text} is compared by identity first, so a widget holding the {@code String} an
      * {@code I18nString} memoized never pays a character scan. The {@code font} comparison is
      * {@link Font}'s own, which is why a control-size step or a theme change needs nothing extra
-     * here. The third part is the reason this is a method and not two field comparisons at the call
+     * here.
+     *
+     * <p>{@code base} is compared because a paragraph direction is an input to shaping and not
+     * just to placement. It decides which bidi level a <em>boundary neutral</em> takes, which
+     * decides which run that neutral extends, which decides which face measures it &mdash; so a
+     * line of mixed content is genuinely a fraction of a point wider in one direction than the
+     * other. Without this part a widget whose subtree changed direction would keep drawing a value
+     * shaped for yesterday's direction and be told it was current: invisible in a screenshot,
+     * wrong in every geometry query asked of it.
+     *
+     * <p>The ruler is the reason this is a method and not three field comparisons at the call
      * site: a {@link Font} naming {@link Font#DEFAULT_FAMILY} is equal to itself across a
      * {@link Fonts#setDefaultFamily} call, and a face this was shaped against can have been evicted
-     * and closed since, so a widget checking only text and font would keep drawing glyph ids that
-     * name a face that is gone.
+     * and closed since, so a widget checking only text, font and direction would keep drawing glyph
+     * ids that name a face that is gone.
      *
      * <p>A value carrying epoch {@code 0} is current under every ruler, which is right for a fake
-     * and for geometry that no ruler produced.
+     * and for geometry that no ruler produced. That exemption is the ruler's alone: a fake's
+     * direction still has to agree, because the direction is a property of the value and not of
+     * the machinery that produced it.
      *
      * @param text  the string the caller is about to draw
      * @param font  the font it will be drawn in
+     * @param base  the paragraph direction it would be shaped for; pass what would be passed to
+     *              {@link TextRuler#shape(String, Font, Direction)}
      * @param ruler the ruler that would re-shape it; its epoch is read, never stored
      */
-    public boolean matches(String text, Font font, TextRuler ruler) {
+    public boolean matches(String text, Font font, Direction base, TextRuler ruler) {
         if (this.text != text && !this.text.equals(text)) {
             return false;
         }
         if (!this.font.equals(font)) {
+            return false;
+        }
+        if (this.baseDirection != base) {
             return false;
         }
         // Read the ruler last and only when this value claims to depend on one: epoch 0 means

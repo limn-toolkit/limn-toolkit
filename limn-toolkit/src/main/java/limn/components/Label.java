@@ -180,15 +180,29 @@ public class Label extends Widget {
     /**
      * The paragraph as one shaped line: the value every geometry question here is asked of.
      * Re-shaped only when {@link ShapedText#matches} says the held one is no longer the answer,
-     * which is the whole invalidation test — the text, the font, and the ruler epoch that moves
-     * when a face is evicted or the default family changes.
+     * which is the whole invalidation test — the text, the font, the paragraph direction, and the
+     * ruler epoch that moves when a face is evicted or the default family changes.
+     *
+     * <p>The base is resolved here, once, and handed to both halves of that test: asking whether
+     * the held value is current and shaping a replacement have to be asking about the same
+     * direction, or the check passes for a value the shape call would not have produced.
      */
     private ShapedText paragraph(TextRuler ruler, Font f) {
         String value = text.get();
-        if (paragraph == null || !paragraph.matches(value, f, ruler)) {
-            paragraph = ruler.shape(value, f);
+        ShapedText.Direction base = ShapedText.Direction.of(value, neutralBase());
+        if (paragraph == null || !paragraph.matches(value, f, base, ruler)) {
+            paragraph = ruler.shape(value, f, base);
         }
         return paragraph;
+    }
+
+    /**
+     * What a string with no strong character of its own falls back to. Left to right until this
+     * widget reads the direction axis, which keeps every existing paragraph shaped exactly as it
+     * was: the first-strong rule still decides everything a strong character can decide.
+     */
+    private ShapedText.Direction neutralBase() {
+        return ShapedText.Direction.LTR;
     }
 
     /** Room the text itself gets: the box less the icon and its gap. */
@@ -499,8 +513,11 @@ public class Label extends Widget {
             // (the backend falls back to the characters), but the check is one comparison and
             // removes the whole class, and no relayout is owed for a change that only re-resolved
             // a face to the same metrics.
-            if (!line.matches(line.text(), f, ruler)) {
-                line = ruler.shape(line.text(), f);
+            // The direction asked about is the line's own: the wrap pass decided it and a
+            // change of direction re-wraps, so a line that survived to here was shaped for the
+            // direction the paragraph still reads in.
+            if (!line.matches(line.text(), f, line.baseDirection(), ruler)) {
+                line = ruler.shape(line.text(), f, line.baseDirection());
                 lines.set(i, line);
             }
             // START skips even the field read; CENTER/END take the width off the value about to

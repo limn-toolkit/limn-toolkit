@@ -221,6 +221,7 @@ public final class Scene implements WindowInput {
         // re-measure. Registration is idempotent, so bind()'s repair is harmless.
         limn.graphics.Fonts.addChangeListener(metricsListener);
         ControlSize.addChangeListener(metricsListener);
+        LayoutDirection.addChangeListener(metricsListener);
         limn.i18n.I18n.addChangeListener(metricsListener);
     }
 
@@ -242,8 +243,9 @@ public final class Scene implements WindowInput {
 
     /**
      * Re-measures the whole tree and repaints when a <b>global</b> input to measurement
-     * changes: the UI font family/catalog ({@link limn.graphics.Fonts}) or the process
-     * default control size ({@link ControlSize}). Holds the scene WEAKLY: a scene replaced
+     * changes: the UI font family/catalog ({@link limn.graphics.Fonts}), the process
+     * default control size ({@link ControlSize}) or the process default layout direction
+     * ({@link LayoutDirection}). Holds the scene WEAKLY: a scene replaced
      * on a live window (a new scene bound over it) never receives {@code windowClosed}, and
      * a strong process-wide listener would pin the abandoned tree forever; when the scene
      * is collected, the wrapper unregisters itself on the next change.
@@ -261,6 +263,7 @@ public final class Scene implements WindowInput {
             if (target == null) {
                 limn.graphics.Fonts.removeChangeListener(this);
                 ControlSize.removeChangeListener(this);
+                LayoutDirection.removeChangeListener(this);
                 limn.i18n.I18n.removeChangeListener(this);
             } else {
                 target.relayout();
@@ -284,6 +287,8 @@ public final class Scene implements WindowInput {
         limn.graphics.Fonts.addChangeListener(metricsListener);
         ControlSize.removeChangeListener(metricsListener);
         ControlSize.addChangeListener(metricsListener);
+        LayoutDirection.removeChangeListener(metricsListener);
+        LayoutDirection.addChangeListener(metricsListener);
         limn.i18n.I18n.removeChangeListener(metricsListener);
         limn.i18n.I18n.addChangeListener(metricsListener);
     }
@@ -334,7 +339,7 @@ public final class Scene implements WindowInput {
 
     /**
      * @return this scene's default step, or {@code null} to fall through to a hosted root's
-     *         {@linkplain Widget#setControlSizeHost host link} and then to
+     *         {@linkplain Widget#setInheritanceHost host link} and then to
      *         {@link ControlSize#processDefault()}. <b>Nullable by design:</b> a popup's own
      *         scene declares nothing, which is what lets it inherit from the widget that
      *         opened it.
@@ -355,6 +360,36 @@ public final class Scene implements WindowInput {
         }
         controlSize = size;
         Widget.bumpControlSizeEpoch();
+        relayout();
+    }
+
+    private LayoutDirection layoutDirection; // null = fall through to a hosted root's host link
+
+    /**
+     * @return this scene's default layout direction, or {@code null} to fall through to a hosted
+     *         root's {@linkplain Widget#setInheritanceHost host link} and then to
+     *         {@link LayoutDirection#processDefault()}. <b>Nullable by design</b>, for the reason
+     *         {@link #controlSize()} is: a popup's own scene declares nothing, which is what lets
+     *         it inherit from the widget that opened it.
+     */
+    public LayoutDirection layoutDirection() {
+        return layoutDirection;
+    }
+
+    /**
+     * Sets this window's default layout direction, the per-window root of the inheritance chain:
+     * the one line an application whose interface reads right to left writes. Widgets that declare
+     * their own direction, and their subtrees, are unaffected &mdash; which is what lets a
+     * left-to-right code editor, log pane or URL bar sit inside it. {@code null} restores
+     * fall-through. UI thread only.
+     */
+    public void setLayoutDirection(LayoutDirection direction) {
+        Ui.checkUiThread();
+        if (layoutDirection == direction) {
+            return;
+        }
+        layoutDirection = direction;
+        Widget.bumpLayoutDirectionEpoch();
         relayout();
     }
 
@@ -2491,6 +2526,7 @@ public final class Scene implements WindowInput {
         }
         limn.graphics.Fonts.removeChangeListener(metricsListener);
         ControlSize.removeChangeListener(metricsListener);
+        LayoutDirection.removeChangeListener(metricsListener);
         Runnable cb = winFadeOnArrive;
         winFadeOnArrive = null;
         winFadeGeneration++;

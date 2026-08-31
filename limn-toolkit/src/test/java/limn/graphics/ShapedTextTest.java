@@ -1267,7 +1267,7 @@ class ShapedTextTest {
     // ============================================================================================
 
     @Test
-    void matchesTestsTextFontAndEpochAndNothingElse() {
+    void matchesTestsTextFontDirectionAndEpochAndNothingElse() {
         ShapedText line = ShapedText.builder("abc", FONT, Direction.LTR, 3)
                 .lineMetrics(8, 2, 12)
                 .epoch(42)
@@ -1278,22 +1278,30 @@ class ShapedTextTest {
                 .build();
         assertEquals(42, line.epoch());
 
-        assertTrue(line.matches("abc", FONT, rulerAt(42)));
+        assertTrue(line.matches("abc", FONT, Direction.LTR, rulerAt(42)));
         // Equal but not identical text still matches: identity is a fast path, not the test.
-        assertTrue(line.matches(new String(new char[]{'a', 'b', 'c'}), FONT, rulerAt(42)));
+        assertTrue(line.matches(
+                new String(new char[]{'a', 'b', 'c'}), FONT, Direction.LTR, rulerAt(42)));
         // Equal-by-value Font, which is what a control-size step or a theme change produces.
-        assertTrue(line.matches("abc", Font.of(16), rulerAt(42)));
+        assertTrue(line.matches("abc", Font.of(16), Direction.LTR, rulerAt(42)));
 
-        assertFalse(line.matches("abd", FONT, rulerAt(42)), "the text changed");
-        assertFalse(line.matches("ab", FONT, rulerAt(42)), "the text changed");
-        assertFalse(line.matches("abc", OTHER_FONT, rulerAt(42)), "the font changed");
-        assertFalse(line.matches("abc", FONT.bold(), rulerAt(42)), "the style changed");
+        assertFalse(line.matches("abd", FONT, Direction.LTR, rulerAt(42)), "the text changed");
+        assertFalse(line.matches("ab", FONT, Direction.LTR, rulerAt(42)), "the text changed");
+        assertFalse(line.matches("abc", OTHER_FONT, Direction.LTR, rulerAt(42)), "the font changed");
+        assertFalse(line.matches("abc", FONT.bold(), Direction.LTR, rulerAt(42)), "the style changed");
 
         // The epoch is the part the caller cannot see: a face evicted and closed, a default family
         // switched, the shaping language changed - none of which move the text or the Font.
-        assertFalse(line.matches("abc", FONT, rulerAt(43)), "the ruler moved on");
-        assertFalse(line.matches("abc", FONT, TextRuler.NONE),
+        assertFalse(line.matches("abc", FONT, Direction.LTR, rulerAt(43)), "the ruler moved on");
+        assertFalse(line.matches("abc", FONT, Direction.LTR, TextRuler.NONE),
                 "a ruler that never produced this value is not the ruler it is current under");
+
+        // The direction is an input to shaping and not only to placement, so a value shaped for
+        // one paragraph direction is not the answer for the other even when every other part of
+        // the key agrees. Without this every widget holding a shaped value would keep drawing
+        // yesterday's direction and be told it was current.
+        assertFalse(line.matches("abc", FONT, Direction.RTL, rulerAt(42)),
+                "the paragraph direction changed");
     }
 
     @Test
@@ -1302,20 +1310,24 @@ class ShapedTextTest {
         // on no ruler state.
         ShapedText fake = latin("abc");
         assertEquals(0, fake.epoch());
-        assertTrue(fake.matches("abc", FONT, rulerAt(0)));
-        assertTrue(fake.matches("abc", FONT, rulerAt(9999)));
-        assertTrue(fake.matches("abc", FONT, TextRuler.NONE));
+        assertTrue(fake.matches("abc", FONT, Direction.LTR, rulerAt(0)));
+        assertTrue(fake.matches("abc", FONT, Direction.LTR, rulerAt(9999)));
+        assertTrue(fake.matches("abc", FONT, Direction.LTR, TextRuler.NONE));
+        // Epoch 0 exempts the value from the RULER's opinion and from nothing else: the direction
+        // is a property of the value, not of the machinery that did or did not produce it.
+        assertFalse(fake.matches("abc", FONT, Direction.RTL, TextRuler.NONE),
+                "a fake still knows which direction it was built for");
 
         // uniform takes the epoch as a parameter precisely so a masked field can pass a real one
         // and stay correct across a default-family change that leaves its Font equal to itself.
         TextMetrics vertical = new TextMetrics(0, 8, 2, 12);
         ShapedText stamped = ShapedText.uniform("secret", FONT, ADV, vertical, 5);
         assertEquals(5, stamped.epoch());
-        assertTrue(stamped.matches("secret", FONT, rulerAt(5)));
-        assertFalse(stamped.matches("secret", FONT, rulerAt(6)));
+        assertTrue(stamped.matches("secret", FONT, Direction.LTR, rulerAt(5)));
+        assertFalse(stamped.matches("secret", FONT, Direction.LTR, rulerAt(6)));
 
         ShapedText unstamped = ShapedText.uniform("secret", FONT, ADV, vertical, 0);
-        assertTrue(unstamped.matches("secret", FONT, rulerAt(6)));
+        assertTrue(unstamped.matches("secret", FONT, Direction.LTR, rulerAt(6)));
     }
 
     @Test

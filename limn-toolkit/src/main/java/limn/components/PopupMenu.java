@@ -278,7 +278,7 @@ public final class PopupMenu {
             surface.setControlSize(declaredSize);
         }
         if (host != null) {
-            surface.setControlSizeHost(host);
+            surface.setInheritanceHost(host);
         }
         tokens = Theme.current().tokensFor(surface);
         surface.pushRoot();

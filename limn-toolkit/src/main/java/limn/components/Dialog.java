@@ -148,7 +148,7 @@ public final class Dialog {
     // Where the card's step is inherited from, when the tree cannot say: the widget passed
     // to a show(Widget) overload, else the owner scene's root. Installed as a host link on
     // the parentless root of the card's subtree at presentation time.
-    private Widget sizeHost;
+    private Widget inheritanceHost;
 
     // In-scene presentation state (null when native-window / headless).
     private Scene hostScene;
@@ -477,16 +477,16 @@ public final class Dialog {
             throw new IllegalStateException(
                     "the owner widget is not attached to a scene: nothing to present over");
         }
-        sizeHost = owner;
+        inheritanceHost = owner;
         return scene;
     }
 
     /**
-     * The widget the card's step is inherited from when its own root is parentless:
+     * The widget the card's inherited axes resolve through when its own root is parentless:
      * whatever a {@code show(Widget)} overload recorded, else the owner scene's root.
      */
-    private Widget sizeHostFor(Scene owner) {
-        return sizeHost != null ? sizeHost : owner.root();
+    private Widget inheritanceHostFor(Scene owner) {
+        return inheritanceHost != null ? inheritanceHost : owner.root();
     }
 
     /**
@@ -525,7 +525,7 @@ public final class Dialog {
         // the window is sized from dialogMaxWidth and panel.measure() below, before bind();
         // install the link after that and the window is sized at the process default while
         // the content re-measures at the owner's step inside it, so the card clips or floats.
-        panel.setControlSizeHost(sizeHostFor(owner));
+        panel.setInheritanceHost(inheritanceHostFor(owner));
         // A scene gives the panel a text ruler so it can be measured to size
         // the window; it is then bound to the modal window.
         modalScene = new Scene(panel);
@@ -664,7 +664,7 @@ public final class Dialog {
         // overlay here, and a host link on a widget that has a parent is ignored (the tree
         // wins). The overlay is the parentless one (pushOverlay sets the scene but never a
         // parent), so it is where the chain has to be reattached, before anything measures.
-        overlay.setControlSizeHost(sizeHostFor(owner));
+        overlay.setInheritanceHost(inheritanceHostFor(owner));
         // pushOverlay captures input, confines focus and focuses the first button.
         owner.pushOverlay(overlay);
         // The overlay only blocks the owner's own scene; register a backend

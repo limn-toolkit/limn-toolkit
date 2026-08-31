@@ -65,7 +65,7 @@ public abstract class Widget {
      * atomics. Starts at 1 so a fresh widget's {@code resolvedEpoch == 0} is always stale.
      *
      * <p>Bumped by exactly five writers of a resolution input, each O(1):
-     * {@link #setControlSize}, {@link #setControlSizeHost}, {@link #setSceneRecursively}
+     * {@link #setControlSize}, {@link #setInheritanceHost}, {@link #setSceneRecursively}
      * (the single funnel for {@code add}, {@code remove}, {@link Scene}'s constructor,
      * {@code pushOverlay} and {@code removeOverlay}), {@link Scene#setControlSize} and
      * {@link ControlSize#setProcessDefault}. Worst case is a degradation (reads fall back
@@ -82,8 +82,13 @@ public abstract class Widget {
      */
     private ControlSize declaredControlSize;
 
-    /** Logical parent for an out-of-tree root (a {@link Scene} root, an overlay). */
-    private Widget controlSizeHost;
+    /**
+     * Logical parent for an out-of-tree root (a {@link Scene} root, an overlay). Shared by every
+     * inherited axis: a link means "this parentless panel belongs to that widget", which is not a
+     * fact about size or about direction, and a second link that could name a different widget
+     * would be a bug with no honest resolution.
+     */
+    private Widget inheritanceHost;
 
     /** Memo; valid iff {@code resolvedEpoch == controlSizeEpoch}. */
     private ControlSize resolvedControlSize;
@@ -95,6 +100,47 @@ public abstract class Widget {
     /** Invalidates every memo in the process. O(1). Package-private: the five writers only. */
     static void bumpControlSizeEpoch() {
         controlSizeEpoch++;
+    }
+
+    // --------------------------------------------------- layout direction axis
+    // The same shape as the size axis above, deliberately: read LayoutDirection's
+    // resolution contract before touching any of this, and keep the two apart.
+
+    /**
+     * Global validity stamp for every widget's {@link #layoutDirection()} memo, and a
+     * <b>separate counter</b> from {@link #controlSizeEpoch} on purpose. Merging them is the
+     * obvious simplification and a wrong one: a theme change that bumps the size epoch would
+     * then re-shape every string in the process for a direction that did not move, and a
+     * repository with one counter cannot say which axis a re-measure was for.
+     *
+     * <p>UI-thread confined and starting at 1, for the reasons given on the size epoch. Bumped
+     * by exactly five writers of a resolution input, each O(1): {@link #setLayoutDirection},
+     * {@link #setInheritanceHost}, {@link #setSceneRecursively}, {@link Scene#setLayoutDirection}
+     * and {@link LayoutDirection#setProcessDefault}.
+     */
+    private static long layoutDirectionEpoch = 1;
+
+    /**
+     * The direction this widget declares for itself and its subtree; {@code null} = inherit.
+     * <b>Never resolved in a constructor</b> (see {@link LayoutDirection}), for the reason a
+     * declared step is not: {@link #add} assigns the parent after the child is fully built.
+     */
+    private LayoutDirection declaredLayoutDirection;
+
+    /** Memo; valid iff {@code resolvedDirectionEpoch == layoutDirectionEpoch}. */
+    private LayoutDirection resolvedLayoutDirection;
+    private long resolvedDirectionEpoch;
+
+    /**
+     * The direction {@link #lastSize} was measured in, part of {@link #measure}'s cache key.
+     * A line of mixed content measures a fraction of a point differently in the two directions,
+     * so a size cache that cannot see the axis returns a stale answer across a change.
+     */
+    private LayoutDirection measuredLayoutDirection;
+
+    /** Invalidates every direction memo in the process. O(1). Package-private: the writers only. */
+    static void bumpLayoutDirectionEpoch() {
+        layoutDirectionEpoch++;
     }
 
     // ------------------------------------------------------------------ tree
@@ -143,7 +189,7 @@ public abstract class Widget {
     /**
      * The single funnel through which a subtree's scene is written: {@link #add},
      * {@link #remove}, {@link Scene}'s constructor, {@code Scene.pushOverlay} and
-     * {@code Scene.removeOverlay}. Bumps the control-size epoch once, up front:
+     * {@code Scene.removeOverlay}. Bumps both inherited axes' epochs once, up front:
      * {@code pushOverlay}/{@code removeOverlay} move a whole <b>parentless</b> subtree
      * between scenes without touching any parent field, so a widget that resolved and
      * memoized before being pushed into a scene with a different default would otherwise
@@ -152,6 +198,7 @@ public abstract class Widget {
      */
     final void setSceneRecursively(Scene newScene) {
         bumpControlSizeEpoch();
+        bumpLayoutDirectionEpoch();
         setSceneRecursivelyInternal(newScene);
     }
 
@@ -518,7 +565,7 @@ public abstract class Widget {
     /**
      * @return the effective size step, never {@code null}: this widget's declared value,
      *         else the nearest declaring ancestor's, else its {@linkplain Scene#controlSize()
-     *         scene default}, else its {@linkplain #setControlSizeHost host}'s, else
+     *         scene default}, else its {@linkplain #setInheritanceHost host}'s, else
      *         {@link ControlSize#processDefault()}.
      *
      * <p><b>Read this inside {@link #onMeasure}, {@link #onPaint} or an event handler.</b>
@@ -533,7 +580,7 @@ public abstract class Widget {
      * <p>{@code final} by contract: {@link #measure} keys its cache on the resolved step, so
      * a subclass that computed a step on the fly would produce sizes the invalidation system
      * cannot see. A composite that owns widgets outside its own subtree links them with
-     * {@link #setControlSizeHost} instead of overriding anything.
+     * {@link #setInheritanceHost} instead of overriding anything.
      */
     public final ControlSize controlSize() {
         if (resolvedEpoch == controlSizeEpoch) {
@@ -573,8 +620,8 @@ public abstract class Widget {
                 return sceneDefault;
             }
         }
-        if (controlSizeHost != null) {
-            return controlSizeHost.controlSize();
+        if (inheritanceHost != null) {
+            return inheritanceHost.controlSize();
         }
         return ControlSize.processDefault();
     }
@@ -614,21 +661,121 @@ public abstract class Widget {
      *
      * @throws IllegalArgumentException if {@code host} resolves through this widget
      */
-    public final void setControlSizeHost(Widget host) {
+    public final void setInheritanceHost(Widget host) {
         Ui.checkUiThread();
         // Walk the chain host would resolve through, exactly as resolveControlSize does.
         // Terminates: add() forbids tree cycles, and every previously installed host link
         // was validated the same way, so by induction the chain is finite.
-        for (Widget w = host; w != null; w = w.parent != null ? w.parent : w.controlSizeHost) {
+        for (Widget w = host; w != null; w = w.parent != null ? w.parent : w.inheritanceHost) {
             if (w == this) {
                 throw new IllegalArgumentException("cycle: host resolves through this widget");
             }
         }
-        if (this.controlSizeHost == host) {
+        if (this.inheritanceHost == host) {
             return;
         }
-        this.controlSizeHost = host;
+        this.inheritanceHost = host;
         bumpControlSizeEpoch();
+        bumpLayoutDirectionEpoch();
+        markNeedsLayout();
+    }
+
+    /**
+     * @deprecated the link was never about size. It says "this parentless panel belongs to that
+     *         widget", which every inherited axis needs and none of them owns, so it is named
+     *         {@link #setInheritanceHost} and this delegates. A second link that could name a
+     *         different widget per axis would be a bug with no honest resolution.
+     */
+    @Deprecated
+    public final void setControlSizeHost(Widget host) {
+        setInheritanceHost(host);
+    }
+
+    // --------------------------------------------------- layout direction axis
+
+    /**
+     * @return the direction this widget declares for itself <em>and its subtree</em>, or
+     *         {@code null} when it inherits. The "is it set here" reader; use
+     *         {@link #layoutDirection()} for the effective value.
+     */
+    public final LayoutDirection declaredLayoutDirection() {
+        return declaredLayoutDirection;
+    }
+
+    /**
+     * @return the effective layout direction, never {@code null}: this widget's declared value,
+     *         else the nearest declaring ancestor's, else its
+     *         {@linkplain Scene#layoutDirection() scene default}, else its
+     *         {@linkplain #setInheritanceHost host}'s, else
+     *         {@link LayoutDirection#processDefault()}.
+     *
+     * <p><b>Read this inside {@link #onMeasure}, {@link #onPaint}, {@link #onLayout} or an event
+     * handler</b>, and resolve it <b>once per pass</b> into a local. Never in a constructor or a
+     * field initializer: a widget has no parent while it is being constructed, so the answer
+     * there is the process default no matter what the eventual parent declares, and a captured
+     * value can never be corrected. Two resolutions that disagree inside one {@code onPaint} put
+     * the caret on one side and the selection band on the other.
+     *
+     * <p>Steady-state cost is one {@code long} compare and one field read, and the epoch is its
+     * own: a control-size change does not invalidate this memo, and this does not invalidate
+     * that one. On the first resolution after a bump this recurses <em>one</em> step and
+     * delegates, so a top-down pass re-memoizes the whole tree in O(n) links total.
+     *
+     * <p>{@code final} by contract, for {@link #controlSize()}'s reason: {@link #measure} keys
+     * its cache on the resolved direction, so a subclass computing one on the fly would produce
+     * sizes the invalidation system cannot see.
+     */
+    public final LayoutDirection layoutDirection() {
+        if (resolvedDirectionEpoch == layoutDirectionEpoch) {
+            return resolvedLayoutDirection;
+        }
+        LayoutDirection resolved = resolveLayoutDirection();
+        resolvedLayoutDirection = resolved;
+        resolvedDirectionEpoch = layoutDirectionEpoch;
+        return resolved;
+    }
+
+    /**
+     * One link of the resolution chain, and {@link #resolveControlSize()}'s chain exactly: the
+     * same order, for the same reason. The scene default is consulted <b>before</b> the host
+     * link because every hosted root (a combo popup panel, a menu surface, a dialog panel) has a
+     * host link, so consulting the host first would make {@link Scene#setLayoutDirection}
+     * unreachable for every popup, menu and dialog scene in the process.
+     *
+     * <p>A host link on a widget that <em>does</em> have a parent is ignored: the tree wins.
+     */
+    private LayoutDirection resolveLayoutDirection() {
+        if (declaredLayoutDirection != null) {
+            return declaredLayoutDirection;
+        }
+        if (parent != null) {
+            return parent.layoutDirection();
+        }
+        if (scene != null) {
+            LayoutDirection sceneDefault = scene.layoutDirection();
+            if (sceneDefault != null) {
+                return sceneDefault;
+            }
+        }
+        if (inheritanceHost != null) {
+            return inheritanceHost.layoutDirection();
+        }
+        return LayoutDirection.processDefault();
+    }
+
+    /**
+     * Sets the layout direction for this widget and every descendant that does not declare its
+     * own; it inherits down the tree like {@link #setControlSize}. {@code null} restores
+     * inheritance. Re-measures whatever actually changed and repaints; a descendant that declares
+     * its own direction keeps its measure cache. No-op when unchanged. UI thread only.
+     */
+    public final void setLayoutDirection(LayoutDirection direction) {
+        Ui.checkUiThread();
+        if (declaredLayoutDirection == direction) {
+            return;
+        }
+        declaredLayoutDirection = direction;
+        bumpLayoutDirectionEpoch();
         markNeedsLayout();
     }
 
@@ -663,34 +810,48 @@ public abstract class Widget {
     /**
      * Measures the preferred size under {@code constraints}. Results are cached until
      * {@link #markNeedsLayout()}, and the cache key includes the <b>resolved control
-     * size</b>, so a container's step change re-measures exactly the descendants whose
-     * step actually changed and leaves overriding subtrees on their caches. That is why
-     * no deep-invalidation API is needed for the size axis. Subclasses implement
-     * {@link #onMeasure}.
+     * size</b> and the <b>resolved layout direction</b>, so a container's change on either axis
+     * re-measures exactly the descendants whose resolved value actually changed and leaves
+     * overriding subtrees on their caches. That is why no deep-invalidation API is needed for
+     * either axis. Subclasses implement {@link #onMeasure}.
+     *
+     * <p>The direction belongs in the key because a line of mixed content genuinely measures a
+     * fraction of a point differently in the two directions: the paragraph direction decides
+     * which bidi level a boundary neutral takes, which decides which run it extends, which
+     * decides which face measures it. A cache that cannot see the axis returns a stale size.
      *
      * <p>Correctness is a property of the key: the only way this can return a stale size is
-     * if the resolved step <em>and</em> the constraints <em>and</em> {@code needsMeasure}
-     * all say nothing changed, in which case nothing did.
+     * if the resolved step <em>and</em> the resolved direction <em>and</em> the constraints
+     * <em>and</em> {@code needsMeasure} all say nothing changed, in which case nothing did.
+     *
+     * <p>A third axis wanting into this key would be the smell: the right move then is a single
+     * resolved-axes value rather than a fourth field, and it should be noticed the first time.
      */
     public final Size measure(Constraints constraints) {
         ControlSize step = controlSize();
-        if (!needsMeasure && step == measuredControlSize && constraints.equals(lastConstraints)) {
+        LayoutDirection direction = layoutDirection();
+        if (!needsMeasure
+                && step == measuredControlSize
+                && direction == measuredLayoutDirection
+                && constraints.equals(lastConstraints)) {
             return lastSize;
         }
         lastSize = Objects.requireNonNull(onMeasure(constraints), "onMeasure returned null");
         lastConstraints = constraints;
         measuredControlSize = step;
+        measuredLayoutDirection = direction;
         needsMeasure = false;
         return lastSize;
     }
 
     /**
      * Reports the size this widget wants within {@code constraints}. Called once per
-     * layout pass, and the result is cached against the constraints and the resolved
-     * size step, so it must be a pure function of them and of this widget's own state.
+     * layout pass, and the result is cached against the constraints, the resolved size step
+     * and the resolved layout direction, so it must be a pure function of them and of this
+     * widget's own state.
      *
-     * <p>Resolve the {@link ControlSize} once here and thread the tokens down; never
-     * read it in a constructor.
+     * <p>Resolve the {@link ControlSize} and the {@link LayoutDirection} once each here and
+     * thread them down; never read either in a constructor.
      */
     protected abstract Size onMeasure(Constraints constraints);
 

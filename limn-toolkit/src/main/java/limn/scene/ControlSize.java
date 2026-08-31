@@ -25,7 +25,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * A widget's step is <b>inherited down the tree</b>: its own
  * {@linkplain Widget#declaredControlSize() declared} value, else the nearest declaring
  * ancestor's, else its {@linkplain Scene#controlSize() scene's} default, else its
- * {@linkplain Widget#setControlSizeHost host}'s, else {@link #processDefault()}.
+ * {@linkplain Widget#setInheritanceHost host}'s, else {@link #processDefault()}.
  *
  * <p>Several steps therefore <b>coexist in one window, in one frame</b>: a SMALL toolbar above
  * a MEDIUM form beside a LARGE dialog is three scopes in one tree, resolved independently, laid
