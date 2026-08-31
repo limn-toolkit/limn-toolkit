@@ -500,7 +500,11 @@ public class TextField extends Widget {
         clampScrollX(t);
     }
 
-    /** Keeps scrollX within [0, overflow] against the CURRENT width. */
+    /**
+     * Keeps scrollX within [0, overflow] against the CURRENT width. The range is the same in both
+     * layout directions: {@code scrollX} is a distance travelled from the leading edge and never
+     * a coordinate, so only the translation that consumes it knows which edge that is.
+     */
     private void clampScrollX(SizeTokens t) {
         // The composed line's width already includes the preedit, and includes it correctly: a
         // separately measured preedit added to a separately measured committed line counts the

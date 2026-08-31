@@ -237,7 +237,12 @@ public class TextArea extends Widget {
         return model;
     }
 
-    /** Horizontal scroll offset in logical points, {@code 0} at the left edge. */
+    /**
+     * Horizontal scroll offset in logical points, {@code 0} at the <b>leading</b> edge: the left
+     * edge in a left-to-right subtree and the right edge in a right-to-left one. The range is
+     * {@code [0, maxScrollX]} in both, so "scrolled to the start" is {@code 0} either way and a
+     * reset on a content change needs no branch.
+     */
     public float scrollXOffset() {
         return scrollX;
     }
@@ -418,6 +423,11 @@ public class TextArea extends Widget {
         return Math.max(0, contentHeight(t) - viewHeight(t));
     }
 
+    /**
+     * Both offsets into their ranges. The horizontal clamp keeps its form in both directions:
+     * {@code scrollX} is a distance travelled from the leading edge, never a coordinate, so only
+     * the translation that consumes it knows which way that is.
+     */
     private void clampScroll(SizeTokens t) {
         scrollX = Math.max(0, Math.min(scrollX, maxScrollX(t)));
         scrollY = Math.max(0, Math.min(scrollY, maxScrollY(t)));

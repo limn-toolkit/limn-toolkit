@@ -144,7 +144,11 @@ public class ScrollView extends Widget implements Scrollable {
         return gutters.viewportHeight(height());
     }
 
-    /** Horizontal scroll position in logical points, {@code 0} at the left edge. */
+    /**
+     * Horizontal scroll position in logical points, {@code 0} at the <b>leading</b> edge: the
+     * left edge in a left-to-right subtree and the right edge in a right-to-left one. The range
+     * is {@code [0, maxOffsetX()]} in both, so "scrolled to the start" is {@code 0} either way.
+     */
     public float offsetX() {
         return offsetX;
     }
@@ -190,6 +194,14 @@ public class ScrollView extends Widget implements Scrollable {
                 dy = Math.min(y, y + rectHeight - viewportHeight());
             }
         }
+        // The rect arrives in this widget's own PHYSICAL coordinates, so nothing above computed
+        // dx knows a direction. What the direction decides is which way offsetX moves the
+        // content: left to right the content sits at -offsetX and right to left at
+        // viewportWidth() - childWidth + offsetX, so the same physical displacement is the
+        // opposite change of offset. One sign flip, and the arithmetic above is untouched.
+        if (dx != 0 && layoutDirection() == limn.scene.LayoutDirection.RTL) {
+            dx = -dx;
+        }
         if (dx != 0 || dy != 0) {
             scrollBy(dx, dy);
         }
@@ -207,8 +219,10 @@ public class ScrollView extends Widget implements Scrollable {
         boolean movedY = clampedY != offsetY;
         offsetX = clampedX;
         offsetY = clampedY;
-        // Fast path: content size unchanged, only its position moves.
-        moveChild(child, -offsetX, -offsetY);
+        // Fast path: content size unchanged, only its position moves. The origin is recomputed
+        // rather than decremented, because it is not the same function of offsetX in the two
+        // directions and a delta that assumed one would run the other backwards.
+        moveChild(child, contentOriginX(child.width()), -offsetY);
         if (movedY && vBar != null) {
             vBar.onScrolled();
         }
@@ -242,7 +256,7 @@ public class ScrollView extends Widget implements Scrollable {
         float childHeight = vertical ? Math.max(content.height(), viewH) : viewH;
         offsetX = horizontal ? Math.min(offsetX, Math.max(0, childWidth - viewW)) : 0;
         offsetY = vertical ? Math.min(offsetY, Math.max(0, childHeight - viewH)) : 0;
-        child.layoutBox(-offsetX, -offsetY, childWidth, childHeight);
+        child.layoutBox(contentOriginX(childWidth), -offsetY, childWidth, childHeight);
 
         float t = ScrollBar.thickness();
         // With both bars, leave a clear square in the corner so their thumbs never
@@ -266,6 +280,25 @@ public class ScrollView extends Widget implements Scrollable {
             hBar.layoutBox(0, height() - t, hLen, t);
             hBar.refresh();
         }
+    }
+
+    /**
+     * Where the content's left edge goes for the current {@link #offsetX()}.
+     *
+     * <p>{@code offsetX == 0} is the <b>leading</b> edge in both directions, so left to right it
+     * puts the content's left edge on the viewport's left edge and right to left it puts the
+     * content's <em>right</em> edge on the viewport's right edge. Advancing the scroll then
+     * reveals content on the trailing side either way, which is what lets every clamp keep its
+     * form and {@link #maxOffsetX()} stay a positive magnitude.
+     *
+     * <p>The <b>viewport</b> width and not {@link #width()}: under
+     * {@link ScrollGutters.Layout#RESERVED} the two differ by the gutter, and using the box width
+     * would slide every right-to-left layout under the scrollbar.
+     */
+    private float contentOriginX(float childWidth) {
+        return layoutDirection() == limn.scene.LayoutDirection.RTL
+                ? viewportWidth() - childWidth + offsetX
+                : -offsetX;
     }
 
     /** The vertical bar, or null when this view does not scroll vertically (tests). */
