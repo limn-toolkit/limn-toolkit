@@ -25,13 +25,18 @@ import java.nio.file.Path;
  *                        otherwise only ever shows the first one, which leaves every other
  *                        decoder (including the one with a native behind it) with no way to
  *                        be looked at
+ * @param direction       process default layout direction, or null for the built-in LTR.
+ *                        Renders any scene mirrored, which is how a reviewer sees a layout that
+ *                        is inside out; a picture is the wrong instrument for bidi correctness
+ *                        and the right one for a screen laid out backwards
  * @param theme           palette to render in, or null to leave the scene's own choice alone.
  *                        Scenes pick light or dark themselves, so without this every capture
  *                        shows one of those two and no other built-in palette can be looked at
  */
 record DemoOptions(Path screenshotFile, String scene, float scale, long exitAfterMillis,
                    limn.scene.ControlSize controlSize, java.util.Locale locale, int videoFrame,
-                   int videoSource, limn.components.Theme theme) {
+                   int videoSource, limn.scene.LayoutDirection direction,
+                   limn.components.Theme theme) {
 
     static DemoOptions parse(String[] args) {
         Path screenshotFile = null;
@@ -42,6 +47,7 @@ record DemoOptions(Path screenshotFile, String scene, float scale, long exitAfte
         java.util.Locale locale = null;
         int videoFrame = -1;
         int videoSource = 0;
+        limn.scene.LayoutDirection direction = null;
         limn.components.Theme theme = null;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -54,6 +60,7 @@ record DemoOptions(Path screenshotFile, String scene, float scale, long exitAfte
                 case "--control-size" -> controlSize = parseControlSize(valueOf(args, ++i));
                 case "--locale" -> locale = parseLocale(valueOf(args, ++i));
                 case "--video-frame" -> videoFrame = parseVideoFrame(valueOf(args, ++i));
+                case "--direction" -> direction = parseDirection(valueOf(args, ++i));
                 case "--theme" -> theme = parseTheme(valueOf(args, ++i));
                 case "--help", "-h" -> {
                     printUsage();
@@ -67,7 +74,22 @@ record DemoOptions(Path screenshotFile, String scene, float scale, long exitAfte
             }
         }
         return new DemoOptions(screenshotFile, scene, scale, exitAfterMillis, controlSize,
-                locale, videoFrame, videoSource, theme);
+                locale, videoFrame, videoSource, direction, theme);
+    }
+
+    /**
+     * Parses the layout direction. Deliberately its own option and not derived from
+     * {@code --locale}: direction and language are different axes, and a capture of an Arabic
+     * translation in a left-to-right layout is a picture worth being able to take.
+     */
+    private static limn.scene.LayoutDirection parseDirection(String raw) {
+        try {
+            return limn.scene.LayoutDirection.valueOf(raw.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException error) {
+            System.err.println("invalid --direction: " + raw + " (expected ltr or rtl)");
+            System.exit(2);
+            return null; // unreachable
+        }
     }
 
     /** Matches {@code Theme.name} ignoring case and spaces, so {@code archdark} finds Arch Dark. */
@@ -160,7 +182,8 @@ record DemoOptions(Path screenshotFile, String scene, float scale, long exitAfte
         System.err.println("""
                 usage: limn-demo [--screenshot <file.png>] [--scene <name>] [--scale <factor>]
                                  [--exit-after <ms>] [--control-size <step>] [--locale <tag>]
-                                 [--video-frame <n>] [--video-source <n>] [--theme <name>]
+                                 [--video-frame <n>] [--video-source <n>] [--direction <dir>]
+                                 [--theme <name>]
                        limn-demo --gl-info
                   --gl-info       prints the graphics stack this machine offers, then exits
                                   (non-zero where there is no context); takes no other argument
@@ -172,6 +195,7 @@ record DemoOptions(Path screenshotFile, String scene, float scale, long exitAfte
                   --locale        UI language tag: pt-BR | ja | fr | zh-Hans | …
                   --video-frame   freezes the video scenes on picture n (deterministic capture)
                   --video-source  starts the video tab on source n of its picker (0 = the first)
+                  --direction     process default layout direction: ltr | rtl
                   --theme         palette: Limn | Dark | Light | Draculite | Nordic | … (see --help output)""");
     }
 }

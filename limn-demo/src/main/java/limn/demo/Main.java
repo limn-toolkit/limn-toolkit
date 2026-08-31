@@ -171,6 +171,10 @@ public final class Main {
             // The process default is the ROOT of the inheritance chain, so it must be set
             // before any scene is constructed: a scene measures against whatever it resolves
             // to, and a widget that already memoized would need an epoch bump to notice.
+            if (options.direction() != null) {
+                limn.scene.LayoutDirection.setProcessDefault(options.direction());
+                System.out.println("Layout direction: process default = " + options.direction());
+            }
             if (options.controlSize() != null) {
                 limn.scene.ControlSize.setProcessDefault(options.controlSize());
                 System.out.println("Control size: process default = " + options.controlSize());

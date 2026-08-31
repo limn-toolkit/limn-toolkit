@@ -317,6 +317,9 @@ public abstract class Flex extends Widget {
         float between = mainAlignment == MainAlignment.SPACE_BETWEEN && visible > 1
                 ? free / (visible - 1)
                 : 0;
+        // Resolved once for the whole pass: two resolutions that disagreed inside one layout
+        // would place a child against one edge and its neighbour against the other.
+        boolean rtl = !vertical && layoutDirection() == limn.scene.LayoutDirection.RTL;
         for (int i = 0; i < childCount; i++) {
             Widget child = children().get(i);
             if (!child.isVisible()) {
@@ -332,7 +335,12 @@ public abstract class Flex extends Widget {
             if (vertical) {
                 child.layoutBox(crossPos, cursor, childCross, childMain);
             } else {
-                child.layoutBox(cursor, crossPos, childMain, childCross);
+                // The cursor walk is untouched and only the final coordinate is reflected, which
+                // is why END, SPACE_BETWEEN, CENTER and the gap arithmetic all fall out unchanged.
+                // A Column is not a site: direction is the reading axis, and a column's main axis
+                // is not it.
+                child.layoutBox(rtl ? width() - cursor - childMain : cursor,
+                        crossPos, childMain, childCross);
             }
             cursor += childMain + gap + between;
         }
