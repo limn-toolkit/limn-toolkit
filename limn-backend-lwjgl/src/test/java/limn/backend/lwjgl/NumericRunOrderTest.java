@@ -175,6 +175,62 @@ class NumericRunOrderTest {
     }
 
     @Test
+    void aStringTheFallbackDecidesHasOneRunAndSoOneWidth() {
+        // The lemma two widgets in declared lockstep stand on. Checkbox sizes its label from the
+        // line it shapes, with its own direction as the fallback; RadioButton sizes the same label
+        // from a direction-blind measurement. Those agree, and not by luck: the ONLY text whose
+        // base the fallback gets to decide is text with no strong character anywhere in it, and
+        // such a text takes the paragraph's level in its entirety -- one run, one face resolution,
+        // one width. A width can only move when a neutral at the paragraph's edge changes which
+        // run it extends, and that needs a strong run for it to change away from; a strong run
+        // would have decided the base itself and never consulted the fallback.
+        //
+        // Asserted here rather than beside the widgets because the component tests' fake ruler
+        // returns a width per code point and cannot see a base direction at all, so it would pass
+        // whether or not this held.
+        try (FontStore store = storeWithScripts()) {
+            ShapingRuler ruler = new ShapingRuler(store);
+            for (String text : new String[]{
+                    "2024", "42", "-42", "3.14", "1,234", "07:30", "(42)", "42%", "#1",
+                    "[1] (2) {3}", "<-->", "...", " ", "  ", "+/-", "", "\u00a0", "12 34"}) {
+                ShapedText ltr = ruler.shape(text, FONT, ShapedText.Direction.LTR);
+                ShapedText rtl = ruler.shape(text, FONT, ShapedText.Direction.RTL);
+                // The premise: no strong character, so the two bases really are both reachable.
+                assertEquals(ShapedText.Direction.LTR,
+                        ShapedText.Direction.of(text, ShapedText.Direction.LTR),
+                        "the fallback decides " + text + " under LTR");
+                assertEquals(ShapedText.Direction.RTL,
+                        ShapedText.Direction.of(text, ShapedText.Direction.RTL),
+                        "and under RTL, or this string is not an instance of the lemma");
+                assertEquals(ltr.metrics().width(), rtl.metrics().width(), EPS,
+                        "the width of " + text + " does not depend on which base decided it");
+            }
+        }
+    }
+
+    @Test
+    void aStringWithAStrongCharacterNeverConsultsTheFallbackAtAll() {
+        // The other half, and the reason the lemma above is not merely "widths rarely move". A
+        // text WITH a strong character can be a fraction of a point wider in one base than the
+        // other -- BaseDirectionWidthTest measures exactly that -- but it resolves to the same
+        // base under either fallback, so the two widgets never ask it the differing question.
+        try (FontStore store = storeWithScripts()) {
+            ShapingRuler ruler = new ShapingRuler(store);
+            for (String text : new String[]{"File", "Vendas", "\u05e9\u05dc\u05d5\u05dd ", "\u0631\u064a\u0627\u0644 ", "42 Notifications"}) {
+                assertEquals(ShapedText.Direction.of(text, ShapedText.Direction.LTR),
+                        ShapedText.Direction.of(text, ShapedText.Direction.RTL),
+                        "the first strong character of " + text + " decided it, not the fallback");
+                // So the line a widget shapes is the same line either way, width included.
+                ShapedText decided = ruler.shape(text, FONT,
+                        ShapedText.Direction.of(text, ShapedText.Direction.LTR));
+                ShapedText same = ruler.shape(text, FONT,
+                        ShapedText.Direction.of(text, ShapedText.Direction.RTL));
+                assertEquals(decided.metrics().width(), same.metrics().width(), EPS, text);
+            }
+        }
+    }
+
+    @Test
     void theWidthOfEveryStringASpinnerFormatsIsTheSameInBothDirections() {
         // Why the conversion moves no coordinate. These strings carry no neutral at a paragraph
         // edge that changes face -- the sign reorders without changing width -- so a spinner

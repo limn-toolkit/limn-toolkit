@@ -800,9 +800,23 @@ Three things fell out of it that were not foreseen here:
   behaviour and was changed deliberately, with the maintainer's agreement, rather than worked
   around.
 
-**What is not closed** is one widget, named so it is not mistaken for a clean sweep: `Checkbox`
-still measures its label and hands the canvas a `String`. It is the last such draw in the toolkit
-and it is the same ten-line conversion as the others.
+**This is now closed for every widget in the toolkit.** `Checkbox` was the last one measuring its
+label and handing the canvas a `String`, and it took the same conversion as the rest. Nothing in
+`limn.components` draws a plain string any more, which is asserted rather than left to a grep:
+`NeutralBaseShapingTest` paints each converted widget onto a canvas that overrides both
+`drawText` seams and counts them apart, so a later edit reaching for the `String` form is caught
+there rather than by a direction that quietly stops arriving.
+
+`Checkbox` carried one wrinkle the others did not, and it is worth recording because it looks like
+a conflict and is not. `Checkbox` and `RadioButton` are in declared lockstep — interchangeable in a
+form column — and `RadioButton` places its label against a *measured* width while `Checkbox` now
+places against the *shaped* line's. Those agree, and not by luck: the only text whose base the
+fallback gets to decide is text with no strong character anywhere in it, and such a text takes the
+paragraph's level in its entirety, so it is one run with one face resolution and one width. A width
+moves only when a neutral at the paragraph's edge changes which run it extends, and that needs a
+strong run to change away from — which would have decided the base itself and never consulted the
+fallback. The lemma is asserted against the vendored faces, because a direction-blind fake ruler
+would pass whether or not it held.
 
 **2. Finding 11's census instrument is structurally blind, so §2's per-file counts are not a
 schedule.** Counting `width() -`, `canvas.drawText(` and `.layoutBox(` cannot see a gradient's
@@ -1049,9 +1063,9 @@ because a language can be written in either and only the script says which.
   line, with the plain calls discouraged in review) or nothing, and "nothing" is a defensible answer
   now that no widget in the toolkit depends on the fallback being right.
 
-  The one widget still on the old path is `Checkbox`, which measures its label and draws a
-  `String`. It is named here rather than left to a grep because it is the single remaining instance
-  and the conversion is the same one the others took.
+  No widget is still on the old path. `Checkbox` was the last one and has been converted, so what
+  remains is the seam alone: a signature that will hand a left-to-right paragraph to whoever calls
+  it next, with no widget currently depending on that being right.
 
 ### 9.6 Noticed, and deliberately not fixed
 

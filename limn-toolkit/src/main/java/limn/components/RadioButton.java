@@ -204,11 +204,15 @@ public class RadioButton extends Widget {
             // cannot answer and the surrounding interface can.
             ShapedText line = textRuler().shape(label, t.body(),
                     ShapedText.Direction.of(label, neutral));
-            // Placed against the width onMeasure reserved rather than the shaped ink's own, and
-            // deliberately: Checkbox reserves and places its label by the same arithmetic, and a
-            // form mixing the two keeps one optical column only while both mirror against the
-            // same number. A line is placed by its LEFT edge in either direction, so the mirrored
-            // label starts a whole label width back from the gap it ends at.
+            // Placed against the width onMeasure reserved, which for this label is also the shaped
+            // ink's own: Checkbox now reserves and places from the shaped line directly, and the
+            // two still mirror against the same number because the only text whose base the
+            // fallback decides is text with no strong character at all -- and such a string is one
+            // run, so its width does not depend on which base decided it. The lockstep the two
+            // controls are in survives the difference in spelling; the lemma under it is asserted
+            // in the backend's own shaping tests, because a direction-blind fake cannot see it.
+            // A line is placed by its LEFT edge in either direction, so the mirrored label starts
+            // a whole label width back from the gap it ends at.
             float labelX = rtl
                     ? width() - ring - t.gapLabel() - metrics.width()
                     : ring + t.gapLabel();

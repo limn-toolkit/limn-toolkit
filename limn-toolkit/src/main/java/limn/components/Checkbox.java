@@ -7,6 +7,7 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Path2D;
+import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
@@ -144,11 +145,50 @@ public class Checkbox extends Widget {
         return variant == Variant.BOX ? t.indicator() : t.switchTrackH();
     }
 
+    /**
+     * The label as one shaped line: the value the measure pass, the baseline and the paint all
+     * ask, so the three cannot answer differently about how wide it is or where its band sits.
+     *
+     * <p>Shaped in the pass that asks rather than held in a field. The ruler memoizes shaping, so
+     * the two or three questions one frame asks cost one shaping between them; a field would need
+     * a key carrying the resolved direction, and would hold a zero-width line for the life of any
+     * checkbox whose first shaping happened while it was detached from a scene &mdash; a row is
+     * routinely measured before it is attached.
+     *
+     * @param t    the size row resolved for this pass, so two passes cannot shape in two fonts
+     * @param base the fallback resolved for this pass; taken as a parameter rather than read here
+     *             so that a paint which also reflects the geometry resolves the direction once.
+     *             Two resolutions inside one pass could shape the label one way and place it the
+     *             other, which is a label drawn over its own indicator.
+     */
+    private ShapedText labelLine(SizeTokens t, ShapedText.Direction base) {
+        String label = text.get();
+        return textRuler().shape(label, t.body(), ShapedText.Direction.of(label, base));
+    }
+
+    /**
+     * What a label with no strong character of its own falls back to: this row's own resolved
+     * reading direction. A bare number labelling a toggle in a right-to-left form reads right to
+     * left however many Latin digits it has, and the first-strong rule cannot know that; the
+     * surrounding interface can.
+     *
+     * <p>Resolved on the call and never in a constructor, where this widget has no parent yet and
+     * every answer is the process default &mdash; a direction captured there is permanently wrong
+     * with no path to recovery.
+     */
+    private ShapedText.Direction neutralBase() {
+        return layoutDirection() == LayoutDirection.RTL
+                ? ShapedText.Direction.RTL
+                : ShapedText.Direction.LTR;
+    }
+
     @Override
     protected Size onMeasure(Constraints constraints) {
         Theme theme = Theme.current();
         SizeTokens t = theme.tokensFor(this);
-        TextMetrics metrics = textRuler().measure(text.get(), t.body());
+        // Sized from the line the paint will draw, so the column this row reserves and the ink
+        // that lands in it are one number rather than two answers to the same question.
+        TextMetrics metrics = labelLine(t, neutralBase()).metrics();
         float width = indicatorWidth(t)
                 + (text.get().isEmpty() ? 0 : t.gapLabel() + metrics.width());
         float height = Math.max(indicatorHeight(t), metrics.lineHeight());
@@ -159,9 +199,11 @@ public class Checkbox extends Widget {
     protected void onPaint(Canvas canvas) {
         Theme theme = Theme.current();
         SizeTokens t = theme.tokensFor(this);
-        // Resolved once for the whole pass and handed down. Two resolutions that disagreed inside
-        // one paint would put the indicator on one side and the label on top of it.
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        // Resolved once for the whole pass and handed down, as the reflection AND as the
+        // shaper's fallback. Two resolutions that disagreed inside one paint would put the
+        // indicator on one side and the label on top of it.
+        ShapedText.Direction neutral = neutralBase();
+        boolean rtl = neutral == ShapedText.Direction.RTL;
         float cy = (height() - indicatorHeight(t)) / 2;
         // Physical left edge of the indicator, which is the leading edge of the row: 0 reading
         // left to right, and the far side of the box reading right to left. Every x the two paint
@@ -174,16 +216,23 @@ public class Checkbox extends Widget {
             paintSwitch(canvas, theme, t, left, cy, rtl);
         }
         if (!text.get().isEmpty()) {
-            TextMetrics metrics = textRuler().measure(text.get(), t.body());
+            // The row's own direction reaches the shaper as the NEUTRAL FALLBACK and never as an
+            // imposition: a Latin label in a right-to-left form still reads left to right, because
+            // a strong character outranks the fallback. What the fallback decides is the label
+            // with no strong character of its own -- a count, a year, a bare number -- which is
+            // the one case the string cannot answer and the surrounding interface can.
+            ShapedText line = labelLine(t, neutral);
+            TextMetrics metrics = line.metrics();
             Color ink = isEnabled() ? theme.text : theme.disabledText;
             // The label starts where reading starts, one gap past the indicator. Reading right to
-            // left that is its right edge, so the x drawText places against is a whole label width
-            // further out.
+            // left that is its right edge, so the x a line is placed against -- always its LEFT
+            // edge, in either direction -- is a whole label width further out. The width is this
+            // line's own, which is the width onMeasure reserved for it.
             float labelX = rtl
                     ? left - t.gapLabel() - metrics.width()
                     : left + indicatorWidth(t) + t.gapLabel();
-            canvas.drawText(text.get(), labelX,
-                    (height() - metrics.height()) / 2 + metrics.ascent(), t.body(), ink);
+            canvas.drawText(line, labelX,
+                    (height() - metrics.height()) / 2 + metrics.ascent(), ink);
         }
         float focus = focusFade.value();
         if (focus > 0.001f) {
@@ -219,7 +268,8 @@ public class Checkbox extends Widget {
         if (text.get().isEmpty()) {
             return super.baselineOffset();
         }
-        TextMetrics metrics = textRuler().measure(text.get(), Theme.current().tokensFor(this).body());
+        SizeTokens t = Theme.current().tokensFor(this);
+        TextMetrics metrics = labelLine(t, neutralBase()).metrics();
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
 

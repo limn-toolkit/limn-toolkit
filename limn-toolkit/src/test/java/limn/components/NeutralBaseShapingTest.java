@@ -21,16 +21,16 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The neutral fallback, in the five files that used to draw plain strings: {@link Spinner},
- * {@link MenuBar}, {@link PopupMenu}, {@link Chart} and the mark {@link MenuInk} places for the
- * first two. ADR 032's Decision 7 says a widget resolves the base direction of the text it owns
- * and hands it to the shaper; these are the widgets it could not reach until they held the lines
- * they draw.
+ * The neutral fallback, in the files that used to draw plain strings: {@link Spinner},
+ * {@link MenuBar}, {@link PopupMenu}, {@link Chart}, {@link Checkbox} and the mark
+ * {@link MenuInk} places for two of them. ADR 032's Decision 7 says a widget resolves the base
+ * direction of the text it owns and hands it to the shaper; these are the widgets it could not
+ * reach until they held the lines they draw.
  *
- * <p><b>Five widgets and one file, because it is one decision.</b> The same three questions are
+ * <p><b>Several widgets and one file, because it is one decision.</b> The same three questions are
  * asked of each: a string with no strong character takes the widget's own direction, a string
  * with one keeps deciding for itself, and the left-to-right case is exactly what it always was.
- * Split across five files those would read as five coincidences.
+ * Split across six files those would read as six coincidences.
  *
  * <p><b>What is asserted, and why it is not a screenshot.</b> Every widget here now draws through
  * {@code Canvas.drawText(ShapedText, …)}, so the recorded value carries the paragraph direction it
@@ -399,6 +399,92 @@ class NeutralBaseShapingTest extends ComponentTestBase {
                 "and it is placed from that same line's width");
     }
 
+    // ----------------------------------------------------------------- Checkbox
+
+    private static final float CHECK_W = 200;
+    private static final float CHECK_H = 40;
+
+    private Scene checkboxScene;
+
+    private void buildCheckbox(String label, LayoutDirection direction) {
+        Checkbox box = new Checkbox(Checkbox.Variant.BOX, label);
+        box.setLayoutDirection(direction);
+        checkboxScene = new Scene(box);
+        checkboxScene.setTextRuler(RULER);
+        checkboxScene.layoutPass(CHECK_W, CHECK_H);
+    }
+
+    private LineRecorder paintCheckbox() {
+        LineRecorder recorder = new LineRecorder(CHECK_W, CHECK_H);
+        checkboxScene.renderFrame(recorder);
+        return recorder;
+    }
+
+    @Test
+    void aNeutralCheckboxLabelTakesTheRowsDirectionAndALatinOneDoesNot() {
+        buildCheckbox("2024", LayoutDirection.RTL);
+        assertBase(ShapedText.Direction.RTL, paintCheckbox().line("2024"),
+                "a label that is a year reads the way the form reads");
+
+        buildCheckbox("File", LayoutDirection.RTL);
+        assertBase(ShapedText.Direction.LTR, paintCheckbox().line("File"),
+                "a label with a strong character still decides for itself");
+    }
+
+    @Test
+    void aCheckboxReadingLeftToRightIsUnchanged() {
+        buildCheckbox("2024", LayoutDirection.LTR);
+        assertBase(ShapedText.Direction.LTR, paintCheckbox().line("2024"),
+                "the default is unchanged");
+
+        buildCheckbox("File", LayoutDirection.LTR);
+        assertBase(ShapedText.Direction.LTR, paintCheckbox().line("File"), "and so is a Latin one");
+    }
+
+    @Test
+    void aCheckboxPlacesItsLabelAgainstTheWidthItReserved() {
+        // The half that is easy to skip: the box is sized from the shaped line and the label is
+        // placed from the same one, so the row's own width and the ink inside it cannot disagree.
+        // Reading right to left the label ends one gap before the indicator, so its left edge is a
+        // whole label width back from there.
+        buildCheckbox("2024", LayoutDirection.RTL);
+        LineRecorder r = paintCheckbox();
+        float labelWidth = r.line("2024").metrics().width();
+        float indicator = MEDIUM.indicator();
+        assertEquals(CHECK_W - indicator - MEDIUM.gapLabel() - labelWidth, r.xOf("2024"), EPS,
+                "the mirrored label starts a label width back from the gap it ends at");
+
+        buildCheckbox("2024", LayoutDirection.LTR);
+        LineRecorder plain = paintCheckbox();
+        assertEquals(indicator + MEDIUM.gapLabel(), plain.xOf("2024"), EPS,
+                "and reading left to right it starts one gap past the indicator, as it always did");
+    }
+
+    @Test
+    void aCheckboxAndARadioButtonStillReserveTheSameLabelColumn() {
+        // The two are in declared lockstep and interchangeable in a form column, and they now
+        // arrive at that column by different spellings: Checkbox sizes from the line it shapes,
+        // RadioButton from a direction-blind measurement. They agree because the only text whose
+        // base the fallback decides is text with no strong character, and such a text is one run
+        // whose width does not depend on the base -- the lemma is asserted against real faces in
+        // the backend's own shaping tests, since this ruler cannot see a direction at all.
+        for (LayoutDirection direction : LayoutDirection.values()) {
+            for (String label : new String[]{"2024", "File"}) {
+                Checkbox box = new Checkbox(Checkbox.Variant.BOX, label);
+                RadioButton radio = new RadioButton(label);
+                limn.scene.layout.Row row = new limn.scene.layout.Row();
+                row.add(box);
+                row.add(radio);
+                row.setLayoutDirection(direction);
+                Scene s = new Scene(row);
+                s.setTextRuler(RULER);
+                s.layoutPass(400, 60);
+                assertEquals(box.width(), radio.width(), EPS,
+                        direction + " / " + label + ": one optical column for the pair");
+            }
+        }
+    }
+
     // --------------------------------------------------- what did not change
 
     @Test
@@ -426,6 +512,12 @@ class NeutralBaseShapingTest extends ComponentTestBase {
         buildChart(LayoutDirection.RTL, "2024", "Vendas");
         chartScene.renderFrame(canvas);
         assertEquals(0, canvas.strings, "a Chart drew a bare string");
+
+        canvas = new StringCountingCanvas(CHECK_W, CHECK_H);
+        buildCheckbox("2024", LayoutDirection.RTL);
+        checkboxScene.renderFrame(canvas);
+        assertEquals(0, canvas.strings, "a Checkbox drew a bare string");
+        assertFalse(canvas.shaped.isEmpty(), "and it did draw its label");
     }
 
     /**
