@@ -84,10 +84,18 @@ class MenuInkTest extends ComponentTestBase {
         }
     }
 
-    /** The one rule {@code underlineMnemonic} draws, as {@code {x1, x2, y}}. */
+    /**
+     * The one rule {@code underlineMnemonic} draws, as {@code {x1, x2, y}}, for a line shaped the
+     * way a caller with nothing to say about direction would shape it.
+     */
     private static float[] rule(TextRuler ruler, String text, int index) {
+        return rule(ruler.shape(text, FONT), index);
+    }
+
+    /** The same, for a line the caller shaped itself: what a widget actually hands the mark. */
+    private static float[] rule(ShapedText line, int index) {
         LineRecorder canvas = new LineRecorder();
-        MenuInk.underlineMnemonic(canvas, ruler, text, index, TEXT_X, 20, FONT, Color.WHITE);
+        MenuInk.underlineMnemonic(canvas, line, index, TEXT_X, 20, Color.WHITE);
         assertEquals(1, canvas.lines.size(), "underlineMnemonic draws one rule or none");
         return canvas.lines.get(0);
     }
@@ -160,10 +168,37 @@ class MenuInkTest extends ComponentTestBase {
     @Test
     void thereIsNoMarkWithoutACharacterToMark() {
         LineRecorder canvas = new LineRecorder();
-        MenuInk.underlineMnemonic(canvas, RULER, "File", -1, TEXT_X, 20, FONT, Color.WHITE);
-        MenuInk.underlineMnemonic(canvas, RULER, null, 0, TEXT_X, 20, FONT, Color.WHITE);
-        MenuInk.underlineMnemonic(canvas, RULER, "File", 4, TEXT_X, 20, FONT, Color.WHITE);
+        MenuInk.underlineMnemonic(canvas, RULER.shape("File", FONT), -1, TEXT_X, 20, Color.WHITE);
+        MenuInk.underlineMnemonic(canvas, null, 0, TEXT_X, 20, Color.WHITE);
+        MenuInk.underlineMnemonic(canvas, RULER.shape("File", FONT), 4, TEXT_X, 20, Color.WHITE);
         assertTrue(canvas.lines.isEmpty(), "a rule was drawn for a character that is not there");
+    }
+
+    /**
+     * The mark is placed on <b>the caller's line</b>, base direction included, which is what
+     * taking a {@link ShapedText} rather than a ruler and a string is for.
+     *
+     * <p>{@code "-42"} is the case that shows it. Every character in it is neutral, so the
+     * paragraph direction is the whole of what decides its layout: reading left to right the sign
+     * leads, and reading right to left it is a neutral at the paragraph's edge, takes the
+     * paragraph's own level and is drawn after both digits. A mark on the sign therefore belongs
+     * at opposite ends of the same run. Re-shaping the string here could reproduce the glyphs and
+     * could not reproduce the direction, because the direction is a fact about the widget.
+     */
+    @Test
+    void theMarkFollowsTheBaseDirectionTheCallerShapedWith() {
+        float[] ltr = rule(RULER.shape("-42", FONT, ShapedText.Direction.LTR), 0);
+        assertEquals(TEXT_X, ltr[0], EPS, "reading left to right the sign leads the run");
+        assertEquals(TEXT_X + 10, ltr[1], EPS);
+
+        float[] rtl = rule(RULER.shape("-42", FONT, ShapedText.Direction.RTL), 0);
+        assertEquals(TEXT_X + 20, rtl[0], EPS, "reading right to left it is drawn last");
+        assertEquals(TEXT_X + 30, rtl[1], EPS);
+
+        // The digits between them did not move: only the neutral at the edge changed run.
+        assertEquals(rule(RULER.shape("-42", FONT, ShapedText.Direction.LTR), 2)[0] - 10,
+                rule(RULER.shape("-42", FONT, ShapedText.Direction.RTL), 2)[0], EPS,
+                "the last digit shifts by exactly the sign that left its side");
     }
 
     /** The index a mnemonic resolves to, which is where the geometry above starts. */

@@ -14,6 +14,14 @@ installed `TextRuler` and calls it; `measureText` and `TextRuler.measure` answer
 shaping. **A caption is drawn correctly wherever it is drawn**, whether or not the widget drawing it
 holds a value, and it is laid out to the width it is painted at because both are one number.
 
+That claim is about the *glyphs*, and there is exactly one thing it does not cover. A `String` handed
+to the canvas carries no paragraph direction, so it is shaped through the two-argument overload,
+which falls back to left-to-right for a string with no strong character of its own. For a caption
+that is a number, a year or a run of punctuation, that fallback is the whole answer — and the right
+one is the direction of the interface, which only the widget knows. Every widget in the toolkit now
+resolves it and hands it over; see [direction-axis.md](direction-axis.md). The seam is still there
+for a widget added later that reaches for the `String` form.
+
 For most of the work that introduced shaping it was two paths. That never reached a release, and
 what it cost while it stood is written down anyway, because it is the argument against splitting
 them again. A widget that held a value drew Arabic joined; a widget that handed the canvas a
@@ -233,7 +241,10 @@ The memo in front of the shaper keys on the direction for the same reason, and a
 
 `matches` is not sufficient on its own, because several widgets key their held lines by hand rather
 than calling it — see [text-and-input.md](text-and-input.md) for why, and
-[direction-axis.md](direction-axis.md) for what a hand-written key then owes.
+[direction-axis.md](direction-axis.md) for what a hand-written key then owes. A menu cascade is the
+other shape that key takes: its columns shape their labels once at open and read them from every
+later paint, and what makes that a snapshot rather than a stale cache is that the cascade resolves
+its direction once at open too, and cannot be re-parented while it is on the screen.
 
 ## When the native is absent, and when a face is
 

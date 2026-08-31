@@ -332,9 +332,19 @@ class SpinnerMirroringTest extends ComponentTestBase {
 
         assertEquals(RTL_TEXT_END, render().caretX(), EPS, "typing stays flush on the leading edge");
 
-        press(Keys.HOME); // logical, so it lands on the far end of the run: the left
+        // Home and End name the PARAGRAPH's two edges, which in a right-to-left form are the right
+        // and the left one -- TextEditModel.moveHome takes UPSTREAM affinity for exactly this and
+        // says why. A run of digits inside that form is one embedded left-to-right run, so index 0
+        // is a split caret: the paragraph's start edge is its right, and the run's own start is its
+        // left. Home means the first, and asking the shaped line is the only way to get it; the
+        // width of a prefix has no side, so it could only ever answer the second.
+        press(Keys.HOME);
+        assertEquals(RTL_TEXT_END, render().caretX(), EPS,
+                "Home names the edge the paragraph starts on, which needs no scroll to reach");
+
+        press(Keys.END);
         assertEquals(RTL_VALUE_START + PAD, render().caretX(), EPS,
-                "the start of the string scrolled into view rather than out of the box");
+                "End is the paragraph's other edge, scrolled into view rather than out of the box");
     }
 
     @Test

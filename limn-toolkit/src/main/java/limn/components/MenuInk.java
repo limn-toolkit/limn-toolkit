@@ -2,9 +2,7 @@ package limn.components;
 
 import limn.graphics.Canvas;
 import limn.graphics.Color;
-import limn.graphics.Font;
 import limn.graphics.ShapedText;
-import limn.graphics.TextRuler;
 
 /**
  * The one drawing of a mnemonic underline, shared by the strip and the rows so a title and an
@@ -42,16 +40,22 @@ final class MenuInk {
     }
 
     /**
-     * Draws the rule under the character at {@code index} of {@code text}, which was drawn with its
-     * left edge at {@code textX} on {@code baseline}. A no-op for {@code index < 0}, so a caller
-     * may hand it the result of {@link #mnemonicIndex} unchecked.
+     * Draws the rule under the character at {@code index} of {@code line}, which was drawn with its
+     * left edge at {@code textX} on {@code baseline}. A no-op for {@code index < 0} or a null
+     * line, so a caller may hand it the result of {@link #mnemonicIndex} unchecked.
      *
-     * <p>{@code ruler} has to be the one the line was <em>painted</em> through, because the mark's
-     * position comes out of that line's shaping and not out of arithmetic about it.
+     * <p><b>The line itself, not a ruler and a string to re-shape.</b> The mark's position comes
+     * out of that line's shaping rather than out of arithmetic about it, so it has to be the very
+     * line the caller painted — and the only way to guarantee that is to be handed it. Re-shaping
+     * here could only ever reproduce it, and had no way to reproduce one thing: the paragraph
+     * direction the caller resolved. A title or an item label with no strong character of its own
+     * falls back to the direction of the interface around it, which is a fact about the widget and
+     * not about the string, so a mark placed from a line shaped without it marks the right cluster
+     * of the wrong paragraph.
      */
-    static void underlineMnemonic(Canvas canvas, TextRuler ruler, String text, int index,
-                                  float textX, float baseline, Font font, Color ink) {
-        if (index < 0 || text == null || index >= text.length()) {
+    static void underlineMnemonic(Canvas canvas, ShapedText line, int index,
+                                  float textX, float baseline, Color ink) {
+        if (index < 0 || line == null || index >= line.text().length()) {
             return;
         }
         // Placed from the shaping the line is PAINTED with, never from a prefix width. A prefix
@@ -63,9 +67,8 @@ final class MenuInk {
         // at the END of a prefix takes its final form, and the same letter inside the whole word
         // takes its medial one, so the two prefixes differ by an advance neither glyph has.
         //
-        // Both edges now come off one shaped value — the same call the canvas makes, into the same
-        // memo, at a hit — so the rule cannot drift from the glyph it marks.
-        ShapedText line = ruler.shape(text, font);
+        // Both edges come off the one shaped value the canvas drew, so the rule cannot drift from
+        // the glyph it marks.
         // Widened to the caret stop AFTER the one the index lands on, rather than to index + 1: a
         // ligature is one cluster with one stop, so in "Office" the f at index 1 and the whole ffi
         // glyph share a stop, and index + 1 would snap back onto it and mark a zero-width nothing.

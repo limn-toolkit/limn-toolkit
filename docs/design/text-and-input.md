@@ -11,8 +11,8 @@ of the string. Under a shaper that width is not the width of anything on screen 
 those characters join, ligate, kern and reorder differently than they do alone — so the operation
 was deleted rather than made direction-aware. Every question is now asked of a `ShapedText` the
 widget holds: `caretX` for the caret, `hitTest` for a click, `selection` for the band,
-`caretLeft`/`caretRight` for the arrow keys. (`Spinner`'s inline editor is the one deliberate
-hold-out; its own section below states the condition that keeps it legal.)
+`caretLeft`/`caretRight` for the arrow keys. `Spinner`'s inline editor was the one deliberate
+hold-out and is no longer one; its own section below says what ended it.
 
 The two consequences a user sees are worth stating because they are the acceptance test. A click in
 mixed text lands on the character under the pointer, either side of a direction boundary. And a
@@ -224,24 +224,38 @@ per-character ones. A caret that hopped word boundaries would let anyone watchin
 inside the secret and read off their lengths, which the uniform dot pitch is otherwise careful to
 give away nothing about.
 
-## `Spinner` still measures prefixes, and the condition that makes that legal
+## `Spinner` measured prefixes, and what ended that
 
-Its inline editor places the caret and maps a click by measuring prefixes, linearly: a deliberate
-hold-out, not an oversight. What makes it legal is not that the field is short. It is that the
-widget formats what it displays and accepts only what it can format — digits, a sign, a separator,
-a colon — so nothing in it joins, ligates or reorders, a prefix width really is a width, and a
-handful of characters does not repay a binary search.
+Its inline editor used to place the caret and map a click by measuring prefixes, linearly: a
+deliberate hold-out, not an oversight. What made it legal was not that the field is short. It was
+that the widget formats what it displays and accepts only what it can format — digits, a sign, a
+separator, a colon — so nothing in it joined, ligated or reordered, a prefix width really was a
+width, and a handful of characters does not repay a binary search.
 
-Paste is the hole in that argument, and it is deliberately unfiltered: a clipboard holding `12 px`
-arrives as typed, and `Enter` keeps the number or `Escape` puts the old one back, because a paste
-silently rewritten would be a field deciding what its user meant. So a pasted run of Arabic can sit
-in the edit buffer with the caret placed by arithmetic that does not describe it — a transient state
-in a widget whose *committed* value can never hold such a character, which is why it has not been
-paid for.
+**The direction axis ended the condition, and a minus sign is the whole of the counter-example.**
+A sign is not a strong character and it is not a digit; it is a neutral. A neutral *between* two
+numbers joins them, which is what kept `1,234` and `12:30` well behaved. A neutral at the
+*paragraph's edge* takes the paragraph's own level instead — so in a form that reads right to left,
+`-42` is drawn `42-`, with the sign after both digits. The digits keep their order between them and
+the run keeps its width, so nothing about it is visible in a screenshot; what moves is where the
+caret before the `-` belongs, which is now the far end of the run from where a prefix width puts it.
+A negative bound is ordinary, so this is not an exotic state the widget can decline to reach.
 
-What would end that is widening the accepted set, which is exactly what ADR 006 §2.4 proposes: a
-locale separator, a locale's own digits, the sv-SE minus sign. That change moves the caret onto a
-shaped line as part of itself, not afterwards.
+So the editor was converted rather than defended. Caret x is `caretX`, a click is `hitTest`, the
+selection band is the boxes `selection` returns, and the run's width is the shaped line's — the same
+four answers `TextField` gives, from a line shaped fresh in the pass that asks. Two consequences are
+worth stating because they are behaviour, not implementation. A selection spanning the sign paints
+as the two boxes it really covers. And `Home` and `End` now name the *paragraph's* two edges, which
+in a mirrored form are the right one and the left one respectively — the side `TextEditModel.moveHome`
+has always documented and that a prefix width, having no side at all, could not express.
+
+Paste was the old hole in the argument and is no longer one, though it stays deliberately
+unfiltered: a clipboard holding `12 px` arrives as typed, and `Enter` keeps the number or `Escape`
+puts the old one back, because a paste silently rewritten would be a field deciding what its user
+meant. A pasted run of Arabic now reorders on a line that knows it did.
+
+Widening the accepted set — ADR 006 §2.4's locale separator, a locale's own digits, the sv-SE minus
+sign — no longer has a caret to move onto a shaped line as part of itself. It is already there.
 
 ## Lines, and the wrapping that is not here
 

@@ -751,6 +751,7 @@ the problem — see 9.2.
 Ordered by what each one would cost a reader who trusted it.
 
 **1. Decision 7 is unreachable for most of the toolkit, and §2 hides it as "mechanical".**
+*Found here, and since closed; what closing it took is at the end of this item.*
 Decision 7 says widgets "move to the three-argument `shape(text, font, base)` overload". Only a
 widget that *holds* a `ShapedText` can. `Canvas.drawText(String, x, y, font, paint)` and
 `TextRuler.measure(String, Font)` take no base direction at all, and the canvas shapes through the
@@ -765,6 +766,43 @@ read that as an unused seam waiting for widgets, rather than as evidence that th
 draw plain strings *have no seam*. Finding 11 then counted those same call sites as
 leading-or-trailing *placement* decisions without noticing they are shaping decisions too. One
 call, two obligations, counted once. Six implementers reached this independently.
+
+**Closed, and the shape of the fix is the part worth carrying forward.** The route was not the one
+this item's own last sentence implies and not the one §9.5 went on to propose. Neither
+`TextRuler` nor `Canvas` was touched. `TextRuler` is a `@FunctionalInterface` that every test fake
+in the repository satisfies with a lambda, and §3 states that `ShapedText.matches` was the only
+source-breaking change this work would make; adding a direction to `measure` or to
+`drawText(String, …)` would have falsified both, to buy a seam that turned out not to be needed.
+
+What was needed instead, per widget: hold or shape the line the widget draws, with the widget's own
+resolved direction as the neutral fallback, take the natural width from `line.metrics().width()`
+rather than from a `measure` call, and draw that line. The width is the half that is easy to skip
+and the whole of what goes wrong when it is skipped — a column sized from one shaping and painted
+from another disagrees by the width of a face's opinion of a space, which is invisible until a
+label sits a fraction of a point outside its gutter or a click lands on the neighbouring menu.
+
+Three things fell out of it that were not foreseen here:
+
+- **`MenuInk` stopped taking a ruler and a string and started taking the line.** It re-shaped to
+  place its mark, which could reproduce the glyphs and could not reproduce the direction, because
+  the direction is a fact about the widget and not about the string. Both its callers now hold a
+  line and hand it over.
+- **`Spinner`'s inline editor could not stay on prefix measurement.** The condition
+  `text-and-input.md` stated for it — that the widget accepts only characters which neither join
+  nor reorder — does not survive a base direction: a minus sign is a neutral at the paragraph's
+  edge, so `-42` in a mirrored form is drawn `42-`. The editor moved onto `caretX`, `hitTest` and
+  `selection`, which is what every other text widget already did.
+- **`Home` and `End` in a mirrored `Spinner` changed sides**, and this is a behaviour change rather
+  than an implementation one. They name the paragraph's two edges — the side
+  `TextEditModel.moveHome` has always documented and takes `UPSTREAM` affinity for. A prefix width
+  has no side at all, so the old editor could only ever produce the run's edge, which in a
+  right-to-left form meant `Home` landing where `End` belongs. One assertion pinned the old
+  behaviour and was changed deliberately, with the maintainer's agreement, rather than worked
+  around.
+
+**What is not closed** is one widget, named so it is not mistaken for a clean sweep: `Checkbox`
+still measures its label and hands the canvas a `String`. It is the last such draw in the toolkit
+and it is the same ten-line conversion as the others.
 
 **2. Finding 11's census instrument is structurally blind, so §2's per-file counts are not a
 schedule.** Counting `width() -`, `canvas.drawText(` and `.layoutBox(` cannot see a gradient's
@@ -926,6 +964,16 @@ reads it as the *leading* inset, which right-to-left is the physical left — wh
 the list's own bar moves to. The repository's single asymmetric inset is direction-sensitive by
 nature, so the physical type was correctly not added.
 
+**§5's `Mode.TIME` risk is closed, and the decision it doubted was right.** §5 asked that the
+`hh:mm` claim be "pinned by a test that shapes `"07:30"` under an RTL base and asserts the hours are
+still the leading run, rather than trusted", and noted that the widget-level test could not do it: a
+fake ruler has no faces and so cannot answer a question about shaping. Measured against the vendored
+faces, `"07:30"` is one run at level 2 under a right-to-left base — a European digit takes an even
+level under either base, so the hours lead, the colon divides and the minutes follow, in both. The
+same measurement found the counter-case the decision did *not* cover, which is a leading sign: `-42`
+under the same base is one run of digits plus the sign at level 1, drawn last. Digits do not
+reorder; a sign beside them does.
+
 **One thing was added that §1 did not have**, after review: `Flex.MainAlignment` and `Label.HAlign`
 gain physical `LEFT` and `RIGHT` beside their logical constants, on the precedent Decision 5 set for
 `Stack`. Without them there was no way to say "physically left, whatever the direction" for a single
@@ -980,12 +1028,30 @@ because a language can be written in either and only the script says which.
 - **Icon classification**: correct as written. All six setters named in §1.5 gained their overload
   and every icon is `NEVER` until a call site says otherwise.
 - **The `Insets` leading/trailing type**: correct, and 9.3 strengthens the reason.
-- **New:** the toolkit's **two text paths** are not both direction-aware. Everything that holds a
-  shaped line takes a base; everything that draws through `Canvas.drawText(String, …)` or sizes
-  through `TextRuler.measure` still resolves its paragraph direction with a hard-coded left-to-right
-  fallback. Several widgets were converted onto held lines to close this for themselves; the seam
-  itself is untouched, and closing it means giving those two signatures a direction. That is the
-  largest thing this ADR leaves behind, and it is the direct consequence of 9.2's first item.
+- **New, and since corrected:** the toolkit's **two text paths** are not both direction-aware.
+  Everything that holds a shaped line takes a base; everything that draws through
+  `Canvas.drawText(String, …)` or sizes through `TextRuler.measure` resolves its paragraph
+  direction with a hard-coded left-to-right fallback.
+
+  What this bullet went on to say was wrong, and wrong in a way that would have cost a later reader
+  a much larger change than the one that was needed: *"closing it means giving those two signatures
+  a direction."* It does not, and it must not. `TextRuler` is a `@FunctionalInterface` satisfied by
+  a lambda in every test fake in the repository, and §3 commits to `ShapedText.matches` being the
+  only source-breaking change this work makes. Both signatures are unchanged and both stayed
+  unchanged while every widget in §9.2's list but one was converted.
+
+  **What is actually left is the seam and not the widgets.** A widget added later that reaches for
+  `Canvas.drawText(String, …)` or sizes itself from `TextRuler.measure` gets a left-to-right
+  paragraph for any string with no strong character in it — a count, a year, a price — with nothing
+  to warn it. That is a default that is right almost always and silent when it is not, which is the
+  same shape of trap Finding 7 fell into. Closing it properly is not an argument on those two
+  methods; it is either a compile-time push (a `Widget`-level helper that is the only way to get a
+  line, with the plain calls discouraged in review) or nothing, and "nothing" is a defensible answer
+  now that no widget in the toolkit depends on the fallback being right.
+
+  The one widget still on the old path is `Checkbox`, which measures its label and draws a
+  `String`. It is named here rather than left to a grep because it is the single remaining instance
+  and the conversion is the same one the others took.
 
 ### 9.6 Noticed, and deliberately not fixed
 

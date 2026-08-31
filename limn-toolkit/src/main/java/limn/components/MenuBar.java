@@ -4,6 +4,7 @@ import limn.backend.Cursor;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.scene.Constraints;
@@ -150,9 +151,26 @@ public final class MenuBar extends Widget {
     // the coordinate, in titleX, with the cursor arithmetic left alone — and all four walks go
     // through that one conversion so a half-mirrored pair cannot exist.
 
+    /**
+     * A title as one shaped line: the value its box is sized from, its leading origin found from,
+     * its ink drawn from and its mnemonic marked against. One shaping behind all four walks, which
+     * is what {@link #titleTextWidth} being the single authority has always meant &mdash; it is
+     * now a shaping rather than a measurement, so the authority extends to the paragraph the title
+     * is set in and not only to how wide it is.
+     *
+     * <p>Shaped in the pass that asks rather than held. The ruler memoizes, so the several walks
+     * of one frame cost one shaping between them; a field would have to carry the resolved
+     * direction in its key, because unlike a menu cascade a strip is an ordinary widget whose
+     * direction can change under it while it is on the screen.
+     */
+    private ShapedText titleLine(String title, SizeTokens t) {
+        return textRuler().shape(title, t.body(),
+                ShapedText.Direction.of(title, neutralBase()));
+    }
+
     /** The measured width of a title's text: the one authority its box and its origin share. */
     private float titleTextWidth(String title, SizeTokens t) {
-        return textRuler().measure(title, t.body()).width();
+        return titleLine(title, t).metrics().width();
     }
 
     /**
@@ -215,6 +233,20 @@ public final class MenuBar extends Widget {
         return layoutDirection() == LayoutDirection.RTL;
     }
 
+    /**
+     * What a title with no strong character of its own falls back to: this strip's own resolved
+     * direction. A menu named for a number or a symbol &mdash; a strip of channels, a formula
+     * bar's operators &mdash; reads the way the interface around it reads, and the first-strong
+     * rule has nothing to go on there. A Latin title in that same strip still reads left to
+     * right, because the fallback is consulted only where no strong character has an opinion.
+     *
+     * <p>Resolved on the call and never held: the direction is inherited, so a strip can be
+     * re-parented under a subtree that reads the other way after it has been laid out.
+     */
+    private ShapedText.Direction neutralBase() {
+        return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
+    }
+
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.current().tokensFor(this);
@@ -270,16 +302,21 @@ public final class MenuBar extends Widget {
             // from its own measured width — through the same call its box was sized with, or it
             // would sit a fraction of a point out of its pad.
             String title = entries.get(i).title().get();
+            // Shaped once and used three times over: the origin a mirrored title is placed from,
+            // the ink, and the cluster the mnemonic rule marks. The box above was sized from this
+            // same shaping, through titleTextWidth.
+            ShapedText line = titleLine(title, t);
             float textX = rtl
-                    ? x + w - t.menuBarPadH() - titleTextWidth(title, t)
+                    ? x + w - t.menuBarPadH() - line.metrics().width()
                     : x + t.menuBarPadH();
             float baseline = (height() - fm.height()) / 2 + fm.ascent();
-            canvas.drawText(title, textX, baseline, font, ink);
+            canvas.drawText(line, textX, baseline, ink);
             // The rule takes its edges off the painted line's own shaping and copes with a
-            // right-to-left run itself: the mirrored left edge is the whole of what it needs.
-            MenuInk.underlineMnemonic(canvas, textRuler(), title,
+            // right-to-left run itself: the mirrored left edge is the whole of what it needs, and
+            // it is handed the very line just drawn rather than a second shaping of the string.
+            MenuInk.underlineMnemonic(canvas, line,
                     MenuInk.mnemonicIndex(title, entries.get(i).mnemonic()),
-                    textX, baseline, font, ink);
+                    textX, baseline, ink);
             cursor += w;
         }
     }

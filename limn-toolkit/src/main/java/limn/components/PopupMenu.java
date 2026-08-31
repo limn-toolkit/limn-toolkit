@@ -8,6 +8,7 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Path2D;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.input.Keys;
@@ -965,25 +966,27 @@ public final class PopupMenu {
                 // mirrored column needs its own width to find that edge. That width is the
                 // column's snapshot, measured with the call the paint draws through: measuring
                 // here instead would run for every visible row of every column of every frame.
+                ShapedText label = col.label[i];
                 float labelX = rtl
-                        ? x + col.w - t.menuCheckGutter() - col.labelW[i]
+                        ? x + col.w - t.menuCheckGutter() - label.metrics().width()
                         : x + t.menuCheckGutter();
-                canvas.drawText(item.label(), labelX, baseline, font, ink);
+                canvas.drawText(label, labelX, baseline, ink);
                 // The rule takes both its edges off the line's own shaping and copes with a
-                // right-to-left run itself, so the mirrored left edge is all it needs.
-                MenuInk.underlineMnemonic(canvas, ruler, item.label(), item.mnemonicIndex(),
-                        labelX, baseline, font, ink);
+                // right-to-left run itself, so the mirrored left edge is all it needs -- and it is
+                // handed the very line just drawn, so it cannot mark a different shaping of it.
+                MenuInk.underlineMnemonic(canvas, label, item.mnemonicIndex(),
+                        labelX, baseline, ink);
                 // The hint is aligned against the SAME trailing margin the submenu arrow uses,
                 // so the two kinds of row end at one edge, and an item can carry only one of
                 // them, so they can never collide inside a row. Only the placement mirrors: the
                 // string names physical keys and is never reversed.
-                String accel = col.accel[i];
+                ShapedText accel = col.accelLine[i];
                 if (accel != null) {
-                    float accelW = ruler.measure(accel, font).width();
+                    float accelW = accel.metrics().width();
                     float accelX = rtl
                             ? x + t.menuArrowGutter()
                             : x + col.w - t.menuArrowGutter() - accelW;
-                    canvas.drawText(accel, accelX, baseline, font,
+                    canvas.drawText(accel, accelX, baseline,
                             item.isEnabled() ? theme.textMuted : theme.disabledText);
                 }
                 if (item.hasSubmenu()) {
@@ -1184,11 +1187,17 @@ public final class PopupMenu {
          * Whether any column's geometry snapshot no longer matches its {@link Menu}.
          *
          * <p>Model mutation is the whole of this key, and the layout direction deliberately does
-         * not join it: the cascade's direction is captured once at open (see
-         * {@link PopupMenu#direction}), so the numbers a column holds — {@code contentW}, the
-         * accelerator strings, {@code labelW} — cannot have been taken under a direction the
-         * paint disagrees with. They are also measured through the direction-blind two-argument
-         * ruler, so a change of direction would not move them even if one could arrive.
+         * not join it &mdash; but the reason is now one reason rather than two. The cascade's
+         * direction is captured once at open (see {@link PopupMenu#direction}) and is fixed for
+         * the life of the open cascade, so the values a column holds &mdash; {@code contentW}, the
+         * accelerator strings, the shaped {@link Column#label} lines &mdash; cannot have been
+         * taken under a direction the paint disagrees with.
+         *
+         * <p>The second reason this used to give has been deliberately removed rather than left
+         * to rot: those lines are no longer taken through the direction-blind two-argument ruler,
+         * so a direction that <em>could</em> arrive mid-cascade would now genuinely move them.
+         * Nothing keeps this key honest but the capture-at-open invariant, which is why that
+         * invariant is asserted in a test rather than only stated here.
          */
         private boolean columnsStale() {
             for (int i = 0; i < cols.size(); i++) {
@@ -1471,13 +1480,20 @@ public final class PopupMenu {
          */
         final String[] accel;
         /**
-         * Per-item label width, {@code 0} for a separator. Held for the same reason
-         * {@link #accel} is: a mirrored column aligns a label by its own width, and deriving it
-         * in the paint would measure every visible row of every column on every frame. It is
-         * measured with the call the paint draws through, so the label sits exactly in its
-         * gutter rather than a fraction of a point off it.
+         * Per-item label as one shaped line, {@code null} for a separator: the value the width
+         * pass sized this column from and the value the paint draws, so the two cannot be
+         * different shapings of the same string.
+         *
+         * <p>Held for the reason {@link #accel} is held and for one more. A mirrored column aligns
+         * a label by its own width, and deriving that in the paint would shape every visible row
+         * of every column on every frame. And the width has to come from a line shaped for
+         * <em>this cascade's</em> paragraph direction: a label with no strong character in it —
+         * a menu of years, of channel numbers, of file sizes — falls back to the direction of the
+         * interface, and a width taken without that fallback is the width of a different line.
          */
-        final float[] labelW;
+        final ShapedText[] label;
+        /** Per-item accelerator hint as one shaped line, {@code null} where {@link #accel} is. */
+        final ShapedText[] accelLine;
         final float contentW; // natural width: the widest label plus both gutters
         final float h;      // full content height
         float x;
@@ -1495,12 +1511,18 @@ public final class PopupMenu {
             top = new float[items.size()];
             hgt = new float[items.size()];
             accel = new String[items.size()];
-            labelW = new float[items.size()];
+            label = new ShapedText[items.size()];
+            accelLine = new ShapedText[items.size()];
             TextRuler ruler = surface.ruler;
             // The cascade's row, captured at open. Measuring here with a freshly resolved step
             // while paintColumn resolved another is exactly the defect this field prevents.
             SizeTokens t = tokens;
             Font font = t.body();
+            // The cascade's own direction, resolved once for every line this column shapes. It is
+            // fixed for the life of an open cascade (see PopupMenu#direction), which is what lets
+            // these lines be a snapshot at all: a direction that could move under them would make
+            // every width here an answer to a question nobody is still asking.
+            ShapedText.Direction base = isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
             float maxLabel = 0;
             float maxAccel = 0;
             float yy = t.menuPadV();
@@ -1515,12 +1537,20 @@ public final class PopupMenu {
                 hgt[i] = ih;
                 yy += ih;
                 if (!item.isSeparator()) {
-                    labelW[i] = ruler.measure(item.label(), font).width();
-                    maxLabel = Math.max(maxLabel, labelW[i]);
+                    String text = item.label();
+                    label[i] = ruler.shape(text, font, ShapedText.Direction.of(text, base));
+                    maxLabel = Math.max(maxLabel, label[i].metrics().width());
                     Accelerator shortcut = item.accelerator();
                     if (shortcut != null) {
                         accel[i] = shortcut.display();
-                        maxAccel = Math.max(maxAccel, ruler.measure(accel[i], font).width());
+                        // The hint names physical keys and is never reversed, and mostly says so
+                        // in its own first character -- "F5", "Ctrl+N" -- so the first-strong rule
+                        // decides it and this fallback is never reached. Shaped through the same
+                        // call regardless, so that a hint which IS neutral is decided rather than
+                        // defaulted, and so that the width reserved is this line's own.
+                        accelLine[i] = ruler.shape(accel[i], font,
+                                ShapedText.Direction.of(accel[i], base));
+                        maxAccel = Math.max(maxAccel, accelLine[i].metrics().width());
                     }
                 }
             }

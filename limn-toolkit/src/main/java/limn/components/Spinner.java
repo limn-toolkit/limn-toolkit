@@ -542,15 +542,22 @@ public class Spinner extends Widget {
      * "where the window has to start" back into a scroll offset, knows a direction — and the
      * clamp below it keeps its form, because {@link #editScrollX} is a distance travelled from
      * the leading edge in both directions and so is never negative.
+     *
+     * <p>Both coordinates come off the one shaped line, which is what makes them coordinates in
+     * the same space: the caret is where that line draws it, and the width is the width of what
+     * it draws. A caret placed by measuring a prefix and a run painted from a shaped line agree
+     * only while nothing reorders, and a formatted negative value in a right-to-left form
+     * reorders.
      */
     private void ensureCaretVisible(SizeTokens t) {
         if (edit == null) {
             return;
         }
+        ShapedText line = editLine(t);
         float pad = t.spacingMedium();
         float visible = Math.max(1, valueWidth(t) - 2 * pad);
-        float caret = prefixWidth(edit.cursor(), t);
-        float total = prefixWidth(edit.length(), t);
+        float caret = line.caretX(edit.caret());
+        float total = line.metrics().width();
         float view = editViewStart(total, visible);
         float wanted = view;
         if (caret - wanted > visible) {
@@ -565,44 +572,53 @@ public class Spinner extends Widget {
         editScrollX = Math.max(0, Math.min(editScrollX, Math.max(0, total - visible)));
     }
 
-    private float prefixWidth(int index, SizeTokens t) {
-        return index <= 0 ? 0 : textRuler().measure(edit.textRange(0, index), t.body()).width();
-    }
-
     /**
      * The text being typed, shaped for the paragraph this spinner reads in, so that the visual
      * arrow keys have a line to step over. A typed value is usually a run of digits, whose visual
      * order is its logical one and over which a visual step and a logical one agree; a paste is
      * not filtered, so it is the case where they do not.
      *
-     * <p>Shaped fresh on the key that asks rather than held in a field: at one line per arrow
-     * press there is nothing here worth caching, and a held line would have to carry the resolved
-     * direction in its key or answer every geometry question for the wrong paragraph.
+     * <p><b>Every horizontal coordinate the editor has comes from here</b> — the caret, the
+     * click, the selection band and the run's own width — which is the rule
+     * {@code docs/design/text-and-input.md} states for the text widgets and which this one used to
+     * be the stated exception to. What made the exception legal was that a spinner formats what it
+     * shows and accepts only characters that neither join nor reorder, so the width of a prefix
+     * really was a distance on the screen. A base direction ends that: a leading minus sign is a
+     * neutral at the paragraph's edge, so in a right-to-left form it takes the paragraph's own
+     * level and is drawn after the digits, and {@code -42} is painted {@code 42-}. The prefix is
+     * still a width; it is no longer the distance to anything.
+     *
+     * <p>Shaped fresh in the pass that asks rather than held in a field: the ruler memoizes
+     * shaping, so the several questions one paint asks cost one shaping between them, and a field
+     * would need a key carrying the resolved direction and would hold a zero-width line for any
+     * spinner whose first shaping happened while it was detached.
+     *
+     * @param t the size row resolved for this pass, so that two passes cannot shape in two fonts
      */
-    private ShapedText editLine() {
-        SizeTokens t = Theme.current().tokensFor(this);
+    private ShapedText editLine(SizeTokens t) {
         String typed = edit.text();
         return textRuler().shape(typed, t.body(), ShapedText.Direction.of(typed, neutralBase()));
     }
 
     /**
-     * The caret index nearest {@code px} in the text's own space. Linear, unlike
-     * {@link TextField}'s binary search: what fits in a spinner is a handful of
-     * characters, and the search that pays for itself over prose does not here.
+     * The caret a click at {@code px} in the text's own space asks for, side included.
+     *
+     * <p>Side included because an index alone is a caret that jumps the next time it moves: where
+     * a run of digits meets a sign that reordered away from it, one index is two points on the
+     * line, and which of them the click meant is what {@link ShapedText#hitTest} resolved. It also
+     * never has to be snapped to a grapheme boundary the way the linear search over prefix widths
+     * did — caret stops are the shaper's own cluster boundaries, and there is nothing between two
+     * of them to land in, which is what a pasted surrogate pair used to need aligning out of.
      */
-    private int indexAt(float px, SizeTokens t) {
-        int best = 0;
-        float bestDistance = Float.MAX_VALUE;
-        for (int i = 0; i <= edit.length(); i++) {
-            float distance = Math.abs(prefixWidth(i, t) - px);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                best = i;
-            }
-        }
-        // Pasted text can hold anything, including a surrogate pair, and a caret
-        // inside one is an index no edit can act on.
-        return edit.alignToGrapheme(best);
+    private ShapedText.Position caretAt(float px, SizeTokens t) {
+        ShapedText line = editLine(t);
+        // Past the right edge is the LOGICAL end of the line, not the nearest cluster to it: on a
+        // line ending in the direction opposite the paragraph's -- a negative value read right to
+        // left ends in its minus sign -- those are different characters, and hitTest's clamp is
+        // the answer to a drag past the end rather than to this.
+        return px > line.metrics().width()
+                ? new ShapedText.Position(edit.length(), ShapedText.Affinity.UPSTREAM)
+                : line.hitTest(px);
     }
 
     /**
@@ -675,6 +691,25 @@ public class Spinner extends Widget {
      */
     private ShapedText.Direction neutralBase() {
         return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
+    }
+
+    /**
+     * One line of this spinner's own text, shaped for the paragraph it reads in: the value, either
+     * field of a clock face, and the colon between them all come through here, so the width a
+     * width is taken from is always the width of the line that is drawn.
+     *
+     * <p>{@code base} is passed in rather than resolved here so that one pass resolves it once.
+     * The first-strong rule still decides everything a strong character can decide — it is applied
+     * on the way through — and the fallback reaches only a string that has none, which for this
+     * widget is the ordinary case rather than the exotic one: a formatted number is entirely
+     * neutral.
+     *
+     * <p>Not held in a field. The ruler memoizes shaping, so asking twice inside one pass costs
+     * one shaping; a field would need a key carrying the direction, and would hold a zero-width
+     * line for any spinner first shaped while it was detached from a scene.
+     */
+    private ShapedText shapedFor(String text, Font font, ShapedText.Direction base) {
+        return textRuler().shape(text, font, ShapedText.Direction.of(text, base));
     }
 
     /**
@@ -775,8 +810,13 @@ public class Spinner extends Widget {
         // negative min), so the two extremes bound every value in between. This
         // assumes digits share an advance, true for the toolkit's fonts; the
         // trailing pad absorbs sub-point variance if they ever do not.
-        TextMetrics atMin = textRuler().measure(format(min), t.body());
-        TextMetrics atMax = textRuler().measure(format(max), t.body());
+        // Shaped rather than measured, and for the same reason paint shapes: a width taken from
+        // a measurement has nowhere to put a base direction, so a box sized that way and a value
+        // painted from a shaped line would be answering two different questions. The extremes are
+        // shaped for this spinner's own direction, exactly as the value it will draw is.
+        ShapedText.Direction base = neutralBase();
+        TextMetrics atMin = shapedFor(format(min), t.body(), base).metrics();
+        TextMetrics atMax = shapedFor(format(max), t.body(), base).metrics();
         float valueWidth = Math.max(atMin.width(), atMax.width());
         float needed = pad + valueWidth + pad + t.spinnerButtonW();
         // spinnerWidth stays a floor, so narrow ranges keep the step's preferred size.
@@ -823,13 +863,20 @@ public class Spinner extends Widget {
             paintTypedValue(canvas, theme, t, font, baseline, ink);
             return;
         }
+        // Resolved ONCE for this pass and handed to every line it shapes: two resolutions inside
+        // one paint would draw the three fields of a clock face against two different paragraphs.
+        ShapedText.Direction base = neutralBase();
         if (mode == Mode.TIME) {
             formatted(); // fills the two field strings below
-            String hh = formattedHours;
-            String mm = formattedMinutes;
-            float hhW = textRuler().measure(hh, font).width();
-            float colonW = textRuler().measure(":", font).width();
-            float mmW = textRuler().measure(mm, font).width();
+            // Three lines rather than one, because they are three draws: the two fields are
+            // highlighted independently and the colon is drawn in a different ink. Each carries
+            // its own width, so the run is composed from the widths of the things in it.
+            ShapedText hh = shapedFor(formattedHours, font, base);
+            ShapedText colon = shapedFor(":", font, base);
+            ShapedText mm = shapedFor(formattedMinutes, font, base);
+            float hhW = hh.metrics().width();
+            float colonW = colon.metrics().width();
+            float mmW = mm.metrics().width();
             // Only the ORIGIN of the run moves: hh:mm is a run of digits, which keeps its
             // left-to-right order inside a right-to-left paragraph, so the hours stay left of
             // the minutes and the colon stays between them whichever way the form reads.
@@ -845,13 +892,14 @@ public class Spinner extends Widget {
                 canvas.fillRoundRect(fx - padX, inset, fw + 2 * padX, height() - 2 * inset,
                         t.radiusSmall(), theme.primary.withAlpha(0.20f * focus));
             }
-            canvas.drawText(hh, hhX, baseline, font, ink);
-            canvas.drawText(":", colonX, baseline, font, theme.textMuted);
-            canvas.drawText(mm, mmX, baseline, font, ink);
+            canvas.drawText(hh, hhX, baseline, ink);
+            canvas.drawText(colon, colonX, baseline, theme.textMuted);
+            canvas.drawText(mm, mmX, baseline, ink);
         } else {
-            String shown = text();
-            canvas.drawText(shown, runOriginX(t, textRuler().measure(shown, font).width()),
-                    baseline, font, ink);
+            // The one place a spinner's value is a string with no strong character and no
+            // structure around it, so the fallback is the whole of what decides its direction.
+            ShapedText shown = shapedFor(text(), font, base);
+            canvas.drawText(shown, runOriginX(t, shown.metrics().width()), baseline, ink);
         }
     }
 
@@ -865,22 +913,28 @@ public class Spinner extends Widget {
                                  float baseline, Color ink) {
         TextMetrics metrics = textRuler().measure("Hg", font);
         float inkTop = baseline - metrics.ascent();
-        float originX = editOriginX(t, prefixWidth(edit.length(), t));
+        // The one shaped line this pass draws, and the one every coordinate below is asked of.
+        ShapedText line = editLine(t);
+        float originX = editOriginX(t, line.metrics().width());
 
         canvas.save();
         canvas.clipRect(valueLeft(t), 0, valueWidth(t), height());
         if (edit.hasSelection()) {
-            float x0 = originX + prefixWidth(edit.selectionStart(), t);
-            float x1 = originX + prefixWidth(edit.selectionEnd(), t);
-            canvas.fillRect(x0, inkTop - Strokes.INK_BLEED, x1 - x0,
-                    metrics.height() + 2 * Strokes.INK_BLEED,
-                    theme.primary.withAlpha(0.35f));
+            // The N boxes the selection really covers rather than the one box between two prefix
+            // widths: a selection that spans a reordering -- the digits of a negative value read
+            // right to left, without its sign -- is not contiguous on the screen, and painted as
+            // one box it would cover a character it does not hold.
+            for (ShapedText.Span span : line.selection(edit.selectionStart(), edit.selectionEnd())) {
+                canvas.fillRect(originX + span.x0(), inkTop - Strokes.INK_BLEED, span.width(),
+                        metrics.height() + 2 * Strokes.INK_BLEED,
+                        theme.primary.withAlpha(0.35f));
+            }
         }
-        canvas.drawText(edit.text(), originX, baseline, font, ink);
+        canvas.drawText(line, originX, baseline, ink);
         // No caret over a selection: the highlight already says where the next
         // keystroke lands, and a caret at one of its ends only argues with it.
         if (caretVisible && isFocused() && !edit.hasSelection()) {
-            float caretX = originX + prefixWidth(edit.cursor(), t);
+            float caretX = originX + line.caretX(edit.caret());
             canvas.drawLine(caretX, inkTop - Strokes.INK_BLEED,
                     caretX, inkTop + metrics.height() + Strokes.INK_BLEED,
                     Strokes.CARET, ink);
@@ -970,8 +1024,8 @@ public class Spinner extends Widget {
                 } else if (editable) {
                     beginEdit(false);
                     if (edit != null) {
-                        float textX = lx - editOriginX(t, prefixWidth(edit.length(), t));
-                        edit.setCursor(indexAt(textX, t),
+                        float textX = lx - editOriginX(t, editLine(t).metrics().width());
+                        edit.setCaret(caretAt(textX, t),
                                 (event.modifiers() & Keys.MOD_SHIFT) != 0);
                         afterEditChange();
                     }
@@ -986,8 +1040,8 @@ public class Spinner extends Widget {
                     // a drag that measured its origin against a different step than the press did
                     // would slip a character at the moment the pointer started moving.
                     float lx = sceneToLocalX(event.x());
-                    float textX = lx - editOriginX(t, prefixWidth(edit.length(), t));
-                    edit.setCursor(indexAt(textX, t), true);
+                    float textX = lx - editOriginX(t, editLine(t).metrics().width());
+                    edit.setCaret(caretAt(textX, t), true);
                     afterEditChange();
                     event.consume();
                 }
@@ -1019,8 +1073,12 @@ public class Spinner extends Widget {
     private void selectFieldAt(SizeTokens t, float localX) {
         Font font = t.body();
         formatted(); // the same two strings the paint measured, rather than a second rendering
-        float hhColonW = textRuler().measure(formattedHours + ":", font).width();
-        float mmW = textRuler().measure(formattedMinutes, font).width();
+        // Shaped for this spinner's own direction, so the boundary a click is compared against is
+        // composed from the same widths the paint composed the run's origin from.
+        ShapedText.Direction base = neutralBase();
+        float hhColonW = shapedFor(formattedHours, font, base).metrics().width()
+                + shapedFor(":", font, base).metrics().width();
+        float mmW = shapedFor(formattedMinutes, font, base).metrics().width();
         // Measured from the run's own origin, which is where the paint put it. The comparison
         // does not flip with it: inside a run of digits the hours stay left of the minutes, which
         // is the same reason Left and Right do not swap the two fields.
@@ -1120,14 +1178,17 @@ public class Spinner extends Widget {
     /** The keys that belong to the text while there is text being typed. */
     private boolean handleEditKey(int key, int mods) {
         boolean shift = (mods & Keys.MOD_SHIFT) != 0;
+        // Resolved once for this keystroke: the visual arrows step over a line, and a line shaped
+        // in one size row cannot answer for a caret placed against another.
+        SizeTokens tokens = Theme.current().tokensFor(this);
         switch (key) {
             // Left and Right are VISUAL while there is text: they are named for a direction on
             // the screen, so they step one cluster that way on the line actually drawn, whatever
             // the characters under them do. Not mirrored — a mirror would step the caret twice.
             // Home and End stay LOGICAL, which is what makes Shift+Home one contiguous range of
             // the string, and in reordered text that means Left and Home can move opposite ways.
-            case Keys.LEFT -> edit.moveVisualLeft(editLine(), 0, shift);
-            case Keys.RIGHT -> edit.moveVisualRight(editLine(), 0, shift);
+            case Keys.LEFT -> edit.moveVisualLeft(editLine(tokens), 0, shift);
+            case Keys.RIGHT -> edit.moveVisualRight(editLine(tokens), 0, shift);
             case Keys.HOME -> edit.moveHome(shift);
             case Keys.END -> edit.moveEnd(shift);
             case Keys.BACKSPACE -> edit.backspace();
