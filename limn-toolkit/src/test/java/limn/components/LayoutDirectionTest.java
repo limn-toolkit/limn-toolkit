@@ -307,10 +307,13 @@ class LayoutDirectionTest extends ComponentTestBase {
     // ---------------------------------------------------------- two epochs
 
     @Test
-    void theTwoAxesKeepSeparateEpochsSoNeitherInvalidatesTheOther() {
-        // Merging the counters is the obvious simplification and a wrong one: a theme change
-        // that bumps the size epoch would re-shape every string in the process for a direction
-        // that did not move, and one counter cannot say which axis a re-measure was for.
+    void aDeclaredValueOnOneAxisIsUntouchedByTheOtherAxisMoving() {
+        // What this pins is the resolution, not the epochs. The two counters are a cost
+        // separation and not a correctness one — merging them would still give every right
+        // answer, because a memo is a pure function of its inputs and measure's key compares
+        // resolved VALUES rather than epochs — so no assertion here could tell them apart, and
+        // one claiming to would be lying. What is worth pinning is that the axes do not leak
+        // into each other's answers.
         Probe sizeOnly = new Probe();
         Probe directionOnly = new Probe();
         Constraints c = Constraints.loose(100, 100);

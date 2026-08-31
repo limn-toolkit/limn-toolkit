@@ -72,6 +72,9 @@ public class TextField extends Widget {
     // Optional in-field adornments (icons rasterize/select lazily at paint).
     private Icon leadingIcon;
     private Icon trailingIcon;
+    /** Whether each icon turns around in a right-to-left subtree; the application's word. */
+    private Icon.Mirroring leadingMirroring = Icon.Mirroring.NEVER;
+    private Icon.Mirroring trailingMirroring = Icon.Mirroring.NEVER;
     private Runnable onTrailing = () -> {
     };
     private boolean trailingHover;
@@ -182,10 +185,24 @@ public class TextField extends Widget {
         return this;
     }
 
-    /** A leading icon inside the field, tinted to the muted text color ({@code null} clears). */
+    /**
+     * A leading icon inside the field, tinted to the muted text color ({@code null} clears).
+     * Drawn as authored whichever way the field reads; use
+     * {@link #setLeadingIcon(Icon, Icon.Mirroring)} for an icon that means a direction.
+     */
     public TextField setLeadingIcon(Icon icon) {
+        return setLeadingIcon(icon, Icon.Mirroring.NEVER);
+    }
+
+    /**
+     * A leading icon that says whether it turns around when the interface does. Only the code that
+     * placed an icon knows whether its arrow means "back" or "download", which is why this is a
+     * flag here and never a classification inside the toolkit.
+     */
+    public TextField setLeadingIcon(Icon icon, Icon.Mirroring mirroring) {
         Ui.checkUiThread();
         this.leadingIcon = icon;
+        this.leadingMirroring = Objects.requireNonNull(mirroring, "mirroring");
         markNeedsLayout();
         return this;
     }
@@ -195,8 +212,17 @@ public class TextField extends Widget {
      * region idiom of {@link ComboBox}. {@code icon == null} removes it.
      */
     public TextField setTrailingButton(Icon icon, Runnable action) {
+        return setTrailingButton(icon, action, Icon.Mirroring.NEVER);
+    }
+
+    /**
+     * A trailing coupled button whose icon says whether it turns around when the interface does;
+     * see {@link #setLeadingIcon(Icon, Icon.Mirroring)} for why the toolkit does not decide that.
+     */
+    public TextField setTrailingButton(Icon icon, Runnable action, Icon.Mirroring mirroring) {
         Ui.checkUiThread();
         this.trailingIcon = icon;
+        this.trailingMirroring = Objects.requireNonNull(mirroring, "mirroring");
         this.onTrailing = action != null ? action : () -> {
         };
         markNeedsLayout();
@@ -642,7 +668,8 @@ public class TextField extends Widget {
             float ico = t.fieldIcon();
             float iconX = rtl ? width() - t.fieldPadH() - ico : t.fieldPadH();
             leadingIcon.paint(canvas, iconX, (height() - ico) / 2, ico,
-                    isEnabled() ? theme.textMuted : theme.disabledText, theme.dark);
+                    isEnabled() ? theme.textMuted : theme.disabledText, theme.dark,
+                    rtl && leadingMirroring == Icon.Mirroring.IN_RTL);
         }
         // Trailing coupled button (ComboBox-caret idiom): a themed background that
         // lights up on hover and deepens on press (click feedback), then the divider
@@ -672,7 +699,8 @@ public class TextField extends Widget {
             Color tint = !isEnabled() ? theme.disabledText
                     : (trailingHover || trailingArmed) ? theme.primary : theme.textMuted;
             trailingIcon.paint(canvas, regionX + (regionW - ico) / 2,
-                    (height() - ico) / 2, ico, tint, theme.dark);
+                    (height() - ico) / 2, ico, tint, theme.dark,
+                    rtl && trailingMirroring == Icon.Mirroring.IN_RTL);
         }
 
         // Bounds may have changed since the last edit (resize, or setText

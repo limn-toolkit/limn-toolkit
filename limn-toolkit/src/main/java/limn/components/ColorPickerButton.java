@@ -7,11 +7,13 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.RoundRect;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -45,6 +47,11 @@ import java.util.function.Consumer;
  * <p>Not a {@link Button} subclass: what it draws is a value, not a label, and the two
  * disagree about almost every line of paint. It behaves like one (hover, focus ring,
  * Enter and Space) because a control that opens a dialog should.
+ *
+ * <p><b>Reading right to left</b>, the chip and its caption swap sides together: the chip is
+ * the leading item of the pair and the caption follows it inwards. Nothing else moves. The
+ * box is the same size in both directions, the chip is the same square, and the colour inside
+ * it has no reading axis of its own.
  */
 public class ColorPickerButton extends Widget {
 
@@ -276,9 +283,30 @@ public class ColorPickerButton extends Widget {
 
     // --- layout and paint ----------------------------------------------------
 
-    /** Horizontal room the chip claims, its gap to the caption included. */
+    /**
+     * Horizontal room the chip claims, its gap to the caption included. A magnitude and never
+     * an x: it is the same number in both directions, and the side it is measured from is the
+     * paint's decision alone.
+     */
     private float chipAdvance(SizeTokens t) {
         return t.iconBox() + (text().isEmpty() ? 0 : t.gapIcon());
+    }
+
+    /**
+     * What the shaper should fall back to for a caption with nothing strong in it, given the
+     * direction this pass already resolved.
+     *
+     * <p>A fallback and not an imposition: the first-strong rule still decides everything a
+     * strong character can decide, so the default caption &mdash; a hex, which is Latin and
+     * digits &mdash; still reads left to right inside a right-to-left form, and only where it
+     * is placed changes. What this settles is the caption that says nothing either way, whose
+     * right answer is the direction of the interface around it.
+     *
+     * <p>Takes the resolved direction rather than reading it again, so that one paint cannot
+     * place the caption for one direction and shape it for the other.
+     */
+    private static ShapedText.Direction neutralBase(boolean rtl) {
+        return rtl ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
     }
 
     @Override
@@ -311,6 +339,10 @@ public class ColorPickerButton extends Widget {
         float w = width();
         float h = height();
         float radius = t.radiusMedium();
+        // The one resolution of the direction in this pass. The chip and the caption are a
+        // single decision in two statements, and two reads that disagreed would put the chip on
+        // one side of the button with its caption on the other.
+        boolean rtl = layoutDirection() == LayoutDirection.RTL;
 
         // Secondary-button chrome: the control is a button, and the colour is its value.
         // Filling the whole face with the colour instead would make hover and pressed
@@ -324,14 +356,24 @@ public class ColorPickerButton extends Widget {
                 Strokes.BORDER, theme.outline);
 
         float chip = t.iconBox();
-        paintChip(canvas, t, theme, t.padH(), (h - chip) / 2, chip, chip);
+        // The chip is the leading item of the pair, so its left edge is one pad in from the
+        // left reading one way and one chip further than that from the right reading the other.
+        paintChip(canvas, t, theme, rtl ? w - t.padH() - chip : t.padH(),
+                (h - chip) / 2, chip, chip);
 
         String caption = text();
         if (!caption.isEmpty()) {
             Font font = t.body();
-            TextMetrics metrics = textRuler().measure(caption, font);
-            canvas.drawText(caption, t.padH() + chipAdvance(t),
-                    (h - metrics.height()) / 2 + metrics.ascent(), font,
+            ShapedText line = textRuler().shape(caption, font,
+                    ShapedText.Direction.of(caption, neutralBase(rtl)));
+            TextMetrics metrics = line.metrics();
+            // drawText places a line by its LEFT edge whichever way the line itself runs, so
+            // the caption's leading x is expressed as one: the chip's advance in from the
+            // trailing pad, less the line's own width.
+            float captionX = rtl
+                    ? w - t.padH() - chipAdvance(t) - metrics.width()
+                    : t.padH() + chipAdvance(t);
+            canvas.drawText(line, captionX, (h - metrics.height()) / 2 + metrics.ascent(),
                     isEnabled() ? theme.text : theme.disabledText);
         }
 
@@ -350,6 +392,10 @@ public class ColorPickerButton extends Widget {
      * <p>A disabled button dims the chip toward its own fill rather than swapping it for a
      * grey. The colour is the control's value, and a value that vanishes when the control
      * is switched off is a control that looks empty rather than unavailable.
+     *
+     * <p>Works entirely inside the box it is handed, and takes {@code x} rather than deciding
+     * one: which side the chip sits on is the caller's decision, and a swatch has no reading
+     * axis to make it here.
      */
     private void paintChip(Canvas canvas, SizeTokens t, Theme theme,
                            float x, float y, float w, float h) {

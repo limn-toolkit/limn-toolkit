@@ -7,7 +7,9 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
+import limn.scene.LayoutDirection;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +28,12 @@ import java.util.List;
  * which screen axis carries the values, and everything downstream (grid, labels, marks,
  * hit-testing, the tooltip) runs through {@link #valuePosition(double)} and
  * {@link #bandStart(int)}, so the two orientations cannot drift apart.
+ *
+ * <p><b>Direction goes through the same two doors.</b> A chart read right to left runs its
+ * value scale and its category sequence from the right edge of the plot, and the axis labels
+ * sit in a gutter on that side. Both mirrors live in {@code valuePosition} and
+ * {@code bandStart}, so a subclass placing a mark or hit-testing one gets the mirror for free
+ * and must not apply a second one. The vertical axis is not a reading axis and never moves.
  */
 public abstract class CartesianChart extends Chart {
 
@@ -37,6 +45,11 @@ public abstract class CartesianChart extends Chart {
     // Resolved before every paint and every pointer test.
     private ChartAxis.Scale scale = new ChartAxis.Scale(0, 1, 1);
     private String[] tickLabels = new String[0];
+    // The direction this pass is laying out for, resolved beside the plot rectangle and read by
+    // the geometry helpers instead of the axis. It sits here rather than being threaded as a
+    // parameter because valuePosition and bandStart are the subclass contract: a subclass calls
+    // them from its own paint and its own hit test and has no direction in hand to pass.
+    private boolean rtl;
     private float plotX;
     private float plotY;
     private float plotWidth;
@@ -45,13 +58,19 @@ public abstract class CartesianChart extends Chart {
     private int stackKeysGeneration = -1;
     // Cache keys for the two O(categories) scans below. Both fold in the UI language,
     // because both cache resolved text and a language change re-reads nothing on its own.
+    // Both also fold in the direction: what they hold is a width, the width is taken from a
+    // line shaped for a paragraph direction, and nothing else in either key moves when that
+    // direction does. Without it the plot keeps a gutter measured for the other direction and
+    // is told it is current, which no screenshot shows and every geometry query is wrong about.
     private int scaleGeneration = -1;
     private long scaleEpoch = -1;
     private Font scaleFont;
+    private boolean scaleRtl;
     private float tickLabelWidth;
     private int categoryScanGeneration = -1;
     private long categoryScanEpoch = -1;
     private Font categoryScanFont;
+    private boolean categoryScanRtl;
     private float widestCategoryLabel;
 
     CartesianChart(boolean beginAtZero) {
@@ -136,13 +155,20 @@ public abstract class CartesianChart extends Chart {
         return scale;
     }
 
-    /** Where {@code value} falls along the value axis, in local coordinates. */
+    /**
+     * Where {@code value} falls along the value axis, in local coordinates.
+     *
+     * <p>Only the sideways branch is on the reading axis, and only it mirrors: the low end of
+     * the scale sits where reading starts, so it is the plot's right edge reading right to
+     * left. The upright branch is the vertical axis, which no direction moves.
+     */
     protected final float valuePosition(double value) {
         double span = scale.max() - scale.min();
         double t = span == 0 ? 0 : (value - scale.min()) / span;
-        return horizontal
-                ? (float) (plotX + t * plotWidth)
-                : (float) (plotY + plotHeight - t * plotHeight);
+        if (!horizontal) {
+            return (float) (plotY + plotHeight - t * plotHeight);
+        }
+        return (float) (rtl ? plotX + plotWidth - t * plotWidth : plotX + t * plotWidth);
     }
 
     /** The width (or height, turned sideways) of one category slot. */
@@ -151,14 +177,48 @@ public abstract class CartesianChart extends Chart {
         return (horizontal ? plotHeight : plotWidth) / count;
     }
 
-    /** Where category {@code index} starts along the category axis, in local coordinates. */
+    /**
+     * The <b>left</b> edge (the top edge, turned sideways) of category {@code index}'s band, in
+     * local coordinates.
+     *
+     * <p>What mirrors is the coordinate, not the walk along the axis: the step from one category
+     * to the next stays {@code index * bandSize()} and only the point it is turned into is
+     * reflected, so a band is exactly one band wide at either end of the plot.
+     *
+     * <p>What this returns is a band's box, not the point reading starts from. {@link
+     * #bandCenter}, the hover band and every mark a subclass places compose from a left edge, so
+     * reflecting the point instead would move all three into the neighbouring band. The lines
+     * <em>between</em> bands are a different question, and {@link #bandBoundary} answers it.
+     */
     protected final float bandStart(int index) {
-        return (horizontal ? plotY : plotX) + index * bandSize();
+        float along = index * bandSize();
+        if (horizontal) {
+            return plotY + along;
+        }
+        return plotX + (rtl ? plotWidth - along - bandSize() : along);
     }
 
-    /** The middle of category {@code index} along the category axis. */
+    /**
+     * The middle of category {@code index} along the category axis.
+     *
+     * <p>A centre, and centres do not move: once {@link #bandStart} names the band's own left
+     * edge in either direction, this is already the middle of the right band.
+     */
     protected final float bandCenter(int index) {
         return bandStart(index) + bandSize() / 2;
+    }
+
+    /**
+     * The {@code index}-th line between two category bands, counting from the plot's left edge
+     * (its top edge, turned sideways). There are {@code categoryCount() + 1} of them and the
+     * first and last lie on the plot's own edges.
+     *
+     * <p>Direction-free, which is why it is not {@link #bandStart}. The bands tile the plot
+     * evenly, so the set of lines between them is the same set read either way; all that changes
+     * is which band each line belongs to, and a grid does not ask.
+     */
+    private float bandBoundary(int index) {
+        return (horizontal ? plotY : plotX) + index * bandSize();
     }
 
     /**
@@ -238,6 +298,42 @@ public abstract class CartesianChart extends Chart {
         return cachedStackKeys;
     }
 
+    // ---------------------------------------------------------------- labels
+
+    /**
+     * What a label with no strong character of its own falls back to: a tick reading {@code
+     * "42"}, {@code "3.14"} or {@code "12:30"} takes the direction of the chart around it,
+     * because nothing in the string can say.
+     *
+     * <p>Read from the direction resolved for this pass and never from the axis again, so the
+     * paragraph a gutter was measured for and the paragraph drawn into it are the same one.
+     */
+    private ShapedText.Direction neutralBase() {
+        return rtl ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
+    }
+
+    /**
+     * One axis label as a shaped line.
+     *
+     * <p>The chart's direction is offered as the fallback and not imposed: the first-strong rule
+     * still decides everything a strong character can decide, so a Latin category name in an
+     * Arabic chart still reads left to right. Shaped rather than handed to the canvas as a
+     * string because the canvas would have to guess that fallback, and the guess it is obliged
+     * to make is the one this chart can answer.
+     */
+    private ShapedText shapeLabel(String text, Font font) {
+        return textRuler().shape(text, font, ShapedText.Direction.of(text, neutralBase()));
+    }
+
+    /**
+     * The width a label will actually be drawn at, which is what every gutter here is sized
+     * from. Measured through the shaper rather than through the ruler's per-string form so that
+     * the width a gutter reserves and the width drawn into it come from the same paragraph.
+     */
+    private float labelWidth(String text, Font font) {
+        return shapeLabel(text, font).metrics().width();
+    }
+
     // ------------------------------------------------------- subclass contract
 
     /** Paints the marks inside the plot region; grid and axes are already down. */
@@ -259,6 +355,9 @@ public abstract class CartesianChart extends Chart {
     protected void paintContent(Canvas canvas, float x, float y, float w, float h) {
         Theme theme = Theme.current();
         SizeTokens t = tokens();
+        // Resolved once for the whole pass, before anything that reads it. Two resolutions
+        // inside one frame is how the grid ends up mirrored and the marks standing on it do not.
+        rtl = layoutDirection() == LayoutDirection.RTL;
         resolveScale();
         layoutPlot(t, x, y, w, h);
         if (plotWidth <= 1 || plotHeight <= 1) {
@@ -276,19 +375,21 @@ public abstract class CartesianChart extends Chart {
      * <p>Called from the paint <em>and</em> from every pointer move, and it is O(series x
      * categories) plus one format call per tick, which is nothing at twelve points and a
      * scan of the whole dataset per mouse move at a thousand. The cache key is the data
-     * generation (bumped by every value, visibility and axis change) and the UI language
-     * (the tick labels are formatted text). {@code ChartLayoutCostTest} pins that this
-     * stays off the per-frame path.
+     * generation (bumped by every value, visibility and axis change), the UI language
+     * (the tick labels are formatted text) and the resolved direction (what it keeps is the
+     * widest tick label's shaped width, and the paragraph direction is an input to that).
+     * {@code ChartLayoutCostTest} pins that this stays off the per-frame path.
      */
     private void resolveScale() {
         Font font = tokens().label();
         if (scaleGeneration == dataGeneration() && scaleEpoch == limn.i18n.I18n.epoch()
-                && scaleFont == font) {
+                && scaleFont == font && scaleRtl == rtl) {
             return;
         }
         scaleGeneration = dataGeneration();
         scaleEpoch = limn.i18n.I18n.epoch();
         scaleFont = font;
+        scaleRtl = rtl;
         resolveScaleUncached(font);
     }
 
@@ -350,7 +451,7 @@ public abstract class CartesianChart extends Chart {
         tickLabelWidth = 0;
         for (int i = 0; i < tickLabels.length; i++) {
             tickLabels[i] = valueAxis.format().apply(scale.tick(i));
-            tickLabelWidth = Math.max(tickLabelWidth, measure(tickLabels[i], labelFont).width());
+            tickLabelWidth = Math.max(tickLabelWidth, labelWidth(tickLabels[i], labelFont));
         }
     }
 
@@ -358,20 +459,24 @@ public abstract class CartesianChart extends Chart {
      * The widest category label, measured once per data change rather than once per frame.
      * It decides the gutter of a horizontal chart and the label-skip step of a vertical
      * one, so both used to walk every label on every paint and every pointer move.
+     *
+     * <p>The direction is in the key for the reason the font is: it is one of the inputs to
+     * the width being cached, and no other part of the key moves when it changes.
      */
     private float widestCategoryLabel(Font font) {
         if (categoryScanGeneration == dataGeneration() && categoryScanFont == font
-                && categoryScanEpoch == limn.i18n.I18n.epoch()) {
+                && categoryScanEpoch == limn.i18n.I18n.epoch() && categoryScanRtl == rtl) {
             return widestCategoryLabel;
         }
         float widest = 0;
         for (int i = 0; i < categoryCount(); i++) {
-            widest = Math.max(widest, measure(label(i), font).width());
+            widest = Math.max(widest, labelWidth(label(i), font));
         }
         widestCategoryLabel = widest;
         categoryScanGeneration = dataGeneration();
         categoryScanFont = font;
         categoryScanEpoch = limn.i18n.I18n.epoch();
+        categoryScanRtl = rtl;
         return widest;
     }
 
@@ -401,18 +506,26 @@ public abstract class CartesianChart extends Chart {
             categoryGutter += lineHeight;
         }
 
-        float left = horizontal ? categoryGutter : valueGutter;
+        // Whichever axis has its labels beside the plot rather than under it, they are drawn in
+        // the gutter on the side reading starts from: this is a leading inset and not a left one.
+        float leading = horizontal ? categoryGutter : valueGutter;
         float bottom = horizontal ? valueGutter : categoryGutter;
         // Half a line of headroom at the top: the topmost tick label is centred on the
         // plot's top edge and would otherwise be cut in half by the content box.
         float top = valueAxis.isVisible() && !horizontal ? lineHeight / 2 : 0;
-        float right = valueAxis.isVisible() && horizontal
-                ? measure(tickLabels.length > 0 ? tickLabels[tickLabels.length - 1] : "", font)
-                .width() / 2 : 0;
+        // The same headroom for the last tick label of a sideways value axis, which is centred
+        // on the high end of the scale. That end is where the value axis finishes reading, so
+        // the reserve is a trailing one and follows the scale to the other side.
+        float trailing = valueAxis.isVisible() && horizontal
+                ? labelWidth(tickLabels.length > 0 ? tickLabels[tickLabels.length - 1] : "", font)
+                / 2 : 0;
 
-        plotX = x + left;
+        // The one place the two magnitudes are assigned to physical sides. Everything above is a
+        // distance from an edge that has no side yet, which is what lets each of them stay one
+        // expression; the width below is their sum and is the same either way round.
+        plotX = x + (rtl ? trailing : leading);
         plotY = y + top;
-        plotWidth = Math.max(0, w - left - right);
+        plotWidth = Math.max(0, w - leading - trailing);
         plotHeight = Math.max(0, h - top - bottom);
     }
 
@@ -433,8 +546,12 @@ public abstract class CartesianChart extends Chart {
             }
         }
         if (categoryAxis.hasGrid()) {
+            // Boundaries and not band edges: the loop runs to categoryCount() inclusive, so its
+            // last line is the far edge of the last band rather than the start of a band at all.
+            // The two used to be the same expression and stopped being one when the bands
+            // mirrored; asking bandStart for index count now names a band outside the plot.
             for (int i = 0; i <= categoryCount(); i++) {
-                float p = bandStart(i);
+                float p = bandBoundary(i);
                 if (horizontal) {
                     canvas.drawLine(plotX, p, plotX + plotWidth, p, Strokes.HAIRLINE, grid);
                 } else {
@@ -473,15 +590,17 @@ public abstract class CartesianChart extends Chart {
         float gap = t.spacingSmall();
         if (valueAxis.isVisible()) {
             for (int i = 0; i < tickLabels.length; i++) {
-                String label = tickLabels[i];
-                TextMetrics m = measure(label, font);
+                ShapedText line = shapeLabel(tickLabels[i], font);
+                TextMetrics m = line.metrics();
                 float p = valuePosition(scale.tick(i));
                 if (horizontal) {
-                    canvas.drawText(label, p - m.width() / 2, plotY + plotHeight + gap + m.ascent(),
-                            font, theme.textMuted);
+                    // Centred on its own tick, and a centre does not move: the tick itself
+                    // already carries the mirror out of valuePosition.
+                    canvas.drawText(line, p - m.width() / 2, plotY + plotHeight + gap + m.ascent(),
+                            theme.textMuted);
                 } else {
-                    canvas.drawText(label, plotX - gap - m.width(), p + m.height() / 2 - m.descent(),
-                            font, theme.textMuted);
+                    canvas.drawText(line, gutterLabelX(gap, m.width()),
+                            p + m.height() / 2 - m.descent(), theme.textMuted);
                 }
             }
         }
@@ -489,6 +608,19 @@ public abstract class CartesianChart extends Chart {
             paintCategoryLabels(canvas, font, gap, theme);
         }
         paintAxisTitles(canvas, t, font, theme);
+    }
+
+    /**
+     * Where a label drawn in the axis gutter puts its <b>left</b> edge: hard against the plot on
+     * the side reading starts from, one {@code gap} clear of it.
+     *
+     * <p>Reading left to right that side is the plot's left edge, so the label is pushed back by
+     * its own width to finish against it; reading right to left it is the plot's right edge and
+     * the label simply begins there. One expression for the value ticks and the sideways
+     * category labels together, because they share the gutter and must share its edge.
+     */
+    private float gutterLabelX(float gap, float labelWidth) {
+        return rtl ? plotX + plotWidth + gap : plotX - gap - labelWidth;
     }
 
     /**
@@ -515,20 +647,26 @@ public abstract class CartesianChart extends Chart {
                 continue;
             }
             if (horizontal) {
-                // The gutter, not the distance to the widget's left edge: plotX is absolute,
-                // so subtracting only the gap hands the label everything to the left of the
-                // content as well: the outer padding, and a left-hand legend to draw over.
-                float available = plotX - gap - contentLeft();
-                String fitted = ellipsize(text, font, available);
-                TextMetrics m = measure(fitted, font);
+                // The gutter, not the distance to the widget's own edge: plotX is absolute, so
+                // subtracting only the gap hands the label everything outside the content as
+                // well: the outer padding, and a legend on that side to draw over. The mirrored
+                // form measures the same span inwards from the content's other edge, and it is
+                // the same mistake to make from there.
+                float available = rtl
+                        ? contentLeft() + contentBoxWidth() - (plotX + plotWidth) - gap
+                        : plotX - gap - contentLeft();
+                ShapedText line = shapeLabel(ellipsize(text, font, available), font);
+                TextMetrics m = line.metrics();
                 float center = bandCenter(i);
-                canvas.drawText(fitted, plotX - gap - m.width(), center + m.height() / 2 - m.descent(),
-                        font, theme.textMuted);
+                canvas.drawText(line, gutterLabelX(gap, m.width()),
+                        center + m.height() / 2 - m.descent(), theme.textMuted);
             } else {
-                TextMetrics m = measure(text, font);
+                // Centred on its band, which bandCenter already put on the right side of the plot.
+                ShapedText line = shapeLabel(text, font);
+                TextMetrics m = line.metrics();
                 float center = bandCenter(i);
-                canvas.drawText(text, center - m.width() / 2, plotY + plotHeight + gap + m.ascent(),
-                        font, theme.textMuted);
+                canvas.drawText(line, center - m.width() / 2,
+                        plotY + plotHeight + gap + m.ascent(), theme.textMuted);
             }
         }
     }
@@ -541,15 +679,13 @@ public abstract class CartesianChart extends Chart {
                 drawCentered(canvas, valueTitle, font, theme, plotX + plotWidth / 2,
                         height() - t.spacingSmall() - measure(valueTitle, font).descent());
             } else {
-                drawRotated(canvas, valueTitle, font, theme,
-                        t.spacingSmall() + measure(valueTitle, font).ascent(),
+                drawRotated(canvas, valueTitle, font, theme, t.spacingSmall(),
                         plotY + plotHeight / 2);
             }
         }
         if (categoryTitle != null) {
             if (horizontal) {
-                drawRotated(canvas, categoryTitle, font, theme,
-                        t.spacingSmall() + measure(categoryTitle, font).ascent(),
+                drawRotated(canvas, categoryTitle, font, theme, t.spacingSmall(),
                         plotY + plotHeight / 2);
             } else {
                 drawCentered(canvas, categoryTitle, font, theme, plotX + plotWidth / 2,
@@ -558,21 +694,37 @@ public abstract class CartesianChart extends Chart {
         }
     }
 
+    /** A title centred under the plot. A centre is the one x that is the same in both directions. */
     private void drawCentered(Canvas canvas, String text, Font font, Theme theme,
                               float centerX, float baseline) {
-        TextMetrics m = measure(text, font);
-        canvas.drawText(text, centerX - m.width() / 2, baseline, font, theme.textMuted);
+        ShapedText line = shapeLabel(text, font);
+        canvas.drawText(line, centerX - line.metrics().width() / 2, baseline, theme.textMuted);
     }
 
-    /** An axis title reading bottom-to-top, the way every other toolkit draws one. */
+    /**
+     * An axis title reading bottom-to-top, the way every other toolkit draws one, parked {@code
+     * inset} in from the edge the interface reads from.
+     *
+     * <p>Only the side it parks on moves. Which way the rotated line itself reads is a question
+     * about vertical writing, and this is a horizontal chart turned on its side rather than a
+     * vertical writing mode.
+     *
+     * <p>What gets reflected is the ink, not the baseline: the ink runs from one ascent before
+     * the baseline to one descent after it, so the mirrored form measures the descent in from
+     * the far edge where the first measures the ascent in from the near one. It parks against
+     * the widget's own edge rather than the content box's, on both sides, which is what it did
+     * before it could move at all.
+     */
     private void drawRotated(Canvas canvas, String text, Font font, Theme theme,
-                             float baselineX, float centerY) {
-        TextMetrics m = measure(text, font);
+                             float inset, float centerY) {
+        ShapedText line = shapeLabel(text, font);
+        TextMetrics m = line.metrics();
+        float baselineX = rtl ? width() - inset - m.descent() : inset + m.ascent();
         canvas.save();
         try {
             canvas.translate(baselineX, centerY);
             canvas.rotate((float) -Math.PI / 2);
-            canvas.drawText(text, -m.width() / 2, 0, font, theme.textMuted);
+            canvas.drawText(line, -m.width() / 2, 0, theme.textMuted);
         } finally {
             canvas.restore();
         }
@@ -582,8 +734,11 @@ public abstract class CartesianChart extends Chart {
 
     @Override
     protected ChartPoint pickAt(float localX, float localY) {
-        // The pointer path resolves the same scale and the same plot rectangle the frame
-        // was drawn with; anything else would report a different bar than the one aimed at.
+        // The pointer path resolves the same direction, the same scale and the same plot
+        // rectangle the frame was drawn with; anything else would report a different bar than
+        // the one aimed at, and a direction resolved on one path and not the other would report
+        // the bar mirrored about the middle of the plot.
+        rtl = layoutDirection() == LayoutDirection.RTL;
         resolveScale();
         layoutPlot(tokens(), contentLeft(), contentTop(), contentBoxWidth(), contentBoxHeight());
         if (plotWidth <= 0 || plotHeight <= 0) {
@@ -616,13 +771,22 @@ public abstract class CartesianChart extends Chart {
         return rows.isEmpty() ? List.of(picked) : rows;
     }
 
-    /** The category a local point falls in, or {@code -1} outside the plot. */
+    /**
+     * The category a local point falls in, or {@code -1} outside the plot.
+     *
+     * <p>The exact inverse of {@link #bandStart}: it counts from the same end of the plot that
+     * category zero's band begins at, so the band the pointer names and the band painted under
+     * it are the same one. A mismatch here shows up as a tooltip naming the neighbouring bar and
+     * as nothing at all in a screenshot.
+     */
     protected final int categoryAt(float localX, float localY) {
         int count = categoryCount();
         if (count == 0) {
             return -1;
         }
-        float along = horizontal ? localY - plotY : localX - plotX;
+        float along = horizontal
+                ? localY - plotY
+                : (rtl ? plotX + plotWidth - localX : localX - plotX);
         float extent = horizontal ? plotHeight : plotWidth;
         if (along < 0 || along > extent) {
             return -1;

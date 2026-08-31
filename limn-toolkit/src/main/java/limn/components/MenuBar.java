@@ -7,6 +7,7 @@ import limn.graphics.Font;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -37,6 +38,12 @@ import java.util.Objects;
  * Alt <em>released</em> (or F10) moves focus here; Alt plus a declared access letter opens that
  * menu. All of it is offered only after the focused widget has declined the key, so a shortcut
  * never steals a keystroke from a text field that wanted it.
+ *
+ * <p><b>The strip mirrors</b> where it reads right to left: the first title is at the right
+ * edge, each title's text sits on the pad of the side reading starts from, and Left selects the
+ * visually-left title, which is then the <em>next</em> one in declaration order. The dropdown
+ * inherits the direction through the anchor and mirrors with it. Accelerator labels do not
+ * mirror: they name physical keys.
  *
  * <p>The strip's height <em>is</em> the {@link limn.scene.ControlSize} step's
  * {@code controlHeight}, so a bar and the buttons beside it agree at every step, and the
@@ -137,8 +144,16 @@ public final class MenuBar extends Widget {
 
     // --------------------------------------------------------------- geometry
     // Four walks share one titleWidth: measure, paint, titleAt and the dropdown's anchor. Each
-    // takes the resolved row as a parameter rather than resolving its own: two resolutions
-    // that disagree inside one pass route a click to the neighbouring menu.
+    // takes the resolved row AND the resolved direction as parameters rather than resolving its
+    // own: two resolutions that disagree inside one pass route a click to the neighbouring menu.
+    // The strip is a cursor walk, so it mirrors the way every strip in this toolkit does — at
+    // the coordinate, in titleX, with the cursor arithmetic left alone — and all four walks go
+    // through that one conversion so a half-mirrored pair cannot exist.
+
+    /** The measured width of a title's text: the one authority its box and its origin share. */
+    private float titleTextWidth(String title, SizeTokens t) {
+        return textRuler().measure(title, t.body()).width();
+    }
 
     /**
      * A title's box. The floor is the width-axis half of the accessibility answer: the height
@@ -149,10 +164,15 @@ public final class MenuBar extends Widget {
      */
     private float titleWidth(int i, SizeTokens t) {
         return Math.max(Strokes.MIN_HIT_TARGET,
-                textRuler().measure(entries.get(i).title().get(), t.body()).width() + 2 * t.menuBarPadH());
+                titleTextWidth(entries.get(i).title().get(), t) + 2 * t.menuBarPadH());
     }
 
-    private float titleLeft(int i, SizeTokens t) {
+    /**
+     * How far title {@code i} starts from the edge reading starts at: a magnitude along the
+     * strip, in declaration order, and the same number in either direction. {@link #titleX}
+     * turns it into a coordinate.
+     */
+    private float titleLeading(int i, SizeTokens t) {
         float x = 0;
         for (int k = 0; k < i; k++) {
             x += titleWidth(k, t);
@@ -160,16 +180,39 @@ public final class MenuBar extends Widget {
         return x;
     }
 
-    private int titleAt(float localX, SizeTokens t) {
-        float x = 0;
+    /**
+     * The physical left edge of a box of width {@code w} whose leading edge is {@code leading}
+     * points along the strip: the one reflection the four walks share, so that a pair of them
+     * cannot end up half mirrored, and so that each walk goes on counting in declaration order.
+     * (The title's text inside its box is the only other coordinate here with a side to it.)
+     */
+    private float titleX(float leading, float w, boolean rtl) {
+        return rtl ? width() - leading - w : leading;
+    }
+
+    /** The physical left edge of title {@code i}'s box. */
+    private float titleX(int i, SizeTokens t, boolean rtl) {
+        return titleX(titleLeading(i, t), titleWidth(i, t), rtl);
+    }
+
+    private int titleAt(float localX, SizeTokens t, boolean rtl) {
+        float cursor = 0;
         for (int i = 0; i < entries.size(); i++) {
             float w = titleWidth(i, t);
+            // The boxes tile with neither gap nor overlap in either direction; which side of a
+            // shared edge belongs to which title differs, and a title's own points do not.
+            float x = titleX(cursor, w, rtl);
             if (localX >= x && localX < x + w) {
                 return i;
             }
-            x += w;
+            cursor += w;
         }
         return -1;
+    }
+
+    /** Whether this strip reads right to left. Resolve it once per pass. */
+    private boolean isRtl() {
+        return layoutDirection() == LayoutDirection.RTL;
     }
 
     @Override
@@ -208,9 +251,12 @@ public final class MenuBar extends Widget {
         Font font = t.body();
         TextMetrics fm = textRuler().measure("Hg", font);
         float chip = t.menuBarChipInset();
-        float x = 0;
+        // One resolution for the whole pass, beside the row, for the same reason.
+        boolean rtl = isRtl();
+        float cursor = 0;
         for (int i = 0; i < entries.size(); i++) {
             float w = titleWidth(i, t);
+            float x = titleX(cursor, w, rtl);
             boolean active = i == openIndex || i == hoverIndex;
             if (active) {
                 Color fill = i == openIndex ? theme.primary.withAlpha(0.20f) : theme.surfaceRaised;
@@ -218,15 +264,23 @@ public final class MenuBar extends Widget {
                         t.radiusSmall(), fill);
             }
             Color ink = i == openIndex ? theme.text : theme.textMuted.lerp(theme.text, i == hoverIndex ? 1 : 0);
-            // Titles are left-aligned on the pad, not centred in the (possibly floored) box:
-            // the floor only ever widens the last few points on the right.
+            // Titles are aligned on the leading pad, not centred in the (possibly floored) box:
+            // the floor only ever widens the last few points on the trailing side. drawText
+            // places a run's LEFT edge in either direction, so a mirrored title finds that edge
+            // from its own measured width — through the same call its box was sized with, or it
+            // would sit a fraction of a point out of its pad.
             String title = entries.get(i).title().get();
+            float textX = rtl
+                    ? x + w - t.menuBarPadH() - titleTextWidth(title, t)
+                    : x + t.menuBarPadH();
             float baseline = (height() - fm.height()) / 2 + fm.ascent();
-            canvas.drawText(title, x + t.menuBarPadH(), baseline, font, ink);
+            canvas.drawText(title, textX, baseline, font, ink);
+            // The rule takes its edges off the painted line's own shaping and copes with a
+            // right-to-left run itself: the mirrored left edge is the whole of what it needs.
             MenuInk.underlineMnemonic(canvas, textRuler(), title,
                     MenuInk.mnemonicIndex(title, entries.get(i).mnemonic()),
-                    x + t.menuBarPadH(), baseline, font, ink);
-            x += w;
+                    textX, baseline, font, ink);
+            cursor += w;
         }
     }
 
@@ -234,12 +288,13 @@ public final class MenuBar extends Widget {
 
     @Override
     protected void onMouseEvent(MouseEvent event) {
-        // One resolution for the whole event: the title a press lands on must be the title the
-        // last paint drew there.
+        // One resolution of each axis for the whole event: the title a press lands on must be
+        // the title the last paint drew there.
         SizeTokens t = Theme.current().tokensFor(this);
+        boolean rtl = isRtl();
         switch (event.type()) {
             case MOVE, ENTER -> {
-                int i = titleAt(sceneToLocalX(event.x()), t);
+                int i = titleAt(sceneToLocalX(event.x()), t, rtl);
                 if (i != hoverIndex) {
                     hoverIndex = i;
                     invalidate();
@@ -260,7 +315,7 @@ public final class MenuBar extends Widget {
                 if (event.button() != Keys.MOUSE_LEFT) {
                     return;
                 }
-                int i = titleAt(sceneToLocalX(event.x()), t);
+                int i = titleAt(sceneToLocalX(event.x()), t, rtl);
                 if (i >= 0) {
                     if (i == openIndex) {
                         closeMenu();
@@ -282,12 +337,16 @@ public final class MenuBar extends Widget {
         }
         int n = entries.size();
         switch (event.key()) {
-            case Keys.LEFT -> {
-                hoverIndex = hoverIndex <= 0 ? n - 1 : hoverIndex - 1;
-                invalidate();
-            }
-            case Keys.RIGHT -> {
-                hoverIndex = (hoverIndex + 1) % n;
+            case Keys.LEFT, Keys.RIGHT -> {
+                // Left must select the visually-left title or the strip disagrees with the
+                // pointer that just hovered it. Reading right to left the visually-left title
+                // is the NEXT one in declaration order, so the key is flipped here — once, and
+                // in the same breath as the dropdown's own arrows, which PopupMenu flips for
+                // itself: the callbacks wired between the two mean previous/next and stay put.
+                boolean towardsLeading = (event.key() == Keys.LEFT) != isRtl();
+                hoverIndex = towardsLeading
+                        ? (hoverIndex <= 0 ? n - 1 : hoverIndex - 1)
+                        : (hoverIndex + 1) % n;
                 invalidate();
             }
             case Keys.DOWN, Keys.ENTER, Keys.SPACE -> openMenu(hoverIndex < 0 ? 0 : hoverIndex);
@@ -456,14 +515,18 @@ public final class MenuBar extends Widget {
             old.close(); // its onClose no-ops now (openPopup no longer == old)
         }
         // Resolved once here and threaded into the anchor rect: the dropdown must line up with
-        // the title the bar painted, and the popup itself takes this bar's step through the
-        // anchor link below (a PopupMenu is parentless, being a native window's scene root
-        // or an overlay, so the tree walk cannot reach us any other way).
+        // the title the bar painted, and the popup itself takes this bar's step and its
+        // direction through the anchor link below (a PopupMenu is parentless, being a native
+        // window's scene root or an overlay, so the tree walk cannot reach us any other way).
         SizeTokens t = Theme.current().tokensFor(this);
+        boolean rtl = isRtl();
         int n = entries.size();
         openIndex = index;
         hoverIndex = index;
-        float sceneX = localToSceneX() + titleLeft(index, t);
+        // The anchor rect is the title box the bar actually painted, mirrored included; the
+        // column then aligns itself to that rect's leading edge on its own, which is the right
+        // edge of the title reading right to left.
+        float sceneX = localToSceneX() + titleX(index, t, rtl);
         float sceneY = localToSceneY();
         PopupMenu popup = new PopupMenu(entries.get(index).menu());
         popup.setDisplayMode(displayMode);
@@ -474,8 +537,11 @@ public final class MenuBar extends Widget {
                 invalidate();
             }
         });
-        popup.onRootLeft(() -> openMenu((index - 1 + n) % n));
-        popup.onRootRight(() -> openMenu((index + 1) % n));
+        // Previous and next in declaration order, NOT left and right: PopupMenu has already
+        // turned the physical arrow into a side, and flipping again here would cancel that and
+        // walk the bar against the direction its own submenus open in.
+        popup.onRootLeading(() -> openMenu((index - 1 + n) % n));
+        popup.onRootTrailing(() -> openMenu((index + 1) % n));
         // Fullscreen fallback: the dropdown is an in-scene overlay covering the bar.
         // Let pointer input over the strip fall through so hovering a sibling title
         // still switches menus (and shows the pointer cursor), as in native mode.

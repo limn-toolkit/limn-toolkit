@@ -2224,6 +2224,34 @@ public final class Scene implements WindowInput {
         Widget target = tooltipTarget;
         return target != null ? target.controlSize() : ControlSize.processDefault();
     }
+
+    /**
+     * The direction the tooltip panel is laid out and shaped in: the hovered anchor's, resolved
+     * live, with the same fallback and for the same reason as {@link #tooltipStep()}. This is the
+     * one surface a {@link Scene} paints itself rather than delegating to a widget, so it is the
+     * one place the inherited axes have to be read here rather than inside an {@code onPaint}.
+     */
+    private LayoutDirection tooltipDirection() {
+        Widget target = tooltipTarget;
+        return target != null ? target.layoutDirection() : LayoutDirection.processDefault();
+    }
+
+    /**
+     * The tooltip's text, shaped for the anchor's direction. Shaped rather than measured because
+     * a plain {@code drawText(String, ...)} resolves its own paragraph direction with a
+     * left-to-right neutral fallback, so a tooltip whose leading or trailing characters are
+     * neutrals renders them on the wrong end inside a right-to-left interface. One shaping sizes
+     * the panel and draws the text, so the two cannot disagree about the width.
+     */
+    private limn.graphics.ShapedText tooltipLine(limn.graphics.Font font) {
+        String text = tooltipText;
+        limn.graphics.ShapedText.Direction neutral =
+                tooltipDirection() == LayoutDirection.RTL
+                        ? limn.graphics.ShapedText.Direction.RTL
+                        : limn.graphics.ShapedText.Direction.LTR;
+        return textRuler().shape(text, font,
+                limn.graphics.ShapedText.Direction.of(text, neutral));
+    }
     // Themed appearance is supplied by the components layer (the toolkit has no
     // Theme of its own); null → tooltips are not painted.
     private static volatile java.util.function.Function<ControlSize, TooltipStyle> tooltipStyle;
@@ -2336,14 +2364,20 @@ public final class Scene implements WindowInput {
         }
         TooltipStyle style = supplier.apply(tooltipStep());
         limn.graphics.TextMetrics fm = textRuler().measure("Hg", style.font());
-        float w = textRuler().measure(tooltipText, style.font()).width() + 2 * style.padH();
+        float w = tooltipLine(style.font()).metrics().width() + 2 * style.padH();
         float h = fm.lineHeight() + 2 * style.padV();
-        float x = Math.min(mouseX + 12, width - w - 4);
+        // The panel grows away from the pointer on the side reading starts from, and is held
+        // inside the window on whichever edge it would otherwise leave. Horizontally this is the
+        // twin of the vertical flip below: the offset that clears the cursor, then the clamp.
+        float x = tooltipDirection() == LayoutDirection.RTL
+                ? Math.max(4, mouseX - 12 - w)
+                : Math.min(mouseX + 12, width - w - 4);
         float y = mouseY + 20;
         if (y + h > height - 4) {
             y = mouseY - h - 8; // flip above the pointer
         }
-        return new Rect(Math.max(4, x), Math.max(4, y), w, h);
+        return new Rect(Math.min(Math.max(4, x), Math.max(4, width - w - 4)),
+                Math.max(4, y), w, h);
     }
 
     private void paintTooltip(Canvas canvas) {
@@ -2355,6 +2389,7 @@ public final class Scene implements WindowInput {
         }
         TooltipStyle style = supplier.apply(tooltipStep());
         limn.graphics.Font font = style.font();
+        limn.graphics.ShapedText line = tooltipLine(font);
         limn.graphics.TextMetrics fm = textRuler().measure("Hg", font);
         float x = rect.x();
         float y = rect.y();
@@ -2364,8 +2399,12 @@ public final class Scene implements WindowInput {
         canvas.setOpacity(tooltipAlpha);
         canvas.fillRoundRect(x, y, w, h, style.radius(), style.fill());
         canvas.drawRoundRect(x + 0.5f, y + 0.5f, w - 1, h - 1, style.radius(), 1, style.border());
-        canvas.drawText(tooltipText, x + style.padH(),
-                y + (h - fm.height()) / 2 + fm.ascent(), font, style.text());
+        // Inside the pad on the side reading starts from; the panel was sized from this very
+        // line, so the two pads are equal and the run fills what is between them.
+        float textX = tooltipDirection() == LayoutDirection.RTL
+                ? x + w - style.padH() - line.metrics().width()
+                : x + style.padH();
+        canvas.drawText(line, textX, y + (h - fm.height()) / 2 + fm.ascent(), style.text());
         canvas.restore();
         paintedTooltipRect = rect;
     }

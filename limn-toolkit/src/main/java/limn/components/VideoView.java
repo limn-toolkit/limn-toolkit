@@ -4,8 +4,10 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -95,6 +97,13 @@ import java.util.Objects;
  * view. A decode that threw: a short message, and the stream is not read again; {@link #failure()}
  * has the exception and {@link #restart()} clears it. No GPU backend at all: a placeholder frame and
  * a message, and the stream is never opened for reading, so a machine with no device decodes nothing.
+ *
+ * <p><b>Reading right to left changes the notice and nothing else.</b> A picture is content: a
+ * frame drawn mirrored would reverse the sign on a shop front and turn every hand in it into the
+ * other one, so the letterbox, the fit and the rotation are the same arithmetic in both
+ * directions. The one thing here that is language and not picture is the message a stalled or
+ * unsupported view draws, and it is shaped for this view's direction. Its pill stays where it is:
+ * it is centred, and a centre has no side to move to.
  *
  * <p><b>Cost while hidden.</b> A view that is not {@linkplain #isShowing() showing} (an unselected
  * tab, a scrolled-away row, {@code setVisible(false)}) arms no periodic callback, decodes nothing
@@ -742,14 +751,29 @@ public class VideoView extends Widget {
      * eight-word message look like a broken player rather than like a player with something to
      * say. A pill leaves the black around it, so what a viewer sees is a video panel with a label
      * on it, the shape every player uses for exactly this.
+     *
+     * <p><b>The pill does not mirror, and that is a decision rather than an omission.</b> It is
+     * centred on both axes, so every x here is derived from a centre and there is no leading edge
+     * in the arithmetic for a direction to reflect: reflecting a centred box about the middle of
+     * the same box returns the box. What the notice does owe the direction axis is its
+     * <em>shaping</em>, below, because the message is a translated string and the picture behind
+     * it is not.
      */
     private void paintNotice(Canvas canvas, String message) {
         Theme theme = Theme.current();
-        // Resolved on the branch that draws it: the video path sizes nothing from the step and would
-        // pay a lookup per picture for a value it never reads.
+        // Resolved on the branch that draws it, and this is where the direction is resolved too:
+        // the video path sizes nothing from the step, reads no direction, and would pay a lookup
+        // per picture for values it never uses.
         SizeTokens tokens = theme.tokensFor(this);
         Font font = tokens.label();
-        TextMetrics metrics = textRuler().measure(message, font);
+        // Shaped rather than measured, so the notice is typeset for the direction this view reads
+        // in: an Arabic message measured against a left-to-right base is a pill sized for a line
+        // nobody drew. The width used for the pill and the width used to centre the text are then
+        // one value from one shaping call, which is what keeps the two from disagreeing by the
+        // fraction of a point a re-measure can cost.
+        ShapedText line = textRuler().shape(message, font,
+                ShapedText.Direction.of(message, neutralBase()));
+        TextMetrics metrics = line.metrics();
         float padX = tokens.tooltipPadH();
         float padY = tokens.tooltipPadV();
         // Never wider than the box: a long message in a narrow view would otherwise hang out of
@@ -762,8 +786,26 @@ public class VideoView extends Widget {
                 theme.surfaceRaised);
         canvas.drawRoundRect(left + 0.5f, top + 0.5f, pillWidth - 1, pillHeight - 1,
                 tokens.radiusSmall(), Strokes.BORDER, theme.outline);
-        canvas.drawText(message, left + (pillWidth - metrics.width()) / 2,
-                top + (pillHeight - metrics.height()) / 2 + metrics.ascent(), font, theme.text);
+        // Centred inside an already-centred pill: unchanged in either direction.
+        canvas.drawText(line, left + (pillWidth - metrics.width()) / 2,
+                top + (pillHeight - metrics.height()) / 2 + metrics.ascent(), theme.text);
+    }
+
+    /**
+     * What a notice with no strong character of its own falls back to: this view's own resolved
+     * layout direction. A message that is all digits and punctuation reads right to left in a
+     * right-to-left interface, and the first-strong rule cannot know that; the interface around
+     * the player can. A Latin message in that same interface still reads left to right, because
+     * the fallback is only consulted where no strong character has an opinion.
+     *
+     * <p>Resolved on each call from inside the paint that needs it, and never held: a view that
+     * captured a direction in its constructor captured one taken before it had a parent, and
+     * nothing later would correct it.
+     */
+    private ShapedText.Direction neutralBase() {
+        return layoutDirection() == LayoutDirection.RTL
+                ? ShapedText.Direction.RTL
+                : ShapedText.Direction.LTR;
     }
 
     /**

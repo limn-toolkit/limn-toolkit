@@ -7,6 +7,7 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.input.Keys;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -27,6 +28,12 @@ import java.util.function.Consumer;
  * <p><b>The orientation names the axis the panes are arranged along</b>, not the
  * divider: {@link #horizontal} puts them side by side, so the divider is the
  * vertical line between them.
+ *
+ * <p><b>The first pane takes the leading edge.</b> Reading left to right that is the
+ * left, and reading right to left it is the right; the ratio, the minimums and the
+ * divider's position are all magnitudes along the divided axis and mean the same thing
+ * either way. A stacked split has no reading axis at all and is untouched by the
+ * layout direction.
  *
  * <p><b>The split is a ratio, not a width</b>, so growing the window grows both panes.
  * An application that wants a sidebar to keep its width while the other pane absorbs
@@ -110,7 +117,11 @@ public final class SplitPane extends Widget {
         add(divider);
     }
 
-    /** Two panes side by side, divided by a vertical line. */
+    /**
+     * Two panes side by side, divided by a vertical line. The first takes the leading
+     * edge, so the parameter names describe the default reading direction and not the
+     * screen: in a right-to-left layout {@code left} is the pane on the right.
+     */
     public static SplitPane horizontal(Widget left, Widget right) {
         return new SplitPane(Orientation.HORIZONTAL, left, right);
     }
@@ -144,6 +155,10 @@ public final class SplitPane extends Widget {
      * that pane collapse entirely. When the box is too small for both floors the
      * first one wins and the second pane takes what is left: a split that cannot
      * honour both still has to lay out.
+     *
+     * <p>{@code first} is the leading pane's floor and {@code second} the trailing
+     * one's, whichever way the layout reads; both are extents along the divided axis,
+     * so neither swaps when the direction does.
      */
     public SplitPane setMinimums(float first, float second) {
         Ui.checkUiThread();
@@ -205,6 +220,21 @@ public final class SplitPane extends Widget {
 
     private boolean horizontal() {
         return orientation == Orientation.HORIZONTAL;
+    }
+
+    /**
+     * Whether the divided axis runs right to left. The orientation is folded in because
+     * only a side-by-side split has a reading axis: a stacked one divides top to bottom,
+     * which the layout direction says nothing about, so this is {@code false} there and
+     * every site below is one expression rather than a pair of nested conditions.
+     *
+     * <p>Resolved once per pass into a local by each caller, and never in a constructor:
+     * a divider built before its parent is assigned would capture the process default and
+     * stay wrong, and two resolutions that disagreed inside one pass would draw the line
+     * where the drag would not put it.
+     */
+    private boolean mirrored() {
+        return horizontal() && layoutDirection() == LayoutDirection.RTL;
     }
 
     /**
@@ -307,9 +337,17 @@ public final class SplitPane extends Widget {
         float second = Math.max(0, total - first);
         float dividerStart = first + gutter / 2 - grab / 2;
         if (horizontal()) {
-            place(firstPane, 0, 0, first, height());
-            place(secondPane, first + gutter, 0, second, height());
-            place(divider, dividerStart, 0, grab, height());
+            // Resolved once for the whole pass, like the step above it.
+            boolean rtl = mirrored();
+            // Three offsets along the divided axis, each reflected at the coordinate and
+            // nowhere earlier: `first`, `second` and `dividerStart` stay the magnitudes the
+            // pointer and the keyboard also work in, so the floors, the ratio and the grab
+            // band's overlap all fall out unchanged. The second pane lands back on 0,
+            // which is the reflection working rather than a special case.
+            place(firstPane, rtl ? width() - first : 0, 0, first, height());
+            place(secondPane, rtl ? 0 : first + gutter, 0, second, height());
+            place(divider, rtl ? width() - dividerStart - grab : dividerStart,
+                    0, grab, height());
         } else {
             place(firstPane, 0, 0, width(), first);
             place(secondPane, 0, first + gutter, width(), second);
@@ -391,6 +429,11 @@ public final class SplitPane extends Widget {
         private float grabOffset;
 
         Divider() {
+            // The orientation and nothing else: a double-headed resize cursor is
+            // symmetric, so there is no direction to ask about here -- which is as well,
+            // because a constructor is the one place that must never ask. The parent is
+            // assigned after this runs, so the answer would be the process default and
+            // would stay that way.
             setCursor(horizontal() ? Cursor.RESIZE_EW : Cursor.RESIZE_NS);
         }
 
@@ -427,6 +470,11 @@ public final class SplitPane extends Widget {
             // a band of empty space, so a ring drawn around the band frames nothing the
             // user can see, and sits beside a line already changing colour under it.
             float weight = Strokes.HAIRLINE + (Strokes.FOCUS_RING - Strokes.HAIRLINE) * lit;
+            // Centred in the band, in the band's own coordinates, so it carries no
+            // direction of its own: the band's placement is what moved, and the parity
+            // arithmetic that lands the line on a whole device pixel is the same on
+            // either side of the box. A direction branch here would move the line off
+            // the band it is meant to be the middle of.
             if (horizontal()) {
                 float cx = (int) (w / 2) + Strokes.HALF_PIXEL_INSET;
                 canvas.drawLine(cx, 0, cx, h, weight, color);
@@ -436,11 +484,23 @@ public final class SplitPane extends Widget {
             }
         }
 
-        /** The pointer's position on the divided axis, in the split's own coordinates. */
+        /**
+         * The pointer's position on the divided axis, measured from the leading edge in
+         * the split's own coordinates.
+         *
+         * <p>The one place the pointer enters that axis, so the one place the direction
+         * is applied to it: everything downstream -- the grab offset taken at the press,
+         * the extent computed on every drag -- is then a difference between two values
+         * that already agree with the layout. Reflecting any of those again would double
+         * back, and reflecting inside {@code dragTo} would catch the keyboard too, which
+         * has no pointer at all.
+         */
         private float pointerMain(MouseEvent event) {
-            return horizontal()
-                    ? SplitPane.this.sceneToLocalX(event.x())
-                    : SplitPane.this.sceneToLocalY(event.y());
+            if (!horizontal()) {
+                return SplitPane.this.sceneToLocalY(event.y());
+            }
+            float x = SplitPane.this.sceneToLocalX(event.x());
+            return SplitPane.this.mirrored() ? SplitPane.this.width() - x : x;
         }
 
         @Override
@@ -501,24 +561,35 @@ public final class SplitPane extends Widget {
             float step = (event.modifiers() & Keys.MOD_SHIFT) != 0 ? FINE_STEP : KEY_STEP;
             float total = shareable(t);
             float here = firstExtent(total);
+            // Resolved once for this event: the arrows have to agree with the drag, and a
+            // divider the mouse moves right while the Right arrow moves it left is worse
+            // than either convention on its own.
+            boolean rtl = SplitPane.this.mirrored();
             boolean handled = true;
             switch (event.key()) {
+                // The sign flips for the whole arm rather than for one key of it, and it
+                // is safe because matchesAxis has already turned Up and Down away by the
+                // time a horizontal split gets here. A stacked split reaches these bodies
+                // only through Up and Down, and `rtl` is false for it.
                 case Keys.LEFT, Keys.UP -> {
                     if (matchesAxis(event.key())) {
-                        dragTo(t, here - step);
+                        dragTo(t, rtl ? here + step : here - step);
                     } else {
                         handled = false;
                     }
                 }
                 case Keys.RIGHT, Keys.DOWN -> {
                     if (matchesAxis(event.key())) {
-                        dragTo(t, here + step);
+                        dragTo(t, rtl ? here - step : here + step);
                     } else {
                         handled = false;
                     }
                 }
                 // Against one floor or the other: the two positions a keyboard
-                // user would otherwise have to arrow all the way to.
+                // user would otherwise have to arrow all the way to. They name the
+                // first pane's extent, which is a value and not a side, so they do not
+                // turn around with the direction: Home collapses the first pane either
+                // way, and reading right to left that moves the divider visually right.
                 case Keys.HOME -> dragTo(t, 0);
                 case Keys.END -> dragTo(t, total);
                 default -> handled = false;
@@ -532,6 +603,11 @@ public final class SplitPane extends Widget {
          * Whether a key moves the axis this split divides. The other axis is left
          * alone rather than treated as the same gesture: a vertical split inside a
          * scrolling panel would otherwise eat Left/Right from whatever wanted them.
+         *
+         * <p>An axis test and not a direction one. Left and Right are both horizontal
+         * whichever way the layout reads, so this is unchanged by the direction -- and
+         * it is what lets the two arrow arms above flip as a pair, because it has
+         * already sent the off-axis key away.
          */
         private boolean matchesAxis(int key) {
             boolean horizontalKey = key == Keys.LEFT || key == Keys.RIGHT;

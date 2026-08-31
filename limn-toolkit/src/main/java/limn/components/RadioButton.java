@@ -7,9 +7,11 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.i18n.I18nString;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -29,6 +31,11 @@ import java.util.function.Consumer;
  * <p>The ring rides {@code indicator}, the <em>same</em> token as {@link Checkbox}'s
  * box, so a form mixing the two keeps every label on one optical column at every
  * step.
+ *
+ * <p>The ring sits on the row's <em>leading</em> edge with the label running away from it, so
+ * both swap sides with the {@link limn.scene.LayoutDirection} resolved on this widget. The ring
+ * is a circle and the dot is concentric with it, so nothing inside the indicator has a side to
+ * reflect; only the column the pair occupies moves.
  *
  * <h2>This row is under the 24 pt pointer target</h2>
  * The row is {@code max(indicator, lineHeight)} rather than the control-height ramp, and the
@@ -161,10 +168,20 @@ public class RadioButton extends Widget {
     protected void onPaint(Canvas canvas) {
         Theme theme = Theme.current();
         SizeTokens t = theme.tokensFor(this);
+        // Resolved once for the whole pass, here rather than in a constructor, where this widget
+        // has no parent yet and every answer is the process default. The ring, the dot, the label
+        // and the focus circle are all composed from this one answer: two resolutions that
+        // disagreed inside one paint would put the dot outside the ring it belongs in.
+        ShapedText.Direction neutral = neutralBase();
+        boolean rtl = neutral == ShapedText.Direction.RTL;
         float ring = t.indicator();
         float top = (height() - ring) / 2;
         float p = progress.value();
-        float cx = ring / 2;
+        // The indicator is flush with the LEADING edge of the row, which reading right to left is
+        // the right one. Reflected once, at the coordinate: the ring stroke, the dot and the focus
+        // circle all read this centre, and reflecting any of them a second time would move it
+        // twice and leave the dot outside its own ring.
+        float cx = rtl ? width() - ring / 2 : ring / 2;
         float cy = top + ring / 2;
         Color ringInk = !isEnabled() ? theme.disabledFill
                 : p > 0 ? theme.primary
@@ -176,11 +193,27 @@ public class RadioButton extends Widget {
             // instead of easing on toward the radius the old step wanted.
             canvas.fillCircle(cx, cy, (ring / 2 - t.indicatorInset()) * p, dot);
         }
-        if (!text.get().isEmpty()) {
-            TextMetrics metrics = textRuler().measure(text.get(), t.body());
+        String label = text.get();
+        if (!label.isEmpty()) {
+            TextMetrics metrics = textRuler().measure(label, t.body());
             Color ink = isEnabled() ? theme.text : theme.disabledText;
-            canvas.drawText(text.get(), ring + t.gapLabel(),
-                    (height() - metrics.height()) / 2 + metrics.ascent(), t.body(), ink);
+            // The row's own direction is the shaper's NEUTRAL FALLBACK and never an imposition: a
+            // Latin label in a right-to-left form still reads left to right, because a strong
+            // character outranks the fallback. What it decides is the label that has no strong
+            // character of its own -- a bare number, a symbol -- which is the one case the string
+            // cannot answer and the surrounding interface can.
+            ShapedText line = textRuler().shape(label, t.body(),
+                    ShapedText.Direction.of(label, neutral));
+            // Placed against the width onMeasure reserved rather than the shaped ink's own, and
+            // deliberately: Checkbox reserves and places its label by the same arithmetic, and a
+            // form mixing the two keeps one optical column only while both mirror against the
+            // same number. A line is placed by its LEFT edge in either direction, so the mirrored
+            // label starts a whole label width back from the gap it ends at.
+            float labelX = rtl
+                    ? width() - ring - t.gapLabel() - metrics.width()
+                    : ring + t.gapLabel();
+            canvas.drawText(line, labelX,
+                    (height() - metrics.height()) / 2 + metrics.ascent(), ink);
         }
         float focus = focusFade.value();
         if (focus > 0.001f) {
@@ -193,11 +226,30 @@ public class RadioButton extends Widget {
     }
 
     /**
+     * What a label with no strong character of its own falls back to: this widget's own resolved
+     * reading direction. A bare number labelling an option in a right-to-left form reads right to
+     * left however many Latin digits it has, and the first-strong rule cannot know that; the
+     * surrounding interface can.
+     *
+     * <p>Resolved here and never in a constructor, and read once per pass by the one caller that
+     * needs it, which is also the caller that reflects the geometry: a paint that resolved the
+     * direction twice could shape the label one way and place it the other.
+     */
+    private ShapedText.Direction neutralBase() {
+        return layoutDirection() == LayoutDirection.RTL
+                ? ShapedText.Direction.RTL
+                : ShapedText.Direction.LTR;
+    }
+
+    /**
      * The focus circle is the only thing that paints outside the box: radius
      * {@code ring/2 + }{@link Strokes#FOCUS_GAP_INDICATOR} with a centred
      * {@link Strokes#FOCUS_RING_THIN} pen puts its outer ink 2.25pt past the indicator, which is
-     * flush with the widget's left edge and (since the row <em>is</em> the indicator at every
-     * step) with its top and bottom. {@link limn.scene.Scene} assumes only 1pt of AA feather, so
+     * flush with the widget's <em>leading</em> edge &mdash; the left one reading left to right and
+     * the right one reading right to left &mdash; and (since the row <em>is</em> the indicator at
+     * every step) with its top and bottom. One outset covers every side, so the edge the indicator
+     * moves to is already inside the damage and the direction is not an input here.
+     * {@link limn.scene.Scene} assumes only 1pt of AA feather, so
      * without this the fading ring left stale pixels under partial rendering. Deliberately the
      * same expression as {@link Checkbox}'s: the two are in declared lockstep and must damage the
      * same rectangle, or a form column mixing them repaints unevenly.
@@ -240,18 +292,31 @@ public class RadioButton extends Widget {
         }
         // Both axes, deliberately: a group may be laid out in a row or a column and the widget
         // cannot see which, so every platform that implements this accepts all four.
+        //
+        // Resolved once for this event, and read by the horizontal pair alone. LEFT and RIGHT name
+        // a side of the screen, so reading right to left LEFT is the later member; UP and DOWN
+        // name a side of the page, which no reading direction moves. That is why these are four
+        // arms and not two: a horizontal key sharing an arm with a vertical one cannot mirror
+        // without dragging the vertical axis around with it, and a group laid out in a column
+        // would then walk backwards for nothing.
+        boolean rtl = layoutDirection() == LayoutDirection.RTL;
         switch (event.key()) {
-            case Keys.UP, Keys.LEFT -> {
-                event.consume();
-                group.moveSelection(this, -1);
-            }
-            case Keys.DOWN, Keys.RIGHT -> {
-                event.consume();
-                group.moveSelection(this, 1);
-            }
+            case Keys.UP -> stepSelection(event, -1);
+            case Keys.DOWN -> stepSelection(event, 1);
+            case Keys.LEFT -> stepSelection(event, rtl ? 1 : -1);
+            case Keys.RIGHT -> stepSelection(event, rtl ? -1 : 1);
             default -> {
             }
         }
+    }
+
+    /**
+     * Consumes an arrow and walks the group by {@code step}. Only reached from
+     * {@link #onKeyEvent} past its own null check, so the group is never null here.
+     */
+    private void stepSelection(KeyEvent event, int step) {
+        event.consume();
+        group.moveSelection(this, step);
     }
 
     @Override

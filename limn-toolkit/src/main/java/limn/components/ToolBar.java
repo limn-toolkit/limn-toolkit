@@ -4,6 +4,7 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 
@@ -13,8 +14,14 @@ import java.util.List;
 /**
  * A horizontal strip of controls (buttons, toggles, segmented controls,
  * {@link Separator}s…) on a rounded {@link Theme#surface} background. Lays its
- * items out left to right, vertically centered, with a configurable gap. Purely
+ * items out from the leading edge, vertically centered, with a configurable gap. Purely
  * a styled container: the items handle their own input.
+ *
+ * <p>The strip follows its resolved {@link LayoutDirection}: reading left to right the first
+ * item added is the leftmost, reading right to left it is the rightmost, and the order in
+ * between is the order it was added in either way. Only the placed coordinate moves — the
+ * padding, the gap and the measured width are the same numbers in both directions, so a bar
+ * cannot change size by changing side.
  *
  * <p>Sizes follow the {@link ControlSize} resolved on this widget: the padding on all four
  * edges, the default gap and the inset of the separators {@link #addSeparator()} builds come
@@ -135,10 +142,20 @@ public class ToolBar extends Widget {
         float gapBetween = gapOf(t);
         float x = pad;
         float innerH = Math.max(0, height() - 2 * pad);
+        // Resolved once for the whole pass: two resolutions that disagreed inside one layout
+        // would put one item against the leading edge and its neighbour against the other.
+        // onMeasure deliberately does not read it — that pass sums a width (pad + items + gaps
+        // + pad), which is the same number in either direction, and a measure that mirrored
+        // would only make the two passes disagree about how wide the bar is.
+        boolean rtl = layoutDirection() == LayoutDirection.RTL;
         for (Widget item : children()) {
             Size s = item.measure(Constraints.loose(width(), innerH));
             float cy = pad + (innerH - s.height()) / 2;
-            item.layoutBox(x, cy, s.width(), s.height());
+            // The cursor walk is untouched and only the placed coordinate is reflected, which is
+            // why the gap arithmetic and the equal end pads fall out unchanged: the leading and
+            // trailing pad are the same token, so the reflection needs no correction term. The
+            // vertical centring has no side and does not move.
+            item.layoutBox(rtl ? width() - x - s.width() : x, cy, s.width(), s.height());
             x += s.width() + gapBetween;
         }
     }

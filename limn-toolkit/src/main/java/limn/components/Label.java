@@ -10,6 +10,7 @@ import limn.graphics.TextRuler;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 
@@ -51,12 +52,45 @@ import java.util.Objects;
  * for: icon glyphs carry no ascender/descender slack and must be drawn slightly larger than
  * the text box to read at the same weight. The overhang is declared to partial rendering by
  * {@link #paintOutset()} and drawn outside the text clip.
+ *
+ * <p><b>Reading right to left, the icon and the text swap ends and nothing else moves.</b>
+ * {@link HAlign#START} and {@link HAlign#END} name where reading starts and ends, so they turn
+ * around with the paragraph; {@link HAlign#CENTER} is a centre in either direction and is the one
+ * arm of that decision that is the same number. The icon square is
+ * {@linkplain #setIcon(limn.graphics.Icon) leading}, which is the left edge in one direction and
+ * the right edge in the other, and the glyph inside it turns around only when the call that
+ * placed it said it should &mdash; see {@link limn.graphics.Icon.Mirroring}.
  */
 public class Label extends Widget {
 
     public enum Overflow { CLIP, ELLIPSIS }
 
-    public enum HAlign { START, CENTER, END }
+    /**
+     * Where a line sits in the text region, on two vocabularies that coexist on purpose.
+     *
+     * <p>{@link #START} and {@link #END} are <b>logical</b>: they name where reading starts and
+     * ends, so they turn around with {@link limn.scene.LayoutDirection}. That is what a label
+     * almost always wants, because a label is text and text has a reading order.
+     *
+     * <p>{@link #LEFT} and {@link #RIGHT} are <b>physical</b>: they name a side of the region and
+     * keep naming it whichever way the subtree reads. Reach for one when the alignment is about
+     * the box rather than about the reading order &mdash; a column of figures that must stay
+     * flush with the column beside it, a caption pinned under one corner of a picture.
+     *
+     * <p>{@link #CENTER} is the same number in both vocabularies and in both directions.
+     */
+    public enum HAlign {
+        /** Against the edge reading starts from. */
+        START,
+        /** Centred in the text region. */
+        CENTER,
+        /** Against the edge reading ends on. */
+        END,
+        /** Against the region's left edge, whichever way the subtree reads. */
+        LEFT,
+        /** Against the region's right edge, whichever way the subtree reads. */
+        RIGHT
+    }
 
     public enum VAlign { TOP, CENTER, BOTTOM }
 
@@ -72,6 +106,11 @@ public class Label extends Widget {
 
     private I18nString text;
     private limn.graphics.Icon icon;
+    // What the icon MEANS, not where it goes: its side is this widget's decision and turns around
+    // with the paragraph, while the glyph inside the square turns around only when the call that
+    // placed it said it should. NEVER by default, which is what keeps every existing setIcon call
+    // drawing exactly what it drew.
+    private limn.graphics.Icon.Mirroring iconMirroring = limn.graphics.Icon.Mirroring.NEVER;
     private Font font;   // null → the role's token at the resolved step
     private Role role = Role.BODY;
     private Color color; // null → theme (text, or textMuted when muted)
@@ -197,12 +236,24 @@ public class Label extends Widget {
     }
 
     /**
-     * What a string with no strong character of its own falls back to. Left to right until this
-     * widget reads the direction axis, which keeps every existing paragraph shaped exactly as it
-     * was: the first-strong rule still decides everything a strong character can decide.
+     * What a string with no strong character of its own falls back to: this label's own resolved
+     * layout direction. A bare {@code "42"}, a phone number or a run of punctuation in an Arabic
+     * form reads right to left however many Latin digits it starts with, and the first-strong rule
+     * cannot know that; the surrounding interface can. A Latin string in that same form still
+     * reads left to right, because the fallback is consulted only where no strong character has
+     * an opinion.
+     *
+     * <p>Resolved here on every call rather than held, and never in a constructor: a label
+     * captures no direction, because a direction captured before it has a parent is permanently
+     * wrong with no path to recovery.
      */
     private ShapedText.Direction neutralBase() {
-        return ShapedText.Direction.LTR;
+        return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
+    }
+
+    /** Whether this label reads right to left. Resolve it once per pass, into a local. */
+    private boolean isRtl() {
+        return layoutDirection() == LayoutDirection.RTL;
     }
 
     /** Room the text itself gets: the box less the icon and its gap. */
@@ -335,10 +386,32 @@ public class Label extends Widget {
         return this;
     }
 
-    /** Sets a leading icon, tinted to the text color. {@code null} clears it. */
+    /**
+     * Sets a leading icon, tinted to the text color, drawn as authored whichever way this label
+     * reads. {@code null} clears it. <em>Leading</em> is the side reading starts on: the left edge
+     * left to right, the right edge right to left.
+     */
     public Label setIcon(limn.graphics.Icon newIcon) {
+        return setIcon(newIcon, limn.graphics.Icon.Mirroring.NEVER);
+    }
+
+    /**
+     * Sets a leading icon and says whether its glyph turns around when the interface does. The
+     * icon's <em>position</em> is leading either way and is this label's decision; whether the
+     * drawing inside that square is a back arrow (which turns around) or a logo, a download arrow
+     * or a photograph (which must not) is knowable only at the call that placed it, which is why
+     * it is a parameter here and not a table anywhere.
+     *
+     * @param newIcon   the icon, or {@code null} to clear it
+     * @param mirroring {@link limn.graphics.Icon.Mirroring#NEVER} unless this glyph is
+     *                  directional; a wrong {@code NEVER} is one arrow pointing the wrong way,
+     *                  and a wrong {@code IN_RTL} is a flipped brand mark
+     */
+    public Label setIcon(limn.graphics.Icon newIcon, limn.graphics.Icon.Mirroring mirroring) {
         Ui.checkUiThread();
+        Objects.requireNonNull(mirroring, "mirroring");
         this.icon = newIcon;
+        this.iconMirroring = mirroring;
         markNeedsLayout();
         return this;
     }
@@ -479,10 +552,22 @@ public class Label extends Widget {
         TextMetrics metrics = ruler.measure("Hg", f);
         float lineHeight = metrics.lineHeight();
         float top = textTop(lineHeight);
-        float textLeft = 0;
+        // Resolved ONCE for the whole pass. The icon's side, the text region's left edge and the
+        // alignment offset inside that region are three answers to one question, and two
+        // resolutions that disagreed inside one paint would draw the text under the icon.
+        boolean rtl = isRtl();
+        float iconBox = icon == null ? 0 : iconBox(t, f);
+        float iconSpace = icon == null ? 0 : iconBox + t.gapLabel();
+        // Physical left edge of the text region. The icon gutter is on the side reading starts
+        // on, so left to right the text starts past it, and right to left the gutter is at the
+        // far end and the text region already begins at the box's own left edge. Only one of the
+        // two moves, and it is the icon.
+        float textLeft = rtl ? 0 : iconSpace;
         if (icon != null) {
-            float iconBox = iconBox(t, f);
             float iconTop = (height() - iconBox) / 2; // negative: the bump overhangs
+            // The leading edge written as a coordinate: 0 reading left to right, and the far edge
+            // less the square reading right to left.
+            float iconLeft = rtl ? width() - iconBox : 0;
             // Painted BEFORE the text clip is installed, under a clip of its own: the text clip
             // is the box, and nesting inside it would shave exactly the overhang paintOutset()
             // promises to repaint. The icon's clip is its own square: vertically it lets the
@@ -493,17 +578,22 @@ public class Label extends Widget {
             canvas.save();
             try {
                 canvas.clipRect(0, iconTop, width(), iconBox);
-                icon.paint(canvas, 0, iconTop, iconBox, ink, theme.dark);
+                // The flag says what the icon MEANS and the axis says which way this label reads;
+                // neither alone is the answer, and the flip itself is Icon.paint's, about the
+                // square it was just handed.
+                icon.paint(canvas, iconLeft, iconTop, iconBox, ink, theme.dark,
+                        iconMirroring == limn.graphics.Icon.Mirroring.IN_RTL && rtl);
             } finally {
                 canvas.restore();
             }
-            textLeft = iconBox + t.gapLabel();
         }
         // Always clip: even ELLIPSIS can exceed the box (a widget narrower
         // than the ellipsis itself), and text must never bleed on neighbors.
         canvas.save();
         canvas.clipRect(0, 0, width(), height());
-        float textWidth = Math.max(0, width() - textLeft);
+        // A magnitude, not an x: the icon claims the same room from either end, so this is the
+        // same number in both directions and only the edge it is measured from moved.
+        float textWidth = Math.max(0, width() - iconSpace);
         float baseline = top + metrics.ascent();
         for (int i = 0; i < lines.size(); i++) {
             ShapedText line = lines.get(i);
@@ -520,14 +610,20 @@ public class Label extends Widget {
                 line = ruler.shape(line.text(), f, line.baseDirection());
                 lines.set(i, line);
             }
-            // START skips even the field read; CENTER/END take the width off the value about to
-            // be drawn, which is what deleted the per-line, per-frame ruler.measure that used to
-            // sit here. HAlign is unmirrored on purpose: START is left in a right-to-left
-            // paragraph too, until the mirroring ADR says otherwise.
+            // The offset of this line inside the text region, added to the region's own left
+            // edge. START and END are logical — where reading starts and where it ends — so they
+            // trade places when the paragraph does; CENTER is a centre either way and is the one
+            // arm that is the same number in both directions.
+            // Each arm takes the width off the value about to be drawn, which is what deleted the
+            // per-line, per-frame ruler.measure that used to sit here.
             float x = textLeft + switch (hAlign) {
-                case START -> 0;
+                case START -> rtl ? textWidth - line.metrics().width() : 0;
                 case CENTER -> (textWidth - line.metrics().width()) / 2;
-                case END -> textWidth - line.metrics().width();
+                case END -> rtl ? 0 : textWidth - line.metrics().width();
+                // The two physical arms, which is why they are arms and not a branch on rtl:
+                // a side of the region is one expression, and the direction never reaches it.
+                case LEFT -> 0;
+                case RIGHT -> textWidth - line.metrics().width();
             };
             canvas.drawText(line, x, baseline, ink);
             baseline += lineHeight;
@@ -545,16 +641,25 @@ public class Label extends Widget {
      * <em>left</em>. There is no branch for that anywhere here, and there must not be one: it
      * falls out of shaping the concatenation instead of positioning two pieces.
      *
-     * @param line      the shaped whole line, wider than {@code available}
+     * <p><b>The base direction travels with every re-shape here</b>, taken from {@code line}
+     * itself because this is static and has no widget to ask. It has to: {@code …} is wholly
+     * neutral and a cut prefix can be too, so re-shaping either without the base lets the
+     * first-strong rule fall back to left to right and measures the budget in one direction while
+     * the paragraph is read in the other.
+     *
+     * @param line      the shaped whole line, wider than {@code available}; its
+     *                  {@linkplain ShapedText#baseDirection() base} is the one the cut is shaped
+     *                  for
      * @param available room the text gets, in logical points
      * @param ruler     the ruler that shaped {@code line} and re-shapes the cut
      * @return the line as it will be drawn; the lone ellipsis when nothing fits beside it
      */
     static ShapedText ellipsize(ShapedText line, float available, TextRuler ruler) {
         Font font = line.font();
-        float ellipsisWidth = ruler.shape(ELLIPSIS, font).metrics().width();
+        ShapedText.Direction base = line.baseDirection();
+        float ellipsisWidth = ruler.shape(ELLIPSIS, font, base).metrics().width();
         int cut = line.fitEnd(0, available - ellipsisWidth);
-        ShapedText shown = ruler.shape(line.text().substring(0, cut) + ELLIPSIS, font);
+        ShapedText shown = ruler.shape(line.text().substring(0, cut) + ELLIPSIS, font, base);
         // fitEnd said WHERE to cut, against the budget of the UNCUT shaping. Re-shaping the kept
         // prefix beside an ellipsis can join, ligate or kern differently and come out a hair
         // wider than the budget promised, and a Label that overflows its box by a hair is a Label
@@ -562,7 +667,7 @@ public class Label extends Widget {
         // scripts where a cut changes the forms on both sides of it.
         while (shown.metrics().width() > available && cut > 0) {
             cut = line.caretIndex(line.caretOrdinal(cut) - 1);
-            shown = ruler.shape(line.text().substring(0, cut) + ELLIPSIS, font);
+            shown = ruler.shape(line.text().substring(0, cut) + ELLIPSIS, font, base);
         }
         return shown;
     }
@@ -593,7 +698,15 @@ public class Label extends Widget {
      * at the end of the walk: a paragraph of pure whitespace skips every segment it has and would
      * otherwise emit nothing.
      *
-     * @param paragraph the whole text as one shaped line
+     * <p><b>Every emitted line is shaped at the PARAGRAPH's base direction</b>, taken from
+     * {@code paragraph} because this is static and has no widget to ask. A line re-deriving its
+     * own base by the first-strong rule would let a line of digits and punctuation inside a
+     * right-to-left paragraph come out left to right and disagree with the paragraph that decided
+     * where it broke &mdash; and the drawn width would then be a fraction of a point off the
+     * width the break was measured against.
+     *
+     * @param paragraph the whole text as one shaped line; its
+     *                  {@linkplain ShapedText#baseDirection() base} is every emitted line's base
      * @param maxWidth  room per line; {@link Constraints#UNBOUNDED_LIMIT} or non-positive emits
      *                  the paragraph unbroken
      * @param ruler     the ruler that shaped {@code paragraph} and re-shapes each emitted line
@@ -603,6 +716,7 @@ public class Label extends Widget {
     static float wrapText(ShapedText paragraph, float maxWidth, TextRuler ruler,
             List<ShapedText> out) {
         String text = paragraph.text();
+        ShapedText.Direction base = paragraph.baseDirection();
         int length = text.length();
         if (maxWidth == Constraints.UNBOUNDED_LIMIT || maxWidth <= 0) {
             out.add(paragraph);
@@ -661,10 +775,10 @@ public class Label extends Widget {
             // Each emitted line is re-shaped from the trimmed range. advanceTo is a budget and
             // not a promise about a substring: joining forms change at the cut, a ligature that
             // spanned it is gone, and so is the kerning at the seam. The paragraph shaping
-            // decides WHERE; the line shaping decides what is drawn.
+            // decides WHERE; the line shaping decides what is drawn, at the paragraph's base.
             ShapedText line = start == 0 && cut == length
                     ? paragraph                        // it all fits: nothing to re-shape
-                    : ruler.shape(text.substring(start, cut), paragraph.font());
+                    : ruler.shape(text.substring(start, cut), paragraph.font(), base);
             out.add(line);
             emitted++;
             widest = Math.max(widest, line.metrics().width());
@@ -675,8 +789,10 @@ public class Label extends Widget {
         if (emitted == 0) {
             // Every segment was whitespace, which is a paragraph of whitespace: one empty line, the
             // same answer this returned before the skip existed and the one onMeasure's height
-            // depends on. Width 0, because an empty line has none.
-            out.add(ruler.shape("", paragraph.font()));
+            // depends on. Width 0, because an empty line has none — and still shaped at the
+            // paragraph's base, because a held line's direction is asked about later even when
+            // there is no ink in it to see.
+            out.add(ruler.shape("", paragraph.font(), base));
         }
         return widest;
     }

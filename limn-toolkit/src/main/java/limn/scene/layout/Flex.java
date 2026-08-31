@@ -13,7 +13,38 @@ import limn.scene.Widget;
  */
 public abstract class Flex extends Widget {
 
-    public enum MainAlignment { START, CENTER, END, SPACE_BETWEEN }
+    /**
+     * How leftover space along the layout axis is distributed, on two vocabularies that coexist
+     * on purpose.
+     *
+     * <p>{@link #START}, {@link #END} and {@link #SPACE_BETWEEN} are <b>logical</b>: they name
+     * where reading starts and ends, so on a {@link Row} they turn around with
+     * {@link limn.scene.LayoutDirection}. This is what a caller almost always wants, and it is
+     * why a dialog's button row needs no direction knowledge of its own.
+     *
+     * <p>{@link #LEFT} and {@link #RIGHT} are <b>physical</b>: they name a side of the box and
+     * keep naming it whichever way the subtree reads. Reach for one when the placement is about
+     * the box rather than about reading order &mdash; a resize grip, a debug strip, a control
+     * that has to stay put beside something outside this row. On a {@link Column} the main axis
+     * has no left, so {@code LEFT} behaves as {@code START} and {@code RIGHT} as {@code END}: a
+     * name that means nothing there must still mean something predictable.
+     *
+     * <p>{@link #CENTER} is the same number in both vocabularies and in both directions.
+     */
+    public enum MainAlignment {
+        /** Against the edge reading starts from. */
+        START,
+        /** Centred. */
+        CENTER,
+        /** Against the edge reading ends on. */
+        END,
+        /** Leftovers split evenly between children, from the edge reading starts from. */
+        SPACE_BETWEEN,
+        /** Against the box's left edge, whichever way the subtree reads. */
+        LEFT,
+        /** Against the box's right edge, whichever way the subtree reads. */
+        RIGHT
+    }
 
     /**
      * Cross-axis placement. {@code START}/{@code CENTER}/{@code END}/{@code STRETCH} align
@@ -309,17 +340,22 @@ public abstract class Flex extends Widget {
 
         // Pass 3: place. Leftover goes to main alignment when no flex absorbed it.
         float free = totalFlex > 0 ? 0 : Math.max(0, mainSize - contentMain);
+        // Resolved once for the whole pass: two resolutions that disagreed inside one layout
+        // would place a child against one edge and its neighbour against the other.
+        boolean rtl = !vertical && layoutDirection() == limn.scene.LayoutDirection.RTL;
+        // The cursor is a LOGICAL distance along the main axis, which the placement below
+        // reflects. So a physical constant is expressed by asking for the logical end that
+        // reflects onto the side it names, and the placement needs no second branch.
         float cursor = switch (mainAlignment) {
             case START, SPACE_BETWEEN -> 0;
             case CENTER -> free / 2;
             case END -> free;
+            case LEFT -> rtl ? free : 0;
+            case RIGHT -> rtl ? 0 : free;
         };
         float between = mainAlignment == MainAlignment.SPACE_BETWEEN && visible > 1
                 ? free / (visible - 1)
                 : 0;
-        // Resolved once for the whole pass: two resolutions that disagreed inside one layout
-        // would place a child against one edge and its neighbour against the other.
-        boolean rtl = !vertical && layoutDirection() == limn.scene.LayoutDirection.RTL;
         for (int i = 0; i < childCount; i++) {
             Widget child = children().get(i);
             if (!child.isVisible()) {

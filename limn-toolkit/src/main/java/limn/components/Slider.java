@@ -8,6 +8,7 @@ import limn.graphics.Color;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -38,6 +39,12 @@ import java.util.function.Consumer;
  * <p>The preferred <em>length</em> is free: 220 at every step, equal to
  * {@code ProgressBar}'s so the two stack in a settings panel without a ragged column. Only
  * the thickness moves with the step.
+ *
+ * <p>The value axis follows the {@linkplain Widget#layoutDirection() resolved layout direction}: reading right to left, {@code min} is at the right end of the track, the fill grows
+ * leftwards from it, and Left/Right nudge the value the way the thumb visibly moves. Up/Down are a
+ * vertical pair and keep their meaning in both directions, and Home/End/PageUp/PageDown name a
+ * value rather than a side, so they never mirror either. The track rectangle itself does not move:
+ * the pad is reserved at both ends, so only the meaning of each end changes.
  */
 public class Slider extends Widget {
 
@@ -136,6 +143,10 @@ public class Slider extends Widget {
     // and the pointer path all run through trackLeft/trackWidth, so two resolutions that
     // disagreed inside one component would map a click to a different value than the frame it
     // was aimed at: invisible at MEDIUM, wrong everywhere else.
+    //
+    // The resolved direction is threaded the same way and for the same reason: thumbX and
+    // applyFromX are inverses of one another, so each pass resolves it once and hands it to both
+    // rather than letting either read it for itself.
 
     /**
      * Horizontal room reserved at each end so the hovered knob and its ring stay inside the box:
@@ -157,8 +168,14 @@ public class Slider extends Widget {
         return (value - min) / (max - min);
     }
 
-    private float thumbX(SizeTokens t) {
-        return trackLeft(t) + fraction() * trackWidth(t);
+    /**
+     * The x of the thumb's centre, measured from the track's leading end: the end {@code min}
+     * sits at, which is the left one reading left to right and the right one reading right to
+     * left. The track rectangle is the same either way; only which end fraction 0 means flips.
+     */
+    private float thumbX(SizeTokens t, boolean rtl) {
+        float along = rtl ? 1 - fraction() : fraction();
+        return trackLeft(t) + along * trackWidth(t);
     }
 
     /** Clamps and snaps a raw value; applies + fires {@link #onChange} (when {@code fromUser}) only if it changed. */
@@ -185,8 +202,15 @@ public class Slider extends Widget {
         }
     }
 
-    private void applyFromX(SizeTokens t, float localX, boolean fromUser) {
-        float frac = Math.max(0, Math.min(1, (localX - trackLeft(t)) / trackWidth(t)));
+    /**
+     * Maps a physical widget-local x onto the value: the exact inverse of {@link #thumbX}, and
+     * the only place the pointer's side of the box becomes a fraction of the range. The caller
+     * hands over the untouched pointer coordinate; reflecting it there as well would flip twice
+     * and land on the value the user aimed away from.
+     */
+    private void applyFromX(SizeTokens t, boolean rtl, float localX, boolean fromUser) {
+        float along = rtl ? trackLeft(t) + trackWidth(t) - localX : localX - trackLeft(t);
+        float frac = Math.max(0, Math.min(1, along / trackWidth(t)));
         // Pass the exact bounds at the extremes so dragging to an edge reaches min/max.
         float raw = frac >= 1f ? max : frac <= 0f ? min : min + frac * (max - min);
         apply(raw, fromUser);
@@ -216,10 +240,12 @@ public class Slider extends Widget {
         Theme theme = Theme.current();
         SizeTokens t = theme.tokensFor(this);
         boolean enabled = isEnabled();
+        // One resolution for the whole frame, exactly as the token row is resolved once here.
+        boolean rtl = layoutDirection() == LayoutDirection.RTL;
         float cy = height() / 2;
         float left = trackLeft(t);
         float tw = trackWidth(t);
-        float thumbX = thumbX(t);
+        float thumbX = thumbX(t, rtl);
         // Parity rule: the rail is centred, so (height - rail) must be EVEN or its
         // two long edges land on half-pixels and the toolkit's longest straight run renders as
         // two rows of ~50% grey: fills are not pixel-snapped, only strokes are (backend
@@ -231,8 +257,13 @@ public class Slider extends Widget {
 
         canvas.fillRoundRect(left, trackTop, tw, rail, rail / 2, theme.surfaceRaised);
         Color fillColor = enabled ? theme.primary : theme.disabledFill;
-        if (thumbX > left) {
-            canvas.fillRoundRect(left, trackTop, thumbX - left, rail, rail / 2, fillColor);
+        // The fill is anchored at the end min sits at and stops under the thumb, so reading right
+        // to left it starts at the thumb and runs to the track's right edge. The rail underneath
+        // is the whole symmetric track and does not move.
+        float fillX = rtl ? thumbX : left;
+        float fillWidth = rtl ? left + tw - thumbX : thumbX - left;
+        if (fillWidth > 0) {
+            canvas.fillRoundRect(fillX, trackTop, fillWidth, rail, rail / 2, fillColor);
         }
 
         float focus = focusFade.value();
@@ -258,9 +289,11 @@ public class Slider extends Widget {
 
     @Override
     protected void onMouseEvent(MouseEvent event) {
-        // One resolution for the whole event, threaded into applyFromX. The pointer path must
-        // agree with the frame the user aimed at, and that only holds if both read one row.
+        // One resolution of each for the whole event, threaded into applyFromX. The pointer path
+        // must agree with the frame the user aimed at, and that only holds if both read one row
+        // and one direction.
         SizeTokens t = Theme.current().tokensFor(this);
+        boolean rtl = layoutDirection() == LayoutDirection.RTL;
         switch (event.type()) {
             case ENTER -> {
                 pointerInside = true;
@@ -276,13 +309,13 @@ public class Slider extends Widget {
                 if (event.button() == Keys.MOUSE_LEFT && isEnabled()) {
                     dragging = true;
                     hover.to(1);
-                    applyFromX(t, sceneToLocalX(event.x()), true);
+                    applyFromX(t, rtl, sceneToLocalX(event.x()), true);
                     event.consume();
                 }
             }
             case DRAG -> {
                 if (dragging) {
-                    applyFromX(t, sceneToLocalX(event.x()), true);
+                    applyFromX(t, rtl, sceneToLocalX(event.x()), true);
                     event.consume();
                 }
             }
@@ -308,10 +341,20 @@ public class Slider extends Widget {
         if (!event.isPressed() || !isEnabled()) {
             return;
         }
+        // Resolved once for this key press, like the token row in the pointer path.
+        boolean rtl = layoutDirection() == LayoutDirection.RTL;
         boolean handled = true;
+        // Left and Right name a side of the track, so they follow the direction; Up and Down name
+        // a vertical side, which mirroring does not touch, and they shared an arm with the
+        // horizontal pair only because the two agreed reading left to right. Home, End, PageUp
+        // and PageDown name a value rather than a side and are untouched: Home is min in both
+        // directions, and a page is a magnitude with no side at all.
+        float arrow = rtl ? -keyStep() : keyStep();
         switch (event.key()) {
-            case Keys.LEFT, Keys.DOWN -> apply(value - keyStep(), true);
-            case Keys.RIGHT, Keys.UP -> apply(value + keyStep(), true);
+            case Keys.LEFT -> apply(value - arrow, true);
+            case Keys.RIGHT -> apply(value + arrow, true);
+            case Keys.DOWN -> apply(value - keyStep(), true);
+            case Keys.UP -> apply(value + keyStep(), true);
             case Keys.PAGE_DOWN -> apply(value - pageStep(), true);
             case Keys.PAGE_UP -> apply(value + pageStep(), true);
             case Keys.HOME -> apply(min, true);

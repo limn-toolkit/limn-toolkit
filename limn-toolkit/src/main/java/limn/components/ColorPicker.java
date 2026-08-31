@@ -10,6 +10,7 @@ import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.Insets;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -41,6 +42,14 @@ import java.util.function.Consumer;
  * <p><b>Alpha is a mode.</b> {@link #setAlphaEnabled} removes the whole alpha line, rail
  * and number together, and {@link #color()} then always returns an opaque colour. Alpha
  * is the last line, so losing it shortens the picker rather than rearranging it.
+ *
+ * <p><b>Two opposite answers about direction live in this one widget, and unifying them
+ * would be wrong.</b> The rails are value axes laid along the reading axis, so their sweep,
+ * their thumb, their pointer and their horizontal arrows all turn round together when the
+ * picker reads right to left. The saturation/value field and the hue ramp do not turn round:
+ * the first is a colour space, whose white corner is a convention every artist has met and
+ * not a side of the page, and the second is vertical, which no direction touches. The ramp
+ * still changes sides, because the row holding it is what places it.
  *
  * <p>The answer is a display-range {@link Color}. An application authoring light rather
  * than pixels needs a multiplier beside this widget, not inside it: the swatch cannot
@@ -458,6 +467,25 @@ public final class ColorPicker extends Widget {
     }
 
     /**
+     * The saturation/value field, for the same reason again. It is the widget a test has
+     * to reach to prove the plane did <em>not</em> turn round, and deriving its box from
+     * the column's arithmetic would make that assertion one about the column.
+     */
+    Widget saturationValueField() {
+        return field;
+    }
+
+    /** The hue ramp, for {@link #saturationValueField}'s reason. */
+    Widget hueRamp() {
+        return hueRamp;
+    }
+
+    /** The before/after swatch, for {@link #saturationValueField}'s reason. */
+    Widget preview() {
+        return preview;
+    }
+
+    /**
      * The format tabs. Package-private so a test can switch from the pane's side,
      * the half {@link #setFormat} does not exercise, and the half a user's click
      * actually takes.
@@ -493,6 +521,11 @@ public final class ColorPicker extends Widget {
         }
         // Arrows nudge the field. A step of 1/255 matches what the RGB channels can
         // express, so a nudge is never a change the numbers cannot show.
+        //
+        // None of the four is mirrored, unlike a rail's: the field is a colour space and
+        // not a reading axis, so white stays in the same corner of it in both directions
+        // and Left still walks saturation down. Mirroring the key alone would send it the
+        // opposite way from the gradient and the cursor it walks along.
         float step = (event.modifiers() & Keys.MOD_SHIFT) != 0 ? 10 / 255f : 1 / 255f;
         switch (event.key()) {
             case Keys.LEFT -> saturation = clamp01(saturation - step);
@@ -626,7 +659,8 @@ public final class ColorPicker extends Widget {
             }
 
             @Override
-            protected void paintRail(Canvas canvas, SizeTokens t, float w, float top) {
+            protected void paintRail(Canvas canvas, SizeTokens t, float w, float top,
+                                     boolean rtl) {
                 float rail = t.colorRailH();
                 if (format == Format.HSV && channel == 0) {
                     // Hue is the one channel a two-stop gradient cannot express: it
@@ -637,15 +671,29 @@ public final class ColorPicker extends Widget {
                     // draw the seam it was meant to hide.
                     float band = w / (HUE_STOPS.length - 1);
                     for (int i = 0; i < HUE_STOPS.length - 1; i++) {
-                        float x = i * band;
-                        canvas.fillRect(x, top, band + 1, rail,
+                        float low = i / (float) (HUE_STOPS.length - 1);
+                        float high = (i + 1) / (float) (HUE_STOPS.length - 1);
+                        // The band walk is untouched and only its coordinate is
+                        // reflected: band i covers the same slice of the channel in
+                        // both directions, and reading right to left that slice is
+                        // measured back from the far edge, low end outermost, so it
+                        // agrees with the thumb resting on the same fraction.
+                        float x = rtl ? w - (i + 1) * band : i * band;
+                        // The overlapping point goes toward the band drawn next,
+                        // which is the side the sweep continues on: it is meant to
+                        // be covered by that band, and on the outside of the last
+                        // one it would hang past the rail instead of closing a seam.
+                        canvas.fillRect(rtl ? x - 1 : x, top, band + 1, rail,
                                 new LinearGradient(x, 0, x + band, 0,
-                                        sweep(i / (float) (HUE_STOPS.length - 1)),
-                                        sweep((i + 1) / (float) (HUE_STOPS.length - 1))));
+                                        sweep(rtl ? high : low),
+                                        sweep(rtl ? low : high)));
                     }
                 } else {
+                    // Value zero belongs on the leading edge, under the thumb that
+                    // rests there when the channel is at its minimum.
                     canvas.fillRect(0, top, w, rail,
-                            new LinearGradient(0, 0, w, 0, sweep(0), sweep(1)));
+                            new LinearGradient(0, 0, w, 0,
+                                    sweep(rtl ? 1 : 0), sweep(rtl ? 0 : 1)));
                 }
             }
 
@@ -815,8 +863,16 @@ public final class ColorPicker extends Widget {
          */
         protected abstract float unitFraction();
 
-        /** Paints the sweep across the rail band: full width, {@code railHeight} tall. */
-        protected abstract void paintRail(Canvas canvas, SizeTokens t, float w, float top);
+        /**
+         * Paints the sweep across the rail band: full width, {@code railHeight} tall.
+         *
+         * <p>{@code rtl} is the direction the pass already resolved, handed down rather
+         * than read again here: a sweep painted for one direction under a thumb placed
+         * for the other leaves the low end of the channel at one end of the rail and the
+         * thumb resting on it at the other, which is the one way this control can lie.
+         */
+        protected abstract void paintRail(Canvas canvas, SizeTokens t, float w, float top,
+                                          boolean rtl);
 
         /**
          * Tall enough for the thumb's focus ring, and never under the hit floor.
@@ -833,18 +889,34 @@ public final class ColorPicker extends Widget {
         }
 
         /**
-         * Where the thumb's centre may go. Inset half a thumb at each end, the way
-         * a slider's knob is: a value resting at zero is the ordinary case (it is
-         * most of a CMYK row), and a thumb centred on the edge would hang half
-         * outside the rail and read as a chipped corner. Paint and pointer both go
-         * through this, so a press lands on the value it points at.
+         * How far the thumb's centre is held off each end of the box, the way a
+         * slider's knob is: a value resting at zero is the ordinary case (it is most
+         * of a CMYK row), and a thumb centred on the edge would hang half outside the
+         * rail and read as a chipped corner. A magnitude applied identically at both
+         * ends, so it carries no direction of its own; {@link #thumbCentreX} is where
+         * one end becomes a coordinate.
          */
-        private float travelLeft(SizeTokens t) {
+        private float travelInset(SizeTokens t) {
             return t.colorThumbW() / 2;
         }
 
         private float travelWidth(SizeTokens t) {
             return Math.max(1, width() - t.colorThumbW());
+        }
+
+        /**
+         * Physical x of the thumb's centre for the current {@link #fraction}.
+         *
+         * <p>The fraction is a distance travelled from the end the range starts at,
+         * which is the leading edge, so this is the single expression that turns it
+         * into a coordinate: reading right to left the same distance is measured back
+         * from the box's right edge, and the travel arithmetic above is untouched.
+         * {@link #pick} is this expression inverted, so a press lands on the value it
+         * points at in both directions.
+         */
+        private float thumbCentreX(SizeTokens t, boolean rtl) {
+            float along = travelInset(t) + fraction() * travelWidth(t);
+            return rtl ? width() - along : along;
         }
 
         @Override
@@ -855,12 +927,17 @@ public final class ColorPicker extends Widget {
             if (w < 1 || h < 1) {
                 return;
             }
+            // Resolved once for the whole pass and handed to both halves of the rail: the
+            // sweep and the thumb are one picture, and two resolutions that disagreed
+            // inside one paint would draw value zero at one end and rest the thumb on the
+            // other. The clip and the outline below span the box and know no direction.
+            boolean rtl = layoutDirection() == LayoutDirection.RTL;
             float rail = t.colorRailH();
             float top = (h - rail) / 2;
             float radius = Math.min(rail / 2, t.radiusSmall());
             canvas.save();
             canvas.clipRoundRect(RoundRect.of(0, top, w, rail, radius));
-            paintRail(canvas, t, w, top);
+            paintRail(canvas, t, w, top, rtl);
             canvas.restore();
             // The rail's own outline IS the focus ring, thickening into the accent
             // as the fade runs: one stroke, so nothing is drawn outside the box and
@@ -869,7 +946,7 @@ public final class ColorPicker extends Widget {
             canvas.drawRoundRect(0.5f, top + 0.5f, w - 1, rail - 1, radius,
                     Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
                     Theme.current().outline.lerp(Theme.current().focusRing, focus));
-            paintThumb(canvas, t, travelLeft(t) + fraction() * travelWidth(t), h / 2, focus);
+            paintThumb(canvas, t, thumbCentreX(t, rtl), h / 2, focus);
         }
 
         @Override
@@ -879,11 +956,23 @@ public final class ColorPicker extends Widget {
             }
             // Both axes, like Slider: a rail is horizontal here, and a keyboard user
             // reaching for Up on a slider should not have to know that.
+            //
+            // Only the horizontal half turns round with the direction. Left and Right
+            // name the end of the range they physically point at, so reading right to
+            // left Left is the way the value grows; Up and Down name the value itself
+            // and mean the same thing on any page. That is why the two arms are split
+            // apart rather than swapped: swapping them wholesale would invert the
+            // vertical half too, which nothing asked for.
+            boolean rtl = layoutDirection() == LayoutDirection.RTL;
             float unit = unitFraction();
             float step = (event.modifiers() & Keys.MOD_SHIFT) != 0 ? 10 * unit : unit;
             switch (event.key()) {
-                case Keys.LEFT, Keys.DOWN -> moveTo(clamp01(fraction() - step));
-                case Keys.RIGHT, Keys.UP -> moveTo(clamp01(fraction() + step));
+                case Keys.LEFT -> moveTo(clamp01(fraction() + (rtl ? step : -step)));
+                case Keys.RIGHT -> moveTo(clamp01(fraction() + (rtl ? -step : step)));
+                case Keys.DOWN -> moveTo(clamp01(fraction() - step));
+                case Keys.UP -> moveTo(clamp01(fraction() + step));
+                // Page, Home and End name the value and never a side of the screen, so
+                // they are the same key in both directions.
                 case Keys.PAGE_DOWN -> moveTo(clamp01(fraction() - 10 * unit));
                 case Keys.PAGE_UP -> moveTo(clamp01(fraction() + 10 * unit));
                 case Keys.HOME -> moveTo(0);
@@ -936,7 +1025,13 @@ public final class ColorPicker extends Widget {
 
         private void pick(MouseEvent event) {
             SizeTokens t = Theme.current().tokensFor(this);
-            moveTo(clamp01((sceneToLocalX(event.x()) - travelLeft(t)) / travelWidth(t)));
+            // The inverse of thumbCentreX, resolved once for this event: the pointer
+            // arrives as a physical x, and the direction is what turns it back into a
+            // distance travelled from the end the range starts at.
+            boolean rtl = layoutDirection() == LayoutDirection.RTL;
+            float local = sceneToLocalX(event.x());
+            float along = rtl ? width() - local : local;
+            moveTo(clamp01((along - travelInset(t)) / travelWidth(t)));
             event.consume();
         }
     }
@@ -970,11 +1065,18 @@ public final class ColorPicker extends Widget {
         }
 
         @Override
-        protected void paintRail(Canvas canvas, SizeTokens t, float w, float top) {
+        protected void paintRail(Canvas canvas, SizeTokens t, float w, float top,
+                                 boolean rtl) {
+            // The checkerboard has no ends to swap: it is a texture meaning "absence",
+            // and its phase is not a position anything reads.
             paintChecker(canvas, t, 0, top, w, t.colorRailH());
             Color solid = Color.hsv(hue, saturation, value, 1);
+            // Alpha zero is the low end of the same axis the thumb rides, so the
+            // transparent end of the sweep travels to the leading edge with it.
             canvas.fillRect(0, top, w, t.colorRailH(),
-                    new LinearGradient(0, 0, w, 0, solid.withAlpha(0), solid));
+                    new LinearGradient(0, 0, w, 0,
+                            rtl ? solid : solid.withAlpha(0),
+                            rtl ? solid.withAlpha(0) : solid));
         }
     }
 
@@ -1121,7 +1223,15 @@ public final class ColorPicker extends Widget {
         }
     }
 
-    /** Saturation left→right, value bottom→top, for the current hue. */
+    /**
+     * Saturation left→right, value bottom→top, for the current hue, in both directions.
+     *
+     * <p><b>Nothing in here mirrors</b>, which is the opposite of the rails a few lines up
+     * and is deliberate: this is a colour space rather than a reading axis. White in the
+     * top-left corner is the picker every artist has already learnt, its cursor and its
+     * press are an inverse pair on that same unmirrored axis, and the arrow keys that walk
+     * it are the picker's own and stay put with it.
+     */
     private final class SaturationValueField extends Painted {
 
         private boolean dragging;
@@ -1186,7 +1296,14 @@ public final class ColorPicker extends Widget {
         }
     }
 
-    /** The full spectrum, top to bottom. */
+    /**
+     * The full spectrum, top to bottom.
+     *
+     * <p>Not a direction site at all: every coordinate that varies here is a y, the bands
+     * and the marker span the whole width, and the drag loop reads nothing but the pointer's
+     * y. The ramp does change sides when the picker reads right to left, and that is the row
+     * holding it doing the placing; the painting inside this box is the same either way.
+     */
     private final class HueRamp extends Painted {
 
         private boolean dragging;
@@ -1240,8 +1357,15 @@ public final class ColorPicker extends Widget {
             canvas.save();
             canvas.clipRoundRect(RoundRect.of(0, 0, w, h, radius));
             paintChecker(canvas, t, 0, 0, w, h);
-            canvas.fillRect(0, 0, w / 2, h, original);
-            canvas.fillRect(w / 2, 0, w / 2, h, color());
+            // An ordered pair, so it reads in reading order: the colour the picker
+            // opened on first, the one it is showing now after it. Not a colour space
+            // like the field, and not an axis like a rail: a before and an after, which
+            // is a sentence, and a sentence that ran backwards would say the new colour
+            // was the one being compared against. The checkerboard under both halves is
+            // a texture and stays where it is.
+            boolean rtl = layoutDirection() == LayoutDirection.RTL;
+            canvas.fillRect(rtl ? w / 2 : 0, 0, w / 2, h, original);
+            canvas.fillRect(rtl ? 0 : w / 2, 0, w / 2, h, color());
             canvas.restore();
             canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.current().outline);
         }

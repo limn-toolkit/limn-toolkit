@@ -13,6 +13,7 @@ import limn.graphics.TextRuler;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
+import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -57,6 +58,13 @@ import java.util.Objects;
  * the menu opens: from {@link #setControlSize} if set, else through the anchor widget, else
  * from the owner scene. Mixing steps across columns would desynchronise the submenu
  * y-alignment, the column overlap and the shared border weight.
+ *
+ * <p><b>And at one {@link LayoutDirection}</b>, resolved through the same link at the same
+ * moment. Reading right to left the whole cascade is mirrored: the root column aligns to the
+ * anchor's right edge, submenus open to the left, the check gutter is on the right and the
+ * accelerator hint and the submenu chevron on the left, and the arrow keys that open and close
+ * a submenu swap. What does not mirror is the check mark itself, which no platform mirrors,
+ * and the accelerator strings, which name physical keys.
  */
 public final class PopupMenu {
 
@@ -72,10 +80,13 @@ public final class PopupMenu {
 
     private final Menu rootMenu;
     private Runnable onClose = () -> { };
-    // Left/Right at the root column with nowhere to go: a MenuBar hooks these to
-    // walk to the previous/next top-level menu (no-op for a standalone popup).
-    private Runnable onRootLeft = () -> { };
-    private Runnable onRootRight = () -> { };
+    // The arrow keys at the root column with nowhere to go: a MenuBar hooks these to walk to
+    // the previous/next top-level menu (no-op for a standalone popup). Named for the sides
+    // rather than for the keys because the key that reaches them is flipped in handleKey and
+    // these are not: leading always means the previous menu, in either direction, and a second
+    // flip out here would cancel the first one and walk the bar against its own submenus.
+    private Runnable onRootLeading = () -> { };
+    private Runnable onRootTrailing = () -> { };
     // Scene points the fullscreen in-scene overlay should let through to the content
     // beneath it: a MenuBar sets this to its own strip so its titles keep hover-
     // switching (and their cursor) while a dropdown is open, as in native mode.
@@ -97,6 +108,31 @@ public final class PopupMenu {
      * restyle (it means "the model mutated" and drops all deeper columns).
      */
     private SizeTokens tokens;
+
+    /**
+     * The <b>one</b> resolved layout direction for the whole cascade, captured at open time
+     * beside {@link #tokens} and never re-read, because it has that field's lifetime and that
+     * field's failure mode. Every column is placed against it ({@code positionRoot},
+     * {@code positionSubmenu}), painted against it ({@link MenuSurface#paintColumn}) and
+     * navigated against it ({@link MenuSurface#handleKey}); two reads that could disagree
+     * inside one open menu would open a submenu on one side and draw its chevron on the other.
+     *
+     * <p>Resolved in {@link #beginOpen}, which is neither a constructor nor a field
+     * initializer, and only after the host link is installed: a menu surface is parentless in
+     * both presentations, so that link is the only path the direction has from the widget that
+     * opened the menu. A test that opens with no host gets the process default, exactly as it
+     * gets the process default step.
+     *
+     * <p>The initializer is a placeholder for the window between construction and open, not a
+     * resolution: resolving a direction where this field is declared would capture it before
+     * the host link exists, which is the one way to make it permanently wrong.
+     */
+    private LayoutDirection direction = LayoutDirection.LTR;
+
+    /** Whether the open cascade reads right to left. */
+    private boolean isRtl() {
+        return direction == LayoutDirection.RTL;
+    }
 
     private boolean open;
     private boolean inScene; // what this open actually did: an overlay instead of a native window
@@ -140,15 +176,25 @@ public final class PopupMenu {
         return this;
     }
 
-    /** Hook for LEFT pressed on the root column (MenuBar: go to the previous menu). */
-    public PopupMenu onRootLeft(Runnable listener) {
-        this.onRootLeft = Objects.requireNonNull(listener, "listener");
+    /**
+     * Hook for the arrow that walks toward the leading side at the root column (MenuBar: go to
+     * the previous menu). That is LEFT reading left to right and RIGHT reading right to left;
+     * the physical key is flipped once, inside this class, so a listener registered here means
+     * "the previous menu" in either direction and must not flip again.
+     */
+    public PopupMenu onRootLeading(Runnable listener) {
+        this.onRootLeading = Objects.requireNonNull(listener, "listener");
         return this;
     }
 
-    /** Hook for RIGHT pressed on a root item without a submenu (MenuBar: next menu). */
-    public PopupMenu onRootRight(Runnable listener) {
-        this.onRootRight = Objects.requireNonNull(listener, "listener");
+    /**
+     * Hook for the arrow that walks toward the trailing side on a root item without a submenu
+     * (MenuBar: the next menu). The trailing arrow is the one that opens a submenu where there
+     * is one, which is why it is the one that walks on where there is not;
+     * {@link #onRootLeading} states the direction rule both share.
+     */
+    public PopupMenu onRootTrailing(Runnable listener) {
+        this.onRootTrailing = Objects.requireNonNull(listener, "listener");
         return this;
     }
 
@@ -269,8 +315,8 @@ public final class PopupMenu {
      *
      * <p>The surface is parentless in both presentations (a native popup scene's root, or an
      * overlay pushed with {@code pushOverlay}), so the tree walk cannot reach the anchor: the
-     * host link is the only way the step gets there, and it must be installed before the
-     * geometry that sizes the native window is computed.
+     * host link is the only way the step <em>and the direction</em> get there, and it must be
+     * installed before the geometry that sizes the native window is computed.
      */
     private void beginOpen(limn.graphics.TextRuler ruler, Widget host) {
         surface = new MenuSurface(ruler);
@@ -281,6 +327,10 @@ public final class PopupMenu {
             surface.setInheritanceHost(host);
         }
         tokens = Theme.current().tokensFor(surface);
+        // Both inherited axes are captured here, on the same line of the same method, because
+        // they are read together by the same two halves of the geometry: the Column constructor
+        // below measures against the row, and every placement and paint reads the direction.
+        direction = surface.layoutDirection();
         surface.pushRoot();
     }
 
@@ -738,11 +788,18 @@ public final class PopupMenu {
 
         private void positionRoot(Column col) {
             col.fit(boundsW, boundsH); // wider/taller than the bounds → shrink + scroll
-            float x = anchorX;
-            if (x + col.w > boundsX + boundsW) {
-                x = anchorX + anchorW - col.w; // right-align to the anchor
-            }
-            col.x = clamp(x, boundsX, boundsX + boundsW - col.w);
+            boolean rtl = isRtl();
+            // The column's corner sits at the anchor's LEADING edge, which is the anchor's left
+            // reading left to right and its right reading right to left; a context menu, whose
+            // anchor is the pointer with no width at all, therefore extends to the left of the
+            // pointer in a right-to-left interface, the way a platform one does.
+            // The two placements swap under a mirror rather than one of them changing: the
+            // fallback is always "align to the anchor's other edge", and it is reached when the
+            // preferred one has run out of bounds on the side it grows toward.
+            float leading = rtl ? anchorX + anchorW - col.w : anchorX;
+            float trailing = rtl ? anchorX : anchorX + anchorW - col.w;
+            boolean overflows = rtl ? leading < boundsX : leading + col.w > boundsX + boundsW;
+            col.x = clamp(overflows ? trailing : leading, boundsX, boundsX + boundsW - col.w);
 
             float y = anchorY + anchorH; // drop below the anchor
             if (y + col.visibleH > boundsY + boundsH) {
@@ -756,13 +813,21 @@ public final class PopupMenu {
         private void positionSubmenu(Column parent, Column col) {
             col.fit(boundsW, boundsH);
             float parentItemTop = parent.y + parent.top[col.parentItem] - parent.scroll;
+            boolean rtl = isRtl();
+            // A submenu opens toward the TRAILING side first — right reading left to right,
+            // left reading right to left — and falls back to the leading side when there is no
+            // room, which is the direction the chevron in the parent row points either way.
             // The overlap hides the seam between the two columns' 1pt borders: exactly twice
-            // the border weight, so it is locked rather than tabled.
-            float x = parent.x + parent.w - Strokes.SUBMENU_OVERLAP; // open to the right
-            if (x + col.w > boundsX + boundsW) {
-                x = parent.x - col.w + Strokes.SUBMENU_OVERLAP; // no room right → open left
-            }
-            col.x = clamp(x, boundsX, boundsX + boundsW - col.w);
+            // the border weight, so it is locked rather than tabled, and it keeps the same
+            // magnitude on whichever edge the two columns meet at.
+            float trailing = rtl
+                    ? parent.x - col.w + Strokes.SUBMENU_OVERLAP
+                    : parent.x + parent.w - Strokes.SUBMENU_OVERLAP;
+            float leading = rtl
+                    ? parent.x + parent.w - Strokes.SUBMENU_OVERLAP
+                    : parent.x - col.w + Strokes.SUBMENU_OVERLAP;
+            boolean overflows = rtl ? trailing < boundsX : trailing + col.w > boundsX + boundsW;
+            col.x = clamp(overflows ? leading : trailing, boundsX, boundsX + boundsW - col.w);
 
             // Align its first row with the parent item: SUBMENU_Y_ALIGN follows menuPadV and
             // has no token of its own.
@@ -827,6 +892,10 @@ public final class PopupMenu {
         private void paintColumn(Canvas canvas, Column col) {
             Theme theme = Theme.current();
             SizeTokens t = tokens; // the row the columns were BUILT from, never re-resolved here
+            // And the direction the columns were PLACED with, for the same reason: a row whose
+            // gutters were drawn against a direction the cascade was not positioned with would
+            // put the check on the side the label starts from.
+            boolean rtl = isRtl();
             float x = col.x - offsetX;
             float y = col.y - offsetY;
             float inset = Strokes.HALF_PIXEL_INSET;
@@ -880,26 +949,51 @@ public final class PopupMenu {
                 }
                 Color ink = item.isEnabled() ? theme.text : theme.disabledText;
                 if (item.kind() == MenuItem.Kind.CHECK && item.isChecked()) {
-                    paintCheck(canvas, x + t.menuCheckInset(), iy + rowH / 2,
+                    // The check sits in the leading gutter. The tick itself is NOT mirrored —
+                    // no platform mirrors a check mark — so only its box moves, and because
+                    // paintCheck draws rightwards from the x it is given, the mirrored gutter
+                    // has to be handed its LEFT edge rather than its leading one.
+                    float checkX = rtl
+                            ? x + col.w - t.menuCheckInset() - t.checkGlyphW()
+                            : x + t.menuCheckInset();
+                    paintCheck(canvas, checkX, iy + rowH / 2,
                             item.isEnabled() ? theme.primary : theme.disabledText, t);
                 }
                 float baseline = iy + (rowH - fm.height()) / 2 + fm.ascent();
-                float labelX = x + t.menuCheckGutter();
+                // drawText places a run's LEFT edge for either base direction (a right-to-left
+                // line fills the same box from the other end), so a leading-aligned label in a
+                // mirrored column needs its own width to find that edge. That width is the
+                // column's snapshot, measured with the call the paint draws through: measuring
+                // here instead would run for every visible row of every column of every frame.
+                float labelX = rtl
+                        ? x + col.w - t.menuCheckGutter() - col.labelW[i]
+                        : x + t.menuCheckGutter();
                 canvas.drawText(item.label(), labelX, baseline, font, ink);
+                // The rule takes both its edges off the line's own shaping and copes with a
+                // right-to-left run itself, so the mirrored left edge is all it needs.
                 MenuInk.underlineMnemonic(canvas, ruler, item.label(), item.mnemonicIndex(),
                         labelX, baseline, font, ink);
-                // The hint is right-aligned against the SAME right margin the submenu arrow uses,
+                // The hint is aligned against the SAME trailing margin the submenu arrow uses,
                 // so the two kinds of row end at one edge, and an item can carry only one of
-                // them, so they can never collide inside a row.
+                // them, so they can never collide inside a row. Only the placement mirrors: the
+                // string names physical keys and is never reversed.
                 String accel = col.accel[i];
                 if (accel != null) {
                     float accelW = ruler.measure(accel, font).width();
-                    canvas.drawText(accel, x + col.w - t.menuArrowGutter() - accelW, baseline, font,
+                    float accelX = rtl
+                            ? x + t.menuArrowGutter()
+                            : x + col.w - t.menuArrowGutter() - accelW;
+                    canvas.drawText(accel, accelX, baseline, font,
                             item.isEnabled() ? theme.textMuted : theme.disabledText);
                 }
                 if (item.hasSubmenu()) {
-                    paintArrow(canvas, x + col.w - t.menuArrowGutter() + t.menuArrowNudge(),
-                            iy + rowH / 2, ink, t);
+                    // The chevron sits in the trailing gutter and must point at the side the
+                    // submenu actually opens toward, so the gutter and the nudge mirror
+                    // together with the glyph.
+                    float arrowX = rtl
+                            ? x + t.menuArrowGutter() - t.menuArrowNudge()
+                            : x + col.w - t.menuArrowGutter() + t.menuArrowNudge();
+                    paintArrow(canvas, arrowX, iy + rowH / 2, ink, t, rtl);
                 }
             }
             // Scroll affordances: chevrons over a small band at the clamped edges. The band is
@@ -942,6 +1036,11 @@ public final class PopupMenu {
          * The tick, drawn from its left edge at {@code cx}. Its path offsets are the
          * MEDIUM literals scaled by {@code checkGlyphW / 9}, exact at MEDIUM, and the extent is
          * the only thing that moves: the pen is locked, which is the whole size-vs-weight point.
+         *
+         * <p><b>A check mark does not mirror</b>, on any platform, so this takes no direction and
+         * must never grow one: what mirrors is the gutter it is placed in, at the call site. It
+         * is asymmetric ink drawn with {@code drawLine} rather than a path, which is worth
+         * saying here so a later sweep of the mirrored chevron does not collect it too.
          */
         private void paintCheck(Canvas canvas, float cx, float cy, Color color, SizeTokens t) {
             float k = t.checkGlyphW() / 9f;
@@ -950,10 +1049,20 @@ public final class PopupMenu {
                     Strokes.MENU_CHECK_PEN, color);
         }
 
-        /** The submenu chevron: {@code menuArrowW} wide, {@code menuArrowH} tall, locked pen. */
-        private void paintArrow(Canvas canvas, float cx, float cy, Color color, SizeTokens t) {
-            float back = 2 * t.menuArrowW() / 5f;  // 2 of the 5pt width sits left of cx at MEDIUM
-            float tip = 3 * t.menuArrowW() / 5f;
+        /**
+         * The submenu chevron: {@code menuArrowW} wide, {@code menuArrowH} tall, locked pen.
+         *
+         * <p>The one piece of ink in this toolkit that mirrors, and it is a sign flip on the two
+         * horizontal offsets rather than a transform: the glyph means "the submenu is that way",
+         * so it has to point at the side the submenu opens toward. The tick beside it does not
+         * mirror, which is the difference between a mark that names a direction and one that
+         * does not.
+         */
+        private void paintArrow(Canvas canvas, float cx, float cy, Color color, SizeTokens t,
+                boolean rtl) {
+            float sign = rtl ? -1 : 1;
+            float back = sign * 2 * t.menuArrowW() / 5f; // 2 of the 5pt width sits behind cx at MEDIUM
+            float tip = sign * 3 * t.menuArrowW() / 5f;
             float half = t.menuArrowH() / 2;
             arrow.reset();
             arrow.moveTo(cx - back, cy - half).lineTo(cx + tip, cy).lineTo(cx - back, cy + half);
@@ -1071,6 +1180,16 @@ public final class PopupMenu {
             }
         }
 
+        /**
+         * Whether any column's geometry snapshot no longer matches its {@link Menu}.
+         *
+         * <p>Model mutation is the whole of this key, and the layout direction deliberately does
+         * not join it: the cascade's direction is captured once at open (see
+         * {@link PopupMenu#direction}), so the numbers a column holds — {@code contentW}, the
+         * accelerator strings, {@code labelW} — cannot have been taken under a direction the
+         * paint disagrees with. They are also measured through the direction-blind two-argument
+         * ruler, so a change of direction would not move them even if one could arrive.
+         */
         private boolean columnsStale() {
             for (int i = 0; i < cols.size(); i++) {
                 if (cols.get(i).builtModCount != cols.get(i).menu.modCount()) {
@@ -1241,20 +1360,26 @@ public final class PopupMenu {
                 case Keys.UP -> col.reveal(col.highlight = col.step(col.highlight, -1));
                 case Keys.HOME -> col.reveal(col.highlight = col.step(-1, +1));
                 case Keys.END -> col.reveal(col.highlight = col.step(col.menu.items().size(), -1));
-                case Keys.RIGHT -> {
-                    int i = col.highlight;
-                    if (i >= 0 && col.menu.items().get(i).hasSubmenu()) {
-                        openSubmenu(deep, i);
-                    } else if (deep == 0) {
-                        onRootRight.run(); // MenuBar: walk to the next menu
-                        return true;
-                    }
-                }
-                case Keys.LEFT -> {
-                    if (deep > 0) {
+                case Keys.RIGHT, Keys.LEFT -> {
+                    // The one place the physical arrow becomes a direction, and the only place:
+                    // the trailing arrow opens a submenu (which is the side one opens toward)
+                    // and the leading arrow closes it. Reading right to left that is LEFT to
+                    // open and RIGHT to close. The two root hooks below are NOT flipped in turn
+                    // — they already mean previous/next — because a second flip out in the
+                    // MenuBar would cancel this one and leave the bar walking one way while its
+                    // submenus opened the other.
+                    if ((key == Keys.RIGHT) != isRtl()) {
+                        int i = col.highlight;
+                        if (i >= 0 && col.menu.items().get(i).hasSubmenu()) {
+                            openSubmenu(deep, i);
+                        } else if (deep == 0) {
+                            onRootTrailing.run(); // MenuBar: walk to the next menu
+                            return true;
+                        }
+                    } else if (deep > 0) {
                         truncateTo(deep - 1);
                     } else {
-                        onRootLeft.run(); // MenuBar: walk to the previous menu
+                        onRootLeading.run(); // MenuBar: walk to the previous menu
                         return true;
                     }
                 }
@@ -1345,6 +1470,14 @@ public final class PopupMenu {
          * a second call to {@code display()} at paint time would be a second authority on it.
          */
         final String[] accel;
+        /**
+         * Per-item label width, {@code 0} for a separator. Held for the same reason
+         * {@link #accel} is: a mirrored column aligns a label by its own width, and deriving it
+         * in the paint would measure every visible row of every column on every frame. It is
+         * measured with the call the paint draws through, so the label sits exactly in its
+         * gutter rather than a fraction of a point off it.
+         */
+        final float[] labelW;
         final float contentW; // natural width: the widest label plus both gutters
         final float h;      // full content height
         float x;
@@ -1362,6 +1495,7 @@ public final class PopupMenu {
             top = new float[items.size()];
             hgt = new float[items.size()];
             accel = new String[items.size()];
+            labelW = new float[items.size()];
             TextRuler ruler = surface.ruler;
             // The cascade's row, captured at open. Measuring here with a freshly resolved step
             // while paintColumn resolved another is exactly the defect this field prevents.
@@ -1381,7 +1515,8 @@ public final class PopupMenu {
                 hgt[i] = ih;
                 yy += ih;
                 if (!item.isSeparator()) {
-                    maxLabel = Math.max(maxLabel, ruler.measure(item.label(), font).width());
+                    labelW[i] = ruler.measure(item.label(), font).width();
+                    maxLabel = Math.max(maxLabel, labelW[i]);
                     Accelerator shortcut = item.accelerator();
                     if (shortcut != null) {
                         accel[i] = shortcut.display();
@@ -1396,6 +1531,9 @@ public final class PopupMenu {
             // sized to. A column with no accelerator anywhere pays nothing: its rows are exactly
             // as wide as they were.
             float hintColumn = maxAccel > 0 ? t.spacingLarge() + maxAccel : 0;
+            // Mirroring swaps which gutter holds the check and which holds the arrow, and the
+            // sum is the same either way: the column width, fit(), maxScroll(), the bounding
+            // box and the native window size are all the same numbers in both directions.
             this.contentW = Math.max(t.menuMinWidth(),
                     t.menuCheckGutter() + maxLabel + hintColumn + t.menuArrowGutter());
             this.w = this.contentW;

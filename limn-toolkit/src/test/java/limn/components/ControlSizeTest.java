@@ -141,6 +141,11 @@ class ControlSizeTest extends ComponentTestBase {
     }
 
     // -------------------------------------------------------------- host link
+    //
+    // These call setControlSizeHost rather than setInheritanceHost on purpose. The link was
+    // renamed when it gained a second axis and the old name stays as a deprecated delegate;
+    // leaving this file on it is what keeps that delegate exercised, and the whole of what the
+    // rename may change is the name.
 
     @Test
     void aHostLinkCarriesTheStepToAnOutOfTreeRoot() {

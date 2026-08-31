@@ -5,6 +5,7 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.input.Keys;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Scrollable;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -142,8 +143,10 @@ public class ListView extends Widget implements Scrollable {
     /**
      * Sets whether the bar floats over the rows or reserves a strip of its own
      * (default {@link ScrollGutters.Layout#OVERLAY}). Reserved is what a list of
-     * records usually wants: the right edge of a row is where a count, a date or a
-     * status chip goes, and a thumb over it is a defect.
+     * records usually wants: the trailing edge of a row is where a count, a date or
+     * a status chip goes, and a thumb over it is a defect. Trailing and not right:
+     * the bar and the row's last column are both on the left of a list that reads
+     * right to left, and they move there together.
      */
     public ListView setBarLayout(ScrollGutters.Layout layout) {
         Ui.checkUiThread();
@@ -401,6 +404,10 @@ public class ListView extends Widget implements Scrollable {
         if (box <= 0 || h <= 0) {
             return;
         }
+        // One resolution for the whole pass, as the axis requires: placeDown runs twice below
+        // whenever the over-scroll retry fires, and the bar's side and the row origin are two
+        // halves of one answer. Two resolutions that disagreed would put the rows under the bar.
+        boolean rtl = layoutDirection() == LayoutDirection.RTL;
         // Settle the strip first: every row below is measured and placed into what
         // it leaves, so a reserved bar narrows the rows instead of covering them.
         // The estimate is what the bar itself reports, and it does not move with
@@ -409,7 +416,16 @@ public class ListView extends Widget implements Scrollable {
                 (viewW, viewH) -> new Size(viewW, estimatedContentHeight(tokens())));
         float w = gutters.viewportWidth(box);
         vBar.measure(Constraints.tight(ScrollBar.thickness(), h));
-        vBar.layoutBox(box - ScrollBar.thickness(), 0, ScrollBar.thickness(), h);
+        // The bar sits on the trailing side, which reading right to left is the left one.
+        vBar.layoutBox(rtl ? 0 : box - ScrollBar.thickness(), 0, ScrollBar.thickness(), h);
+        // Where a row's left edge goes: the viewport's leading edge, which is 0 reading left to
+        // right and the far side of the reserved strip reading right to left. `box - w` is the
+        // strip's own width, so it is 0 under OVERLAY and the rows keep the whole box in both
+        // directions. It is not ScrollView's `viewportWidth - childWidth + offsetX`: a row is
+        // measured at exactly `w`, so that expression would collapse to 0 and every row would
+        // paint under the bar the line above just moved. The strip is known only once
+        // `gutters.resolve` has settled it, so this cannot be hoisted above `w`.
+        float rowX = rtl ? box - w : 0;
 
         int count = adapter.rowCount();
         Set<Integer> keep = keepScratch;
@@ -423,14 +439,14 @@ public class ListView extends Widget implements Scrollable {
 
         normalizeUp(w);
         normalizeDown(count, w);
-        float bottom = placeDown(count, w, h, keep);
+        float bottom = placeDown(count, rowX, w, h, keep);
         // Over-scrolled past the end: close the gap at the bottom, unless the
         // content is shorter than the viewport (then it stays top-aligned).
         if (bottom < h && !(anchorIndex == 0 && anchorTop >= 0)) {
             anchorTop += h - bottom;
             normalizeUp(w);
             normalizeDown(count, w);
-            placeDown(count, w, h, keep);
+            placeDown(count, rowX, w, h, keep);
         }
         recycleExcept(keep);
         updateAverageHeight();
@@ -464,13 +480,21 @@ public class ListView extends Widget implements Scrollable {
         }
     }
 
-    private float placeDown(int count, float w, float viewport, Set<Integer> keep) {
+    /**
+     * Places the rows from the anchor down, and returns the y the walk ended at.
+     *
+     * <p>{@code rowX} is the row origin the caller resolved for this pass. It is a parameter and
+     * not a read of its own because the walk runs up to twice per layout, and because the
+     * direction belongs to the pass rather than to the loop: the cursor is the {@code y}
+     * arithmetic below, which is untouched.
+     */
+    private float placeDown(int count, float rowX, float w, float viewport, Set<Integer> keep) {
         keep.clear();
         float y = anchorTop;
         int i = anchorIndex;
         while (i < count && y < viewport) {
             float h = measuredHeight(i, w);
-            mounted.get(i).layoutBox(0, y, w, h);
+            mounted.get(i).layoutBox(rowX, y, w, h);
             keep.add(i);
             y += h;
             i++;

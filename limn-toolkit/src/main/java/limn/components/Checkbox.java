@@ -11,6 +11,7 @@ import limn.i18n.I18nString;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -40,6 +41,14 @@ import java.util.function.Consumer;
  * lone toggle already satisfies that; a column of them does not until the pitch reaches 24,
  * which is what {@link Tokens#toggleColumnGap(limn.scene.Widget)} gives. Stack toggles on
  * that gap, not a tighter one.
+ *
+ * <h2>Which way the row reads</h2>
+ * The indicator sits on the {@linkplain LayoutDirection leading} edge and the label
+ * follows it, so the whole row moves to the other side when the resolved direction is
+ * right to left. That move is a <em>translation</em> of the indicator and nothing else: the
+ * check mark is a tick, and no platform mirrors a tick. The thumb of a {@code SWITCH} is the one
+ * thing inside the indicator that does know a direction, because its two ends are a value axis:
+ * OFF is the leading end and ON the trailing one.
  */
 public class Checkbox extends Widget {
 
@@ -64,7 +73,10 @@ public class Checkbox extends Widget {
             new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
     private final Transition focusFade =
             new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
-    /** Reused each paint; the 3 points depend only on {@code top} and the resolved box. */
+    /**
+     * Reused each paint; the 3 points depend only on the corner the indicator was placed at and
+     * the box it was drawn in, both of which are resolved by the pass that fills this.
+     */
     private final Path2D checkPath = new Path2D();
 
     /** A toggle with a fixed label; see the {@link I18nString} constructor for localized text. */
@@ -147,16 +159,30 @@ public class Checkbox extends Widget {
     protected void onPaint(Canvas canvas) {
         Theme theme = Theme.current();
         SizeTokens t = theme.tokensFor(this);
+        // Resolved once for the whole pass and handed down. Two resolutions that disagreed inside
+        // one paint would put the indicator on one side and the label on top of it.
+        boolean rtl = layoutDirection() == LayoutDirection.RTL;
         float cy = (height() - indicatorHeight(t)) / 2;
+        // Physical left edge of the indicator, which is the leading edge of the row: 0 reading
+        // left to right, and the far side of the box reading right to left. Every x the two paint
+        // helpers use is an offset from this, so mirroring the indicator is one translation of the
+        // whole group rather than a reflection of the ink inside it.
+        float left = rtl ? width() - indicatorWidth(t) : 0;
         if (variant == Variant.BOX) {
-            paintBox(canvas, theme, t, cy);
+            paintBox(canvas, theme, t, left, cy);
         } else {
-            paintSwitch(canvas, theme, t, cy);
+            paintSwitch(canvas, theme, t, left, cy, rtl);
         }
         if (!text.get().isEmpty()) {
             TextMetrics metrics = textRuler().measure(text.get(), t.body());
             Color ink = isEnabled() ? theme.text : theme.disabledText;
-            canvas.drawText(text.get(), indicatorWidth(t) + t.gapLabel(),
+            // The label starts where reading starts, one gap past the indicator. Reading right to
+            // left that is its right edge, so the x drawText places against is a whole label width
+            // further out.
+            float labelX = rtl
+                    ? left - t.gapLabel() - metrics.width()
+                    : left + indicatorWidth(t) + t.gapLabel();
+            canvas.drawText(text.get(), labelX,
                     (height() - metrics.height()) / 2 + metrics.ascent(), t.body(), ink);
         }
         float focus = focusFade.value();
@@ -166,7 +192,7 @@ public class Checkbox extends Widget {
             // nominal box; a ring 1pt out landed its inner ink edge on exactly that line and the
             // two strokes fused into one thick seam. At 1.5 there is 0.5pt of clear ground.
             float gap = Strokes.FOCUS_GAP_INDICATOR;
-            canvas.drawRoundRect(-gap, cy - gap, indicatorWidth(t) + 2 * gap,
+            canvas.drawRoundRect(left - gap, cy - gap, indicatorWidth(t) + 2 * gap,
                     indicatorHeight(t) + 2 * gap, t.indicatorFocusRadius(),
                     Strokes.FOCUS_RING_THIN, theme.focusRing.withAlpha(focus));
         }
@@ -176,11 +202,12 @@ public class Checkbox extends Widget {
      * The focus ring is the only thing that paints outside the box, and it paints well outside:
      * centred {@link Strokes#FOCUS_GAP_INDICATOR} out with a {@link Strokes#FOCUS_RING_THIN} pen,
      * its outer ink reaches 2.25pt past the indicator. The indicator is flush with the widget's
-     * left edge, with its top and bottom at every step (the row <em>is</em> the indicator), and
-     * with the right edge when there is no label, so that reach is outside {@code bounds} on all
-     * four sides. {@link limn.scene.Scene} assumes only 1pt of AA feather, so the fading ring left
-     * stale pixels under partial rendering even at a 1pt gap (reach 1.75); the 1.5pt gap widens the
-     * gap to 1.5 and the reach with it. Locked, like both quantities it is composed of.
+     * leading edge, with its top and bottom at every step (the row <em>is</em> the indicator), and
+     * with the trailing edge when there is no label, so that reach is outside {@code bounds} on all
+     * four sides whichever way the row reads. {@link limn.scene.Scene} assumes only 1pt of AA
+     * feather, so the fading ring left stale pixels under partial rendering even at a 1pt gap
+     * (reach 1.75); the 1.5pt gap widens the gap to 1.5 and the reach with it. Locked, like both
+     * quantities it is composed of.
      */
     @Override
     protected float paintOutset() {
@@ -196,7 +223,11 @@ public class Checkbox extends Widget {
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
 
-    private void paintBox(Canvas canvas, Theme theme, SizeTokens t, float top) {
+    /**
+     * The classic box. {@code left} is the indicator's physical left edge, resolved once by the
+     * caller; every x here is an offset from it, the check mark included.
+     */
+    private void paintBox(Canvas canvas, Theme theme, SizeTokens t, float left, float top) {
         float p = progress.value();
         float box = t.indicator();
         Color border = !isEnabled() ? theme.disabledFill
@@ -204,8 +235,8 @@ public class Checkbox extends Widget {
                 : theme.outline.lerp(theme.primaryHover, hover.value());
         // Fill fades in with the animation.
         Color fill = (isEnabled() ? theme.primary : theme.disabledFill).withAlpha(p);
-        canvas.fillRoundRect(0, top, box, box, t.indicatorRadius(), fill);
-        canvas.drawRoundRect(Strokes.HALF_PIXEL_INSET, top + Strokes.HALF_PIXEL_INSET,
+        canvas.fillRoundRect(left, top, box, box, t.indicatorRadius(), fill);
+        canvas.drawRoundRect(left + Strokes.HALF_PIXEL_INSET, top + Strokes.HALF_PIXEL_INSET,
                 box - Strokes.BORDER, box - Strokes.BORDER,
                 t.indicatorRadius(), Strokes.INDICATOR_BORDER, border);
         if (p > 0.05f) {
@@ -213,29 +244,41 @@ public class Checkbox extends Widget {
             // The mark's extent follows the box; its pen does not (Strokes.CHECK_MARK).
             float s = box / CHECK_PATH_BOX;
             checkPath.reset();
-            checkPath.moveTo(4 * s, top + 9.5f * s)
-                    .lineTo(7.5f * s, top + 13 * s)
-                    .lineTo(14 * s, top + 5.5f * s);
+            // The tick rides with the box and is never reflected inside it: its short arm stays on
+            // the same side of its long one in both directions, which is what every platform draws
+            // and what makes this a translation rather than a mirror.
+            checkPath.moveTo(left + 4 * s, top + 9.5f * s)
+                    .lineTo(left + 7.5f * s, top + 13 * s)
+                    .lineTo(left + 14 * s, top + 5.5f * s);
             canvas.drawPath(checkPath, Strokes.CHECK_MARK, ink);
         }
     }
 
-    private void paintSwitch(Canvas canvas, Theme theme, SizeTokens t, float top) {
+    /**
+     * The mobile-style switch. {@code left} is the track's physical left edge and {@code rtl} is
+     * the direction the caller resolved, needed here for the one thing in this widget that is a
+     * reflection rather than a translation: which end of the track OFF rests at.
+     */
+    private void paintSwitch(Canvas canvas, Theme theme, SizeTokens t, float left, float top,
+                             boolean rtl) {
         float p = progress.value();
         float trackW = t.switchTrackW();
         float trackH = t.switchTrackH();
         Color off = isEnabled() ? theme.surfaceRaised : theme.disabledFill;
         Color on = isEnabled() ? theme.primary : theme.disabledFill;
         Color track = off.lerp(on, p);
-        canvas.fillRoundRect(0, top, trackW, trackH, trackH / 2, track);
-        canvas.drawRoundRect(Strokes.HALF_PIXEL_INSET, top + Strokes.HALF_PIXEL_INSET,
+        canvas.fillRoundRect(left, top, trackW, trackH, trackH / 2, track);
+        canvas.drawRoundRect(left + Strokes.HALF_PIXEL_INSET, top + Strokes.HALF_PIXEL_INSET,
                 trackW - Strokes.BORDER, trackH - Strokes.BORDER,
                 trackH / 2, Strokes.BORDER, theme.outline.withAlpha(1 - p));
         float inset = t.switchThumbInset();
         float thumbRadius = trackH / 2 - inset;
-        float minX = inset + thumbRadius;
-        float maxX = trackW - inset - thumbRadius;
-        float thumbX = minX + (maxX - minX) * p;
+        // The thumb's travel is a horizontal value axis, so its low end is the leading one: OFF is
+        // on the left reading left to right and on the right reading right to left. Only the two
+        // ends know a direction; the eased walk between them does not.
+        float offX = rtl ? trackW - inset - thumbRadius : inset + thumbRadius;
+        float onX = rtl ? inset + thumbRadius : trackW - inset - thumbRadius;
+        float thumbX = left + offX + (onX - offX) * p;
         // The OFF thumb must read against the OFF track: surfaceRaised (track) and
         // surface (the old thumb) are near-identical in dark palettes, so the thumb
         // rides on textMuted (a light neutral guaranteed to contrast with the track)

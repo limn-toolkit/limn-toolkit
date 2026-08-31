@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.input.Keys;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -102,6 +103,11 @@ public final class ContextMenus {
      *
      * <p>A {@code null} or empty menu opens nothing, so a caller that computes its rows can
      * hand the result straight over.
+     *
+     * <p><b>The point is not mirrored, and that is the whole of the direction story here.</b> A
+     * menu raised at the pointer lands on the pointer reading either way; which corner of the
+     * column meets that point is {@link PopupMenu}'s decision and is already taken there.
+     * Reflecting the point as well would move the menu away from the spot the user aimed at.
      */
     public static void showAt(Widget anchor, Menu menu, float localX, float localY) {
         Objects.requireNonNull(anchor, "anchor");
@@ -114,11 +120,17 @@ public final class ContextMenus {
 
     /**
      * Opens {@code menu} for a request that carries no point: the keyboard route. It drops
-     * from the lower-left corner of whatever currently holds focus, so the menu appears at the
-     * row or field the user was on rather than at a corner of the region containing it.
+     * from the lower <b>leading</b> corner of whatever currently holds focus — the bottom left
+     * reading left to right and the bottom right reading right to left — so the menu appears at
+     * the row or field the user was on rather than at a corner of the region containing it.
      *
-     * <p>Falls back to {@code anchor}'s own lower-left when nothing in the scene has focus,
-     * which is the only place left that is still related to the request.
+     * <p>Falls back to {@code anchor}'s own lower leading corner when nothing in the scene has
+     * focus, which is the only place left that is still related to the request.
+     *
+     * <p><b>The direction is the focused widget's, not the region's.</b> A right-to-left field
+     * inside a left-to-right form starts reading at its own right edge, and that is the corner
+     * the user's eye is at when the key arrives; taking the region's direction instead would
+     * drop the menu at the end of a field the user is not reading from.
      */
     public static void showForFocus(Widget anchor, Menu menu) {
         Objects.requireNonNull(anchor, "anchor");
@@ -129,8 +141,11 @@ public final class ContextMenus {
         if (anchor.scene() != null && anchor.scene().focusedWidget() != null) {
             from = anchor.scene().focusedWidget();
         }
-        new PopupMenu(menu).showAt(anchor,
-                from.localToSceneX(), from.localToSceneY() + from.height());
+        // Resolved once, after the fallback has chosen which widget the menu drops from, and in
+        // an event-driven call rather than at construction: this runs with the tree complete.
+        boolean rtl = from.layoutDirection() == LayoutDirection.RTL;
+        float cornerX = rtl ? from.localToSceneX() + from.width() : from.localToSceneX();
+        new PopupMenu(menu).showAt(anchor, cornerX, from.localToSceneY() + from.height());
     }
 
     /**

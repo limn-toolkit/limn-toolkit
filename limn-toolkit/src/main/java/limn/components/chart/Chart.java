@@ -16,6 +16,7 @@ import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.MouseEvent;
@@ -515,10 +516,11 @@ public abstract class Chart extends Widget {
     }
 
     /**
-     * Replaces the text of a tooltip row. The default lays each row out in two columns
-     * (the series name on the left, the formatted value on the right), which is what makes
-     * a multi-series tooltip scannable; a formatter set here produces the whole row as one
-     * string instead. {@code null} restores the default.
+     * Replaces the text of a tooltip row. The default lays each row out in two columns (the
+     * series name where reading starts, the formatted value where it ends, so both columns
+     * swap in a chart that reads right to left), which is what makes a multi-series tooltip
+     * scannable; a formatter set here produces the whole row as one string instead.
+     * {@code null} restores the default.
      */
     public Chart setTooltipFormat(Function<ChartPoint, String> format) {
         Ui.checkUiThread();
@@ -637,12 +639,12 @@ public abstract class Chart extends Widget {
         return picked.label();
     }
 
-    /** The name a tooltip row carries on its left, the series name by default. */
+    /** The name a tooltip row carries where reading starts, the series name by default. */
     protected String tooltipRowName(ChartPoint row) {
         return row.series().name();
     }
 
-    /** The value a tooltip row carries on its right. */
+    /** The value a tooltip row carries where reading ends. */
     protected String tooltipRowValue(ChartPoint row) {
         return valueFormat.apply(row.value());
     }
@@ -684,7 +686,7 @@ public abstract class Chart extends Widget {
 
     /** Recomputes the title/legend/plot split. For a subclass laying out in {@code onLayout}. */
     protected final void updateRegions() {
-        layoutRegions(tokens());
+        layoutRegions(tokens(), isRtl());
     }
 
     /**
@@ -752,6 +754,21 @@ public abstract class Chart extends Widget {
         return Theme.current().tokensFor(this);
     }
 
+    /**
+     * Whether this chart reads right to left. Called exactly once at the top of a paint, an
+     * overlay paint, a region pass or a pointer pass, and the answer is threaded down from
+     * there: a paint and a hit test that resolved the direction separately could disagree, and
+     * a legend whose swatches are painted on one side and hit-tested on the other is the one
+     * bug this widget must not have.
+     *
+     * <p>Never a field and never resolved in a constructor. A chart is normally built and
+     * filled before it joins a scene, so a direction captured while it still had no parent
+     * would be the process default for the rest of its life, with no path to recovery.
+     */
+    private boolean isRtl() {
+        return layoutDirection() == LayoutDirection.RTL;
+    }
+
     /** Measures a single line with the layout ruler (agrees with what {@code drawText} draws). */
     protected final TextMetrics measure(String text, Font font) {
         return textRuler().measure(text, font);
@@ -802,18 +819,26 @@ public abstract class Chart extends Widget {
     protected void onPaint(Canvas canvas) {
         Theme theme = Theme.current();
         SizeTokens t = tokens();
+        boolean rtl = isRtl();
         if (background != null) {
             canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), background);
         }
-        layoutRegions(t);
+        layoutRegions(t, rtl);
         String heading = title == null ? "" : title.get();
         if (!heading.isEmpty()) {
             Font font = titleFont.of(t.body());
             TextMetrics m = measure(heading, font);
-            canvas.drawText(ellipsize(heading, font, width() - 2 * t.spacingMedium()),
-                    t.spacingMedium(), t.spacingSmall() + m.ascent(), font, theme.text);
+            // The drawn string, hoisted: ellipsize may have dropped characters, and a title
+            // right-aligned from the width of the full heading would hang off the edge by
+            // exactly the number it dropped. The width budget itself is symmetric (the pad
+            // comes off both ends), so it is the same number in either direction.
+            String shown = ellipsize(heading, font, width() - 2 * t.spacingMedium());
+            float titleX = rtl
+                    ? width() - t.spacingMedium() - measure(shown, font).width()
+                    : t.spacingMedium();
+            canvas.drawText(shown, titleX, t.spacingSmall() + m.ascent(), font, theme.text);
         }
-        paintLegend(canvas, t, theme);
+        paintLegend(canvas, t, theme, rtl);
         if (contentWidth > 1 && contentHeight > 1) {
             paintContent(canvas, contentX, contentY, contentWidth, contentHeight);
         }
@@ -821,7 +846,7 @@ public abstract class Chart extends Widget {
 
     @Override
     protected void onPaintOverlay(Canvas canvas) {
-        paintTooltip(canvas, tokens(), Theme.current());
+        paintTooltip(canvas, tokens(), Theme.current(), isRtl());
     }
 
     // ---------------------------------------------------------------- regions
@@ -830,9 +855,14 @@ public abstract class Chart extends Widget {
      * Splits the box into title, legend and plot. Called before every paint and before
      * every pointer test: a hover that resolved against a different plot rectangle than
      * the frame the user aimed at would report the wrong bar, which is the one bug this
-     * kind of widget must not have.
+     * kind of widget must not have. {@code rtl} is resolved once by the caller and handed down
+     * for that same reason.
+     *
+     * <p>The plot rectangle it leaves behind stays physical: {@link #contentLeft()} means the
+     * physical left edge in both directions, and mirroring what a subclass draws inside it is
+     * that subclass's decision, taken against its own axes.
      */
-    private void layoutRegions(SizeTokens t) {
+    private void layoutRegions(SizeTokens t, boolean rtl) {
         float pad = t.spacingSmall();
         float x = pad;
         float y = pad;
@@ -861,6 +891,10 @@ public abstract class Chart extends Widget {
             }
             switch (position) {
                 case LEFT, RIGHT -> {
+                    // LEFT and RIGHT are published physical constants and stay physical: a
+                    // chart that already asks for the legend on the left must keep getting it
+                    // there, whichever way the interface reads. A logical pair would be added
+                    // beside them, never carved out of them.
                     float maxWidth = 0;
                     for (LegendEntry e : entries) {
                         maxWidth = Math.max(maxWidth,
@@ -897,7 +931,7 @@ public abstract class Chart extends Widget {
                     legendWidth = w;
                     legendX = x;
                     legendY = position == LegendPosition.TOP ? y : y + h - legendHeight;
-                    layoutLegendRows(entries, t, font, swatch, rowHeight, gap, w);
+                    layoutLegendRows(entries, t, font, swatch, rowHeight, gap, w, rtl);
                     if (position == LegendPosition.TOP) {
                         y += legendHeight + t.spacingMedium();
                     }
@@ -914,9 +948,20 @@ public abstract class Chart extends Widget {
         contentHeight = Math.max(0, h);
     }
 
-    /** Places one wrapped, centred row of entries at a time into {@link #legendBoxes}. */
+    /**
+     * Places one wrapped, centred row of entries at a time into {@link #legendBoxes}.
+     *
+     * <p>The centred block itself does not move: a row narrower than the band is centred in it
+     * in both directions, and the wrap points are the same because the row widths are. What the
+     * direction decides is only the order the row is walked in, so that entry zero is the one
+     * the reader meets first. The walk keeps its arithmetic and the coordinate is mirrored at
+     * the point it becomes a box, which is what keeps the hit test correct without a second
+     * decision: {@link #legendEntryAt} is plain rectangle containment and never learns that
+     * anything moved.
+     */
     private void layoutLegendRows(List<LegendEntry> entries, SizeTokens t, Font font,
-                                  float swatch, float rowHeight, float gap, float available) {
+                                  float swatch, float rowHeight, float gap, float available,
+                                  boolean rtl) {
         int rowStart = 0;
         float rowWidth = 0;
         float rowY = legendY;
@@ -927,11 +972,13 @@ public abstract class Chart extends Widget {
             boolean wraps = i == entries.size()
                     || (rowWidth > 0 && rowWidth + gap + entryWidth > available);
             if (wraps) {
-                float cursor = legendX + Math.max(0, (available - rowWidth) / 2);
+                float rowLeft = legendX + Math.max(0, (available - rowWidth) / 2);
+                float consumed = 0;
                 for (int j = rowStart; j < i; j++) {
                     float itemWidth = swatch + t.gapIcon() + measure(entries.get(j).text(), font).width();
-                    setBox(j, cursor, rowY, itemWidth, rowHeight);
-                    cursor += itemWidth + gap;
+                    setBox(j, rtl ? rowLeft + rowWidth - consumed - itemWidth : rowLeft + consumed,
+                            rowY, itemWidth, rowHeight);
+                    consumed += itemWidth + gap;
                 }
                 rowStart = i;
                 rowWidth = entryWidth;
@@ -974,7 +1021,18 @@ public abstract class Chart extends Widget {
         return legendCache;
     }
 
-    private void paintLegend(Canvas canvas, SizeTokens t, Theme theme) {
+    /**
+     * Draws the entries into the boxes {@link #layoutRegions} left behind.
+     *
+     * <p>Mirroring happens <em>inside</em> the box, off its own two edges, and never by
+     * rewriting the box: two different paths write those boxes and the hit test reads them
+     * without knowing which one did, so the box is the contract and its contents are the
+     * decision. A box can be narrower than the entry it holds &mdash; the side legend clamps
+     * its column and legend text is never ellipsized &mdash; and aligning off the box's own
+     * trailing edge lets that overflow run out the far side exactly as it already runs out the
+     * right in a left-to-right chart.
+     */
+    private void paintLegend(Canvas canvas, SizeTokens t, Theme theme, boolean rtl) {
         List<LegendEntry> entries = legend();
         if (entries.isEmpty()) {
             return;
@@ -985,17 +1043,25 @@ public abstract class Chart extends Widget {
             LegendEntry entry = entries.get(i);
             float x = legendBoxes[i * 4];
             float y = legendBoxes[i * 4 + 1];
+            float w = legendBoxes[i * 4 + 2];
             float h = legendBoxes[i * 4 + 3];
             TextMetrics m = measure(entry.text(), font);
             float swatchY = y + (h - swatch) / 2;
             float radius = swatch * 0.3f;
+            float swatchX = rtl ? x + w - swatch : x;
             if (entry.visible()) {
-                canvas.fillRoundRect(x, swatchY, swatch, swatch, radius, entry.color());
+                canvas.fillRoundRect(swatchX, swatchY, swatch, swatch, radius, entry.color());
             } else {
-                canvas.drawRoundRect(x + Strokes.HALF_PIXEL_INSET, swatchY + Strokes.HALF_PIXEL_INSET,
+                canvas.drawRoundRect(swatchX + Strokes.HALF_PIXEL_INSET,
+                        swatchY + Strokes.HALF_PIXEL_INSET,
                         swatch - 1, swatch - 1, radius, Strokes.BORDER, theme.textMuted);
             }
-            float textX = x + swatch + t.gapIcon();
+            // The run's LEFT edge in both directions, which is what drawText places against:
+            // reading right to left the name ends where the swatch begins, so its left edge is
+            // that point less the width the run will take.
+            float textX = rtl
+                    ? x + w - swatch - t.gapIcon() - m.width()
+                    : x + swatch + t.gapIcon();
             float baseline = y + (h - m.height()) / 2 + m.ascent();
             Color ink = !entry.visible() ? theme.disabledText
                     : i == hoveredLegend ? theme.text : theme.textMuted;
@@ -1011,7 +1077,7 @@ public abstract class Chart extends Widget {
 
     // ---------------------------------------------------------------- tooltip
 
-    private void paintTooltip(Canvas canvas, SizeTokens t, Theme theme) {
+    private void paintTooltip(Canvas canvas, SizeTokens t, Theme theme, boolean rtl) {
         float fade = tooltipFade.value();
         ChartPoint picked = hovered;
         if (fade <= 0.01f || picked == null || !tooltipEnabled) {
@@ -1040,10 +1106,21 @@ public abstract class Chart extends Widget {
         float panelHeight = 2 * padV + headingHeight + rows.size() * rowHeight;
 
         // Beside the pointer, flipped rather than clamped when it would not fit: a panel
-        // pinned to the edge covers the very marks the reader is pointing at.
-        float px = pointerX + TOOLTIP_OFFSET;
-        if (px + panelWidth > width()) {
+        // pinned to the edge covers the very marks the reader is pointing at. The side offered
+        // first is the one reading runs towards, so the panel opens away from the pointer the
+        // way the reader's eye already travels; the two sides swap as one expression, since a
+        // preferred side that flipped without its fallback could place the panel outside the box.
+        float px;
+        if (rtl) {
             px = pointerX - TOOLTIP_OFFSET - panelWidth;
+            if (px < 0) {
+                px = pointerX + TOOLTIP_OFFSET;
+            }
+        } else {
+            px = pointerX + TOOLTIP_OFFSET;
+            if (px + panelWidth > width()) {
+                px = pointerX - TOOLTIP_OFFSET - panelWidth;
+            }
         }
         px = Math.max(0, Math.min(width() - panelWidth, px));
         float py = pointerY + TOOLTIP_OFFSET;
@@ -1062,22 +1139,29 @@ public abstract class Chart extends Widget {
             float y = py + padV;
             if (!heading.isEmpty()) {
                 TextMetrics m = measure(heading, headingFont);
-                canvas.drawText(heading, px + padH, y + m.ascent(), headingFont, theme.text);
+                float headingX = rtl ? px + panelWidth - padH - m.width() : px + padH;
+                canvas.drawText(heading, headingX, y + m.ascent(), headingFont, theme.text);
                 y += headingHeight;
             }
             for (ChartPoint row : rows) {
                 TextMetrics m = measure(rowName(row), rowFont);
                 float swatchY = y + (rowHeight - swatch) / 2;
-                canvas.fillRoundRect(px + padH, swatchY, swatch, swatch, swatch * 0.3f,
+                float swatchX = rtl ? px + panelWidth - padH - swatch : px + padH;
+                canvas.fillRoundRect(swatchX, swatchY, swatch, swatch, swatch * 0.3f,
                         tooltipRowColor(row));
-                float textX = px + padH + swatch + t.gapIcon();
+                // Again the run's left edge in both directions, measured back from the swatch.
+                float textX = rtl
+                        ? px + panelWidth - padH - swatch - t.gapIcon() - m.width()
+                        : px + padH + swatch + t.gapIcon();
                 float baseline = y + (rowHeight - m.height()) / 2 + m.ascent();
                 canvas.drawText(rowName(row), textX, baseline, rowFont, theme.textMuted);
                 if (tooltipFormat == null) {
+                    // The value is the row's far column, so it swaps sides with the name in the
+                    // same pass; separately they would collide.
                     String value = tooltipRowValue(row);
                     float valueWidth = measure(value, rowFont).width();
-                    canvas.drawText(value, px + panelWidth - padH - valueWidth, baseline,
-                            rowFont, theme.text);
+                    float valueX = rtl ? px + padH : px + panelWidth - padH - valueWidth;
+                    canvas.drawText(value, valueX, baseline, rowFont, theme.text);
                 }
                 y += rowHeight;
             }
@@ -1134,7 +1218,7 @@ public abstract class Chart extends Widget {
     }
 
     private void updatePointer(float localX, float localY) {
-        layoutRegions(tokens());
+        layoutRegions(tokens(), isRtl());
         pointerX = localX;
         pointerY = localY;
 

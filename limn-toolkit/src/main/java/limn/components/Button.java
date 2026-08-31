@@ -7,11 +7,14 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Icon;
-import limn.i18n.I18nString;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
+import limn.graphics.TextRuler;
+import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -30,11 +33,27 @@ import java.util.Objects;
  * the {@link SizeTokens} row, every weight from {@link Strokes}. Tokens are resolved once per
  * pass into a local and threaded down; resolving twice inside one pass is how measure and
  * paint end up disagreeing about where the label sits.
+ *
+ * <p>The icon-and-caption block is centred, so a text-only button draws the same coordinates
+ * whichever way its subtree reads. What the direction decides is the <em>order</em> of the two
+ * things inside that block: the icon is {@linkplain #setIcon(Icon) leading}, which is the block's
+ * left end reading left to right and its right end reading right to left. Whether the glyph
+ * drawn inside that square turns around as well is the caller's to say &mdash; see
+ * {@link Icon.Mirroring}.
  */
 public class Button extends Widget {
 
     private I18nString text;
     private Icon icon;
+    // Whether the icon's own glyph turns around when the interface does, which is a different
+    // question from which end of the block its square takes. NEVER by default, which is what
+    // keeps every existing setIcon call meaning exactly what it meant.
+    private Icon.Mirroring iconMirroring = Icon.Mirroring.NEVER;
+    // ONE shaping of text.get(), held so the measure pass and the paint pass that follows it
+    // shape the caption once between them and cannot disagree about its width. Refreshed
+    // through ShapedText.matches, whose identity fast path on the string costs nothing here
+    // because I18nString memoizes it.
+    private ShapedText caption;
     private boolean secondary;
     private Runnable action = () -> {
     };
@@ -59,10 +78,29 @@ public class Button extends Widget {
         setCursor(Cursor.POINTER); // click hint; disabled buttons aren't hit-tested → arrow
     }
 
-    /** Sets a leading icon, drawn tinted to the label color. {@code null} clears it. */
+    /**
+     * Sets a leading icon, drawn tinted to the label color. {@code null} clears it. Leading is
+     * the end of the caption block reading starts from, so the square trades ends with the
+     * caption when the button reads right to left; the glyph inside it is drawn as authored.
+     * Use {@link #setIcon(Icon, Icon.Mirroring)} for an icon that means a direction.
+     */
     public Button setIcon(Icon newIcon) {
+        return setIcon(newIcon, Icon.Mirroring.NEVER);
+    }
+
+    /**
+     * A leading icon that says whether its glyph turns around when the interface does. Only the
+     * code that placed an icon knows whether its arrow means "back" or "download", which is why
+     * this is a flag here and never a classification inside the toolkit.
+     *
+     * @param mirroring {@link Icon.Mirroring#NEVER} unless this glyph is directional; the
+     *                  square's own end of the block moves either way
+     */
+    public Button setIcon(Icon newIcon, Icon.Mirroring mirroring) {
         Ui.checkUiThread();
+        Objects.requireNonNull(mirroring, "mirroring");
         this.icon = newIcon;
+        this.iconMirroring = mirroring;
         markNeedsLayout();
         return this;
     }
@@ -139,10 +177,57 @@ public class Button extends Widget {
         return armed || keyArmed;
     }
 
+    /**
+     * The caption as one shaped line: the value the measure pass, the baseline and the paint all
+     * ask, so the three cannot answer differently. Re-shaped only when {@link ShapedText#matches}
+     * says the held one is no longer the answer, which is the whole invalidation test &mdash; the
+     * text, the {@link Font} (a value, so a control-size step or a theme change is caught by the
+     * same comparison), the paragraph direction, and the ruler epoch that moves when a face is
+     * evicted or the default family changes.
+     *
+     * <p>Shaped rather than measured, and that is the point of holding it: a caption whose base
+     * direction the button decides cannot be asked of a measurement that has nowhere to put one.
+     * The base is resolved here, once, and handed to both halves of the test above: asking
+     * whether the held value is current and shaping a replacement have to be asking about the
+     * same direction, or the check passes for a value the shape call would not have produced.
+     */
+    private ShapedText caption(TextRuler ruler, Font f) {
+        String value = text.get();
+        ShapedText.Direction base = ShapedText.Direction.of(value, neutralBase());
+        if (caption == null || !caption.matches(value, f, base, ruler)) {
+            caption = ruler.shape(value, f, base);
+        }
+        return caption;
+    }
+
+    /**
+     * What a caption with no strong character of its own falls back to: this button's own
+     * resolved layout direction. A bare {@code "42"}, a phone number or a run of punctuation in
+     * an Arabic form reads right to left however many Latin digits it starts with, and the
+     * first-strong rule cannot know that; the surrounding interface can. A Latin caption in that
+     * same form still reads left to right, because the fallback is consulted only where no strong
+     * character has an opinion.
+     *
+     * <p>Resolved here on every call rather than held, and never in a constructor: a button
+     * captures no direction, because a direction captured before it has a parent is permanently
+     * wrong with no path to recovery.
+     */
+    private ShapedText.Direction neutralBase() {
+        return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
+    }
+
+    /** Whether this button reads right to left. Resolve it once per pass, into a local. */
+    private boolean isRtl() {
+        return layoutDirection() == LayoutDirection.RTL;
+    }
+
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.current().tokensFor(this);
-        TextMetrics metrics = textRuler().measure(text.get(), t.body());
+        // A size, not an x: the caption claims the same width from either end and so does the
+        // icon, so this box is the same in both directions and a container laying a button out
+        // never sees the direction at all.
+        TextMetrics metrics = caption(textRuler(), t.body()).metrics();
         // resolvedHeight is max(controlHeight, lineHeight + 2*padV): the box binds at every
         // step, which is what absorbed the undocumented +4 this used to carry.
         return constraints.constrain(
@@ -154,7 +239,10 @@ public class Button extends Widget {
     @Override
     protected float baselineOffset() {
         SizeTokens t = Theme.current().tokensFor(this);
-        TextMetrics metrics = textRuler().measure(text.get(), t.body());
+        // The same shaped value the paint draws, for exactly the reason this method exists: two
+        // opinions on one band are two numbers a BASELINE row can be aligned to. Nothing read off
+        // it here is horizontal, so this expression is the same in both directions.
+        TextMetrics metrics = caption(textRuler(), t.body()).metrics();
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
 
@@ -208,17 +296,37 @@ public class Button extends Widget {
                     t.radiusMedium() + gapOut, Strokes.FOCUS_RING, theme.focusRing.withAlpha(focus));
         }
         Font font = t.body();
-        TextMetrics metrics = textRuler().measure(text.get(), font);
+        ShapedText line = caption(textRuler(), font);
+        TextMetrics metrics = line.metrics();
+
+        // Resolved ONCE for the whole pass. Which end of the block the icon takes and which end
+        // the caption takes are two answers to one question, and two resolutions that disagreed
+        // inside one paint would draw the caption over the icon.
+        boolean rtl = isRtl();
 
         float advance = iconAdvance(t);
-        float cursorX = (width() - (advance + metrics.width())) / 2;
+        float block = advance + metrics.width();
+        // The block is CENTRED and stays exactly where it is under mirroring: a centre is the
+        // same number in both directions, which is what makes a text-only button — the
+        // overwhelming majority — render identically either way. Only the order of the two
+        // things inside the block changes, and that is the two placements below.
+        float blockX = (width() - block) / 2;
         if (icon != null) {
             float iconSize = t.iconBox();
-            icon.paint(canvas, cursorX, (height() - iconSize) / 2, iconSize, ink, theme.dark);
-            cursorX += advance;
+            // Leading, written as a coordinate: the block's own left edge reading left to right,
+            // and its far end less the square reading right to left.
+            float iconX = rtl ? blockX + block - iconSize : blockX;
+            // The flag says what the icon MEANS and the axis says which way this button reads;
+            // neither alone is the answer, and the flip itself is Icon.paint's, about the square
+            // it was just handed.
+            icon.paint(canvas, iconX, (height() - iconSize) / 2, iconSize, ink, theme.dark,
+                    rtl && iconMirroring == Icon.Mirroring.IN_RTL);
         }
-        canvas.drawText(text.get(), cursorX,
-                (height() - metrics.height()) / 2 + metrics.ascent(), font, ink);
+        // The caption takes the rest of the block: past the gutter reading left to right, and
+        // from the block's own left edge reading right to left, where the gutter is at the far
+        // end. With no icon the advance is zero and the two arms are the same number.
+        float textX = rtl ? blockX : blockX + advance;
+        canvas.drawText(line, textX, (height() - metrics.height()) / 2 + metrics.ascent(), ink);
     }
 
     @Override

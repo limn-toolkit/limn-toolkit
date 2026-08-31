@@ -208,7 +208,11 @@ final class ListScene {
             row.add(Expanded.of(texts, 1));
             row.add(open);
             row.add(favorite);
-            content = new Padding(new Insets(12, 16, 12, 12), row); // extra right pad for the overlay bar
+            // The extra pad is on the side the overlay scrollbar is on, and Padding resolves that
+            // side from the direction: written as the right inset, it becomes the leading one and
+            // lands on the physical left in a right-to-left subtree, which is exactly where the
+            // list's own bar has moved to.
+            content = new Padding(new Insets(12, 16, 12, 12), row);
             add(content);
         }
 

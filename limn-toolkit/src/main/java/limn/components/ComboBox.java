@@ -10,10 +10,12 @@ import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.i18n.I18nString;
 import limn.graphics.Path2D;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
+import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Scrollable;
 import limn.scene.Size;
@@ -50,6 +52,13 @@ import java.util.function.Consumer;
  * of its own window-bound {@link Scene}, so it inherits through
  * {@link Widget#setInheritanceHost} rather than through the tree. A dropdown at a different
  * density from the field that opened it is simply a bug, so there is no setter on the panel.
+ *
+ * <p>The {@link LayoutDirection} arrives by that same link and for that same reason: a list
+ * whose rows read the other way from the field that opened them is a bug rather than a
+ * configuration. Reading right to left the label sits against the right edge, the chevron takes
+ * the gutter on the left, the list hangs from the field's right edge and the marker column, the
+ * row labels and the scrollbar all move to the other side. The chevron itself does not turn
+ * over: it points up and down.
  */
 public class ComboBox extends Widget {
 
@@ -98,6 +107,21 @@ public class ComboBox extends Widget {
      * close-and-reopen is guarded on there being a window, not on this field.
      */
     private ControlSize popupStep;
+    /**
+     * The direction the open popup <em>window</em> was last laid out for, resolved when the
+     * window was created and again whenever this field re-measures.
+     *
+     * <p>Not a size key and not a reason to close: a flip changes neither the window's width
+     * nor its height (the pad is on both sides and the caret gutter is a magnitude), so the
+     * panel re-lays out and repaints in place. It is held at all because the panel is the root
+     * of <em>another</em> scene, reachable only through the host link: bumping the direction
+     * epoch in this tree damages nothing over there, and the list would keep painting
+     * yesterday's side until something else touched that window.
+     *
+     * <p>Unused by the in-scene presentation, which is an overlay in the owner's own scene and
+     * so is laid out and repainted by the pass that already noticed the change.
+     */
+    private boolean popupRtl;
     /** Unregisters the outside-press dismiss observer while the popup is open. */
     private Runnable dismissHandle;
     private Runnable blurHandle;
@@ -398,8 +422,8 @@ public class ComboBox extends Widget {
         popupStep = controlSize();
         popupPanel = new PopupPanel();
         // Before the overlay is pushed, for the reason the native path resolves it before
-        // binding: a panel that resolved the process default would lay its rows out at one step
-        // inside a box measured at another.
+        // binding: a panel that resolved the process defaults would lay its rows out at one step,
+        // or in one direction, inside a box measured at another.
         popupPanel.setInheritanceHost(this);
         scenePopup = new ScenePopup(popupPanel);
         // Assigned before pushOverlay, which moves focus off the field: onFocusLost reads this
@@ -456,10 +480,12 @@ public class ComboBox extends Widget {
         popupWindow = parent.backend().createWindow(WindowConfig.popup(popupWidth, popupHeight));
         parent.registerChildPopup(popupWindow); // parent close ⇒ popup close
         popupStep = controlSize();
+        popupRtl = isRtl();
 
         popupPanel = new PopupPanel();
         // Before the scene binds: binding measures the panel, and a panel that resolved the
-        // process default there would lay rows out at one step inside a window sized at another.
+        // process defaults there would lay rows out at one step, or in one direction, inside a
+        // window sized at another.
         popupPanel.setInheritanceHost(this);
         popupScene = new Scene(popupPanel);
         popupScene.inheritRenderingFlags(scene()); // partial/debug follow the owner window
@@ -500,6 +526,29 @@ public class ComboBox extends Widget {
 
     // ----------------------------------------------------------- field visual
 
+    /**
+     * Whether this combo reads right to left. Resolve it <b>once per pass</b> into a local and
+     * never in a constructor: this one is read from {@code onMeasure} and {@code onPaint}, where
+     * the field has a parent and the answer is the one the interface around it gives.
+     */
+    private boolean isRtl() {
+        return layoutDirection() == LayoutDirection.RTL;
+    }
+
+    /**
+     * What a label with no strong character of its own falls back to, given the direction the
+     * caller already resolved for its pass: an item that is all digits or punctuation
+     * ({@code "--"}, {@code "1/2"}, {@code "1.0"}) reads the way the form around it does.
+     *
+     * <p>The resolved direction is a parameter rather than a second read, so that one pass
+     * cannot shape a label against one direction and place it against the other. Every strong
+     * character still decides for itself, which is why a Latin item in a right-to-left combo
+     * still reads left to right.
+     */
+    private static ShapedText.Direction neutralBase(boolean rtl) {
+        return rtl ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
+    }
+
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.current().tokensFor(this);
@@ -508,6 +557,16 @@ public class ComboBox extends Widget {
             // reflowing rows the user is aiming at; deferred so a measure pass never mutates
             // the tree it is running over.
             Ui.post(this::close);
+        }
+        boolean rtl = isRtl();
+        if (open && popupWindow != null && popupRtl != rtl) {
+            // Not deferred, and not a close: this touches the popup window's own tree and not
+            // the one being measured, and the window keeps its size (the field measures the
+            // same in both directions). Without it the list stays as it was drawn, because
+            // nothing in this scene damages a panel that lives in another one.
+            popupRtl = rtl;
+            popupPanel.markNeedsLayout();
+            popupWindow.requestFrame();
         }
         TextMetrics metrics = textRuler().measure(widestItem(t.body()), t.body());
         return constraints.constrain(
@@ -544,6 +603,9 @@ public class ComboBox extends Widget {
         Theme theme = Theme.current();
         SizeTokens t = theme.tokensFor(this);
         Font font = t.body();
+        // One resolution for the whole pass: the label, the clip that keeps it off the chevron
+        // and the chevron's own gutter have to agree about which side reading starts on.
+        boolean rtl = isRtl();
         Color fill = !isEnabled() ? theme.disabledFill
                 : theme.surface.lerp(theme.surfaceRaised, open ? 1f : hover.value());
         canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
@@ -555,17 +617,35 @@ public class ComboBox extends Widget {
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
                 theme.outline.lerp(theme.focusRing, focus));
 
-        TextMetrics metrics = textRuler().measure(selectedItem(), font);
+        String label = selectedItem();
+        // The vertical band stays the measured one, because that is what baselineOffset()
+        // reports and a row aligned on a baseline the paint does not use is a row out of line.
+        // Only the horizontal placement needs the shaped run.
+        TextMetrics metrics = textRuler().measure(label, font);
         Color ink = isEnabled() ? theme.text : theme.disabledText;
         canvas.save();
-        canvas.clipRect(0, 0, width() - t.comboTextClip(), height());
-        canvas.drawText(selectedItem(), t.fieldPadH(),
-                (height() - metrics.height()) / 2 + metrics.ascent(), font, ink);
+        // The band that keeps the label off the chevron: its variable edge is the one reading
+        // ends on, so the reserved strip is on the left of a right-to-left field.
+        canvas.clipRect(rtl ? t.comboTextClip() : 0, 0, width() - t.comboTextClip(), height());
+        // Shaped here rather than left to the canvas, because the canvas has no widget to ask
+        // and falls back to left-to-right for a string with no strong character of its own.
+        // Costs nothing extra: the string overload shapes through the same ruler memo.
+        ShapedText line = textRuler().shape(label, font,
+                ShapedText.Direction.of(label, neutralBase(rtl)));
+        // drawText places the LEFT edge of the run's box for either base direction — a
+        // right-to-left run fills the same box from the other end rather than growing leftwards
+        // — so aligning to the edge reading starts from is choosing x, and choosing it takes
+        // the run's own width.
+        float textX = rtl ? width() - t.fieldPadH() - line.metrics().width() : t.fieldPadH();
+        canvas.drawText(line, textX,
+                (height() - metrics.height()) / 2 + metrics.ascent(), ink);
         canvas.restore();
 
         // Caret triangle (flips while open). Half-height is half the half-width at every
-        // step, so the arrow angle is invariant: the same arrow, smaller.
-        float cx = width() - t.comboCaretCenterX();
+        // step, so the arrow angle is invariant: the same arrow, smaller. Only the gutter it
+        // sits in changes sides; the triangle is symmetric about cx and points up and down,
+        // so nothing about the path below is directional.
+        float cx = rtl ? t.comboCaretCenterX() : width() - t.comboCaretCenterX();
         float cy = height() / 2;
         float halfW = t.chevronHalfW();
         float halfH = halfW / 2;
@@ -783,6 +863,10 @@ public class ComboBox extends Widget {
         @Override
         protected void onLayout() {
             SizeTokens t = Theme.current().tokensFor(ComboBox.this);
+            // The field's direction and not the overlay's, for the reason the tokens are the
+            // field's: this list belongs to the combo, and the overlay is only the layer it is
+            // drawn on. Resolved once for the pass.
+            boolean rtl = ComboBox.this.isRtl();
             float gap = t.popupGap();
             // Read after the root has been laid out: the scene lays overlays out last, which is
             // what makes the field's scene position current here rather than one frame stale.
@@ -794,7 +878,20 @@ public class ComboBox extends Widget {
                     height() - anchorBottom - EDGE_MARGIN);
 
             float listWidth = Math.min(ComboBox.this.width(), width());
-            float x = Math.max(0, Math.min(anchorX, width() - listWidth));
+            // Hung from the field's LEADING edge, which is its right one reading right to left;
+            // anchorX stays the field's physical left either way.
+            //
+            // The two branches compute the same number today, and saying so is the point: the
+            // list is the field's own width unless the scene is narrower still, and a box the
+            // width of the field aligned to either of the field's edges lands on the field. The
+            // alignment is written down anyway because that is the invariant it rests on, and
+            // the day a list is narrower than the field that it opened under, this line is
+            // already the one that has to be right.
+            float wanted = rtl ? anchorX + ComboBox.this.width() - listWidth : anchorX;
+            // The clamp keeps its form, and it needs no direction of its own: listWidth is a
+            // min with this overlay's width, so the interval is never empty and clamping the
+            // leading edge first agrees with clamping the trailing one first.
+            float x = Math.max(0, Math.min(wanted, width() - listWidth));
             float y = drop.above() ? anchorTop - gap - drop.height() : anchorBottom;
             panel.measure(Constraints.tight(listWidth, drop.height()));
             panel.layoutBox(x, y, listWidth, drop.height());
@@ -920,6 +1017,51 @@ public class ComboBox extends Widget {
             return (int) ((localY + scroll - t.popupPadV()) / t.popupItemHeight());
         }
 
+        /**
+         * Whether the list reads right to left: <b>the field's</b> resolved direction, taken
+         * once per pass into a local exactly as the row tokens are.
+         *
+         * <p>Asking the field rather than resolving here is not an override, and there is no
+         * setter to override: a list whose rows read the other way from the field that opened
+         * them is a bug in either presentation. The two answers agree wherever the direction
+         * comes from above them both, and they part in the one case the axis exists for. A
+         * panel in a window of its own is parentless and reaches the field through its host
+         * link, but the in-scene panel is a child of the overlay layer, and the tree wins over
+         * a host link: a field declaring a direction its scene does not share would open a list
+         * that read the other way.
+         *
+         * <p>Never in this panel's constructor, which runs before it is linked to the field at
+         * all.
+         */
+        private boolean isRtl() {
+            return ComboBox.this.isRtl();
+        }
+
+        /**
+         * Local x of the selected-row marker's centre: the marker column sits at the start of a
+         * row, which is the right side of a row that reads right to left.
+         *
+         * <p>A method for {@link #rowTop(int, SizeTokens)}'s reason, and taking its resolved
+         * inputs for that reason too. The x axis has the same failure the y axis had: three
+         * copies of {@code width() - inset - …} across the dot, the label and the label's clip
+         * is how a mark and the text it marks drift onto different columns.
+         */
+        float rowDotX(boolean rtl, SizeTokens t) {
+            float inset = t.popupRowInsetX();
+            return rtl ? width() - inset - t.popupDotCol() : inset + t.popupDotCol();
+        }
+
+        /**
+         * Local x where a row's label starts reading: past the marker column, on the side
+         * reading starts from. It is the label's left edge reading left to right and its
+         * <em>right</em> edge reading right to left, which is why the paint subtracts the run's
+         * own width there and the clip band is measured from the other side.
+         */
+        float rowTextX(boolean rtl, SizeTokens t) {
+            float inset = t.popupRowInsetX();
+            return rtl ? width() - inset - t.popupMarkerCol() : inset + t.popupMarkerCol();
+        }
+
         void revealRow(int index, SizeTokens t) {
             reveal(rowTop(index, t), t.popupItemHeight(), t);
         }
@@ -953,10 +1095,14 @@ public class ComboBox extends Widget {
         @Override
         protected void onLayout() {
             SizeTokens t = tokens();
+            boolean rtl = isRtl();
             float barW = ScrollBar.thickness();
             float barH = height() - 2 * t.popupPadV();
             vBar.measure(Constraints.tight(barW, barH));
-            vBar.layoutBox(width() - barW - t.popupBarInsetX(), t.popupPadV(), barW, barH);
+            // The reserved bar column is on the trailing edge, which is the left one reading
+            // right to left. The bar's own geometry is vertical and is untouched by any of this.
+            vBar.layoutBox(rtl ? t.popupBarInsetX() : width() - barW - t.popupBarInsetX(),
+                    t.popupPadV(), barW, barH);
             scroll = clampScroll(scroll, t);
             if (!initialRevealDone && height() > 0) {
                 initialRevealDone = true;
@@ -969,6 +1115,7 @@ public class ComboBox extends Widget {
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
             SizeTokens t = tokens();
+            boolean rtl = isRtl();
             float itemH = t.popupItemHeight();
             float inset = t.popupRowInsetX();
             // In-scene the canvas opacity does the fade; a popup window fades through its own
@@ -993,6 +1140,15 @@ public class ComboBox extends Widget {
 
             Font font = t.body();
             TextMetrics metrics = textRuler().measure("Hg", font);
+            // The two row columns and the label's band, composed once: they are the same for
+            // every row, and computing them per row is how three copies of one expression get
+            // back in.
+            float dotX = rowDotX(rtl, t);
+            float textStart = rowTextX(rtl, t);
+            // The band runs from where the label starts to the panel's far inset, so it is the
+            // label's trailing limit that is computed and the sides swap with the direction.
+            float bandX = rtl ? inset : textStart;
+            float bandW = rtl ? textStart - inset : width() - inset - textStart;
             canvas.save();
             // Keep rows off the border: the clip inset IS the border width.
             canvas.clipRect(Strokes.ROW_CLIP, Strokes.ROW_CLIP,
@@ -1013,16 +1169,22 @@ public class ComboBox extends Widget {
                 if (i == selectedIndex) {
                     // The one mark that scales: pure area, no pen, and 2.5pt vanishes in a
                     // 42pt row.
-                    canvas.fillCircle(inset + t.popupDotCol(), top + itemH / 2,
-                            t.popupDotRadius(), theme.primary);
+                    canvas.fillCircle(dotX, top + itemH / 2, t.popupDotRadius(), theme.primary);
                 }
+                // Shaped against this list's own direction as the neutral fallback, for the
+                // reason the field's label is, and only for the rows that survived the
+                // visibility check above. It is also where the run's width comes from: aligning
+                // to the edge reading starts from needs it, and the row loop has no other
+                // measurement of the label.
+                String label = items.get(i).get();
+                ShapedText line = textRuler().shape(label, font,
+                        ShapedText.Direction.of(label, neutralBase(rtl)));
                 // Clip each row so an over-long label can't reach the rounded border.
-                float textX = inset + t.popupMarkerCol();
                 canvas.save();
-                canvas.clipRect(textX, top, width() - inset - textX, itemH);
-                canvas.drawText(items.get(i).get(), textX,
+                canvas.clipRect(bandX, top, bandW, itemH);
+                canvas.drawText(line, rtl ? textStart - line.metrics().width() : textStart,
                         top + (itemH - metrics.height()) / 2 + metrics.ascent(),
-                        font, theme.text);
+                        theme.text);
                 canvas.restore();
             }
             canvas.restore();

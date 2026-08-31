@@ -108,10 +108,17 @@ public abstract class Widget {
 
     /**
      * Global validity stamp for every widget's {@link #layoutDirection()} memo, and a
-     * <b>separate counter</b> from {@link #controlSizeEpoch} on purpose. Merging them is the
-     * obvious simplification and a wrong one: a theme change that bumps the size epoch would
-     * then re-shape every string in the process for a direction that did not move, and a
-     * repository with one counter cannot say which axis a re-measure was for.
+     * <b>separate counter</b> from {@link #controlSizeEpoch}.
+     *
+     * <p><b>The separation buys cost, not correctness</b>, and it is worth being exact about
+     * that because it is easy to overclaim. Merging the two counters would still give every
+     * right answer: a memo is a pure function of its inputs, so a spurious bump only forces a
+     * re-resolution that arrives at the same value, and {@link #measure}'s key compares resolved
+     * <em>values</em> rather than epochs, so an unchanged axis still hits its size cache. What
+     * merging would cost is the re-resolution itself — every widget in the process walking one
+     * link on the next read of an axis that did not move — and the ability to say which axis a
+     * re-resolution was for. Two counters are two {@code long}s and one increment; that is a
+     * cheap price for not paying the other one.
      *
      * <p>UI-thread confined and starting at 1, for the reasons given on the size epoch. Bumped
      * by exactly five writers of a resolution input, each O(1): {@link #setLayoutDirection},
@@ -643,21 +650,31 @@ public abstract class Widget {
     }
 
     /**
-     * Links this widget's size inheritance to {@code host} for the case the tree cannot
-     * express: a widget that is the root of its own {@link Scene} (a popup or dialog window)
-     * or a {@linkplain Scene#pushOverlay overlay}, both of which have no parent. The chain
-     * then continues from {@code host}, <b>live</b>, so a later change on the host reaches
-     * the popup while it is open, which explicit forwarding could not do (and which would
-     * additionally convert an inherited value into a declared one, pinning the popup if the
+     * Links this widget's <b>inherited axes</b> — its {@link ControlSize} and its
+     * {@link LayoutDirection} alike — to {@code host}, for the case the tree cannot express: a
+     * widget that is the root of its own {@link Scene} (a popup or dialog window) or a
+     * {@linkplain Scene#pushOverlay overlay}, both of which have no parent. One link carries
+     * both, because it says "this parentless panel belongs to that widget", which is a fact
+     * about neither axis; a second link that could name a different widget per axis would be a
+     * bug with no honest resolution.
+     *
+     * <p>The chain then continues from {@code host}, <b>live</b>, so a later change on the host
+     * reaches the popup while it is open, which explicit forwarding could not do (and which
+     * would additionally convert an inherited value into a declared one, pinning the popup if a
      * process default changed underneath it). {@code null} unlinks. UI thread only.
      *
      * <p>Consulted <em>after</em> this widget's own scene default, so a popup scene that
-     * declares a step keeps it and one that declares nothing falls through to its host.
+     * declares a step or a direction keeps it and one that declares nothing falls through to
+     * its host.
      *
      * <p><b>Install it before anything sizes the surface.</b> A native popup or dialog
      * measures its content to size its window <em>before</em> binding a scene; installing
-     * the host after that sizes the window at the process default and then re-measures the
+     * the host after that sizes the window at the process defaults and then re-measures the
      * content at the owner's step inside a wrongly-sized window.
+     *
+     * <p><b>Live resolution is not live repaint.</b> A hosted root in its own scene resolves
+     * the new value on its next pass, but nothing marks that scene dirty when the owner's axis
+     * changes, so a component holding an open popup has to ask for the pass itself.
      *
      * @throws IllegalArgumentException if {@code host} resolves through this widget
      */

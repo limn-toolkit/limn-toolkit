@@ -7,10 +7,12 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Icon;
+import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Scrollable;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -57,9 +59,26 @@ import java.util.function.Consumer;
  * weights and stay identical at every step. The strip height composes the independent
  * type and padding ramps, so it is deliberately fractional, which is why the whole
  * layout must derive from one resolve per pass.
+ *
+ * <p><b>Reading right to left</b> the strip is still one run of tabs in reading order, and the
+ * run reflects with the interface: the first tab lands on the edge reading starts from and the
+ * run advances away from it, the three overflow controls swap ends keeping the order they had,
+ * and the two scroll chevrons turn around. Left and Right select the tab that is visually to the
+ * left and to the right, so the keyboard and the pointer agree; Home and End name the ends of the
+ * tab <em>order</em> and stay first and last in both directions.
  */
 public class TabbedPane extends Widget {
 
+    /**
+     * Where the strip sits when the headers are narrower than the pane, named for where it lands
+     * in an interface that reads left to right.
+     *
+     * <p><b>These three names are physical and their meaning is not.</b> The strip is one run of
+     * tabs in reading order and the run reflects as a whole, so {@link #LEFT} is the edge reading
+     * starts from and {@link #RIGHT} the edge it ends on: right to left they land on the right and
+     * the left respectively, and the default strip of a right-to-left pane sits on the right where
+     * its first tab is. {@link #CENTER} is a centre in both.
+     */
     public enum TabAlignment { LEFT, CENTER, RIGHT }
 
     /** Fraction of the strip viewport scrolled per chevron click. */
@@ -95,6 +114,12 @@ public class TabbedPane extends Widget {
             new Transition(this).duration(Theme.current().animTab).easing(Theme.current().animEasing);
     private boolean indicatorPlaced;
     private int indicatorTab = -1;
+    /**
+     * The direction the two held edges above were computed in, and the second half of the
+     * snap-vs-animate key. Without it a direction change that coincides with a tab change reads as
+     * an ordinary slide and animates the indicator across the whole reflected strip.
+     */
+    private boolean indicatorRtl;
 
     /** An empty pane; add pages with {@link #addTab}. */
     public TabbedPane() {
@@ -117,18 +142,44 @@ public class TabbedPane extends Widget {
         return addTab(title, null, content);
     }
 
-    /** Appends a tab with a leading icon, tinted to the tab's text colour. */
+    /**
+     * Appends a tab with a leading icon, tinted to the tab's text colour and drawn as authored
+     * whichever way the pane reads. <em>Leading</em> is the side reading starts on: the left of
+     * the caption left to right, its right in a right-to-left pane.
+     */
     public TabbedPane addTab(String title, Icon icon, Widget content) {
-        return addTab(I18nString.literal(Objects.requireNonNull(title, "title")), icon, content);
+        return addTab(title, icon, Icon.Mirroring.NEVER, content);
     }
 
     /** Appends a tab with an icon and a caption that follows the UI language. */
     public TabbedPane addTab(I18nString title, Icon icon, Widget content) {
+        return addTab(title, icon, Icon.Mirroring.NEVER, content);
+    }
+
+    /**
+     * Appends a tab with a leading icon and says whether the glyph inside it turns around when the
+     * interface does. The icon's <em>position</em> is leading either way and is this pane's
+     * decision; whether the drawing is a back arrow (which turns around) or a logo, a download
+     * arrow or a photograph (which must not) is knowable only at the call that placed it.
+     *
+     * @param mirroring {@link Icon.Mirroring#NEVER} unless this glyph is directional; a wrong
+     *                  {@code NEVER} is one arrow pointing the wrong way, and a wrong
+     *                  {@code IN_RTL} is a flipped brand mark
+     */
+    public TabbedPane addTab(String title, Icon icon, Icon.Mirroring mirroring, Widget content) {
+        return addTab(I18nString.literal(Objects.requireNonNull(title, "title")),
+                icon, mirroring, content);
+    }
+
+    /** The icon-mirroring form for a caption that follows the UI language. */
+    public TabbedPane addTab(I18nString title, Icon icon, Icon.Mirroring mirroring,
+            Widget content) {
         Ui.checkUiThread();
         Objects.requireNonNull(title, "title");
+        Objects.requireNonNull(mirroring, "mirroring");
         Objects.requireNonNull(content, "content");
         int index = contents.size();
-        TabHeader header = new TabHeader(title, icon, index);
+        TabHeader header = new TabHeader(title, icon, mirroring, index);
         headers.add(header);
         contents.add(content);
         strip.add(header);
@@ -275,7 +326,14 @@ public class TabbedPane extends Widget {
 
     // ---------------------------------------------------------- overflow
 
-    /** Scrolls the header strip by {@code dx} points (clamped to the content). */
+    /**
+     * Scrolls the header strip by {@code dx} points (clamped to the content).
+     *
+     * <p>{@code dx} is a distance along the reading axis and {@code scrollOffset} a distance
+     * travelled from the <b>leading</b> edge, so the clamp keeps its form and stays non-negative
+     * in both directions; positive is always "toward the end of the tab order". Only the last step
+     * knows a direction, because that is the one that turns the distance into an x.
+     */
     private void scrollStripBy(float dx) {
         if (!overflowing || dx == 0) {
             return;
@@ -287,11 +345,14 @@ public class TabbedPane extends Widget {
             return;
         }
         scrollOffset = target;
+        // The strip's own direction, resolved once here: these are its children and its
+        // coordinates, and the run it laid out has to move the way it was placed.
+        float shift = strip.isRtl() ? applied : -applied;
         // Shift the headers NOW: revealInView re-reads coordinates between
         // nested scrollables in one pass (the Scrollable contract); deferring
         // to the next layout hands an outer scroller a rect a content-width off.
         for (TabHeader header : headers) {
-            header.layoutBox(header.x() - applied, header.y(), header.width(), header.height());
+            header.layoutBox(header.x() + shift, header.y(), header.width(), header.height());
         }
         markNeedsLayout(); // chevron enable state + indicator follow next frame
     }
@@ -341,6 +402,11 @@ public class TabbedPane extends Widget {
         return stripHeight(Theme.current().tokensFor(this));
     }
 
+    /** Whether this pane reads right to left. Resolve it once per pass, and never in a field. */
+    private boolean isRtl() {
+        return layoutDirection() == LayoutDirection.RTL;
+    }
+
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.current().tokensFor(this);
@@ -387,8 +453,8 @@ public class TabbedPane extends Widget {
         }
         overflowing = headersTotal > width() + 0.5f;
 
-        // With overflow the strip shrinks to a viewport between the controls:
-        // ‹ at the left edge, › and the tab-list chevron at the right edge.
+        // With overflow the strip shrinks to a viewport between the controls: ‹ on the edge
+        // reading starts from, › and the tab-list chevron on the edge it ends on.
         //
         // The three squares cost 3 * stripHeight, which is 75pt at XSMALL but 157pt at XLARGE,
         // so on a narrow pane the viewport is what pays. Below 4 * stripHeight of pane width the
@@ -400,6 +466,10 @@ public class TabbedPane extends Widget {
         // against viewWidth, so it cannot oscillate with its own outcome.
         float viewLeft = 0;
         float viewWidth = width();
+        // Resolved once for the whole pass: the three controls and the viewport between them are
+        // one strip of items, and two resolutions that disagreed inside one layout would put a
+        // chevron on top of the tabs it is meant to sit beside.
+        boolean rtl = isRtl();
         if (overflowing) {
             // Shrink the controls, never drop them. Dropping two of the three below a width
             // threshold made the viewport NON-MONOTONE in the pane's width: at MEDIUM a 137pt
@@ -410,10 +480,14 @@ public class TabbedPane extends Widget {
             // all three affordances stay reachable.
             float button = Math.min(stripH, width() / 6f);
             viewWidth = Math.max(0, width() - 3 * button);
-            viewLeft = button;
-            prevButton.layoutBox(0, 0, button, stripH);
-            nextButton.layoutBox(width() - 2 * button, 0, button, stripH);
-            listButton.layoutBox(width() - button, 0, button, stripH);
+            // PREV sits on the edge reading starts from and the NEXT/LIST pair on the other, LIST
+            // outermost. Each of the four boxes is the left-to-right one reflected about the
+            // pane's centre, which is what keeps that pair's order and leaves the viewport's
+            // width, the overflow arithmetic and the dead-side tests below untouched.
+            viewLeft = rtl ? 2 * button : button;
+            prevButton.layoutBox(rtl ? width() - button : 0, 0, button, stripH);
+            nextButton.layoutBox(rtl ? button : width() - 2 * button, 0, button, stripH);
+            listButton.layoutBox(rtl ? 0 : width() - button, 0, button, stripH);
         }
         float maxOffset = Math.max(0, headersTotal - viewWidth);
         if (revealPending >= 0 && revealPending < n) {
@@ -449,12 +523,21 @@ public class TabbedPane extends Widget {
             // the first placement and when the same tab merely moved (scroll/resize);
             // animate the slide only on an actual tab change.
             TabHeader header = headers.get(selected);
+            // A symmetric inset inside the header's own box, so it is invariant about that box's
+            // centre and follows the header wherever the strip put it: nothing here chooses a side.
             float left = header.x() + t.tabPadH() / 2;
             float right = header.x() + header.width() - t.tabPadH() / 2;
-            if (indicatorPlaced && indicatorTab == selected) {
+            // The STRIP's direction, because these are the strip's coordinates: it is the widget
+            // that placed the header this pair is measured from.
+            boolean stripRtl = strip.isRtl();
+            // The two transitions hold physical edges across frames, and (tab, direction) is the
+            // whole of their key. A direction change relocates every header at once, so it snaps
+            // like a scroll does; animating it would slide the indicator across the entire
+            // reflected strip on its way to a tab that never moved relative to its neighbours.
+            if (indicatorPlaced && indicatorTab == selected && stripRtl == indicatorRtl) {
                 indicatorLeft.snap(left);
                 indicatorRight.snap(right);
-            } else if (indicatorPlaced) {
+            } else if (indicatorPlaced && stripRtl == indicatorRtl) {
                 indicatorLeft.to(left);
                 indicatorRight.to(right);
             } else {
@@ -463,6 +546,7 @@ public class TabbedPane extends Widget {
                 indicatorPlaced = true;
             }
             indicatorTab = selected;
+            indicatorRtl = stripRtl;
         }
     }
 
@@ -533,17 +617,30 @@ public class TabbedPane extends Widget {
      */
     private final class TabStrip extends Widget implements Scrollable {
 
+        /** Whether the strip reads right to left. Resolve it once per pass. */
+        private boolean isRtl() {
+            return layoutDirection() == LayoutDirection.RTL;
+        }
+
         /** Scrolls the minimum so the rect (in strip coordinates) becomes visible. */
         @Override
         public void revealRect(float x, float y, float rectWidth, float rectHeight) {
             if (!overflowing) {
                 return;
             }
+            float dx = 0;
             if (x < 0) {
-                scrollStripBy(x);
+                dx = x;
             } else if (x + rectWidth > width()) {
-                scrollStripBy(Math.min(x, x + rectWidth - width()));
+                // Oversize rects align their near edge.
+                dx = Math.min(x, x + rectWidth - width());
             }
+            // The rect arrives in this widget's own PHYSICAL coordinates, so nothing above knows a
+            // direction. What the direction decides is which way an offset moves the run: right to
+            // left the headers sit further right as the offset grows, so the same physical
+            // displacement is the opposite change of offset. One sign, and the arithmetic above is
+            // untouched.
+            scrollStripBy(isRtl() ? -dx : dx);
         }
 
         @Override
@@ -559,6 +656,10 @@ public class TabbedPane extends Widget {
         protected void onLayout() {
             // The pane measured the headers; place them with the scroll offset
             // (overflow) or the configured alignment (everything fits).
+            //
+            // Resolved once for the whole run: two resolutions that disagreed inside one layout
+            // would place a header against one edge and its neighbour against the other.
+            boolean rtl = isRtl();
             float cursor;
             if (overflowing) {
                 cursor = -scrollOffset;
@@ -570,7 +671,14 @@ public class TabbedPane extends Widget {
                 };
             }
             for (int i = 0; i < headers.size(); i++) {
-                headers.get(i).layoutBox(cursor, 0, headerWidths[i], height());
+                // The cursor walk is untouched and only the final coordinate is reflected, the
+                // same treatment a horizontal Flex gives its children: the first tab lands on the
+                // edge reading starts from and the run advances away from it, which is what makes
+                // the reveal arithmetic, the indicator and the pointer hit test correct for free
+                // rather than each needing a direction of its own. CENTER falls out unchanged,
+                // because reflecting a centred run about the same centre returns it.
+                headers.get(i).layoutBox(rtl ? width() - cursor - headerWidths[i] : cursor,
+                        0, headerWidths[i], height());
                 cursor += headerWidths[i];
             }
         }
@@ -641,6 +749,11 @@ public class TabbedPane extends Widget {
             setCursor(Cursor.POINTER);
         }
 
+        /** Whether this control reads right to left. Resolve it once per pass. */
+        private boolean isRtl() {
+            return layoutDirection() == LayoutDirection.RTL;
+        }
+
         @Override
         protected Size onMeasure(Constraints constraints) {
             // The PANE's strip height, the same expression onLayout sizes these controls with:
@@ -668,14 +781,19 @@ public class TabbedPane extends Widget {
             float cy = height() / 2;
             float s = t.tabChevron();
             float pen = Strokes.ARROW_PEN;
+            // Directional ink the toolkit draws itself, which is the only kind it may turn around:
+            // these two name the start and the end of the tab order, and the start is on the right
+            // in a right-to-left strip. A sign on the x offsets about the button's own centre,
+            // which does not move; the LIST chevron points down and is not a site.
+            float toEnd = isRtl() ? -1 : 1;
             switch (kind) {
                 case PREV -> {
-                    canvas.drawLine(cx + s / 2, cy - s, cx - s / 2, cy, pen, ink);
-                    canvas.drawLine(cx - s / 2, cy, cx + s / 2, cy + s, pen, ink);
+                    canvas.drawLine(cx + toEnd * s / 2, cy - s, cx - toEnd * s / 2, cy, pen, ink);
+                    canvas.drawLine(cx - toEnd * s / 2, cy, cx + toEnd * s / 2, cy + s, pen, ink);
                 }
                 case NEXT -> {
-                    canvas.drawLine(cx - s / 2, cy - s, cx + s / 2, cy, pen, ink);
-                    canvas.drawLine(cx + s / 2, cy, cx - s / 2, cy + s, pen, ink);
+                    canvas.drawLine(cx - toEnd * s / 2, cy - s, cx + toEnd * s / 2, cy, pen, ink);
+                    canvas.drawLine(cx + toEnd * s / 2, cy, cx - toEnd * s / 2, cy + s, pen, ink);
                 }
                 case LIST -> {
                     canvas.drawLine(cx - s, cy - s / 2, cx, cy + s / 2, pen, ink);
@@ -714,18 +832,38 @@ public class TabbedPane extends Widget {
     private final class TabHeader extends Widget {
         private final I18nString title;
         private final Icon icon;
+        private final Icon.Mirroring iconMirroring;
         private final int index;
         private final Transition hover =
                 new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
         private final Transition focusFade =
                 new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
 
-        TabHeader(I18nString title, Icon icon, int index) {
+        TabHeader(I18nString title, Icon icon, Icon.Mirroring iconMirroring, int index) {
             this.title = title;
             this.icon = icon;
+            this.iconMirroring = iconMirroring;
             this.index = index;
-            // Focusable only while selected (roving focus), managed by the pane.
+            // Focusable only while selected (roving focus), managed by the pane. Nothing
+            // directional is read here: a header is constructed before it has a parent, so a
+            // direction captured now would resolve to the process default and stay wrong.
             setCursor(Cursor.POINTER);
+        }
+
+        /** Whether this tab reads right to left. Resolve it once per pass. */
+        private boolean isRtl() {
+            return layoutDirection() == LayoutDirection.RTL;
+        }
+
+        /**
+         * What a caption with no strong character of its own falls back to: this tab's own
+         * resolved direction. A title that is a bare number or a punctuation mark reads with the
+         * interface around it, and the first-strong rule cannot know that; the interface can. It
+         * is a fallback and not an imposition, so a Latin caption in a right-to-left pane still
+         * reads left to right.
+         */
+        private ShapedText.Direction neutralBase() {
+            return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
         }
 
         /**
@@ -781,13 +919,27 @@ public class TabbedPane extends Widget {
             TextMetrics metrics = textRuler().measure(title.get(), font);
             float advance = iconAdvance(t);
             float contentW = advance + metrics.width();
-            float x = (width() - contentW) / 2;
+            // The icon+label block is centred, so the block's own left edge is a centre and does
+            // not move. What mirrors is the order of the two things inside it: the icon takes the
+            // slot reading starts from, which is the block's right end in a right-to-left tab.
+            boolean rtl = isRtl();
+            float blockLeft = (width() - contentW) / 2;
+            float textLeft = rtl ? blockLeft : blockLeft + advance;
             if (icon != null) {
                 float is = t.tabIconSize();
-                icon.paint(canvas, x, (height() - is) / 2, is, ink, theme.dark);
-                x += advance;
+                float iconLeft = rtl ? blockLeft + metrics.width() + t.tabIconGap() : blockLeft;
+                // Where the icon sits is this tab's decision; whether the drawing inside it turns
+                // around is the caller's, declared when the tab was added.
+                icon.paint(canvas, iconLeft, (height() - is) / 2, is, ink, theme.dark,
+                        rtl && iconMirroring == Icon.Mirroring.IN_RTL);
             }
-            canvas.drawText(title.get(), x, (height() - metrics.height()) / 2 + metrics.ascent(), font, ink);
+            // Shaped here rather than left to the canvas, so this tab's own direction is the
+            // neutral fallback instead of a hard-coded one. drawText places the LEFT edge of the
+            // run under either base, which is why textLeft is the block's left edge either way.
+            ShapedText line = textRuler().shape(title.get(), font,
+                    ShapedText.Direction.of(title.get(), neutralBase()));
+            canvas.drawText(line, textLeft,
+                    (height() - metrics.height()) / 2 + metrics.ascent(), ink);
 
             // The selected indicator is drawn by the strip (it slides across tabs).
             float focus = focusFade.value();
@@ -823,14 +975,22 @@ public class TabbedPane extends Widget {
             if (!event.isPressed()) {
                 return;
             }
+            // Resolved once for this event. The arrows name a side of the screen, so Left has to
+            // select the tab that is visually to the left or the keyboard disagrees with the
+            // pointer, and right to left that tab is the next one in order rather than the
+            // previous one. Home and End are not this: they name the ends of the tab ORDER, and
+            // stay the first and the last tab in both directions.
+            boolean rtl = isRtl();
+            int visualLeft = rtl ? index + 1 : index - 1;
+            int visualRight = rtl ? index - 1 : index + 1;
             switch (event.key()) {
                 case Keys.LEFT -> {
                     event.consume();
-                    selectTab(index - 1, Focus.HEADER); // keep arrowing across headers
+                    selectTab(visualLeft, Focus.HEADER); // keep arrowing across headers
                 }
                 case Keys.RIGHT -> {
                     event.consume();
-                    selectTab(index + 1, Focus.HEADER);
+                    selectTab(visualRight, Focus.HEADER);
                 }
                 case Keys.HOME -> {
                     event.consume();

@@ -9,9 +9,11 @@ import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Path2D;
 import limn.graphics.RoundRect;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.CharEvent;
@@ -68,6 +70,15 @@ import java.util.regex.Pattern;
  * scrolling panel would otherwise swallow the wheel whenever the pointer crossed it,
  * stopping the scroll and editing a field the user was only scrolling past. The wheel
  * passes through to the scrollable ancestor.
+ *
+ * <p><b>Reading right to left</b> the stepper column and the value swap sides, and the arrows
+ * that name the <em>value</em> swap with them: Left raises it and Right lowers it, because the
+ * low end of a horizontal axis sits on the side reading starts from. Home and End do not swap;
+ * they name {@code min} and {@code max}, which are not sides. Neither do time mode's Left and
+ * Right: those pick the hours and the minutes of an {@code HH:MM} run, and a run of digits keeps
+ * its own left-to-right order inside a right-to-left form, so the fields do not move and neither
+ * does the key that selects one. The up and down arrows are drawn on the vertical axis and are
+ * unchanged.
  *
  * <p>Sizes follow the widget's {@link limn.scene.ControlSize}. At {@code XSMALL} each
  * stepper half is 18 × 12 pt, below fine-motor comfort, so a dense form should treat the
@@ -269,6 +280,12 @@ public class Spinner extends Widget {
      * cache that has to be invalidated at each of them is one new path away from painting a stale
      * number, which is the worst thing this widget could do. {@code mode} and {@code decimals}
      * are final, so the value is the whole input.
+     *
+     * <p>The layout direction is deliberately <em>not</em> part of that key, and adding it would
+     * be cargo. What is memoized is a {@link String}: the digits a number renders as are the same
+     * digits in either direction. The direction belongs to the geometry that places this string
+     * and to the shaping of text being typed, both of which are resolved fresh in the pass that
+     * uses them and cached nowhere.
      */
     private String formatted() {
         if (formattedText == null || formattedFrom != value) {
@@ -517,7 +534,15 @@ public class Spinner extends Widget {
         invalidate();
     }
 
-    /** Scrolls the typed text just enough to keep the caret inside the value area. */
+    /**
+     * Scrolls the typed text just enough to keep the caret inside the value area.
+     *
+     * <p>Everything here is a coordinate in the <em>text's</em> own space, where it always was:
+     * the caret, the window and the width the window has to hold. Only the last line, which turns
+     * "where the window has to start" back into a scroll offset, knows a direction — and the
+     * clamp below it keeps its form, because {@link #editScrollX} is a distance travelled from
+     * the leading edge in both directions and so is never negative.
+     */
     private void ensureCaretVisible(SizeTokens t) {
         if (edit == null) {
             return;
@@ -525,17 +550,39 @@ public class Spinner extends Widget {
         float pad = t.spacingMedium();
         float visible = Math.max(1, valueWidth(t) - 2 * pad);
         float caret = prefixWidth(edit.cursor(), t);
-        if (caret - editScrollX > visible) {
-            editScrollX = caret - visible;
-        } else if (caret - editScrollX < 0) {
-            editScrollX = caret;
-        }
         float total = prefixWidth(edit.length(), t);
+        float view = editViewStart(total, visible);
+        float wanted = view;
+        if (caret - wanted > visible) {
+            wanted = caret - visible;
+        }
+        if (caret < wanted) {
+            wanted = caret;
+        }
+        if (wanted != view) {
+            editScrollX = isRtl() ? total - visible - wanted : wanted;
+        }
         editScrollX = Math.max(0, Math.min(editScrollX, Math.max(0, total - visible)));
     }
 
     private float prefixWidth(int index, SizeTokens t) {
         return index <= 0 ? 0 : textRuler().measure(edit.textRange(0, index), t.body()).width();
+    }
+
+    /**
+     * The text being typed, shaped for the paragraph this spinner reads in, so that the visual
+     * arrow keys have a line to step over. A typed value is usually a run of digits, whose visual
+     * order is its logical one and over which a visual step and a logical one agree; a paste is
+     * not filtered, so it is the case where they do not.
+     *
+     * <p>Shaped fresh on the key that asks rather than held in a field: at one line per arrow
+     * press there is nothing here worth caching, and a held line would have to carry the resolved
+     * direction in its key or answer every geometry question for the wrong paragraph.
+     */
+    private ShapedText editLine() {
+        SizeTokens t = Theme.current().tokensFor(this);
+        String typed = edit.text();
+        return textRuler().shape(typed, t.body(), ShapedText.Direction.of(typed, neutralBase()));
     }
 
     /**
@@ -612,8 +659,79 @@ public class Spinner extends Widget {
 
     // --------------------------------------------------------------- geometry
 
+    /**
+     * Whether this spinner reads right to left. Resolved inside the pass that asks and never
+     * held: the direction is inherited, so it can change under a widget that is already laid out.
+     */
+    private boolean isRtl() {
+        return layoutDirection() == LayoutDirection.RTL;
+    }
+
+    /**
+     * What a string with no strong character of its own falls back to: this spinner's own
+     * resolved direction. A number is entirely neutral, so this is the whole of what decides the
+     * base of a typed value; text pasted in a right-to-left script still decides for itself,
+     * which is the first-strong rule doing its job rather than this widget overruling it.
+     */
+    private ShapedText.Direction neutralBase() {
+        return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
+    }
+
+    /**
+     * The value area's width: the whole box less the stepper column. A magnitude and not a
+     * position, which is what lets {@link #onMeasure} and {@link #ensureCaretVisible} keep asking
+     * it the question they always asked; {@link #valueLeft} turns it into an x.
+     */
     private float valueWidth(SizeTokens t) {
         return Math.max(0, width() - t.spinnerButtonW());
+    }
+
+    /**
+     * Physical left edge of the value area. The stepper column sits on the side reading ends on,
+     * so reading left to right the value starts at the box's own left edge and reading right to
+     * left it starts where that column ends. Every coordinate in the value area is composed from
+     * this and {@link #valueWidth}, so the clip, the text, the caret and the hit test cannot
+     * disagree about which side is which.
+     */
+    private float valueLeft(SizeTokens t) {
+        return isRtl() ? t.spinnerButtonW() : 0;
+    }
+
+    /**
+     * Where a run of {@code runWidth} points puts its <b>left</b> edge, which is what
+     * {@code drawText} places against: one pad in from the side reading starts on, measured
+     * against the value area so the number never slides under the arrows in either direction.
+     */
+    private float runOriginX(SizeTokens t, float runWidth) {
+        float pad = t.spacingMedium();
+        return isRtl() ? valueLeft(t) + valueWidth(t) - pad - runWidth : pad;
+    }
+
+    /**
+     * {@link #runOriginX} for the text being typed, which also carries {@link #editScrollX}.
+     * Reading left to right the leading edge is the left one and the scroll pulls the run back;
+     * reading right to left it is the right one and the same positive magnitude pushes the run
+     * forward. Zero is the leading edge either way, which is what lets the clamp in
+     * {@link #ensureCaretVisible} keep its form.
+     *
+     * <p>The one expression a pointer coordinate is turned back through as well, so a click and
+     * the caret it places cannot land on different characters: a sign error here is invisible in
+     * a screenshot and wrong in every click.
+     */
+    private float editOriginX(SizeTokens t, float textWidth) {
+        return isRtl()
+                ? runOriginX(t, textWidth) + editScrollX
+                : runOriginX(t, textWidth) - editScrollX;
+    }
+
+    /**
+     * Where the visible window starts <b>in the text's own space</b>: what {@link #editScrollX}
+     * means once the direction has been applied. It grows with the scroll in one direction and
+     * shrinks with it in the other, which is the whole of what {@link #ensureCaretVisible} has to
+     * know about a direction.
+     */
+    private float editViewStart(float textWidth, float visible) {
+        return isRtl() ? textWidth - visible - editScrollX : editScrollX;
     }
 
     /**
@@ -621,7 +739,10 @@ public class Spinner extends Widget {
      * can never be classified against a different step than the one that painted.
      */
     private int regionAt(SizeTokens t, float localX, float localY) {
-        if (localX < valueWidth(t)) {
+        // The value area ends at the stepper column reading left to right, and begins at it
+        // reading right to left: one boundary, named from the side it is on.
+        boolean inValue = isRtl() ? localX >= valueLeft(t) : localX < valueWidth(t);
+        if (inValue) {
             return 0;
         }
         return localY < height() / 2 ? 1 : 2;
@@ -643,7 +764,7 @@ public class Spinner extends Widget {
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.current().tokensFor(this);
-        float pad = t.spacingMedium(); // same pad paintValue draws the value at
+        float pad = t.spacingMedium(); // the same pad the value is drawn against, one at each end
         // Measure the WIDEST value this spinner can ever show, not the current one:
         // the box must not resize as the user steps, and the value must not slide
         // under the stepper column (the box clip only stops it at the outer corner,
@@ -696,7 +817,6 @@ public class Spinner extends Widget {
     private void paintValue(Canvas canvas, Theme theme, SizeTokens t, boolean enabled, float focus) {
         Font font = t.body();
         Color ink = enabled ? theme.text : theme.disabledText;
-        float pad = t.spacingMedium();
         float baseline = baselineFor(textRuler().measure("Hg", font));
 
         if (edit != null) {
@@ -709,13 +829,17 @@ public class Spinner extends Widget {
             String mm = formattedMinutes;
             float hhW = textRuler().measure(hh, font).width();
             float colonW = textRuler().measure(":", font).width();
-            float hhX = pad;
+            float mmW = textRuler().measure(mm, font).width();
+            // Only the ORIGIN of the run moves: hh:mm is a run of digits, which keeps its
+            // left-to-right order inside a right-to-left paragraph, so the hours stay left of
+            // the minutes and the colon stays between them whichever way the form reads.
+            float hhX = runOriginX(t, hhW + colonW + mmW);
             float colonX = hhX + hhW;
             float mmX = colonX + colonW;
             // Highlight the active field while focused.
             if (focus > 0.001f) {
                 float fx = field == 0 ? hhX : mmX;
-                float fw = field == 0 ? hhW : textRuler().measure(mm, font).width();
+                float fw = field == 0 ? hhW : mmW;
                 float padX = t.spinnerFieldPadX();
                 float inset = t.spinnerFieldInset(); // shared with the divider: one optical margin
                 canvas.fillRoundRect(fx - padX, inset, fw + 2 * padX, height() - 2 * inset,
@@ -725,7 +849,9 @@ public class Spinner extends Widget {
             canvas.drawText(":", colonX, baseline, font, theme.textMuted);
             canvas.drawText(mm, mmX, baseline, font, ink);
         } else {
-            canvas.drawText(text(), pad, baseline, font, ink);
+            String shown = text();
+            canvas.drawText(shown, runOriginX(t, textRuler().measure(shown, font).width()),
+                    baseline, font, ink);
         }
     }
 
@@ -739,10 +865,10 @@ public class Spinner extends Widget {
                                  float baseline, Color ink) {
         TextMetrics metrics = textRuler().measure("Hg", font);
         float inkTop = baseline - metrics.ascent();
-        float originX = t.spacingMedium() - editScrollX;
+        float originX = editOriginX(t, prefixWidth(edit.length(), t));
 
         canvas.save();
-        canvas.clipRect(0, 0, valueWidth(t), height());
+        canvas.clipRect(valueLeft(t), 0, valueWidth(t), height());
         if (edit.hasSelection()) {
             float x0 = originX + prefixWidth(edit.selectionStart(), t);
             float x1 = originX + prefixWidth(edit.selectionEnd(), t);
@@ -763,11 +889,18 @@ public class Spinner extends Widget {
     }
 
     private void paintButtons(Canvas canvas, Theme theme, SizeTokens t, boolean enabled) {
-        float bx = width() - t.spinnerButtonW();
+        boolean rtl = isRtl();
+        // The stepper column sits on the side reading ends on, so reading right to left it is the
+        // LEFT column: its own left edge is the box's, and the seam it shares with the value is
+        // its right edge. The seam is not the column's left edge in both directions; drawing it
+        // there would put the divider on the outer border and leave the value unfenced.
+        float bx = rtl ? 0 : width() - t.spinnerButtonW();
+        float columnEnd = rtl ? t.spinnerButtonW() : width();
+        float seam = rtl ? columnEnd : bx;
         float mid = height() / 2;
         float inset = t.spinnerFieldInset();
-        canvas.drawLine(bx, inset, bx, height() - inset, Strokes.BORDER, theme.outline);
-        canvas.drawLine(bx, mid, width(), mid, Strokes.BORDER, theme.outline);
+        canvas.drawLine(seam, inset, seam, height() - inset, Strokes.BORDER, theme.outline);
+        canvas.drawLine(bx, mid, columnEnd, mid, Strokes.BORDER, theme.outline);
 
         boolean canUp = enabled && value < max;
         boolean canDown = enabled && value > min;
@@ -783,6 +916,9 @@ public class Spinner extends Widget {
             canvas.fillRect(bx + in, top + in, t.spinnerButtonW() - 2 * in, h - 2 * in,
                     theme.surfaceRaised);
         }
+        // Centred in the column, pointing up or down: a mark on the vertical axis, and the one
+        // thing in this widget that a mirrored layout leaves exactly where it found it. It
+        // travels only because the column it is centred in does.
         float cx = bx + t.spinnerButtonW() / 2;
         float cy = top + h / 2;
         float s = t.arrowHalf();
@@ -834,7 +970,8 @@ public class Spinner extends Widget {
                 } else if (editable) {
                     beginEdit(false);
                     if (edit != null) {
-                        edit.setCursor(indexAt(lx - t.spacingMedium() + editScrollX, t),
+                        float textX = lx - editOriginX(t, prefixWidth(edit.length(), t));
+                        edit.setCursor(indexAt(textX, t),
                                 (event.modifiers() & Keys.MOD_SHIFT) != 0);
                         afterEditChange();
                     }
@@ -845,9 +982,12 @@ public class Spinner extends Widget {
             }
             case DRAG -> {
                 if (edit != null) {
-                    SizeTokens tokens = Theme.current().tokensFor(this);
-                    edit.setCursor(indexAt(sceneToLocalX(event.x()) - tokens.spacingMedium()
-                            + editScrollX, tokens), true);
+                    // The row resolved at the top of this handler, not a second one of its own:
+                    // a drag that measured its origin against a different step than the press did
+                    // would slip a character at the moment the pointer started moving.
+                    float lx = sceneToLocalX(event.x());
+                    float textX = lx - editOriginX(t, prefixWidth(edit.length(), t));
+                    edit.setCursor(indexAt(textX, t), true);
                     afterEditChange();
                     event.consume();
                 }
@@ -878,9 +1018,13 @@ public class Spinner extends Widget {
 
     private void selectFieldAt(SizeTokens t, float localX) {
         Font font = t.body();
-        int m = (int) Math.round(value);
-        String hh = String.format(Locale.US, "%02d", m / 60);
-        float boundary = t.spacingMedium() + textRuler().measure(hh + ":", font).width();
+        formatted(); // the same two strings the paint measured, rather than a second rendering
+        float hhColonW = textRuler().measure(formattedHours + ":", font).width();
+        float mmW = textRuler().measure(formattedMinutes, font).width();
+        // Measured from the run's own origin, which is where the paint put it. The comparison
+        // does not flip with it: inside a run of digits the hours stay left of the minutes, which
+        // is the same reason Left and Right do not swap the two fields.
+        float boundary = runOriginX(t, hhColonW + mmW) + hhColonW;
         int newField = localX < boundary ? 0 : 1;
         if (newField != field) {
             field = newField;
@@ -929,25 +1073,34 @@ public class Spinner extends Widget {
             return;
         }
         boolean handled = true;
+        // Which way the value axis runs across the screen, resolved once for this key press.
+        // Right raises the value reading left to right and lowers it reading right to left, the
+        // same mirror a horizontal slider takes: the low end is on the side reading starts from,
+        // and a stepper whose arrows disagreed with the rail beside it would be worse than either.
+        int rightStep = isRtl() ? -1 : 1;
         switch (event.key()) {
             case Keys.UP -> nudgeFromKey(1, event.modifiers());
             case Keys.DOWN -> nudgeFromKey(-1, event.modifiers());
             case Keys.PAGE_UP -> nudge(10, true);
             case Keys.PAGE_DOWN -> nudge(-10, true);
+            // Home and End name min and max, which are values and not sides, so they are the
+            // same key in both directions.
             case Keys.HOME -> apply(min, true);
             case Keys.END -> apply(max, true);
             case Keys.LEFT -> {
                 if (mode == Mode.TIME) {
+                    // Not mirrored: the hours and the minutes of an hh:mm run do not swap places
+                    // in a right-to-left form, so the key that picks the hours does not either.
                     setField(0);
                 } else {
-                    nudgeFromKey(-1, event.modifiers());
+                    nudgeFromKey(-rightStep, event.modifiers());
                 }
             }
             case Keys.RIGHT -> {
                 if (mode == Mode.TIME) {
                     setField(1);
                 } else {
-                    nudgeFromKey(1, event.modifiers());
+                    nudgeFromKey(rightStep, event.modifiers());
                 }
             }
             default -> handled = false;
@@ -968,8 +1121,13 @@ public class Spinner extends Widget {
     private boolean handleEditKey(int key, int mods) {
         boolean shift = (mods & Keys.MOD_SHIFT) != 0;
         switch (key) {
-            case Keys.LEFT -> edit.moveLeft(shift);
-            case Keys.RIGHT -> edit.moveRight(shift);
+            // Left and Right are VISUAL while there is text: they are named for a direction on
+            // the screen, so they step one cluster that way on the line actually drawn, whatever
+            // the characters under them do. Not mirrored — a mirror would step the caret twice.
+            // Home and End stay LOGICAL, which is what makes Shift+Home one contiguous range of
+            // the string, and in reordered text that means Left and Home can move opposite ways.
+            case Keys.LEFT -> edit.moveVisualLeft(editLine(), 0, shift);
+            case Keys.RIGHT -> edit.moveVisualRight(editLine(), 0, shift);
             case Keys.HOME -> edit.moveHome(shift);
             case Keys.END -> edit.moveEnd(shift);
             case Keys.BACKSPACE -> edit.backspace();

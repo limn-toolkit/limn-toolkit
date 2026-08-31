@@ -6,6 +6,7 @@ import limn.backend.Cursor;
 import limn.graphics.Canvas;
 import limn.input.Keys;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.MouseEvent;
@@ -27,6 +28,10 @@ import java.util.Objects;
  *       {@link Policy#AUTO} (also while the pointer is active over the host).</li>
  *   <li><b>Thin idle / wide on approach</b>: a slim bar that widens when the
  *       pointer is over it or dragging, ready to grab.</li>
+ *   <li><b>Mirrored</b>: a <em>horizontal</em> bar reads with its subtree, so right to left the
+ *       thumb rests at the right end of the track and walks left as the offset grows. A vertical
+ *       bar's travel is a y and never mirrors; only the side its thumb hugs does, following the
+ *       side the host puts the strip on.</li>
  * </ul>
  * The host calls {@link #onScrolled()} when it scrolls and {@link #onHostActivity()}
  * on pointer movement (for {@code AUTO}).
@@ -113,6 +118,28 @@ public class ScrollBar extends Widget {
 
     private boolean vertical() {
         return orientation == Orientation.VERTICAL;
+    }
+
+    /**
+     * The resolved direction of this bar's subtree. Read <b>once</b> at the top of a pass —
+     * {@code onPaint}, or one arm of {@link #onMouseEvent} — and handed down as a parameter,
+     * never re-read inside the geometry it feeds: a press resolves the thumb rectangle and the
+     * paging sign from the same answer, and two answers inside one event would page away from
+     * the thumb the pointer just missed.
+     */
+    private boolean isRtl() {
+        return layoutDirection() == LayoutDirection.RTL;
+    }
+
+    /**
+     * Whether this bar's own axis mirrors. Only a horizontal bar has a reading direction; a
+     * vertical bar's track coordinates are y values, which a right-to-left subtree leaves
+     * exactly where they are.
+     *
+     * @param rtl the direction resolved once by the caller's pass
+     */
+    private boolean mirrored(boolean rtl) {
+        return rtl && !vertical();
     }
 
     /** The strip thickness the host reserves/lays the bar out with. */
@@ -228,19 +255,43 @@ public class ScrollBar extends Widget {
         return Math.max(MIN_THUMB, Math.min(track, track * ratio));
     }
 
-    private float thumbStart() {
+    /**
+     * Where the thumb starts along the bar's own axis.
+     *
+     * <p>An offset of zero is the <b>leading</b> edge, so a mirrored bar rests its thumb at the
+     * far end of the track and walks it back toward {@code MARGIN} as the offset grows. The
+     * offset itself, {@link #trackLength()} and {@link #maxOffset()} stay positive magnitudes in
+     * both directions; this one mapping from offset to coordinate is the only thing here that
+     * knows a direction.
+     *
+     * @param rtl the direction resolved once by the caller's pass
+     */
+    private float thumbStart(boolean rtl) {
         float travel = trackLength() - thumbLength();
         float max = maxOffset();
-        return MARGIN + (max > 0 ? travel * (model.offset() / max) : 0);
+        float along = max > 0 ? travel * (model.offset() / max) : 0;
+        return MARGIN + (mirrored(rtl) ? travel - along : along);
     }
 
-    private float[] thumbRect() {
-        float start = thumbStart();
+    /**
+     * The thumb as {@code {x, y, width, height}} in this bar's own box.
+     *
+     * @param rtl the direction resolved once by the caller's pass
+     */
+    private float[] thumbRect(boolean rtl) {
+        float start = thumbStart(rtl);
         float len = thumbLength();
         float thick = thumbThickness();
         if (vertical()) {
-            return new float[] {width() - MARGIN - thick, start, thick, len};
+            // A vertical thumb hugs the outer edge of its strip, and the host hangs that strip on
+            // the trailing side of the content: the right edge reading left to right, the left
+            // edge reading right to left. Hugging one fixed side instead would leave the thumb
+            // floating a strip's width in from the window edge in a mirrored layout.
+            float side = rtl ? MARGIN : width() - MARGIN - thick;
+            return new float[] {side, start, thick, len};
         }
+        // The horizontal thumb's y is a cross-axis coordinate and does not move; its x is
+        // `start`, which is where the mirroring already happened.
         return new float[] {start, height() - MARGIN - thick, len, thick};
     }
 
@@ -255,7 +306,8 @@ public class ScrollBar extends Widget {
         if (op < 0.02f) {
             return;
         }
-        float[] t = thumbRect();
+        boolean rtl = isRtl(); // once for this paint, then handed down
+        float[] t = thumbRect(rtl);
         float radius = Math.min(t[2], t[3]) / 2;
         float alpha = (dragging ? 0.9f : hoverBar ? 0.75f : 0.5f) * op;
         canvas.fillRoundRect(t[0], t[1], t[2], t[3], radius, Theme.current().textMuted.withAlpha(alpha));
@@ -285,15 +337,22 @@ public class ScrollBar extends Widget {
                 if (event.button() != Keys.MOUSE_LEFT) {
                     return;
                 }
+                boolean rtl = isRtl(); // once for this press, then handed down
                 float pos = vertical() ? sceneToLocalY(event.y()) : sceneToLocalX(event.x());
-                float[] t = thumbRect();
+                float[] t = thumbRect(rtl);
                 float thumbStart = vertical() ? t[1] : t[0];
                 float thumbLen = vertical() ? t[3] : t[2];
                 if (pos >= thumbStart && pos < thumbStart + thumbLen) {
                     dragging = true;
                     dragGrab = pos - thumbStart;
                 } else {
+                    // Paging steps toward the pointer, which is a step in the offset only after
+                    // the same mapping the thumb uses: on a mirrored bar the low-coordinate side
+                    // of the thumb is the side the offset grows toward.
                     float dir = pos < thumbStart ? -1 : 1;
+                    if (mirrored(rtl)) {
+                        dir = -dir;
+                    }
                     model.setOffset(model.offset() + dir * model.viewportLength());
                     onScrolled();
                 }
@@ -302,9 +361,13 @@ public class ScrollBar extends Widget {
             }
             case DRAG -> {
                 if (dragging) {
+                    boolean rtl = isRtl(); // once for this drag step, then handed down
                     float pos = vertical() ? sceneToLocalY(event.y()) : sceneToLocalX(event.x());
                     float travel = Math.max(1, trackLength() - thumbLength());
-                    float ratio = (pos - dragGrab - MARGIN) / travel;
+                    // The algebraic inverse of thumbStart, so it has to invert with it: mirror
+                    // one and not the other and the thumb slides away from the hand holding it.
+                    float along = (pos - dragGrab - MARGIN) / travel;
+                    float ratio = mirrored(rtl) ? 1 - along : along;
                     model.setOffset(Math.max(0, Math.min(1, ratio)) * maxOffset());
                     onScrolled();
                     event.consume();

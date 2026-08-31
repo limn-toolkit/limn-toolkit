@@ -6,6 +6,7 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Image;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.math.Aabb;
@@ -18,6 +19,7 @@ import limn.render3d.Graphics3D;
 import limn.render3d.RenderPass;
 import limn.render3d.RenderTarget;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -47,6 +49,14 @@ import java.util.function.Consumer;
  * "no GPU backend" placeholder frame and its message) reads the row resolved on this
  * widget like every other component, so a viewport dropped into an XSMALL panel does
  * not fall back with a MEDIUM corner radius and MEDIUM body type.
+ *
+ * <p><b>Direction axis:</b> this widget does not participate either, and for a sharper reason
+ * than the size one. A rendered scene is content, so a right-to-left window shows the same world
+ * from the same side; and {@link #rayAt} takes viewport-local pixels, which are where the pointer
+ * physically is, so picking, orbiting and the camera's normalised device coordinates all stay
+ * physical. Reflecting any of them would put the pick on the far side of the scene from the
+ * cursor. The chrome carve-out is the same one: the placeholder message is shaped for the
+ * direction resolved on this widget, and stays centred, because a centre does not move.
  */
 public class Viewport3D extends Widget {
 
@@ -260,7 +270,15 @@ public class Viewport3D extends Widget {
         camera.clip(Math.max(distance * 0.01f, (distance - radius) * 0.5f), distance + radius * 2f);
     }
 
-    /** The world-space ray through a viewport-local pixel (for picking). */
+    /**
+     * The world-space ray through a viewport-local pixel (for picking).
+     *
+     * <p>{@code localX} is physical and stays physical in a right-to-left viewport: it is a
+     * distance from the viewport's left edge, because that is what the pointer reports and what
+     * an application computing its own coordinates will pass. A layout direction is a reading
+     * order and this argument is not read; reflecting it here would return the ray through the
+     * mirror image of the pixel the caller named.
+     */
     public Ray rayAt(float localX, float localY) {
         float w = width();
         float h = height();
@@ -404,14 +422,42 @@ public class Viewport3D extends Widget {
         startTicking();
     }
 
+    /**
+     * The "no 3D backend" message, centred on both axes.
+     *
+     * <p><b>Centred, therefore unmirrored.</b> Both coordinates are half of what the box has left
+     * over, so a right-to-left viewport draws this message in exactly the place a left-to-right
+     * one does; there is no leading edge in the expression for a direction to reflect. The
+     * direction is resolved here all the same, because it is what the message is <em>shaped</em>
+     * against, and it is resolved on this branch only: the rendering path above reads no
+     * direction and must not start paying for one per frame.
+     */
     private void paintPlaceholder(Canvas canvas, Theme theme, SizeTokens t) {
         canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), theme.surfaceRaised);
         Font font = t.body();
         String message = ComponentStrings.VIEWPORT3D_NO_BACKEND.get();
-        TextMetrics metrics = textRuler().measure(message, font);
+        ShapedText line = textRuler().shape(message, font,
+                ShapedText.Direction.of(message, neutralBase()));
+        TextMetrics metrics = line.metrics();
         Color ink = theme.textMuted;
-        canvas.drawText(message, (width() - metrics.width()) / 2,
-                (height() - metrics.height()) / 2 + metrics.ascent(), font, ink);
+        canvas.drawText(line, (width() - metrics.width()) / 2,
+                (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+    }
+
+    /**
+     * What the placeholder message falls back to where its own characters say nothing: this
+     * viewport's resolved layout direction. The first-strong rule still decides everything a
+     * strong character can decide, so a Latin message inside a right-to-left window still reads
+     * left to right.
+     *
+     * <p>Resolved inside the paint that draws the message, never in a constructor and never held:
+     * a direction read before this widget had a parent is wrong with no way back, and a viewport
+     * that cached one would keep drawing the old answer after the window changed direction.
+     */
+    private ShapedText.Direction neutralBase() {
+        return layoutDirection() == LayoutDirection.RTL
+                ? ShapedText.Direction.RTL
+                : ShapedText.Direction.LTR;
     }
 
     private void startTicking() {
