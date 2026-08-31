@@ -74,22 +74,29 @@ class FontStoreLazyTest {
     }
 
     @Test
-    void aParseThatThrowsHalfwayFreesTheFaceItHadAlreadyLoaded() {
+    void aParseThatThrowsHalfwayFreesEveryFaceItHadAlreadyLoaded() {
         // A bundled resource that is present and unreadable throws rather than answering null, and
-        // by then the CJK face is a native buffer stb allocated that nothing else holds: the
-        // fold-in that would have taken it over is what is not going to happen. Roboto stands in
-        // for the CJK face, because what is asserted is the ownership rule, not which font it was.
-        StbFont face = StbFont.loadResourceIfPresent(
+        // by then the faces before it are native buffers stb allocated that nothing else holds: the
+        // fold-in that would have taken them over is what is not going to happen. Roboto stands in
+        // for both the CJK face and a script face, because what is asserted is the ownership rule,
+        // not which font it was — and the second one is here because a batch that grew from two
+        // loaders to three is exactly where one of them stops being freed.
+        StbFont cjk = StbFont.loadResourceIfPresent(
                 "/limn/backend/lwjgl/fonts/Roboto-Regular.ttf", "Roboto");
-        assertNotNull(face);
+        StbFont script = StbFont.loadResourceIfPresent(
+                "/limn/backend/lwjgl/fonts/Roboto-Regular.ttf", "Roboto");
+        assertNotNull(cjk);
+        assertNotNull(script);
         RuntimeException unreadable = new java.io.UncheckedIOException(
                 new java.io.IOException("reading font"));
 
         assertSame(unreadable, assertThrows(RuntimeException.class,
-                () -> FontStore.parseHeavyFallbacks(() -> face, () -> {
-                    throw unreadable;
-                })));
-        assertTrue(face.isClosed(), "the half-parsed set must not outlive the parse that failed");
+                () -> FontStore.parseHeavyFallbacks(() -> cjk, () -> java.util.List.of(script),
+                        () -> {
+                            throw unreadable;
+                        })));
+        assertTrue(cjk.isClosed(), "the half-parsed set must not outlive the parse that failed");
+        assertTrue(script.isClosed(), "and that is every face in it, not only the first");
     }
 
     @Test

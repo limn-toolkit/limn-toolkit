@@ -37,7 +37,8 @@ documentation and a guarantee.
 | --- | --- |
 | [background-work.md](background-work.md) | `Ui.post`, `Ui.async`, `Ui.work`: which to reach for, what is ordered and what is not, the discard trap, the rule a loader obeys |
 | [size-axis.md](size-axis.md) | ControlSize, SizeTokens, Strokes: locked vs tabled, the density floor, the constructor trap |
-| [text-and-input.md](text-and-input.md) | TextField, TextArea, PasswordField, Spinner: the drawn password dot, insets, scrollbar geometry |
+| [text-shaping.md](text-shaping.md) | ShapedText, TextRuler and the HarfBuzz backend: the one text path and what holding a value still buys, the visual and logical axes, itemization, the two caches and what sizes them, what a missing native or a missing face costs |
+| [text-and-input.md](text-and-input.md) | TextField, TextArea, PasswordField, Spinner: the held shaped line, the caret's side, visual versus logical movement, the display seam, the drawn password dot, insets, scrollbar geometry |
 | [popups-and-dialogs.md](popups-and-dialogs.md) | Dialog, PopupMenu, ComboBox: window vs in-scene, stacking, the native refit |
 | [theming.md](theming.md) | Theme and its builder, the token enum, the 8-bit grid, the audit's bars, ColorPickerButton and the editor module's traps |
 | [video.md](video.md) | limn.video, VideoView, the decoders and the shim: the three lifetimes, the threads, what a seek touches, rotation, bit depth and colour, what is in the native |

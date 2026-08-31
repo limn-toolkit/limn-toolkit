@@ -122,9 +122,9 @@ export const de: Catalog = {
   "home.limits.heading": "Was Limn nicht kann",
   "home.limits.body":
     "Jedes Toolkit tauscht etwas ein. Das sind die Tauschgeschäfte, vorab genannt; sie in Woche drei zu entdecken ist schlimmer, als sie jetzt zu lesen.",
-  "home.limits.scripts.heading": "Kein Shaping komplexer Schriften",
+  "home.limits.scripts.heading": "Text wird geformt, das Layout nicht gespiegelt",
   "home.limits.scripts.body":
-    "Arabisch, Hebräisch und die indischen Schriften brauchen kontextabhängige Verbindungen und Umstellungen, die der Textstack nicht umsetzt, und eine Layout-Richtung von rechts nach links gibt es nicht. Übersetzungen für diese Sprachen werden bewusst nicht ausgeliefert, statt sie falsch zu zeichnen.",
+    "Arabisch, Hebräisch, Devanagari und Thai verbinden sich, stellen sich um und setzen ihre Zeichen richtig — überall, wo Text gezeichnet wird: in Label, TextField und TextArea ebenso wie auf jeder Schaltfläche, jedem Reiter, jedem Menüeintrag und jedem Platzhalter ringsum; die Bündel ar und he werden ausgeliefert. Was eine von rechts nach links gelesene Sprache nicht bekommt, ist das Layout: Innenabstände, Ausrichtung, die Seite, auf der eine Bildlaufleiste sitzt, die Seite, auf der ein Popup aufgeht, und die Richtung, in die eine Pfeiltaste außerhalb eines Textfelds den Fokus bewegt — alles läuft von links nach rechts, gleich welche Sprache.",
   "home.limits.a11y.heading": "Keine Screenreader-Brücke",
   "home.limits.a11y.body":
     "Tastaturnavigation und Fokusringe sind vollständig, aber nichts wird an die Barrierefreiheits-APIs der Plattform gemeldet. Wenn ein Screenreader funktionieren muss, ist dies für diese Anwendung noch nicht das richtige Toolkit.",

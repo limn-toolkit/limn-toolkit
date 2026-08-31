@@ -11,6 +11,7 @@ import limn.i18n.I18nString;
 import limn.graphics.Icon;
 import limn.graphics.Rect;
 import limn.graphics.RoundRect;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.input.Keys;
@@ -22,6 +23,7 @@ import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import limn.scene.event.PreeditEvent;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -35,6 +37,17 @@ import java.util.function.Consumer;
  *
  * <p>The reference implementation for the text cluster: {@link PasswordField} and
  * {@link SearchField} inherit all of this geometry and declare none of their own.
+ *
+ * <p><b>Every horizontal coordinate here comes from one shaped line</b>, held in a field and
+ * re-shaped only when its inputs change. Caret x is {@link ShapedText#caretX}, a click is
+ * {@link ShapedText#hitTest}, the selection band is the {@code N} boxes
+ * {@link ShapedText#selection(int, int, float[]) selection} returns, and the arrow keys step
+ * through {@link ShapedText#caretLeft}/{@link ShapedText#caretRight}. None of it is the width of a
+ * prefix of the string, because with a shaper in the pipeline that width is not a thing that
+ * exists: inside their line characters join, ligate, kern and <em>reorder</em> differently than
+ * they do alone, so a prefix measurement is not a slower way to place a caret but a wrong one.
+ * {@link #shapeDisplay} is where a subclass substitutes a display form, and its index space is the
+ * model's, which is what lets the substitution happen without any index arithmetic at all.
  */
 public class TextField extends Widget {
 
@@ -69,6 +82,20 @@ public class TextField extends Widget {
     private int preeditCaret;      // caret within the preedit, in chars
     private int preeditFocusStart; // char range of the focused (converting) block
     private int preeditFocusEnd;
+    /** The held display line and its key; see {@link #displayLine(SizeTokens)}. */
+    private ShapedText display;
+    private long displayVersion = -1; // model.textVersion(); -1 forces the first build
+    private Font displayFont;
+    private long displayEpoch;
+    /** The held composed line and its key while an IME composition is open; see {@link #composedLine}. */
+    private ShapedText composed;
+    private long composedVersion = -1;
+    private int composedCursor = -1;
+    private String composedPreedit;
+    private Font composedFont;
+    private long composedEpoch = -1;
+    /** Selection boxes, reused across paints; see {@link #fillSpans}. */
+    private float[] spans = new float[8];
     /** Bumped whenever the blink phase restarts; stale scheduled toggles no-op. */
     private int blinkGeneration;
     /** Focus-ring fade: morphs the border between outline and focusRing. */
@@ -198,47 +225,180 @@ public class TextField extends Widget {
 
     // -------------------------------------------------------- display hooks
 
-    /** What is painted/measured; {@code PasswordField} masks here. */
-    protected String displayText() {
-        return model.text();
-    }
-
-    /** Display form of the text up to {@code charIndex} of the model. */
-    protected String displayPrefix(int charIndex) {
-        return model.text().substring(0, Math.max(0, Math.min(charIndex, model.length())));
-    }
-
     /** Whether copy/cut may export the content (password fields say no). */
     protected boolean allowClipboardCopy() {
         return true;
     }
 
     /**
-     * Advance of a display string: the <b>only</b> place the display form's extent is decided.
+     * The display form of this field's content as a shaped line: the <b>one</b> place a subclass
+     * changes what is drawn and how wide it is.
      *
-     * <p>Every horizontal coordinate in this component (caret x, selection band, the click
-     * mapping's binary search, the scroll clamp) is a difference of two of these, so a subclass
-     * that overrides this and {@link #paintDisplayText} together stays self-consistent by
-     * construction: measure and paint cannot disagree about where the n-th mark sits. It exists
-     * because {@link PasswordField}'s marks are not glyphs; see its {@code DOT_ADVANCE}.
+     * <p><b>Its index space is the model's.</b> {@link ShapedText#caretX},
+     * {@link ShapedText#hitTest} and {@link ShapedText#selection(int, int, float[]) selection} on
+     * the returned value take and return offsets into {@code text}, with no translation anywhere in
+     * this component. That is what <em>deletes</em> the prefix arithmetic the caret used to rest on
+     * rather than moving it one layer down, and it is the whole contract: an override that returns
+     * a line shaped from some other string, with its own boundaries, puts the caret on a neighbour
+     * of the character it edits and a click one mark away from the pointer. An override that
+     * substitutes marks keeps {@code text} as the returned value's {@link ShapedText#text()} and
+     * changes only the geometry — {@link ShapedText#uniform} builds exactly that, from one
+     * multiplication, with no glyphs and without the content reaching a shaper at all.
      *
-     * <p>The {@code display} argument is always a value returned by {@link #displayText()} or
-     * {@link #displayPrefix(int)}; the preedit is never routed through here (a composition is
-     * never masked, and IME is off in the one subclass that masks).
+     * <p>{@code font} is the font this line must be shaped for, and it is half the key the held
+     * value is refreshed against, so an override that shapes in some <em>other</em> font makes that
+     * value lie about when it is stale. There is deliberately no {@link SizeTokens} parameter: the
+     * font is the only thing in that row a display line can legitimately depend on, and two ways to
+     * reach it is one too many.
+     *
+     * <p>An override whose display form depends on its own state — a reveal toggle — must call
+     * {@link #invalidateDisplayLine()} when that state changes: the key is text, font and ruler
+     * epoch, and it cannot see a field it does not know about.
+     *
+     * @param text the model's text, which is the index space of the result
+     * @param font the font the line is drawn in
+     * @return the shaped display line; never null
      */
-    protected float displayWidth(String display, SizeTokens t) {
-        return textRuler().measure(display, t.body()).width();
+    protected ShapedText shapeDisplay(String text, Font font) {
+        return textRuler().shape(text, font);
     }
 
     /**
-     * Draws a display string with its left edge at {@code x}, the paint-side twin of
-     * {@link #displayWidth}. {@code metrics} is passed rather than only the baseline so an
-     * override can place ink against the same band the caret and the selection fill use: the ink
-     * box starts at {@code baseline - metrics.ascent()} and is {@code metrics.height()} tall.
+     * Draws a display line with its left edge at {@code x}: the paint-side twin of
+     * {@link #shapeDisplay}. {@code metrics} is passed rather than only the baseline so an override
+     * can place ink against the same band the caret and the selection fill use: the ink box starts
+     * at {@code baseline - metrics.ascent()} and is {@code metrics.height()} tall.
+     *
+     * @param canvas   where to draw
+     * @param display  the shaped display line, as {@link #shapeDisplay} produced it
+     * @param x        left edge of the line, in this widget's coordinates
+     * @param baseline the text baseline, in this widget's coordinates
+     * @param metrics  the line's vertical band
+     * @param t        the size row resolved for this pass
+     * @param ink      the colour to draw in
      */
-    protected void paintDisplayText(Canvas canvas, String display, float x, float baseline,
+    protected void paintDisplayText(Canvas canvas, ShapedText display, float x, float baseline,
                                     TextMetrics metrics, SizeTokens t, Color ink) {
-        canvas.drawText(display, x, baseline, t.body(), ink);
+        // TRAP: a display line carries its own CONTENT as text() -- it has to, because the model's
+        // indices have to be its indices -- so a subclass that substitutes marks for a secret hands
+        // this method the secret with instructions not to typeset it. This is the only call in the
+        // component that gives a display line to the canvas, and that is the whole of the
+        // guarantee: an override that paints its own marks and does not delegate here cannot leak.
+        canvas.drawText(display, x, baseline, ink);
+    }
+
+    /**
+     * The display line, re-shaped only when one of its inputs actually changed.
+     *
+     * <p>Keyed on {@link TextEditModel#textVersion()} and <b>not</b> through
+     * {@link ShapedText#matches}, which is the idiom for a widget that holds a {@code String}:
+     * {@code model.text()} builds a fresh {@code String} on every call, so {@code matches} would
+     * miss its identity fast path and pay a full character scan on every paint, every blink and
+     * every frame of a drag. The version is the model's own answer to "did the text change", it is
+     * one comparison, and a caret move does not bump it. The other two parts of staleness are the
+     * ones {@code matches} would have tested anyway: the {@link Font} (a value, so a control-size
+     * step or a theme change is caught here with no extra machinery) and the ruler's
+     * {@linkplain TextRuler#epoch() epoch}, which covers every input this widget cannot see.
+     */
+    private ShapedText displayLine(SizeTokens t) {
+        Font f = t.body();
+        TextRuler ruler = textRuler();
+        long version = model.textVersion();
+        if (display == null || displayVersion != version || !f.equals(displayFont)
+                || displayEpoch != ruler.epoch()) {
+            display = shapeDisplay(model.text(), f);
+            displayVersion = version;
+            displayFont = f;
+            displayEpoch = ruler.epoch();
+        }
+        return display;
+    }
+
+    /** Entry-point form: resolves the step once for callers that have no tokens in hand. */
+    private ShapedText displayLine() {
+        return displayLine(Theme.current().tokensFor(this));
+    }
+
+    /**
+     * {@link ShapedText#selection(int, int, float[])} into {@link #spans}, grown to the exact
+     * bound the value states. The buffer form and not the list: a selection drag repaints at frame
+     * rate, and the list form puts a list and a record per box on the floor each time. The sizing
+     * lives here rather than beside the held line because the call throws on a short buffer, and a
+     * guarantee written one screen away from the call it guards is one an edit can separate.
+     *
+     * @return how many boxes were written; box {@code i} is {@code spans[2i] .. spans[2i + 1]}
+     */
+    private int fillSpans(ShapedText line, int from, int to) {
+        int need = 2 * line.runs().size();
+        if (spans.length < need) {
+            spans = new float[need];
+        }
+        return line.selection(from, to, spans);
+    }
+
+    /**
+     * Drops the held display line, so the next paint rebuilds it through {@link #shapeDisplay}.
+     *
+     * <p>For a subclass whose display form depends on state of its own: the held value is refreshed
+     * against the text, the font and the ruler's epoch, and none of those changes when a reveal
+     * toggle does.
+     */
+    protected final void invalidateDisplayLine() {
+        display = null;
+    }
+
+    /**
+     * The composed line: the committed text with the IME's preedit spliced in at the caret, shaped
+     * <b>once</b>.
+     *
+     * <p>Once, because three measurements of three pieces are three wrong numbers under a shaper.
+     * Arabic and Indic join across exactly the seams the splice cuts, so the preedit's width inside
+     * this line is not its width measured alone, and the committed tail does not begin where the
+     * preedit's own advance ends. One shaping is the only form that is right, and the multi-box
+     * {@link ShapedText#selection(int, int) selection} turns out to be precisely the primitive the
+     * underline and the converting block's highlight need — asked of a sub-range of the same
+     * shaping, so neither can drift from the run it sits in.
+     *
+     * <p>Keyed on the five things it is built from, and <b>not</b> through
+     * {@link ShapedText#matches}, for the same reason {@link #displayLine} is not: this value is
+     * derived from the model, so testing it by content means splicing the composed string on every
+     * call merely to discover it is unchanged &mdash; and the callers are the scroll clamp,
+     * {@link #caretRect()} and the paint, which between them run on every blink of a composing
+     * field. The key answers the question without building anything.
+     *
+     * <p>The preedit is compared by <b>identity</b>: this widget is the only writer of that field
+     * and it writes the {@code String} the event carried, so a hit needs the very same object and
+     * therefore the very same characters. It can only rebuild more often than strictly necessary,
+     * which is the cheap direction to be wrong in.
+     */
+    private ShapedText composedLine(SizeTokens t) {
+        Font f = t.body();
+        TextRuler ruler = textRuler();
+        long version = model.textVersion();
+        long epoch = ruler.epoch();
+        int cursor = model.cursor();
+        if (composed == null || composedVersion != version || composedCursor != cursor
+                || composedPreedit != preedit || !f.equals(composedFont) || composedEpoch != epoch) {
+            String committed = model.text();
+            int c = Math.min(cursor, committed.length());
+            composed = ruler.shape(
+                    committed.substring(0, c) + preedit + committed.substring(c), f);
+            composedVersion = version;
+            composedCursor = cursor;
+            composedPreedit = preedit;
+            composedFont = f;
+            composedEpoch = epoch;
+        }
+        return composed;
+    }
+
+    /** Where the caret sits on the composed line: inside the preedit, at its own caret. */
+    private ShapedText.Position composedCaret() {
+        // UPSTREAM is not arbitrary: the preedit caret TRAILS the text just typed, so the next
+        // character of the same script appears where the caret is drawn.
+        return new ShapedText.Position(
+                Math.min(model.cursor(), model.length()) + Math.min(preeditCaret, preedit.length()),
+                ShapedText.Affinity.UPSTREAM);
     }
 
     // ----------------------------------------------------------- measurement
@@ -298,49 +458,25 @@ public class TextField extends Widget {
         return Math.max(0, width() - leadingInset(t) - trailingInset(t));
     }
 
-    private float prefixWidth(int charIndex, SizeTokens t) {
-        return displayWidth(displayPrefix(charIndex), t);
-    }
-
-    /** Model char index whose boundary is closest to display-x {@code px}. */
-    private int indexAt(float px, SizeTokens t) {
-        String text = model.text();
-        if (text.isEmpty()) {
-            return 0;
-        }
-        // Code-point boundaries (cheap, no measuring), then a binary search over
-        // the monotone prefix widths: O(log n) prefix measures instead of one
-        // per code point: drag-selection stays smooth on long content.
-        int[] bounds = codePointBoundaries(text);
-        int count = bounds.length - 1; // boundaries 0..count
-        int lo = 0;
-        int hi = count;
-        while (lo < hi) {
-            int mid = (lo + hi) >>> 1;
-            float widthAt = prefixWidth(bounds[mid], t);
-            float widthNext = prefixWidth(bounds[mid + 1], t);
-            if (px < (widthAt + widthNext) / 2) {
-                hi = mid;
-            } else {
-                lo = mid + 1;
-            }
-        }
-        // Never drop the caret inside a combining run / ZWJ emoji.
-        return model.alignToGrapheme(bounds[lo]);
-    }
-
-    /** All code-point boundaries of {@code text}: [0, …, text.length()]. */
-    static int[] codePointBoundaries(String text) {
-        int count = text.codePointCount(0, text.length());
-        int[] bounds = new int[count + 1];
-        int index = 0;
-        for (int i = 0; i <= count; i++) {
-            bounds[i] = index;
-            if (i < count) {
-                index = text.offsetByCodePoints(index, 1);
-            }
-        }
-        return bounds;
+    /**
+     * The caret position a click at display-x {@code px} asks for, side included.
+     *
+     * <p>Side included because an index alone is a caret that jumps the next time it moves: on a
+     * direction boundary one index is two points on the line, and which of them the click meant is
+     * the thing {@link ShapedText#hitTest} resolved and the thing this hands to the model. It also
+     * never has to snap the answer to a grapheme boundary, the way a search over code-point offsets
+     * did: caret stops are the shaper's own cluster boundaries, and there is nothing between them
+     * to land in.
+     */
+    private ShapedText.Position positionAt(float px, SizeTokens t) {
+        ShapedText line = displayLine(t);
+        // Empty space to the right of the line means the LOGICAL end of the line. On a line that
+        // ends in the direction opposite the paragraph's, the nearest cluster to the right edge is
+        // not the last character, so hitTest's clamp -- which is what a drag past the end wants --
+        // is wrong exactly here.
+        return px > line.metrics().width()
+                ? new ShapedText.Position(model.length(), ShapedText.Affinity.UPSTREAM)
+                : line.hitTest(px);
     }
 
     /** Entry-point form: resolves the step once for callers that have no tokens in hand. */
@@ -366,23 +502,19 @@ public class TextField extends Widget {
 
     /** Keeps scrollX within [0, overflow] against the CURRENT width. */
     private void clampScrollX(SizeTokens t) {
-        float content = displayWidth(displayText(), t) + preeditWidth(t);
+        // The composed line's width already includes the preedit, and includes it correctly: a
+        // separately measured preedit added to a separately measured committed line counts the
+        // splice's own joining twice, once wrongly at each seam.
+        float content = (preedit.isEmpty() ? displayLine(t) : composedLine(t)).metrics().width();
         float overflow = Math.max(0, content - innerWidth(t));
         scrollX = Math.max(0, Math.min(scrollX, overflow));
     }
 
-    private float preeditWidth(SizeTokens t) {
-        return preedit.isEmpty() ? 0 : textRuler().measure(preedit, t.body()).width();
-    }
-
-    /** Display-x of the caret: committed text up to the cursor, plus the preedit up to its own caret. */
+    /** Display-x of the caret, on whichever line is live: the composed one while composing. */
     private float caretDisplayX(SizeTokens t) {
-        float x = prefixWidth(model.cursor(), t);
-        if (!preedit.isEmpty()) {
-            int c = Math.min(preeditCaret, preedit.length());
-            x += textRuler().measure(preedit.substring(0, c), t.body()).width();
-        }
-        return x;
+        return preedit.isEmpty()
+                ? displayLine(t).caretX(model.caret())
+                : composedLine(t).caretX(composedCaret());
     }
 
     // ---------------------------------------------------------------- paint
@@ -443,10 +575,11 @@ public class TextField extends Widget {
         float baseline = inkTop + metrics.ascent();
         float originX = left - scrollX;
 
-        String shown = displayText();
         boolean composing = !preedit.isEmpty();
         String hint = placeholder.get();
-        if (shown.isEmpty() && !composing && !hint.isEmpty()) {
+        // The model's own emptiness, not the display line's: a substituted display form has the
+        // model's index space, so the two agree, and asking the model never touches the content.
+        if (model.length() == 0 && !composing && !hint.isEmpty()) {
             // Keep the hint visible even while focused (only the caret joins it).
             canvas.drawText(hint, left, baseline, f, theme.textMuted);
             if (isFocused() && cursorVisible) {
@@ -455,19 +588,28 @@ public class TextField extends Widget {
                         Strokes.CARET, theme.text);
             }
         } else if (composing) {
-            paintComposing(canvas, theme, t, f, metrics, originX, inkTop, baseline);
+            paintComposing(canvas, theme, t, metrics, originX, inkTop, baseline);
         } else {
+            ShapedText line = displayLine(t);
             if (model.hasSelection() && isFocused()) {
-                float x0 = originX + prefixWidth(model.selectionStart(), t);
-                float x1 = originX + prefixWidth(model.selectionEnd(), t);
-                canvas.fillRect(x0, inkTop - Strokes.INK_BLEED, x1 - x0,
-                        metrics.height() + 2 * Strokes.INK_BLEED,
-                        theme.primary.withAlpha(0.35f));
+                // N boxes, never one. A range contiguous in the string stops being contiguous on
+                // the line the moment it crosses a direction boundary, and the smallest rectangle
+                // covering both halves would highlight text the user did not select.
+                int boxes = fillSpans(line, model.selectionStart(), model.selectionEnd());
+                for (int i = 0; i < boxes; i++) {
+                    float x0 = spans[i * 2];
+                    canvas.fillRect(originX + x0, inkTop - Strokes.INK_BLEED, spans[i * 2 + 1] - x0,
+                            metrics.height() + 2 * Strokes.INK_BLEED,
+                            theme.primary.withAlpha(0.35f));
+                }
             }
             Color ink = isEnabled() ? theme.text : theme.disabledText;
-            paintDisplayText(canvas, shown, originX, baseline, metrics, t, ink);
+            paintDisplayText(canvas, line, originX, baseline, metrics, t, ink);
             if (isFocused() && cursorVisible && !model.hasSelection()) {
-                float cx = originX + prefixWidth(model.cursor(), t);
+                // ONE caret, not the two caretAt() offers: the model stores the side, so there is
+                // no ambiguity left to show -- and caretRect() describes one column, which is what
+                // a blink damages, so a second mark elsewhere on the line would not be repainted.
+                float cx = originX + line.caretX(model.caret());
                 canvas.drawLine(cx, inkTop - Strokes.INK_BLEED,
                         cx, inkTop + metrics.height() + Strokes.INK_BLEED,
                         Strokes.CARET, theme.text);
@@ -496,46 +638,54 @@ public class TextField extends Widget {
     }
 
     /**
-     * Draws the committed prefix, then the underlined preedit (with the block
-     * being converted highlighted), then the committed suffix, with the caret
-     * placed inside the composition.
+     * Draws the composition: the committed text with the preedit spliced in at the caret, as
+     * <b>one</b> shaped line, with the preedit underlined, the block being converted highlighted,
+     * and the caret placed inside it.
+     *
+     * <p>One line, and the pieces are never measured apart. Under a shaper the committed prefix,
+     * the preedit and the committed suffix join across the two seams the splice cuts — Arabic and
+     * Indic do it, and the joining changes the width of every piece — so measuring the three and
+     * adding them up is three wrong numbers that also disagree with what is drawn. The underline
+     * and the converting block are sub-ranges of the same shaping, asked for with the same
+     * multi-box {@code selection} the resting selection band uses, so neither can drift from the
+     * text it marks.
      */
-    private void paintComposing(Canvas canvas, Theme theme, SizeTokens t, Font f,
-                                TextMetrics metrics, float originX, float inkTop, float baseline) {
-        String committed = displayText();
-        int c = Math.min(model.cursor(), committed.length());
+    private void paintComposing(Canvas canvas, Theme theme, SizeTokens t, TextMetrics metrics,
+                                float originX, float inkTop, float baseline) {
+        ShapedText line = composedLine(t);
+        int c = Math.min(model.cursor(), model.length());
         Color ink = isEnabled() ? theme.text : theme.disabledText;
         float bandTop = inkTop - Strokes.INK_BLEED;
         float bandH = metrics.height() + 2 * Strokes.INK_BLEED;
         float underlineY = inkTop + metrics.height();
+        // Asked once and read twice, and only when there IS a converting block: an empty range
+        // still allocates a scratch box array inside selection(), on a path that runs per blink.
+        boolean converting = preeditFocusEnd > preeditFocusStart;
+        List<ShapedText.Span> focusBoxes = converting
+                ? line.selection(c + preeditFocusStart, c + preeditFocusEnd)
+                : List.of();
 
-        // The committed halves go through the display hooks (the preedit itself never does:
-        // a composition is never masked). Unreachable while masked (the one subclass that
-        // masks refuses text input), but routing it keeps one answer for "how wide is this".
-        String prefix = committed.substring(0, c);
-        paintDisplayText(canvas, prefix, originX, baseline, metrics, t, ink);
-        float preStart = originX + displayWidth(prefix, t);
-
-        float focus0 = preStart + textRuler().measure(preedit.substring(0, preeditFocusStart), f).width();
-        float focus1 = preStart + textRuler().measure(preedit.substring(0, preeditFocusEnd), f).width();
-        if (preeditFocusEnd > preeditFocusStart) {
-            canvas.fillRect(focus0, bandTop, focus1 - focus0, bandH, theme.primary.withAlpha(0.18f));
+        // Highlight first, so it sits behind the ink rather than over it.
+        for (ShapedText.Span s : focusBoxes) {
+            canvas.fillRect(originX + s.x0(), bandTop, s.width(), bandH,
+                    theme.primary.withAlpha(0.18f));
         }
-        canvas.drawText(preedit, preStart, baseline, f, ink);
-        float preW = textRuler().measure(preedit, f).width();
+        // NOT through paintDisplayText, deliberately: that seam exists for a subclass that
+        // substitutes its own marks, and there is no such thing as a masked composition -- the one
+        // subclass that masks refuses text input precisely so a secret never reaches an IME. Cutting
+        // this line back into halves to route them through the seam would undo the single shaping.
+        canvas.drawText(line, originX, baseline, ink);
+        for (ShapedText.Span s : line.selection(c, c + preedit.length())) {
+            canvas.drawLine(originX + s.x0(), underlineY, originX + s.x1(), underlineY,
+                    Strokes.IME_UNDERLINE, theme.textMuted);
+        }
         // The 1-vs-2 contrast is what says "this block is converting"; scaling either erases it.
-        canvas.drawLine(preStart, underlineY, preStart + preW, underlineY,
-                Strokes.IME_UNDERLINE, theme.textMuted);
-        if (preeditFocusEnd > preeditFocusStart) {
-            canvas.drawLine(focus0, underlineY, focus1, underlineY,
+        for (ShapedText.Span s : focusBoxes) {
+            canvas.drawLine(originX + s.x0(), underlineY, originX + s.x1(), underlineY,
                     Strokes.IME_UNDERLINE_ACTIVE, theme.primary);
         }
-
-        paintDisplayText(canvas, committed.substring(c), preStart + preW, baseline, metrics, t, ink);
-
         if (isFocused() && cursorVisible) {
-            int cc = Math.min(preeditCaret, preedit.length());
-            float cx = preStart + textRuler().measure(preedit.substring(0, cc), f).width();
+            float cx = originX + caretDisplayX(t); // the same x caretRect() reports
             canvas.drawLine(cx, bandTop, cx, bandTop + bandH, Strokes.CARET, theme.text);
         }
     }
@@ -589,7 +739,8 @@ public class TextField extends Widget {
                         }
                     } else {
                         float px = lx - leadingInset(t) + scrollX;
-                        model.setCursor(indexAt(px, t), (event.modifiers() & Keys.MOD_SHIFT) != 0);
+                        model.setCaret(positionAt(px, t),
+                                (event.modifiers() & Keys.MOD_SHIFT) != 0);
                         resetBlink();
                     }
                     event.consume();
@@ -598,7 +749,7 @@ public class TextField extends Widget {
             case DRAG -> {
                 if (!overTrailing) {
                     float px = lx - leadingInset(t) + scrollX;
-                    model.setCursor(indexAt(px, t), true);
+                    model.setCaret(positionAt(px, t), true);
                     ensureCursorVisible(t);
                     resetBlink();
                 }
@@ -634,13 +785,21 @@ public class TextField extends Widget {
                 || (!altGr && (mods & Keys.MOD_CONTROL) != 0);
         boolean handled = true;
         switch (event.key()) {
+            // Left and Right are VISUAL: the keys are named for a direction on the screen, so they
+            // step one cluster left or right ON THE LINE whatever direction the text under them
+            // runs. Home, End and the word jumps stay LOGICAL, and in right-to-left text that means
+            // Left and Ctrl+Left move the caret in opposite directions -- which is what Windows and
+            // GTK do, and is forced anyway: Shift+Ctrl+Left has to produce a selection, a selection
+            // is one contiguous range of the string, and the range from the caret to the visual
+            // left edge of a mixed line is not one. The boolean result is ignored here: a
+            // single-line field has no other line for the caret to enter.
             case Keys.LEFT -> {
                 if (word) {
                     model.moveWordLeft(shift);
                 } else if (lineEdge) {
                     model.moveHome(shift);
                 } else {
-                    model.moveLeft(shift);
+                    model.moveVisualLeft(displayLine(), 0, shift);
                 }
             }
             case Keys.RIGHT -> {
@@ -649,7 +808,7 @@ public class TextField extends Widget {
                 } else if (lineEdge) {
                     model.moveEnd(shift);
                 } else {
-                    model.moveRight(shift);
+                    model.moveVisualRight(displayLine(), 0, shift);
                 }
             }
             case Keys.HOME -> model.moveHome(shift);
@@ -953,6 +1112,7 @@ public class TextField extends Widget {
         preeditCaret = 0;
         preeditFocusStart = 0;
         preeditFocusEnd = 0;
+        composed = null; // and the shaping of it: nothing may hold a dead composition's line
         invalidate();
     }
 }

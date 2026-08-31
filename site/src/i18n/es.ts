@@ -122,9 +122,9 @@ export const es: Catalog = {
   "home.limits.heading": "Lo que Limn no hace",
   "home.limits.body":
     "Todo kit renuncia a algo. Estas son las renuncias, dichas de entrada, porque descubrirlas en la tercera semana es peor que leerlas ahora.",
-  "home.limits.scripts.heading": "Sin composición de escrituras complejas",
+  "home.limits.scripts.heading": "El texto se compone; la disposición no se refleja",
   "home.limits.scripts.body":
-    "El árabe, el hebreo y las escrituras índicas requieren unión contextual y reordenación que la capa de texto no implementa, y no existe dirección de derecha a izquierda. Las traducciones a esos idiomas deliberadamente no se publican, en lugar de dibujarse mal.",
+    "El árabe, el hebreo, el devanagari y el tailandés se unen, se reordenan y colocan sus marcas allí donde se dibuje texto: dentro de Label, TextField y TextArea, y en cada botón, pestaña, elemento de menú y texto de sugerencia a su alrededor; los paquetes ar y he sí se publican. Lo que un idioma de derecha a izquierda no obtiene es la disposición: los márgenes, la alineación, el lado en el que va una barra de desplazamiento, el lado por el que se abre un menú emergente y hacia dónde lleva una tecla de flecha cuando el foco no está en un campo de texto — todo va de izquierda a derecha, sea cual sea el idioma.",
   "home.limits.a11y.heading": "Sin puente para lectores de pantalla",
   "home.limits.a11y.body":
     "La navegación con teclado y los anillos de foco están completos, pero nada se expone a las API de accesibilidad de la plataforma. Si un lector de pantalla tiene que funcionar, este todavía no es el kit para esa aplicación.",

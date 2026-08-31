@@ -207,10 +207,12 @@ Same macOS flag as above. What it saves is plain data, which your application lo
 Every toolkit trades something. These are the trades, said early, because finding them in week
 three is worse than reading them now.
 
-- **No shaping for complex scripts.** Arabic, Hebrew and the Indic scripts need contextual joining
-  and reordering the text stack does not implement, and there is no right-to-left layout
-  direction. Translations for those languages are deliberately not shipped rather than drawn
-  incorrectly.
+- **Complex scripts are drawn everywhere, but nothing is mirrored.** Arabic, Hebrew, Devanagari
+  and Thai join, reorder and place their marks wherever text is drawn — inside `Label`,
+  `TextField` and `TextArea`, and on every button, tab, menu item and placeholder around them —
+  and the `ar` and `he` bundles ship. What a right-to-left language does not get is the layout:
+  insets, alignment, which side a scrollbar sits on, where a popup opens and which way an arrow
+  key moves outside a text field all read left to right whatever the language.
 - **No screen reader bridge.** Keyboard navigation and focus rings are complete, but nothing is
   exposed to the platform's accessibility APIs.
 - **Before 1.0.** The API still moves between releases, and OpenGL is the only rendering path.

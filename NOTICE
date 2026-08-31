@@ -33,6 +33,14 @@ scripts/fetch-fonts.sh)
   SIL Open Font License 1.1: full text in
   limn-backend-lwjgl/src/main/resources/limn/backend/lwjgl/fonts/NotoColorEmoji-LICENSE.txt
 
+Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari, Noto Sans Thai
+(optional script fallbacks; committed here, refreshed by scripts/fetch-fonts.sh)
+  Copyright 2022 The Noto Project Authors (https://github.com/notofonts/)
+  SIL Open Font License 1.1: full text in
+  limn-backend-lwjgl/src/main/resources/limn/backend/lwjgl/fonts/NotoSansScripts-LICENSE.txt
+  One licence file for the four, because upstream publishes one for the whole
+  fonts/ tree they come from rather than one per family.
+
 Mosaic display faces (limn-demo/fonts, the demo only; no library jar carries them)
   Each under the SIL Open Font License 1.1, with the full text beside it in
   limn-demo/fonts/<name>-LICENSE.txt. Every file is pinned by upstream commit and

@@ -27,7 +27,11 @@ import static org.lwjgl.opengl.GL33C.glTexSubImage2D;
 /**
  * Dynamic glyph atlas: single-channel (GL_R8) texture pages filled by a
  * {@link ShelfPacker}, with glyphs cached by (face, quantized physical pixel
- * size, code point). The physical-size key is the HiDPI cornerstone: 16pt at
+ * size, glyph index). Keying on the glyph rather than on the character is what
+ * lets a shaper address this cache at all, and it collapses the characters a
+ * face draws with one glyph into one entry instead of one each — strictly
+ * fewer entries and fewer rasterizations, for identical pixels.
+ * The physical-size key is the HiDPI cornerstone: 16pt at
  * scale 1.5 caches a 24px rasterization, distinct from 16px at 1.0; bitmaps
  * are NEVER scaled. Sampling is GL_LINEAR over zero-initialized pages: on the
  * snapped 1:1 path quads align to texel centers (bitwise-identical to
@@ -97,32 +101,58 @@ final class GlyphAtlas implements AutoCloseable {
     }
 
     /**
-     * Key layout sized to the actual domains: codepoint ≤ U+10FFFF (21 bits),
-     * quantized size 16 bits, faceId the remaining 27 bits. System-font
-     * loading can easily pass 256 faces, which an 8-bit face field would
-     * silently collide back onto face 0 (wrong glyphs, not a crash).
+     * Key layout sized by the fields whose domains actually bind: quantized size
+     * 16 bits, faceId the next 27, glyph index the low 21. System-font loading
+     * can easily pass 256 faces, which an 8-bit face field would silently
+     * collide back onto face 0 (wrong glyphs, not a crash).
+     *
+     * <p>A glyph index needs only 16 of those 21 bits: {@code maxp.numGlyphs} is
+     * a uint16, and the broadest face here sits at exactly 65535. The field is 21
+     * because 21 is what was <em>left over</em> — the two fields above it are
+     * already no wider than they need to be — not because 21 bits were budgeted
+     * for it. The five spare bits are slack, not a reserved namespace, and
+     * narrowing the field to reclaim them would re-cut every shift in the
+     * expression to free bits that no field wants.
+     *
+     * <p>{@code glyphIndex} is <b>face-relative</b> and must be an index in
+     * {@code faceId}'s own face. Pairing one face's id with another's index is
+     * the same failure class as the face-field collision above: a plausible
+     * wrong glyph, drawn without complaint.
      */
-    static long glyphKey(int faceId, int quantizedSize, int codepoint) {
+    static long glyphKey(int faceId, int quantizedSize, int glyphIndex) {
         return ((long) faceId << 37) | ((long) (quantizedSize & 0xFFFF) << 21)
-                | (codepoint & 0x1FFFFFL);
+                // Not redundant, however sure "glyph indices are 16 bits" sounds.
+                // A code point arrived bounded by the JDK; an index comes out of
+                // the font's own cmap, and a malformed format-12 subtable computes
+                // startGlyphID + delta as an unclamped uint32. This mask is the
+                // only thing keeping such a value inside its field, and past it it
+                // aliases onto another glyph of the same face. (stb rejects an
+                // index past numGlyphs when it rasterizes, so the damage is a wrong
+                // cache hit, not an out-of-bounds read.)
+                | (glyphIndex & 0x1FFFFFL);
     }
 
     /**
-     * The cached glyph, rasterizing and uploading it on first use. Requires
-     * this window's GL context to be current, so it runs on the render thread
-     * and has no asynchronous form: a miss reads no file and loads no library;
-     * it rasterizes one glyph from a face already in memory and uploads it with
-     * {@code glTexSubImage2D}, and the upload could not leave this thread
-     * anyway. The face behind it is the loader, and it is warmed elsewhere.
+     * The cached glyph, rasterizing and uploading it on first use.
+     * {@code glyphIndex} must have been resolved through {@code font} itself and
+     * {@code faceId} must be that font's id: this method takes all three
+     * separately and can check none of them against each other.
+     *
+     * <p>Requires this window's GL context to be current, so it runs on the
+     * render thread and has no asynchronous form: a miss reads no file and loads
+     * no library; it rasterizes one glyph from a face already in memory and
+     * uploads it with {@code glTexSubImage2D}, and the upload could not leave
+     * this thread anyway. The face behind it is the loader, and it is warmed
+     * elsewhere.
      */
-    Glyph glyph(StbFont font, int faceId, int quantizedSize, int codepoint) {
-        long key = glyphKey(faceId, quantizedSize, codepoint);
+    Glyph glyph(StbFont font, int faceId, int quantizedSize, int glyphIndex) {
+        long key = glyphKey(faceId, quantizedSize, glyphIndex);
         Glyph cached = glyphs.get(key);
         if (cached != null) {
             touchPage(cached.texture());
             return cached;
         }
-        Glyph fresh = rasterizeAndUpload(font, dequantizeSize(quantizedSize), codepoint);
+        Glyph fresh = rasterizeAndUpload(font, dequantizeSize(quantizedSize), glyphIndex);
         glyphs.put(key, fresh);
         touchPage(fresh.texture());
         return fresh;
@@ -199,8 +229,8 @@ final class GlyphAtlas implements AutoCloseable {
         return new limn.backend.RenderStats(pages.size(), (long) pages.size() * PAGE_SIZE * PAGE_SIZE);
     }
 
-    private Glyph rasterizeAndUpload(StbFont font, float deviceSize, int codepoint) {
-        StbFont.RasterizedGlyph raster = font.rasterize(codepoint, deviceSize);
+    private Glyph rasterizeAndUpload(StbFont font, float deviceSize, int glyphIndex) {
+        StbFont.RasterizedGlyph raster = font.rasterizeGlyph(glyphIndex, deviceSize);
         if (raster.bitmap() == null) {
             return new Glyph(0, 0, 0, 0, 0, 0, 0, 0, 0, raster.advance());
         }
@@ -210,9 +240,12 @@ final class GlyphAtlas implements AutoCloseable {
             if (w + PADDING > PAGE_SIZE || h + PADDING > PAGE_SIZE) {
                 // Degrade gracefully: absurd sizes skip the bitmap but keep
                 // advancing, instead of aborting the frame mid-draw.
+                // Not "U+..." any more, and the face is not decoration: a glyph
+                // index printed as a code point names an unrelated character, and
+                // an index without its face names nothing at all.
                 LOG.log(System.Logger.Level.WARNING,
-                        "glyph U+{0} at {1}px exceeds the {2}px atlas page; skipped",
-                        Integer.toHexString(codepoint), deviceSize, PAGE_SIZE);
+                        "glyph {0} of {1} at {2}px exceeds the {3}px atlas page; skipped",
+                        glyphIndex, font.name(), deviceSize, PAGE_SIZE);
                 return new Glyph(0, 0, 0, 0, 0, 0, 0, 0, 0, raster.advance());
             }
             Page page = null;
@@ -338,7 +371,7 @@ final class GlyphAtlas implements AutoCloseable {
             return true;
         }
 
-        /** Bit-mix so the packed (face|size|codepoint) key spreads across buckets. */
+        /** Bit-mix so the packed (face|size|glyph) key spreads across buckets. */
         private static long mix(long key) {
             key ^= key >>> 33;
             key *= 0xff51afd7ed558ccdL;

@@ -15,12 +15,12 @@ import java.nio.file.Path;
 
 import static org.lwjgl.stb.STBTruetype.stbtt_FindGlyphIndex;
 import static org.lwjgl.stb.STBTruetype.stbtt_GetFontOffsetForIndex;
-import static org.lwjgl.stb.STBTruetype.stbtt_GetCodepointBitmapBox;
-import static org.lwjgl.stb.STBTruetype.stbtt_GetCodepointHMetrics;
-import static org.lwjgl.stb.STBTruetype.stbtt_GetCodepointKernAdvance;
+import static org.lwjgl.stb.STBTruetype.stbtt_GetGlyphBitmapBox;
+import static org.lwjgl.stb.STBTruetype.stbtt_GetGlyphHMetrics;
+import static org.lwjgl.stb.STBTruetype.stbtt_GetGlyphKernAdvance;
 import static org.lwjgl.stb.STBTruetype.stbtt_GetFontVMetrics;
 import static org.lwjgl.stb.STBTruetype.stbtt_InitFont;
-import static org.lwjgl.stb.STBTruetype.stbtt_MakeCodepointBitmap;
+import static org.lwjgl.stb.STBTruetype.stbtt_MakeGlyphBitmap;
 import static org.lwjgl.stb.STBTruetype.stbtt_ScaleForMappingEmToPixels;
 
 /**
@@ -30,9 +30,22 @@ import static org.lwjgl.stb.STBTruetype.stbtt_ScaleForMappingEmToPixels;
  * freed in {@link #close()}.
  *
  * <p>Metric/advance values are unquantized floats in the requested pixel
- * size, so measurements scale linearly and are HiDPI-independent. Kerning
- * uses the legacy 'kern' table only (stb_truetype does not read GPOS),
- * documented v1 behavior.
+ * size, so measurements scale linearly and are HiDPI-independent.
+ *
+ * <p><b>Two numbering spaces meet here.</b> A <em>code point</em> is a Unicode
+ * character and means the same thing in every face; a <em>glyph index</em> is
+ * this face's own row number and means nothing in any other. {@link #glyphIndex}
+ * is the only crossing between them. Coverage ({@link #hasGlyph}) and the
+ * measure entry points take code points because face selection is a question
+ * about a character; metrics, kerning and rasterization take glyph indices,
+ * because that is what a shaper will hand them. Index {@code 0} is
+ * {@code .notdef} — a real, drawable glyph with a real advance, not an error
+ * code and not an absent value.
+ *
+ * <p>Not thread-safe: every metric, coverage and raster query fills a per-face
+ * cache, so a face is confined to whichever thread owns it (the UI/render
+ * thread once it is registered). Parsing a face is thread-free; using one is
+ * not.
  */
 final class StbFont implements AutoCloseable {
 
@@ -44,15 +57,32 @@ final class StbFont implements AutoCloseable {
     private final String name;
     private final ByteBuffer data;
     private final STBTTFontinfo info;
+    // Which face of a .ttc these bytes were initialized as. Kept, not discarded with the offset it
+    // resolved to, because the shaper needs the INDEX: stb addresses a collection's faces by byte
+    // offset and HarfBuzz addresses them by index, so the number has to survive the conversion or
+    // the two open different faces of the same file.
+    private final int faceIndex;
     private final int ascentUnits;
     private final int descentUnits;
     private final int lineGapUnits;
 
     // Unscaled metric caches (font units are size-independent): text layout and
     // drawText used to pay 1-2 JNI crossings per glyph pair per frame just for
-    // advances/kerning that never change. Key 0 stays free as the empty slot:
-    // code point 0 is an ISO control and never reaches these.
+    // advances/kerning that never change. The cmap walk joins them because it is
+    // now the first step of every one of those queries, and of every coverage
+    // probe the fallback chain makes.
+    //
+    // EVERY key here is biased by +1, and none of the three may stop being. Key 0
+    // is LongIntMap's empty slot and reads back as a hit carrying 0 rather than as
+    // a miss (see there), and all three of these are keyed by values that reach 0
+    // legitimately: glyph index 0 is .notdef, the index of every character the
+    // face lacks. Unbiased, an uncovered character would take its advance from
+    // that fabricated 0 and measure as zero-width, on the single hottest key the
+    // fallback path has. (The old excuse was "code point 0 is an ISO control and
+    // never arrives" — untrue of glyph 0 in any face, and this face maps code
+    // point 0 to a real glyph anyway.)
     private static final int MISSING = Integer.MIN_VALUE;
+    private final LongIntMap glyphIndexCache = new LongIntMap();
     private final LongIntMap advanceCache = new LongIntMap();
     private final LongIntMap kernCache = new LongIntMap();
     // stbtt_ScaleForMappingEmToPixels memo: strings are drawn/measured at one
@@ -61,11 +91,19 @@ final class StbFont implements AutoCloseable {
     private float lastScale;
     private boolean closed;
 
-    private StbFont(String name, ByteBuffer data, STBTTFontinfo info,
+    // The shaper's view of this same face, built on the first run shaped WITH it and destroyed in
+    // close(). Lazy because most faces in a fallback chain are probed for coverage and never
+    // shaped, and building this parses the sfnt a second time; `shaperTried` is what keeps a face
+    // HarfBuzz refuses from re-parsing on every string.
+    private HarfBuzzShaper.Handle shaper;
+    private boolean shaperTried;
+
+    private StbFont(String name, ByteBuffer data, STBTTFontinfo info, int faceIndex,
                     int ascentUnits, int descentUnits, int lineGapUnits) {
         this.name = name;
         this.data = data;
         this.info = info;
+        this.faceIndex = faceIndex;
         this.ascentUnits = ascentUnits;
         this.descentUnits = descentUnits;
         this.lineGapUnits = lineGapUnits;
@@ -144,9 +182,10 @@ final class StbFont implements AutoCloseable {
     /** Uploads {@code bytes} to native memory and initializes face {@code index}. */
     private static StbFont fromBytes(byte[] bytes, int index, String name, String source) {
         ByteBuffer data = MemoryUtil.memAlloc(bytes.length).put(bytes).flip();
+        int face = Math.max(0, index);
         // The offset lookup is required even for face 0: in a .ttc collection
         // byte 0 holds the 'ttcf' header, not the face (plain .ttf returns 0).
-        int offset = stbtt_GetFontOffsetForIndex(data, Math.max(0, index));
+        int offset = stbtt_GetFontOffsetForIndex(data, face);
         if (offset < 0) {
             MemoryUtil.memFree(data);
             throw new IllegalStateException("no face " + index + " in " + source);
@@ -162,7 +201,8 @@ final class StbFont implements AutoCloseable {
             IntBuffer descent = stack.mallocInt(1);
             IntBuffer lineGap = stack.mallocInt(1);
             stbtt_GetFontVMetrics(info, ascent, descent, lineGap);
-            return new StbFont(name, data, info, ascent.get(0), descent.get(0), lineGap.get(0));
+            return new StbFont(name, data, info, face,
+                    ascent.get(0), descent.get(0), lineGap.get(0));
         }
     }
 
@@ -183,19 +223,25 @@ final class StbFont implements AutoCloseable {
     TextMetrics measure(String text, float sizePx) {
         float scale = scaleForSize(sizePx);
         float width = 0;
-        int previous = -1;
+        // -1, never 0: 0 is .notdef, a legitimate first glyph. Collapsing the
+        // sentinel onto it would drop the kern pair after every character the
+        // face lacks.
+        int previousGlyph = -1;
         for (int i = 0; i < text.length(); ) {
             int cp = text.codePointAt(i);
             i += Character.charCount(cp);
+            // Above the cmap, and it has to stay there: a control is a property of
+            // the character, and this face maps several of them to real glyphs.
             if (Character.isISOControl(cp)) {
-                previous = -1;
+                previousGlyph = -1;
                 continue;
             }
-            width += advanceUnits(cp) * scale;
-            if (previous >= 0) {
-                width += kernUnits(previous, cp) * scale;
+            int glyph = glyphIndex(cp);
+            width += advanceUnits(glyph) * scale;
+            if (previousGlyph >= 0) {
+                width += kernUnits(previousGlyph, glyph) * scale;
             }
-            previous = cp;
+            previousGlyph = glyph;
         }
         return new TextMetrics(width, ascentUnits * scale, -descentUnits * scale,
                 (ascentUnits - descentUnits + lineGapUnits) * scale);
@@ -212,30 +258,39 @@ final class StbFont implements AutoCloseable {
             java.util.function.IntFunction<StbFont> faceFor,
             java.util.function.IntToDoubleFunction colorAdvance) {
         float width = 0;
-        int previous = -1;
+        int previousGlyph = -1; // -1, never 0: see measure
         StbFont previousFace = null;
         for (int i = 0; i < text.length(); ) {
             int cp = text.codePointAt(i);
             i += Character.charCount(cp);
+            // Both filters ask about the CHARACTER and so must stay above the cmap.
+            // Roboto maps ZWJ to a real glyph and every CJK character to .notdef;
+            // filtering below the lookup could not tell the two apart, and would
+            // either draw a box for a joiner or swallow everything the face lacks.
             if (Character.isISOControl(cp) || isZeroWidthFormat(cp)) {
-                previous = -1;
+                previousGlyph = -1;
                 previousFace = null;
                 continue;
             }
             double colored = colorAdvance.applyAsDouble(cp);
             if (!Double.isNaN(colored)) { // a color-emoji glyph carries its own advance
                 width += colored;
-                previous = -1;
+                previousGlyph = -1;
                 previousFace = null;
                 continue;
             }
             StbFont face = faceFor.apply(cp);
+            // face.glyphIndex, never this.glyphIndex: an index is a row number in
+            // the face that issued it, so the conversion has to happen AFTER the
+            // fallback picks one. Both spellings compile and both return an int;
+            // the wrong one measures whatever glyph the primary keeps at that row.
+            int glyph = face.glyphIndex(cp);
             float scale = face.scaleForSize(sizePx);
-            width += face.advanceUnits(cp) * scale; // private, but same class across instances
-            if (previousFace == face && previous >= 0) {
-                width += face.kernUnits(previous, cp) * scale;
+            width += face.advanceUnits(glyph) * scale; // private, but same class across instances
+            if (previousFace == face && previousGlyph >= 0) {
+                width += face.kernUnits(previousGlyph, glyph) * scale;
             }
-            previous = cp;
+            previousGlyph = glyph;
             previousFace = face;
         }
         float scale = scaleForSize(sizePx);
@@ -250,18 +305,26 @@ final class StbFont implements AutoCloseable {
                 || (cp >= 0xE0020 && cp <= 0xE007F);
     }
 
-    /** Kerning adjustment between two code points at {@code sizePx} (0 without a 'kern' table). */
-    float kerning(int previousCp, int cp, float sizePx) {
-        return kernUnits(previousCp, cp) * scaleForSize(sizePx);
+    /**
+     * Kerning adjustment between two glyphs <em>of this face</em> at
+     * {@code sizePx}, 0 when the face pairs them at no adjustment. Both indices
+     * must come from {@link #glyphIndex} on this same face.
+     *
+     * <p>stb_truetype reads GPOS pair positioning as well as the legacy 'kern'
+     * table, which is what makes this useful at all on a modern face: neither
+     * bundled face ships a 'kern' table, and Roboto still kerns A/V.
+     */
+    float glyphKerning(int previousGlyph, int glyph, float sizePx) {
+        return kernUnits(previousGlyph, glyph) * scaleForSize(sizePx);
     }
 
-    /** Advance width of one code point at {@code sizePx}. */
-    float advance(int cp, float sizePx) {
-        return advanceUnits(cp) * scaleForSize(sizePx);
+    /** Advance width of one glyph of this face at {@code sizePx}. */
+    float glyphAdvance(int glyph, float sizePx) {
+        return advanceUnits(glyph) * scaleForSize(sizePx);
     }
 
-    private int advanceUnits(int cp) {
-        int cached = advanceCache.get(cp, MISSING);
+    private int advanceUnits(int glyph) {
+        int cached = advanceCache.get(glyph + 1L, MISSING);
         if (cached != MISSING) {
             return cached;
         }
@@ -269,34 +332,65 @@ final class StbFont implements AutoCloseable {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer advance = stack.mallocInt(1);
             IntBuffer leftBearing = stack.mallocInt(1);
-            stbtt_GetCodepointHMetrics(info, cp, advance, leftBearing);
+            stbtt_GetGlyphHMetrics(info, glyph, advance, leftBearing);
             units = advance.get(0);
         }
-        if (cp != 0) {
-            advanceCache.put(cp, units);
-        }
+        advanceCache.put(glyph + 1L, units); // +1: see the cache fields
         return units;
     }
 
-    private int kernUnits(int previousCp, int cp) {
-        long key = ((long) previousCp << 21) | cp; // code points fit in 21 bits
+    // 17 is 16 plus one bit of headroom, and the headroom is the point. A
+    // conforming face fits in 16: maxp.numGlyphs is a uint16, so the highest
+    // index is numGlyphs-1 = 0xFFFE and the biased value tops out at exactly
+    // 0xFFFF. But the value being packed is font-controlled and stb does not
+    // clamp it — a malformed cmap format 12 computes startGlyphID + delta as an
+    // unclamped uint32 — and a field sized to the conforming maximum turns such
+    // an index into another pair's cached kern rather than into a bad lookup.
+    private static final int KERN_PREVIOUS_SHIFT = 17;
+
+    private int kernUnits(int previousGlyph, int glyph) {
+        // Both halves biased, which is also what keeps the packed key off
+        // LongIntMap's empty slot: an unbiased pack is exactly 0 when both
+        // glyphs are .notdef, i.e. any two adjacent characters this face lacks.
+        long key = ((previousGlyph + 1L) << KERN_PREVIOUS_SHIFT) | (glyph + 1L);
         int cached = kernCache.get(key, MISSING);
         if (cached != MISSING) {
             return cached;
         }
-        int units = stbtt_GetCodepointKernAdvance(info, previousCp, cp);
-        if (key != 0) {
-            kernCache.put(key, units);
-        }
+        int units = stbtt_GetGlyphKernAdvance(info, previousGlyph, glyph);
+        kernCache.put(key, units);
         return units;
     }
 
-    /** Minimal open-addressing long→int map: no boxing, no removal (metric caches). */
-    private static final class LongIntMap {
+    /**
+     * Minimal open-addressing long→int map: no boxing, no removal (metric caches).
+     *
+     * <p>Key 0 is the empty slot, so <b>every caller must bias its key away from
+     * 0</b>, and the reason is sharper than "that entry would not be cached".
+     * {@code get} tests {@code k == key} before it tests {@code k == 0}, so for
+     * key 0 an <em>empty</em> slot is indistinguishable from a hit: it returns
+     * that slot's value, which is 0. Key 0 therefore never misses and never
+     * reaches the caller's {@code missing} sentinel — it answers 0, a perfectly
+     * plausible integer, without ever asking stb. In an advance cache that is a
+     * glyph silently reported as zero-width. {@code put} cannot rescue it either:
+     * the slot's key stays 0, so a re-put counts a fresh entry every time
+     * (permanently skewing the growth trigger) and {@code grow} rebuilds only
+     * {@code oldKeys[i] != 0} and drops it.
+     *
+     * <p>Package-private so that failure is unit-testable, which is the only way
+     * it is observable at all: nothing about it throws, and the wrong value it
+     * invents is in range.
+     */
+    static final class LongIntMap {
 
         private long[] keys = new long[512];
         private int[] values = new int[512];
         private int count;
+
+        /** Entries believed stored; the bias is what keeps this honest. */
+        int count() {
+            return count;
+        }
 
         int get(long key, int missing) {
             int mask = keys.length - 1;
@@ -348,33 +442,88 @@ final class StbFont implements AutoCloseable {
         }
     }
 
+    /**
+     * This face's glyph index for {@code cp}, or {@code 0} when it has none.
+     *
+     * <p>{@code 0} is {@code .notdef}: a legal, drawable, cacheable index with a
+     * real advance and (in most faces) real ink, and the answer for every
+     * character the face lacks. Callers distinguish "absent" from "present" by
+     * comparing to 0; nothing downstream may treat 0 as an error.
+     *
+     * <p>The value is meaningful <b>only against this face</b>. An index carried
+     * to another face is a row number in a table it does not belong to, which
+     * draws some other real glyph rather than failing.
+     *
+     * <p>Memoized, so it mutates: see the class note on thread confinement.
+     */
+    int glyphIndex(int cp) {
+        int cached = glyphIndexCache.get(cp + 1L, MISSING);
+        if (cached != MISSING) {
+            return cached;
+        }
+        int index = stbtt_FindGlyphIndex(info, cp);
+        // Misses are cached on purpose: face selection asks every face in the
+        // fallback chain about every character the ones before it lacked, so 0 is
+        // the most repeated answer this map has, not a value worth skipping.
+        glyphIndexCache.put(cp + 1L, index); // +1: see the cache fields
+        return index;
+    }
+
+    /** Whether this face can draw {@code cp} itself (a question about the character). */
     boolean hasGlyph(int cp) {
-        return stbtt_FindGlyphIndex(info, cp) != 0;
+        return glyphIndex(cp) != 0;
     }
 
     /**
-     * Rasterizes one code point at {@code sizePx}. The returned bitmap is
+     * Rasterizes one glyph of this face at {@code sizePx}; {@code glyph} must
+     * come from {@link #glyphIndex} on this face. The returned bitmap is
      * {@code memAlloc}'d; the caller frees it after upload. Whitespace and
      * empty glyphs return a null bitmap with a valid advance.
      */
-    RasterizedGlyph rasterize(int cp, float sizePx) {
+    RasterizedGlyph rasterizeGlyph(int glyph, float sizePx) {
         float scale = scaleForSize(sizePx);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer x0 = stack.mallocInt(1);
             IntBuffer y0 = stack.mallocInt(1);
             IntBuffer x1 = stack.mallocInt(1);
             IntBuffer y1 = stack.mallocInt(1);
-            stbtt_GetCodepointBitmapBox(info, cp, scale, scale, x0, y0, x1, y1);
+            stbtt_GetGlyphBitmapBox(info, glyph, scale, scale, x0, y0, x1, y1);
             int width = x1.get(0) - x0.get(0);
             int height = y1.get(0) - y0.get(0);
-            float advancePx = advance(cp, sizePx);
+            float advancePx = glyphAdvance(glyph, sizePx);
             if (width <= 0 || height <= 0) {
                 return new RasterizedGlyph(null, 0, 0, 0, 0, advancePx);
             }
             ByteBuffer bitmap = MemoryUtil.memAlloc(width * height);
-            stbtt_MakeCodepointBitmap(info, bitmap, width, height, width, scale, scale, cp);
+            // The box and the fill are independent calls that never cross-check:
+            // hand them different glyphs and the result is a silently clipped or
+            // garbage bitmap, which the empty-box return above would then present
+            // as a legitimately blank glyph carrying a plausible advance.
+            stbtt_MakeGlyphBitmap(info, bitmap, width, height, width, scale, scale, glyph);
             return new RasterizedGlyph(bitmap, width, height, x0.get(0), y0.get(0), advancePx);
         }
+    }
+
+    /**
+     * This face as the shaper sees it, built on first use, or {@code null} when there is no
+     * shaper or this is a face it will not open.
+     *
+     * <p>The handle points into {@link #data} rather than copying it, which is what keeps a
+     * shaped face the same resident cost as an unshaped one — and is why {@link #close} destroys
+     * it before freeing that buffer, and why nothing else may hold it past this face's life.
+     *
+     * <p>It is built over {@link #faceIndex}, the same face of the same collection this object
+     * measures and rasterizes. Shaping one face and drawing another is not a degraded result, it
+     * is a wrong one, and it looks like a font that loaded rather than like a bug.
+     */
+    HarfBuzzShaper.Handle shaper() {
+        if (!shaperTried) {
+            shaperTried = true; // set FIRST: a face HarfBuzz rejects must not be retried per string
+            if (!closed) {
+                shaper = HarfBuzzShaper.createFont(data, faceIndex);
+            }
+        }
+        return shaper;
     }
 
     /** @return whether {@link #close} has already run; the native buffer is gone if it has */
@@ -390,6 +539,13 @@ final class StbFont implements AutoCloseable {
             return;
         }
         closed = true;
+        // Before memFree(data), and that order is the whole contract: the shaper's blob wraps this
+        // buffer READONLY without owning it, so freeing the bytes first would leave HarfBuzz
+        // reading whatever the allocator hands out next.
+        if (shaper != null) {
+            shaper.close();
+            shaper = null;
+        }
         info.free();
         MemoryUtil.memFree(data);
     }

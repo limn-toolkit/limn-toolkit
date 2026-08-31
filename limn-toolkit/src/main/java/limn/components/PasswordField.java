@@ -3,16 +3,25 @@ package limn.components;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
+import limn.graphics.Font;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
+import limn.graphics.TextRuler;
 
 /**
- * {@link TextField} that renders every code point as a mask dot, with an
- * optional reveal toggle. While masked, copy/cut are blocked (the clipboard
- * never sees the secret); paste and all editing behave like a TextField.
+ * {@link TextField} that renders every character as a mask dot, with an optional reveal toggle.
+ * While masked, copy/cut are blocked (the clipboard never sees the secret); paste and all editing
+ * behave like a TextField.
  *
- * <p>The dot is <b>drawn, not typeset</b>; see {@link #DOT_DIAMETER}. Everything else
- * (geometry, padding, the animated border) is inherited from {@link TextField}: this class
- * declares no extent of its own beyond the dot's two ratios.
+ * <p>The dot is <b>drawn, not typeset</b>; see {@link #DOT_DIAMETER}. Everything else (geometry,
+ * padding, the animated border) is inherited from {@link TextField}: this class declares no extent
+ * of its own beyond the dot's two ratios.
+ *
+ * <p><b>The content is never shaped.</b> {@link #shapeDisplay} builds the masked line from
+ * {@link ShapedText#uniform}, which is one multiplication and no glyphs, so the secret never
+ * reaches a shaper nor the memo a shaper keeps — and the caret, the click mapping, the selection
+ * band and the painted dots then all come out of that one piece of arithmetic instead of two that
+ * have to be kept in agreement.
  */
 public class PasswordField extends TextField {
 
@@ -36,25 +45,12 @@ public class PasswordField extends TextField {
      * (0.365&nbsp;em of ink in a 0.545&nbsp;em advance).
      *
      * <p>This is the advance the caret, the selection band and the click mapping all measure
-     * against, because {@link TextField#displayWidth} is the single answer to "how wide is
-     * this". It must stay comfortably greater than {@link #DOT_DIAMETER}:
+     * against, because it is the advance {@link #shapeDisplay} hands to
+     * {@link ShapedText#uniform}. It must stay comfortably greater than {@link #DOT_DIAMETER}:
      * the dots fusing into a dashed rule at the dense steps is the exact failure the old glyph
      * table was invented to dodge, and here it is a gap, not a glyph choice.
      */
     private static final float DOT_ADVANCE = 0.56f;
-
-    /**
-     * The character the mask string is built from.
-     *
-     * <p>It is a <b>counter, not a mark</b>: while masked nothing paints it; {@link
-     * #paintDisplayText} draws circles and {@link #displayWidth} computes the advance from
-     * {@link #DOT_ADVANCE}, so the display string only ever has to carry the right <em>number</em>
-     * of code points. BULLET is kept anyway because it is the honest stand-in if some future path
-     * ever falls back to typesetting it, and because it must be a single BMP {@code char}: the
-     * mask is built with {@code String.repeat}, so an astral glyph would emit two chars per source
-     * code point and every char offset over {@link #displayText()} would double.
-     */
-    private static final char MASK = '•';
 
     private boolean revealed;
 
@@ -67,52 +63,61 @@ public class PasswordField extends TextField {
     public PasswordField setRevealed(boolean newRevealed) {
         Ui.checkUiThread();
         this.revealed = newRevealed;
+        // The held display line is refreshed against the text, the font and the ruler's epoch, and
+        // none of those changed here: the base cannot see this flag, so it has to be told.
+        invalidateDisplayLine();
         invalidate();
         return this;
     }
 
-    @Override
-    protected String displayText() {
-        return revealed ? super.displayText() : mask(model.text());
-    }
-
-    @Override
-    protected String displayPrefix(int charIndex) {
-        return revealed ? super.displayPrefix(charIndex) : mask(super.displayPrefix(charIndex));
-    }
-
     /**
-     * One dot cell per masked code point, instead of the ruler's opinion about a glyph.
+     * The masked line: one dot cell per grapheme cluster, built by arithmetic and not by a shaper.
      *
-     * <p>Overridden together with {@link #paintDisplayText}, which is what keeps the caret on
-     * the dot it edits: both read {@link #DOT_ADVANCE}, so the n-th dot is painted at exactly
-     * the x the prefix of n dots measures to. Overriding one without the other is the drift
-     * this pair exists to make impossible.
+     * <p>{@link ShapedText#uniform} is what makes the whole class two overrides instead of a pair
+     * of parallel measurements. It gives a line whose index space <em>is</em> the model's, so the
+     * caret, the selection range and a click need no translation from source offsets to mask
+     * offsets — the count-preserving substitution the old mask string had to guarantee is not a
+     * thing that can go wrong any more, because there is no second string. And the content does not
+     * reach {@code shape}, which is the reason this override exists: a shaper resolves faces,
+     * memoizes what it was asked, and would be a place a secret comes to rest.
+     *
+     * <p>Cells are grapheme clusters, so one dot stands for one user-perceived character and the
+     * caret can never land at a fractional dot: an astral character is one dot, not two, which also
+     * keeps the mask from leaking that a character was astral.
      */
     @Override
-    protected float displayWidth(String display, SizeTokens t) {
-        return revealed ? super.displayWidth(display, t) : dots(display) * cell(t);
+    protected ShapedText shapeDisplay(String text, Font font) {
+        if (revealed) {
+            return super.shapeDisplay(text, font);
+        }
+        TextRuler ruler = textRuler();
+        return ShapedText.uniform(text, font, cell(font), ruler.measure("Hg", font), ruler.epoch());
     }
 
     /**
      * Paints the mask as circles on the ink box's centre line.
      *
-     * <p>The centre is {@code inkTop + height/2}, the middle of the same band the selection
-     * fill and the caret span, so the dots stay centred against any face the field's own text
-     * would use, at any step, with no per-font vertical fudge. (A dot has no baseline of its
+     * <p>The centre is {@code baseline - ascent + height/2}, the middle of the same band the
+     * selection fill and the caret span, so the dots stay centred against any face the field's own
+     * text would use, at any step, with no per-font vertical fudge. (A dot has no baseline of its
      * own to sit on: this is why the vertical anchor is the band and not the baseline.)
      */
     @Override
-    protected void paintDisplayText(Canvas canvas, String display, float x, float baseline,
+    protected void paintDisplayText(Canvas canvas, ShapedText display, float x, float baseline,
                                     TextMetrics metrics, SizeTokens t, Color ink) {
         if (revealed) {
             super.paintDisplayText(canvas, display, x, baseline, metrics, t, ink);
             return;
         }
-        float cell = cell(t);
+        // TRAP: `display` carries the SECRET as its text(), because its index space has to be the
+        // model's. It must never reach canvas.drawText -- so the super call above is the only one
+        // in this class, and it is guarded by `revealed`.
+        float cell = cell(t.body());
         float radius = DOT_DIAMETER * t.body().size() / 2;
         float centerY = baseline - metrics.ascent() + metrics.height() / 2;
-        int count = dots(display);
+        // Caret stops are the cells' own boundaries plus the end of the line, so the mark count is
+        // one less than the stop count: no width has to be divided by an advance to recover it.
+        int count = display.caretCount() - 1;
         for (int i = 0; i < count; i++) {
             canvas.fillCircle(x + (i + 0.5f) * cell, centerY, radius, ink);
         }
@@ -147,36 +152,15 @@ public class PasswordField extends TextField {
         return false;
     }
 
-    /** One dot's advance at the step resolved on this widget. */
-    private static float cell(SizeTokens t) {
-        return DOT_ADVANCE * t.body().size();
-    }
-
-    /** How many dots a display string stands for. */
-    private static int dots(String display) {
-        return display.codePointCount(0, display.length());
-    }
-
     /**
-     * Masks {@code text} as exactly <b>one mask code point per source code point</b>.
+     * One dot's advance, in logical points.
      *
-     * <p>This count is load-bearing, not cosmetic.
-     * {@link limn.components.text.TextEditModel} offsets (caret index,
-     * selection range, the binary search behind click mapping) are indices into the
-     * <em>source</em>, and the only bridge to what is painted is
-     * {@code displayPrefix(charIndex)}: the caret's x is the width of the mask of the prefix.
-     * Painted dots and model offsets therefore agree only while the substitution is
-     * count-preserving. Emit one dot too many or too few for any input and the caret drifts from
-     * the character it edits, a click lands on a neighbour, and selection highlights the wrong
-     * run.
-     *
-     * <p>{@code codePoints().count()} and not {@code length()}: an astral character (one code
-     * point, two chars as a surrogate pair) must mask to <b>one</b> dot. Counting chars would
-     * show two, which both breaks the agreement above and leaks that the character was astral.
-     * Symmetrically the glyph itself is BMP (see {@link #MASK}), so that the mask's char length
-     * equals its code-point count and no char-index arithmetic over the display string can shift.
+     * <p>The single expression of the pitch, read by both overrides. Written twice it would be the
+     * drift the old {@code displayWidth}/{@code paintDisplayText} pair had a paragraph of warning
+     * about: the geometry says the n-th dot is at one x and the ink puts it at another, and the
+     * caret ends up beside the character it edits rather than on it.
      */
-    private static String mask(String text) {
-        return String.valueOf(MASK).repeat((int) text.codePoints().count());
+    private static float cell(Font font) {
+        return DOT_ADVANCE * font.size();
     }
 }

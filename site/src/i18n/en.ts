@@ -98,9 +98,9 @@ export const en = {
   "home.limits.heading": "What Limn does not do",
   "home.limits.body":
     "Every toolkit trades something. These are the trades, stated up front, because finding them out in week three is worse than reading them now.",
-  "home.limits.scripts.heading": "No complex-script shaping",
+  "home.limits.scripts.heading": "Text is shaped; layout is not mirrored",
   "home.limits.scripts.body":
-    "Arabic, Hebrew and the Indic scripts need contextual joining and reordering the text stack does not implement, and there is no right-to-left layout direction. Translations for those languages are deliberately not shipped rather than drawn incorrectly.",
+    "Arabic, Hebrew, Devanagari and Thai join, reorder and place their marks wherever text is drawn — inside Label, TextField and TextArea, and on every button, tab, menu item and placeholder around them — and the ar and he bundles ship. What a right-to-left language does not get is the layout: insets, alignment, which side a scrollbar sits on, where a popup opens and which way an arrow key moves outside a text field all read left to right whatever the language.",
   "home.limits.a11y.heading": "No screen-reader bridge",
   "home.limits.a11y.body":
     "Keyboard navigation and focus rings are complete, but nothing is exposed to the platform's accessibility APIs. If a screen reader has to work, this is not the toolkit for that application yet.",

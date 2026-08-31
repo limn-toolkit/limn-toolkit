@@ -8,6 +8,7 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Rect;
+import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.input.Keys;
@@ -19,6 +20,8 @@ import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import limn.scene.event.PreeditEvent;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -42,6 +45,21 @@ import java.util.function.Consumer;
  * <p>The preferred box is derived per step to hold a roughly constant amount of visible
  * <em>content</em> rather than a constant box: an editor is where character count matters
  * most.
+ *
+ * <p><b>Every geometric question is asked of a shaped line, one per visible line.</b> Caret x, hit
+ * testing and the selection band all come from the {@link ShapedText} of the line they concern
+ * ({@link #shapedLine}) rather than from the measured width of a prefix of it, because with a
+ * shaper in the pipeline the width of the first {@code n} characters of a line is not the width of
+ * those characters inside it: they join, ligate, kern and <em>reorder</em> differently. The
+ * consequences a user sees are that a click lands on the character under the pointer in mixed text,
+ * that a selection crossing a direction boundary paints as the two or more boxes it really covers,
+ * and that Left and Right move the caret by what is next <em>on the screen</em>.
+ *
+ * <p><b>Left and Right are visual; everything else is logical.</b> Home, End, word movement,
+ * Backspace, Delete, Page and Up/Down all step through the <em>string</em>, because each has to
+ * name a contiguous range: {@code Shift+Home} makes a selection and a selection is one range of the
+ * buffer. So in right-to-left text Left and Ctrl+Left move the caret in opposite directions, which
+ * is what Windows and GTK do and the lesser of the two evils.
  *
  * <p><b>The scrollbars do not follow the step</b>, so the overlay bars stay 15&nbsp;pt wide
  * while the pads shrink at the small steps and the bars float over more live text there. An
@@ -162,7 +180,7 @@ public class TextArea extends Widget {
         model.setText(text);
         scrollX = 0;
         scrollY = 0;
-        cachedContentWidth = -1;
+        invalidateContentWidth();
         invalidate();
         return this;
     }
@@ -301,14 +319,59 @@ public class TextArea extends Widget {
      * per line, and it is consulted several times per paint/scroll event.
      *
      * <p><b>The cache is keyed on the metrics that produced it, not on a dirty flag alone</b>
-     *. The flag is cleared at exactly two sites ({@link #setText} and
-     * {@link #fireChange}), and neither is on the metrics path, so the cache was <em>already</em>
+     *. The flag is cleared by {@link #invalidateContentWidth}, which only the text-changing paths
+     * call, so nothing clears it on the metrics path and the cache was <em>already</em>
      * stale after a runtime {@code Fonts.setDefaultFamily} switch: {@code Scene.relayout} only
      * marks measure caches dirty and never reaches a widget's private state. The size axis adds
      * a second such path, since a step change swaps the body font underneath the same text.
      * Validating against a probe measurement closes both without a cross-file hook, and it has
      * to be the <em>measurement</em> rather than the {@link Font}: a family re-bound underneath
      * {@code Font.DEFAULT_FAMILY} leaves the record identical and only its metrics move.
+     *
+     * <p><b>This scans the document, so it must not <em>hold</em> the document &mdash; and it must
+     * not make the ruler hold it either.</b> One {@link ShapedText} kept per <em>painted</em> line
+     * is the budget; one kept per line of the buffer is a second copy of a long document, and the
+     * scrollbar's extent is the one question that has to look at every line. So the scan asks
+     * {@link TextRuler#scanWidth} and keeps nothing, at either end.
+     *
+     * <p><b>{@code scanWidth} rather than {@code measure}, and the difference is the whole cost of
+     * typing in a long document.</b> A shaping ruler answers {@code measure} by shaping into a
+     * bounded memo, which is right for the strings a frame is about to paint and wrong for this
+     * loop in every way a loop can be wrong for a cache: it touches every line, in the same cyclic
+     * order, so past the memo's depth it misses on every line every time; it re-runs on every
+     * keystroke, because {@link #invalidateContentWidth} drops the cache and the
+     * {@link #ensureCursorVisible} that follows the edit reads it straight back; and the memo is
+     * process-wide, so on its way through it evicts the captions belonging to widgets that did
+     * nothing, which then repaint cold. Measured on a 1000-line document, that is a whole
+     * re-shaping of the document per character typed. A scan over text nobody is drawing must not
+     * be what decides which strings live in a shared shape memo.
+     *
+     * <p><b>A scanned width is not guaranteed to be an upper bound on a shaped one, and where the
+     * two differ the difference is not a hairline.</b> {@code scanWidth} is allowed to be the cheap
+     * answer, and the backend's is: a sum of per-code-point advances, which resolves a face per
+     * character where shaping resolves one per run. A space between two Hebrew words is scanned in
+     * the Latin primary that covers it and shaped in the Hebrew face the run resolved to, and the
+     * two faces disagree about how wide a space is. That is a per-seam difference in the
+     * <em>wider</em> direction and it accumulates, so a 200-character Hebrew line can shape some ten
+     * points wider than it scans. An extent short by ten points is not a rounding error &mdash;
+     * {@link #ensureCursorVisible} asks for a scroll the clamp refuses, and the caret is painted
+     * outside the clip and simply vanishes.
+     *
+     * <p>So the gap is now deliberate rather than a ruler's inconsistency, and
+     * {@link #shapedWidthFloor} is load-bearing rather than defensive. It would be needed anyway:
+     * {@link TextRuler} does not <em>promise</em> that any of its widths agree, and cannot &mdash;
+     * the interface's own default {@code shape} measures a cluster at a time and loses the kern at
+     * every cluster seam, so a ruler that inherits it disagrees with its own {@code measure} by
+     * construction. A widget does not know which kind of ruler it has, and the failure mode of
+     * assuming is a caret that vanishes rather than a line that is a hair short.
+     *
+     * <p>So the extent is the larger of the two answers this widget has: the measured maximum over
+     * the whole document, and {@link #shapedWidthFloor}, the widest line it has actually shaped.
+     * Those two together are exactly enough, and the reason is that <b>reaching a line is what
+     * shapes it</b>: the caret's line goes through {@link #shapedLine} before the clamp reads this,
+     * and a line whose ink is on screen was shaped to paint it. A line the user has never been near
+     * contributes its measured width, which can only make the extent too small for text nobody can
+     * see yet &mdash; and the moment they scroll to it, it is shaped and the extent is right.
      */
     private float contentWidth(SizeTokens t) {
         Font f = t.body();
@@ -317,13 +380,30 @@ public class TextArea extends Widget {
             TextRuler ruler = textRuler();
             float widest = 0;
             for (int line = 0; line < model.lineCount(); line++) {
-                widest = Math.max(widest, ruler.measure(model.lineText(line), f).width());
+                widest = Math.max(widest, ruler.scanWidth(model.lineText(line), f));
             }
             cachedContentWidth = widest;
             cachedWidthFont = f;
             cachedWidthProbe = probe;
         }
-        return cachedContentWidth;
+        return Math.max(cachedContentWidth, shapedWidthFloor);
+    }
+
+    /**
+     * The widest line this widget has shaped since the last time its text, font or ruler moved:
+     * the half of {@link #contentWidth} that a scan of measured widths cannot supply.
+     *
+     * <p>Fed on <em>every</em> call that hands out a shaping, not only on the calls that build one,
+     * so that a reset re-fills from the values already held rather than waiting for them to be
+     * rebuilt. Dropped wherever a held shaping is dropped, because a width from a line that has
+     * since been edited away is scroll range over nothing.
+     */
+    private float shapedWidthFloor;
+
+    /** Folds one shaped line into {@link #shapedWidthFloor} and hands it straight back. */
+    private ShapedText noteShaped(ShapedText line) {
+        shapedWidthFloor = Math.max(shapedWidthFloor, line.metrics().width());
+        return line;
     }
 
     private float contentHeight(SizeTokens t) {
@@ -411,86 +491,244 @@ public class TextArea extends Widget {
         return line * lineHeight;
     }
 
-    private float cursorLineX(int charIndex, SizeTokens t) {
-        int start = model.lineStart(charIndex);
-        return textRuler().measure(model.textRange(start, charIndex), t.body()).width();
-    }
-
-    /** X of the caret within its line, including any in-progress composition up to the preedit caret. */
-    private float caretContentX(SizeTokens t) {
-        float x = cursorLineX(model.cursor(), t);
-        if (!preedit.isEmpty()) {
-            int c = Math.min(preeditCaret, preedit.length());
-            x += textRuler().measure(preedit.substring(0, c), t.body()).width();
-        }
-        return x;
-    }
-
-    /** Model index for a content-space point (already scroll-adjusted). */
-    private int indexAtContent(float px, float py, SizeTokens t) {
-        int line = Math.max(0, Math.min((int) (py / lineHeight(t)), model.lineCount() - 1));
-        String lineText = model.lineText(line);
-        int lineStartIndex = model.lineStartOfLine(line);
-        if (lineText.isEmpty()) {
-            return lineStartIndex;
-        }
-        TextRuler ruler = textRuler();
-        Font f = t.body();
-        // Binary search over monotone prefix widths (see TextField.indexAt).
-        int[] bounds = TextField.codePointBoundaries(lineText);
-        int count = bounds.length - 1;
-        int lo = 0;
-        int hi = count;
-        while (lo < hi) {
-            int mid = (lo + hi) >>> 1;
-            float widthAt = ruler.measure(lineText.substring(0, bounds[mid]), f).width();
-            float widthNext = ruler.measure(lineText.substring(0, bounds[mid + 1]), f).width();
-            if (px < (widthAt + widthNext) / 2) {
-                hi = mid;
-            } else {
-                lo = mid + 1;
-            }
-        }
-        return model.alignToGrapheme(lineStartIndex + bounds[lo]);
-    }
-
-    /** Entry-point form: resolves the step once for callers that have no tokens in hand. */
     /**
-     * The visible lines, materialized once per (text, viewport) rather than once per paint.
+     * The caret in {@code line}'s own index space: {@link TextEditModel#caret()} rebased onto the
+     * line and clamped into it. The side travels unchanged, because it is a property of the caret
+     * and not of which line the caret is on.
      *
-     * <p>{@code model.lineText} hands back a substring, so a screenful of lines was a screenful
-     * of fresh Strings on every repaint, and a focused idle editor repaints twice a second
-     * forever, because the caret blink invalidates a column and the paint pass runs whole. A
-     * selection drag paid it at frame rate.
-     *
-     * <p>Bounded by the viewport, not by the document: caching every line the model has ever been
-     * asked for would be a second copy of the text for a long one, and the viewport is the only
-     * part any repaint touches. Keyed on {@link TextEditModel#textVersion()}, which moves only
-     * when the buffer does: a caret move or a selection change reuses the array, which is
-     * exactly the case this exists for.
+     * <p>Clamping rather than rejecting is the same rule {@link ShapedText} states for every index
+     * it takes: a caret restored from a stale view, or read while the model has moved on, has to
+     * produce a position rather than an exception.
      */
-    private String[] visibleLines(int firstLine, int lastLine) {
-        int count = lastLine - firstLine + 1;
-        long version = model.textVersion();
-        if (cachedLines != null && cachedLines.length == count
-                && cachedFirstLine == firstLine && cachedTextVersion == version) {
-            return cachedLines;
-        }
-        String[] lines = cachedLines != null && cachedLines.length == count
-                ? cachedLines
-                : new String[count];
-        for (int i = 0; i < count; i++) {
-            lines[i] = model.lineText(firstLine + i);
-        }
-        cachedLines = lines;
-        cachedFirstLine = firstLine;
-        cachedTextVersion = version;
-        return lines;
+    private static ShapedText.Position lineLocal(ShapedText.Position caret, int lineStart,
+                                                 ShapedText line) {
+        int local = Math.max(0, Math.min(caret.charIndex() - lineStart, line.text().length()));
+        return new ShapedText.Position(local, caret.affinity());
     }
 
-    private String[] cachedLines;
+    /**
+     * X of the caret within its line, including any in-progress composition up to the preedit
+     * caret. The one expression the scroll clamp, the candidate window and the painted caret all
+     * read, so those three cannot disagree about where the caret is.
+     */
+    private float caretContentX(SizeTokens t) {
+        int line = model.lineOf(model.cursor());
+        if (!preedit.isEmpty()) {
+            // The composed line, not the committed one plus a measured preedit: Arabic and Indic
+            // join across the seam the caret sits on, so three measurements are three wrong
+            // numbers.
+            return composedLine(t).caretX(composedCaret(cursorInLine(line)));
+        }
+        ShapedText shaped = shapedLine(line, t);
+        return shaped.caretX(lineLocal(model.caret(), model.lineStartOfLine(line), shaped));
+    }
+
+    /**
+     * Where the caret sits on the composed line: inside the preedit, at the preedit's own caret.
+     *
+     * <p>One expression, because the scroll clamp reads it through {@link #caretContentX} and
+     * {@link #paintComposingLine} draws it, and a second copy is a caret painted somewhere the
+     * scroll does not know it is.
+     *
+     * @param cursorAt the cursor's char offset within the committed line, which is where the
+     *                 preedit begins inside the composed one
+     */
+    private ShapedText.Position composedCaret(int cursorAt) {
+        // UPSTREAM is not arbitrary: the preedit caret TRAILS the text just typed, so the next
+        // character of the same script appears where the caret is drawn.
+        return new ShapedText.Position(cursorAt + Math.min(preeditCaret, preedit.length()),
+                ShapedText.Affinity.UPSTREAM);
+    }
+
+    /**
+     * The cursor's char offset within line {@code line}, clamped into that line's own text. From
+     * the line-start index rather than from {@code lineText(line).length()}: this runs once per
+     * paint of a composing line, and the substring would be built only to be measured.
+     */
+    private int cursorInLine(int line) {
+        int start = model.lineStartOfLine(line);
+        return Math.max(0, Math.min(model.cursor() - start, model.lineEnd(start) - start));
+    }
+
+    /**
+     * The caret a click at a content-space point (already scroll- and inset-adjusted) asks for:
+     * buffer index <em>and side</em>, because on a direction boundary the index alone names two
+     * points on the line and the next arrow press has to leave from the one that was clicked.
+     */
+    private ShapedText.Position caretAtContent(float px, float py, SizeTokens t) {
+        int line = Math.max(0, Math.min((int) (py / lineHeight(t)), model.lineCount() - 1));
+        ShapedText shaped = shapedLine(line, t);
+        // Empty space to the right of the line means the LOGICAL end of the line. On a line that
+        // ends in the direction opposite the paragraph's, the nearest cluster to the right edge is
+        // not the last character, so hitTest's clamp-to-nearest is wrong exactly here.
+        ShapedText.Position hit = px > shaped.metrics().width()
+                ? new ShapedText.Position(shaped.text().length(), ShapedText.Affinity.UPSTREAM)
+                : shaped.hitTest(px);
+        // No alignToGrapheme: hitTest already lands on a caret stop, and where the shaper's
+        // clusters disagree with the grapheme rule — a Devanagari conjunct is the case that bites
+        // — the shaper's win, because a caret cannot be placed inside a glyph.
+        return new ShapedText.Position(model.lineStartOfLine(line) + hit.charIndex(),
+                hit.affinity());
+    }
+
+    // ------------------------------------------------------- shaped line cache
+
+    /**
+     * The shaped form of one line, held rather than recomputed: shaping is the expensive half of
+     * drawing text, and the answer is needed twice per frame &mdash; once to place the caret and
+     * the selection, once to paint &mdash; and those two have to agree.
+     *
+     * <p><b>Bounded by the viewport, never by the document.</b> The window array covers the lines
+     * {@link #onPaint} is about to draw; anything outside it (the caret's line while it is still
+     * scrolled away, the line under a drag that has left the viewport) goes through the one-slot
+     * spill, so a query off screen costs one shaping and never grows the cache to the size of the
+     * buffer. Holding every line a long document has would be a second copy of the text, and the
+     * viewport is the only part any repaint touches.
+     *
+     * <p>Slots fill lazily, which is what makes a keystroke cost one shaping rather than two: the
+     * edit invalidates the window, {@link #ensureCursorVisible} shapes the caret's line into its
+     * slot, and the paint that follows finds it there.
+     */
+    private ShapedText shapedLine(int line, SizeTokens t) {
+        Font f = t.body();
+        TextRuler ruler = textRuler();
+        syncLineCache(f, ruler);
+        int slot = line - cachedFirstLine;
+        if (cachedLines != null && slot >= 0 && slot < cachedLines.length) {
+            ShapedText held = cachedLines[slot];
+            if (held == null) {
+                held = ruler.shape(model.lineText(line), f);
+                cachedLines[slot] = held;
+            }
+            return noteShaped(held);
+        }
+        if (spilledLine == null || spilledLineIndex != line) {
+            spilledLine = ruler.shape(model.lineText(line), f);
+            spilledLineIndex = line;
+        }
+        return noteShaped(spilledLine);
+    }
+
+    /**
+     * Drops every held shaping whose inputs have moved. One guard for the window and the spill
+     * alike: a stale value surviving in one because the other happened to be consulted is the
+     * shape of bug that puts the caret a run away from the click, one keystroke later.
+     *
+     * <p>Keyed on {@link TextEditModel#textVersion()} rather than through
+     * {@link ShapedText#matches}: {@code model.lineText} builds a fresh {@code String} every call,
+     * so {@code matches} would miss its identity fast path and pay a character scan per line per
+     * paint. The font and the ruler's {@linkplain TextRuler#epoch() epoch} are the other two thirds
+     * of that same test, and the epoch is the part that catches what the widget cannot see &mdash;
+     * a family re-bound underneath {@code Font.DEFAULT_FAMILY}, a face evicted and closed.
+     */
+    private void syncLineCache(Font f, TextRuler ruler) {
+        long version = model.textVersion();
+        long epoch = ruler.epoch();
+        if (version == cachedTextVersion && f.equals(cachedLineFont) && epoch == cachedLineEpoch) {
+            return;
+        }
+        if (cachedLines != null) {
+            Arrays.fill(cachedLines, null);
+        }
+        spilledLine = null;
+        spilledLineIndex = -1;
+        // Every width in the floor came from a value being dropped on the two lines above, so it
+        // goes with them. It re-fills from the next shaping, which is the same pass that needed it.
+        shapedWidthFloor = 0;
+        cachedTextVersion = version;
+        cachedLineFont = f;
+        cachedLineEpoch = epoch;
+    }
+
+    /** Points the window at the lines about to be painted, dropping slots that now name others. */
+    private void setLineWindow(int firstLine, int count) {
+        if (cachedLines == null || cachedLines.length != count) {
+            cachedLines = new ShapedText[count];
+        } else if (cachedFirstLine != firstLine) {
+            Arrays.fill(cachedLines, null);
+        }
+        cachedFirstLine = firstLine;
+    }
+
+    /**
+     * {@link ShapedText#selection(int, int, float[])} into {@link #spans}, grown to the exact
+     * bound the value states. The buffer form and not the list: a selection drag repaints at frame
+     * rate, and the list form puts a list and a record per box on the floor each time.
+     *
+     * @return how many boxes were written; box {@code i} is {@code spans[2i] .. spans[2i + 1]}
+     */
+    private int fillSpans(ShapedText line, int from, int to) {
+        int need = 2 * line.runs().size();
+        if (spans.length < need) {
+            spans = new float[need];
+        }
+        return line.selection(from, to, spans);
+    }
+
+    /** The shaped viewport window; slot {@code i} is line {@code cachedFirstLine + i}. */
+    private ShapedText[] cachedLines;
     private int cachedFirstLine = -1;
     private long cachedTextVersion = -1;
+    /** The font the window and the spill were shaped under, half of their validity key. */
+    private Font cachedLineFont;
+    /** The ruler epoch they were shaped under, the other half. See {@link #syncLineCache}. */
+    private long cachedLineEpoch = -1;
+    /** One line outside the window, shaped on demand; see {@link #shapedLine}. */
+    private ShapedText spilledLine;
+    private int spilledLineIndex = -1;
+    /** Selection boxes, reused across paints; see {@link #fillSpans}. */
+    private float[] spans = new float[8];
+
+    /**
+     * One Left or Right press: a step <b>on the screen</b>, and the line change when there is no
+     * step left to take on this line.
+     *
+     * <p>The model answers the step over the line's own shaping and reports whether anything
+     * moved; {@code false} means the caret was already at that visual edge, and the line change is
+     * this widget's because the model holds no lines. The caret enters the neighbouring line at
+     * <em>its</em> opposite edge, and the two edge positions are {@code hitTest(0)} and
+     * {@code hitTest(width)} rather than index {@code 0} and index {@code length}: on a line whose
+     * last cluster reads against the paragraph, the last character is not the one at the right
+     * edge, and entering at the wrong one puts the caret a run away from where the key pointed.
+     *
+     * <p>A {@code false} return is the <em>only</em> thing that changes line. In particular the
+     * model returns {@code true} when it merely collapses a selection, which is what keeps
+     * Left-with-a-selection from collapsing and hopping a line in one keystroke.
+     *
+     * <p><b>Up and Down deliberately do not come through here.</b> They keep a sticky goal
+     * <em>column</em> &mdash; a char offset within the line, a logical count &mdash; and not a
+     * goal x. Under a proportional face that column is already the wrong x, and under bidi it is
+     * not even wrong so much as meaningless, since one column is two places on the line. A goal x
+     * is the right answer and it is not this change: it needs the model to turn an x into an index
+     * on a line it does not hold, which is a new API with its own tests, and folding a vertical
+     * navigation change into the bidi caret work is exactly the coupling that makes a later bisect
+     * useless. Nothing here makes Up/Down worse than they were.
+     *
+     * @param left  whether this is the Left arrow rather than the Right
+     * @param shift whether the press extends the selection
+     */
+    private void moveCaretVisually(boolean left, boolean shift) {
+        SizeTokens t = tokens();
+        int lineIndex = model.lineOf(model.cursor());
+        int lineStart = model.lineStartOfLine(lineIndex);
+        ShapedText line = shapedLine(lineIndex, t);
+        boolean moved = left
+                ? model.moveVisualLeft(line, lineStart, shift)
+                : model.moveVisualRight(line, lineStart, shift);
+        if (moved) {
+            return;
+        }
+        int target = left ? lineIndex - 1 : lineIndex + 1;
+        if (target < 0 || target >= model.lineCount()) {
+            return; // the document's own edge: the key does nothing, as it always has
+        }
+        ShapedText neighbour = shapedLine(target, t);
+        ShapedText.Position edge = left
+                ? neighbour.hitTest(neighbour.metrics().width())
+                : neighbour.hitTest(0);
+        model.setCaret(new ShapedText.Position(model.lineStartOfLine(target) + edge.charIndex(),
+                edge.affinity()), shift);
+    }
 
     /**
      * Moves the caret one viewport of lines, the way every multi-line editor on every desktop
@@ -598,45 +836,75 @@ public class TextArea extends Widget {
         boolean composing = !preedit.isEmpty();
         int composingLine = composing ? model.lineOf(model.cursor()) : -1;
 
-        String[] lines = visibleLines(firstLine, lastLine);
+        Color selectionFill = theme.primary.withAlpha(0.35f);
+        setLineWindow(firstLine, lastLine - firstLine + 1);
         for (int line = firstLine; line <= lastLine; line++) {
-            String lineText = lines[line - firstLine];
             float top = lineTop(line, lineHeight);
             if (composing && line == composingLine) {
-                paintComposingLine(canvas, theme, ruler, f, metrics, lineText, line, top,
-                        lineHeight, ink);
+                paintComposingLine(canvas, theme, composedLine(t), cursorInLine(line), top,
+                        metrics, lineHeight, ink);
                 continue; // composition suppresses selection painting on this line
             }
+            ShapedText shaped = shapedLine(line, t);
             if (selection) {
                 int lineStart = model.lineStartOfLine(line);
-                int lineEnd = lineStart + lineText.length();
+                int lineEnd = lineStart + shaped.text().length();
                 int from = Math.max(selStart, lineStart);
                 int to = Math.min(selEnd, lineEnd);
-                if (from < to || (selStart <= lineEnd && selEnd > lineEnd)) {
-                    float x0 = ruler.measure(model.textRange(lineStart, Math.max(from, lineStart)), f).width();
-                    float x1 = to > from
-                            ? ruler.measure(model.textRange(lineStart, to), f).width()
-                            : x0;
-                    if (selEnd > lineEnd && selStart <= lineEnd) {
-                        // An optical gap next to the type it trails, so it rides the em-tuned
-                        // gap ramp: hints that the newline is part of the selection.
-                        x1 += t.newlineHint();
+                boolean breakSelected = selStart <= lineEnd && selEnd > lineEnd;
+                if (from < to || breakSelected) {
+                    // N boxes, never one: a range that is contiguous in the string stops being
+                    // contiguous on the line the moment it crosses a direction boundary, and the
+                    // smallest rectangle covering both halves would highlight the untouched text
+                    // drawn between them.
+                    int boxes = fillSpans(shaped, from - lineStart, to - lineStart);
+                    for (int i = 0; i < boxes; i++) {
+                        float x0 = spans[i * 2];
+                        canvas.fillRect(x0, top, spans[i * 2 + 1] - x0, lineHeight, selectionFill);
                     }
-                    // A zero-width selection on an empty line still has to show: 2 pt is the
-                    // minimum that survives AA at ANY size, so the floor is locked.
-                    canvas.fillRect(x0, top, Math.max(Strokes.MIN_SELECTION_SLIVER, x1 - x0),
-                            lineHeight, theme.primary.withAlpha(0.35f));
+                    if (breakSelected) {
+                        // An optical gap next to the type it trails, so it rides the em-tuned gap
+                        // ramp: hints that the newline is part of the selection. Its own rect at
+                        // the line's LOGICAL end edge, extending in the reading direction — for a
+                        // right-to-left line that is to the LEFT of x=0, which is where the next
+                        // line continues from and is what "the break is selected" means there.
+                        float endEdge = shaped.caretX(new ShapedText.Position(
+                                shaped.text().length(), ShapedText.Affinity.DOWNSTREAM));
+                        float hintX = shaped.baseDirection() == ShapedText.Direction.LTR
+                                ? endEdge
+                                : endEdge - t.newlineHint();
+                        canvas.fillRect(hintX, top, t.newlineHint(), lineHeight, selectionFill);
+                    } else if (boxes == 0) {
+                        // selection(i, i) is an empty list — a caret is not a zero-width selection
+                        // — and a range of zero-advance clusters yields none either. The band still
+                        // has to show, so the widget draws it at the line's START edge: 2 pt is the
+                        // minimum that survives AA at ANY size, so the floor is locked.
+                        float startEdge = shaped.caretX(
+                                new ShapedText.Position(0, ShapedText.Affinity.UPSTREAM));
+                        float sliverX = shaped.baseDirection() == ShapedText.Direction.LTR
+                                ? startEdge
+                                : startEdge - Strokes.MIN_SELECTION_SLIVER;
+                        canvas.fillRect(sliverX, top, Strokes.MIN_SELECTION_SLIVER, lineHeight,
+                                selectionFill);
+                    }
                 }
             }
-            canvas.drawText(lineText, 0, top + metrics.ascent(), f, ink);
+            canvas.drawText(shaped, 0, top + metrics.ascent(), ink);
         }
 
         // Normal caret (the composing line draws its own caret inside the preedit). Inset by
         // the locked ink bleed at both ends so a 1 pt pen brackets the glyphs without touching
         // the neighbouring line boxes.
+        //
+        // ONE mark, not two: the model stores the caret's side, so there is no ambiguity left to
+        // show, and caretRect() describes one column — a second mark elsewhere on the line would
+        // not be repainted by a blink and would leave an artifact behind.
         if (isFocused() && cursorVisible && !model.hasSelection() && !composing) {
-            float cx = cursorLineX(model.cursor(), t);
-            float cy = lineTop(model.lineOf(model.cursor()), lineHeight);
+            int caretLine = model.lineOf(model.cursor());
+            ShapedText shaped = shapedLine(caretLine, t);
+            float cx = shaped.caretX(
+                    lineLocal(model.caret(), model.lineStartOfLine(caretLine), shaped));
+            float cy = lineTop(caretLine, lineHeight);
             canvas.drawLine(cx, cy + Strokes.INK_BLEED, cx, cy + lineHeight - Strokes.INK_BLEED,
                     Strokes.CARET, theme.text);
         }
@@ -644,49 +912,104 @@ public class TextArea extends Widget {
     }
 
     /**
-     * Draws the cursor's line with the IME composition injected at the caret:
-     * committed prefix, then the underlined preedit (block being converted
-     * highlighted), then the committed suffix, with the caret inside the preedit.
+     * Draws the cursor's line with the IME composition injected at the caret: the whole line
+     * shaped <b>once</b> with the preedit already in it, the preedit underlined, the block being
+     * converted highlighted, and the caret inside the preedit.
+     *
+     * <p>One shaping and not three is a bug fix rather than a port. Measuring the committed
+     * prefix, the preedit and the committed suffix separately is three answers to a question that
+     * only has one, because Arabic and Indic <em>join across the seams those three measurements
+     * cut</em>: a preedit typed into the middle of a word changes the forms on both sides of
+     * itself, and the underline drawn from separate measurements lands somewhere the ink is not.
+     * Shaping the composed line and asking it for sub-ranges cannot drift from what it draws.
+     *
+     * @param line     the composed line: committed text with the preedit spliced in at the caret
+     * @param cursorAt the cursor's char offset within the committed line, which is where the
+     *                 preedit begins inside {@code line}
      */
-    private void paintComposingLine(Canvas canvas, Theme theme, TextRuler ruler, Font f,
-                                    TextMetrics metrics, String lineText, int line, float top,
-                                    float lineHeight, Color ink) {
-        int lineStart = model.lineStartOfLine(line);
-        int cursorInLine = Math.max(0, Math.min(model.cursor() - lineStart, lineText.length()));
+    private void paintComposingLine(Canvas canvas, Theme theme, ShapedText line, int cursorAt,
+                                    float top, TextMetrics metrics, float lineHeight, Color ink) {
         float baseline = top + metrics.ascent();
+        // Asked once and read twice, and only when there IS a converting block: an empty range
+        // still allocates a scratch box array inside selection(), on a path that runs per blink.
+        boolean converting = preeditFocusEnd > preeditFocusStart;
+        List<ShapedText.Span> focusBoxes = converting
+                ? line.selection(cursorAt + preeditFocusStart, cursorAt + preeditFocusEnd)
+                : List.of();
 
-        String prefix = lineText.substring(0, cursorInLine);
-        canvas.drawText(prefix, 0, baseline, f, ink);
-        float preStart = ruler.measure(prefix, f).width();
-
-        float focus0 = preStart + ruler.measure(preedit.substring(0, preeditFocusStart), f).width();
-        float focus1 = preStart + ruler.measure(preedit.substring(0, preeditFocusEnd), f).width();
-        if (preeditFocusEnd > preeditFocusStart) {
-            canvas.fillRect(focus0, top, focus1 - focus0, lineHeight, theme.primary.withAlpha(0.18f));
+        // Highlight first, so it sits behind the ink rather than over it.
+        for (ShapedText.Span s : focusBoxes) {
+            canvas.fillRect(s.x0(), top, s.width(), lineHeight, theme.primary.withAlpha(0.18f));
         }
-        canvas.drawText(preedit, preStart, baseline, f, ink);
-        float preW = ruler.measure(preedit, f).width();
+        canvas.drawText(line, 0, baseline, ink);
         // The BOTTOM OF THE INK BOX, from the line's own anchor, not "baseline + 2". A fixed
         // 2 pt drop is inside the descender at every step and cuts it outright at 19 pt, since
         // the descender runs 3.42 pt below the baseline at MEDIUM and 4.64 at XLARGE. TextField
         // has always anchored here; this is the same expression.
         float underlineY = top + metrics.height();
         // The 1-vs-2 contrast is what says "this block is converting"; scaling either erases it.
-        canvas.drawLine(preStart, underlineY, preStart + preW, underlineY,
-                Strokes.IME_UNDERLINE, theme.textMuted);
-        if (preeditFocusEnd > preeditFocusStart) {
-            canvas.drawLine(focus0, underlineY, focus1, underlineY,
+        // One stroke per box, because a preedit that spans a direction boundary is underlined in
+        // as many pieces as it is drawn in.
+        for (ShapedText.Span s : line.selection(cursorAt, cursorAt + preedit.length())) {
+            canvas.drawLine(s.x0(), underlineY, s.x1(), underlineY,
+                    Strokes.IME_UNDERLINE, theme.textMuted);
+        }
+        for (ShapedText.Span s : focusBoxes) {
+            canvas.drawLine(s.x0(), underlineY, s.x1(), underlineY,
                     Strokes.IME_UNDERLINE_ACTIVE, theme.primary);
         }
-        canvas.drawText(lineText.substring(cursorInLine), preStart + preW, baseline, f, ink);
 
         if (isFocused() && cursorVisible) {
-            int cc = Math.min(preeditCaret, preedit.length());
-            float cx = preStart + ruler.measure(preedit.substring(0, cc), f).width();
+            float cx = line.caretX(composedCaret(cursorAt)); // the same x the scroll clamp reads
             canvas.drawLine(cx, top + Strokes.INK_BLEED, cx, top + lineHeight - Strokes.INK_BLEED,
                     Strokes.CARET, theme.text);
         }
     }
+
+    /**
+     * The cursor's line with the composition spliced in at the caret, shaped once and held while
+     * the composition lasts. What {@link #paintComposingLine} draws, and what the scroll clamp and
+     * {@link #caretRect()} read while composing, so all three speak of the same geometry.
+     *
+     * <p>Keyed on the five things it is built from. The preedit is compared by <b>identity</b>
+     * rather than by {@code equals}: this widget is the only writer of that field and it writes
+     * the {@code String} the event carried, so identity is exact here and a recomposition that
+     * happens to produce the same characters still rebuilds &mdash; which is right, because it is
+     * the cheap direction to be wrong in.
+     */
+    private ShapedText composedLine(SizeTokens t) {
+        Font f = t.body();
+        TextRuler ruler = textRuler();
+        long version = model.textVersion();
+        long epoch = ruler.epoch();
+        int cursor = model.cursor();
+        if (composed == null || composedVersion != version || composedCursor != cursor
+                || composedPreedit != preedit || !f.equals(composedFont) || composedEpoch != epoch) {
+            int line = model.lineOf(cursor);
+            String lineText = model.lineText(line);
+            int at = cursorInLine(line);
+            composed = ruler.shape(
+                    lineText.substring(0, at) + preedit + lineText.substring(at), f);
+            composedVersion = version;
+            composedCursor = cursor;
+            composedPreedit = preedit;
+            composedFont = f;
+            composedEpoch = epoch;
+        }
+        // Into the extent like any other shaped line, and for the same reason: while a composition
+        // is up this IS the caret's line, so it is what the scroll clamp has to be able to reach.
+        // The committed line it stands in for is narrower, so leaving it out would clamp the caret
+        // out of the clip for exactly the composition that grew past the right edge.
+        return noteShaped(composed);
+    }
+
+    /** The composed line while a preedit is up; see {@link #composedLine}. */
+    private ShapedText composed;
+    private long composedVersion = -1;
+    private int composedCursor = -1;
+    private String composedPreedit;
+    private Font composedFont;
+    private long composedEpoch = -1;
 
     // The scrollbars are child widgets (see the constructor), painted on top by
     // the default children pass, the same component every scroller uses.
@@ -716,13 +1039,13 @@ public class TextArea extends Widget {
                 if (event.button() != Keys.MOUSE_LEFT) {
                     return;
                 }
-                model.setCursor(indexAtContent(lx - padX + scrollX, ly - padY + scrollY, t),
+                model.setCaret(caretAtContent(lx - padX + scrollX, ly - padY + scrollY, t),
                         (event.modifiers() & Keys.MOD_SHIFT) != 0);
                 resetBlink();
                 event.consume();
             }
             case DRAG -> {
-                model.setCursor(indexAtContent(lx - padX + scrollX, ly - padY + scrollY, t), true);
+                model.setCaret(caretAtContent(lx - padX + scrollX, ly - padY + scrollY, t), true);
                 ensureCursorVisible(t);
                 resetBlink();
                 invalidate();
@@ -783,13 +1106,18 @@ public class TextArea extends Widget {
         boolean shortcut = cmd || (ctrl && !altGr);
         boolean handled = true;
         switch (event.key()) {
+            // Left/Right are VISUAL and Ctrl/Alt+Left/Right are LOGICAL, so in right-to-left text
+            // the two move the caret in OPPOSITE directions. That is deliberate, it is what
+            // Windows and GTK do, and it is forced: deleteWordBackward has to remove a contiguous
+            // range of the string, so the boundary word movement lands on has to be the end of
+            // one. Cmd+Left/Right are Home/End and logical for the same reason.
             case Keys.LEFT -> {
                 if (word) {
                     model.moveWordLeft(shift);
                 } else if (cmd) {
                     model.moveHome(shift);
                 } else {
-                    model.moveLeft(shift);
+                    moveCaretVisually(true, shift);
                 }
             }
             case Keys.RIGHT -> {
@@ -798,9 +1126,10 @@ public class TextArea extends Widget {
                 } else if (cmd) {
                     model.moveEnd(shift);
                 } else {
-                    model.moveRight(shift);
+                    moveCaretVisually(false, shift);
                 }
             }
+            // Up/Down stay logical, on a sticky goal COLUMN in chars; see moveCaretVisually.
             case Keys.UP -> {
                 if (cmd) {
                     model.moveDocumentStart(shift);
@@ -993,6 +1322,10 @@ public class TextArea extends Widget {
 
     @Override
     protected void onPreedit(PreeditEvent event) {
+        // The composed line about to be replaced contributed a width to the extent; a composition
+        // that shrank or was cancelled must not leave that width behind. The clamp two lines down
+        // re-shapes the caret's line and puts back what is still true.
+        shapedWidthFloor = 0;
         preedit = event.text();
         preeditCaret = codePointToChar(preedit, event.caret());
         computeFocusedBlock(event);
@@ -1050,8 +1383,18 @@ public class TextArea extends Widget {
     }
 
     private void fireChange() {
-        cachedContentWidth = -1; // text changed: widest line may differ
+        invalidateContentWidth(); // text changed: widest line may differ
         onChange.accept(model.text());
+    }
+
+    /**
+     * Drops both halves of the horizontal extent because the text they were taken over has moved.
+     * Together, and never one without the other: a floor kept past an edit is scroll range over a
+     * line that is no longer there, and a scan dropped without it would still be floored by one.
+     */
+    private void invalidateContentWidth() {
+        cachedContentWidth = -1;
+        shapedWidthFloor = 0;
     }
 
     /** Runs {@code edit}; fires onChange (and dirties the width cache) if the text changed. */
@@ -1112,6 +1455,8 @@ public class TextArea extends Widget {
         cursorVisible = true;
         model.clearSelection();
         preedit = ""; // drop any in-progress composition
+        composed = null; // and the shaping of it, which nothing can ask for again
+        shapedWidthFloor = 0; // and the scroll range it was holding open
         preeditCaret = 0;
         preeditFocusStart = 0;
         preeditFocusEnd = 0;

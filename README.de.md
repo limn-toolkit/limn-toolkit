@@ -214,10 +214,14 @@ Dieselbe macOS-Option wie oben. Was er speichert, sind schlichte Daten, die Ihre
 Jedes Toolkit tauscht etwas ein. Das sind die Tauschgeschäfte, vorab genannt; sie in Woche drei zu
 entdecken ist schlimmer, als sie jetzt zu lesen.
 
-- **Kein Shaping komplexer Schriften.** Arabisch, Hebräisch und die indischen Schriften brauchen
-  kontextabhängige Verbindungen und Umstellungen, die der Textstack nicht umsetzt, und eine
-  Layout-Richtung von rechts nach links gibt es nicht. Übersetzungen für diese Sprachen werden
-  bewusst nicht ausgeliefert, statt sie falsch zu zeichnen.
+- **Komplexe Schriften werden überall gezeichnet, gespiegelt wird nichts.** Arabisch, Hebräisch,
+  Devanagari und Thai verbinden sich, stellen sich um und setzen ihre Zeichen richtig — überall, wo
+  Text gezeichnet wird: in `Label`, `TextField` und `TextArea` ebenso wie auf jeder Schaltfläche,
+  jedem Reiter, jedem Menüeintrag und jedem Platzhalter ringsum; die Bündel `ar` und `he` werden
+  ausgeliefert. Was eine von rechts nach links gelesene Sprache nicht bekommt, ist das Layout:
+  Innenabstände, Ausrichtung, die Seite, auf der eine Bildlaufleiste sitzt, die Seite, auf der ein
+  Popup aufgeht, und die Richtung, in die eine Pfeiltaste außerhalb eines Textfelds den Fokus
+  bewegt — alles läuft von links nach rechts, gleich welche Sprache.
 - **Keine Screenreader-Brücke.** Tastaturnavigation und Fokusringe sind vollständig, aber nichts
   wird an die Barrierefreiheits-APIs der Plattform gemeldet.
 - **Vor 1.0.** Die API bewegt sich zwischen Releases noch, und OpenGL ist der einzige Renderpfad.

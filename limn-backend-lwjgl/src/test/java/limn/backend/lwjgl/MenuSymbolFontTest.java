@@ -12,7 +12,9 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -122,6 +124,60 @@ class MenuSymbolFontTest {
                 first = face;
             }
             assertSame(first, face, what + " came from a different face than its siblings");
+        }
+    }
+
+    /**
+     * The glyph index for a fallen-back symbol exists only in the face that fell back, and the
+     * primary's answer for the same character is .notdef. That asymmetry is the whole reason the
+     * paint loop must convert after resolving the face rather than before it, and nothing else in
+     * the suite can see it: {@code faceForCodepoint} and {@code hasGlyph} both stay code-point
+     * keyed, so they answer identically whether or not the indices are taken from the right face.
+     */
+    @Test
+    void aSymbolsGlyphIndexBelongsToTheFaceThatFellBackNotToTheUiFont() {
+        assumePresent();
+        FontStore store = new FontStore();
+        StbFont roboto = store.resolve(Font.of(14));
+
+        for (int codepoint : new int[]{0x2318, 0x2196, 0x2198}) {
+            String what = String.format("U+%04X", codepoint);
+            StbFont face = store.faceForCodepoint(roboto, codepoint);
+            assertNotSame(roboto, face, what + " did not fall back");
+            assertEquals(0, roboto.glyphIndex(codepoint),
+                    what + " is in Roboto, so this test can no longer see the asymmetry");
+            assertNotEquals(0, face.glyphIndex(codepoint),
+                    what + " resolved to a face whose own index for it is .notdef");
+        }
+    }
+
+    /**
+     * A fallen-back symbol is measured with the fallback's own advance, not with the primary's
+     * {@code .notdef}. That is the observable half of the rule above, and the only automated
+     * guard on it: resolving the glyph index against the primary while drawing from the fallback
+     * type-checks, throws nothing, and leaves every width looking plausible. Roboto's
+     * {@code .notdef} is 6.2px at 14pt where these symbols are 7.2 to 12.4, so the two are
+     * separable — which is the whole reason this assertion can exist.
+     */
+    @Test
+    void aFallenBackSymbolIsMeasuredWithTheFallbacksOwnAdvance() {
+        assumePresent();
+        FontStore store = new FontStore();
+        Font font = Font.of(14);
+        StbFont roboto = store.resolve(font);
+
+        for (int codepoint : new int[]{0x2318, 0x2325, 0x2303, 0x21E7}) {
+            String what = String.format("U+%04X", codepoint);
+            String text = new String(Character.toChars(codepoint));
+            StbFont face = store.faceForCodepoint(roboto, codepoint);
+
+            float fromTheFallback = face.glyphAdvance(face.glyphIndex(codepoint), font.size());
+            float fromTheNotdef = roboto.glyphAdvance(roboto.glyphIndex(codepoint), font.size());
+            assertNotEquals(fromTheFallback, fromTheNotdef,
+                    what + ": the two faces agree, so this test cannot tell them apart");
+
+            assertEquals(fromTheFallback, store.measure(font, text).width(), 0.001f,
+                    what + " was measured with the wrong face's glyph");
         }
     }
 

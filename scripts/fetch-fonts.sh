@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
 # Fetches the font files this repository carries but does not author: the
-# broad-coverage Noto fallbacks that back the CJK/emoji script fallback, and the
-# demo's own display face. This is how they are first obtained and how they are
-# refreshed; a checkout has them already. Without the Noto pair the toolkit still
-# runs: Roboto covers Latin/Greek/Cyrillic and unknown glyphs render as .notdef
-# boxes.
+# broad-coverage Noto fallbacks that back the CJK/emoji script fallback, the four
+# Noto faces the complex scripts are shaped against, and the demo's own display
+# face. This is how they are first obtained and how they are refreshed; a checkout
+# has them already. Without any of them the toolkit still runs: Roboto covers
+# Latin/Greek/Cyrillic and unknown glyphs render as .notdef boxes.
 #
 # Each font is pinned to an upstream commit and verified against the SHA-256
 # below before it lands. What ships is then the same bytes on every machine and
@@ -15,8 +15,8 @@
 # running `--scene fonts`.
 #
 # Where each file lands is part of its entry, and the difference is deliberate.
-# The Noto pair goes into the backend's resources, so every application built on
-# Limn carries them. Anything for the demo goes under limn-demo/, which is
+# The Noto fallbacks go into the backend's resources, so every application built
+# on Limn carries them. Anything for the demo goes under limn-demo/, which is
 # published as no library: a face that exists to make one screenshot must not add
 # a byte to what an application ships.
 #
@@ -33,6 +33,29 @@ FORCE="${1:-}"
 FONTS=(
   "Noto Sans CJK (pan-CJK: Han + Kana + Hangul + Latin/Greek/Cyrillic), tag Sans2.004|$BACKEND_FONTS/NotoSansCJK-Regular.otf|https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf|68a3fc98800b2a27b371f2fb79991daf3633bd89309d4ffaa6946fd587f375b5"
   "Noto Color Emoji (CBDT color bitmaps), tag v2.051|$BACKEND_FONTS/NotoColorEmoji.ttf|https://raw.githubusercontent.com/googlefonts/noto-emoji/8998f5dd683424a73e2314a8c1f1e359c19e8742/fonts/NotoColorEmoji.ttf|72a635cb3d2f3524c51620cdde406b217204e8a6a06c6a096ff8ed4b5fd6e27b"
+  # The four complex scripts, from notofonts.github.io at one pinned commit. These go into the
+  # BACKEND, beside the CJK and emoji faces and for the same reason: the shaper resolves a face per
+  # run out of FontStore's fallback chain, so a face that is not in every application's chain is a
+  # face no application can shape against. Without them the shaper works and has nothing to shape
+  # with — the cmap of both faces shipped before these was read directly, and Roboto and Noto Sans
+  # CJK each cover 0 of 256 Arabic, 0 of 112 Hebrew, 0 of 128 Devanagari and 0 of 128 Thai.
+  #
+  # 531 KB for all four, against the pan-CJK face's 16 MB and the colour emoji font's 10 MB.
+  #
+  # hinted/ttf, and only half of that is a choice. Not the variable font published beside it:
+  # stb applies no variations, so it would rasterize the default instance of a file whose whole
+  # reason to exist is the instances it does not draw. Hinted over unhinted is not a rendering
+  # decision at all — stb executes no TrueType bytecode, so the instructions it carries are never
+  # run — it is upstream's default distribution build, which is the one worth pinning.
+  "Noto Sans Arabic Regular (Arabic: contextual forms, ligatures, RTL)|$BACKEND_FONTS/NotoSansArabic-Regular.ttf|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansArabic/hinted/ttf/NotoSansArabic-Regular.ttf|bdff3e5659d67e67def05b33f749683b9376ae819d65d3dd62ac4640b3aaef48"
+  "Noto Sans Hebrew Regular (Hebrew: RTL, GPOS-placed points)|$BACKEND_FONTS/NotoSansHebrew-Regular.ttf|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansHebrew/hinted/ttf/NotoSansHebrew-Regular.ttf|cdefaf8efd47045f6820928eba84db5bed7557539328952b5f828315485e02ee"
+  "Noto Sans Devanagari Regular (Devanagari: conjuncts, matra reordering)|$BACKEND_FONTS/NotoSansDevanagari-Regular.ttf|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansDevanagari/hinted/ttf/NotoSansDevanagari-Regular.ttf|306b53ecfb182a504dd8a7446093c316387d2fd8dc350d0792ed1753fe0996cd"
+  "Noto Sans Thai Regular (Thai: mark stacking, and no spaces to break at)|$BACKEND_FONTS/NotoSansThai-Regular.ttf|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansThai/hinted/ttf/NotoSansThai-Regular.ttf|61cf814eec46b294d6ea4401ac295d0cecd5207bd2331dcc5a15e7301d30ee44"
+  # ONE licence for the four: notofonts.github.io publishes a single SIL OFL 1.1 at the root of
+  # its fonts/ tree that covers every family under it, so four copies of the same 4374 bytes
+  # would be four files to keep in step rather than one. The CJK and emoji faces come from other
+  # repositories and keep their own.
+  "Noto Sans script faces licence (SIL OFL 1.1, covers all four)|$BACKEND_FONTS/NotoSansScripts-LICENSE.txt|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/LICENSE|f2095b08bed08b23a6fe26112fcd679a2bee3f002eef077eb05d215ed1051bd8"
   "Comic Neue Regular (demo only: the site mosaic's illustrative tile)|$DEMO_FONTS/ComicNeue-Regular.ttf|https://raw.githubusercontent.com/crozynski/comicneue/ef5be72411141d01f0b865df8edb47e552c11c3c/Fonts/TTF/ComicNeue/ComicNeue-Regular.ttf|a0ee5a37c8b27c4db0700137d928598b1e23b0089e1546a8961909176b779360"
   "Comic Neue Bold (demo only)|$DEMO_FONTS/ComicNeue-Bold.ttf|https://raw.githubusercontent.com/crozynski/comicneue/ef5be72411141d01f0b865df8edb47e552c11c3c/Fonts/TTF/ComicNeue/ComicNeue-Bold.ttf|3e7e5fccfd7e0788f317b43312151c1bd5cf058c9697a8d83eac3939050bd61e"
   "Comic Neue licence (SIL OFL 1.1)|$DEMO_FONTS/ComicNeue-LICENSE.txt|https://raw.githubusercontent.com/crozynski/comicneue/ef5be72411141d01f0b865df8edb47e552c11c3c/OFL.txt|7c38a22e5878e60fe423360553e63dd7be23d29f1f60336034935dbfc96e8320"

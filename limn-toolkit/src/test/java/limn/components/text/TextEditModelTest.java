@@ -1,10 +1,21 @@
 package limn.components.text;
 
+import limn.graphics.Font;
+import limn.graphics.ShapedText;
+import limn.graphics.ShapedText.Affinity;
+import limn.graphics.ShapedText.Direction;
+import limn.graphics.ShapedText.Position;
+import limn.graphics.ShapedText.Span;
 import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TextEditModelTest {
@@ -465,5 +476,423 @@ class TextEditModelTest {
         model.setCursor(0, false);
         model.deleteForward();
         assertNotEquals(afterInsert, model.textVersion(), "a delete is an edit");
+    }
+
+    // ------------------------------------------------------------ bidi fixtures
+
+    private static final float EPS = 1e-4f;
+
+    /** One advance for every cluster in every fixture below: expected geometry stays exact. */
+    private static final float ADV = 10f;
+
+    private static final Font FONT = Font.of(16);
+
+    /** Face ids are opaque to {@link ShapedText}; one is all these fixtures need. */
+    private static final int FACE = 7;
+
+    /**
+     * alef, bet, gimel: three strong right-to-left characters, one {@code char} apiece. Written as
+     * escapes and named once, so no source line here mixes directions and reorders in an editor.
+     */
+    private static final String HEB = "\u05D0\u05D1\u05D2";
+
+    /**
+     * The frozen spec's own fixture. Base direction LTR, one face, every cluster 10pt:
+     *
+     * <pre>
+     * text      = "abc" + alef bet gimel                       length 6
+     * visual:     a[0,10) b[10,20) c[20,30) | gimel[30,40) bet[40,50) alef[50,60)
+     * charIndex:    0        1        2     |     5            4          3
+     * </pre>
+     *
+     * <p>Index 3 is the direction boundary: UPSTREAM it draws at 30, DOWNSTREAM at 60.
+     */
+    private static ShapedText latinThenHebrew() {
+        return ShapedText.builder("abc" + HEB, FONT, Direction.LTR, 6)
+                .lineMetrics(8, 2, 12)
+                .run(FACE, 0, 3, 0)
+                .glyph(101, 0, ADV, 0, 0)
+                .glyph(102, 1, ADV, 0, 0)
+                .glyph(103, 2, ADV, 0, 0)
+                // A right-to-left run's glyphs go in the order a shaper emits them, which is that
+                // run's own left-to-right visual order: gimel, bet, alef.
+                .run(FACE, 3, 6, 1)
+                .glyph(203, 5, ADV, 0, 0)
+                .glyph(202, 4, ADV, 0, 0)
+                .glyph(201, 3, ADV, 0, 0)
+                .build();
+    }
+
+    /**
+     * A pure right-to-left paragraph, alef bet gimel, width 30:
+     *
+     * <pre>
+     * visual:     gimel[0,10) bet[10,20) alef[20,30)
+     * charIndex:      2           1          0
+     * </pre>
+     */
+    private static ShapedText hebrew() {
+        ShapedText.Builder b = ShapedText.builder(HEB, FONT, Direction.RTL, HEB.length())
+                .lineMetrics(8, 2, 12)
+                .run(FACE, 0, HEB.length(), 1);
+        for (int i = HEB.length() - 1; i >= 0; i--) {
+            b.glyph(200 + i, i, ADV, 0, 0);
+        }
+        return b.build();
+    }
+
+    /**
+     * A right-to-left paragraph whose <em>first</em> characters are left-to-right: "cd" at level 2
+     * inside alef bet at level 1, width 40.
+     *
+     * <pre>
+     * visual:     bet[0,10) alef[10,20) c[20,30) d[30,40)
+     * charIndex:      3         2          0        1
+     * </pre>
+     *
+     * <p>This is the discriminating fixture for the edge jumps: at index 0 the paragraph's start
+     * edge is 40 and the first cluster's leading edge is 20, so Home has one right answer and one
+     * wrong one. On a line with no embedded run they coincide and the assertion is vacuous.
+     */
+    private static ShapedText ltrFirstInRtlParagraph() {
+        return ShapedText.builder("cd" + HEB.substring(0, 2), FONT, Direction.RTL, 4)
+                .lineMetrics(8, 2, 12)
+                .run(FACE, 0, 2, 2)
+                .glyph(103, 0, ADV, 0, 0)
+                .glyph(104, 1, ADV, 0, 0)
+                .run(FACE, 2, 4, 1)
+                .glyph(201, 3, ADV, 0, 0)
+                .glyph(200, 2, ADV, 0, 0)
+                .build();
+    }
+
+    /** One left-to-right run, one cluster per char: the fast path, for the multi-line cases. */
+    private static ShapedText latin(String text) {
+        ShapedText.Builder b = ShapedText.builder(text, FONT, Direction.LTR, text.length())
+                .lineMetrics(8, 2, 12)
+                .run(FACE, 0, text.length(), 0);
+        for (int i = 0; i < text.length(); i++) {
+            b.glyph(100 + i, i, ADV, 0, 0);
+        }
+        return b.build();
+    }
+
+    private static TextEditModel modelOf(String text) {
+        TextEditModel m = new TextEditModel(true);
+        m.setText(text);
+        return m;
+    }
+
+    // ------------------------------------------------------------- caret side
+
+    /**
+     * The whole of §6.2 in one walk. It is the cheap test that stops two dozen assignments
+     * drifting apart: the side is written by every mutator, and a mutator that forgets leaves a
+     * correct index carrying the previous caret's side, which draws a run away from the truth only
+     * on the lines this phase exists for.
+     */
+    @Test
+    void everyMutatorLeavesTheDocumentedSide() {
+        record Case(String name, Affinity expected, Consumer<TextEditModel> action) {
+        }
+        List<Case> cases = List.of(
+                new Case("insert", Affinity.UPSTREAM, m -> m.insert("z")),
+                new Case("insertCodePoint", Affinity.UPSTREAM, m -> m.insertCodePoint('z')),
+                new Case("backspace", Affinity.UPSTREAM, TextEditModel::backspace),
+                new Case("deleteForward", Affinity.UPSTREAM, TextEditModel::deleteForward),
+                new Case("deleteWordBackward", Affinity.UPSTREAM, TextEditModel::deleteWordBackward),
+                new Case("deleteWordForward", Affinity.UPSTREAM, TextEditModel::deleteWordForward),
+                new Case("deleteSelection", Affinity.UPSTREAM, m -> {
+                    m.selectAll();
+                    m.deleteSelection();
+                }),
+                new Case("setText", Affinity.DOWNSTREAM, m -> m.setText("q")),
+                new Case("setCursor", Affinity.DOWNSTREAM, m -> m.setCursor(1, false)),
+                new Case("setCaret(UPSTREAM)", Affinity.UPSTREAM,
+                        m -> m.setCaret(new Position(1, Affinity.UPSTREAM), false)),
+                new Case("setCaret(DOWNSTREAM)", Affinity.DOWNSTREAM,
+                        m -> m.setCaret(new Position(1, Affinity.DOWNSTREAM), false)),
+                new Case("moveLeft", Affinity.DOWNSTREAM, m -> m.moveLeft(false)),
+                new Case("moveRight", Affinity.UPSTREAM, m -> m.moveRight(false)),
+                new Case("moveWordLeft", Affinity.DOWNSTREAM, m -> m.moveWordLeft(false)),
+                new Case("moveWordRight", Affinity.UPSTREAM, m -> m.moveWordRight(false)),
+                new Case("moveHome", Affinity.UPSTREAM, m -> m.moveHome(false)),
+                new Case("moveEnd", Affinity.DOWNSTREAM, m -> m.moveEnd(false)),
+                new Case("moveDocumentStart", Affinity.UPSTREAM, m -> m.moveDocumentStart(false)),
+                new Case("moveDocumentEnd", Affinity.DOWNSTREAM, m -> m.moveDocumentEnd(false)),
+                new Case("moveUp", Affinity.DOWNSTREAM, m -> m.moveUp(false)),
+                new Case("moveDown", Affinity.DOWNSTREAM, m -> m.moveDown(false)),
+                // The two early returns out of the vertical mover, which are the paths a side
+                // written after the branch would miss.
+                new Case("moveUp at the first line", Affinity.DOWNSTREAM, m -> {
+                    m.setCaret(new Position(1, Affinity.UPSTREAM), false);
+                    m.moveUp(false);
+                }),
+                new Case("moveDown at the last line", Affinity.DOWNSTREAM, m -> {
+                    m.setCaret(new Position(m.length(), Affinity.UPSTREAM), false);
+                    m.moveDown(false);
+                }),
+                new Case("selectAll", Affinity.DOWNSTREAM, TextEditModel::selectAll));
+
+        // Every case runs from BOTH starting sides, so no row can pass by leaving the side alone.
+        for (Case c : cases) {
+            for (Affinity start : Affinity.values()) {
+                TextEditModel m = new TextEditModel(false);
+                m.setText("abc def\nghi jkl");
+                m.setCaret(new Position(5, start), false);
+                c.action().accept(m);
+                String where = c.name() + " from " + start;
+                assertEquals(c.expected(), m.caret().affinity(), where);
+                assertEquals(m.cursor(), m.caret().charIndex(), where + ": index");
+            }
+        }
+    }
+
+    /**
+     * The side is restored with the index or it is not restored at all. Index 3 of the mixed line
+     * draws at 30 on one side and 60 on the other, so an undo that dropped the side would put the
+     * caret at the far end of the right-to-left run and the next arrow press would jump.
+     */
+    @Test
+    void undoRestoresTheSideAndNotOnlyTheIndex() {
+        ShapedText line = latinThenHebrew();
+        assertEquals(60f, line.caretX(new Position(3, Affinity.DOWNSTREAM)), EPS,
+                "the wrong side of index 3 is a whole run away, which is what makes this a test");
+
+        TextEditModel m = modelOf("abc" + HEB);
+        m.setCaret(new Position(3, Affinity.UPSTREAM), false);
+        assertEquals(30f, line.caretX(m.caret()), EPS);
+
+        m.insertCodePoint('x');
+        assertTrue(m.undo());
+        assertEquals(new Position(3, Affinity.UPSTREAM), m.caret());
+        assertEquals(30f, line.caretX(m.caret()), EPS,
+                "60 is the same index on the other side: a whole run away");
+
+        assertTrue(m.redo());
+        assertEquals(Affinity.UPSTREAM, m.caret().affinity(), "redo carries a side too");
+    }
+
+    /**
+     * Two clicks 27 points apart name the same index with different sides. The anchor takes only
+     * the index, so which of the two started the drag cannot change what is selected — which is
+     * why the anchor is a bare {@code int} and gains nothing.
+     */
+    @Test
+    void anAnchorReachedFromEitherSideOfABoundarySelectsTheSameBoxes() {
+        ShapedText line = latinThenHebrew();
+        Position upstream = line.hitTest(29);   // trailing half of 'c'
+        Position downstream = line.hitTest(56); // leading (right) half of the RTL alef
+        assertEquals(new Position(3, Affinity.UPSTREAM), upstream);
+        assertEquals(new Position(3, Affinity.DOWNSTREAM), downstream);
+        assertEquals(30f, line.caretX(upstream), EPS);
+        assertEquals(60f, line.caretX(downstream), EPS);
+
+        Position drag = line.hitTest(12); // leading half of 'b'
+        int[] bounds = new int[2];
+        List<List<Span>> boxes = new ArrayList<>();
+        for (Position press : List.of(upstream, downstream)) {
+            TextEditModel m = modelOf("abc" + HEB);
+            m.setCaret(press, false);
+            m.setCaret(drag, true);
+            if (press == upstream) {
+                bounds[0] = m.selectionStart();
+                bounds[1] = m.selectionEnd();
+            } else {
+                assertEquals(bounds[0], m.selectionStart());
+                assertEquals(bounds[1], m.selectionEnd());
+            }
+            boxes.add(line.selection(m.selectionStart(), m.selectionEnd()));
+        }
+        assertEquals(1, bounds[0]);
+        assertEquals(3, bounds[1]);
+        assertEquals(boxes.get(0), boxes.get(1), "the anchor contributed only its index");
+    }
+
+    // ------------------------------------------------- logical edges, visual arrows
+
+    /**
+     * Home is <b>logical</b>, so in a right-to-left paragraph it goes to the visual RIGHT. That is
+     * what Windows edit controls, GTK's {@code DISPLAY_LINE_ENDS} movement and Cocoa's
+     * {@code moveToBeginningOfLine:} all do; no platform makes Home visual, and Shift+Home would
+     * otherwise have to select a range that is not contiguous in the string.
+     */
+    @Test
+    void homeGoesToTheVisualRightOfARightToLeftLine() {
+        ShapedText line = hebrew();
+        TextEditModel m = modelOf(HEB);
+        m.moveHome(false);
+        assertEquals(0, m.cursor());
+        assertEquals(30f, line.caretX(m.caret()), EPS, "the logical start is the right edge");
+        m.moveEnd(false);
+        assertEquals(HEB.length(), m.cursor());
+        assertEquals(0f, line.caretX(m.caret()), EPS, "the logical end is the left edge");
+    }
+
+    /**
+     * The side of an edge jump names the PARAGRAPH's edge, not the leading edge of whichever
+     * cluster happens to sit there. On this line those are 20 points apart, and applying the
+     * ordinary by-one-unit rule to Home would take the wrong one.
+     */
+    @Test
+    void anEdgeJumpLandsOnTheParagraphEdgeAndNotOnTheFirstClustersEdge() {
+        ShapedText line = ltrFirstInRtlParagraph();
+        assertEquals(20f, line.caretX(new Position(0, Affinity.DOWNSTREAM)), EPS,
+                "the two sides of index 0 are 20 points apart here, or this test proves nothing");
+
+        TextEditModel m = modelOf("cd" + HEB.substring(0, 2));
+        m.moveHome(false);
+        assertEquals(40f, line.caretX(m.caret()), EPS, "20 is where the 'c' cluster begins");
+        m.moveDocumentStart(false);
+        assertEquals(40f, line.caretX(m.caret()), EPS, "Ctrl+Home is the same jump");
+        m.moveEnd(false);
+        assertEquals(0f, line.caretX(m.caret()), EPS);
+    }
+
+    /**
+     * The whole shape of the arrows/word split: on the same three right-to-left letters, from the
+     * same caret, Left and Ctrl+Left move it in opposite directions. That is deliberate — a word
+     * has to be a contiguous range of the string so that Ctrl+Backspace deletes what was
+     * highlighted — and it is what Windows and GTK do.
+     */
+    @Test
+    void leftArrowIsVisualAndWordLeftIsLogicalAndTheyDisagreeInRtl() {
+        ShapedText line = hebrew();
+        TextEditModel visual = modelOf(HEB);
+        visual.setCursor(1, false);
+        assertEquals(20f, line.caretX(visual.caret()), EPS);
+        assertTrue(visual.moveVisualLeft(line, 0, false));
+        assertEquals(new Position(2, Affinity.UPSTREAM), visual.caret());
+        assertEquals(10f, line.caretX(visual.caret()), EPS, "Left went LEFT");
+
+        TextEditModel word = modelOf(HEB);
+        word.setCursor(1, false);
+        word.moveWordLeft(false);
+        assertEquals(0, word.cursor());
+        assertEquals(30f, line.caretX(word.caret()), EPS, "Ctrl+Left went RIGHT, to the word start");
+    }
+
+    /**
+     * An index alone does not say which of its two points the caret is at, so it cannot say where
+     * the next press steps from. Here the same key, from the same index, lands 30 points apart.
+     */
+    @Test
+    void theSameIndexOnTwoSidesStepsToTwoDifferentPlaces() {
+        ShapedText line = latinThenHebrew();
+
+        TextEditModel up = modelOf("abc" + HEB);
+        up.setCaret(new Position(3, Affinity.UPSTREAM), false);
+        assertTrue(up.moveVisualLeft(line, 0, false));
+        assertEquals(new Position(2, Affinity.DOWNSTREAM), up.caret(), "left out of the Latin run");
+        assertEquals(20f, line.caretX(up.caret()), EPS);
+
+        TextEditModel down = modelOf("abc" + HEB);
+        down.setCaret(new Position(3, Affinity.DOWNSTREAM), false);
+        assertTrue(down.moveVisualLeft(line, 0, false));
+        assertEquals(new Position(4, Affinity.UPSTREAM), down.caret(), "left out of the Hebrew run");
+        assertEquals(50f, line.caretX(down.caret()), EPS);
+    }
+
+    /**
+     * {@code false} is how a multi-line caller learns to change line, and the edge it reports is
+     * the <em>visual</em> one: on this fixture the right edge of the line is index 3, not the end
+     * of the string.
+     */
+    @Test
+    void arrowAtTheLineEdgeReportsFalseSoTheCallerChangesLine() {
+        ShapedText line = latinThenHebrew();
+        TextEditModel m = modelOf("abc" + HEB);
+
+        m.setCaret(new Position(0, Affinity.UPSTREAM), false);
+        assertFalse(m.moveVisualLeft(line, 0, false), "already at the visual left edge");
+        assertEquals(0, m.cursor(), "and the caret did not move");
+
+        m.setCaret(line.hitTest(line.metrics().width()), false);
+        assertEquals(new Position(3, Affinity.DOWNSTREAM), m.caret(),
+                "the visual right edge of this line is the boundary index, not the string's end");
+        assertFalse(m.moveVisualRight(line, 0, false));
+        assertEquals(3, m.cursor());
+
+        assertTrue(m.moveVisualLeft(line, 0, false), "a step that moves reports true");
+    }
+
+    /**
+     * Collapsing stays logical even under a visual arrow: a selection can span lines and its two
+     * ends can sit in different runs, so "the visually left end" of one has no answer. On a
+     * right-to-left line the collapse therefore lands on the visual right, and it still reports
+     * {@code true} — the caret moved, and a caller that read {@code false} would collapse the
+     * selection and change line in the same keystroke.
+     */
+    @Test
+    void collapsingASelectionIsLogicalEvenWhenTheArrowIsVisual() {
+        ShapedText line = hebrew();
+        TextEditModel m = modelOf(HEB);
+        m.setCursor(0, false);
+        m.setCursor(2, true);
+        assertTrue(m.hasSelection());
+        assertTrue(m.moveVisualLeft(line, 0, false));
+        assertFalse(m.hasSelection());
+        assertEquals(0, m.cursor(), "the LOGICAL start of the selection");
+        assertEquals(30f, line.caretX(m.caret()), EPS, "which on this line is the visual right");
+
+        m.setCursor(0, false);
+        m.setCursor(2, true);
+        assertTrue(m.moveVisualRight(line, 0, false));
+        assertEquals(2, m.cursor(), "the logical end");
+        assertEquals(10f, line.caretX(m.caret()), EPS);
+    }
+
+    /** With shift held, the visual arrows drag a selection like every other mover. */
+    @Test
+    void visualArrowsExtendTheSelection() {
+        ShapedText line = latinThenHebrew();
+        TextEditModel m = modelOf("abc" + HEB);
+        m.setCursor(0, false);
+        m.moveVisualRight(line, 0, true);
+        m.moveVisualRight(line, 0, true);
+        assertTrue(m.hasSelection());
+        assertEquals("ab", m.selectedText());
+    }
+
+    /**
+     * {@code lineStart} is what makes one line's shaping speak the buffer's index space, and it is
+     * the only translation a multi-line caller does.
+     */
+    @Test
+    void aVisualStepIsRelativeToTheLineStart() {
+        ShapedText line = latin("cd");
+        TextEditModel m = new TextEditModel(false);
+        m.setText("ab\ncd");
+        m.moveDocumentEnd(false);
+        assertTrue(m.moveVisualLeft(line, 3, false));
+        assertEquals(4, m.cursor());
+        assertTrue(m.moveVisualLeft(line, 3, false));
+        assertEquals(3, m.cursor(), "the start of line 1, not of the buffer");
+        assertFalse(m.moveVisualLeft(line, 3, false), "now the caller changes line");
+        assertEquals(3, m.cursor());
+    }
+
+    /** A caret restored from a stale view has to produce a position, not an exception. */
+    @Test
+    void aCursorOutsideTheLineIsClampedIntoIt() {
+        ShapedText line = latin("cd");
+        TextEditModel m = new TextEditModel(false);
+        m.setText("ab\ncd");
+        m.setCursor(0, false); // line 0, while the caller hands line 1's shaping
+        m.moveVisualRight(line, 3, false);
+        assertEquals(4, m.cursor(), "clamped to the line's start, then stepped right");
+
+        assertThrows(NullPointerException.class, () -> m.moveVisualLeft(null, 0, false));
+        assertThrows(NullPointerException.class, () -> m.setCaret(null, false));
+    }
+
+    /** {@link TextEditModel#setCaret} clamps its index exactly as {@code setCursor} does. */
+    @Test
+    void setCaretClampsIntoTheBuffer() {
+        TextEditModel m = modelOf("abc");
+        m.setCaret(new Position(99, Affinity.UPSTREAM), false);
+        assertEquals(3, m.cursor());
+        m.setCaret(new Position(-4, Affinity.DOWNSTREAM), false);
+        assertEquals(0, m.cursor());
     }
 }

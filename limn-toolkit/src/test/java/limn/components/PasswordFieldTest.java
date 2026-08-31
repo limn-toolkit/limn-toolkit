@@ -1,6 +1,8 @@
 package limn.components;
 
+import limn.graphics.Font;
 import limn.graphics.Paint;
+import limn.graphics.ShapedText;
 import limn.input.Keys;
 import limn.scene.ControlSize;
 import limn.scene.Scene;
@@ -19,10 +21,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>Two properties, and everything here is one or the other:
  * <ul>
- *   <li><b>One mask code point per source code point, at every step.</b> The mask is the one
- *       place in the text cluster where the painted form is not the model's string; break the
- *       count and {@code TextEditModel}'s offsets desynchronise from what is painted: the caret
- *       drifts, clicks land on a neighbour, selection highlights the wrong run.</li>
+ *   <li><b>One mark per grapheme cluster, at every step.</b> The mask is the one place in the
+ *       text cluster where the painted form is not the model's string; break the count and
+ *       {@code TextEditModel}'s offsets desynchronise from what is painted: the caret drifts,
+ *       clicks land on a neighbour, selection highlights the wrong run. The masked line is
+ *       indexed by the model's own offsets, so the count is now a property of one piece of
+ *       arithmetic rather than an invariant a substitution has to preserve.</li>
  *   <li><b>The dot is one fixed fraction of the body font, at every step.</b> It replaced a
  *       per-step glyph table whose ink went 0.11 / 0.11 / 0.20 / 0.90 / 0.90&nbsp;em: a
  *       4.5&times; cliff between MEDIUM and LARGE that no type ramp asked for, and a mask that
@@ -57,21 +61,20 @@ class PasswordFieldTest extends ComponentTestBase {
     // --------------------------------------------- the count invariant, per step
 
     @Test
-    void everyStepMasksOneCodePointPerSourceCodePoint() {
+    void everyStepMasksOneCellPerGraphemeCluster() {
         PasswordField field = new PasswordField();
         field.setText(SECRET);
-        int sourceCodePoints = SECRET.codePointCount(0, SECRET.length());
-        assertEquals(3, sourceCodePoints, "the fixture itself: 3 code points in 4 chars");
+        assertEquals(3, SECRET.codePointCount(0, SECRET.length()),
+                "the fixture itself: 3 code points in 4 chars");
 
         for (ControlSize step : ControlSize.values()) {
             field.setControlSize(step);
-            String shown = field.displayText();
-            assertEquals(sourceCodePoints, shown.codePointCount(0, shown.length()),
-                    "one dot per source code point at " + step);
-            // The mask char must be BMP: with an astral one the char length would double and
-            // every char offset taken over the display string would shift.
-            assertEquals(sourceCodePoints, shown.length(),
-                    "the mask char is a single char at " + step);
+            ShapedText masked = field.shapeDisplay(SECRET, SizeTokens.of(step).body());
+            // Caret stops bound the cells, so there is one more stop than there are marks.
+            assertEquals(3, masked.caretCount() - 1, "one dot per grapheme cluster at " + step);
+            // The line's index space is the MODEL's, which is what retired the old count-preserving
+            // mask string: there is no second string left for an offset to be wrong in.
+            assertEquals(SECRET, masked.text(), "the model's own index space at " + step);
         }
     }
 
@@ -80,29 +83,58 @@ class PasswordFieldTest extends ComponentTestBase {
         PasswordField field = new PasswordField();
         field.setText(CLEF);
         for (ControlSize step : ControlSize.values()) {
+            Font body = SizeTokens.of(step).body();
             field.setControlSize(step);
-            assertEquals(1, field.displayText().codePointCount(0, 1),
+            ShapedText masked = field.shapeDisplay(CLEF, body);
+            assertEquals(1, masked.caretCount() - 1,
                     "two chars, one code point, ONE dot at " + step
                             + ": counting chars would leak that the character is astral");
+            assertEquals(ADVANCE * body.size(), masked.metrics().width(), EPSILON,
+                    "and the line is exactly one cell wide at " + step);
         }
     }
 
     @Test
-    void thePrefixMaskCountsExactlyTheCodePointsBeforeTheCaret() {
-        // displayPrefix is the only bridge from a model offset to a painted x: the caret's x is
-        // the width of the mask of the prefix. Its count must agree with displayText's at every
-        // code-point boundary, including the two halves of a surrogate pair.
+    void everyModelOffsetLandsOnAWholeNumberOfCells() {
+        // The bridge from a model offset to a painted x is caretX on the masked line, and the line
+        // is indexed by the model's own offsets: nothing measures a prefix, and no mask string
+        // exists whose count could drift from the source's. The two halves of the surrogate pair
+        // are the case that used to need the invariant spelled out.
         PasswordField field = new PasswordField();
         field.setText(SECRET);
         for (ControlSize step : ControlSize.values()) {
+            Font body = SizeTokens.of(step).body();
             field.setControlSize(step);
-            assertEquals(0, field.displayPrefix(0).length(), "nothing before the head at " + step);
-            assertEquals(1, field.displayPrefix(1).length(), "after 'a' at " + step);
-            assertEquals(2, field.displayPrefix(3).length(),
+            ShapedText masked = field.shapeDisplay(SECRET, body);
+            float cell = ADVANCE * body.size();
+            assertEquals(0, masked.caretX(at(0)), EPSILON, "nothing before the head at " + step);
+            assertEquals(cell, masked.caretX(at(1)), EPSILON, "after 'a' at " + step);
+            assertEquals(2 * cell, masked.caretX(at(3)), EPSILON,
                     "after the whole surrogate pair at " + step);
-            assertEquals(field.displayText(), field.displayPrefix(SECRET.length()),
-                    "the full prefix is the full mask at " + step);
+            assertEquals(3 * cell, masked.caretX(at(SECRET.length())), EPSILON,
+                    "and the end of the line is three whole cells at " + step);
         }
+    }
+
+    @Test
+    void aCompositeCharacterMasksToOneDotAndNotToOnePerCodePoint() {
+        // DIGIT ONE, VARIATION SELECTOR-16, COMBINING ENCLOSING KEYCAP: three code points in three
+        // chars, and ONE thing the user typed and can delete. The cells are grapheme clusters, so
+        // one dot stands for one user-perceived character -- counting code points here would show
+        // three dots for one keypress, and offer two caret stops inside a character.
+        String keycap = "1\uFE0F\u20E3";
+        PasswordField field = new PasswordField();
+        field.setText(keycap);
+        Font body = SizeTokens.of(ControlSize.MEDIUM).body();
+        ShapedText masked = field.shapeDisplay(keycap, body);
+        assertEquals(1, masked.caretCount() - 1, "one dot for one user-perceived character");
+        assertEquals(ADVANCE * body.size(), masked.metrics().width(), EPSILON,
+                "and one cell wide, not three");
+    }
+
+    /** A caret at {@code index}, on the side a programmatic placement leaves. */
+    private static ShapedText.Position at(int index) {
+        return new ShapedText.Position(index, ShapedText.Affinity.DOWNSTREAM);
     }
 
     // ------------------------------------------------------ the dot, as painted
@@ -214,15 +246,17 @@ class PasswordFieldTest extends ComponentTestBase {
         PasswordField field = new PasswordField();
         field.setText(SECRET);
 
+        Font body = SizeTokens.of(ControlSize.MEDIUM).body();
         field.setRevealed(true);
-        assertEquals(SECRET, field.displayText(), "revealed text is the model's own string");
-        assertEquals("a" + CLEF, field.displayPrefix(3), "and so is the revealed prefix");
+        assertEquals(SECRET, field.shapeDisplay(SECRET, body).text(),
+                "revealed, the line is the model's own string");
         Dots shown = paint(ControlSize.MEDIUM, SECRET, true);
         assertEquals(List.of(SECRET), shown.texts, "revealed, it is typeset like any field");
         assertEquals(List.of(), shown.circles, "and no dot is drawn");
 
         field.setRevealed(false);
-        assertEquals(3, field.displayText().length(), "back to one dot per code point");
+        assertEquals(3, field.shapeDisplay(SECRET, body).caretCount() - 1,
+                "back to one dot per grapheme cluster");
     }
 
     @Test

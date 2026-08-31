@@ -29,11 +29,14 @@ import java.util.TreeSet;
  * gracefully (drop italic, then bold, then to the family's regular, then the
  * global fallback).
  *
- * <p><b>Script fallback.</b> Any code point the primary face lacks (CJK, emoji, …)
- * is resolved per-code-point against the registered fallback faces, so mixed-script
- * lines "just work". Until the background fallbacks land (and when the Noto
- * binaries are absent) this degrades to Roboto-only; the fold-in re-notifies
- * {@link Fonts} listeners, so scenes relayout and boxes heal into glyphs.
+ * <p><b>Script fallback.</b> Any code point the primary face lacks (CJK, emoji,
+ * Arabic, Hebrew, Devanagari, Thai, …) is resolved against the registered fallback
+ * faces — once per run by the shaper, which needs the face before any glyph
+ * exists, and per code point by the two walks that remain under it: the plain
+ * measure, and the painter's fallback for a cluster that has no glyph. Mixed-script lines "just
+ * work". Until the background fallbacks land (and when the Noto binaries are
+ * absent) this degrades to Roboto-only; the fold-in re-notifies {@link Fonts}
+ * listeners, so scenes relayout and boxes heal into glyphs.
  *
  * <p><b>System fonts.</b> Families enumerated from the OS (see {@link SystemFonts})
  * are registered as lightweight descriptors and their faces are loaded <em>lazily</em>,
@@ -57,19 +60,59 @@ final class FontStore implements AutoCloseable {
 
     private final Map<String, StbFont> byFamily = new HashMap<>();
     private final Map<StbFont, Integer> faceIds = new IdentityHashMap<>();
+    // The reverse, for a painter holding a ShapedText: a run names its face by id, and the id has
+    // to become a face again to reach the atlas. Kept in step with faceIds at both ends, because
+    // an id that outlives its face is exactly the case this map exists to answer "no" to.
+    private final Map<Integer, StbFont> facesById = new HashMap<>();
     private int nextFaceId; // monotonic: never reused, so an evicted+reloaded face gets a fresh atlas key
     private final List<StbFont> pinned = new ArrayList<>();      // bundled faces (closed on shutdown)
     private final List<StbFont> fallbackFaces = new ArrayList<>(); // per-code-point fallback chain
     private final Map<Font, StbFont> resolved = new IdentityHashMap<>();
     private final StbFont fallback; // Roboto Regular, assigned in the constructor
     private ColorEmojiFont colorEmoji; // optional CBDT color emoji; arrives from the background load
-    // Bundled style variants parse lazily on first resolve (an app that never
-    // shows bold italic never pays for it): family key -> pending face.
+    /** A bundled face that is a name and a classpath resource until something needs it. */
     private record LazyFace(String name, String resource) {
     }
 
+    // Bundled style variants parse lazily on first resolve (an app that never
+    // shows bold italic never pays for it): family key -> pending face.
     private final Map<String, LazyFace> lazyBundled = new HashMap<>();
     private boolean closed; // a background fallback load may complete after close()
+
+    /**
+     * The faces that make the complex scripts drawable, in the order they join the fallback chain.
+     *
+     * <p>Each covers exactly one script <em>nothing else bundled here covers at all</em>: the cmaps
+     * of Roboto and of Noto Sans CJK were both read directly, and both answer 0 of 256 Arabic, 0 of
+     * 112 Hebrew, 0 of 128 Devanagari and 0 of 128 Thai. Without these the shaper runs, resolves
+     * every complex-script run to the primary face, and shapes it into a row of {@code .notdef}
+     * boxes — a pipeline that works and has nothing to work with.
+     *
+     * <p>They live in the same background batch as the CJK and colour-emoji faces, and the reason
+     * is the trigger rather than the size. 531 KB for all four is nearer Roboto Regular's 349 KB
+     * than the pan-CJK face's 16 MB, so "too big to parse at startup" is not the argument; what
+     * makes them lazy is that nothing at construction time knows whether this application will ever
+     * draw a character of any of them, and the moment that becomes known is the first code point no
+     * resident face covers — which is precisely when {@link #requestHeavyFallbacks} already fires.
+     * A second background path would duplicate the parts that are easy to get wrong (ownership on a
+     * throw, the drop-and-free after {@link #close}, the epoch bump, the catalog re-notification)
+     * for four files whose arrival condition is the same as the two already there.
+     *
+     * <p>The menu symbols went the other way — eager, at three kilobytes — and the difference is
+     * worth stating because it is not size either. Shortcut hints appear in a UI that never asked
+     * for them, in any locale, within the first frames, so a fallback arriving late is visible
+     * there. These four are reached only by text already written in their scripts, and that text is
+     * exactly what the epoch bump and the catalog notification re-shape.
+     */
+    private static final List<LazyFace> SCRIPT_FALLBACKS = List.of(
+            new LazyFace("Noto Sans Arabic",
+                    "/limn/backend/lwjgl/fonts/NotoSansArabic-Regular.ttf"),
+            new LazyFace("Noto Sans Hebrew",
+                    "/limn/backend/lwjgl/fonts/NotoSansHebrew-Regular.ttf"),
+            new LazyFace("Noto Sans Devanagari",
+                    "/limn/backend/lwjgl/fonts/NotoSansDevanagari-Regular.ttf"),
+            new LazyFace("Noto Sans Thai",
+                    "/limn/backend/lwjgl/fonts/NotoSansThai-Regular.ttf"));
 
     // On-demand kicks (one-shot, UI thread): the heavy Noto fallbacks load on
     // the FIRST glyph the primary face lacks; the OS font enumeration runs on
@@ -91,7 +134,47 @@ final class FontStore implements AutoCloseable {
     private final Map<StbFont, String> loadedSystemKeys = new IdentityHashMap<>();
     private final TreeSet<String> familyNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
 
-    private final Runnable onFontsChanged = () -> resolved.clear();
+    private final Runnable onFontsChanged = this::resolutionChanged;
+
+    // ------------------------------------------------------------------ shaping epoch
+    //
+    // Drawn from ONE process-wide counter rather than numbered per store, and the reason is not
+    // tidiness. A held ShapedText carries the number it was shaped under and is later asked
+    // whether it is still current by whatever ruler it is handed; two stores counting
+    // independently would eventually both answer the same number, and a value shaped by one would
+    // report itself fresh under the other. Installing a backend replaces the ruler outright, so
+    // uniqueness is the only thing standing between a held value and a ruler that never made it.
+    //
+    // It starts at 1, never 0: 0 means "depends on no ruler state, current under every ruler",
+    // which is right for a fake and wrong for anything that resolves a face.
+    private static final java.util.concurrent.atomic.AtomicLong EPOCHS =
+            new java.util.concurrent.atomic.AtomicLong();
+    private long epoch = EPOCHS.incrementAndGet();
+
+    /** The current shaping epoch: moves whenever this store would shape the same string differently. */
+    long epoch() {
+        return epoch;
+    }
+
+    /**
+     * Records that family-to-face resolution, or the set of resident faces, just changed.
+     *
+     * <p>The memo clear and the epoch bump are one call because they answer the same event for two
+     * different audiences — this store's own cache, and every {@code ShapedText} already handed
+     * out — and splitting them is how one of the two gets forgotten at the next call site. In
+     * particular an eviction <em>closes</em> a face, and nothing else in the process fires when it
+     * does: a held value's glyph ids then name a face that is gone.
+     *
+     * <p>Deliberately NOT called for a content-scale change, a monitor switch or a repaint.
+     * Shaped positions are unquantized logical points in font units, so a display change
+     * re-rasterizes glyph bitmaps (the atlas's job, keyed by quantized device size) and re-shapes
+     * nothing. Bumping here would re-shape every string in the process whenever a window crossed
+     * a monitor boundary.
+     */
+    private void resolutionChanged() {
+        resolved.clear();
+        epoch = EPOCHS.incrementAndGet();
+    }
 
     /**
      * The menu key symbols, or {@code null} in a build without them. Held apart from the
@@ -103,9 +186,10 @@ final class FontStore implements AutoCloseable {
     FontStore() {
         // Only Roboto Regular parses eagerly: it is the last-resort fallback and
         // the first frame's measure needs SOME face. Everything else is lazy:
-        // style variants on first resolve, the heavyweight broad-coverage
-        // fallbacks (CJK + color emoji, tens of MB) on a background task the
-        // backend kicks off (see parseHeavyFallbacks/installHeavyFallbacks).
+        // style variants on first resolve, and the optional broad-coverage
+        // fallbacks (CJK + color emoji, tens of MB, plus the four complex-script
+        // faces) on a background task the backend kicks off (see
+        // parseHeavyFallbacks/installHeavyFallbacks).
         StbFont roboto = register("Roboto", "/limn/backend/lwjgl/fonts/Roboto-Regular.ttf",
                 "roboto", Font.DEFAULT_FAMILY);
         lazyBundled.put("roboto bold",
@@ -223,10 +307,20 @@ final class FontStore implements AutoCloseable {
      * (classpath read + stb table parse), so it is safe on a worker; the
      * result is folded in on the UI thread by {@link #installHeavyFallbacks}.
      */
-    record HeavyFallbacks(StbFont cjk, ColorEmojiFont emoji) {
+    record HeavyFallbacks(StbFont cjk, List<StbFont> scripts, ColorEmojiFont emoji) {
+        HeavyFallbacks {
+            // Copied and never null, because this value crosses a thread and is then closed by
+            // whichever side ends up owning it; a caller that could still mutate the list is a
+            // caller that could hand a face to close() twice or not at all.
+            scripts = scripts == null ? List.of() : List.copyOf(scripts);
+        }
+
         void close() {
             if (cjk != null) {
                 cjk.close();
+            }
+            for (StbFont script : scripts) {
+                script.close();
             }
             if (emoji != null) {
                 emoji.close();
@@ -242,6 +336,7 @@ final class FontStore implements AutoCloseable {
                         "/limn/backend/lwjgl/fonts/NotoSansCJK-Regular.ttf",
                         "/limn/backend/lwjgl/fonts/NotoSansJP-Regular.ttf",
                         "/limn/backend/lwjgl/fonts/NotoSansSC-Regular.otf"),
+                FontStore::parseScriptFallbacks,
                 // Emoji come from the color font (CBDT bitmaps), drawn as images with their
                 // own cmap/advance; stb can't open it (bitmap-only), so it isn't an StbFont
                 // face in the chain. Absent → no emoji (a .notdef box).
@@ -250,23 +345,55 @@ final class FontStore implements AutoCloseable {
     }
 
     /**
+     * The four complex-script faces, on a worker thread. Each is optional exactly as the CJK face
+     * is: a checkout without {@code scripts/fetch-fonts.sh} having run is missing all four, and
+     * what that costs is boxes where Arabic, Hebrew, Devanagari or Thai would be, not a build or a
+     * startup that fails.
+     *
+     * <p>The batch closes what it has already parsed if a later one throws, for the same reason
+     * {@link #parseHeavyFallbacks} does: a present-but-unreadable resource throws with two or three
+     * native buffers already allocated and nothing else holding them.
+     */
+    private static List<StbFont> parseScriptFallbacks() {
+        List<StbFont> faces = new ArrayList<>(SCRIPT_FALLBACKS.size());
+        try {
+            for (LazyFace pending : SCRIPT_FALLBACKS) {
+                StbFont face = firstPresent(pending.name(), pending.resource());
+                if (face != null) {
+                    faces.add(face);
+                }
+            }
+        } catch (RuntimeException failed) {
+            for (StbFont face : faces) {
+                face.close();
+            }
+            throw failed;
+        }
+        return faces;
+    }
+
+    /**
      * The order matters and so does the failure. An absent resource is null and graceful, but one
-     * that is present and unreadable throws, and by then the CJK face is a native buffer stb has
-     * already allocated that nothing else holds; the fold-in that would have taken ownership is
-     * exactly what is not going to happen. So a throw from the second loader closes the first.
+     * that is present and unreadable throws, and by then the faces before it are native buffers stb
+     * has already allocated that nothing else holds; the fold-in that would have taken ownership is
+     * exactly what is not going to happen. So a throw from any loader closes what the ones before
+     * it produced.
      *
      * <p>Package-private with its loaders passed in for the test: no bundled resource can be made
      * to fail on demand, and the leak is only reachable on that path.
      */
     static HeavyFallbacks parseHeavyFallbacks(java.util.function.Supplier<StbFont> cjkLoader,
+                                              java.util.function.Supplier<List<StbFont>> scriptLoader,
                                               java.util.function.Supplier<ColorEmojiFont> emojiLoader) {
         StbFont cjk = cjkLoader.get();
+        List<StbFont> scripts = List.of();
         try {
-            return new HeavyFallbacks(cjk, emojiLoader.get());
+            scripts = scriptLoader.get();
+            return new HeavyFallbacks(cjk, scripts, emojiLoader.get());
         } catch (RuntimeException failed) {
-            if (cjk != null) {
-                cjk.close();
-            }
+            // Through the record's own close, so that adding a face to the batch cannot leave one
+            // freed on the happy path and leaked on this one.
+            new HeavyFallbacks(cjk, scripts, null).close();
             throw failed;
         }
     }
@@ -284,11 +411,11 @@ final class FontStore implements AutoCloseable {
     }
 
     /**
-     * Folds the background-parsed fallbacks in (UI thread): CJK joins the
-     * per-code-point fallback chain ahead of the Roboto last resort and becomes
-     * a selectable family; color emoji switches on. The caller re-installs the
-     * font catalog so {@code Fonts} listeners (scene relayout, font pickers)
-     * observe the upgrade; text that showed {@code .notdef} boxes heals.
+     * Folds the background-parsed fallbacks in (UI thread): CJK and the four complex-script faces
+     * join the fallback chain ahead of the Roboto last resort and become selectable families;
+     * color emoji switches on. The caller re-installs the font catalog so {@code Fonts} listeners
+     * (scene relayout, font pickers) observe the upgrade; text that showed {@code .notdef} boxes
+     * heals.
      *
      * @return whether anything new was installed (skipped entirely after close)
      */
@@ -308,6 +435,23 @@ final class FontStore implements AutoCloseable {
             familyNames.add("Noto Sans CJK");
             changed = true;
         }
+        for (StbFont script : loaded.scripts()) {
+            assignId(script);
+            pinned.add(script);
+            // Behind the CJK face and still ahead of Roboto. Position in this list is who WINS a
+            // code point two faces both cover, and these four carry Latin digits and punctuation as
+            // well as their own script: put ahead of the CJK face they would start drawing the
+            // Latin of any line whose primary face lacks it, which is a visible change to text that
+            // has nothing to do with these scripts. Behind it, they are consulted only for what
+            // nothing before them has — which is exactly the four scripts they were added for.
+            fallbackFaces.add(Math.max(0, fallbackFaces.size() - 1), script);
+            // Selectable too, like the CJK face: an application whose UI is Arabic wants this as
+            // its primary rather than as the thing that rescues Roboto, and a resident face nobody
+            // can name is a face nobody can choose.
+            byFamily.put(script.name().toLowerCase(Locale.ROOT), script);
+            familyNames.add(script.name());
+            changed = true;
+        }
         if (loaded.emoji() != null) {
             colorEmoji = loaded.emoji();
             LOG.log(Level.INFO, "color emoji enabled (Noto Color Emoji)");
@@ -316,7 +460,7 @@ final class FontStore implements AutoCloseable {
             LOG.log(Level.INFO, "color emoji font not bundled. See fonts/README.md");
         }
         if (changed) {
-            resolved.clear(); // cached resolutions may now upgrade to the CJK family
+            resolutionChanged(); // cached resolutions may now upgrade to a face that just arrived
         }
         return changed;
     }
@@ -331,9 +475,28 @@ final class FontStore implements AutoCloseable {
         return face;
     }
 
+    /**
+     * The face an id names, or {@code null} if this store no longer knows it.
+     *
+     * <p>{@code null} is the answer for an id issued before an eviction, and it is the answer a
+     * caller needs rather than a wrong face: ids are never reused, so the alternative is not a
+     * stale glyph but a row number read against a table it does not belong to, which draws
+     * different CHARACTERS. A painter that gets {@code null} draws the text it was given by the
+     * slower route.
+     */
+    StbFont faceById(int id) {
+        return facesById.get(id);
+    }
+
     private int assignId(StbFont face) {
         int id = nextFaceId++;
         faceIds.put(face, id);
+        facesById.put(id, face);
+        // A face arriving is a residency change, and a held ShapedText cannot see it: the string
+        // that fell back to Roboto a moment ago resolves to this face now, and would keep drawing
+        // yesterday's glyphs through the very relayout that exists to fix it. The three calls from
+        // the constructor bump a counter nobody has read yet, which costs nothing.
+        epoch = EPOCHS.incrementAndGet();
         return id;
     }
 
@@ -360,7 +523,7 @@ final class FontStore implements AutoCloseable {
         // directories again to learn what it already knows.
         systemScanRequested = true;
         systemFacesInstalled = true;
-        resolved.clear();
+        resolutionChanged();
         // Preloads asked for before the enumeration landed now know their files.
         if (!awaitingScan.isEmpty()) {
             Map<String, List<Runnable>> pending = new HashMap<>(awaitingScan);
@@ -412,7 +575,7 @@ final class FontStore implements AutoCloseable {
             addFaceOnce(systemFaces, key, face);
             familyNames.add(face.family());
         }
-        resolved.clear();
+        resolutionChanged();
         catalogChanged.run();
         return faces.get(0).family();
     }
@@ -588,7 +751,7 @@ final class FontStore implements AutoCloseable {
         }
         if (changed) {
             evictSystemBeyondCap();
-            resolved.clear(); // text that fell back to Roboto now resolves to the real face
+            resolutionChanged(); // text that fell back to Roboto now resolves to the real face
         }
         finishPreload(key, null);
         if (changed) {
@@ -785,8 +948,13 @@ final class FontStore implements AutoCloseable {
             StbFont evicted = iterator.next().getValue(); // eldest first (access-order)
             iterator.remove();
             loadedSystemKeys.remove(evicted);
-            faceIds.remove(evicted);
-            resolved.clear(); // a cached resolution may point at the evicted face
+            Integer evictedId = faceIds.remove(evicted);
+            if (evictedId != null) {
+                // Both directions, or a held ShapedText's run would still resolve its id to a face
+                // whose native memory is about to be freed, and paint from a closed atlas source.
+                facesById.remove(evictedId);
+            }
+            resolutionChanged(); // a cached resolution may point at the evicted face
             evicted.close();
         }
     }
@@ -797,6 +965,12 @@ final class FontStore implements AutoCloseable {
      * Face that should draw {@code codepoint} for text whose primary face is
      * {@code primary}: the primary if it has the glyph, else the first fallback
      * face that does, else the primary (so a {@code .notdef} box shows).
+     *
+     * <p>Takes a code point because coverage is a question about a character;
+     * the caller must then take the <em>glyph index</em> from the face this
+     * returns, since an index means nothing in any other face. On the
+     * last-resort branch that answer is legitimately index 0 — that is what
+     * draws the box, and it is not an error to be filtered out.
      */
     StbFont faceForCodepoint(StbFont primary, int codepoint) {
         if (primary.hasGlyph(codepoint)) {
@@ -809,9 +983,15 @@ final class FontStore implements AutoCloseable {
             }
         }
         // Only now: a glyph no face already in memory can draw is the first REAL need for the
-        // heavy fallbacks (CJK + color emoji, tens of megabytes), so their background load is
-        // kicked here rather than above the loop. Asking before looking made every menu
-        // shortcut hint (three kilobytes of symbols, already resident) pay for that parse.
+        // optional fallbacks (CJK + colour emoji at tens of megabytes, and the four
+        // complex-script faces at 531 KB together), so their background load is kicked here
+        // rather than above the loop. Asking before looking made every menu shortcut hint (three
+        // kilobytes of symbols, already resident) pay for that parse.
+        //
+        // This is also the ONLY thing that ever kicks it, and the shaper reaches these scripts
+        // through this very method — so an Arabic run resolves to the primary and shapes into
+        // boxes exactly once, until the fold-in bumps the epoch and every held ShapedText
+        // re-shapes against the face that has now arrived.
         requestHeavyFallbacks();
         return primary;
     }
@@ -882,6 +1062,11 @@ final class FontStore implements AutoCloseable {
     /** Stable small id per face, used in glyph cache keys. */
     int faceId(StbFont font) {
         Integer id = faceIds.get(font);
+        // 0 for a face this store does not know, which an LRU-evicted one becomes.
+        // It then shares atlas keys with whichever face really is 0 — and now that
+        // the atlas keys on glyph indices, the two faces' index spaces are
+        // unrelated, so the collision draws different CHARACTERS rather than the
+        // right character in the wrong face. Harder to recognise, same cause.
         return id != null ? id : 0;
     }
 

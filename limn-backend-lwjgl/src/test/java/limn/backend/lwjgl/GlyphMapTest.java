@@ -30,17 +30,31 @@ class GlyphMapTest {
     @Test
     void glyphKeyFieldsNeverCollide() {
         // 256 faces used to wrap an 8-bit face field back onto face 0.
-        long face0 = GlyphAtlas.glyphKey(0, 128, 'A');
-        long face256 = GlyphAtlas.glyphKey(256, 128, 'A');
+        long face0 = GlyphAtlas.glyphKey(0, 128, 38);
+        long face256 = GlyphAtlas.glyphKey(256, 128, 38);
         org.junit.jupiter.api.Assertions.assertNotEquals(face0, face256);
-        // Max codepoint and a big quantized size stay in their own fields.
-        long max = GlyphAtlas.glyphKey(1, 0xFFFF, 0x10FFFF);
-        org.junit.jupiter.api.Assertions.assertNotEquals(GlyphAtlas.glyphKey(2, 0, 0), max);
-        org.junit.jupiter.api.Assertions.assertNotEquals(GlyphAtlas.glyphKey(1, 0xFFFF, 0), max);
+        // The glyph field's real domain: maxp.numGlyphs is a uint16, so an index
+        // fits in 16 bits (the broadest bundled face declares 65535 of them).
+        long broadest = GlyphAtlas.glyphKey(1, 0xFFFF, 0xFFFF);
+        org.junit.jupiter.api.Assertions.assertNotEquals(GlyphAtlas.glyphKey(2, 0, 0), broadest);
+        org.junit.jupiter.api.Assertions.assertNotEquals(GlyphAtlas.glyphKey(1, 0xFFFF, 0), broadest);
+        org.junit.jupiter.api.Assertions.assertNotEquals(GlyphAtlas.glyphKey(1, 0, 0xFFFF), broadest);
+        // And the field is still the full 21 bits it was cut at, five wider than
+        // that domain needs: a value filling it must not spill into the size
+        // field above. This is the assertion that fails if someone narrows the
+        // field to "the 16 bits a glyph id needs" without re-cutting the shifts.
+        long full = GlyphAtlas.glyphKey(1, 0, 0x1FFFFF);
+        org.junit.jupiter.api.Assertions.assertNotEquals(GlyphAtlas.glyphKey(1, 1, 0), full);
+        assertEquals(0x1FFFFFL, full & 0x1FFFFFL, "the low 21 bits are the glyph's alone");
+        assertEquals(GlyphAtlas.glyphKey(1, 0, 0), full & ~0x1FFFFFL, "and nothing above them moved");
     }
 
     @Test
     void keyZeroIsAValidEntry() {
+        // Load-bearing, not defensive: glyph index 0 is .notdef, so it fills the
+        // low field of a real key for every character its face lacks. (The whole
+        // 64-bit key still never reaches 0 in practice, since a quantized size of
+        // 0 is rejected upstream of the atlas — but this map does not rely on it.)
         GlyphAtlas.GlyphMap map = new GlyphAtlas.GlyphMap();
         GlyphAtlas.Glyph g = glyph(7);
         map.put(0L, g);
@@ -53,7 +67,7 @@ class GlyphMapTest {
         GlyphAtlas.GlyphMap map = new GlyphAtlas.GlyphMap();
         Map<Long, GlyphAtlas.Glyph> reference = new HashMap<>();
         // Force several growth doublings (initial capacity 128) with keys shaped
-        // like real packed atlas keys (face << 37 | size << 21 | codepoint).
+        // like real packed atlas keys (face << 37 | size << 21 | glyph).
         for (int i = 0; i < 2000; i++) {
             long key = ((long) (i % 3) << 37) | ((long) (100 + i) << 21) | (0x41 + i);
             GlyphAtlas.Glyph g = glyph(i);

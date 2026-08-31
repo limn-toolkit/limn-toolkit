@@ -12,6 +12,7 @@ lwjgl-glfw = { module = "org.lwjgl:lwjgl-glfw" }
 lwjgl-opengl = { module = "org.lwjgl:lwjgl-opengl" }
 lwjgl-openal = { module = "org.lwjgl:lwjgl-openal" }
 lwjgl-stb = { module = "org.lwjgl:lwjgl-stb" }
+lwjgl-harfbuzz = { module = "org.lwjgl:lwjgl-harfbuzz" }
 lwjgl-nanovg = { module = "org.lwjgl:lwjgl-nanovg" }
 lwjgl-tinyfd = { module = "org.lwjgl:lwjgl-tinyfd" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }

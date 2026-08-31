@@ -122,9 +122,9 @@ export const fr: Catalog = {
   "home.limits.heading": "Ce que Limn ne fait pas",
   "home.limits.body":
     "Toute boîte à outils échange quelque chose. Voici ces échanges, annoncés d’emblée, parce que les découvrir la troisième semaine est pire que les lire maintenant.",
-  "home.limits.scripts.heading": "Pas de rendu des écritures complexes",
+  "home.limits.scripts.heading": "Le texte est façonné, la mise en page n’est pas en miroir",
   "home.limits.scripts.body":
-    "L’arabe, l’hébreu et les écritures indiennes demandent des liaisons contextuelles et des réordonnancements que la couche de texte n’implémente pas, et il n’existe pas de sens de mise en page de droite à gauche. Les traductions dans ces langues ne sont délibérément pas publiées, plutôt que d’être mal dessinées.",
+    "L’arabe, l’hébreu, le devanagari et le thaï se lient, se réordonnent et placent leurs signes partout où du texte est dessiné : dans Label, TextField et TextArea, comme sur chaque bouton, onglet, entrée de menu et texte indicatif autour d’eux ; les paquets ar et he sont bien publiés. Ce qu’une langue de droite à gauche n’obtient pas, c’est la mise en page : marges intérieures, alignement, côté où se place une barre de défilement, côté d’ouverture d’une popup, sens d’une touche fléchée ailleurs que dans un champ de texte — tout va de gauche à droite, quelle que soit la langue.",
   "home.limits.a11y.heading": "Pas de pont vers les lecteurs d’écran",
   "home.limits.a11y.body":
     "La navigation au clavier et les anneaux de focus sont complets, mais rien n’est exposé aux API d’accessibilité de la plateforme. Si un lecteur d’écran doit fonctionner, ce n’est pas encore la bonne boîte à outils pour cette application.",

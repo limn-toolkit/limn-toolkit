@@ -109,7 +109,9 @@ public final class LwjglBackend implements Backend {
         uiRuntime.bindToCurrentThread();
         Ui.install(uiRuntime);
         fontStore = new FontStore();
-        textRuler = (text, font) -> fontStore.measure(font, text);
+        // A class rather than the measuring lambda it used to be: the ruler now also shapes, and
+        // carries the shape memo and the epoch a held ShapedText is invalidated against.
+        textRuler = new ShapingRuler(fontStore);
         limn.graphics.TextRulers.install(textRuler);
         // Catalog is available immediately with the bundled families. Nothing
         // else loads at startup: the OS enumeration runs on the FIRST listing

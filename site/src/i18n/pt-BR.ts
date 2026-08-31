@@ -120,9 +120,9 @@ export const ptBR: Catalog = {
   "home.limits.heading": "O que o Limn não faz",
   "home.limits.body":
     "Todo toolkit troca alguma coisa. Estas são as trocas, ditas de saída, porque descobri-las na terceira semana é pior do que lê-las agora.",
-  "home.limits.scripts.heading": "Sem shaping de escritas complexas",
+  "home.limits.scripts.heading": "O texto tem shaping; o leiaute não é espelhado",
   "home.limits.scripts.body":
-    "Árabe, hebraico e as escritas índicas precisam de junção contextual e reordenação que a camada de texto não implementa, e não existe direção de layout da direita para a esquerda. As traduções para esses idiomas deliberadamente não são publicadas, em vez de serem desenhadas de forma errada.",
+    "O árabe, o hebraico, o devanágari e o tailandês se unem, se reordenam e posicionam suas marcas onde quer que haja texto: dentro de Label, TextField e TextArea, e em cada botão, aba, item de menu e texto de espera ao redor deles; os pacotes ar e he são publicados. O que um idioma da direita para a esquerda não ganha é o leiaute: recuos, alinhamento, o lado em que fica uma barra de rolagem, o lado em que um menu suspenso abre e o lado para onde uma tecla de seta leva quando o foco não está em um campo de texto — tudo vai da esquerda para a direita, seja qual for o idioma.",
   "home.limits.a11y.heading": "Sem ponte para leitores de tela",
   "home.limits.a11y.body":
     "A navegação por teclado e os anéis de foco estão completos, mas nada é exposto às APIs de acessibilidade da plataforma. Se um leitor de tela precisa funcionar, este ainda não é o toolkit para essa aplicação.",

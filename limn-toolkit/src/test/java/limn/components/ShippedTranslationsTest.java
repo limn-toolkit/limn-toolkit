@@ -37,7 +37,7 @@ class ShippedTranslationsTest extends ComponentTestBase {
     /** Every locale this repo ships a translation for. */
     private static final List<String> LOCALES = List.of(
             "pt-BR", "pt", "es", "fr", "de", "it", "nl", "pl", "cs", "tr",
-            "ru", "uk", "id", "vi", "ja", "ko", "zh-Hans", "zh-Hant", "hi");
+            "ru", "uk", "id", "vi", "ja", "ko", "zh-Hans", "zh-Hant", "hi", "ar", "he");
 
     private static final Path COMPONENT_RESOURCES = Path.of("src/main/resources/limn/i18n");
 

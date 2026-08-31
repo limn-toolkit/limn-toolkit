@@ -1,6 +1,11 @@
 package limn.components.text;
 
+import limn.graphics.ShapedText;
+import limn.graphics.ShapedText.Affinity;
+import limn.graphics.ShapedText.Position;
+
 import java.util.ArrayDeque;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,6 +20,27 @@ import java.util.regex.Pattern;
  * <p>Line lookups ({@code lineOf}/{@code lineCount}/{@code lineText}/…) are
  * served from a line-start index rebuilt lazily after an edit, so paint-time
  * queries never rescan the whole buffer.
+ *
+ * <p><b>The caret is an index and a side</b>, {@link #caret()}, because on a direction boundary one
+ * index is two points on the screen and only the side says which. The side lives here, beside the
+ * cursor, rather than in the widget: every method below that writes {@code cursor} would otherwise
+ * need a paired assignment at three call sites apiece, and {@link #undo()} restores a cursor, so it
+ * has to restore a side with it — an undo that put a correct index back on yesterday's side draws
+ * the caret at the far end of the run, one keystroke later, with nothing to trace it to.
+ *
+ * <p><b>Two movement axes, and they are not interchangeable.</b> {@link #moveVisualLeft} and
+ * {@link #moveVisualRight} are what the arrow keys press: a step left or right <em>on the screen</em>,
+ * which needs the shaped line to answer. Everything else here — Home, End, word movement,
+ * Backspace, Delete, Up and Down — is <b>logical</b>, a step through the string, because each of
+ * them has to name a contiguous range: {@code Shift+Home} makes a selection, and a selection is
+ * {@code (anchor, cursor)}. The consequence is stated rather than discovered: in right-to-left text
+ * Left and Ctrl+Left move the caret in opposite directions, exactly as they do on Windows and in
+ * GTK.
+ *
+ * <p>Taking a {@link ShapedText} costs this package no dependency it did not have: the type is an
+ * immutable value whose accessors return nothing but primitives, {@code String}s and records of
+ * those, so this class still draws nothing and knows no widget, and every case below is pinned by a
+ * test with no scene, no ruler and no window.
  */
 public final class TextEditModel {
 
@@ -27,7 +53,14 @@ public final class TextEditModel {
     private final StringBuilder buffer = new StringBuilder();
     private final boolean singleLine;
     private int cursor;
-    /** Selection anchor (char index), or -1 when there is no selection. */
+    /** Which side of {@link #cursor} the caret draws on; see {@link #caret()}. */
+    private Affinity cursorAffinity = Affinity.DOWNSTREAM;
+    /**
+     * Selection anchor (char index), or -1 when there is no selection. Deliberately a bare
+     * {@code int}: its only job is to be one end of the logical range {@code selection(start, end)}
+     * takes, nothing draws it, and an index reached by clicking either side of a direction boundary
+     * has to select the same characters both times.
+     */
     private int anchor = -1;
     /** Sticky column (char offset within line) for Up/Down runs; -1 = unset. */
     private int goalColumn = -1;
@@ -43,7 +76,12 @@ public final class TextEditModel {
     // typing (and runs of deleting) coalesce into a single step.
     private enum EditKind { OTHER, TYPING, DELETING }
 
-    private record Snapshot(String text, int cursor, int anchor) {
+    /**
+     * The side travels with the cursor. An undo that restored only the index would put a correct
+     * caret on the wrong side of a direction boundary, where it draws a whole run away from where
+     * the next character lands, and the next arrow press would jump.
+     */
+    private record Snapshot(String text, int cursor, Affinity affinity, int anchor) {
     }
 
     private final ArrayDeque<Snapshot> undoStack = new ArrayDeque<>();
@@ -72,11 +110,17 @@ public final class TextEditModel {
         return buffer.length();
     }
 
-    /** Replaces the whole content programmatically; clears the undo history. */
+    /**
+     * Replaces the whole content programmatically; clears the undo history. The caret lands at the
+     * end of the buffer on its {@link Affinity#DOWNSTREAM} side, which is the paragraph's own end
+     * edge — the visual <em>left</em> for right-to-left content, where the next typed character
+     * goes.
+     */
     public void setText(String text) {
         buffer.setLength(0);
         buffer.append(sanitize(text));
         cursor = buffer.length();
+        cursorAffinity = Affinity.DOWNSTREAM;
         anchor = -1;
         goalColumn = -1;
         markTextChanged();
@@ -109,6 +153,9 @@ public final class TextEditModel {
         deleteSelectionRaw();
         buffer.insert(cursor, value);
         cursor += value.length();
+        // The caret TRAILS what was just typed, so the next character of the same script appears
+        // where the caret is. That is what UPSTREAM means, and it is why every edit below leaves it.
+        cursorAffinity = Affinity.UPSTREAM;
         goalColumn = -1;
         markTextChanged();
     }
@@ -126,6 +173,7 @@ public final class TextEditModel {
             cursor = previous;
             markTextChanged();
         }
+        cursorAffinity = Affinity.UPSTREAM;
         anchor = -1;
         goalColumn = -1;
     }
@@ -141,6 +189,7 @@ public final class TextEditModel {
             buffer.delete(cursor, nextGrapheme(cursor));
             markTextChanged();
         }
+        cursorAffinity = Affinity.UPSTREAM;
         anchor = -1;
         goalColumn = -1;
     }
@@ -187,6 +236,7 @@ public final class TextEditModel {
         int start = selectionStart();
         buffer.delete(start, selectionEnd());
         cursor = start;
+        cursorAffinity = Affinity.UPSTREAM;
         anchor = -1;
         goalColumn = -1;
         markTextChanged();
@@ -196,6 +246,7 @@ public final class TextEditModel {
     public void selectAll() {
         anchor = 0;
         cursor = buffer.length();
+        cursorAffinity = Affinity.DOWNSTREAM;
         goalColumn = -1;
         lastEdit = EditKind.OTHER;
     }
@@ -211,7 +262,7 @@ public final class TextEditModel {
     private void remember(EditKind kind) {
         boolean coalesce = kind != EditKind.OTHER && kind == lastEdit && !undoStack.isEmpty();
         if (!coalesce) {
-            undoStack.push(new Snapshot(text(), cursor, anchor));
+            undoStack.push(new Snapshot(text(), cursor, cursorAffinity, anchor));
             while (undoStack.size() > MAX_UNDO) {
                 undoStack.removeLast();
             }
@@ -225,7 +276,7 @@ public final class TextEditModel {
         if (undoStack.isEmpty()) {
             return false;
         }
-        redoStack.push(new Snapshot(text(), cursor, anchor));
+        redoStack.push(new Snapshot(text(), cursor, cursorAffinity, anchor));
         restore(undoStack.pop());
         return true;
     }
@@ -235,7 +286,7 @@ public final class TextEditModel {
         if (redoStack.isEmpty()) {
             return false;
         }
-        undoStack.push(new Snapshot(text(), cursor, anchor));
+        undoStack.push(new Snapshot(text(), cursor, cursorAffinity, anchor));
         restore(redoStack.pop());
         return true;
     }
@@ -254,6 +305,7 @@ public final class TextEditModel {
         buffer.setLength(0);
         buffer.append(snapshot.text());
         cursor = snapshot.cursor();
+        cursorAffinity = snapshot.affinity();
         anchor = snapshot.anchor();
         goalColumn = -1;
         markTextChanged();
@@ -267,13 +319,52 @@ public final class TextEditModel {
         return cursor;
     }
 
-    /** Places the cursor; {@code select} extends/starts a selection from the old spot. */
+    /**
+     * The caret: the insertion index and which side of it the caret is on. The index alone is what
+     * an edit, the clipboard and the IME need; the pair is what the <em>line</em> needs, because on
+     * a direction boundary one index is two points on the screen and a caret drawn at the wrong one
+     * tells the user something false about where their next character lands.
+     *
+     * @return where the caret is, index and side; never null
+     */
+    public Position caret() {
+        return new Position(cursor, cursorAffinity);
+    }
+
+    /**
+     * Places the cursor; {@code select} extends/starts a selection from the old spot. The caret
+     * takes {@link Affinity#DOWNSTREAM}, the side a programmatic placement has nothing better to go
+     * on than. A caller that <em>does</em> know the side — a click, a drag, a visual arrow — calls
+     * {@link #setCaret} instead.
+     *
+     * @param index  where the caret goes, clamped into the buffer
+     * @param select whether this extends a selection
+     */
     public void setCursor(int index, boolean select) {
         int clamped = Math.max(0, Math.min(index, buffer.length()));
         updateAnchor(select);
         cursor = clamped;
+        cursorAffinity = Affinity.DOWNSTREAM;
         goalColumn = -1;
         lastEdit = EditKind.OTHER; // a caret jump ends a typing/deleting run
+    }
+
+    /**
+     * Places the caret, side included: what a click, a drag and a visual arrow all produce.
+     * {@code select} extends or starts a selection from the old spot, exactly as {@link #setCursor}.
+     *
+     * @param position where the caret goes; its index is clamped into the buffer
+     * @param select   whether this extends a selection
+     * @throws NullPointerException if {@code position} is null
+     */
+    public void setCaret(Position position, boolean select) {
+        Objects.requireNonNull(position, "position");
+        int clamped = Math.max(0, Math.min(position.charIndex(), buffer.length()));
+        updateAnchor(select);
+        cursor = clamped;
+        cursorAffinity = position.affinity();
+        goalColumn = -1;
+        lastEdit = EditKind.OTHER;
     }
 
     private void updateAnchor(boolean select) {
@@ -287,8 +378,12 @@ public final class TextEditModel {
     }
 
     /**
-     * Moves the caret one grapheme cluster left, extending the selection when
-     * {@code select} is set and collapsing it to the left edge when it is not.
+     * Moves the caret one grapheme cluster left <b>in the string</b>, extending the selection when
+     * {@code select} is set and collapsing it to the left edge when it is not. This is the
+     * <em>logical</em> step, which is not what the Left arrow key does once anything reorders:
+     * {@link #moveVisualLeft} is that.
+     *
+     * @param select whether this extends a selection
      */
     public void moveLeft(boolean select) {
         if (!select && hasSelection()) {
@@ -300,13 +395,18 @@ public final class TextEditModel {
                 cursor = previousGrapheme(cursor);
             }
         }
+        // Backward motion by one unit lands on the LEADING edge of what it stopped before.
+        cursorAffinity = Affinity.DOWNSTREAM;
         goalColumn = -1;
         lastEdit = EditKind.OTHER;
     }
 
     /**
-     * Moves the caret one grapheme cluster right, extending the selection when
-     * {@code select} is set and collapsing it to the right edge when it is not.
+     * Moves the caret one grapheme cluster right <b>in the string</b>, extending the selection when
+     * {@code select} is set and collapsing it to the right edge when it is not. The logical mirror
+     * of {@link #moveLeft}, and not the Right arrow key; see {@link #moveVisualRight}.
+     *
+     * @param select whether this extends a selection
      */
     public void moveRight(boolean select) {
         if (!select && hasSelection()) {
@@ -318,24 +418,124 @@ public final class TextEditModel {
                 cursor = nextGrapheme(cursor);
             }
         }
+        // Forward motion by one unit lands TRAILING what it just passed.
+        cursorAffinity = Affinity.UPSTREAM;
         goalColumn = -1;
         lastEdit = EditKind.OTHER;
     }
 
-    /** Start of the current line (start of text on single-line models). */
+    /**
+     * Start of the current line (start of text on single-line models), in <b>logical</b> order —
+     * so in a right-to-left paragraph this moves the caret to the visual <em>right</em>. That is
+     * what Windows edit controls, GTK's {@code DISPLAY_LINE_ENDS} movement and Cocoa's
+     * {@code moveToBeginningOfLine:} all do, and it is forced anyway: {@code Shift+Home} has to
+     * produce a selection, a selection is one contiguous range of the string, and the range from
+     * the caret to the visual left edge of a mixed line is not one.
+     *
+     * @param select whether this extends a selection
+     */
     public void moveHome(boolean select) {
         updateAnchor(select);
         cursor = lineStart(cursor);
+        // An edge jump takes the side that names the PARAGRAPH's own edge, not the leading edge of
+        // whichever cluster happens to sit first: on a line beginning with an embedded run those
+        // are different points, and the other one is where Home visibly lands wrong.
+        cursorAffinity = Affinity.UPSTREAM;
         goalColumn = -1;
         lastEdit = EditKind.OTHER;
     }
 
-    /** End of the current line (end of text on single-line models). */
+    /**
+     * End of the current line (end of text on single-line models), in <b>logical</b> order: the
+     * mirror of {@link #moveHome}, so in a right-to-left paragraph it moves the caret to the visual
+     * <em>left</em>.
+     *
+     * @param select whether this extends a selection
+     */
     public void moveEnd(boolean select) {
         updateAnchor(select);
         cursor = lineEnd(cursor);
+        cursorAffinity = Affinity.DOWNSTREAM; // the paragraph's own end edge; see moveHome
         goalColumn = -1;
         lastEdit = EditKind.OTHER;
+    }
+
+    // ------------------------------------------------------- visual movement
+
+    /**
+     * Moves the caret one step <b>left on the screen</b>, over {@code line}: the Left arrow,
+     * whatever direction the text under it runs.
+     *
+     * <p>{@code line} is the shaped form of the line the cursor sits on and {@code lineStart} is the
+     * buffer index that line begins at, so a single-line model passes {@code 0}. A cursor outside
+     * the line is clamped into it rather than rejected: a caret restored from a stale view has to
+     * produce a position, not an exception.
+     *
+     * <p>With a selection and {@code select == false} this collapses to {@link #selectionStart()}
+     * and moves no further, which is deliberately the LOGICAL end: a selection can span lines, its
+     * two ends can sit in different runs, and the visually left end of a multi-line range is not
+     * defined. On a line that reorders nothing the two answers coincide.
+     *
+     * @param line      the shaped line the cursor is on
+     * @param lineStart buffer index where that line starts
+     * @param select    whether this extends a selection
+     * @return whether anything moved; {@code false} means the caret was already at the line's left
+     *         edge and a multi-line caller should change line
+     * @throws NullPointerException if {@code line} is null
+     */
+    public boolean moveVisualLeft(ShapedText line, int lineStart, boolean select) {
+        Objects.requireNonNull(line, "line");
+        if (!select && hasSelection()) {
+            cursor = selectionStart();
+            cursorAffinity = Affinity.DOWNSTREAM;
+            anchor = -1;
+            goalColumn = -1;
+            lastEdit = EditKind.OTHER;
+            // True even though no arrow step was taken: the caret DID move, and a caller that
+            // read false here would collapse the selection and hop to the previous line at once.
+            return true;
+        }
+        return step(line, lineStart, select, true);
+    }
+
+    /**
+     * Moves the caret one step <b>right on the screen</b>: the mirror of {@link #moveVisualLeft} in
+     * every respect, collapsing a selection to {@link #selectionEnd()} instead.
+     *
+     * @param line      the shaped line the cursor is on
+     * @param lineStart buffer index where that line starts
+     * @param select    whether this extends a selection
+     * @return whether anything moved; {@code false} means the caret was already at the line's right
+     *         edge and a multi-line caller should change line
+     * @throws NullPointerException if {@code line} is null
+     */
+    public boolean moveVisualRight(ShapedText line, int lineStart, boolean select) {
+        Objects.requireNonNull(line, "line");
+        if (!select && hasSelection()) {
+            cursor = selectionEnd();
+            cursorAffinity = Affinity.UPSTREAM;
+            anchor = -1;
+            goalColumn = -1;
+            lastEdit = EditKind.OTHER;
+            return true;
+        }
+        return step(line, lineStart, select, false);
+    }
+
+    /** One visual arrow step over {@code line}; the two public forms differ only in direction. */
+    private boolean step(ShapedText line, int lineStart, boolean select, boolean left) {
+        updateAnchor(select);
+        lastEdit = EditKind.OTHER;
+        goalColumn = -1;
+        int local = Math.max(0, Math.min(cursor - lineStart, line.text().length()));
+        Position from = new Position(local, cursorAffinity);
+        Position to = left ? line.caretLeft(from) : line.caretRight(from);
+        // Write the clamped position back either way. The step may have found nothing while the
+        // clamp still moved the caret onto this line, and leaving a stale off-line index behind
+        // would make the NEXT press step from somewhere the user cannot see.
+        cursor = Math.max(0, Math.min(lineStart + to.charIndex(), buffer.length()));
+        cursorAffinity = to.affinity();
+        return !to.equals(from);
     }
 
     /** Up one line, keeping the sticky goal column. No-op on single-line models. */
@@ -354,6 +554,9 @@ public final class TextEditModel {
         }
         updateAnchor(select);
         lastEdit = EditKind.OTHER;
+        // A goal column is a programmatic placement on the target line, so it takes DOWNSTREAM on
+        // every path out of here, the early returns at the first and last line included.
+        cursorAffinity = Affinity.DOWNSTREAM;
         int start = lineStart(cursor);
         if (goalColumn < 0) {
             goalColumn = cursor - start;
@@ -382,37 +585,64 @@ public final class TextEditModel {
 
     // ------------------------------------------------------- word / document
 
-    /** Previous word boundary: Ctrl/Alt+Left. Extends the selection when {@code select}. */
+    /**
+     * Previous word boundary: Ctrl/Alt+Left. Extends the selection when {@code select}.
+     *
+     * <p><b>Logical, and it stays logical</b>: {@link #deleteWordBackward()} has to remove a
+     * contiguous range of the string, so the boundary this lands on has to be the end of one. In
+     * right-to-left text that means Ctrl+Left and {@link #moveVisualLeft} move the caret in
+     * opposite directions, which is what Windows and GTK do and the lesser of the two evils.
+     *
+     * @param select whether this extends a selection
+     */
     public void moveWordLeft(boolean select) {
         updateAnchor(select);
         cursor = alignToGrapheme(previousWordBoundary(cursor));
+        cursorAffinity = Affinity.DOWNSTREAM; // backward motion by one unit; see moveLeft
         goalColumn = -1;
         lastEdit = EditKind.OTHER;
     }
 
-    /** Next word boundary: Ctrl/Alt+Right. Extends the selection when {@code select}. */
+    /**
+     * Next word boundary: Ctrl/Alt+Right. Extends the selection when {@code select}. Logical, for
+     * the reason {@link #moveWordLeft} gives.
+     *
+     * @param select whether this extends a selection
+     */
     public void moveWordRight(boolean select) {
         updateAnchor(select);
         // Forward motion snaps a mid-cluster boundary UP to the cluster end;
         // snapping down would land at or before the cursor and stall forever
         // (a char-class boundary can fall inside a cluster: NFD accents, keycaps).
         cursor = alignToGraphemeForward(nextWordBoundary(cursor));
+        cursorAffinity = Affinity.UPSTREAM; // forward motion by one unit; see moveRight
         goalColumn = -1;
         lastEdit = EditKind.OTHER;
     }
 
-    /** Start of the whole text: Ctrl+Home / Cmd+Up. */
+    /**
+     * Start of the whole text: Ctrl+Home / Cmd+Up. Logical, and so the visual right edge of a
+     * right-to-left first line; see {@link #moveHome}.
+     *
+     * @param select whether this extends a selection
+     */
     public void moveDocumentStart(boolean select) {
         updateAnchor(select);
         cursor = 0;
+        cursorAffinity = Affinity.UPSTREAM; // an edge jump; see moveHome
         goalColumn = -1;
         lastEdit = EditKind.OTHER;
     }
 
-    /** End of the whole text: Ctrl+End / Cmd+Down. */
+    /**
+     * End of the whole text: Ctrl+End / Cmd+Down. Logical; see {@link #moveEnd}.
+     *
+     * @param select whether this extends a selection
+     */
     public void moveDocumentEnd(boolean select) {
         updateAnchor(select);
         cursor = buffer.length();
+        cursorAffinity = Affinity.DOWNSTREAM; // an edge jump; see moveEnd
         goalColumn = -1;
         lastEdit = EditKind.OTHER;
     }
@@ -430,6 +660,7 @@ public final class TextEditModel {
             cursor = start;
             markTextChanged();
         }
+        cursorAffinity = Affinity.UPSTREAM; // an edit, not a motion
         anchor = -1;
         goalColumn = -1;
     }
@@ -448,6 +679,7 @@ public final class TextEditModel {
                 markTextChanged();
             }
         }
+        cursorAffinity = Affinity.UPSTREAM; // an edit, not a motion
         anchor = -1;
         goalColumn = -1;
     }

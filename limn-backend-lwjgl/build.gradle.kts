@@ -36,6 +36,11 @@ dependencies {
     implementation(libs.lwjgl.opengl)
     implementation(libs.lwjgl.openal)
     implementation(libs.lwjgl.stb)
+    // Shaping. stb draws a glyph INDEX; HarfBuzz is what decides which indices and where, which
+    // is the only way a script with contextual forms, ligatures or reordering is drawable at all.
+    // Nothing is replaced: HarfBuzz chooses the glyphs, stb still rasterizes them. Confined here
+    // like every other native, so nothing above this backend learns the word HarfBuzz.
+    implementation(libs.lwjgl.harfbuzz)
     implementation(libs.lwjgl.nanovg) // NanoSVG (rasterizes SVG icons → RGBA, no AWT)
     implementation(libs.lwjgl.tinyfd) // native open/save/folder dialogs (no AWT)
     // MP3 decoding: JLayer is pure Java (no natives), the classic javazoom
@@ -43,8 +48,8 @@ dependencies {
     implementation(libs.jlayer)
 
     val lwjglVersion = libs.versions.lwjgl.get()
-    listOf("lwjgl", "lwjgl-glfw", "lwjgl-opengl", "lwjgl-openal", "lwjgl-stb", "lwjgl-nanovg",
-            "lwjgl-tinyfd").forEach { module ->
+    listOf("lwjgl", "lwjgl-glfw", "lwjgl-opengl", "lwjgl-openal", "lwjgl-stb", "lwjgl-harfbuzz",
+            "lwjgl-nanovg", "lwjgl-tinyfd").forEach { module ->
         lwjglTargets.values.forEach { classifier ->
             runtimeOnly("org.lwjgl:$module:$lwjglVersion:$classifier")
         }
@@ -76,9 +81,14 @@ tasks.withType<Test>().configureEach {
 // The fonts are vendored binaries, and a sources jar is not where a binary belongs.
 //
 // They reach the main source set as resources, which is exactly what a sources jar copies as
-// well: -sources was 23.66 MB against the main jar's 23.72 MB, the same type design twice, and
-// none of it answers the question a sources jar exists to answer. The pan-CJK face alone is
-// 16 MB and the colour emoji face 10 MB; see the README beside them.
+// well: 28 MB of faces beside 0.25 MB of source, the same type design twice, and none of it
+// answers the question a sources jar exists to answer. The pan-CJK face alone is 16 MB and the
+// colour emoji face 10 MB; see the README beside them.
+//
+// Matched by extension in that directory rather than by name, which is why the four
+// complex-script faces needed no change here and the next one will not either. A face added under
+// some other extension would slip through, and that is the trade: a name list misses the next
+// file for certain, an extension list only for a format nothing here uses.
 //
 // The licences and that README stay, because those are text and they are what a reader who opens
 // this directory actually needs. Same trade, same three lines, as limn-video-ffmpeg makes for its

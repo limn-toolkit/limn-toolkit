@@ -304,22 +304,68 @@ public interface Canvas {
      * glyphs are snapped to the physical pixel grid.
      *
      * <p>Full code-point support, surrogate pairs included. A code point the font
-     * lacks is resolved against the registered fallback faces one code point at a
-     * time, so mixed-script text draws; a code point no face has renders as
-     * {@code .notdef}.
+     * lacks is resolved against the registered fallback faces, so mixed-script text
+     * draws; a code point no face has renders as {@code .notdef}.
      *
-     * <p>Not supported: complex shaping, ligatures and bidi/RTL. Scripts that need
-     * them (Arabic, Hebrew, Devanagari, Thai) will not render correctly even with
-     * a face installed. Control characters, {@code \n} included, are skipped:
-     * multi-line layout belongs to the widget layer. Under anisotropic scale glyphs
-     * rasterize at the larger axis and filter on the smaller one.
+     * <p><b>This is the shaped path with the shaping done for you.</b> A canvas that
+     * has a shaper hands the string to the installed {@link TextRuler} and draws the
+     * {@link ShapedText} it gets back, so contextual forms, ligatures, mark
+     * attachment and bidirectional ordering are what any caption gets, not only the
+     * widgets that hold a value of their own. What that costs is one memo lookup per
+     * call on the ruler's side; what it buys is that the string measured by
+     * {@link #measureText} and the string drawn here are the same arithmetic.
+     * A caller that draws the same text every frame should still hold a
+     * {@link ShapedText} and use the overload below &mdash; that is the form that
+     * pays nothing at all.
+     *
+     * <p>Control characters, {@code \n} included, are skipped: multi-line layout
+     * belongs to the widget layer. Under anisotropic scale glyphs rasterize at the
+     * larger axis and filter on the smaller one.
      */
     void drawText(String text, float x, float y, Font font, Paint paint);
 
     /**
+     * Draws an already-shaped line with {@code (x, y)} at the <em>baseline</em> origin of its
+     * <b>left</b> edge &mdash; for either base direction: right-to-left text fills the same box from
+     * the other end rather than growing leftwards from {@code x}, so the run covers
+     * {@code [x, x + text.metrics().width()]} and right-aligning a right-to-left paragraph is a
+     * matter of choosing {@code x}. Rasterization, atlas keying and pixel snapping are exactly as
+     * {@link #drawText(String, float, float, Font, Paint)} describes.
+     *
+     * <p>This is the form that costs nothing per frame: the shaping was already paid for, and this
+     * walks {@linkplain ShapedText#runs() runs}, resolving a face once each, then glyphs. The
+     * {@code String} overload above draws the same scripts equally correctly and pays a memo lookup
+     * to do it; the difference is only who holds the value. There is no {@link Font} parameter
+     * because the font
+     * is the one the glyphs were chosen for; a font passed here could disagree with it, and the text
+     * would then be measured by one face and drawn by another.
+     *
+     * <p>A cluster reported as {@link ShapedText#NO_GLYPH} is drawn from the shaped text's own
+     * characters instead, which is how a colour-emoji strike keeps working and how a ruler that
+     * cannot shape still paints. So does a run whose {@linkplain ShapedText.Run#faceId() face} this
+     * canvas no longer recognizes, which is what a value shaped before an eviction becomes: a stale
+     * value draws the right characters by the slower route rather than the wrong glyphs from
+     * whichever face inherited the id.
+     *
+     * <p>The whole run draws in one {@link Paint}. Text that changes colour partway is two runs
+     * today, and two runs shape independently.
+     *
+     * <p>Default, not abstract, for two reasons that point the same way. {@code Canvas} is a
+     * published interface, and an abstract method added to one breaks every implementation that
+     * exists outside this repository as well as every recording and counting canvas inside it. And
+     * the honest fallback for a canvas that cannot place glyphs itself is the string the run was
+     * shaped from, which is what the default draws.
+     */
+    default void drawText(ShapedText text, float x, float y, Paint paint) {
+        drawText(text.text(), x, y, text.font(), paint);
+    }
+
+    /**
      * Measures a single line of text in logical points (baseline-relative,
      * unquantized and therefore independent of the monitor scale). Same
-     * code-point rules as {@link #drawText}.
+     * code-point rules as {@link #drawText}, and the same shaping: a canvas that
+     * shapes when it draws measures what it will draw, so a caption is never laid
+     * out to one width and painted at another.
      */
     TextMetrics measureText(String text, Font font);
 

@@ -104,6 +104,9 @@ final class GlCanvas implements Canvas {
     private int fbWidth;
     private int fbHeight;
     private GlBackdrop backdrop; // lazy: only a window that draws an effect pays for the copy
+    // Lazy, and normally never built: the standing-in ruler for a canvas nobody installed one for.
+    // See ruler() for why that case exists at all and why it is not simply an error.
+    private ShapingRuler ownRuler;
     private float scale = 1;
     private boolean inFrame;
 
@@ -748,6 +751,32 @@ final class GlCanvas implements Canvas {
 
     // ------------------------------------------------------------------ text
 
+    /**
+     * The {@code String} overload, which is the shaped one with the shaping done here.
+     *
+     * <p><b>This is a wrapper and not a renderer.</b> There was a second glyph-emitting loop here
+     * once — a walk over code points that resolved a face per character, carried its own pen, its
+     * own kerning and its own colour-emoji branch. It drew Latin correctly and drew Arabic as
+     * unjoined letterforms in string order, which is what every caption in the toolkit got, because
+     * only three widgets hold a {@code ShapedText} of their own. Two loops for one job could also
+     * drift apart, and had already begun to: the pen here summed atlas advances while
+     * {@code measureText} summed face advances, and the correction that kept them together was a
+     * ratio applied per glyph. One loop cannot drift from itself, and the position a glyph lands at
+     * is now the position the measurement counted, because it is the same number.
+     *
+     * <p>What is <em>not</em> lost by dropping that loop: the snapped versus rotated split, the
+     * batch discipline and the emoji fallback all live in the overload below, which this delegates
+     * to. The pen-drift correction is gone rather than moved, and that one is worth naming: it
+     * existed because the pen was built from advances read at the atlas's <em>quantized</em> size,
+     * and a shaped value carries unquantized logical positions computed at the exact font size, so
+     * there is no longer a quantization for it to correct.
+     *
+     * <p>The two early-outs below are duplicated from that overload rather than left to it, and the
+     * reason is the shaping that now sits between here and there. Both decide from canvas state
+     * alone that <em>nothing will be drawn</em> — an empty clip, or a device size below the floor at
+     * which a glyph has no pixels — and paying for a shaping to arrive at that answer would be
+     * paying the expensive half of drawing text for a frame that draws none of it.
+     */
     @Override
     public void drawText(String text, float x, float y, Font font, Paint paint) {
         ensureInFrame();
@@ -760,141 +789,241 @@ final class GlCanvas implements Canvas {
         if (s.clipX1 - s.clipX0 <= 0 || s.clipY1 - s.clipY0 <= 0) {
             return;
         }
+        if (font.size() * s.transform.approxScale() < MIN_DEVICE_FONT_SIZE) {
+            return;
+        }
+        drawText(ruler().shape(text, font), x, y, paint);
+    }
+
+    /**
+     * The ruler this canvas shapes and measures through: the one the process installed.
+     *
+     * <p><b>Why the registry and not a ruler of this canvas's own.</b> A widget lays out through
+     * {@code TextRulers.get()} and paints through this canvas, and the whole point of routing both
+     * through the shaper is that those two passes agree. Reaching for the same installed instance
+     * is what makes that agreement structural rather than a coincidence of two objects being
+     * configured alike: same memo, so the string measured during layout is already shaped when the
+     * paint asks for it, and same epoch, so a face arriving between the two passes invalidates both
+     * or neither. A second ruler built here over the same {@code FontStore} would answer the same
+     * numbers and pay for them twice.
+     *
+     * <p><b>What it means when something else is installed.</b> A test that installs a fake ruler
+     * gets that fake's idea of the text on the screen as well as in the layout, which is the honest
+     * behaviour: the canvas is not entitled to a second opinion about a string a widget has already
+     * been positioned by. The one case that needs an answer of its own is
+     * {@link limn.graphics.TextRuler#NONE} — the no-backend sentinel, which measures everything as
+     * zero. Zero is
+     * a defensible answer for a detached widget doing layout arithmetic and a catastrophic one for
+     * a painter, which would stack a whole string of glyphs on top of each other at the origin. A
+     * canvas always has a {@link FontStore}, so it can always shape; this is reached only by a
+     * {@code GlCanvas} built without the backend that would have installed a ruler, which is to say
+     * by a test.
+     */
+    private limn.graphics.TextRuler ruler() {
+        limn.graphics.TextRuler installed = limn.graphics.TextRulers.get();
+        if (installed != limn.graphics.TextRuler.NONE) {
+            return installed;
+        }
+        if (ownRuler == null) {
+            ownRuler = new ShapingRuler(fontStore);
+        }
+        return ownRuler;
+    }
+
+    /**
+     * The one glyph-emitting loop: a walk over glyphs that already know where they go.
+     *
+     * <p>Everything about rasterization, snapping, clipping, paint and batching lives here, and
+     * the {@code String} overload above is a call to it with the shaping done first. There is no
+     * pen and no kerning arithmetic — the value carries an absolute x per glyph, already reordered
+     * — and a face is resolved once per <em>run</em> rather than once per code point, which is
+     * what makes a joining script joined and a right-to-left one ordered.
+     *
+     * <p>The one remaining fallback, {@link #drawClusterCharacters}, is not a second renderer but
+     * the answer to a cluster this value says has no glyph: a colour-emoji strike, a line from a
+     * ruler with no shaper, or a run whose face this canvas no longer knows. It places from the
+     * same positions and emits through the same {@link #emitGlyphQuad}.
+     */
+    @Override
+    public void drawText(limn.graphics.ShapedText text, float x, float y, Paint paint) {
+        ensureInFrame();
+        Objects.requireNonNull(text, "text");
+        Objects.requireNonNull(paint, "paint");
+        if (text.glyphCount() == 0) {
+            return;
+        }
+        State s = state();
+        if (s.clipX1 - s.clipX0 <= 0 || s.clipY1 - s.clipY0 <= 0) {
+            return;
+        }
+        // The font is the one the glyphs were CHOSEN for, taken from the value rather than from a
+        // parameter: a font passed here could disagree with it, and the line would then be
+        // measured by one face and drawn by another.
+        Font font = text.font();
         Transform2D t = s.transform;
         float deviceScale = t.approxScale();
         float deviceSize = font.size() * deviceScale;
         if (deviceSize < MIN_DEVICE_FONT_SIZE) {
             return;
         }
-        StbFont primary = fontStore.resolve(font);
         int quantized = GlyphAtlas.quantizeSize(deviceSize);
-        float atlasSize = GlyphAtlas.dequantizeSize(quantized);
-        // Atlas bitmaps live at the quantized size; pen advances must use the
-        // EXACT device size or long strings drift from measureText. Metrics
-        // are linear in size, so a ratio corrects them precisely.
-        float sizeRatio = deviceSize / atlasSize;
-
-        // Crisp path: axis-aligned uniform transform → glyph bitmaps land 1:1
-        // on device pixels, baseline and each glyph origin rounded to the grid.
         boolean snap = t.isUniformAxisAligned();
         int paintType = applyPaint(paint, x, y, 1, 0, 0, 1, s.opacity);
         applyBlend(s);
         batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_GLYPH, paintType, s.clipRadius);
         batch.setClip(s.clipX0, s.clipY0, s.clipX1, s.clipY1);
 
-        // The run origin is snapped to the device grid: with a fractional
-        // origin, each glyph would round independently and the rounding
-        // pattern would change as the origin slides by sub-pixel amounts (a
-        // tooltip following the pointer, centered text during a live resize),
-        // visible as letters "dancing". With an integer origin the per-glyph
-        // rounding depends only on the advances, so spacing is stable and the
-        // whole run moves in whole pixels.
+        // The run origin is snapped to the device grid: with a fractional origin every glyph
+        // rounds independently and the rounding pattern changes as the origin slides by sub-pixel
+        // amounts (a tooltip following the pointer, centred text during a live resize), visible as
+        // letters "dancing". With an integer origin the per-glyph rounding depends only on the
+        // shaped positions, so spacing is stable and the whole run moves in whole pixels.
         float originDevX = snap ? Math.round(t.x(x, y)) : t.x(x, y);
         float baselineDevY = snap ? Math.round(t.y(x, y)) : 0;
-        float penDev = 0;   // device px along the baseline (snap path)
-        float penUser = 0;  // user units along the baseline (gradient + rotated path)
-        int previousCp = -1;
-        StbFont previousFace = null;
+        StbFont primary = fontStore.resolve(font);
 
-        for (int i = 0; i < text.length(); ) {
-            int cp = text.codePointAt(i);
+        for (limn.graphics.ShapedText.Run run : text.runs()) {
+            StbFont face = fontStore.faceById(run.faceId());
+            for (int g = run.glyphStart(); g < run.glyphEnd(); g++) {
+                float glyphUserX = text.glyphX(g);
+                float glyphUserY = text.glyphY(g);
+                int glyphIndex = text.glyphId(g);
+                // Two different reasons to fall back to the characters, one branch. NO_GLYPH is a
+                // cluster this face draws by other means (a colour-emoji strike, or a whole line
+                // from a ruler that could not shape). A null face is an id issued before an
+                // eviction: a stale value then draws the right characters by the slower route
+                // rather than the wrong glyphs from whichever face inherited the id.
+                if (glyphIndex == limn.graphics.ShapedText.NO_GLYPH || face == null) {
+                    drawClusterCharacters(text, g, primary, t, x, y, glyphUserX, deviceScale,
+                            deviceSize, quantized, snap, originDevX, baselineDevY, paint,
+                            paintType, s);
+                    continue;
+                }
+                GlyphAtlas.Glyph glyph =
+                        atlas.glyph(face, run.faceId(), quantized, glyphIndex);
+                if (glyph.width() <= 0) {
+                    continue; // whitespace and empty glyphs: a real advance, no ink
+                }
+                emitGlyphQuad(glyph, t, x, y, glyphUserX, glyphUserY, deviceScale, snap,
+                        originDevX, baselineDevY);
+            }
+        }
+    }
+
+    /**
+     * Draws one {@linkplain limn.graphics.ShapedText#NO_GLYPH glyphless} cluster from the shaped
+     * text's own characters, at the x the value assigned it.
+     *
+     * <p>The cluster's extent comes from the value's own caret-stop table
+     * ({@code caretIndex(caretOrdinal(i) + 1)}) rather than from a second rule for finding
+     * cluster boundaries here, because two rules for one boundary is how a mark ends up drawn
+     * against the wrong base.
+     */
+    private void drawClusterCharacters(limn.graphics.ShapedText text, int glyphIndex,
+                                       StbFont primary, Transform2D t, float x, float y,
+                                       float glyphUserX, float deviceScale, float deviceSize,
+                                       int quantized, boolean snap, float originDevX,
+                                       float baselineDevY, Paint paint, int paintType, State s) {
+        int from = text.glyphCluster(glyphIndex);
+        int to = text.caretIndex(text.caretOrdinal(from) + 1);
+        String value = text.text();
+        if (to <= from || to > value.length()) {
+            return;
+        }
+        float penUser = glyphUserX;
+        for (int i = from; i < to; ) {
+            int cp = value.codePointAt(i);
             i += Character.charCount(cp);
             if (Character.isISOControl(cp) || StbFont.isZeroWidthFormat(cp)) {
-                previousCp = -1;
-                previousFace = null;
                 continue;
             }
-            boolean primaryHas = primary.hasGlyph(cp);
-            // Color emoji: any code point the primary lacks that the color font has
-            // is drawn as a bitmap image (its own cmap + advance; measure matches).
+            int primaryGlyph = primary.glyphIndex(cp);
+            boolean primaryHas = primaryGlyph != 0;
             if (!primaryHas) {
                 ColorEmojiFont.Emoji colored = fontStore.colorEmojiGlyph(cp);
                 if (colored != null) {
                     Image emoji = colored.image();
-                    float advanceDev = (float) fontStore.colorEmojiAdvance(cp, deviceSize);
-                    float advanceUser = advanceDev / deviceScale;
-                    // The picture's own box, NOT the advance: a strike is authored at one size
-                    // with its own width, height and height-above-baseline, and the advance is
-                    // none of the three. Drawing an advance-sized square stretched the glyph and
-                    // lifted it above the line box the run was measured into, which the first
-                    // clip on the way out (a Label's own bounds) then cut the top off.
-                    float boxW = colored.width() * font.size();
-                    float boxH = colored.height() * font.size();
-                    float boxTop = colored.top() * font.size();
-                    // The paint's alpha applies to emoji too (translucent text
-                    // must not carry fully opaque emoji); its RGB does not.
+                    // The picture's own box, never the advance: a strike is authored at one size
+                    // with its own width, height and height-above-baseline, and stretching it to
+                    // the advance lifts it out of the line box the run was measured into.
+                    float boxW = colored.width() * text.font().size();
+                    float boxH = colored.height() * text.font().size();
+                    float boxTop = colored.top() * text.font().size();
                     float textAlpha = paint instanceof Color solid ? solid.a() : 1;
-                    // Square glyph on the baseline (~82% above it; emoji sit low).
-                    // Always SMOOTH: text is not a sprite; a widget's PIXELATED
-                    // sampling must not alias minified emoji strikes nor flip the
-                    // shared emoji texture's filter back and forth per frame.
                     emitImageQuad(emoji, 0, 0, emoji.width(), emoji.height(),
                             x + penUser, y - boxTop, boxW, boxH,
                             1, 1, 1, textAlpha, KIND_IMAGE, false);
-                    // The emoji quad overwrote the batch's shape AND its paint (with
-                    // the white tint); restore both, or glyphs after the emoji lose
-                    // the text color.
+                    // The emoji quad overwrote the batch's shape AND its paint (with the white
+                    // tint); restore both, or glyphs after the emoji lose the text colour.
                     applyPaint(paint, x, y, 1, 0, 0, 1, s.opacity);
                     applyBlend(s);
                     batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_GLYPH, paintType, s.clipRadius);
                     batch.setClip(s.clipX0, s.clipY0, s.clipX1, s.clipY1);
-                    penDev += advanceDev;
-                    penUser += advanceUser;
-                    previousCp = -1;
-                    previousFace = null;
+                    penUser += (float) fontStore.colorEmojiAdvance(cp, deviceSize) / deviceScale;
                     continue;
                 }
             }
-            // Per-code-point script fallback: CJK glyphs come from a different face.
             StbFont face = primaryHas ? primary : fontStore.faceForCodepoint(primary, cp);
-            int faceId = fontStore.faceId(face);
-            if (previousCp >= 0 && previousFace == face) {
-                float kern = face.kerning(previousCp, cp, atlasSize) * sizeRatio;
-                penDev += kern;
-                penUser += kern / deviceScale;
-            }
-            GlyphAtlas.Glyph glyph = atlas.glyph(face, faceId, quantized, cp);
+            // From the face that will DRAW it, never from the primary: an index is a row number
+            // in the face that issued it, and the primary has already answered 0 here.
+            int index = primaryHas ? primaryGlyph : face.glyphIndex(cp);
+            GlyphAtlas.Glyph glyph =
+                    atlas.glyph(face, fontStore.faceId(face), quantized, index);
             if (glyph.width() > 0) {
-                batch.requireTexture(glyph.texture());
-                batch.ensure(4, 6);
-                int base = batch.baseVertex();
-                if (snap) {
-                    float gx0 = Math.round(originDevX + penDev) + glyph.bearingX();
-                    float gy0 = baselineDevY + glyph.bearingY();
-                    float gx1 = gx0 + glyph.width();
-                    float gy1 = gy0 + glyph.height();
-                    float lx0 = penUser + glyph.bearingX() / deviceScale;
-                    float ly0 = glyph.bearingY() / deviceScale;
-                    float lx1 = lx0 + glyph.width() / deviceScale;
-                    float ly1 = ly0 + glyph.height() / deviceScale;
-                    batch.vertex(gx0, gy0, lx0, ly0, glyph.u0(), glyph.v0());
-                    batch.vertex(gx1, gy0, lx1, ly0, glyph.u1(), glyph.v0());
-                    batch.vertex(gx1, gy1, lx1, ly1, glyph.u1(), glyph.v1());
-                    batch.vertex(gx0, gy1, lx0, ly1, glyph.u0(), glyph.v1());
-                } else {
-                    float ux0 = x + penUser + glyph.bearingX() / deviceScale;
-                    float uy0 = y + glyph.bearingY() / deviceScale;
-                    float ux1 = ux0 + glyph.width() / deviceScale;
-                    float uy1 = uy0 + glyph.height() / deviceScale;
-                    batch.vertex(t.x(ux0, uy0), t.y(ux0, uy0), ux0 - x, uy0 - y, glyph.u0(), glyph.v0());
-                    batch.vertex(t.x(ux1, uy0), t.y(ux1, uy0), ux1 - x, uy0 - y, glyph.u1(), glyph.v0());
-                    batch.vertex(t.x(ux1, uy1), t.y(ux1, uy1), ux1 - x, uy1 - y, glyph.u1(), glyph.v1());
-                    batch.vertex(t.x(ux0, uy1), t.y(ux0, uy1), ux0 - x, uy1 - y, glyph.u0(), glyph.v1());
-                }
-                batch.triangle(base, base + 1, base + 2);
-                batch.triangle(base, base + 2, base + 3);
+                emitGlyphQuad(glyph, t, x, y, penUser, 0, deviceScale, snap, originDevX,
+                        baselineDevY);
             }
-            penDev += glyph.advance() * sizeRatio;
-            penUser += glyph.advance() * sizeRatio / deviceScale;
-            previousCp = cp;
-            previousFace = face;
+            penUser += face.glyphAdvance(index, deviceSize) / deviceScale;
         }
     }
 
+    /** One glyph bitmap into the batch, at a position the caller has already decided. */
+    private void emitGlyphQuad(GlyphAtlas.Glyph glyph, Transform2D t, float x, float y,
+                               float glyphUserX, float glyphUserY, float deviceScale, boolean snap,
+                               float originDevX, float baselineDevY) {
+        batch.requireTexture(glyph.texture());
+        batch.ensure(4, 6);
+        int base = batch.baseVertex();
+        if (snap) {
+            float gx0 = Math.round(originDevX + glyphUserX * deviceScale) + glyph.bearingX();
+            float gy0 = baselineDevY + Math.round(glyphUserY * deviceScale) + glyph.bearingY();
+            float gx1 = gx0 + glyph.width();
+            float gy1 = gy0 + glyph.height();
+            float lx0 = glyphUserX + glyph.bearingX() / deviceScale;
+            float ly0 = glyphUserY + glyph.bearingY() / deviceScale;
+            float lx1 = lx0 + glyph.width() / deviceScale;
+            float ly1 = ly0 + glyph.height() / deviceScale;
+            batch.vertex(gx0, gy0, lx0, ly0, glyph.u0(), glyph.v0());
+            batch.vertex(gx1, gy0, lx1, ly0, glyph.u1(), glyph.v0());
+            batch.vertex(gx1, gy1, lx1, ly1, glyph.u1(), glyph.v1());
+            batch.vertex(gx0, gy1, lx0, ly1, glyph.u0(), glyph.v1());
+        } else {
+            float ux0 = x + glyphUserX + glyph.bearingX() / deviceScale;
+            float uy0 = y + glyphUserY + glyph.bearingY() / deviceScale;
+            float ux1 = ux0 + glyph.width() / deviceScale;
+            float uy1 = uy0 + glyph.height() / deviceScale;
+            batch.vertex(t.x(ux0, uy0), t.y(ux0, uy0), ux0 - x, uy0 - y, glyph.u0(), glyph.v0());
+            batch.vertex(t.x(ux1, uy0), t.y(ux1, uy0), ux1 - x, uy0 - y, glyph.u1(), glyph.v0());
+            batch.vertex(t.x(ux1, uy1), t.y(ux1, uy1), ux1 - x, uy1 - y, glyph.u1(), glyph.v1());
+            batch.vertex(t.x(ux0, uy1), t.y(ux0, uy1), ux0 - x, uy1 - y, glyph.u0(), glyph.v1());
+        }
+        batch.triangle(base, base + 1, base + 2);
+        batch.triangle(base, base + 2, base + 3);
+    }
+
+    /**
+     * The <b>shaped</b> metrics, from the same ruler and the same memo the paint pass draws from,
+     * so a caller that measures here and draws here is measuring the thing it is about to draw.
+     *
+     * <p>It summed one advance per code point before, which is a different number from the one the
+     * painter walks the moment a ligature or a joining script is involved — and the same string
+     * measured one way and drawn the other is how a caption ends up a hair wider than the box that
+     * was sized for it, or a scroll extent stops short of a caret.
+     */
     @Override
     public TextMetrics measureText(String text, Font font) {
         Objects.requireNonNull(font, "font");
-        return fontStore.measure(font, text);
+        return ruler().shape(text == null ? "" : text, font).metrics();
     }
 
     // ------------------------------------------------------------------ images
