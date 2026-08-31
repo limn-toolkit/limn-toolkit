@@ -39,7 +39,7 @@ public final class Main {
             "viewport3d", "viewport3d-light", "gltf", "shadows", "ibl", "debugdraw", "blend3d",
             "normalmap", "bloom", "surface", "testcard", "text", "files", "files-light",
             "export", "export-light", "charts", "charts-light", "theme-editor",
-            "theme-editor-light", "glass", "glass-light");
+            "theme-editor-light", "glass", "glass-light", "bidi", "bidi-light");
 
     private static final int LOGICAL_WIDTH = 800;
     private static final int LOGICAL_HEIGHT = 640;
@@ -63,6 +63,29 @@ public final class Main {
                 java.nio.file.Path.of(base.toString().replace(".png", suffix + ".png"));
         window.captureNextFrame(file);
         System.out.println("Split state screenshot: " + file.toAbsolutePath());
+    }
+
+    /**
+     * Whether this locale's script is drawn by one of the fallback faces that parse in the
+     * background, so a capture has to wait for the fold-in instead of photographing the
+     * {@code .notdef} boxes that precede it.
+     *
+     * <p>Latin, Greek and Cyrillic are absent on purpose rather than forgotten: Roboto covers
+     * them, so nothing is ever missing, the background load is never kicked, and waiting for a
+     * fold-in that will not happen would spend the whole timeout on every European capture.
+     *
+     * <p>Both spellings of Hebrew are matched because {@code Locale.getLanguage} answers with the
+     * legacy ISO code under {@code -Djava.locale.useOldISOCodes=true}, which is a JVM flag rather
+     * than anything this program controls.
+     */
+    private static boolean localeNeedsAFallbackFace(java.util.Locale locale) {
+        if (locale == null) {
+            return false;
+        }
+        return switch (locale.getLanguage()) {
+            case "ja", "ko", "zh", "hi", "th", "ar", "he", "iw" -> true;
+            default -> false;
+        };
     }
 
     /** One-line summary of a display for the startup log. */
@@ -299,6 +322,10 @@ public final class Main {
                 CaptureScenes.Built built = CaptureScenes.fontsSwitched(false);
                 widgetScene = built.scene();
                 afterLayout = built.afterLayout();
+            } else if (scene.startsWith("bidi")) {
+                BidiScene.Built built = BidiScene.create(scene.endsWith("-light"));
+                widgetScene = built.scene();
+                afterLayout = built.afterLayout();
             } else if (scene.equals("textarea-ime")) {
                 CaptureScenes.Built built = CaptureScenes.textareaIme(false);
                 widgetScene = built.scene();
@@ -398,16 +425,21 @@ public final class Main {
                     || chartsCapture;
             AtomicInteger frames = new AtomicInteger();
             AtomicInteger frameNo = new AtomicInteger();
-            // Scenes showcasing CJK/emoji glyphs race the BACKGROUND fallback-font
-            // load (Noto CJK + color emoji parse off-thread and heal .notdef boxes
-            // when they arrive): hold the warmup capture until the CJK family shows
-            // up in the catalog (the same fold-in installs the emoji) or a
-            // timeout passes (fallback binaries not bundled → capture as-is).
+            // Scenes showcasing CJK, emoji or a complex script race the BACKGROUND
+            // fallback-font load (Noto CJK, the four script faces and color emoji parse
+            // off-thread and heal .notdef boxes when they arrive): hold the warmup capture
+            // until the CJK family shows up in the catalog (one fold-in installs all of
+            // them) or a timeout passes (fallback binaries not bundled → capture as-is).
             java.util.function.BooleanSupplier fontFallbacksSettled;
+            // The scene list is not enough on its own, and keying only on it was a real defect:
+            // --locale turns ANY scene into one that needs a fallback face, and the kitchen sink
+            // captured in ja, ar or hi came out as rows of .notdef boxes with nothing to say so.
+            // It went unnoticed because the documented capture example uses fr, which is Latin.
             boolean fontFallbackScene = switch (scene) {
-                case "fonts", "fonts-switched", "textfield-ime", "textarea-ime" -> true;
+                case "fonts", "fonts-switched", "textfield-ime", "textarea-ime",
+                     "bidi", "bidi-light" -> true;
                 default -> false;
-            };
+            } || localeNeedsAFallbackFace(options.locale());
             if (screenshotMode && fontFallbackScene) {
                 long deadlineNanos = System.nanoTime() + 2_000_000_000L;
                 fontFallbacksSettled = () -> limn.graphics.Fonts.available().contains("Noto Sans CJK")

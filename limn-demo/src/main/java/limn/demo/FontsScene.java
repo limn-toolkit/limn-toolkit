@@ -19,8 +19,8 @@ import java.util.List;
  * Script/font-fallback showcase: one line per writing system, an emoji row, and
  * an editable {@link TextField} whose "Insert IME text + emoji" button
  * drops CJK text and emoji straight into the field (as an IME commit would). All
- * text is rendered from a single face per label; CJK and emoji fall back
- * per-code-point to the bundled Noto faces (see {@code fonts/README.md}). When
+ * text is rendered from a single face per label; CJK and emoji fall back to the
+ * bundled Noto faces, once per shaped run (see {@code fonts/README.md}). When
  * those optional fonts are absent, CJK/emoji show {@code .notdef} boxes.
  */
 final class FontsScene {
@@ -42,9 +42,10 @@ final class FontsScene {
         Column content = new Column();
         content.gap(12).crossAlignment(Flex.CrossAlignment.START);
 
-        content.add(new Label("Fonts & scripts: per-code-point fallback")
+        content.add(new Label("Fonts & scripts: per-run fallback")
                 .setFont(Theme.current().title));
-        content.add(new Label("Roboto for Latin/Greek/Cyrillic; Noto Sans CJK + Noto Color Emoji fill the rest.")
+        content.add(new Label("Roboto for Latin/Greek/Cyrillic; Noto Sans CJK, Arabic, Hebrew, "
+                + "Devanagari, Thai and Color Emoji fill the rest.")
                 .setMuted(true));
 
         // Live font switcher: picks any bundled or system family; the whole panel
@@ -57,6 +58,16 @@ final class FontsScene {
         content.add(sample("Japanese", "日本語: こんにちは世界 カタカナ ひらがな"));
         content.add(sample("Chinese", "中文: 你好世界 汉字"));
         content.add(sample("Korean", "한국어: 안녕하세요 세계"));
+        // The four faces that arrived with shaping, and the rows where per-run fallback is doing
+        // something a per-code-point chain could not. Each is chosen to fail visibly rather than
+        // subtly if the run reached the wrong face or reached the right one unshaped: the Arabic
+        // letters join into one another, the Hebrew niqqud sit under their consonants, the
+        // Devanagari carries a conjunct and a matra drawn before the consonant it follows in the
+        // string, and the Thai stacks a vowel above and a tone above that.
+        content.add(sample("Arabic", "العربية: مرحبا بالعالم"));
+        content.add(sample("Hebrew", "עברית: שָׁלוֹם עוֹלָם"));
+        content.add(sample("Devanagari", "हिन्दी: नमस्ते दुनिया क्ष"));
+        content.add(sample("Thai", "ไทย: สวัสดีชาวโลก"));
         // The menu key symbols, which no UI font has: they come from the small bundled face the
         // accelerator hints are drawn with, and this row is where a build missing it shows boxes.
         content.add(sample("Menu keys", "⌘ ⌥ ⌃ ⇧ ⇪ ⏎ ⌤ ⌫ ⌦ ⇥ ⎋ ␣ ⇞ ⇟ ↖ ↘ ← ↑ → ↓"));

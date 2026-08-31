@@ -308,6 +308,12 @@ final class KitchenSinkScene {
         int tabVideo = tabs.tabCount();
         tabs.addTab("Video", new ScrollView(pad(VideoScene.tabContent())));
         tabs.addTab("Charts", new ScrollView(pad(ChartsScene.content())));
+        // Untranslated like its neighbours: the specimens are the scripts themselves, and their
+        // captions name shaping properties rather than say anything a user of this window needs
+        // in their own language. Switching the picker to العربية is the other half of the demo —
+        // that translates the chrome around this tab, which is where a shaper either reaches or
+        // does not.
+        tabs.addTab("Scripts", new ScrollView(pad(BidiScene.tabContent())));
         int tabIcons = tabs.tabCount();
         tabs.addTab("Icons", pad(IconsScene.content()));
         int tabFiles = tabs.tabCount();

@@ -10,11 +10,14 @@ import java.util.Locale;
  * <p>Each name is written in its own language, which is what a language picker does
  * everywhere: someone looking for their language is not reading the current one.
  *
- * <p>Hindi is in the list and will render as empty boxes until the text pipeline
- * grows shaping and a Devanagari face (ADR 006 §4). It is listed rather than hidden
- * because the translation is correct and the gap is in rendering; seeing the boxes
- * is a more useful thing for this demo to show than pretending the language is
- * unsupported.
+ * <p>Hindi, Arabic and Hebrew are in the list to be looked at, not only read. Hindi
+ * was listed here while it still rendered as empty boxes, because the translation was
+ * correct and the gap was in rendering; Arabic and Hebrew were not shipped at all,
+ * because a bundle would have promised something two layers were missing. ADR 031 added
+ * both — a shaper to choose the glyphs, the bidi algorithm to order them — so all three
+ * draw. What it deliberately did not add is mirroring: an Arabic or Hebrew screen here is
+ * correct right-to-left text inside a left-to-right layout, and ADR 031 §4 says why that
+ * intermediate state is worth shipping over neither half.
  */
 final class Languages {
 
@@ -38,13 +41,15 @@ final class Languages {
             Locale.forLanguageTag("ko"),
             Locale.forLanguageTag("zh-Hans"),
             Locale.forLanguageTag("zh-Hant"),
-            Locale.forLanguageTag("hi"));
+            Locale.forLanguageTag("hi"),
+            Locale.forLanguageTag("ar"),
+            Locale.forLanguageTag("he"));
 
     static final List<String> NAMES = List.of(
             "English", "Português (BR)", "Português", "Español", "Français", "Deutsch",
             "Italiano", "Nederlands", "Polski", "Čeština", "Türkçe", "Русский",
             "Українська", "Indonesia", "Tiếng Việt", "日本語", "한국어", "简体中文",
-            "繁體中文", "हिन्दी");
+            "繁體中文", "हिन्दी", "العربية", "עברית");
 
     /** The entry a locale selects, matching on language and then on the full tag. */
     static int indexOf(Locale locale) {
