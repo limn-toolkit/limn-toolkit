@@ -878,10 +878,42 @@ as the *justification* for something — `Checkbox` and `RadioButton` both expla
 "flush with the widget's left edge". A decision that moves an edge has to name the sentences that
 describe it, or documentation quietly stops being true.
 
-**16. `Scene`'s tooltip is absent from the ADR**, and it is the one surface a `Scene` paints itself
+**16. `CrossAlignment` on a `Column` is a reading decision, and §2 says it is untouched.** §2's
+entry for `Flex` reads "one expression … Nothing else in the file moves, and
+`MainAlignment`/`CrossAlignment` are untouched." That is right for a `Row`, whose cross axis is
+vertical, and wrong for a `Column`, whose cross axis *is* the reading axis. `CrossAlignment.START`
+on a column of labels means the edge reading starts from; left physical it pins a whole form's text
+to the left inside a right-to-left interface, which is most of what a form is.
+
+The cause is that Finding 3 analysed `Flex` as "a horizontal `Row` mirrors in one line" and the
+decision inherited that framing: a `Flex` has two axes and the direction reaches whichever of them
+is horizontal, which is the main one for a `Row` and the cross one for a `Column`. Both reflections
+are the same expression. `CENTER` and `STRETCH` map onto themselves under it and need no arm.
+
+This shipped wrong and was found by looking at a mirrored capture of the list scene — the widgets
+were placed correctly and every label inside them was flush with the wrong edge. It is the second
+thing a mirrored screenshot is good for, after chrome drawn over the screen.
+
+**17. `Scene`'s tooltip is absent from the ADR**, and it is the one surface a `Scene` paints itself
 rather than delegating to a widget. It went out of its way to resolve the hovered anchor's
 `ControlSize` live and never its direction, so the panel opened to the right of the pointer in both
 directions with its text pinned to the left pad. Now reads both.
+
+**18. Finding 6's "four `layoutBox` calls" is a list, and a list is easy to half-finish.** Two of
+the four bar sides — `ListView`'s and `ComboBox`'s — went through the per-file conversion and were
+done. The other two, `ScrollView`'s and `TextArea`'s, were scoped out of it because those files had
+already been touched by earlier phases, and the earlier phases had done the scroll *origin* and the
+text geometry rather than the bar. The bar stayed on the right in the two widgets a reviewer meets
+first. Found by a human looking at the running demo, which is exactly the failure a picture catches
+and arithmetic does not: every assertion about those two files was true, and none of them was about
+the bar.
+
+The fifth site Finding 6 names — the viewport clip under `RESERVED` — is worse than "of a different
+kind". When the bar changes side, the *viewport itself* moves: its left edge is the gutter rather
+than zero, so the content origin, the clip, the horizontal bar's clear corner and `revealRect`'s
+bounds all take the viewport's left edge instead of the box's. `ScrollGutters` answers how much a
+strip takes and never which side takes it, which is right — but it means every host has to resolve
+the side itself, and the ADR asks four hosts to do that without saying so.
 
 ### 9.3 Where §1 held
 

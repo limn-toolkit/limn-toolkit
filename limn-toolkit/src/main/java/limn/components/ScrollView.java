@@ -180,11 +180,16 @@ public class ScrollView extends Widget implements Scrollable {
         float dx = 0;
         float dy = 0;
         if (horizontal) {
-            if (x < 0) {
-                dx = x; // off the leading edge: scroll back
-            } else if (x + rectWidth > viewportWidth()) {
+            // Against the VIEWPORT's edges and not the box's: under RESERVED they differ by the
+            // gutter, and a rect flush with the box would otherwise count as visible while
+            // sitting under the bar.
+            float left = viewportLeft();
+            float right = left + viewportWidth();
+            if (x < left) {
+                dx = x - left; // off the leading edge: scroll back
+            } else if (x + rectWidth > right) {
                 // Oversize rects align their near edge.
-                dx = Math.min(x, x + rectWidth - viewportWidth());
+                dx = Math.min(x - left, x + rectWidth - right);
             }
         }
         if (vertical) {
@@ -267,9 +272,13 @@ public class ScrollView extends Widget implements Scrollable {
         boolean reserved = gutters.layout() == ScrollGutters.Layout.RESERVED;
         float vLen = reserved ? viewH : (both ? height() - t : height());
         float hLen = reserved ? viewW : (both ? width() - t : width());
+        // The vertical bar sits on the side reading ends on, and the horizontal one starts
+        // after whatever strip that leaves, so the clear corner square is on the bar's own side
+        // in both directions rather than always on the right.
+        boolean rtl = layoutDirection() == limn.scene.LayoutDirection.RTL;
         if (vBar != null) {
             vBar.measure(Constraints.tight(t, vLen));
-            vBar.layoutBox(width() - t, 0, t, vLen);
+            vBar.layoutBox(rtl ? 0 : width() - t, 0, t, vLen);
             // Told after the geometry it reads from is settled, not before: this is where a bar
             // learns its content has just become scrollable, which is the only moment an AUTO bar
             // has to say so before the pointer arrives.
@@ -277,9 +286,22 @@ public class ScrollView extends Widget implements Scrollable {
         }
         if (hBar != null) {
             hBar.measure(Constraints.tight(hLen, t));
-            hBar.layoutBox(0, height() - t, hLen, t);
+            hBar.layoutBox(rtl ? width() - hLen : 0, height() - t, hLen, t);
             hBar.refresh();
         }
+    }
+
+    /**
+     * Physical left edge of the viewport.
+     *
+     * <p>Zero, except reading right to left under {@link ScrollGutters.Layout#RESERVED}: the
+     * vertical bar takes its strip from the side reading ends on, which is then the left, and the
+     * content starts after it. {@link ScrollGutters} has no direction of its own &mdash; it
+     * answers how much a strip takes, not which side takes it &mdash; so the side is resolved
+     * here, where the bar is placed.
+     */
+    private float viewportLeft() {
+        return layoutDirection() == limn.scene.LayoutDirection.RTL ? gutters.verticalStrip() : 0;
     }
 
     /**
@@ -297,7 +319,7 @@ public class ScrollView extends Widget implements Scrollable {
      */
     private float contentOriginX(float childWidth) {
         return layoutDirection() == limn.scene.LayoutDirection.RTL
-                ? viewportWidth() - childWidth + offsetX
+                ? viewportLeft() + viewportWidth() - childWidth + offsetX
                 : -offsetX;
     }
 
@@ -322,7 +344,7 @@ public class ScrollView extends Widget implements Scrollable {
         // the stack by then. paintOne already guards its own; these are the two it does not cover.
         canvas.save();
         try {
-            canvas.clipRect(0, 0, viewportWidth(), viewportHeight());
+            canvas.clipRect(viewportLeft(), 0, viewportWidth(), viewportHeight());
             paintOne(canvas, child);
         } finally {
             canvas.restore();

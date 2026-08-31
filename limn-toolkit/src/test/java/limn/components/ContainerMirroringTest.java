@@ -13,6 +13,7 @@ import limn.scene.layout.Stack;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * What the three containers do with a direction, and — just as much the point — what they do not.
@@ -99,17 +100,69 @@ class ContainerMirroringTest extends ComponentTestBase {
     }
 
     @Test
-    void aColumnIsNotASite() {
+    void aColumnsMainAxisIsNotASiteButItsCrossAxisIs() {
+        // This assertion was written the other way round first, and the belief it encoded --
+        // "a column is not a site" -- is what left every column of labels pinned to the left
+        // inside a right-to-left interface. A column's MAIN axis is vertical and has no reading
+        // order; its CROSS axis is horizontal and is the reading axis itself.
         Box first = new Box(30);
-        Box second = new Box(30);
+        Box second = new Box(50);
         Column column = new Column();
         column.add(first);
         column.add(second);
         column.setLayoutDirection(LayoutDirection.RTL);
         layout(column, 200, 100);
 
-        assertEquals(0, first.x(), EPS, "direction is the reading axis; a column's main axis is not");
+        assertEquals(200 - 30, first.x(), EPS, "CrossAlignment.START is the edge reading starts on");
+        assertEquals(200 - 50, second.x(), EPS, "and each child is placed against it, not boxed");
+        assertTrue(first.y() < second.y(), "the order down the main axis is untouched");
+    }
+
+    @Test
+    void aColumnIsUnchangedReadingLeftToRight() {
+        Box first = new Box(30);
+        Box second = new Box(50);
+        Column column = new Column();
+        column.add(first);
+        column.add(second);
+        layout(column, 200, 100);
+        assertEquals(0, first.x(), EPS);
         assertEquals(0, second.x(), EPS);
+    }
+
+    @Test
+    void aColumnsCentreAndStretchAreTheSameNumberEitherWay() {
+        for (LayoutDirection direction : LayoutDirection.values()) {
+            Box centred = new Box(40);
+            Column centre = new Column();
+            centre.crossAlignment(Flex.CrossAlignment.CENTER);
+            centre.add(centred);
+            centre.setLayoutDirection(direction);
+            layout(centre, 200, 100);
+            assertEquals(80, centred.x(), EPS, direction + ": a centre maps onto itself");
+
+            Box stretched = new Box(40);
+            Column stretch = new Column();
+            stretch.crossAlignment(Flex.CrossAlignment.STRETCH);
+            stretch.add(stretched);
+            stretch.setLayoutDirection(direction);
+            layout(stretch, 200, 100);
+            assertEquals(0, stretched.x(), EPS, direction + ": a stretched child fills the box");
+            assertEquals(200, stretched.width(), EPS);
+        }
+    }
+
+    @Test
+    void aRowsCrossAxisIsVerticalAndDoesNotMirror() {
+        // The other half of the same decision: a row's cross axis has no reading order, so
+        // CrossAlignment there is untouched and a sweep must not reflect it.
+        Box child = new Box(30);
+        Row row = new Row();
+        row.crossAlignment(Flex.CrossAlignment.END);
+        row.add(child);
+        row.setLayoutDirection(LayoutDirection.RTL);
+        layout(row, 200, 60);
+        assertEquals(40, child.y(), EPS, "END on a row is the bottom, in both directions");
     }
 
     @Test

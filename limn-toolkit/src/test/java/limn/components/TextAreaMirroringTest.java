@@ -52,6 +52,7 @@ class TextAreaMirroringTest extends ComponentTestBase {
         private float tx;
         private float ty;
         final List<float[]> texts = new ArrayList<>();
+        final List<float[]> clips = new ArrayList<>();
         float caretX = Float.NaN;
 
         GeometryCanvas(float width, float height) {
@@ -68,6 +69,11 @@ class TextAreaMirroringTest extends ComponentTestBase {
         @Override
         public void save() {
             super.save();
+        }
+
+        @Override
+        public void clipRect(float x, float y, float w, float h) {
+            clips.add(new float[]{tx + x, w});
         }
 
         @Override
@@ -216,5 +222,51 @@ class TextAreaMirroringTest extends ComponentTestBase {
         float caret = paint().caretX;
         assertTrue(caret >= PAD_X - EPS && caret <= RTL_START + EPS,
                 "the caret stayed inside the text column, at " + caret);
+    }
+
+    // ------------------------------------------------- which side the bar takes
+
+    @Test
+    void aReservedGutterMovesTheTextColumnOffTheBarRatherThanUnderIt() {
+        // The defect this catches, seen on screen first: the vertical bar moved to the side
+        // reading ends on, and the text column stayed anchored to the pad, so the first glyph of
+        // every line sat under the thumb. The column's own clip is the direct evidence, because
+        // it is the expression that says where the column begins.
+        float t = ScrollBar.thickness();
+
+        assertEquals(PAD_X - Strokes.AA_BLEED, columnClipLeft(LayoutDirection.LTR), EPS,
+                "the default is unchanged: the column starts at the pad");
+        assertEquals(PAD_X + t - Strokes.AA_BLEED, columnClipLeft(LayoutDirection.RTL), EPS,
+                "reading right to left the bar took the left, so the column starts after it");
+    }
+
+    /** Where the text column's clip begins, with a reserved gutter and a bar that is real. */
+    private float columnClipLeft(LayoutDirection direction) {
+        build(direction, "x");
+        area.setBarLayout(ScrollGutters.Layout.RESERVED);
+        area.setText(longEnoughToScroll());
+        scene.layoutPass(WIDTH, 100);
+        List<float[]> clips = paint().clips;
+        // The column's clip is the narrow one: the scene's own full-box clip is the width of the
+        // widget, and this one is short by two pads and the strip.
+        float narrowest = Float.MAX_VALUE;
+        float left = Float.NaN;
+        for (float[] c : clips) {
+            if (c[1] < narrowest) {
+                narrowest = c[1];
+                left = c[0];
+            }
+        }
+        assertTrue(narrowest < WIDTH, "the column's clip is narrower than the box");
+        return left;
+    }
+
+    /** Enough lines that the vertical bar is real under a RESERVED gutter. */
+    private static String longEnoughToScroll() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 40; i++) {
+            sb.append("line ").append(i).append('\n');
+        }
+        return sb.toString();
     }
 }

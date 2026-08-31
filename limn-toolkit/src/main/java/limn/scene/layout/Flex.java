@@ -342,7 +342,16 @@ public abstract class Flex extends Widget {
         float free = totalFlex > 0 ? 0 : Math.max(0, mainSize - contentMain);
         // Resolved once for the whole pass: two resolutions that disagreed inside one layout
         // would place a child against one edge and its neighbour against the other.
-        boolean rtl = !vertical && layoutDirection() == limn.scene.LayoutDirection.RTL;
+        //
+        // Which axis it reaches depends on the orientation, and BOTH cases are real. A Row's
+        // horizontal axis is its MAIN one, so its main placement reflects and its cross
+        // placement (vertical) does not. A Column's horizontal axis is its CROSS one, so it is
+        // the cross placement that reflects: CrossAlignment.START on a column of labels means
+        // the edge reading starts from, and leaving it physical pins a whole form's text to the
+        // left inside a right-to-left interface.
+        boolean horizontal = layoutDirection() == limn.scene.LayoutDirection.RTL;
+        boolean rtl = !vertical && horizontal;
+        boolean mirrorCross = vertical && horizontal;
         // The cursor is a LOGICAL distance along the main axis, which the placement below
         // reflects. So a physical constant is expressed by asking for the logical end that
         // reflects onto the side it names, and the placement needs no second branch.
@@ -368,6 +377,12 @@ public abstract class Flex extends Widget {
                 case CENTER -> (crossSize - childCross) / 2;
                 case END -> crossSize - childCross;
             };
+            if (mirrorCross) {
+                // The same reflection the main axis gets, and STRETCH is a no-op under it by
+                // construction: a stretched child is exactly crossSize wide, so it maps onto
+                // itself. CENTER does too, which is why neither needs an arm of its own.
+                crossPos = crossSize - crossPos - childCross;
+            }
             if (vertical) {
                 child.layoutBox(crossPos, cursor, childCross, childMain);
             } else {

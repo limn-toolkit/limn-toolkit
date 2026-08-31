@@ -314,6 +314,16 @@ public class TextArea extends Widget {
     }
 
     /**
+     * Physical left edge of the text column: the pad, plus the vertical bar's strip when that
+     * bar is on this side. Reading right to left the bar takes the side reading ends on, which
+     * is the left, so the column starts after it. {@link ScrollGutters} answers how much a strip
+     * takes and never which side takes it, so the side is resolved here.
+     */
+    private float columnLeft(SizeTokens t) {
+        return t.fieldPadH() + (isRtl() ? gutters.verticalStrip() : 0);
+    }
+
+    /**
      * Where content space puts its <b>left</b> edge in this widget's own coordinates: the paint
      * translate, and the one conversion every click, caret and clamp goes through.
      *
@@ -323,10 +333,9 @@ public class TextArea extends Widget {
      * {@link ScrollView} uses: zero is the leading edge and the offset is a distance travelled.
      */
     private float contentOriginX(SizeTokens t) {
-        float padX = t.fieldPadH();
         return isRtl()
-                ? padX + viewWidth(t) - contentWidth(t) + scrollX
-                : padX - scrollX;
+                ? columnLeft(t) + viewWidth(t) - contentWidth(t) + scrollX
+                : columnLeft(t) - scrollX;
     }
 
     /**
@@ -335,7 +344,7 @@ public class TextArea extends Widget {
      * shrinks with it the other, which is all {@link #ensureCursorVisible} has to know.
      */
     private float viewStartX(SizeTokens t) {
-        return t.fieldPadH() - contentOriginX(t);
+        return columnLeft(t) - contentOriginX(t);
     }
 
     /**
@@ -525,10 +534,13 @@ public class TextArea extends Widget {
         // strips already are that square, and only on an axis that overflows.
         float vLen = reserved ? height() - gutters.horizontalStrip() : height() - t;
         float hLen = reserved ? width() - gutters.verticalStrip() : width() - t;
+        // The vertical bar sits on the side reading ends on, and the horizontal one starts
+        // after whatever strip that leaves, so the clear corner square is on the bar's own side.
+        boolean rtl = isRtl();
         vBar.measure(Constraints.tight(t, vLen));
-        vBar.layoutBox(width() - t, 0, t, vLen);
+        vBar.layoutBox(rtl ? 0 : width() - t, 0, t, vLen);
         hBar.measure(Constraints.tight(hLen, t));
-        hBar.layoutBox(0, height() - t, hLen, t);
+        hBar.layoutBox(rtl ? width() - hLen : 0, height() - t, hLen, t);
     }
 
     // ---------------------------------------------------- cursor geometry
@@ -914,7 +926,7 @@ public class TextArea extends Widget {
         // The VERTICAL clip stays tight: it is a scroll boundary against the border, not an
         // inset text run. Bleeding it by 2 pt would let a half-scrolled line's ink cross the
         // pad and sit on the rounded border.
-        canvas.clipRect(padX - Strokes.AA_BLEED, padY,
+        canvas.clipRect(columnLeft(t) - Strokes.AA_BLEED, padY,
                 viewWidth(t) + 2 * Strokes.AA_BLEED, viewHeight(t));
         canvas.translate(contentOriginX(t), padY - scrollY);
 
@@ -1487,8 +1499,8 @@ public class TextArea extends Widget {
         // Content space → local (the paint translate is padX/padY - scroll), clamped so
         // the candidate window stays anchored inside the visible padded viewport. The clamp
         // is per axis for the same reason the translate is.
-        float localX = Math.max(padX,
-                Math.min(contentOriginX(t) + cxContent, padX + viewWidth(t)));
+        float left = columnLeft(t);
+        float localX = Math.max(left, Math.min(contentOriginX(t) + cxContent, left + viewWidth(t)));
         float localY = Math.max(padY, Math.min(padY - scrollY + cyContent, height() - padY));
         return new Rect(localToSceneX() + localX, localToSceneY() + localY, Strokes.CARET, lh);
     }

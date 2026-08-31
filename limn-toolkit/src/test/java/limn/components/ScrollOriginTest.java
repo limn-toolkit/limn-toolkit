@@ -7,6 +7,7 @@ import limn.scene.Widget;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Where a horizontal scroll starts, and which way it runs: {@code scrollX == 0} is the
@@ -117,5 +118,83 @@ class ScrollOriginTest extends ComponentTestBase {
             scroll.revealRect(95, 0, 20, 50);
             assertEquals(-55, content.x(), EPS, direction + ": scrolled on by exactly 15");
         }
+    }
+
+    // ------------------------------------------------- which side the bar takes
+
+    /** A scroller that overflows vertically, so its vertical bar is real. */
+    private static ScrollView vertical(LayoutDirection direction, ScrollGutters.Layout layout) {
+        ScrollView scroll = new ScrollView(new Box(100, 400), false, true);
+        scroll.setBarLayout(layout);
+        scroll.setScrollbarPolicy(ScrollBar.Policy.ALWAYS);
+        scroll.setLayoutDirection(direction);
+        scroll.measure(Constraints.tight(100, 100));
+        scroll.layoutBox(0, 0, 100, 100);
+        return scroll;
+    }
+
+    @Test
+    void theVerticalBarTakesTheSideReadingEndsOn() {
+        float t = ScrollBar.thickness();
+        ScrollView ltr = vertical(LayoutDirection.LTR, ScrollGutters.Layout.OVERLAY);
+        assertEquals(100 - t, ltr.verticalBar().x(), EPS, "the default is unchanged: the right");
+
+        ScrollView rtl = vertical(LayoutDirection.RTL, ScrollGutters.Layout.OVERLAY);
+        assertEquals(0, rtl.verticalBar().x(), EPS,
+                "reading right to left, the side reading ends on is the left");
+    }
+
+    @Test
+    void aReservedGutterMovesTheContentOffTheBarRatherThanUnderIt() {
+        // The fifth site, and the one a screenshot shows first: under RESERVED the viewport and
+        // the box differ by the gutter, so the content has to start after the strip the bar took
+        // rather than at the box's own edge.
+        float t = ScrollBar.thickness();
+        Box content = new Box(100, 400);
+        ScrollView rtl = new ScrollView(content, false, true);
+        rtl.setBarLayout(ScrollGutters.Layout.RESERVED);
+        rtl.setScrollbarPolicy(ScrollBar.Policy.ALWAYS);
+        rtl.setLayoutDirection(LayoutDirection.RTL);
+        rtl.measure(Constraints.tight(100, 100));
+        rtl.layoutBox(0, 0, 100, 100);
+
+        assertEquals(0, rtl.verticalBar().x(), EPS, "the bar is on the left");
+        assertEquals(t, content.x(), EPS, "and the content starts after it, not under it");
+        assertEquals(100 - t, content.width(), EPS, "keeping the whole viewport");
+    }
+
+    @Test
+    void theClearCornerSquareIsOnTheBarsOwnSide() {
+        // With both bars the horizontal one is shortened so their thumbs never overlap. The
+        // square it leaves has to be under the vertical bar, which is not always the right.
+        float t = ScrollBar.thickness();
+        ScrollView ltr = new ScrollView(new Box(400, 400), true, true);
+        ltr.setScrollbarPolicy(ScrollBar.Policy.ALWAYS);
+        ltr.measure(Constraints.tight(100, 100));
+        ltr.layoutBox(0, 0, 100, 100);
+
+        ScrollView rtl = new ScrollView(new Box(400, 400), true, true);
+        rtl.setScrollbarPolicy(ScrollBar.Policy.ALWAYS);
+        rtl.setLayoutDirection(LayoutDirection.RTL);
+        rtl.measure(Constraints.tight(100, 100));
+        rtl.layoutBox(0, 0, 100, 100);
+
+        assertEquals(0, horizontalBarOf(ltr).x(), EPS, "the default is unchanged");
+        assertEquals(t, horizontalBarOf(rtl).x(), EPS,
+                "the square is under the vertical bar, which has moved to the left");
+        assertEquals(horizontalBarOf(ltr).width(), horizontalBarOf(rtl).width(), EPS,
+                "and it is the same length either way");
+    }
+
+    /** The horizontal bar: the one child of the scroller that is not the content or the v-bar. */
+    private static Widget horizontalBarOf(ScrollView scroll) {
+        Widget found = null;
+        for (Widget child : scroll.children()) {
+            if (child instanceof ScrollBar bar && bar != scroll.verticalBar()) {
+                found = bar;
+            }
+        }
+        assertTrue(found != null, "the scroller has a horizontal bar");
+        return found;
     }
 }
