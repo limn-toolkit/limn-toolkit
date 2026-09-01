@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -830,5 +831,207 @@ class TextAreaTest extends ComponentTestBase {
         assertTrue(area.model().hasSelection(), "Shift+Page is how a screenful is taken");
         assertTrue(area.model().selectedText().startsWith("line 0"),
                 "the selection must run from where the caret was");
+    }
+
+    // ------------------------------------------------------------- soft wrap
+    //
+    // Every fixture below runs in the 200 pt build(): the text column is 200 - 2 × PAD_X =
+    // 176 pt, so under RULER (10 pt per code point) 17 characters fit a row and the 18th does
+    // not. Rows and their char offsets are stated in the tests as facts of that arithmetic.
+
+    private static final float PAD_Y = SizeTokens.of(ControlSize.MEDIUM).areaPad();
+    private static final float EPS = 1e-3f;
+
+    private void buildWrapped(String text) {
+        build("");
+        area.setSoftWrap(true);
+        area.setText(text);
+    }
+
+    @Test
+    void softWrapBreaksAtWordBoundariesAndHangsTheSpace() {
+        buildWrapped("aaaa bbbb cccc dddd eeee"); // 240 pt against a 176 pt column
+        // fitEnd lands mid-"dddd"; the break backs up to the boundary after "cccc ", and the
+        // space hangs: rows are [0, 15), [15, 24). setText leaves the caret at the end.
+        assertEquals(PAD_X + 90, area.caretRect().x(), EPS);  // after "dddd eeee"
+        assertEquals(PAD_Y + 12, area.caretRect().y(), EPS);  // on the second row
+        // A caret inside the hung space clamps to its row's drawn end, on the first row.
+        area.model().setCursor(14, false);
+        assertEquals(PAD_X + 140, area.caretRect().x(), EPS); // after "aaaa bbbb cccc"
+        assertEquals(PAD_Y, area.caretRect().y(), EPS);
+        assertEquals(0, area.scrollXOffset(), EPS);
+    }
+
+    @Test
+    void softWrapPinsTheHorizontalAxisAndScrollsTheVerticalOne() {
+        buildWrapped("a".repeat(400)); // 24 cluster-broken rows of 17 against a 7-row viewport
+        key(Keys.END, Keys.MOD_CONTROL);
+        assertEquals(0, area.scrollXOffset(), EPS);
+        assertEquals(24 * 12 - 84, area.scrollYOffset(), EPS); // the caret's row revealed
+        assertEquals(100 - PAD_Y - 12, area.caretRect().y(), EPS); // on the viewport's last row
+    }
+
+    @Test
+    void togglingSoftWrapResetsTheHorizontalScroll() {
+        build("a".repeat(40));
+        key(Keys.END, Keys.MOD_CONTROL);
+        assertTrue(area.scrollXOffset() > 0, "unwrapped, End travels the long line");
+        area.setSoftWrap(true);
+        assertEquals(0, area.scrollXOffset(), EPS);
+        key(Keys.END, Keys.MOD_CONTROL);
+        assertEquals(0, area.scrollXOffset(), EPS);
+        area.setSoftWrap(false);
+        key(Keys.END, Keys.MOD_CONTROL);
+        assertTrue(area.scrollXOffset() > 0, "the axis is live again");
+    }
+
+    @Test
+    void softWrapUpDownStepByVisualRowOnAStickyGoalX() {
+        buildWrapped("a".repeat(40)); // no break opportunity: cluster rows [0, 17), [17, 34), [34, 40)
+        area.model().setCursor(16, false); // first row, x = 160
+        key(Keys.DOWN, 0);
+        assertEquals(33, area.model().cursor(), "one row down, same x");
+        key(Keys.DOWN, 0);
+        assertEquals(40, area.model().cursor(), "the last row is short: its logical end");
+        key(Keys.UP, 0);
+        assertEquals(33, area.model().cursor(), "the goal x survived the short row");
+        key(Keys.UP, 0);
+        assertEquals(16, area.model().cursor());
+        key(Keys.UP, 0);
+        assertEquals(0, area.model().cursor(), "no row above: the document's start");
+    }
+
+    @Test
+    void softWrapCaretOnASoftBreakIsTwoPlacesAndTheSideSaysWhich() {
+        buildWrapped("a".repeat(40));
+        area.model().setCaret(new ShapedText.Position(17, ShapedText.Affinity.UPSTREAM), false);
+        assertEquals(PAD_X + 170, area.caretRect().x(), EPS); // the end of the first row
+        assertEquals(PAD_Y, area.caretRect().y(), EPS);
+        area.model().setCaret(new ShapedText.Position(17, ShapedText.Affinity.DOWNSTREAM), false);
+        assertEquals(PAD_X, area.caretRect().x(), EPS);       // the start of the second
+        assertEquals(PAD_Y + 12, area.caretRect().y(), EPS);
+    }
+
+    @Test
+    void softWrapClickLandsOnTheRowUnderThePointer() {
+        buildWrapped("a".repeat(40));
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, PAD_X + 22, PAD_Y + 12 + 1);
+        scene.inputBatchEnded();
+        assertEquals(19, area.model().cursor(), "the second row starts at 17; 22 pt is its third char");
+    }
+
+    /** Records selection bands: the fillRects exactly one line box tall, translate included. */
+    private static final class BandCanvas extends FakeCanvas {
+        private float tx;
+        private float ty;
+        final List<float[]> bands = new ArrayList<>();
+
+        BandCanvas(float width, float height) {
+            super(width, height);
+        }
+
+        @Override
+        public void translate(float dx, float dy) {
+            tx += dx;
+            ty += dy;
+        }
+
+        @Override
+        public void fillRect(float x, float y, float w, float h, Paint paint) {
+            if (h == 12) {
+                bands.add(new float[]{tx + x, ty + y, w});
+            }
+        }
+    }
+
+    @Test
+    void softWrapSelectionPaintsOneBandPerRow() {
+        buildWrapped("a".repeat(40));
+        area.model().setCursor(10, false);
+        area.model().setCursor(30, true);
+        BandCanvas canvas = new BandCanvas(200, 100);
+        scene.renderFrame(canvas);
+        assertEquals(2, canvas.bands.size(), "a range crossing one soft break is two bands");
+        assertArrayEquals(new float[]{PAD_X + 100, PAD_Y, 70}, canvas.bands.get(0), EPS);
+        assertArrayEquals(new float[]{PAD_X, PAD_Y + 12, 130}, canvas.bands.get(1), EPS);
+    }
+
+    @Test
+    void softWrapRewrapsTheEditedLineOnEachKeystroke() {
+        buildWrapped("aaaa bbbb");
+        for (int i = 0; i < 10; i++) {
+            scene.charTyped('c');
+        }
+        scene.inputBatchEnded();
+        assertEquals("aaaa bbbbcccccccccc", area.text());
+        // The unbreakable tail moved whole to a second row: [0, 5), [5, 19).
+        assertEquals(PAD_X + 140, area.caretRect().x(), EPS);
+        assertEquals(PAD_Y + 12, area.caretRect().y(), EPS);
+    }
+
+    @Test
+    void softWrapSplicesEditsIntoAMultiLineDocument() {
+        buildWrapped("aaa\nbbbb bbbb bbbb bbbb bbbb\nccc"); // middle line wraps to two rows
+        key(Keys.END, Keys.MOD_CONTROL);
+        assertEquals(PAD_Y + 3 * 12, area.caretRect().y(), EPS); // rows 1 + 2 + 1
+        area.model().setCursor(28, false); // end of the middle line
+        for (int i = 0; i < 8; i++) {
+            key(Keys.BACKSPACE, 0);
+        }
+        assertEquals(PAD_Y + 12, area.caretRect().y(), EPS); // the middle line fits again
+        key(Keys.END, Keys.MOD_CONTROL);
+        assertEquals(PAD_Y + 2 * 12, area.caretRect().y(), EPS);
+    }
+
+    /** Records where every drawn string lands, translate included. */
+    private static final class TextCanvas extends FakeCanvas {
+        private float tx;
+        private float ty;
+        final List<Object[]> texts = new ArrayList<>();
+
+        TextCanvas(float width, float height) {
+            super(width, height);
+        }
+
+        @Override
+        public void translate(float dx, float dy) {
+            tx += dx;
+            ty += dy;
+        }
+
+        @Override
+        public void drawText(String text, float x, float y, Font font, Paint paint) {
+            texts.add(new Object[]{text, tx + x, ty + y});
+        }
+    }
+
+    @Test
+    void softWrapComposingGrowsARowAndTheLinesBelowMoveHonestly() {
+        buildWrapped("aaaa bbbb cccc\nzzz"); // both lines fit: one row each
+        area.model().setCursor(14, false);   // end of the first line
+        scene.preeditChanged("ddddd", new int[]{5}, 0, 5);
+        scene.inputBatchEnded();
+        // The composed first line, "aaaa bbbb ccccddddd" (190 pt), wraps to [0, 10), [10, 19):
+        // the caret sits after the preedit on the second row, and "zzz" paints a row lower.
+        assertEquals(PAD_X + 90, area.caretRect().x(), EPS);
+        assertEquals(PAD_Y + 12, area.caretRect().y(), EPS);
+        TextCanvas composing = new TextCanvas(200, 100);
+        scene.renderFrame(composing);
+        assertEquals(PAD_Y + 2 * 12 + 8, yOf(composing, "zzz"), EPS);
+        // The composition ends: the committed line is one row again and "zzz" moves back up.
+        scene.preeditChanged("", new int[]{}, -1, 0);
+        scene.inputBatchEnded();
+        TextCanvas committed = new TextCanvas(200, 100);
+        scene.renderFrame(committed);
+        assertEquals(PAD_Y + 12 + 8, yOf(committed, "zzz"), EPS);
+    }
+
+    private static float yOf(TextCanvas canvas, String text) {
+        for (Object[] drawn : canvas.texts) {
+            if (text.equals(drawn[0])) {
+                return (float) drawn[2];
+            }
+        }
+        throw new AssertionError("'" + text + "' was not drawn; saw " + canvas.texts.size());
     }
 }

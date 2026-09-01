@@ -257,19 +257,25 @@ meant. A pasted run of Arabic now reorders on a line that knows it did.
 Widening the accepted set — ADR 006 §2.4's locale separator, a locale's own digits, the sv-SE minus
 sign — no longer has a caret to move onto a shaped line as part of itself. It is already there.
 
-## Lines, and the wrapping that is not here
+## Lines, and the wrapping
 
 A `ShapedText` is one line and carries no `\n`: splitting a paragraph is the widget's job, and a
-line is the unit everything above is stated in. `TextArea` breaks only where the buffer does — there
-is no soft wrap, long lines scroll horizontally, and a line is a paragraph. Soft wrap would make the
-line count a function of the box, which is a different widget and a different scroll model, not a
-flag.
+line is the unit everything above is stated in. `TextArea` breaks where the buffer does, and — with
+`setSoftWrap`, off by default — where the text column runs out. Wrapped, the line count is a
+function of the box and the scroll model changes with it: nothing overflows the reading axis, so
+`scrollX` sits at the leading edge's `0`, the vertical extent counts rows, and Up/Down move by
+visual row on a sticky goal x rather than by hard line on a sticky column. What the widget holds
+for it is a row map — per hard line, the char offsets its rows start at — never a second copy of
+the document, and an edit re-wraps only the lines it touched, told apart by
+`TextEditModel.lineDamage()`. A caret whose index sits exactly on a soft break is two places on
+screen, and the same `Affinity` that disambiguates a direction boundary says which.
 
-Greedy wrapping lives in `Label`, over `BreakIterator` under the UI language, and the rule it obeys
-is the one any future soft wrap here has to obey too: the paragraph is shaped once to decide *where*
-to cut, and each emitted line is re-shaped to decide what is drawn. `advanceTo` is a budget and not
-a promise about a substring — the joining forms change at the cut, a ligature that spanned it is
-gone, and so is the kerning at the seam.
+Greedy wrapping lives in `LineBreaks`, one walk shared by `Label`'s wrap and the area's soft wrap
+so the two cannot drift, over `BreakIterator` under the UI language. The rule it obeys is the one
+ADR 031 wrote down: the paragraph is shaped once to decide *where* to cut, and each emitted line is
+re-shaped to decide what is drawn. `advanceTo` is a budget and not a promise about a substring —
+the joining forms change at the cut, a ligature that spanned it is gone, and so is the kerning at
+the seam.
 
 ## The TextArea content inset
 

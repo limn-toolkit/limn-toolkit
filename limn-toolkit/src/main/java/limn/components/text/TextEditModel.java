@@ -72,6 +72,16 @@ public final class TextEditModel {
     private boolean linesDirty;
     private long textVersion;
 
+    // Line damage since the last clearLineDamage(): one splice held precisely, a second edit
+    // before the clear widens to the whole document. See lineDamage() for why one is enough.
+    private boolean damagePending;
+    private boolean damageWhole;
+    private int damageFirst;
+    private int damageOldLast;
+    private int damageNewLast;
+    /** Line count when the first pending edit began: the old extent of a whole-document splice. */
+    private int damageOldLineCount;
+
     // Undo/redo: full snapshots pushed before each mutation; runs of plain
     // typing (and runs of deleting) coalesce into a single step.
     private enum EditKind { OTHER, TYPING, DELETING }
@@ -117,6 +127,7 @@ public final class TextEditModel {
      * goes.
      */
     public void setText(String text) {
+        noteWholeEdit();
         buffer.setLength(0);
         buffer.append(sanitize(text));
         cursor = buffer.length();
@@ -150,6 +161,10 @@ public final class TextEditModel {
             return; // e.g. pasting an empty clipboard: not an edit, nothing recorded
         }
         remember(hasSelection() ? EditKind.OTHER : kind); // replacing a selection never coalesces
+        // One note for the whole splice, delete and insert together: two notes would compose,
+        // and composition widens to the whole document (see lineDamage()), turning every
+        // type-over-a-selection into a full re-derivation for the view holding per-line state.
+        noteEditStart(selectionStart(), selectionEnd());
         deleteSelectionRaw();
         buffer.insert(cursor, value);
         cursor += value.length();
@@ -158,6 +173,7 @@ public final class TextEditModel {
         cursorAffinity = Affinity.UPSTREAM;
         goalColumn = -1;
         markTextChanged();
+        noteEditEnd(cursor);
     }
 
     /** Deletes the selection, or the grapheme cluster before the cursor. */
@@ -169,9 +185,11 @@ public final class TextEditModel {
         if (cursor > 0) {
             remember(EditKind.DELETING);
             int previous = previousGrapheme(cursor);
+            noteEditStart(previous, cursor);
             buffer.delete(previous, cursor);
             cursor = previous;
             markTextChanged();
+            noteEditEnd(cursor);
         }
         cursorAffinity = Affinity.UPSTREAM;
         anchor = -1;
@@ -186,8 +204,11 @@ public final class TextEditModel {
         }
         if (cursor < buffer.length()) {
             remember(EditKind.DELETING);
-            buffer.delete(cursor, nextGrapheme(cursor));
+            int next = nextGrapheme(cursor);
+            noteEditStart(cursor, next);
+            buffer.delete(cursor, next);
             markTextChanged();
+            noteEditEnd(cursor);
         }
         cursorAffinity = Affinity.UPSTREAM;
         anchor = -1;
@@ -223,7 +244,9 @@ public final class TextEditModel {
             return false;
         }
         remember(EditKind.OTHER);
+        noteEditStart(selectionStart(), selectionEnd());
         deleteSelectionRaw();
+        noteEditEnd(cursor);
         return true;
     }
 
@@ -302,6 +325,7 @@ public final class TextEditModel {
     }
 
     private void restore(Snapshot snapshot) {
+        noteWholeEdit();
         buffer.setLength(0);
         buffer.append(snapshot.text());
         cursor = snapshot.cursor();
@@ -656,9 +680,11 @@ public final class TextEditModel {
         if (cursor > 0) {
             remember(EditKind.OTHER);
             int start = alignToGrapheme(previousWordBoundary(cursor));
+            noteEditStart(start, cursor);
             buffer.delete(start, cursor);
             cursor = start;
             markTextChanged();
+            noteEditEnd(cursor);
         }
         cursorAffinity = Affinity.UPSTREAM; // an edit, not a motion
         anchor = -1;
@@ -675,8 +701,10 @@ public final class TextEditModel {
             int end = alignToGraphemeForward(nextWordBoundary(cursor));
             if (end > cursor) { // only snapshot undo state for a real edit
                 remember(EditKind.OTHER);
+                noteEditStart(cursor, end);
                 buffer.delete(cursor, end);
                 markTextChanged();
+                noteEditEnd(cursor);
             }
         }
         cursorAffinity = Affinity.UPSTREAM; // an edit, not a motion
@@ -922,6 +950,81 @@ public final class TextEditModel {
      */
     public long textVersion() {
         return textVersion;
+    }
+
+    /**
+     * The lines edits have replaced: lines {@code [firstLine, oldLastLine]} of the text as it
+     * stood at the last {@link #clearLineDamage()} became lines {@code [firstLine, newLastLine]}
+     * of the text as it stands now. Lines before {@code firstLine} are untouched; lines after
+     * {@code oldLastLine} are untouched too, shifted down to follow {@code newLastLine}.
+     *
+     * <p>Exists for a view deriving <em>per-line</em> state from this buffer &mdash; a soft-wrap
+     * row map is the one that forced it. {@link #textVersion()} says <em>that</em> the text moved;
+     * for a per-line derivation that answer alone means re-deriving every line, and re-deriving a
+     * line means re-shaping it, so a keystroke in a long document would re-shape the document
+     * (the cliff ADR&nbsp;031&nbsp;&sect;8.2 measured at 22&nbsp;ms per character typed). This says
+     * <em>which</em> lines, which turns the keystroke back into work proportional to the edit.
+     */
+    public record LineDamage(int firstLine, int oldLastLine, int newLastLine) {
+    }
+
+    /**
+     * What the edits since the last {@link #clearLineDamage()} touched, or {@code null} when the
+     * text has not changed since. One splice is held precisely; a second edit before the clear
+     * widens the answer to the whole document rather than composing, because the consumer this
+     * exists for syncs after every edit &mdash; the widget's change handler runs before the next
+     * one can land &mdash; so composition is the rare path, and a conservative whole-document
+     * answer there is a correct re-derivation, never a wrong splice. {@link #setText} and
+     * {@link #undo}/{@link #redo} answer the whole document for the same reason: what they
+     * replace is unbounded.
+     */
+    public LineDamage lineDamage() {
+        if (!damagePending) {
+            return null;
+        }
+        if (damageWhole) {
+            return new LineDamage(0, damageOldLineCount - 1, lineCount() - 1);
+        }
+        return new LineDamage(damageFirst, damageOldLast, damageNewLast);
+    }
+
+    /** Forgets the recorded damage: the consumer has re-derived what it holds. */
+    public void clearLineDamage() {
+        damagePending = false;
+        damageWhole = false;
+    }
+
+    /**
+     * Records the line range an edit is about to replace. Called <b>before</b> the buffer moves,
+     * because the range is a fact about the old text; {@link #noteEditEnd} closes it after.
+     */
+    private void noteEditStart(int start, int oldEnd) {
+        if (damagePending) {
+            // A second edit before the consumer cleared: widen rather than compose. The old
+            // extent captured at the first edit still bounds everything both edits replaced.
+            damageWhole = true;
+            return;
+        }
+        damagePending = true;
+        damageOldLineCount = lineCount();
+        damageFirst = lineOf(start);
+        damageOldLast = lineOf(oldEnd);
+    }
+
+    /** Closes the note {@link #noteEditStart} opened, after the buffer (and its lines) moved. */
+    private void noteEditEnd(int newEnd) {
+        if (!damageWhole) {
+            damageNewLast = lineOf(newEnd);
+        }
+    }
+
+    /** An edit with no useful bound — setText, undo, redo — damages the whole document. */
+    private void noteWholeEdit() {
+        if (!damagePending) {
+            damagePending = true;
+            damageOldLineCount = lineCount();
+        }
+        damageWhole = true;
     }
 
     private void markTextChanged() {

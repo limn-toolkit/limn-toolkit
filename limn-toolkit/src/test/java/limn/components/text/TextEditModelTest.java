@@ -15,6 +15,8 @@ import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -894,5 +896,105 @@ class TextEditModelTest {
         assertEquals(3, m.cursor());
         m.setCaret(new Position(-4, Affinity.DOWNSTREAM), false);
         assertEquals(0, m.cursor());
+    }
+
+    // ---------------------------------------------------------- line damage
+
+    /** A model with damage already acknowledged, so each test sees only its own edit. */
+    private static TextEditModel settled(String text) {
+        TextEditModel m = new TextEditModel(false);
+        m.setText(text);
+        m.clearLineDamage();
+        return m;
+    }
+
+    @Test
+    void lineDamageIsNullUntilAnEditAndAfterTheClear() {
+        TextEditModel m = settled("aaa\nbbb");
+        assertNull(m.lineDamage());
+        m.moveRight(false);
+        m.selectAll();
+        assertNull(m.lineDamage(), "movement and selection are not edits");
+        m.insert("x");
+        assertNotNull(m.lineDamage());
+        m.clearLineDamage();
+        assertNull(m.lineDamage());
+    }
+
+    @Test
+    void typingDamagesExactlyTheEditedLine() {
+        TextEditModel m = settled("aaa\nbbb\nccc");
+        m.setCursor(5, false);
+        m.clearLineDamage();
+        m.insertCodePoint('x');
+        assertEquals(new TextEditModel.LineDamage(1, 1, 1), m.lineDamage());
+    }
+
+    @Test
+    void enterSplitsOneOldLineIntoTwoNewOnes() {
+        TextEditModel m = settled("aaa\nbbb");
+        m.setCursor(1, false);
+        m.clearLineDamage();
+        m.insert("\n");
+        assertEquals(new TextEditModel.LineDamage(0, 0, 1), m.lineDamage());
+    }
+
+    @Test
+    void backspaceAcrossTheNewlineJoinsTwoOldLinesIntoOne() {
+        TextEditModel m = settled("aaa\nbbb");
+        m.setCursor(4, false);
+        m.clearLineDamage();
+        m.backspace();
+        assertEquals("aaabbb", m.text());
+        assertEquals(new TextEditModel.LineDamage(0, 1, 0), m.lineDamage());
+    }
+
+    @Test
+    void replacingASelectionSpanningLinesIsOneSplice() {
+        TextEditModel m = settled("aaa\nbbb\nccc");
+        m.setCursor(2, false);
+        m.setCursor(9, true);
+        m.clearLineDamage();
+        m.insert("X");
+        assertEquals("aaXcc", m.text());
+        // ONE splice, not a delete composed with an insert: composing widens to the whole
+        // document, and typing over a selection is far too common to pay that.
+        assertEquals(new TextEditModel.LineDamage(0, 2, 0), m.lineDamage());
+    }
+
+    @Test
+    void aSecondEditBeforeTheClearWidensToTheWholeDocument() {
+        TextEditModel m = settled("aaa\nbbb");
+        m.setCursor(0, false);
+        m.clearLineDamage();
+        m.insertCodePoint('x');
+        m.insertCodePoint('y');
+        // (0, oldCount-1, newCount-1): an empty kept prefix and suffix, so the consumer
+        // re-derives everything — conservative, and correct whatever the two edits were.
+        assertEquals(new TextEditModel.LineDamage(0, 1, 1), m.lineDamage());
+    }
+
+    @Test
+    void setTextAndUndoDamageTheWholeDocument() {
+        TextEditModel m = settled("aaa\nbbb");
+        m.setText("c");
+        assertEquals(new TextEditModel.LineDamage(0, 1, 0), m.lineDamage());
+        m = settled("aaa\nbbb");
+        m.setCursor(0, false);
+        m.clearLineDamage();
+        m.insertCodePoint('x');
+        m.clearLineDamage();
+        m.undo();
+        assertEquals(new TextEditModel.LineDamage(0, 1, 1), m.lineDamage());
+    }
+
+    @Test
+    void aRefusedEditRecordsNoDamage() {
+        TextEditModel m = settled("abc");
+        m.setCursor(3, false);
+        m.clearLineDamage();
+        m.deleteForward(); // nothing after the cursor
+        m.deleteWordForward();
+        assertNull(m.lineDamage());
     }
 }

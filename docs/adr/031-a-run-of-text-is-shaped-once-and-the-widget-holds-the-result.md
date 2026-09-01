@@ -532,8 +532,13 @@ Stated so that each absence reads as a decision rather than an oversight.
 - **Collation and locale-aware case mapping.** Unchanged from ADR 006 §4.
 - **Bold and italic in the four new scripts.** One Regular face each, so a bold Arabic caption
   resolves to that same regular face and nothing synthesizes a weight.
-- **Soft wrap in `TextArea`**, still absent as it was before this work; `Label` is the only widget
-  that breaks lines.
+- ~~**Soft wrap in `TextArea`**, still absent as it was before this work; `Label` is the only widget
+  that breaks lines.~~ **Done, 2026-09-01**, opt-in via `setSoftWrap`, and on exactly the rule this
+  document wrote down for it: each hard line is shaped once to decide *where* to cut and each row is
+  re-shaped to decide what is drawn, through the same break walk `Label` wraps with (extracted to
+  `LineBreaks` so the two cannot drift). §8.2's document-scan lesson carries over — an edit re-wraps
+  only the lines it touched, told apart by `TextEditModel.lineDamage()`, so a keystroke in a long
+  document never re-shapes the document.
 - ~~**The `String` draw path**, above — the one that decides how much of a right-to-left UI is
   drawn correctly today, and the first thing to fix for anyone who ships an `ar` or `he` locale.~~
   **Done, in §8.**

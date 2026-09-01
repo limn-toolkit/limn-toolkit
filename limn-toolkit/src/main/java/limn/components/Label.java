@@ -714,40 +714,12 @@ public class Label extends Widget {
         // list with something already in it would otherwise lose the empty-line floor below.
         int emitted = 0;
         do {
-            int fit = paragraph.fitEnd(start, maxWidth);   // the trailing space still counts here
-            int end;
-            if (fit >= length) {
-                end = length;
-            } else {
-                // The last opportunity at or before the hard cut is always acceptable, because
-                // trimming can only make a candidate narrower. Then walk FORWARD while the
-                // TRIMMED candidate still fits: that is the trailing space hanging past the
-                // margin, and it is what lets a word whose only overflow is the space after it
-                // stay on this line. Without it "aaa bbb ccc" in a 75pt box breaks after "aaa",
-                // because the space at index 7 — which is never drawn — spent the budget.
-                int b = breaks.preceding(fit + 1);
-                if (b <= start) {
-                    b = start;
-                }
-                for (int next = breaks.following(b); next != BreakIterator.DONE && next <= length;
-                        next = breaks.following(next)) {
-                    if (paragraph.advanceTo(trimEnd(text, start, next))
-                            - paragraph.advanceTo(start) > maxWidth) {
-                        break;
-                    }
-                    b = next;
-                }
-                end = b;
-                if (end <= start) {
-                    // Not one break opportunity fits: a word longer than the line, or a script
-                    // this locale has no rule for. Take as many CLUSTERS as fit — one character
-                    // per line would be the other reading and it is not a line break, it is a
-                    // column — and at least one, so the walk cannot fail to advance.
-                    end = Math.max(paragraph.fitEnd(start, maxWidth),
-                            paragraph.caretIndex(paragraph.caretOrdinal(start) + 1));
-                }
-            }
-            int cut = trimEnd(text, start, end);
+            // The break step itself — the hard cut, the last acceptable opportunity, the
+            // trailing whitespace hanging past the margin, the cluster fallback for an
+            // unbreakable word — is LineBreaks.rowEnd, shared with TextArea's soft wrap so the
+            // two widgets cannot come to break the same paragraph differently.
+            int end = LineBreaks.rowEnd(paragraph, breaks, start, maxWidth);
+            int cut = LineBreaks.trimEnd(text, start, end);
             if (cut == start && end > start) {
                 // The whole segment trimmed away: it was whitespace and nothing else, so there is
                 // no line here to draw. Emitting one would be a blank row with a real lineHeight in
@@ -781,21 +753,4 @@ public class Label extends Widget {
         return widest;
     }
 
-    /**
-     * {@code end} with the run of whitespace immediately before it dropped, never below
-     * {@code start}. {@link Character#isWhitespace} is exactly the right predicate and was
-     * checked: it is false for the non-breaking spaces U+00A0, U+2007 and U+202F, which must
-     * never be dropped, and true for U+3000 IDEOGRAPHIC SPACE, which is a break opportunity.
-     */
-    private static int trimEnd(String text, int start, int end) {
-        int cut = end;
-        while (cut > start) {
-            int cp = text.codePointBefore(cut);
-            if (!Character.isWhitespace(cp)) {
-                break;
-            }
-            cut -= Character.charCount(cp);
-        }
-        return cut;
-    }
 }

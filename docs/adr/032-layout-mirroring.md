@@ -697,8 +697,11 @@ Stated now, so the document does not overclaim later.
 - **Locale-aware collation and case mapping.** Unchanged from ADR 006 §4 and ADR 031 §7.1.
 - **Bold and italic in the four RTL and complex-script faces.** One Regular face each, unchanged
   from ADR 031 §7.1.
-- **Soft wrap in `TextArea`.** Unchanged from ADR 031 §7.1; `Label` is still the only widget that
-  breaks lines.
+- ~~**Soft wrap in `TextArea`.** Unchanged from ADR 031 §7.1; `Label` is still the only widget that
+  breaks lines.~~ **Done, 2026-09-01** (recorded in ADR 031 §7.1): opt-in via `setSoftWrap`, and
+  §1.4 holds unchanged — wrapped, nothing overflows the reading axis, so `scrollX` sits at the
+  leading edge's `0` in both directions, and every row is flush against the edge reading starts
+  from, exactly as unwrapped lines are.
 - **A mirrored website.** Finding 13. `site/` has no RTL locale and this work gives it none.
 - **Icon classification.** Finding 12, by decision. Every one of the 5130 Tabler constants is
   `Mirroring.NEVER` until an application says otherwise, and that includes the ones whose names
@@ -1036,7 +1039,7 @@ because a language can be written in either and only the script says which.
 §8's list is still accurate, with three corrections and one addition.
 
 - **Bold and italic in the four RTL faces** and **soft wrap in `TextArea`**: unchanged, still not
-  done.
+  done. *(True when written; soft wrap has since closed, 2026-09-01 — §8's entry records it.)*
 - **Vertical writing, Arabic-Indic digits, per-subtree locale, collation**: unchanged.
 - **A mirrored website**: unchanged, and the gallery now pins `LTR` per entry so it stays that way
   deliberately rather than by luck.

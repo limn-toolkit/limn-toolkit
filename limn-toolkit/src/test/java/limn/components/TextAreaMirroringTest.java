@@ -29,6 +29,13 @@ class TextAreaMirroringTest extends ComponentTestBase {
 
     private static final float EPS = 1e-3f;
     private static final float WIDTH = 200;
+    /**
+     * alef, bet, gimel: three strong right-to-left characters, one char apiece. The only literal
+     * right-to-left text in this file, so no source line here mixes directions and reorders in an
+     * editor; the soft-wrap fixtures build from this one constant, because they are about where
+     * a right-to-left ROW starts and need text whose logical start is its visual right.
+     */
+    private static final String HEB = "אבג";
     private static final float PAD_X = SizeTokens.of(ControlSize.MEDIUM).fieldPadH();
     private static final float PAD_Y = SizeTokens.of(ControlSize.MEDIUM).areaPad();
     /** The x every line's trailing edge lands on reading right to left: where reading starts. */
@@ -268,5 +275,42 @@ class TextAreaMirroringTest extends ComponentTestBase {
             sb.append("line ").append(i).append('\n');
         }
         return sb.toString();
+    }
+
+    // ------------------------------------------------------------- soft wrap
+
+    /**
+     * Six Hebrew words, 23 chars = 230 pt against the 176 pt column: the break backs up to the
+     * boundary after the fourth word, so the rows are chars [0, 16) and [16, 23) — 150 and
+     * 70 pt drawn, in a content space exactly as wide as the column.
+     */
+    private static String sixWords() {
+        return HEB + " " + HEB + " " + HEB + " " + HEB + " " + HEB + " " + HEB;
+    }
+
+    @Test
+    void softWrapRowsShareTheEdgeReadingStartsFrom() {
+        build(LayoutDirection.RTL, "");
+        area.setSoftWrap(true);
+        area.setText(sixWords());
+        // The start of each row — reading's start, the right edge — is the same x for the wide
+        // first row and the narrow second, exactly the rule unwrapped lines already obey.
+        area.model().setCursor(0, false);
+        assertEquals(RTL_START, area.caretRect().x(), EPS);
+        area.model().setCaret(new ShapedText.Position(16, ShapedText.Affinity.DOWNSTREAM), false);
+        assertEquals(RTL_START, area.caretRect().x(), EPS);
+        assertEquals(PAD_Y + 12, area.caretRect().y(), EPS);
+        assertEquals(0, area.scrollXOffset(), EPS, "wrapped, nothing overflows the reading axis");
+    }
+
+    @Test
+    void softWrapClickAtTheStartEdgeOfTheSecondRowLandsOnItsFirstCharacter() {
+        build(LayoutDirection.RTL, "");
+        area.setSoftWrap(true);
+        area.setText(sixWords());
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, RTL_START - 1, PAD_Y + 12 + 1);
+        scene.inputBatchEnded();
+        assertEquals(16, area.model().cursor(),
+                "the second row's first character sits at the right edge, where reading starts");
     }
 }
