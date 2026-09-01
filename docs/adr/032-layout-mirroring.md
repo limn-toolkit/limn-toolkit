@@ -1058,14 +1058,19 @@ because a language can be written in either and only the script says which.
   `Canvas.drawText(String, …)` or sizes itself from `TextRuler.measure` gets a left-to-right
   paragraph for any string with no strong character in it — a count, a year, a price — with nothing
   to warn it. That is a default that is right almost always and silent when it is not, which is the
-  same shape of trap Finding 7 fell into. Closing it properly is not an argument on those two
-  methods; it is either a compile-time push (a `Widget`-level helper that is the only way to get a
-  line, with the plain calls discouraged in review) or nothing, and "nothing" is a defensible answer
-  now that no widget in the toolkit depends on the fallback being right.
+  same shape of trap Finding 7 fell into.
 
-  No widget is still on the old path. `Checkbox` was the last one and has been converted, so what
-  remains is the seam alone: a signature that will hand a left-to-right paragraph to whoever calls
-  it next, with no widget currently depending on that being right.
+  **Since closed, by the compile-time push.** `Widget` now carries the pair the converted widgets
+  had each grown privately: `neutralBase()`, the widget's resolved direction as the shaper's
+  fallback, and `shapeText(text, font)`, the blessed way to a line. The private copies of
+  `neutralBase()` were absorbed into it — hoisting a `final` method makes redeclaring the
+  signature a compile error, so the dedup was forced rather than hoped for — and the Javadoc of
+  both raw signatures now says what they cannot carry and where the answer lives. The raw calls
+  still compile; a widget determined to draw a plain string can. What changed is that the right
+  way is now also the short way, it is one named method a review can ask for, and a test pins
+  that a widget with no idiom of its own gets its own direction by calling it. Neither
+  `TextRuler` nor `Canvas` changed shape, which is the constraint the whole route was chosen
+  under.
 
 ### 9.6 Noticed, and deliberately not fixed
 

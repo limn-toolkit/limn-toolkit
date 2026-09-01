@@ -289,7 +289,7 @@ public class TextField extends Widget {
      * @return the shaped display line; never null
      */
     protected ShapedText shapeDisplay(String text, Font font) {
-        return textRuler().shape(text, font, ShapedText.Direction.of(text, neutralBase()));
+        return shapeText(text, font);
     }
 
     /**
@@ -347,22 +347,6 @@ public class TextField extends Widget {
             displayBase = base;
         }
         return display;
-    }
-
-    /**
-     * What a string with no strong character of its own falls back to: this field's own resolved
-     * layout direction. A phone number in an Arabic form reads right to left however many Latin
-     * digits it starts with, and the first-strong rule cannot know that; the surrounding
-     * interface can.
-     *
-     * <p>Resolved here and never in a constructor, and read once per pass by every caller that
-     * needs it: two resolutions that disagreed inside one {@code onPaint} would put the caret on
-     * one side and the selection band on the other.
-     */
-    private ShapedText.Direction neutralBase() {
-        return layoutDirection() == LayoutDirection.RTL
-                ? ShapedText.Direction.RTL
-                : ShapedText.Direction.LTR;
     }
 
     /** Entry-point form: resolves the step once for callers that have no tokens in hand. */

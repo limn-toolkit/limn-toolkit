@@ -94,6 +94,12 @@ public interface TextRuler {
      * third value of an enum &mdash; which is what keeps "not yet decided" out of every field that
      * could hold a direction.
      *
+     * <p><b>A widget is the caller that can do better</b>, and should decline to decline: it knows
+     * which way it reads, which is the one thing an all-neutral string &mdash; a count, a year, a
+     * clock face &mdash; cannot say for itself. The widget layer's {@code Widget.shapeText} passes
+     * that answer as the neutral base; a widget shaping through this overload instead gets a
+     * left-to-right paragraph for exactly those strings, silently.
+     *
      * <p>Same thread, same first-use costs and the same reasons as {@link #measure}, plus one more:
      * shaping is the expensive half of drawing text. Call it when the text or the font changes and
      * <em>hold</em> the result; {@link ShapedText#matches} is the check, and {@link ShapedText} has

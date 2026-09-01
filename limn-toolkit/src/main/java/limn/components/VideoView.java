@@ -792,23 +792,6 @@ public class VideoView extends Widget {
     }
 
     /**
-     * What a notice with no strong character of its own falls back to: this view's own resolved
-     * layout direction. A message that is all digits and punctuation reads right to left in a
-     * right-to-left interface, and the first-strong rule cannot know that; the interface around
-     * the player can. A Latin message in that same interface still reads left to right, because
-     * the fallback is only consulted where no strong character has an opinion.
-     *
-     * <p>Resolved on each call from inside the paint that needs it, and never held: a view that
-     * captured a direction in its constructor captured one taken before it had a parent, and
-     * nothing later would correct it.
-     */
-    private ShapedText.Direction neutralBase() {
-        return layoutDirection() == LayoutDirection.RTL
-                ? ShapedText.Direction.RTL
-                : ShapedText.Direction.LTR;
-    }
-
-    /**
      * Judges the picture in hand and keeps one decoded behind it. Never blocks and never spins:
      * {@link VideoStreamSource.Read#PENDING} (whether the decoder is still working or every pooled
      * slot is held) simply ends that attempt, and the next callback asks again.

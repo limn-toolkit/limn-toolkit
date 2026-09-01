@@ -597,7 +597,7 @@ public class Spinner extends Widget {
      */
     private ShapedText editLine(SizeTokens t) {
         String typed = edit.text();
-        return textRuler().shape(typed, t.body(), ShapedText.Direction.of(typed, neutralBase()));
+        return shapeText(typed, t.body());
     }
 
     /**
@@ -681,16 +681,6 @@ public class Spinner extends Widget {
      */
     private boolean isRtl() {
         return layoutDirection() == LayoutDirection.RTL;
-    }
-
-    /**
-     * What a string with no strong character of its own falls back to: this spinner's own
-     * resolved direction. A number is entirely neutral, so this is the whole of what decides the
-     * base of a typed value; text pasted in a right-to-left script still decides for itself,
-     * which is the first-strong rule doing its job rather than this widget overruling it.
-     */
-    private ShapedText.Direction neutralBase() {
-        return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
     }
 
     /**

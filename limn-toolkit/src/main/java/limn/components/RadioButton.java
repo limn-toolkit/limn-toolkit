@@ -230,22 +230,6 @@ public class RadioButton extends Widget {
     }
 
     /**
-     * What a label with no strong character of its own falls back to: this widget's own resolved
-     * reading direction. A bare number labelling an option in a right-to-left form reads right to
-     * left however many Latin digits it has, and the first-strong rule cannot know that; the
-     * surrounding interface can.
-     *
-     * <p>Resolved here and never in a constructor, and read once per pass by the one caller that
-     * needs it, which is also the caller that reflects the geometry: a paint that resolved the
-     * direction twice could shape the label one way and place it the other.
-     */
-    private ShapedText.Direction neutralBase() {
-        return layoutDirection() == LayoutDirection.RTL
-                ? ShapedText.Direction.RTL
-                : ShapedText.Direction.LTR;
-    }
-
-    /**
      * The focus circle is the only thing that paints outside the box: radius
      * {@code ring/2 + }{@link Strokes#FOCUS_GAP_INDICATOR} with a centred
      * {@link Strokes#FOCUS_RING_THIN} pen puts its outer ink 2.25pt past the indicator, which is

@@ -233,20 +233,6 @@ public final class MenuBar extends Widget {
         return layoutDirection() == LayoutDirection.RTL;
     }
 
-    /**
-     * What a title with no strong character of its own falls back to: this strip's own resolved
-     * direction. A menu named for a number or a symbol &mdash; a strip of channels, a formula
-     * bar's operators &mdash; reads the way the interface around it reads, and the first-strong
-     * rule has nothing to go on there. A Latin title in that same strip still reads left to
-     * right, because the fallback is consulted only where no strong character has an opinion.
-     *
-     * <p>Resolved on the call and never held: the direction is inherited, so a strip can be
-     * re-parented under a subtree that reads the other way after it has been laid out.
-     */
-    private ShapedText.Direction neutralBase() {
-        return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
-    }
-
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.current().tokensFor(this);

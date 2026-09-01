@@ -4,12 +4,14 @@ import limn.components.chart.Chart;
 import limn.components.chart.ChartPoint;
 import limn.components.chart.ChartSeries;
 import limn.graphics.Canvas;
+import limn.graphics.Font;
 import limn.graphics.Paint;
 import limn.graphics.ShapedText;
 import limn.input.Keys;
 import limn.scene.ControlSize;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
+import limn.scene.Widget;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -564,5 +566,40 @@ class NeutralBaseShapingTest extends ComponentTestBase {
         assertBase(ShapedText.Direction.RTL, after.line("42"),
                 "and the very next frame reads the other way: nothing captured a direction");
         assertNotNull(after.line("42"));
+    }
+
+    // --------------------------------------------------- the Widget-level seam
+
+    /**
+     * A widget with no text machinery of its own: what the next widget someone writes starts as.
+     * {@code Widget.shapeText} is the seam left open after every existing widget was converted
+     * &mdash; the blessed way to a line, so that a widget which never heard of Decision 7 still
+     * shapes its captions the way it reads.
+     */
+    private static final class Probe extends Widget {
+        ShapedText line(String text) {
+            return shapeText(text, Font.of(13));
+        }
+
+        @Override
+        protected limn.scene.Size onMeasure(limn.scene.Constraints constraints) {
+            return constraints.constrain(0, 0);
+        }
+    }
+
+    @Test
+    void aWidgetWithNoIdiomOfItsOwnShapesTheWayItReads() {
+        Probe probe = new Probe();
+        Scene scene = new Scene(probe);
+        scene.setTextRuler(RULER);
+
+        probe.setLayoutDirection(LayoutDirection.RTL);
+        assertBase(ShapedText.Direction.RTL, probe.line("2024"),
+                "an all-neutral caption takes the widget's own direction");
+        assertBase(ShapedText.Direction.LTR, probe.line("File"),
+                "a strong character already decided, and the fallback does not overrule it");
+
+        probe.setLayoutDirection(LayoutDirection.LTR);
+        assertBase(ShapedText.Direction.LTR, probe.line("2024"), "left to right is unchanged");
     }
 }

@@ -235,22 +235,6 @@ public class Label extends Widget {
         return paragraph;
     }
 
-    /**
-     * What a string with no strong character of its own falls back to: this label's own resolved
-     * layout direction. A bare {@code "42"}, a phone number or a run of punctuation in an Arabic
-     * form reads right to left however many Latin digits it starts with, and the first-strong rule
-     * cannot know that; the surrounding interface can. A Latin string in that same form still
-     * reads left to right, because the fallback is consulted only where no strong character has
-     * an opinion.
-     *
-     * <p>Resolved here on every call rather than held, and never in a constructor: a label
-     * captures no direction, because a direction captured before it has a parent is permanently
-     * wrong with no path to recovery.
-     */
-    private ShapedText.Direction neutralBase() {
-        return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
-    }
-
     /** Whether this label reads right to left. Resolve it once per pass, into a local. */
     private boolean isRtl() {
         return layoutDirection() == LayoutDirection.RTL;

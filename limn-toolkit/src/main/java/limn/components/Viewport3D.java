@@ -444,22 +444,6 @@ public class Viewport3D extends Widget {
                 (height() - metrics.height()) / 2 + metrics.ascent(), ink);
     }
 
-    /**
-     * What the placeholder message falls back to where its own characters say nothing: this
-     * viewport's resolved layout direction. The first-strong rule still decides everything a
-     * strong character can decide, so a Latin message inside a right-to-left window still reads
-     * left to right.
-     *
-     * <p>Resolved inside the paint that draws the message, never in a constructor and never held:
-     * a direction read before this widget had a parent is wrong with no way back, and a viewport
-     * that cached one would keep drawing the old answer after the window changed direction.
-     */
-    private ShapedText.Direction neutralBase() {
-        return layoutDirection() == LayoutDirection.RTL
-                ? ShapedText.Direction.RTL
-                : ShapedText.Direction.LTR;
-    }
-
     private void startTicking() {
         if (ticking || !animated || scene() == null || !isShowing()) {
             return;

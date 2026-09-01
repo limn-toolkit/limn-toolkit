@@ -301,18 +301,6 @@ public abstract class CartesianChart extends Chart {
     // ---------------------------------------------------------------- labels
 
     /**
-     * What a label with no strong character of its own falls back to: a tick reading {@code
-     * "42"}, {@code "3.14"} or {@code "12:30"} takes the direction of the chart around it,
-     * because nothing in the string can say.
-     *
-     * <p>Read from the direction resolved for this pass and never from the axis again, so the
-     * paragraph a gutter was measured for and the paragraph drawn into it are the same one.
-     */
-    private ShapedText.Direction neutralBase() {
-        return rtl ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
-    }
-
-    /**
      * One axis label as a shaped line.
      *
      * <p>The chart's direction is offered as the fallback and not imposed: the first-strong rule
@@ -322,7 +310,7 @@ public abstract class CartesianChart extends Chart {
      * to make is the one this chart can answer.
      */
     private ShapedText shapeLabel(String text, Font font) {
-        return textRuler().shape(text, font, ShapedText.Direction.of(text, neutralBase()));
+        return shapeText(text, font);
     }
 
     /**

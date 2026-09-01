@@ -993,6 +993,42 @@ public abstract class Widget {
         return scene != null ? scene.textRuler() : limn.graphics.TextRuler.NONE;
     }
 
+    /**
+     * What a run of text with no strong character of its own falls back to: this widget's
+     * resolved direction, as the shaper's neutral base. A caption that is a bare number, a
+     * clock face or a punctuation mark reads the way the interface around it reads, and the
+     * first-strong rule cannot know that; the widget can. It is a fallback and not an
+     * imposition &mdash; a Latin caption in a right-to-left tree still reads left to right,
+     * because a strong character already decided it.
+     *
+     * <p>Read it where {@link #layoutDirection()} may be read: in a pass or an event handler,
+     * never in a constructor or a field initializer.
+     */
+    protected final limn.graphics.ShapedText.Direction neutralBase() {
+        return layoutDirection() == LayoutDirection.RTL
+                ? limn.graphics.ShapedText.Direction.RTL
+                : limn.graphics.ShapedText.Direction.LTR;
+    }
+
+    /**
+     * Shapes one line of {@code text} the way this widget reads: the first-strong rule decides
+     * for any string that can decide for itself, and {@link #neutralBase()} decides for the
+     * rest. This is <b>the</b> way for a widget to get a line. Hold the result (see
+     * {@code ShapedText.matches} for the idiom), take the natural width from the line's own
+     * metrics, and hand the line itself to the canvas.
+     *
+     * <p>The alternatives quietly drop the direction: {@code Canvas.drawText(String, …)} and
+     * {@code TextRuler.measure} carry no base, so they resolve every all-neutral string &mdash;
+     * a count, a year, a price &mdash; with a hard-coded left-to-right fallback, which is right
+     * almost always and silent when it is not. Neither signature can gain a direction (the
+     * ruler is a {@code @FunctionalInterface} every test fake satisfies with a lambda), so the
+     * seam is here, on the widget, which is the one place that knows the answer.
+     */
+    protected final limn.graphics.ShapedText shapeText(String text, limn.graphics.Font font) {
+        return textRuler().shape(text, font,
+                limn.graphics.ShapedText.Direction.of(text, neutralBase()));
+    }
+
     /** System clipboard (never null; a local no-op when detached). */
     protected final limn.backend.Clipboard clipboard() {
         return scene != null ? scene.clipboard() : limn.backend.Clipboard.NONE;

@@ -306,14 +306,6 @@ public class TextArea extends Widget {
     }
 
     /**
-     * What a line with no strong character of its own falls back to: this area's own resolved
-     * layout direction. Never read in a constructor, and read once per pass by every caller.
-     */
-    private ShapedText.Direction neutralBase() {
-        return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
-    }
-
-    /**
      * Physical left edge of the text column: the pad, plus the vertical bar's strip when that
      * bar is on this side. Reading right to left the bar takes the side reading ends on, which
      * is the left, so the column starts after it. {@link ScrollGutters} answers how much a strip

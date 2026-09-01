@@ -1177,8 +1177,7 @@ public class ComboBox extends Widget {
                 // to the edge reading starts from needs it, and the row loop has no other
                 // measurement of the label.
                 String label = items.get(i).get();
-                ShapedText line = textRuler().shape(label, font,
-                        ShapedText.Direction.of(label, neutralBase(rtl)));
+                ShapedText line = shapeText(label, font);
                 // Clip each row so an over-long label can't reach the rounded border.
                 canvas.save();
                 canvas.clipRect(bandX, top, bandW, itemH);

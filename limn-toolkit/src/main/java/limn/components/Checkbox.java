@@ -166,22 +166,6 @@ public class Checkbox extends Widget {
         return textRuler().shape(label, t.body(), ShapedText.Direction.of(label, base));
     }
 
-    /**
-     * What a label with no strong character of its own falls back to: this row's own resolved
-     * reading direction. A bare number labelling a toggle in a right-to-left form reads right to
-     * left however many Latin digits it has, and the first-strong rule cannot know that; the
-     * surrounding interface can.
-     *
-     * <p>Resolved on the call and never in a constructor, where this widget has no parent yet and
-     * every answer is the process default &mdash; a direction captured there is permanently wrong
-     * with no path to recovery.
-     */
-    private ShapedText.Direction neutralBase() {
-        return layoutDirection() == LayoutDirection.RTL
-                ? ShapedText.Direction.RTL
-                : ShapedText.Direction.LTR;
-    }
-
     @Override
     protected Size onMeasure(Constraints constraints) {
         Theme theme = Theme.current();

@@ -316,7 +316,10 @@ public interface Canvas {
      * {@link #measureText} and the string drawn here are the same arithmetic.
      * A caller that draws the same text every frame should still hold a
      * {@link ShapedText} and use the overload below &mdash; that is the form that
-     * pays nothing at all.
+     * pays nothing at all, and the only one that carries a base direction: this
+     * one resolves the paragraph from the string alone, left to right where no
+     * character is strong, which is wrong exactly for the all-neutral captions a
+     * widget could have decided ({@code Widget.shapeText}).
      *
      * <p>Control characters, {@code \n} included, are skipped: multi-line layout
      * belongs to the widget layer. Under anisotropic scale glyphs rasterize at the

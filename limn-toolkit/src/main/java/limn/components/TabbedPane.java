@@ -856,17 +856,6 @@ public class TabbedPane extends Widget {
         }
 
         /**
-         * What a caption with no strong character of its own falls back to: this tab's own
-         * resolved direction. A title that is a bare number or a punctuation mark reads with the
-         * interface around it, and the first-strong rule cannot know that; the interface can. It
-         * is a fallback and not an imposition, so a Latin caption in a right-to-left pane still
-         * reads left to right.
-         */
-        private ShapedText.Direction neutralBase() {
-            return isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
-        }
-
-        /**
          * Horizontal room the icon claims, its gap to the label included: one expression so
          * the measure and the paint sides cannot drift apart and mis-centre the content.
          *

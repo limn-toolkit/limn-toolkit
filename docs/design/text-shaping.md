@@ -19,8 +19,11 @@ to the canvas carries no paragraph direction, so it is shaped through the two-ar
 which falls back to left-to-right for a string with no strong character of its own. For a caption
 that is a number, a year or a run of punctuation, that fallback is the whole answer — and the right
 one is the direction of the interface, which only the widget knows. Every widget in the toolkit now
-resolves it and hands it over; see [direction-axis.md](direction-axis.md). The seam is still there
-for a widget added later that reaches for the `String` form.
+resolves it and hands it over; see [direction-axis.md](direction-axis.md). For the widget added
+later, `Widget.shapeText` is the way to a line that cannot lose the direction: it shapes with the
+widget's own resolved direction as the neutral fallback, and it is shorter than the raw call it
+replaces. The `String` form still compiles, says in its Javadoc what it cannot carry, and is the
+thing a review asks about.
 
 For most of the work that introduced shaping it was two paths. That never reached a release, and
 what it cost while it stood is written down anyway, because it is the argument against splitting
