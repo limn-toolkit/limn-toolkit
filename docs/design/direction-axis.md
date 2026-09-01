@@ -160,11 +160,12 @@ decision with a reason, not an oversight to improve on:
   to right inside a right-to-left paragraph; so the key that selects them does not move either.
 - An **accelerator label** does not mirror. `Ctrl+→` names the key with the arrow printed on it, and
   in a mirrored interface it is still that key.
-- A **media transport** does not mirror. The playback cluster inherits its arrangement from tape
-  decks, a scrub or progress bar advances left to right in any language, and the volume slider
-  beside them follows — every platform's bidi guidance lists media playback as the standing
-  exception, and no shipping player mirrors it. The toolkit has no transport widget of its own; a
-  player pins the panel it builds with a declared `LTR`, which is what the demo's video tab does.
+- A **media transport** does not mirror, by default. The playback cluster inherits its arrangement
+  from tape decks, a scrub or progress bar advances left to right in any language, and the volume
+  slider beside them follows — the dominant practice, though not unanimous: Apple's own players
+  mirror their scrubbers. `MediaControls` therefore declares `LTR` for itself when it is built,
+  and an application that wants the other convention re-declares or clears the direction on the
+  instance — the pin is a default, not a law, and a test asserts both halves.
 - A **pan control** does not mirror. It names physical space: its left end is the left speaker in
   any language.
 - A **time-history chart** keeps its axis. The newest sample stays at the right and history grows

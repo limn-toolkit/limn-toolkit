@@ -280,9 +280,16 @@ Things that follow from that shape and are not obvious:
 
 The cost that matters is not the seek, it is the number of them: a slider fires per pixel. A drag
 across a bar is several hundred updates and a decode per update is unusable however fast one decode
-is. So the demo's transport seeks at a bounded rate in `KEYFRAME` while the thumb moves and once in
-`EXACT` when it is let go. Any transport has to make that choice; it is why there is no transport
-component.
+is. So a transport seeks at a bounded rate in `KEYFRAME` while the thumb moves and once in `EXACT`
+when it is let go. Any transport has to make that choice, and for a long time that argument kept a
+transport out of the component set; it was re-taken the other way once the policy proved stable in
+the demo. `MediaControls` now owns it — play/pause, the scrub policy and the clock, over any
+`VideoView` (`setControlsVisible` on the view, or compose the bar yourself). What still has no
+component is everything the toolkit cannot choose: volume (an application's audio wiring), audio
+tracks and subtitles (an application's container) — the bar takes them as injected widgets through
+its slots instead. The bar also owns the direction decision: it reads left to right in either
+direction by default, as a declaration the application can re-declare or clear
+(see direction-axis.md).
 
 ### Pausing, and the widget that undid it
 

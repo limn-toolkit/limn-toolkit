@@ -848,8 +848,8 @@ final class VideoScene {
         /**
          * Where the cues come from and what time to ask them about, or null when the source is not
          * a container. Both are the application's: the toolkit hands over text and timing and has
-         * no opinion about when a cue is current, which is the same argument that left the
-         * transport out of the component set.
+         * no opinion about when a cue is current — the argument that keeps subtitles and volume
+         * out of the toolkit's {@code MediaControls} too, injected through its slots instead.
          */
         private limn.video.ffmpeg.FfmpegMedia cueSource;
         private java.util.function.LongSupplier cueTime;
@@ -1375,24 +1375,14 @@ final class VideoScene {
     private static final double IDLE_SECONDS = 3;
 
     /**
-     * The transport: a thumb over the length of the stream, and a play/pause button.
+     * The transport: the toolkit's {@code MediaControls} plus what only this application can add.
      *
-     * <p><b>It is the application's, not the toolkit's</b>, and this is what that decision costs:
-     * about eighty lines built out of a slider, a button and a label. The toolkit's job was to make
-     * a seek cheap enough and precise enough for that to be true, and the policy below is exactly
-     * what a component would have had to choose for every application instead of letting each one
-     * choose for itself.
-     *
-     * <p><b>The policy, which is the whole content of a scrub bar.</b> A drag seeks in
-     * {@link VideoStreamSource.SeekMode#KEYFRAME}, so dragging costs an index lookup and two codec
-     * flushes per update rather than a decode from the last keyframe; and it seeks at most once per
-     * {@link #SCRUB_INTERVAL_MICROS}, because a slider fires per pixel and a drag across this bar is
-     * several hundred pixels. Letting go seeks once in {@link VideoStreamSource.SeekMode#EXACT},
-     * which is what lands where the thumb is. Without the rate limit the drag is a decode per pixel;
-     * without the exact seek at the end it stops wherever the last keyframe was.
-     *
-     * <p>The thumb follows the position while the video is playing and stops following while it is
-     * being dragged, or it would fight the finger.
+     * <p>The bar itself — play/pause, the scrub policy (keyframe seeks while dragging, one exact
+     * seek on release, rate-limited), and the clock — <b>moved into the toolkit</b> and lives in
+     * {@link limn.components.MediaControls}, which also owns the decision that the bar reads left
+     * to right in either direction. What stays here is exactly the part no component could choose
+     * for every application: a volume that lazily re-opens the soundtrack ({@link SoundLevel}) and
+     * a subtitle button that knows the container, both injected through the bar's slots.
      */
     /**
      * The transport's volume, the way a browser's is: one level behind a slider and a mute button.
@@ -1682,31 +1672,18 @@ final class VideoScene {
 
     private static final class Transport extends Widget {
 
-        /** Shortest gap between two seeks while a thumb is moving. Four a second is smooth to a hand. */
-        private static final long SCRUB_INTERVAL_MICROS = 250_000;
-
         private final Playing open;
-        private final VideoView view;
         private final SoundLevel sound;
-        private final limn.components.Slider bar = new limn.components.Slider(0, 1000);
-        private final GlassButton playPause = new GlassButton();
+        private final limn.components.MediaControls controls;
         private final GlassButton mute = new GlassButton();
         private final limn.components.Slider volume = new limn.components.Slider(0, 100);
         private final GlassButton subtitles = new GlassButton();
-        private final Label position = new Label("").setColor(GLASS_INK_MUTED);
-        private final Row row = new Row();
         private String subtitleLabel = "";
         /** What the two icon buttons are currently drawing; null until the first refresh drew one. */
         private Boolean soundMuted;
-        private Boolean showingPaused;
-
-        private boolean polling;
-        private boolean dragging;
-        private long lastScrubNanos = Long.MIN_VALUE;
 
         Transport(Playing open, VideoView view, SoundLevel sound) {
             this.open = open;
-            this.view = view;
             this.sound = sound;
             // Two steps down for everything inside the bar. A transport is chrome over someone
             // else's content, not the content: at the default step it is a third of the picture's
@@ -1714,43 +1691,19 @@ final class VideoScene {
             // for the eye. XSMALL is a compact step and not a miniature one: the hit targets are
             // still clamped to Strokes.MIN_HIT_TARGET.
             setControlSize(limn.scene.ControlSize.XSMALL);
-            // A transport reads left to right in either direction. The cluster inherits its
-            // arrangement from tape decks, the scrub bar advances the way the tape ran, and no
-            // player mirrors either — the platforms' own bidi guidance lists media playback as
-            // the standing exception. Declared once here, so the whole bar — buttons, volume,
-            // timeline, position — is one exception rather than five, using the same knob an
-            // application uses (docs/design/direction-axis.md).
-            setLayoutDirection(limn.scene.LayoutDirection.LTR);
-            bar.setTooltip("Drag to scrub: keyframes while it moves, exactly where it is let go");
-            bar.onChange(fraction -> {
-                dragging = true;
-                scrub(fraction, false);
-            });
-            bar.onCommit(fraction -> {
-                dragging = false;
-                scrub(fraction, true);
-            });
-            // An icon and no caption, the way every player draws these two: the glyph is read
-            // faster than the word, and the word is what made the bar wide enough to crowd the
-            // scrub slider. The tooltip carries what the caption used to say.
-            //
-            // The FILLED twin, not the outline one. At this step the glyph is about eleven points
-            // across, and an outline triangle that small is a stroke thinner than the text beside
-            // it: it reads as a mark rather than as a button. The volume pair has no filled twin,
-            // which is why that one is outline and this one is not.
-            playPause.setIcon(TablerMedia.PLAYER_PAUSE.filled());
-            playPause.setTooltip("Freeze the picture and the sound, keeping both positions");
-            playPause.onAction(this::togglePlaying);
-            // ON THE TRANSPORT and not in the rows below the picture, and the reason is the same
-            // arithmetic that put the transport here: this tab's body is a couple of hundred points
-            // tall, the two rows under the picture are already at this window's width, and a
-            // control that lands past the fold is a control no capture can show. Over the picture
-            // costs no vertical space at all.
-            subtitles.setText("Subtitles");
-            subtitles.setTooltip("Show the next subtitle track of this container, or none");
-            subtitles.onAction(this::takeTheNextSubtitleTrack);
-            row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
-            row.add(playPause);
+            // The toolkit's bar brings play/pause, the scrub policy and the clock, and already
+            // reads left to right on its own, so this class declares neither. What it adds is
+            // exactly the part no component could choose for the application: a volume that
+            // lazily re-opens the soundtrack, and a subtitle button that knows the container.
+            // The pane behind paints the GLASS, so the bar's own panel is off, and the built-ins
+            // write in the glass inks for the reason those constants document.
+            controls = new limn.components.MediaControls(view)
+                    .setBackdrop(false)
+                    .setInk(GLASS_INK, GLASS_INK_MUTED)
+                    .setOnRefresh(() -> {
+                        refreshSubtitles();
+                        refreshSound();
+                    });
             if (sound != null) {
                 mute.setTooltip("Silence the soundtrack, keeping it where it is");
                 mute.onAction(() -> {
@@ -1763,47 +1716,23 @@ final class VideoScene {
                     sound.setVolume(value / 100f);
                     refreshSound();
                 });
-                row.add(mute);
+                controls.addLeading(mute);
                 // Fixed and small, before the scrub bar: the timeline is the control that should
                 // take whatever width is left, and a volume bar as long as a film reads as a
                 // second timeline. This is also the order a browser puts them in.
-                row.add(new limn.scene.layout.SizedBox(72, limn.scene.layout.SizedBox.UNSET, volume));
+                controls.addLeading(
+                        new limn.scene.layout.SizedBox(72, limn.scene.layout.SizedBox.UNSET, volume));
             }
-            row.add(limn.scene.layout.Expanded.of(bar)); // the thumb takes the room the row has
-            row.add(subtitles);
-            row.add(position);
-            add(row);
-        }
-
-        /**
-         * @param fraction where the thumb is, over the slider's own range
-         * @param settled  whether the user has let go, the one seek that has to be exact
-         */
-        private void scrub(float fraction, boolean settled) {
-            long length = durationMicros();
-            if (length <= 0 || !view.canSeek()) {
-                return;
-            }
-            long target = (long) (fraction / bar.max() * length);
-            long now = System.nanoTime();
-            if (!settled && lastScrubNanos != Long.MIN_VALUE
-                    && now - lastScrubNanos < SCRUB_INTERVAL_MICROS * 1_000L) {
-                return; // a slider fires per pixel; a decoder must not
-            }
-            lastScrubNanos = now;
-            view.seek(target, settled
-                    ? VideoStreamSource.SeekMode.EXACT
-                    : VideoStreamSource.SeekMode.KEYFRAME);
-        }
-
-        /**
-         * Through the view rather than through the player, so it works with the soundtrack switched
-         * off too: with a player the view freezes the sound with the picture, and without one it
-         * freezes its own pacing. One button, one answer, whichever is driving.
-         */
-        private void togglePlaying() {
-            view.setPaused(!view.isPaused());
-            refresh();
+            // ON THE TRANSPORT and not in the rows below the picture, and the reason is the same
+            // arithmetic that put the transport here: this tab's body is a couple of hundred points
+            // tall, the two rows under the picture are already at this window's width, and a
+            // control that lands past the fold is a control no capture can show. Over the picture
+            // costs no vertical space at all.
+            subtitles.setText("Subtitles");
+            subtitles.setTooltip("Show the next subtitle track of this container, or none");
+            subtitles.onAction(this::takeTheNextSubtitleTrack);
+            controls.addTrailing(subtitles);
+            add(controls);
         }
 
         /**
@@ -1892,89 +1821,16 @@ final class VideoScene {
             }
         }
 
-        private long durationMicros() {
-            VideoStreamSource stream = open.stream;
-            return stream == null ? VideoStreamSource.DURATION_UNKNOWN : stream.durationMicros();
-        }
-
-        private void refresh() {
-            refreshSubtitles();
-            refreshSound();
-            boolean seekable = view.canSeek() && durationMicros() > 0;
-            bar.setEnabled(seekable);
-            playPause.setEnabled(view.source() != null || view.player() != null);
-            boolean paused = view.isPaused();
-            // Guarded like every other write in this method, and the tooltip needs it as much as
-            // the icon does: setTooltip is unguarded inside and wraps its string, so writing one
-            // per frame would be an allocation per frame over a picture that has not changed.
-            if (showingPaused == null || showingPaused != paused) {
-                showingPaused = paused;
-                playPause.setIcon(
-                        (paused ? TablerMedia.PLAYER_PLAY : TablerMedia.PLAYER_PAUSE).filled());
-                playPause.setTooltip(paused
-                        ? "Let the picture and the sound run on from here"
-                        : "Freeze the picture and the sound, keeping both positions");
-            }
-            long length = durationMicros();
-            long at = view.positionMicros();
-            if (!dragging && length > 0) {
-                bar.setValue(Math.max(0, Math.min(bar.max(), at / (float) length * bar.max())));
-            }
-            // A clock, never a sentence. The third branch is a source with no duration and no
-            // seeking, and it used to read "length unknown": prose in a slot that is a timestamp
-            // everywhere else, so it changed width, changed alignment, and read as an error
-            // rather than as a source that simply has no end to report.
-            position.setText(length > 0
-                    ? clock(at) + " / " + clock(length)
-                    : seekable ? clock(at) : clock(0));
-        }
-
-        /** {@code m:ss}, which is what a transport says and what a duration in microseconds is not. */
-        private static String clock(long micros) {
-            long seconds = Math.max(0, micros) / 1_000_000L;
-            return seconds / 60 + ":" + (seconds % 60 < 10 ? "0" : "") + seconds % 60;
-        }
-
         @Override
         protected limn.scene.Size onMeasure(limn.scene.Constraints constraints) {
-            limn.scene.Size inner = row.measure(constraints);
+            limn.scene.Size inner = controls.measure(constraints);
             return constraints.constrain(inner.width(), inner.height());
         }
 
         @Override
         protected void onLayout() {
-            row.measure(limn.scene.Constraints.tight(width(), height()));
-            row.layoutBox(0, 0, width(), height());
-        }
-
-        /**
-         * On a timer rather than on a ticker, for the reason {@code AudioTracks} below gives: a
-         * registered ticker asks the scene for a frame every frame it stays registered, and this
-         * bar re-reads a position and writes a clock, a thumb and three captions. Every one of
-         * those writes is guarded, so the transport over a frozen picture costs nothing at all,
-         * and over a playing one costs the handful of frames its numbers actually move on.
-         */
-        @Override
-        protected void onPaint(limn.graphics.Canvas canvas) {
-            refresh();
-            if (polling || scene() == null || !isShowing()) {
-                return;
-            }
-            polling = true;
-            poll();
-        }
-
-        private void poll() {
-            limn.concurrent.Ui.postDelayed(() -> {
-                // The bar is taken off the pane entirely once it has faded out, so this ends with
-                // it; the paint that brings it back arms it again.
-                if (!isShowing() || scene() == null) {
-                    polling = false;
-                    return;
-                }
-                refresh();
-                poll();
-            }, POLL_MILLIS);
+            controls.measure(limn.scene.Constraints.tight(width(), height()));
+            controls.layoutBox(0, 0, width(), height());
         }
     }
 

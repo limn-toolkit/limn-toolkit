@@ -569,6 +569,50 @@ public class VideoView extends Widget {
         return this;
     }
 
+    // --------------------------------------------------------------- controls
+
+    private MediaControls controls;
+
+    /** How far the built-in controls stand off the picture's edges. */
+    private static final float CONTROLS_MARGIN = 8;
+
+    /**
+     * The built-in playback controls, created on the first ask and hidden until
+     * {@link #setControlsVisible} shows them. Everything about them is customized on the
+     * instance: {@link MediaControls#addLeading}/{@link MediaControls#addTrailing} for an
+     * application's own volume or subtitle widgets, the position clock, the backdrop — and the
+     * direction, which defaults to the media convention ({@code LTR} whatever the tree reads)
+     * and is re-declared or cleared to inherit through {@code setLayoutDirection}.
+     */
+    public MediaControls controls() {
+        Ui.checkUiThread();
+        if (controls == null) {
+            controls = new MediaControls(this);
+            controls.setVisible(false);
+            add(controls);
+        }
+        return controls;
+    }
+
+    /** Shows or hides the built-in playback controls over the picture (default hidden). */
+    public VideoView setControlsVisible(boolean visible) {
+        controls().setVisible(visible);
+        return this;
+    }
+
+    @Override
+    protected void onLayout() {
+        if (controls == null) {
+            return;
+        }
+        // Over the picture's lower edge, which is where every player puts the bar and the only
+        // place it is visible when the view is short; the picture is not shrunk to make room.
+        float box = Math.max(0, width() - 2 * CONTROLS_MARGIN);
+        float wanted = controls.measure(Constraints.loose(box, height())).height();
+        controls.measure(Constraints.tight(box, wanted));
+        controls.layoutBox(CONTROLS_MARGIN, height() - wanted - CONTROLS_MARGIN, box, wanted);
+    }
+
     /**
      * The stream's own size at one point per pixel, or the {@linkplain #setPreferredSize preferred
      * size} when one is set, clamped by the constraints, and {@code 0 × 0} with no stream at all,
