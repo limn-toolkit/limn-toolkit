@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -188,6 +189,34 @@ class ComplexScriptFallbackTest {
                 // whose UI is Arabic names this family as its primary, and a name the catalog
                 // advertises but resolve() answers Roboto for is worse than one it never offered.
                 assertEquals(family, store.resolve(new Font(family, 16)).name());
+            }
+        }
+    }
+
+    @Test
+    void eachScriptFamilyResolvesARealBoldAndItalicDegradesUpright() {
+        FontStore.HeavyFallbacks loaded = FontStore.parseHeavyFallbacks();
+        Assumptions.assumeTrue(loaded.scripts().size() == SAMPLES.length,
+                "the script faces are not bundled on this machine; see scripts/fetch-fonts.sh");
+        try (FontStore store = new FontStore()) {
+            assertTrue(store.installHeavyFallbacks(loaded));
+
+            for (Sample sample : SAMPLES) {
+                String family = "Noto Sans " + sample.name();
+                StbFont regular = store.resolve(new Font(family, 16));
+                StbFont bold = store.resolve(new Font(family, 16).bold());
+                // A distinct face, not the Regular answering twice: faux-bold does not exist in
+                // this pipeline, so "bold resolves" only means anything if another file parsed.
+                assertNotSame(regular, bold, family + " Bold fell back to the Regular");
+                assertEquals(family + " Bold", bold.name());
+                assertTrue(bold.hasGlyph(sample.codepoint()),
+                        family + " Bold cannot draw its own script");
+                // No Italic exists upstream for any of these scripts; the resolver drops italic
+                // before weight, so italic renders upright and bold-italic renders bold.
+                assertSame(regular, store.resolve(new Font(family, 16).italic()),
+                        family + " italic must degrade to the Regular");
+                assertSame(bold, store.resolve(new Font(family, 16).boldItalic()),
+                        family + " bold-italic must degrade to the Bold");
             }
         }
     }

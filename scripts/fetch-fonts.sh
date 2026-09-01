@@ -51,6 +51,17 @@ FONTS=(
   "Noto Sans Hebrew Regular (Hebrew: RTL, GPOS-placed points)|$BACKEND_FONTS/NotoSansHebrew-Regular.ttf|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansHebrew/hinted/ttf/NotoSansHebrew-Regular.ttf|cdefaf8efd47045f6820928eba84db5bed7557539328952b5f828315485e02ee"
   "Noto Sans Devanagari Regular (Devanagari: conjuncts, matra reordering)|$BACKEND_FONTS/NotoSansDevanagari-Regular.ttf|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansDevanagari/hinted/ttf/NotoSansDevanagari-Regular.ttf|306b53ecfb182a504dd8a7446093c316387d2fd8dc350d0792ed1753fe0996cd"
   "Noto Sans Thai Regular (Thai: mark stacking, and no spaces to break at)|$BACKEND_FONTS/NotoSansThai-Regular.ttf|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansThai/hinted/ttf/NotoSansThai-Regular.ttf|61cf814eec46b294d6ea4401ac295d0cecd5207bd2331dcc5a15e7301d30ee44"
+  # The same four in Bold, from the SAME pinned commit, so a mixed-weight paragraph never mixes
+  # upstream builds of one family. Bold and no further: upstream ships 36 weight×width styles per
+  # family and no Italic for any of them (italic is a Latin-script convention; the resolver already
+  # drops italic before weight, so italic Hebrew renders upright — the same thing a browser does).
+  # ~564 KB for all four, about the price of the Regulars again. The pan-CJK face stays
+  # Regular-only: its Bold is another 16 MB (see the weight note in fonts/README.md).
+  # Devanagari deliberately non-UI, matching its Regular.
+  "Noto Sans Arabic Bold|$BACKEND_FONTS/NotoSansArabic-Bold.ttf|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansArabic/hinted/ttf/NotoSansArabic-Bold.ttf|4e5462d2e8be880317b9f49b5b2da109ddb6a3563d91cc604b67f3535832a555"
+  "Noto Sans Hebrew Bold|$BACKEND_FONTS/NotoSansHebrew-Bold.ttf|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansHebrew/hinted/ttf/NotoSansHebrew-Bold.ttf|da9226e886c245a7e11673c24dec82bded64d8574c1e1f03983bf89297d2aaa8"
+  "Noto Sans Devanagari Bold|$BACKEND_FONTS/NotoSansDevanagari-Bold.ttf|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansDevanagari/hinted/ttf/NotoSansDevanagari-Bold.ttf|3ad8362a06271814869838dcc3d161b13c9fb97681b627af1f7f283ea9387d56"
+  "Noto Sans Thai Bold|$BACKEND_FONTS/NotoSansThai-Bold.ttf|https://raw.githubusercontent.com/notofonts/notofonts.github.io/3a06b1c521155492df224d33464b3c7b2852d861/fonts/NotoSansThai/hinted/ttf/NotoSansThai-Bold.ttf|2ac6c6e8a478e23b15f76e4894af1fa2210f8f350e4e6e54aad530bec03efbfb"
   # ONE licence for the four: notofonts.github.io publishes a single SIL OFL 1.1 at the root of
   # its fonts/ tree that covers every family under it, so four copies of the same 4374 bytes
   # would be four files to keep in step rather than one. The CJK and emoji faces come from other

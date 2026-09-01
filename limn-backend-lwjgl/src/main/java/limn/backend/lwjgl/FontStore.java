@@ -450,6 +450,21 @@ final class FontStore implements AutoCloseable {
             // can name is a face nobody can choose.
             byFamily.put(script.name().toLowerCase(Locale.ROOT), script);
             familyNames.add(script.name());
+            // Its Bold, the same lazy variant registration Roboto's styles get in the
+            // constructor, made here instead so it exists only when the Regular does: a stripped
+            // build without the script binaries must not carry lazy entries whose first resolve
+            // warn-fails. Bold only, because upstream ships no Italic for any of these scripts;
+            // the resolver already drops italic before weight, so an italic request lands here or
+            // on the Regular. The fallback CHAIN stays Regular on purpose — which face rescues a
+            // code point is chosen per code point with no style in the key — so this Bold is
+            // reached when the family is chosen as a primary, not mid-line behind Roboto Bold.
+            for (LazyFace pending : SCRIPT_FALLBACKS) {
+                if (pending.name().equals(script.name())) {
+                    lazyBundled.put(script.name().toLowerCase(Locale.ROOT) + " bold",
+                            new LazyFace(script.name() + " Bold",
+                                    pending.resource().replace("-Regular.ttf", "-Bold.ttf")));
+                }
+            }
             changed = true;
         }
         if (loaded.emoji() != null) {

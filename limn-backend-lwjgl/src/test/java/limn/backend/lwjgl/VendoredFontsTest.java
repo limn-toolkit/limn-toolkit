@@ -40,6 +40,14 @@ class VendoredFontsTest {
                 "306b53ecfb182a504dd8a7446093c316387d2fd8dc350d0792ed1753fe0996cd");
         assertPinned("NotoSansThai-Regular.ttf",
                 "61cf814eec46b294d6ea4401ac295d0cecd5207bd2331dcc5a15e7301d30ee44");
+        assertPinned("NotoSansArabic-Bold.ttf",
+                "4e5462d2e8be880317b9f49b5b2da109ddb6a3563d91cc604b67f3535832a555");
+        assertPinned("NotoSansHebrew-Bold.ttf",
+                "da9226e886c245a7e11673c24dec82bded64d8574c1e1f03983bf89297d2aaa8");
+        assertPinned("NotoSansDevanagari-Bold.ttf",
+                "3ad8362a06271814869838dcc3d161b13c9fb97681b627af1f7f283ea9387d56");
+        assertPinned("NotoSansThai-Bold.ttf",
+                "2ac6c6e8a478e23b15f76e4894af1fa2210f8f350e4e6e54aad530bec03efbfb");
     }
 
     private static void assertPinned(String file, String sha256) throws Exception {

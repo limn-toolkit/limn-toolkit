@@ -13,10 +13,10 @@ which has to know the face before any glyph exists.
 | **Roboto** | Regular / Bold / Italic / Bold-Italic | Latin, Greek, Cyrillic (default UI family) | Apache 2.0 (`Roboto-LICENSE.txt`) |
 | **Noto Sans CJK** (`NotoSansCJK-Regular.otf`, pan-CJK CFF ≈16 MB) | Regular | Han + Kana + **Hangul** + Latin/Greek/Cyrillic | SIL OFL 1.1 (`NotoSansCJK-LICENSE.txt`) |
 | **Noto Color Emoji** (`NotoColorEmoji.ttf`, CBDT ≈10 MB) | n/a | Emoji, in **color** | SIL OFL 1.1 (`NotoColorEmoji-LICENSE.txt`) |
-| **Noto Sans Arabic** (`NotoSansArabic-Regular.ttf`, ≈229 KB) | Regular | Arabic | SIL OFL 1.1 (`NotoSansScripts-LICENSE.txt`) |
-| **Noto Sans Hebrew** (`NotoSansHebrew-Regular.ttf`, ≈26 KB) | Regular | Hebrew | SIL OFL 1.1 (`NotoSansScripts-LICENSE.txt`) |
-| **Noto Sans Devanagari** (`NotoSansDevanagari-Regular.ttf`, ≈239 KB) | Regular | Devanagari | SIL OFL 1.1 (`NotoSansScripts-LICENSE.txt`) |
-| **Noto Sans Thai** (`NotoSansThai-Regular.ttf`, ≈37 KB) | Regular | Thai | SIL OFL 1.1 (`NotoSansScripts-LICENSE.txt`) |
+| **Noto Sans Arabic** (`NotoSansArabic-{Regular,Bold}.ttf`, ≈229+255 KB) | Regular / Bold | Arabic | SIL OFL 1.1 (`NotoSansScripts-LICENSE.txt`) |
+| **Noto Sans Hebrew** (`NotoSansHebrew-{Regular,Bold}.ttf`, ≈26+26 KB) | Regular / Bold | Hebrew | SIL OFL 1.1 (`NotoSansScripts-LICENSE.txt`) |
+| **Noto Sans Devanagari** (`NotoSansDevanagari-{Regular,Bold}.ttf`, ≈239+245 KB) | Regular / Bold | Devanagari | SIL OFL 1.1 (`NotoSansScripts-LICENSE.txt`) |
+| **Noto Sans Thai** (`NotoSansThai-{Regular,Bold}.ttf`, ≈37+37 KB) | Regular / Bold | Thai | SIL OFL 1.1 (`NotoSansScripts-LICENSE.txt`) |
 | **Limn Menu Symbols** (`LimnMenuSymbols.ttf`, ≈3 KB) | n/a | The twenty key symbols a shortcut hint is written with (⌘ ⌥ ⌃ ⇧ ⏎ ⌫ ⇥ ⎋ …) | SIL OFL 1.1 (`LimnMenuSymbols-LICENSE.txt`) |
 
 The Noto faces are the **fallback** chain; Roboto stays the primary UI font (it
@@ -49,6 +49,23 @@ whose primary lacks it — a visible change to text that has nothing to do with 
 Each is also a selectable family (`Noto Sans Arabic`, …), like `Noto Sans CJK`: an
 application whose UI is Arabic wants one as its primary rather than as the thing
 that rescues Roboto.
+
+### Bold, and why not Italic
+
+Each of the four also ships its **Bold**, from the same pinned upstream commit
+(≈564 KB for all four — about the price of the Regulars again). It registers as a
+lazy style variant when the family folds in, so it costs a parse only on first
+use, and only when the family is chosen **as a primary**: the per-code-point
+fallback chain stays Regular, because a rescue face is picked per code point with
+no style in the key. Making the chain style-aware (bold Hebrew mid-line inside a
+bold Latin paragraph) is a separate decision that would touch every fallback
+script including CJK.
+
+There is deliberately no Italic: upstream publishes 36 weight×width styles per
+family and **no Italic for any of these scripts** (italic is a Latin-script
+convention). The resolver drops italic before weight, so an italic request
+renders upright — the same thing a browser does. The pan-CJK face stays
+Regular-only; its Bold is another ≈16 MB.
 
 One licence file covers all four. `notofonts.github.io` publishes a single SIL OFL
 1.1 at the root of its `fonts/` tree for every family under it, so four copies of
