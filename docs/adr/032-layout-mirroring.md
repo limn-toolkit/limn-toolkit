@@ -690,7 +690,8 @@ Stated now, so the document does not overclaim later.
 
 - **Vertical writing.** §4. A second axis through the layout system.
 - **Arabic-Indic and Devanagari digits.** ADR 006 §4's "non-ASCII digits", untouched. An Arabic
-  interface will show `42`.
+  interface will show `42`. *Since closed by ADR 033*: digits follow the locale's numbering
+  system at format time, with a process override.
 - **Per-subtree locale.** ADR 006 §4, still open. This ADR delivers a per-subtree *direction*, which
   is the shape the escape hatch would take, and does not deliver the language.
 - **Locale-aware collation and case mapping.** Unchanged from ADR 006 §4 and ADR 031 §7.1.

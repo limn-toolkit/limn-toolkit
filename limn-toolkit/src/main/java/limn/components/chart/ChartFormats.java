@@ -1,6 +1,7 @@
 package limn.components.chart;
 
 import limn.i18n.I18n;
+import limn.i18n.NumberingSystem;
 
 import java.util.function.DoubleFunction;
 
@@ -33,17 +34,19 @@ public final class ChartFormats {
                 return "-";
             }
             if (v == Math.rint(v) && Math.abs(v) < 1e15) {
-                return String.format(I18n.locale(), "%,d", (long) v);
+                return localized(String.format(I18n.locale(), "%,d", (long) v));
             }
             String text = String.format(I18n.locale(), "%,.2f", v);
-            return trimZeros(text);
+            return localized(trimZeros(text));
         };
     }
 
     /** Grouped with exactly {@code digits} decimals. */
     public static DoubleFunction<String> decimals(int digits) {
         int d = Math.max(0, digits);
-        return v -> Double.isFinite(v) ? String.format(I18n.locale(), "%,." + d + "f", v) : "-";
+        return v -> Double.isFinite(v)
+                ? localized(String.format(I18n.locale(), "%,." + d + "f", v))
+                : "-";
     }
 
     /**
@@ -58,13 +61,13 @@ public final class ChartFormats {
             }
             double abs = Math.abs(v);
             if (abs >= 1e9) {
-                return trimZeros(String.format(I18n.locale(), "%.1f", v / 1e9)) + "B";
+                return localized(trimZeros(String.format(I18n.locale(), "%.1f", v / 1e9))) + "B";
             }
             if (abs >= 1e6) {
-                return trimZeros(String.format(I18n.locale(), "%.1f", v / 1e6)) + "M";
+                return localized(trimZeros(String.format(I18n.locale(), "%.1f", v / 1e6))) + "M";
             }
             if (abs >= 1e3) {
-                return trimZeros(String.format(I18n.locale(), "%.1f", v / 1e3)) + "k";
+                return localized(trimZeros(String.format(I18n.locale(), "%.1f", v / 1e3))) + "k";
             }
             return body.apply(v);
         };
@@ -92,9 +95,22 @@ public final class ChartFormats {
     }
 
     /**
+     * Folds whatever digits the platform formatter wrote back to ASCII, then writes the digits
+     * of the active {@linkplain I18n#numberingSystem() numbering system}. The fold is what makes
+     * a declared system authoritative: Java's own locale data already writes Arabic-Indic digits
+     * under {@code ar}, and an override must win over the locale's formatter as well as over
+     * ASCII (ADR 033).
+     */
+    private static String localized(String text) {
+        return I18n.localizeDigits(I18n.toAsciiDigits(text));
+    }
+
+    /**
      * Drops a decimal separator with nothing but zeros behind it. Locale-driven: the
      * separator is whatever the formatter just used, which is why this reads it off the
-     * formatted text rather than assuming '.'.
+     * formatted text rather than assuming '.' — and why the zero test asks the digit's value
+     * rather than comparing against ASCII {@code '0'}, since under {@code ar} the formatter
+     * already wrote {@code ٠}.
      */
     private static String trimZeros(String text) {
         char separator = new java.text.DecimalFormatSymbols(I18n.locale()).getDecimalSeparator();
@@ -103,7 +119,7 @@ public final class ChartFormats {
             return text;
         }
         int end = text.length();
-        while (end > dot && text.charAt(end - 1) == '0') {
+        while (end > dot && NumberingSystem.digitValue(text.charAt(end - 1)) == 0) {
             end--;
         }
         if (end - 1 == dot) {

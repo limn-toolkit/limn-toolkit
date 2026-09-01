@@ -83,6 +83,94 @@ public final class I18n {
         return epoch;
     }
 
+    // ------------------------------------------------------------------ digits
+
+    /** The declared override, or null while the locale decides (the default). */
+    private static volatile NumberingSystem declaredNumberingSystem;
+
+    /**
+     * The digits a formatted number is written in: the {@linkplain NumberingSystem#forLocale
+     * locale's own}, unless {@link #setNumberingSystem} declared otherwise. Process-wide by
+     * ADR 033's Decision 1: substitution happens at format time inside the widgets that render
+     * numbers they own, so application strings are never rewritten and no per-subtree axis is
+     * needed.
+     */
+    public static NumberingSystem numberingSystem() {
+        NumberingSystem declared = declaredNumberingSystem;
+        return declared != null ? declared : NumberingSystem.forLocale(locale);
+    }
+
+    /**
+     * Overrides the locale's numbering system; {@code null} returns to following the locale.
+     * Treated as a text change: the epoch bumps and every live scene re-lays-out, exactly as a
+     * locale switch does, because every formatted number on screen just changed.
+     */
+    public static void setNumberingSystem(NumberingSystem system) {
+        checkUiThread();
+        if (declaredNumberingSystem == system) {
+            return;
+        }
+        declaredNumberingSystem = system;
+        invalidate();
+    }
+
+    /**
+     * {@code text} with every ASCII digit rewritten in the active {@linkplain #numberingSystem()
+     * numbering system}, and everything else untouched. Returns its argument under
+     * {@link NumberingSystem#LATN} or when there is nothing to rewrite, so the default locale
+     * pays an object comparison and a scan, not an allocation.
+     *
+     * <p>This is the <b>format-time</b> half of ADR 033: call it on a string the widget itself
+     * rendered from a number, never on text an application authored.
+     */
+    public static String localizeDigits(String text) {
+        NumberingSystem system = numberingSystem();
+        if (system == NumberingSystem.LATN) {
+            return text;
+        }
+        int first = firstAsciiDigit(text);
+        if (first < 0) {
+            return text;
+        }
+        char[] out = text.toCharArray();
+        for (int i = first; i < out.length; i++) {
+            char c = out[i];
+            if (c >= '0' && c <= '9') {
+                out[i] = system.digit(c - '0');
+            }
+        }
+        return new String(out);
+    }
+
+    /**
+     * {@code text} with every digit of every known system folded back to ASCII: the
+     * <b>parse-time</b> half of ADR 033, and deliberately independent of the active system —
+     * a value pasted under one locale must survive being committed under another.
+     */
+    public static String toAsciiDigits(String text) {
+        char[] out = null;
+        for (int i = 0; i < text.length(); i++) {
+            int value = NumberingSystem.digitValue(text.charAt(i));
+            if (value >= 0 && text.charAt(i) > '9') {
+                if (out == null) {
+                    out = text.toCharArray();
+                }
+                out[i] = (char) ('0' + value);
+            }
+        }
+        return out == null ? text : new String(out);
+    }
+
+    private static int firstAsciiDigit(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c >= '0' && c <= '9') {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     /**
      * Registers a source of translations; the most recently added is consulted first,
      * so an application's own bundle overrides one the toolkit installed. Prepared for

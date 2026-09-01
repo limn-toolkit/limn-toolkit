@@ -4,6 +4,8 @@ import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.text.TextEditModel;
 import limn.concurrent.Ui;
+import limn.i18n.I18n;
+import limn.i18n.NumberingSystem;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
@@ -279,7 +281,9 @@ public class Spinner extends Widget {
      * The value moves several ways (a step, a drag, a typed commit, a programmatic set), and a
      * cache that has to be invalidated at each of them is one new path away from painting a stale
      * number, which is the worst thing this widget could do. {@code mode} and {@code decimals}
-     * are final, so the value is the whole input.
+     * are final, so the value and the i18n epoch are the whole input — the epoch because the
+     * numbering system rides the locale (ADR 033), and a memo that could not see a locale switch
+     * would repaint yesterday's digits under it.
      *
      * <p>The layout direction is deliberately <em>not</em> part of that key, and adding it would
      * be cargo. What is memoized is a {@link String}: the digits a number renders as are the same
@@ -288,8 +292,9 @@ public class Spinner extends Widget {
      * uses them and cached nowhere.
      */
     private String formatted() {
-        if (formattedText == null || formattedFrom != value) {
+        if (formattedText == null || formattedFrom != value || formattedEpoch != I18n.epoch()) {
             formattedFrom = value;
+            formattedEpoch = I18n.epoch();
             formattedText = format(value);
             if (mode == Mode.TIME) {
                 // The two fields are measured and drawn separately (each is independently
@@ -304,6 +309,7 @@ public class Spinner extends Widget {
 
     /** {@code NaN} until the first render, and never equal to a value, so the first call builds. */
     private double formattedFrom = Double.NaN;
+    private long formattedEpoch;
     private String formattedText;
     private String formattedHours;
     private String formattedMinutes;
@@ -313,11 +319,13 @@ public class Spinner extends Widget {
      * so {@link #onMeasure} cannot drift from what {@link #paintValue} draws.
      */
     private String format(double v) {
+        // Rendered in ASCII first (Locale.US pins the separator story ADR 006 chose), then the
+        // digits take the locale's numbering system: the one format-time seam ADR 033 allows.
         if (mode == Mode.TIME) {
             int m = (int) Math.round(v);
-            return String.format(Locale.US, "%02d:%02d", m / 60, m % 60);
+            return I18n.localizeDigits(String.format(Locale.US, "%02d:%02d", m / 60, m % 60));
         }
-        return String.format(Locale.US, "%." + decimals + "f", v);
+        return I18n.localizeDigits(String.format(Locale.US, "%." + decimals + "f", v));
     }
 
     // --------------------------------------------------------------- stepping
@@ -472,7 +480,9 @@ public class Spinner extends Widget {
      * dropped {@code 1,5} would be blaming the user for a format it chose itself.
      */
     private Double parse(String typed) {
-        String text = typed.strip();
+        // Every known digit set folds to ASCII first, whatever system is active: the editor is
+        // seeded from the localized display, and a paste must survive a locale switch (ADR 033).
+        String text = I18n.toAsciiDigits(typed).strip();
         if (text.isEmpty()) {
             return null;
         }
@@ -502,7 +512,9 @@ public class Spinner extends Widget {
 
     /** Whether a typed character could be part of a value in this mode. */
     private boolean acceptsChar(int codepoint) {
-        if (codepoint >= '0' && codepoint <= '9') {
+        // Any known system's digits, not only the active one: an Arabic keyboard types
+        // U+0660–0669, and gating on ASCII alone locked that keyboard out entirely.
+        if (NumberingSystem.digitValue(codepoint) >= 0) {
             return true;
         }
         return mode == Mode.TIME

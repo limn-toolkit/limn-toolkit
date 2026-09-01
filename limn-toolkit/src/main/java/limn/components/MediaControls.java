@@ -448,7 +448,8 @@ public class MediaControls extends Widget {
     /** {@code m:ss}, which is what a transport says and a duration in microseconds is not. */
     private static String clock(long micros) {
         long seconds = Math.max(0, micros) / 1_000_000L;
-        return seconds / 60 + ":" + (seconds % 60 < 10 ? "0" : "") + seconds % 60;
+        return limn.i18n.I18n.localizeDigits(
+                seconds / 60 + ":" + (seconds % 60 < 10 ? "0" : "") + seconds % 60);
     }
     /**
      * The activation scaffolding the two icon buttons share: a square box, a hover veil, the
