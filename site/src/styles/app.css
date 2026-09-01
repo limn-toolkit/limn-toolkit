@@ -89,7 +89,19 @@ textarea {
 
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 
+  /* "Onward", as a character. Everything else directional in this stylesheet is a logical
+     property and mirrors from `<html dir>` alone; an arrow drawn in text cannot, so the
+     glyph and its hover nudge are tokens with one right-to-left override, below. A page
+     spelling "→" itself would be the copy that stays wrong in Arabic. */
+  --arrow-onward: " →";
+  --nudge-onward: 3px;
+
   color-scheme: light;
+}
+
+[dir="rtl"] {
+  --arrow-onward: " ←";
+  --nudge-onward: -3px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -174,6 +186,15 @@ samp,
 pre {
   font-family: var(--mono);
   font-size: 0.9em;
+}
+
+/* A code block is a left-to-right island whatever the page reads: source order is source
+   order, and a mirrored page must not reorder `;` and `}` around it. The same call the
+   toolkit's ADR 032 makes for an LTR code pane inside an RTL window. Inline `code` needs
+   nothing: a Latin token in an Arabic sentence is the bidi algorithm's ordinary day. */
+pre {
+  direction: ltr;
+  text-align: left;
 }
 
 :where(p, li) > code {

@@ -313,7 +313,9 @@ const limits = ["scripts", "a11y", "version"] as const;
   .note {
     padding: 1rem 1.15rem;
     border-inline-start: 2px solid var(--limn-primary);
-    border-radius: 0 8px 8px 0;
+    /* Square where the accent border sits, rounded on the far side, whichever side that is. */
+    border-start-end-radius: 8px;
+    border-end-end-radius: 8px;
     background-color: var(--tint);
     color: var(--limn-text-muted);
     font-size: var(--text-sm);
@@ -328,13 +330,13 @@ const limits = ["scripts", "a11y", "version"] as const;
   }
 
   .arrow::after {
-    content: " →";
+    content: var(--arrow-onward);
     transition: translate 140ms var(--ease);
     display: inline-block;
   }
 
   .arrow:hover::after {
-    translate: 3px 0;
+    translate: var(--nudge-onward) 0;
   }
 
   /* -------------------------------------------------------------- features */

@@ -85,7 +85,8 @@ const filmed = Object.values(images).some((image) => image.animation);
     align-items: center;
     /* Tighter on the icon side than on the label side, so the glyph is not floating in a gap
        twice its own size, the same asymmetry the gallery card's control uses. */
-    padding: 0.2rem 0.7rem 0.2rem 0.45rem;
+    padding-block: 0.2rem;
+    padding-inline: 0.45rem 0.7rem;
     border: 1px solid var(--rule);
     border-radius: 999px;
     /* Opaque, not tinted: it lands on a screenshot, and a translucent control over a window

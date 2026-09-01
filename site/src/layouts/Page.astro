@@ -9,7 +9,14 @@ import Base from "./Base.astro";
 import ConsentGate from "../components/ConsentGate.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFooter from "../components/SiteFooter.astro";
-import { DEFAULT_LOCALE, alternates, localePath, localeUrl, type Locale } from "../lib/i18n";
+import {
+  DEFAULT_LOCALE,
+  alternates,
+  localeDir,
+  localePath,
+  localeUrl,
+  type Locale,
+} from "../lib/i18n";
 import { languageScript } from "../lib/language-script.mjs";
 import { messages, publishedLocales } from "../i18n";
 
@@ -59,7 +66,7 @@ const localeUrls = negotiates
   : {};
 ---
 
-<Base title={msg(titleKey)} description={msg(descriptionKey)} lang={locale}>
+<Base title={msg(titleKey)} description={msg(descriptionKey)} lang={locale} dir={localeDir(locale)}>
   <Fragment slot="head">
     {/* Before the body, so a reader whose language is published never sees this page
         paint first. `is:inline` keeps it as written; a bundled module would be deferred,

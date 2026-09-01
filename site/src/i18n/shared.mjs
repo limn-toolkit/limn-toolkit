@@ -64,6 +64,7 @@ export const PREFIXED_LOCALE_TAGS = [
   "es",
   "ru",
   "zh-Hant",
+  "ar",
 ];
 
 /**
@@ -149,6 +150,14 @@ export const SHARED_NAV_TRANSLATIONS = {
     "nav.components": "元件",
     "nav.showcase": "畫面",
     "nav.docs": "指南",
+    "nav.api": "API",
+  },
+  ar: {
+    "nav.primaryLabel": "الموقع",
+    "nav.menu": "القائمة",
+    "nav.components": "المكوّنات",
+    "nav.showcase": "الشاشات",
+    "nav.docs": "الدليل",
     "nav.api": "API",
   },
 };

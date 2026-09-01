@@ -13,12 +13,18 @@ interface Props {
   description?: string;
   /** BCP-47 tag for `<html lang>`; every localized page passes its own. */
   lang?: string;
+  /**
+   * Reading direction for `<html dir>`; localized pages pass `localeDir(locale)`. Absent
+   * means left-to-right, so the English-only pages that use this shell directly need not
+   * know the attribute exists.
+   */
+  dir?: "ltr" | "rtl";
 }
 
-const { title, description, lang = "en" } = Astro.props;
+const { title, description, lang = "en", dir } = Astro.props;
 ---
 
-<html lang={lang}>
+<html lang={lang} dir={dir}>
   <head>
     <meta charset="utf-8" />
     <script is:inline set:html={NO_FLASH_SCRIPT} />

@@ -17,6 +17,7 @@ export const LOCALES = [
   "es",
   "ru",
   "zh-Hant",
+  "ar",
 ] as const;
 
 export type Locale = (typeof LOCALES)[number];
@@ -39,6 +40,7 @@ export const LOCALE_NAMES: Record<Locale, string> = {
   es: "Español",
   ru: "Русский",
   "zh-Hant": "繁體中文",
+  ar: "العربية",
 };
 
 /**
@@ -51,6 +53,21 @@ export const LOCALE_SHORT_NAMES: Record<Locale, string> = {
   ...LOCALE_NAMES,
   "pt-BR": "Português",
 };
+
+/**
+ * The locales whose pages read right to left. Confined here the way the English-at-the-root
+ * asymmetry is: nothing else in the site may test `locale === "ar"` to decide a direction,
+ * and adding Hebrew or Persian later is one entry in this set.
+ */
+const RTL_LOCALES: ReadonlySet<Locale> = new Set<Locale>(["ar"]);
+
+/**
+ * What `<html dir>` says for a locale. The layout is written in CSS logical properties, so
+ * this one attribute is the whole of mirroring a page; per-element `dir` never appears.
+ */
+export function localeDir(locale: Locale): "ltr" | "rtl" {
+  return RTL_LOCALES.has(locale) ? "rtl" : "ltr";
+}
 
 /** The locale segment of a path, or `""` for English. */
 export function localeSegment(locale: Locale): string {

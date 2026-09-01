@@ -10,6 +10,7 @@
  */
 import { en, type MessageKey } from "./en";
 import { PREFIXED_LOCALE_TAGS, SHARED_NAV_TRANSLATIONS } from "./shared.mjs";
+import { ar } from "./ar";
 import { de } from "./de";
 import { es } from "./es";
 import { fr } from "./fr";
@@ -40,6 +41,7 @@ export const CATALOGS: Partial<Record<Locale, Catalog>> = {
   es,
   ru,
   "zh-Hant": zhHant,
+  ar,
 };
 
 /** Resolves a key for a locale, falling back to English. Throws if English lacks it. */
