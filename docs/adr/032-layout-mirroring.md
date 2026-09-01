@@ -1072,21 +1072,35 @@ because a language can be written in either and only the script says which.
   `TextRuler` nor `Canvas` changed shape, which is the constraint the whole route was chosen
   under.
 
-### 9.6 Noticed, and deliberately not fixed
+### 9.6 Noticed, and not fixed with the rest
+
+What the work found beside its own path and deliberately did not fold in. Each entry says where
+it stands now; the ones since closed were closed in their own changes, after this document was
+first written, so their fixes could be judged alone.
 
 - **`ShapedText.matches` treats epoch 0 as current under every ruler**, and `TextRuler.NONE` — what
   a detached widget gets — stamps 0 and measures everything as zero-width. A widget whose first
   shaping happened while detached holds a zero-width line that every real ruler afterwards certifies
   as current. Pre-existing, from ADR 031's held-value idiom, and reachable by any test that measures
-  a detached tree.
+  a detached tree. **Still open**, and the only entry here that is.
 - **`Scene.windowClosed` unsubscribes three of its four global listeners**, omitting `I18n`. The new
   axis is handled; the omission is pre-existing and is the exact symmetry the axis review looked for.
+  *Since closed:* the fourth removal now stands beside the other three, and a test closes a bound
+  scene and asserts a locale change no longer wakes it.
 - **A memo resolved inside `onDetached` survives the detach as a stale answer**, on both axes: the
   scene funnel bumps up front and the scene field is cleared afterwards, with nothing bumping
-  between. Latent — no `onDetached` in the repository reads either axis.
+  between. Latent — no `onDetached` in the repository reads either axis. *Since closed:* the
+  funnel's detaching branch stamps both memos never-current once the field clears, and a lifecycle
+  test reads both axes inside `onDetached` and asserts the detached widget then resolves as a fresh
+  one would.
 - **`ContextMenus.showForFocus` has two candidate widgets** and can only give the popup one. It
   takes the focused widget's direction for the anchor point while the cascade's own growth still
   comes from the region, so a right-to-left field inside a left-to-right region opens away from
-  itself. Correct whenever the two agree, which is every ordinary tree.
+  itself. Correct whenever the two agree, which is every ordinary tree. *Since closed:* the popup
+  is anchored on the same widget the corner comes from, so its growth, its step and its corner are
+  one answer; the mirroring test that had pinned the divergence — deliberately, as a recorded
+  defect — was rewritten with it.
 - **The demo's bottom statistics bar does not mirror.** It is demo chrome and outside §2's file
-  list.
+  list. *Since closed:* mirrored anyway, as a maintainer's call — the demo is the toolkit's shop
+  window, and a bar that ignored the axis under a picker that flips it read as a bug report waiting
+  to be filed.

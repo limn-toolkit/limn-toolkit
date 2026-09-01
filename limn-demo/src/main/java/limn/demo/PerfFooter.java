@@ -6,8 +6,10 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.graphics.ShapedText;
 import limn.scene.Constraints;
 import limn.scene.FrameMetrics;
+import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -37,6 +39,13 @@ import java.util.Locale;
  * scene's painted-frame delta); auxiliary windows (popups, desktop gadgets)
  * are visible in it too. The per-frame paint allocates nothing: the strings and
  * the unit's measured offset are computed on the 1 Hz latch, not per frame.
+ *
+ * <p><b>The footer reads with the tree around it.</b> The demo carries a live
+ * direction picker in its toolbar, and a HUD that ignored the axis under it
+ * would read as a bug report. Reading right to left, the first card of each row
+ * is the rightmost one, every card right-aligns its text and hangs its chart on
+ * the left, and the charts anchor their newest tick to the left edge — the
+ * mirror of the right-anchored scroll below.
  */
 final class PerfFooter extends Widget {
 
@@ -129,8 +138,12 @@ final class PerfFooter extends Widget {
         float pad = 10;
         float gap = 6;
         float rowH = (height() - 2 * pad - gap) / 2;
-        drawRow(canvas, rowFrame, pad, pad, width() - 2 * pad, rowH);
-        drawRow(canvas, rowProcess, pad, pad + rowH + gap, width() - 2 * pad, rowH);
+        // Resolved once for the whole paint: cards, alignment and chart anchors
+        // must agree about the direction or a card would right-align its text
+        // over a chart that stayed on the right.
+        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        drawRow(canvas, rowFrame, pad, pad, width() - 2 * pad, rowH, rtl);
+        drawRow(canvas, rowProcess, pad, pad + rowH + gap, width() - 2 * pad, rowH, rtl);
     }
 
     // ------------------------------------------------------------- 1 Hz sampler
@@ -237,38 +250,54 @@ final class PerfFooter extends Widget {
 
     // --------------------------------------------------------------- rendering
 
-    private void drawRow(Canvas canvas, Gauge[] gauges, float x, float y, float w, float h) {
+    private void drawRow(Canvas canvas, Gauge[] gauges, float x, float y, float w, float h,
+            boolean rtl) {
         Theme theme = Theme.current();
         float cardW = w / gauges.length;
         for (int i = 0; i < gauges.length; i++) {
-            drawCard(canvas, gauges[i], x + i * cardW, y, cardW, h);
+            // Reading right to left the first gauge takes the rightmost card; the
+            // separators sit on the same uniform grid either way.
+            float cx = rtl ? x + w - (i + 1) * cardW : x + i * cardW;
+            drawCard(canvas, gauges[i], cx, y, cardW, h, rtl);
             if (i > 0) {
                 canvas.drawLine(x + i * cardW, y + 4, x + i * cardW, y + h - 4, 1, theme.outline);
             }
         }
     }
 
-    private void drawCard(Canvas canvas, Gauge gauge, float x, float y, float w, float h) {
+    private void drawCard(Canvas canvas, Gauge gauge, float x, float y, float w, float h,
+            boolean rtl) {
         Theme theme = Theme.current();
         float pad = 12;
-        float tx = x + pad;
-        canvas.drawText(gauge.name, tx, y + 11, NAME_FONT, theme.textMuted);
-        canvas.drawText(gauge.valueText, tx, y + 27, VALUE_FONT, gauge.color);
-        canvas.drawText(gauge.unitText, tx, y + 38, NAME_FONT, theme.textMuted);
+        // Shaped rather than handed over as strings: right-aligning needs the width
+        // of the exact line drawn, and the ruler memoizes so the 1 Hz strings cost
+        // one lookup per frame.
+        ShapedText name = shapeText(gauge.name, NAME_FONT);
+        ShapedText value = shapeText(gauge.valueText, VALUE_FONT);
+        ShapedText unit = shapeText(gauge.unitText, NAME_FONT);
+        float nameX = rtl ? x + w - pad - name.metrics().width() : x + pad;
+        float valueX = rtl ? x + w - pad - value.metrics().width() : x + pad;
+        float unitX = rtl ? x + w - pad - unit.metrics().width() : x + pad;
+        canvas.drawText(name, nameX, y + 11, theme.textMuted);
+        canvas.drawText(value, valueX, y + 27, gauge.color);
+        canvas.drawText(unit, unitX, y + 38, theme.textMuted);
 
-        // The chart takes the right 45%: the unit line is the widest text here
-        // ("of 4096 MB", "12.3k tris") and the two share one card.
-        float sx = x + w * 0.55f;
-        float sw = x + w - pad - sx;
-        barChart(canvas, sx, y + 8, sw, h - 14, gauge);
+        // The chart takes 45% on the side reading ends on: the unit line is the
+        // widest text here ("of 4096 MB", "12.3k tris") and the two share one card.
+        float sx = rtl ? x + pad : x + w * 0.55f;
+        float sw = w * 0.45f - pad;
+        barChart(canvas, sx, y + 8, sw, h - 14, gauge, rtl);
     }
 
     /**
-     * One bar per tick in fixed slots, anchored to the RIGHT edge: the newest
-     * tick is always the rightmost bar and history grows leftward, scrolling
-     * left as old ticks fall off the (at most) {@link #SECONDS}-slot window.
+     * One bar per tick in fixed slots, anchored to the edge reading ends on: the
+     * newest tick is always the bar nearest that edge — the rightmost reading left
+     * to right, the leftmost reading right to left — and history grows away from
+     * it, scrolling as old ticks fall off the (at most) {@link #SECONDS}-slot
+     * window.
      */
-    private void barChart(Canvas canvas, float x, float y, float w, float h, Gauge gauge) {
+    private void barChart(Canvas canvas, float x, float y, float w, float h, Gauge gauge,
+            boolean rtl) {
         int n = gauge.count;
         if (n < 1 || w <= 2 || h <= 0) {
             return;
@@ -276,14 +305,15 @@ final class PerfFooter extends Widget {
         float scale = gauge.max();
         float slotW = w / SECONDS;
         float barW = Math.max(1f, slotW - 1f); // ~1px gap between bars
-        int firstSlot = SECONDS - n; // right-aligned: oldest held tick starts here
+        int firstSlot = SECONDS - n; // oldest held tick's slot, before mirroring
         for (int i = 0; i < n; i++) {
             float value = gauge.at(i);
             if (value <= 0) {
                 continue; // a zero tick reads as a gap, not a sliver
             }
             float bh = Math.max(1f, Math.min(1f, value / scale) * h);
-            canvas.fillRect(x + (firstSlot + i) * slotW, y + h - bh, barW, bh, gauge.fill);
+            int slot = rtl ? SECONDS - 1 - (firstSlot + i) : firstSlot + i;
+            canvas.fillRect(x + slot * slotW, y + h - bh, barW, bh, gauge.fill);
         }
     }
 

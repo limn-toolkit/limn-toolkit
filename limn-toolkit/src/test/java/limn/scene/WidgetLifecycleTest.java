@@ -118,4 +118,37 @@ class WidgetLifecycleTest extends SceneTestBase {
         scene.drainPendingDisposals(); // stands in for the next frame's top
         assertTrue(w.surface.disposed, "disposed once a frame runs with the context current");
     }
+
+    /**
+     * A memo resolved <em>inside</em> {@code onDetached} dies with the detach. The funnel bumps
+     * both axes' epochs before the hook runs, and the hook may legally read either axis — the
+     * scene it is leaving is still there to answer. Without a reset once the field clears, that
+     * read would be stamped current and survive the detach as the left scene's answer, held by
+     * a widget that no longer has a scene at all.
+     */
+    @Test
+    void aMemoResolvedInsideOnDetachedDiesWithTheDetach() {
+        Scene scene = new Scene(new FixedBox(100, 100));
+        scene.setLayoutDirection(LayoutDirection.RTL);
+        scene.setControlSize(ControlSize.LARGE);
+
+        final LayoutDirection[] sawDirection = new LayoutDirection[1];
+        final ControlSize[] sawSize = new ControlSize[1];
+        FixedBox reader = new FixedBox(10, 10) {
+            @Override protected void onDetached() {
+                sawDirection[0] = layoutDirection();
+                sawSize[0] = controlSize();
+            }
+        };
+        scene.root().add(reader);
+        scene.root().remove(reader);
+
+        assertEquals(LayoutDirection.RTL, sawDirection[0],
+                "the hook reads the scene it is leaving, which is the order the field clears in");
+        assertEquals(ControlSize.LARGE, sawSize[0]);
+        assertEquals(LayoutDirection.processDefault(), reader.layoutDirection(),
+                "detached, the widget resolves as a fresh widget would, "
+                        + "rather than keeping the left scene's answer");
+        assertEquals(ControlSize.processDefault(), reader.controlSize());
+    }
 }

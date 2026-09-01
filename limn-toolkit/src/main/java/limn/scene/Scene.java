@@ -2566,6 +2566,7 @@ public final class Scene implements WindowInput {
         limn.graphics.Fonts.removeChangeListener(metricsListener);
         ControlSize.removeChangeListener(metricsListener);
         LayoutDirection.removeChangeListener(metricsListener);
+        limn.i18n.I18n.removeChangeListener(metricsListener);
         Runnable cb = winFadeOnArrive;
         winFadeOnArrive = null;
         winFadeGeneration++;

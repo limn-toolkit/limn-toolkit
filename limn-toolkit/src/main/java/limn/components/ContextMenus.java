@@ -127,10 +127,14 @@ public final class ContextMenus {
      * <p>Falls back to {@code anchor}'s own lower leading corner when nothing in the scene has
      * focus, which is the only place left that is still related to the request.
      *
-     * <p><b>The direction is the focused widget's, not the region's.</b> A right-to-left field
-     * inside a left-to-right form starts reading at its own right edge, and that is the corner
-     * the user's eye is at when the key arrives; taking the region's direction instead would
-     * drop the menu at the end of a field the user is not reading from.
+     * <p><b>The direction is the focused widget's, not the region's</b> — for the corner and for
+     * the cascade both. A right-to-left field inside a left-to-right form starts reading at its
+     * own right edge, and that is the corner the user's eye is at when the key arrives; taking
+     * the region's direction instead would drop the menu at the end of a field the user is not
+     * reading from. The cascade must agree: a menu whose corner is the field's right edge but
+     * whose column grows as the region reads opens away from the field it dropped from, so the
+     * popup is anchored on the same widget the corner came from, and its growth, its step and
+     * its corner are one answer.
      */
     public static void showForFocus(Widget anchor, Menu menu) {
         Objects.requireNonNull(anchor, "anchor");
@@ -145,7 +149,7 @@ public final class ContextMenus {
         // an event-driven call rather than at construction: this runs with the tree complete.
         boolean rtl = from.layoutDirection() == LayoutDirection.RTL;
         float cornerX = rtl ? from.localToSceneX() + from.width() : from.localToSceneX();
-        new PopupMenu(menu).showAt(anchor, cornerX, from.localToSceneY() + from.height());
+        new PopupMenu(menu).showAt(from, cornerX, from.localToSceneY() + from.height());
     }
 
     /**

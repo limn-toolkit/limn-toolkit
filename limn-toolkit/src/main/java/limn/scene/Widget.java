@@ -242,6 +242,14 @@ public abstract class Widget {
             // grown that field, which is a design saying it got the order wrong.
             onDetached();
             this.scene = null;
+            // The funnel's epoch bump ran BEFORE the hook, so a memo resolved inside
+            // onDetached — legal there, and answered from the scene being left — is
+            // stamped current and nothing later says otherwise: the widget would keep
+            // the left scene's answer for as long as no global input moved. Zero is
+            // the stamp that is never current, on either axis, by the fields' own
+            // contract.
+            resolvedEpoch = 0;
+            resolvedDirectionEpoch = 0;
         }
     }
 

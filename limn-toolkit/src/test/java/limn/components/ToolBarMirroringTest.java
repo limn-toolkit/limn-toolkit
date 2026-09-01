@@ -356,9 +356,16 @@ class ToolBarMirroringTest extends ComponentTestBase {
     }
 
     /**
-     * The direction is the focused widget's own, not the region's. A right-to-left field inside
-     * a left-to-right form starts reading at its own right edge, and taking the region's answer
-     * would drop the menu at the end of a field nobody is reading from.
+     * The direction is the focused widget's own, not the region's — for the corner and for the
+     * cascade both. A right-to-left field inside a left-to-right form starts reading at its own
+     * right edge, and the menu both hangs from that corner and grows the way the field reads,
+     * exactly as it would in a form that read the field's way throughout.
+     *
+     * <p>This assertion changed once, deliberately. The anchor point took the field's direction
+     * before the cascade did, so a menu whose corner was the field's but whose growth was the
+     * region's opened away from the field it dropped from; the old expectation pinned that gap
+     * while it was a recorded defect, and was rewritten when the popup began anchoring on the
+     * widget the corner comes from.
      */
     @Test
     void aRightToLeftFieldInsideALeftToRightRegionDropsFromItsOwnLeadingCorner() {
@@ -369,9 +376,10 @@ class ToolBarMirroringTest extends ComponentTestBase {
         pressMenuKey();
 
         RoundRect column = openedColumn();
-        assertEquals(FIELD_X + FIELD_W, column.x(), EPS,
-                "the anchor point is the field's own right edge; the region is still left to "
-                        + "right, so the column grows rightwards from it");
+        assertEquals(FIELD_X + FIELD_W, column.x() + column.width(), EPS,
+                "the column meets the field's own leading corner and grows the way the field "
+                        + "reads, not the way the region around it does");
+        assertEquals(FIELD_Y + FIELD_H, column.y(), EPS, "the drop is downward either way");
     }
 
     @Test
