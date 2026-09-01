@@ -364,6 +364,25 @@ class ComboBoxTest extends ComponentTestBase {
         assertEquals(1, box.highlightedIndex(), "and round again");
     }
 
+    /**
+     * ADR 034: case folds by the language, not per {@code char}. One ß upper-cases to two
+     * letters, so a per-char comparison drops the buffer at the fifth keystroke and falls
+     * back to Strasbourg; folding whole strings finds Straße and stays there.
+     */
+    @Test
+    void typeAheadFoldsCaseTheWayTheLanguageDoes() {
+        ComboBox box = new ComboBox(List.of("Strasbourg", "Straße", "Strudel"));
+        Scene typeScene = new Scene(box);
+        typeScene.setTextRuler(RULER);
+        typeScene.layoutPass(200, 32);
+        typeScene.requestFocus(box);
+        this.scene = typeScene;
+        box.open();
+
+        type("strass");
+        assertEquals(1, box.highlightedIndex(), "Straße");
+    }
+
     /** Nothing spells this, so the highlight must stay where the user left it. */
     @Test
     void aPrefixThatMatchesNothingLeavesTheHighlightAlone() {

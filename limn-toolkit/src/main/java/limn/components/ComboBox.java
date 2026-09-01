@@ -8,6 +8,7 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.graphics.Path2D;
 import limn.graphics.ShapedText;
@@ -773,9 +774,15 @@ public class ComboBox extends Widget {
         typeAhead.setLength(0);
     }
 
+    /**
+     * Case-insensitive in the text locale, not per {@code char}: both sides are upper-cased
+     * whole, with a lower-cased retry for the scripts where only one direction folds. A
+     * per-char comparison can never match "stras" to "Straße" — one ß upper-cases to two
+     * letters — and matches a Turkish dotted İ only by accident of the accentless tables.
+     */
     private static boolean startsWithIgnoreCase(String label, String prefix) {
-        return label.length() >= prefix.length()
-                && label.regionMatches(true, 0, prefix, 0, prefix.length());
+        return I18n.toUpperCase(label).startsWith(I18n.toUpperCase(prefix))
+                || I18n.toLowerCase(label).startsWith(I18n.toLowerCase(prefix));
     }
 
     private void setHighlight(int index) {

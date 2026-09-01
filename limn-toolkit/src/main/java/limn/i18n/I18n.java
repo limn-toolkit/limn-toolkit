@@ -2,6 +2,7 @@ package limn.i18n;
 
 import limn.concurrent.Ui;
 
+import java.text.Collator;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -225,6 +226,72 @@ public final class I18n {
     /** The registered bundles, newest first. */
     public static List<StringBundle> bundles() {
         return List.copyOf(BUNDLES);
+    }
+
+    // ------------------------------------------------------------------ text
+
+    /** The declared override, or null while the UI locale decides (the default). */
+    private static volatile Locale declaredTextLocale;
+
+    /**
+     * The language text is ordered and case-mapped in: the {@linkplain #locale() UI locale},
+     * unless {@link #setTextLocale} declared the content is in another language. The two are
+     * different facts — an English interface listing Swedish names must still put ä after z —
+     * but almost every application never needs to say so, and the default keeps order and
+     * case in the language the user is reading.
+     */
+    public static Locale textLocale() {
+        Locale declared = declaredTextLocale;
+        return declared != null ? declared : locale;
+    }
+
+    /**
+     * Declares the language of the content being ordered and case-mapped; {@code null}
+     * returns to following the UI locale. Treated as a text change, exactly as
+     * {@link #setLocale} is: the epoch bumps and listeners run, because every order an
+     * application built through {@link #collator()} is now stale and the application's own
+     * change listener is where it re-sorts.
+     */
+    public static void setTextLocale(Locale next) {
+        checkUiThread();
+        if (Objects.equals(declaredTextLocale, next)) {
+            return;
+        }
+        declaredTextLocale = next;
+        invalidate();
+    }
+
+    /**
+     * A collator for the {@linkplain #textLocale() text locale}, for ordering what a user
+     * reads: list items, table rows, anything sorted for display. A machine order — a key, a
+     * slug, a file format — keeps {@code compareTo}.
+     *
+     * <p>Every call answers a fresh instance, because a {@link Collator} carries mutable
+     * per-comparison state and must not be shared across threads. Fetch one per sort, not
+     * one per comparison:
+     *
+     * <pre>{@code
+     * names.sort(I18n.collator());
+     * items.sort(Comparator.comparing(Item::label, I18n.collator()));
+     * }</pre>
+     */
+    public static Collator collator() {
+        return Collator.getInstance(textLocale());
+    }
+
+    /**
+     * {@code text} upper-cased in the {@linkplain #textLocale() text locale}: the case
+     * mapping for something a user reads. A machine format keeps {@code Locale.ROOT} — under
+     * Turkish this maps {@code i} to {@code İ}, which is exactly right in a list of cities
+     * and exactly wrong in a hex color.
+     */
+    public static String toUpperCase(String text) {
+        return text.toUpperCase(textLocale());
+    }
+
+    /** The lower-case twin of {@link #toUpperCase}, in the same locale. */
+    public static String toLowerCase(String text) {
+        return text.toLowerCase(textLocale());
     }
 
     /** Records a key and catches the one mistake that would surface as a mistranslation. */
