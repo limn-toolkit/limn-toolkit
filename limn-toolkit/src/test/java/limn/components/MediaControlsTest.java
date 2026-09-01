@@ -5,6 +5,13 @@ import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.sound.AudioStreamSource;
+import limn.sound.PlayOptions;
+import limn.video.MediaPlayer;
+import limn.video.PixelFormat;
+import limn.video.VideoColor;
+import limn.video.VideoFrame;
+import limn.video.VideoStreamSource;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -113,6 +120,83 @@ class MediaControlsTest extends ComponentTestBase {
 
         view.setControlsVisible(false);
         assertFalse(view.controls().isVisible(), "hidden again, and the instance is kept");
+    }
+
+    // ------------------------------------------------------------------- sound
+
+    /** The mute button and the volume box sit at fixed positions after the play button. */
+    private Widget muteButton() {
+        return rowChildren().get(1);
+    }
+
+    private Widget volumeSlider() {
+        return rowChildren().get(2);
+    }
+
+    private void render() {
+        scene.renderFrame(new FakeCanvas(BAR_W, BAR_H));
+    }
+
+    @Test
+    void theVolumeAppearsExactlyWhenTheMediaCanSound() {
+        build(LayoutDirection.LTR);
+        assertFalse(muteButton().isVisible(), "no player: the bar carries no dead volume");
+        assertFalse(volumeSlider().isVisible());
+
+        controls.view().setPlayer(new MediaPlayer(new FakeVideo()));
+        render();
+        assertFalse(muteButton().isVisible(), "a player with no soundtrack offers none either");
+
+        build(LayoutDirection.LTR);
+        controls.view().setPlayer(new MediaPlayer(new FakeVideo())
+                .setAudio(new FakeAudio(), PlayOptions.DEFAULTS));
+        render();
+        assertTrue(muteButton().isVisible(), "a soundtrack brings the pair with it");
+        assertTrue(volumeSlider().isVisible());
+    }
+
+    @Test
+    void theModesOverrideWhatTheMediaSays() {
+        build(LayoutDirection.LTR);
+        controls.setSound(MediaControls.Sound.ON);
+        assertTrue(muteButton().isVisible(), "ON offers the pair with nothing to sound");
+        controls.setSound(MediaControls.Sound.OFF);
+        assertFalse(muteButton().isVisible(), "OFF hides it whatever the media has");
+    }
+
+    @Test
+    void muteIsAGainOfZeroThatRemembersTheLevel() {
+        build(LayoutDirection.LTR);
+        controls.setVolume(0.6f);
+        controls.setMuted(true);
+        assertTrue(controls.isMuted());
+        assertEquals(0.6f, controls.volume(), EPS, "the level survives the silence");
+        controls.setMuted(false);
+        assertFalse(controls.isMuted());
+        assertEquals(0.6f, controls.volume(), EPS, "and unmuting restores exactly it");
+    }
+
+    /** A do-nothing video source: enough for a player that is never started. */
+    private static final class FakeVideo implements VideoStreamSource {
+        @Override public int width() { return 16; }
+        @Override public int height() { return 16; }
+        @Override public PixelFormat pixelFormat() { return PixelFormat.I420; }
+        @Override public VideoColor color() { return VideoColor.BT709_LIMITED; }
+        @Override public int frameRateNum() { return 30; }
+        @Override public int frameRateDen() { return 1; }
+        @Override public Read readFrame() { return Read.PENDING; }
+        @Override public VideoFrame frame() { return null; }
+        @Override public void reset() { }
+        @Override public void close() { }
+    }
+
+    /** A do-nothing audio source: its existence is the whole fact under test. */
+    private static final class FakeAudio implements AudioStreamSource {
+        @Override public int channels() { return 1; }
+        @Override public int sampleRate() { return 8000; }
+        @Override public int readFrames(short[] out, int maxFrames) { return 0; }
+        @Override public void reset() { }
+        @Override public void close() { }
     }
 
     /** A fixed-size stand-in so slot assertions are about the bar, not about a Slider. */

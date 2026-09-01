@@ -1705,6 +1705,12 @@ final class VideoScene {
                         refreshSound();
                     });
             if (sound != null) {
+                // The built-in pair can only turn a gain the player already holds, and this
+                // tab's soundtrack is lazily re-opened (SoundLevel) — a policy the toolkit
+                // cannot know. So the built-ins are OFF here and the demo's own pair rides the
+                // slots; the standalone window keeps the default AUTO, where its player owns
+                // the track from the file and the built-in volume simply works.
+                controls.setSound(limn.components.MediaControls.Sound.OFF);
                 mute.setTooltip("Silence the soundtrack, keeping it where it is");
                 mute.onAction(() -> {
                     sound.toggleMuted();

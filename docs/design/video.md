@@ -284,11 +284,15 @@ is. So a transport seeks at a bounded rate in `KEYFRAME` while the thumb moves a
 when it is let go. Any transport has to make that choice, and for a long time that argument kept a
 transport out of the component set; it was re-taken the other way once the policy proved stable in
 the demo. `MediaControls` now owns it — play/pause, the scrub policy and the clock, over any
-`VideoView` (`setControlsVisible` on the view, or compose the bar yourself). What still has no
-component is everything the toolkit cannot choose: volume (an application's audio wiring), audio
-tracks and subtitles (an application's container) — the bar takes them as injected widgets through
-its slots instead. The bar also owns the direction decision: it reads left to right in either
-direction by default, as a declaration the application can re-declare or clear
+`VideoView` (`setControlsVisible` on the view, or compose the bar yourself). It also carries a
+mute button and a volume slider, because a gain on the soundtrack the player already holds is the
+toolkit's to turn; by default they appear only while the media can actually sound (`Sound.AUTO`,
+against `MediaPlayer.hasAudio()`), so a silent clip carries no dead volume, and `setSound` forces
+them on or off. What still has no component is everything *behind* the gain: an application that
+opens its soundtrack lazily, switches audio tracks or offers subtitles turns the built-ins off and
+wires its own widgets through the bar's slots — which is exactly what the demo's tab does, while
+its standalone window rides the default. The bar also owns the direction decision: it reads left
+to right in either direction by default, as a declaration the application can re-declare or clear
 (see direction-axis.md).
 
 ### Pausing, and the widget that undid it

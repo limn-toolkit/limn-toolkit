@@ -13,6 +13,8 @@ import limn.scene.Widget;
 import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Row;
+import limn.scene.layout.SizedBox;
+import limn.sound.Playback;
 import limn.video.VideoStreamSource;
 
 import java.util.ArrayList;
@@ -34,9 +36,16 @@ import java.util.Objects;
  * {@code setLayoutDirection(null)} to inherit, or passes an explicit direction — the same knob
  * every widget has (see {@code docs/design/direction-axis.md}).
  *
- * <p><b>What deliberately stays out.</b> Volume, audio-track and subtitle choices depend on how an
- * application wired its sound and its container, and the toolkit has no opinion about either. The
- * bar composes instead: {@link #addLeading} places a widget between the play button and the scrub
+ * <p><b>Sound, and which half of it is the toolkit's.</b> A mute button and a volume slider are
+ * built in, because a gain on the soundtrack the player already holds is the toolkit's to turn
+ * ({@code MediaPlayer.audio()}). By default they appear only while the media can actually sound
+ * ({@link Sound#AUTO}) and step aside otherwise, so a silent clip does not carry a dead volume;
+ * {@link #setSound} forces them {@link Sound#ON} or {@link Sound#OFF}. Muting is gain zero and
+ * never a teardown. Everything <em>behind</em> the gain stays the application's: one that opens
+ * its soundtrack lazily, switches audio tracks or offers subtitles turns the built-ins off and
+ * wires its own widgets into the slots.
+ *
+ * <p><b>The slots.</b> {@link #addLeading} places a widget between the play button and the scrub
  * bar (where players put their volume), {@link #addTrailing} between the scrub bar and the clock,
  * and {@link #setOnRefresh} gives injected controls a ride on the same heartbeat the built-in ones
  * update on. {@link #setShowPosition} and {@link #setBackdrop} trim the built-ins.
@@ -63,9 +72,31 @@ public class MediaControls extends Widget {
             new I18nString("limn.mediaControls.pause", "Pause");
     private static final I18nString SCRUB =
             new I18nString("limn.mediaControls.scrub", "Drag to scrub");
+    private static final I18nString MUTE =
+            new I18nString("limn.mediaControls.mute", "Mute");
+    private static final I18nString UNMUTE =
+            new I18nString("limn.mediaControls.unmute", "Unmute");
+    private static final I18nString VOLUME =
+            new I18nString("limn.mediaControls.volume", "Volume");
+
+    /** Whether the mute button and volume slider are offered. */
+    public enum Sound {
+        /** Always shown, sounding or not. */
+        ON,
+        /** Never shown: an application wiring its own volume uses the slots instead. */
+        OFF,
+        /**
+         * Shown only while the media can sound — the view's player holds or plays an audio
+         * track. The default.
+         */
+        AUTO
+    }
 
     private final VideoView view;
     private final PlayPause playPause = new PlayPause();
+    private final MuteButton mute = new MuteButton();
+    private final Slider volume = new Slider(0, 100);
+    private final Widget volumeBox = new SizedBox(72, SizedBox.UNSET, volume);
     private final Slider bar = new Slider(0, 1000);
     private final Widget scrub = Expanded.of(bar);
     private final Label position = new Label("").setMuted(true);
@@ -78,6 +109,13 @@ public class MediaControls extends Widget {
     private boolean backdrop = true;
     private Color ink;
     private Color mutedInk;
+    private Sound sound = Sound.AUTO;
+    private boolean soundShown;
+    private boolean muted;
+    private float level = 1f;
+    private Playback appliedHandle;
+    private float appliedGain = Float.NaN;
+    private Boolean showingMuted;
     private boolean polling;
     private boolean dragging;
     private long lastScrubNanos = Long.MIN_VALUE;
@@ -99,6 +137,19 @@ public class MediaControls extends Widget {
             dragging = false;
             scrubTo(fraction, true);
         });
+        volume.setTooltip(VOLUME);
+        volume.setValue(100);
+        volume.onChange(value -> {
+            level = value / 100f;
+            muted = level <= 0;
+            applyGain();
+            mute.invalidate();
+        });
+        // Hidden by visibility rather than absence, because the answer changes on the refresh
+        // heartbeat, which runs inside a paint: a row drops an invisible child from its layout,
+        // and toggling a flag mid-paint is safe where re-adding children is not.
+        mute.setVisible(false);
+        volumeBox.setVisible(false);
         rebuild();
         add(row);
     }
@@ -174,11 +225,99 @@ public class MediaControls extends Widget {
         return this;
     }
 
+    /** Whether the mute button and volume slider are offered (default {@link Sound#AUTO}). */
+    public MediaControls setSound(Sound mode) {
+        sound = Objects.requireNonNull(mode, "mode");
+        updateSoundCluster();
+        return this;
+    }
+
+    /**
+     * Volume in {@code [0, 1]}, applied as a gain on the soundtrack the player holds; zero also
+     * mutes. This is what unmuting restores.
+     */
+    public MediaControls setVolume(float newLevel) {
+        level = Math.max(0f, Math.min(1f, newLevel));
+        muted = level <= 0;
+        syncVolume();
+        applyGain();
+        mute.invalidate();
+        return this;
+    }
+
+    /** The volume unmuting restores, in {@code [0, 1]}. */
+    public float volume() {
+        return level;
+    }
+
+    /**
+     * Gain zero and never a teardown: a mute that closed the stream would cost a decoder flush
+     * every time somebody silenced a video for a moment.
+     */
+    public MediaControls setMuted(boolean newMuted) {
+        muted = newMuted;
+        if (!muted && level <= 0) {
+            level = 0.7f; // unmuting a slider dragged to zero has to go somewhere
+        }
+        syncVolume();
+        applyGain();
+        mute.invalidate();
+        return this;
+    }
+
+    /** Whether the soundtrack is silenced (gain zero; the stream keeps running). */
+    public boolean isMuted() {
+        return muted;
+    }
+
+    private void updateSoundCluster() {
+        boolean want = switch (sound) {
+            case ON -> true;
+            case OFF -> false;
+            case AUTO -> view.player() != null && view.player().hasAudio();
+        };
+        if (want != soundShown) {
+            soundShown = want;
+            mute.setVisible(want);
+            volumeBox.setVisible(want);
+            markNeedsLayout();
+        }
+    }
+
+    /** Keeps the thumb saying what the state says; guarded, because {@code setValue} invalidates. */
+    private void syncVolume() {
+        float wanted = muted ? 0 : Math.round(level * 100);
+        if (wanted != volume.value()) {
+            volume.setValue(wanted);
+        }
+    }
+
+    /**
+     * Writes the level onto whatever handle is sounding now. The handle is not stable — every
+     * restart builds a new one, and a gain set on the previous one is a gain set on nothing — so
+     * this runs on the heartbeat, guarded on both the handle and the value.
+     */
+    private void applyGain() {
+        Playback handle = view.player() != null ? view.player().audio() : Playback.NONE;
+        float gain = muted ? 0 : level;
+        if (handle != appliedHandle || gain != appliedGain) {
+            appliedHandle = handle;
+            appliedGain = gain;
+            handle.setGain(gain);
+        }
+    }
+
     private void rebuild() {
         for (Widget child : List.copyOf(row.children())) {
             row.remove(child);
         }
         row.add(playPause);
+        // Fixed and small, before the scrub bar: the timeline is the control that should take
+        // whatever width is left, and a volume bar as long as a film reads as a second timeline.
+        // This is also the order a browser puts them in. Visibility, not membership, says
+        // whether the pair is offered.
+        row.add(mute);
+        row.add(volumeBox);
         for (Widget widget : leading) {
             row.add(widget);
         }
@@ -255,6 +394,15 @@ public class MediaControls extends Widget {
             playPause.setTooltip(paused ? PLAY : PAUSE);
             playPause.invalidate();
         }
+        updateSoundCluster();
+        if (soundShown) {
+            if (showingMuted == null || showingMuted != muted) {
+                showingMuted = muted;
+                mute.setTooltip(muted ? UNMUTE : MUTE);
+            }
+            syncVolume();
+            applyGain();
+        }
         long at = view.positionMicros();
         if (!dragging && length > 0) {
             bar.setValue(Math.max(0, Math.min(bar.max(), at / (float) length * bar.max())));
@@ -302,24 +450,28 @@ public class MediaControls extends Widget {
         long seconds = Math.max(0, micros) / 1_000_000L;
         return seconds / 60 + ":" + (seconds % 60 < 10 ? "0" : "") + seconds % 60;
     }
-
     /**
-     * The one control with no widget to borrow: a square button whose glyph is drawn ink. The
-     * triangle points the way the tape runs and <b>never mirrors</b>, for the reason the whole
-     * bar declares {@code LTR}; it survives even a caller who re-declares the bar to follow a
-     * right-to-left tree, because a play glyph is a universal mark, like a check.
+     * The activation scaffolding the two icon buttons share: a square box, a hover veil, the
+     * focus ring, and press/Space/Enter arming. Subclasses draw their mark and say what firing
+     * does.
      */
-    private final class PlayPause extends Widget {
+    private abstract class IconButton extends Widget {
 
-        private final Path2D glyph = new Path2D();
+        final Path2D glyph = new Path2D();
         private boolean armed;
         private boolean keyArmed;
         private float hover;
 
-        PlayPause() {
+        IconButton() {
             setFocusable(true);
             setCursor(limn.backend.Cursor.POINTER);
         }
+
+        /** Draws the button's mark into the {@code box}-sized square at {@code (x, y)}. */
+        abstract void paintGlyph(Canvas canvas, float x, float y, float box, Color glyphInk);
+
+        /** What a click, Space or Enter does. */
+        abstract void activate();
 
         @Override
         protected Size onMeasure(Constraints constraints) {
@@ -350,30 +502,7 @@ public class MediaControls extends Widget {
                     ? (ink != null ? ink : theme.text)
                     : (mutedInk != null ? mutedInk : theme.textMuted);
             float box = Theme.current().tokensFor(this).iconBox();
-            float x = (width() - box) / 2;
-            float y = (height() - box) / 2;
-            if (view.isPaused()) {
-                // Play: a triangle pointing the way the tape runs, in any language.
-                glyph.reset();
-                glyph.moveTo(x + box * 0.2f, y)
-                        .lineTo(x + box * 0.95f, y + box / 2)
-                        .lineTo(x + box * 0.2f, y + box)
-                        .close();
-                canvas.fillPath(glyph, glyphInk);
-            } else {
-                float barW = box * 0.28f;
-                canvas.fillRect(x + box * 0.15f, y, barW, box, glyphInk);
-                canvas.fillRect(x + box * 0.6f, y, barW, box, glyphInk);
-            }
-        }
-
-        private void toggle() {
-            if (!isEnabled()) {
-                return;
-            }
-            view.setPaused(!view.isPaused());
-            refresh();
-            invalidate();
+            paintGlyph(canvas, (width() - box) / 2, (height() - box) / 2, box, glyphInk);
         }
 
         @Override
@@ -403,7 +532,9 @@ public class MediaControls extends Widget {
                 case CLICK -> {
                     if (event.button() == limn.input.Keys.MOUSE_LEFT) {
                         event.consume();
-                        toggle();
+                        if (isEnabled()) {
+                            activate();
+                        }
                     }
                 }
                 default -> {
@@ -425,10 +556,86 @@ public class MediaControls extends Widget {
                 keyArmed = false;
                 invalidate();
                 event.consume();
-                if (fire) {
-                    toggle();
+                if (fire && isEnabled()) {
+                    activate();
                 }
             }
+        }
+    }
+
+    /**
+     * Play/pause. The triangle points the way the tape runs and <b>never mirrors</b>, for the
+     * reason the whole bar declares {@code LTR}; it survives even a caller who re-declares the
+     * bar to follow a right-to-left tree, because a play glyph is a universal mark, like a check.
+     */
+    private final class PlayPause extends IconButton {
+
+        @Override
+        void paintGlyph(Canvas canvas, float x, float y, float box, Color glyphInk) {
+            if (view.isPaused()) {
+                // Play: a triangle pointing the way the tape runs, in any language.
+                glyph.reset();
+                glyph.moveTo(x + box * 0.2f, y)
+                        .lineTo(x + box * 0.95f, y + box / 2)
+                        .lineTo(x + box * 0.2f, y + box)
+                        .close();
+                canvas.fillPath(glyph, glyphInk);
+            } else {
+                float barW = box * 0.28f;
+                canvas.fillRect(x + box * 0.15f, y, barW, box, glyphInk);
+                canvas.fillRect(x + box * 0.6f, y, barW, box, glyphInk);
+            }
+        }
+
+        @Override
+        void activate() {
+            view.setPaused(!view.isPaused());
+            refresh();
+            invalidate();
+        }
+    }
+
+    /**
+     * Mute. Unlike the play triangle, the speaker <b>does mirror</b> with the widget: its waves
+     * emanate forward, and forward is a reading direction — the icon guidance's own example of a
+     * mark that flips. On the default left-to-right bar this changes nothing.
+     */
+    private final class MuteButton extends IconButton {
+
+        @Override
+        void paintGlyph(Canvas canvas, float x, float y, float box, Color glyphInk) {
+            boolean rtl = layoutDirection() == LayoutDirection.RTL;
+            // Horizontal mirror of a fraction of the box, so every mark below is written once.
+            float leftEdge = x;
+            float px0 = rtl ? leftEdge + box * (1 - 0.05f) : leftEdge + box * 0.05f;
+            float px1 = rtl ? leftEdge + box * (1 - 0.30f) : leftEdge + box * 0.30f;
+            float px2 = rtl ? leftEdge + box * (1 - 0.52f) : leftEdge + box * 0.52f;
+            glyph.reset();
+            glyph.moveTo(px0, y + box * 0.35f)
+                    .lineTo(px1, y + box * 0.35f)
+                    .lineTo(px2, y + box * 0.12f)
+                    .lineTo(px2, y + box * 0.88f)
+                    .lineTo(px1, y + box * 0.65f)
+                    .lineTo(px0, y + box * 0.65f)
+                    .close();
+            canvas.fillPath(glyph, glyphInk);
+            if (muted) {
+                float sx0 = rtl ? leftEdge + box * (1 - 0.60f) : leftEdge + box * 0.60f;
+                float sx1 = rtl ? leftEdge + box * (1 - 0.95f) : leftEdge + box * 0.95f;
+                canvas.drawLine(sx0, y + box * 0.30f, sx1, y + box * 0.70f,
+                        Strokes.ARROW_PEN, glyphInk);
+            } else {
+                float wx = rtl ? leftEdge + box * (1 - 0.64f) : leftEdge + box * 0.64f;
+                float wc = rtl ? leftEdge + box * (1 - 0.92f) : leftEdge + box * 0.92f;
+                glyph.reset();
+                glyph.moveTo(wx, y + box * 0.28f).quadTo(wc, y + box * 0.5f, wx, y + box * 0.72f);
+                canvas.drawPath(glyph, Strokes.ARROW_PEN, glyphInk);
+            }
+        }
+
+        @Override
+        void activate() {
+            setMuted(!muted);
         }
     }
 }
