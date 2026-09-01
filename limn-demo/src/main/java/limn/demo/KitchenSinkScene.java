@@ -172,10 +172,18 @@ final class KitchenSinkScene {
                 Line 7
                 Line 8
                 Line 9, the end of the text.""");
+        // The switch exercises TextArea.setSoftWrap live: the long first line wraps into rows,
+        // the horizontal scrollbar goes quiet, and toggling back restores the scrolling axis.
+        Checkbox softWrap = new Checkbox(Checkbox.Variant.SWITCH, KitchenStrings.TEXT_SOFT_WRAP);
+        softWrap.onChange(notes::setSoftWrap);
+        Row multilineHeader = new Row();
+        multilineHeader.gap(20).crossAlignment(Flex.CrossAlignment.CENTER);
+        multilineHeader.add(new Label(KitchenStrings.TEXT_MULTILINE).setMuted(true));
+        multilineHeader.add(softWrap);
         Column textTab = tabColumn();
         textTab.add(new Label(KitchenStrings.TEXT_ELLIPSIS).setMuted(true));
         textTab.add(ellipsis);
-        textTab.add(new Label(KitchenStrings.TEXT_MULTILINE).setMuted(true));
+        textTab.add(multilineHeader);
         textTab.add(Expanded.of(notes, 1));
 
         // --- Tab: Actions -------------------------------------------------

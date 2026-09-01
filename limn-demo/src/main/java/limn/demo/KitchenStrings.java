@@ -50,6 +50,8 @@ final class KitchenStrings {
             new I18nString("kitchen.text.ellipsis", "Measured ellipsis at 3 widths");
     static final I18nString TEXT_MULTILINE =
             new I18nString("kitchen.text.multiline", "Multiline TextArea");
+    static final I18nString TEXT_SOFT_WRAP =
+            new I18nString("kitchen.text.softWrap", "Soft wrap");
     static final I18nString SAVE =
             new I18nString("kitchen.action.save", "Save");
     static final I18nString SAVED =
