@@ -176,6 +176,15 @@ decision with a reason, not an oversight to improve on:
 - **`HOME` and `END`** stay logical everywhere, so `Shift+Home` produces one contiguous range of the
   string.
 
+One site is decided the *other* way, and recorded here because practice outside is split: a
+**cartesian chart's data axis mirrors**. Values and categories run right to left in a
+right-to-left tree — the way a spreadsheet lays a chart in Arabic, and the way Apple's guidance
+treats a sequence whose order carries meaning — while much of the web keeps chart axes left to
+right and mirrors only the chrome. Limn sides with the spreadsheet, and the gutter, legend and
+labels mirror with the tree either way. The case the other convention exists for is a series whose
+axis is *time*, which per the rule above should not follow the reading order: a time-series chart
+pins itself `LTR` at the call site, the same declared-direction knob a media transport uses.
+
 Directional *characters* need nothing from any of this: the shaper already applies Unicode bidi
 mirroring, so a bracket already comes back as a different glyph under a right-to-left base. Never
 add a bracket flip anywhere.
