@@ -169,10 +169,11 @@ public final class Gallery {
         // published that language onto an English page.
         //
         // The layout direction is pinned beside it, and for the same reason in a second
-        // dimension: it is a process default that any earlier code in this JVM may have moved,
-        // and a gallery published inside out is the same bug wearing a different hat. The site
-        // has no right-to-left locale and this pin is what keeps it that way on purpose rather
-        // than by luck.
+        // dimension: it is a process default that any earlier code in this JVM may have moved —
+        // the showcase's one right-to-left entry moves it on purpose — and a component still
+        // published inside out is the same bug wearing a different hat. The component gallery
+        // is English left-to-right by decision; the mirrored window belongs to the showcase,
+        // where a whole screen can show it honestly.
         List<Shot> shots = new ArrayList<>();
         for (GalleryEntry entry : entries) {
             GalleryEntry english = new GalleryEntry(entry.id(), entry.title(), entry.region(),
@@ -281,6 +282,10 @@ public final class Gallery {
                         "showcase-" + entry.id(), entry.title(), null,
                         () -> {
                             limn.i18n.I18n.setLocale(entry.locale());
+                            // Per entry, exactly like the locale beside it: the process default
+                            // is sticky, so the entry after the right-to-left one would
+                            // otherwise photograph mirrored.
+                            limn.scene.LayoutDirection.setProcessDefault(entry.direction());
                             Scene scene = entry.builder().apply(palette.theme());
                             return entry.filmed()
                                     ? GalleryScenes.filmable(scene, scene.root())

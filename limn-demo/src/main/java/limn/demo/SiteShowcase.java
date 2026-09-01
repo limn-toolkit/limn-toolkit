@@ -4,6 +4,7 @@ import limn.components.Theme;
 import limn.graphics.Color;
 import limn.graphics.Fonts;
 import limn.scene.ControlSize;
+import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 
 import java.util.ArrayList;
@@ -44,23 +45,44 @@ public final class SiteShowcase {
      *               is worth photographing. Almost none do, and it is the most expensive thing
      *               an entry can ask for: see {@link #settling()} for what buys it
      */
-    public record Entry(String id, String title, Locale locale, boolean paletteInvariant,
-                        boolean warmUpPass, boolean filmed, boolean settles,
-                        Function<Theme, Scene> builder) {
+    public record Entry(String id, String title, Locale locale, LayoutDirection direction,
+                        boolean paletteInvariant, boolean warmUpPass, boolean filmed,
+                        boolean settles, Function<Theme, Scene> builder) {
 
         /** The ordinary case: the scene is built once per palette and looks different in each. */
         public Entry(String id, String title, Locale locale, Function<Theme, Scene> builder) {
-            this(id, title, locale, false, false, false, false, builder);
+            this(id, title, locale, LayoutDirection.LTR, false, false, false, false, builder);
         }
 
         /** Palette-invariant, captured once: the common case for a scene that pins its own theme. */
         public Entry(String id, String title, Locale locale, boolean paletteInvariant,
                 Function<Theme, Scene> builder) {
-            this(id, title, locale, paletteInvariant, false, false, false, builder);
+            this(id, title, locale, LayoutDirection.LTR, paletteInvariant, false, false, false,
+                    builder);
+        }
+
+        /**
+         * The flag-bearing case, kept at the old primary's shape so its callers state the flags
+         * and nothing else. Left to right: the one right-to-left entry says so through
+         * {@link #rtl()}, because a direction is never derived from the locale beside it — the
+         * capture list follows the same rule the toolkit does (ADR 032).
+         */
+        public Entry(String id, String title, Locale locale, boolean paletteInvariant,
+                boolean warmUpPass, boolean filmed, boolean settles,
+                Function<Theme, Scene> builder) {
+            this(id, title, locale, LayoutDirection.LTR, paletteInvariant, warmUpPass, filmed,
+                    settles, builder);
+        }
+
+        /** The same entry, captured under a right-to-left layout axis. */
+        public Entry rtl() {
+            return new Entry(id, title, locale, LayoutDirection.RTL, paletteInvariant, warmUpPass,
+                    filmed, settles, builder);
         }
 
         /**
          * The same entry, marked as one the shutter must wait on.
+         * Preserves every other axis, the direction included.
          *
          * <p><b>Only a screen with something on a real clock in it.</b> The settle is wall-clock,
          * it is measured in seconds, and it is paid once per palette, so marking a screen that
@@ -72,8 +94,8 @@ public final class SiteShowcase {
          * and the 3D window, whose first frame can present before its geometry does.
          */
         public Entry settling() {
-            return new Entry(id, title, locale, paletteInvariant, warmUpPass, filmed, true,
-                    builder);
+            return new Entry(id, title, locale, direction, paletteInvariant, warmUpPass, filmed,
+                    true, builder);
         }
     }
 
@@ -87,6 +109,12 @@ public final class SiteShowcase {
             entries.add(new Entry("kitchen-" + tag, "The kitchen sink in " + tag,
                     Locale.forLanguageTag(tag), SiteShowcase::kitchen).settling());
         }
+        // The one right-to-left capture: the whole window under the Arabic bundle with the
+        // direction axis flipped, which is the only honest picture of layout mirroring — a
+        // mirrored screen is a property of the window, not of any crop of it. The direction
+        // is stated by rtl() rather than read off the locale, the same rule the toolkit keeps.
+        entries.add(new Entry("kitchen-ar", "The kitchen sink in Arabic, right to left",
+                Locale.forLanguageTag("ar"), SiteShowcase::kitchen).rtl().settling());
         // Palette-invariant: the 3D scene picks its own sky, ground and materials, and the
         // window around it carries nothing else, so the two palettes render the same pixels.
         //
