@@ -1083,7 +1083,12 @@ first written, so their fixes could be judged alone.
   a detached widget gets — stamps 0 and measures everything as zero-width. A widget whose first
   shaping happened while detached holds a zero-width line that every real ruler afterwards certifies
   as current. Pre-existing, from ADR 031's held-value idiom, and reachable by any test that measures
-  a detached tree. **Still open**, and the only entry here that is.
+  a detached tree. *Since closed:* `NONE` now stamps a reserved epoch of its own — negative, so it
+  collides neither with the 0 a fake inherits nor with the process-wide counter, which starts at 1.
+  The epoch-0 exemption stays what it was, for fakes and for unstamped geometry; a line shaped while
+  detached is still current under `NONE` itself, so a detached widget shapes once, and goes stale
+  under the first real ruler, which is the moment a right answer exists. The test shapes through
+  `NONE` and asserts both halves.
 - **`Scene.windowClosed` unsubscribes three of its four global listeners**, omitting `I18n`. The new
   axis is handled; the omission is pre-existing and is the exact symmetry the axis review looked for.
   *Since closed:* the fourth removal now stands beside the other three, and a test closes a bound

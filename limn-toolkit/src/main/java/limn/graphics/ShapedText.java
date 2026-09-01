@@ -271,7 +271,9 @@ public final class ShapedText {
      * <p>A value carrying epoch {@code 0} is current under every ruler, which is right for a fake
      * and for geometry that no ruler produced. That exemption is the ruler's alone: a fake's
      * direction still has to agree, because the direction is a property of the value and not of
-     * the machinery that produced it.
+     * the machinery that produced it. {@link TextRuler#NONE} deliberately declines the exemption
+     * &mdash; it stamps a reserved epoch of its own, so a line shaped while a widget was detached
+     * goes stale under the first real ruler instead of staying a zero-width answer forever.
      *
      * @param text  the string the caller is about to draw
      * @param font  the font it will be drawn in

@@ -1331,6 +1331,26 @@ class ShapedTextTest {
     }
 
     @Test
+    void aLineShapedWhileDetachedGoesStaleUnderTheFirstRealRuler() {
+        // TextRuler.NONE is what a detached widget shapes against. Its answers are placeholders —
+        // everything measures as zero — so it stamps a reserved epoch rather than the 0 a fake
+        // inherits: 0 would certify the zero-width line as current under every real ruler forever.
+        ShapedText detached = TextRuler.NONE.shape("abc", FONT, Direction.LTR);
+        assertNotEquals(0, detached.epoch(),
+                "NONE must not claim the depends-on-no-ruler-state exemption");
+        assertEquals(0, detached.metrics().width());
+
+        // Under NONE itself the value is current, so a widget that stays detached shapes once,
+        // not once per layout pass.
+        assertTrue(detached.matches("abc", FONT, Direction.LTR, TextRuler.NONE));
+
+        // Under a real ruler it is stale, whatever epoch the process-wide counter has reached.
+        assertFalse(detached.matches("abc", FONT, Direction.LTR, rulerAt(1)),
+                "the first real ruler must re-shape a line shaped while detached");
+        assertFalse(detached.matches("abc", FONT, Direction.LTR, rulerAt(9999)));
+    }
+
+    @Test
     void twoShapingsOfTheSameStringAreEqualAnswersAndNotEqualObjects() {
         // Equality is identity: the question a widget actually has is matches(), which is
         // different and cheaper, and folding an epoch into equals would produce a value whose

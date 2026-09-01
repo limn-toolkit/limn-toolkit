@@ -13,8 +13,32 @@ import java.text.BreakIterator;
 @FunctionalInterface
 public interface TextRuler {
 
-    /** A ruler that measures everything as zero (detached widgets, tests). */
-    TextRuler NONE = (text, font) -> new TextMetrics(0, 0, 0, 0);
+    /**
+     * A ruler that measures everything as zero: what a detached widget gets, and what
+     * {@link TextRulers} serves before a backend installs a real one.
+     *
+     * <p>Its {@link #epoch()} is a reserved value no other ruler ever answers, and deliberately not
+     * the {@code 0} a lambda inherits from the default. Epoch {@code 0} means "depends on no ruler
+     * state" and is current under every ruler &mdash; right for a test fake, whose answers are the
+     * answers. This ruler's answers are placeholders: a line shaped against it must go stale the
+     * moment a real ruler can be asked, or a widget whose first shaping happened while detached
+     * would hold a zero-width line that every real ruler afterwards certified as current
+     * (ADR 032 &sect;9.6). Under this ruler itself the stamp still matches, so a detached widget
+     * shapes once, not once per layout pass.
+     */
+    TextRuler NONE = new TextRuler() {
+        @Override
+        public TextMetrics measure(String text, Font font) {
+            return new TextMetrics(0, 0, 0, 0);
+        }
+
+        @Override
+        public long epoch() {
+            // Negative, so it can collide neither with the 0 a fake inherits nor with the
+            // process-wide counter real rulers draw from, which starts at 1 and only grows.
+            return -1;
+        }
+    };
 
     /**
      * Measures {@code text} in {@code font}, in logical points, <b>on the UI thread</b>. An
