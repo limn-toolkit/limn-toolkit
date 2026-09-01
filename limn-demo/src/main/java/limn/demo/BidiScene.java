@@ -2,6 +2,7 @@ package limn.demo;
 
 import limn.components.Label;
 import limn.components.ScrollView;
+import limn.components.Spinner;
 import limn.components.TextField;
 import limn.components.Theme;
 import limn.graphics.Font;
@@ -13,6 +14,8 @@ import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
+
+import java.util.Locale;
 
 /**
  * The four scripts a per-code-point pipeline cannot draw, and the algorithm that puts them in
@@ -38,6 +41,12 @@ import limn.scene.layout.SizedBox;
  * reader of the script expects, and whether a caret dragged through them lands where a hand
  * meant it to. Hence the editable fields. The specimens can be read; those two can be argued
  * with.
+ *
+ * <p>One block is a specimen of <em>resolution</em> rather than of shaping: the same bundle
+ * string and the same spinner value twice, once inheriting the window's locale and once under
+ * a column that declares Arabic (ADR 035). Every visible difference between the halves is the
+ * declaration at work, and in the kitchen sink's Scripts tab the language picker makes the
+ * other half of the claim — it moves the inheriting pair and cannot reach the pinned one.
  */
 final class BidiScene {
 
@@ -87,6 +96,12 @@ final class BidiScene {
 
     /** The Latin run the mixed lines and the editable fields put inside right-to-left text. */
     private static final String ISLAND = "Limn UI 2026";
+
+    /** The locale the pinned pair declares: the one whose digits make the pin visible. */
+    private static final Locale ARABIC = Locale.forLanguageTag("ar");
+
+    /** What both spinners hold, so the digits are the only thing the declaration moves. */
+    private static final double PINNED_VALUE = 42;
 
     /** Wide enough for a 24 pt specimen, narrow enough to leave the paragraphs their column. */
     private static final float SPECIMEN_COLUMN = 400;
@@ -211,6 +226,13 @@ final class BidiScene {
         column.add(arabic);
         column.add(hebrew);
 
+        // Wrapped, unlike its sibling captions: the second half is the instruction — switch
+        // the window's language and watch which pair follows — and an ellipsis eats it.
+        column.add(new SizedBox(PARAGRAPH_COLUMN, SizedBox.UNSET,
+                caption("Pinned locale — the right pair declares Arabic; the window's"
+                        + " language moves only the left").setWrap(true)));
+        column.add(pinnedLocalePair());
+
         column.add(paragraph("Wrapped Arabic",
                 "هذه فقرة عربية تلتف على عدة أسطر داخل عمود ثابت، ومكان القطع"
                         + " تحدده حدود يونيكود لا عدُّ الحروف."));
@@ -226,6 +248,35 @@ final class BidiScene {
         column.add(paragraph("Wrapped Thai — not one space in it",
                 "ภาษาไทยไม่เว้นวรรคระหว่างคำการขึ้นบรรทัดใหม่จึงต้องอาศัยตัวแบ่งบรรทัดแทนช่องว่าง"));
         return column;
+    }
+
+    /**
+     * ADR 035 as a widget pair: the right half sits under a column that declares
+     * {@link #ARABIC}, and nothing else about it differs from the left one. The label is a
+     * kitchen-bundle string the sink already ships — this scene adds no translation of its
+     * own — so الإشعارات over Notifications is the subtree's string lookup, and ٤٢ over 42
+     * is ADR 033's format-time seam reading the effective locale instead of the process
+     * one. Both spinners are live: type into the pinned one and the Arabic-Indic digits it
+     * shows are the digits it takes.
+     */
+    private static Widget pinnedLocalePair() {
+        Row row = new Row();
+        row.gap(COLUMN_GAP).crossAlignment(Flex.CrossAlignment.START);
+        row.add(pinnedHalf(null));
+        row.add(pinnedHalf(ARABIC));
+        return row;
+    }
+
+    /** One half of the pair: a bundle label over a spinner, pinned when a locale is given. */
+    private static Widget pinnedHalf(Locale pin) {
+        Column half = new Column();
+        half.gap(4).crossAlignment(Flex.CrossAlignment.START);
+        half.add(new Label(KitchenStrings.NOTIFICATIONS));
+        half.add(new Spinner(0, 100, 1).setValue(PINNED_VALUE));
+        if (pin != null) {
+            half.setLocale(pin);
+        }
+        return half;
     }
 
     /** A caption and the word it describes, at a size the marks are legible at. */
