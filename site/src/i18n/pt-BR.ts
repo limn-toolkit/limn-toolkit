@@ -110,7 +110,7 @@ export const ptBR: Catalog = {
 
   "home.languages.heading": "Nos idiomas dos seus usuários",
   "home.languages.body":
-    "O texto é medido com os mesmos avanços com que é desenhado, e o fallback de fonte roda caractere a caractere, então latino, grego, cirílico e CJK se misturam em uma mesma string sem você escolher tipografia. Os métodos de entrada compõem dentro do campo, e a edição anda por cluster de grafema, então marcas combinantes e emoji de várias partes nunca são partidos ao meio.",
+    "O texto é medido com os mesmos avanços com que é desenhado, e o fallback de fonte roda caractere a caractere, então latino, grego, cirílico e CJK se misturam em uma mesma string sem você escolher tipografia. Os métodos de entrada compõem dentro do campo, e a edição anda por cluster de grafema, então marcas combinantes e emoji de várias partes nunca são partidos ao meio. E a direita para a esquerda não é só shaping: a direção é um eixo que a subárvore herda, então uma janela em hebraico se espelha — e ainda pode conter um painel de código da esquerda para a direita.",
   "home.languages.alt":
     "A mesma tela capturada em japonês, chinês simplificado, coreano e russo, costurada em uma única janela.",
   "home.languages.link": "Leia o guia de texto",
@@ -120,9 +120,9 @@ export const ptBR: Catalog = {
   "home.limits.heading": "O que o Limn não faz",
   "home.limits.body":
     "Todo toolkit troca alguma coisa. Estas são as trocas, ditas de saída, porque descobri-las na terceira semana é pior do que lê-las agora.",
-  "home.limits.scripts.heading": "O texto tem shaping; o leiaute não é espelhado",
+  "home.limits.scripts.heading": "Somente texto horizontal",
   "home.limits.scripts.body":
-    "O árabe, o hebraico, o devanágari e o tailandês se unem, se reordenam e posicionam suas marcas onde quer que haja texto: dentro de Label, TextField e TextArea, e em cada botão, aba, item de menu e texto de espera ao redor deles; os pacotes ar e he são publicados. O que um idioma da direita para a esquerda não ganha é o leiaute: recuos, alinhamento, o lado em que fica uma barra de rolagem, o lado em que um menu suspenso abre e o lado para onde uma tecla de seta leva quando o foco não está em um campo de texto — tudo vai da esquerda para a direita, seja qual for o idioma.",
+    "O árabe, o hebraico, o devanágari e o tailandês têm shaping onde quer que haja texto, o leiaute é espelhado por um eixo herdado da direita para a esquerda, e dígitos, ordenação e maiúsculas seguem o idioma — os pacotes ar e he são publicados, com um Bold para cada escrita. O que não existe é escrita vertical: nada de colunas de cima para baixo, nenhum segundo eixo atravessando o leiaute. Linhas quebram; não são justificadas.",
   "home.limits.a11y.heading": "Sem ponte para leitores de tela",
   "home.limits.a11y.body":
     "A navegação por teclado e os anéis de foco estão completos, mas nada é exposto às APIs de acessibilidade da plataforma. Se um leitor de tela precisa funcionar, este ainda não é o toolkit para essa aplicação.",
@@ -154,7 +154,10 @@ export const ptBR: Catalog = {
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn: Telas",
   "showcase.description":
-    "Telas inteiras renderizadas pelo toolkit: a aplicação de demonstração, o viewport 3D, um formulário, uma janela com layout e a mesma tela em quatro idiomas.",
+    "Telas inteiras renderizadas pelo toolkit: a aplicação de demonstração, a mesma janela espelhada da direita para a esquerda, o viewport 3D, um formulário e uma janela com layout.",
+  "showcase.rtl.heading": "A mesma janela, da direita para a esquerda",
+  "showcase.rtl.body":
+    "A aplicação de demonstração sob o pacote árabe com o eixo de direção invertido: a barra de menus, as abas, os campos, as barras de rolagem e o rodapé de desempenho passam a ler a partir da direita, e o texto dentro deles se une e se reordena como o árabe pede. Nenhuma tela foi reescrita — a direção é um eixo herdado, definido como se define um tamanho de controle.",
   "showcase.eyebrow": "Telas inteiras",
   "showcase.heading": "Telas",
   "showcase.lede":

@@ -111,7 +111,7 @@ export const de: Catalog = {
 
   "home.languages.heading": "In den Sprachen Ihrer Nutzer",
   "home.languages.body":
-    "Text wird mit denselben Vorschüben gemessen, mit denen er gezeichnet wird, und der Schrift-Fallback läuft pro Zeichen, so mischen sich Latein, Griechisch, Kyrillisch und CJK in einer Zeichenkette, ohne dass Sie eine Schrift wählen. Eingabemethoden komponieren im Feld selbst, und die Bearbeitung bewegt sich in Graphem-Clustern, sodass kombinierende Zeichen und mehrteilige Emoji nie zerteilt werden.",
+    "Text wird mit denselben Vorschüben gemessen, mit denen er gezeichnet wird, und der Schrift-Fallback läuft pro Zeichen, so mischen sich Latein, Griechisch, Kyrillisch und CJK in einer Zeichenkette, ohne dass Sie eine Schrift wählen. Eingabemethoden komponieren im Feld selbst, und die Bearbeitung bewegt sich in Graphem-Clustern, sodass kombinierende Zeichen und mehrteilige Emoji nie zerteilt werden. Rechts nach links ist mehr als Formung: die Richtung ist eine Achse, die ein Teilbaum erbt — ein hebräisches Fenster spiegelt sich und kann trotzdem eine links-nach-rechts gesetzte Codeansicht enthalten.",
   "home.languages.alt":
     "Derselbe Bildschirm, aufgenommen auf Japanisch, vereinfachtem Chinesisch, Koreanisch und Russisch, zu einem Fenster zusammengesetzt.",
   "home.languages.link": "Zum Text-Leitfaden",
@@ -122,9 +122,9 @@ export const de: Catalog = {
   "home.limits.heading": "Was Limn nicht kann",
   "home.limits.body":
     "Jedes Toolkit tauscht etwas ein. Das sind die Tauschgeschäfte, vorab genannt; sie in Woche drei zu entdecken ist schlimmer, als sie jetzt zu lesen.",
-  "home.limits.scripts.heading": "Text wird geformt, das Layout nicht gespiegelt",
+  "home.limits.scripts.heading": "Nur horizontaler Text",
   "home.limits.scripts.body":
-    "Arabisch, Hebräisch, Devanagari und Thai verbinden sich, stellen sich um und setzen ihre Zeichen richtig — überall, wo Text gezeichnet wird: in Label, TextField und TextArea ebenso wie auf jeder Schaltfläche, jedem Reiter, jedem Menüeintrag und jedem Platzhalter ringsum; die Bündel ar und he werden ausgeliefert. Was eine von rechts nach links gelesene Sprache nicht bekommt, ist das Layout: Innenabstände, Ausrichtung, die Seite, auf der eine Bildlaufleiste sitzt, die Seite, auf der ein Popup aufgeht, und die Richtung, in die eine Pfeiltaste außerhalb eines Textfelds den Fokus bewegt — alles läuft von links nach rechts, gleich welche Sprache.",
+    "Arabisch, Hebräisch, Devanagari und Thai werden überall geformt, wo Text gezeichnet wird, das Layout spiegelt sich entlang einer vererbten Rechts-nach-links-Achse, und Ziffern, Sortierung und Groß-/Kleinschreibung folgen der Sprache — die Bündel ar und he werden ausgeliefert, mit einem Bold für jede Schrift. Was fehlt, ist vertikales Schreiben: keine Spalten von oben nach unten, keine zweite Achse durch das Layout. Zeilen brechen um; Blocksatz gibt es nicht.",
   "home.limits.a11y.heading": "Keine Screenreader-Brücke",
   "home.limits.a11y.body":
     "Tastaturnavigation und Fokusringe sind vollständig, aber nichts wird an die Barrierefreiheits-APIs der Plattform gemeldet. Wenn ein Screenreader funktionieren muss, ist dies für diese Anwendung noch nicht das richtige Toolkit.",
@@ -156,7 +156,10 @@ export const de: Catalog = {
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn: Oberflächen",
   "showcase.description":
-    "Ganze Oberflächen, vom Toolkit gerendert: die Demo-Anwendung, der 3D-Viewport, ein Formular, ein gesetztes Fenster und dieselbe Oberfläche in vier Sprachen.",
+    "Ganze Oberflächen, vom Toolkit gerendert: die Demo-Anwendung, dasselbe Fenster von rechts nach links gespiegelt, der 3D-Viewport, ein Formular und ein gesetztes Fenster.",
+  "showcase.rtl.heading": "Dasselbe Fenster, von rechts nach links",
+  "showcase.rtl.body":
+    "Die Demo-Anwendung unter dem ar-Bündel mit umgekehrter Richtungsachse: Menüleiste, Reiter, Felder, Bildlaufleisten und die Leistungsfußzeile lesen von rechts, und der Text darin verbindet und ordnet sich, wie Arabisch es verlangt. Kein Bildschirm wurde umgeschrieben — die Richtung ist eine vererbte Achse, gesetzt wie eine Steuerelementgröße.",
   "showcase.eyebrow": "Ganze Oberflächen",
   "showcase.heading": "Oberflächen",
   "showcase.lede":

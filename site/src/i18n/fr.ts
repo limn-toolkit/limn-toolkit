@@ -111,7 +111,7 @@ export const fr: Catalog = {
 
   "home.languages.heading": "Dans les langues de vos utilisateurs",
   "home.languages.body":
-    "Le texte est mesuré avec les mêmes avances que celles de son tracé, et le repli de police se fait caractère par caractère. Latin, grec, cyrillique et CJC se mélangent donc dans une même chaîne sans que vous choisissiez de fonte. Les méthodes de saisie composent dans le champ, et l’édition avance par groupe de graphèmes : les signes combinants et les émojis en plusieurs parties ne sont jamais coupés.",
+    "Le texte est mesuré avec les mêmes avances que celles de son tracé, et le repli de police se fait caractère par caractère. Latin, grec, cyrillique et CJC se mélangent donc dans une même chaîne sans que vous choisissiez de fonte. Les méthodes de saisie composent dans le champ, et l’édition avance par groupe de graphèmes : les signes combinants et les émojis en plusieurs parties ne sont jamais coupés. Et droite-à-gauche ne se limite pas au façonnage : la direction est un axe qu’un sous-arbre hérite, si bien qu’une fenêtre en hébreu se met en miroir — tout en pouvant contenir un panneau de code de gauche à droite.",
   "home.languages.alt":
     "Le même écran capturé en japonais, chinois simplifié, coréen et russe, assemblé en une seule fenêtre.",
   "home.languages.link": "Lire le guide du texte",
@@ -122,9 +122,9 @@ export const fr: Catalog = {
   "home.limits.heading": "Ce que Limn ne fait pas",
   "home.limits.body":
     "Toute boîte à outils échange quelque chose. Voici ces échanges, annoncés d’emblée, parce que les découvrir la troisième semaine est pire que les lire maintenant.",
-  "home.limits.scripts.heading": "Le texte est façonné, la mise en page n’est pas en miroir",
+  "home.limits.scripts.heading": "Texte horizontal seulement",
   "home.limits.scripts.body":
-    "L’arabe, l’hébreu, le devanagari et le thaï se lient, se réordonnent et placent leurs signes partout où du texte est dessiné : dans Label, TextField et TextArea, comme sur chaque bouton, onglet, entrée de menu et texte indicatif autour d’eux ; les paquets ar et he sont bien publiés. Ce qu’une langue de droite à gauche n’obtient pas, c’est la mise en page : marges intérieures, alignement, côté où se place une barre de défilement, côté d’ouverture d’une popup, sens d’une touche fléchée ailleurs que dans un champ de texte — tout va de gauche à droite, quelle que soit la langue.",
+    "L’arabe, l’hébreu, le devanagari et le thaï sont façonnés partout où du texte est dessiné, la mise en page se met en miroir le long d’un axe hérité de droite à gauche, et les chiffres, le tri et la casse suivent la langue — les paquets ar et he sont publiés, avec un gras pour chaque écriture. Ce qui manque, c’est l’écriture verticale : pas de colonnes de haut en bas, pas de second axe traversant la mise en page. Les lignes se coupent ; elles ne sont pas justifiées.",
   "home.limits.a11y.heading": "Pas de pont vers les lecteurs d’écran",
   "home.limits.a11y.body":
     "La navigation au clavier et les anneaux de focus sont complets, mais rien n’est exposé aux API d’accessibilité de la plateforme. Si un lecteur d’écran doit fonctionner, ce n’est pas encore la bonne boîte à outils pour cette application.",
@@ -156,7 +156,10 @@ export const fr: Catalog = {
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn : Écrans",
   "showcase.description":
-    "Des écrans entiers rendus par la boîte à outils : l’application de démonstration, la vue 3D, un formulaire, une fenêtre mise en page et le même écran en quatre langues.",
+    "Des écrans entiers rendus par la boîte à outils : l’application de démonstration, la même fenêtre en miroir de droite à gauche, la vue 3D, un formulaire et une fenêtre mise en page.",
+  "showcase.rtl.heading": "La même fenêtre, de droite à gauche",
+  "showcase.rtl.body":
+    "L’application de démonstration sous le paquet ar, l’axe de direction inversé : la barre de menus, les onglets, les champs, les barres de défilement et le pied de performance se lisent depuis la droite, et le texte qu’ils portent se lie et se réordonne comme l’arabe l’exige. Aucun écran n’a été réécrit — la direction est un axe hérité, réglé comme on règle une taille de contrôle.",
   "showcase.eyebrow": "Écrans entiers",
   "showcase.heading": "Écrans",
   "showcase.lede":

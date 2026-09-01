@@ -111,7 +111,7 @@ export const es: Catalog = {
 
   "home.languages.heading": "En los idiomas de tus usuarios",
   "home.languages.body":
-    "El texto se mide con los mismos avances con los que se dibuja, y el respaldo de fuentes funciona carácter a carácter, así que latino, griego, cirílico y CJK se mezclan en una misma cadena sin que elijas tipografía. Los métodos de entrada componen dentro del campo y la edición avanza por grupos de grafemas, de modo que las marcas combinantes y los emojis de varias partes nunca se parten.",
+    "El texto se mide con los mismos avances con los que se dibuja, y el respaldo de fuentes funciona carácter a carácter, así que latino, griego, cirílico y CJK se mezclan en una misma cadena sin que elijas tipografía. Los métodos de entrada componen dentro del campo y la edición avanza por grupos de grafemas, de modo que las marcas combinantes y los emojis de varias partes nunca se parten. Y derecha a izquierda no es solo composición: la dirección es un eje que un subárbol hereda, así que una ventana en hebreo se refleja — y aún puede contener un panel de código de izquierda a derecha.",
   "home.languages.alt":
     "La misma pantalla capturada en japonés, chino simplificado, coreano y ruso, unida en una sola ventana.",
   "home.languages.link": "Lee la guía de texto",
@@ -122,9 +122,9 @@ export const es: Catalog = {
   "home.limits.heading": "Lo que Limn no hace",
   "home.limits.body":
     "Todo kit renuncia a algo. Estas son las renuncias, dichas de entrada, porque descubrirlas en la tercera semana es peor que leerlas ahora.",
-  "home.limits.scripts.heading": "El texto se compone; la disposición no se refleja",
+  "home.limits.scripts.heading": "Solo texto horizontal",
   "home.limits.scripts.body":
-    "El árabe, el hebreo, el devanagari y el tailandés se unen, se reordenan y colocan sus marcas allí donde se dibuje texto: dentro de Label, TextField y TextArea, y en cada botón, pestaña, elemento de menú y texto de sugerencia a su alrededor; los paquetes ar y he sí se publican. Lo que un idioma de derecha a izquierda no obtiene es la disposición: los márgenes, la alineación, el lado en el que va una barra de desplazamiento, el lado por el que se abre un menú emergente y hacia dónde lleva una tecla de flecha cuando el foco no está en un campo de texto — todo va de izquierda a derecha, sea cual sea el idioma.",
+    "El árabe, el hebreo, el devanagari y el tailandés se componen allí donde se dibuje texto, la disposición se refleja a lo largo de un eje heredado de derecha a izquierda, y los dígitos, el orden y las mayúsculas siguen al idioma — los paquetes ar y he se publican, con una negrita para cada escritura. Lo que no hay es escritura vertical: ni columnas de arriba abajo, ni un segundo eje que atraviese la disposición. Las líneas se cortan; no se justifican.",
   "home.limits.a11y.heading": "Sin puente para lectores de pantalla",
   "home.limits.a11y.body":
     "La navegación con teclado y los anillos de foco están completos, pero nada se expone a las API de accesibilidad de la plataforma. Si un lector de pantalla tiene que funcionar, este todavía no es el kit para esa aplicación.",
@@ -156,7 +156,10 @@ export const es: Catalog = {
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn: Pantallas",
   "showcase.description":
-    "Pantallas enteras renderizadas por el kit: la aplicación de demostración, la vista 3D, un formulario, una ventana compuesta y la misma pantalla en cuatro idiomas.",
+    "Pantallas enteras renderizadas por el kit: la aplicación de demostración, la misma ventana reflejada de derecha a izquierda, la vista 3D, un formulario y una ventana compuesta.",
+  "showcase.rtl.heading": "La misma ventana, de derecha a izquierda",
+  "showcase.rtl.body":
+    "La aplicación de demostración bajo el paquete ar con el eje de dirección invertido: la barra de menús, las pestañas, los campos, las barras de desplazamiento y el pie de rendimiento se leen desde la derecha, y el texto que contienen se une y se reordena como pide el árabe. Ninguna pantalla se reescribió — la dirección es un eje heredado, que se fija como se fija un tamaño de control.",
   "showcase.eyebrow": "Pantallas enteras",
   "showcase.heading": "Pantallas",
   "showcase.lede":

@@ -88,7 +88,7 @@ export const en = {
 
   "home.languages.heading": "In your users' languages",
   "home.languages.body":
-    "Text is measured with the same advances it is drawn with, and the font fallback runs per character, so Latin, Greek, Cyrillic and CJK mix in one string without you choosing a face. Input methods compose inside the field, and editing moves by grapheme cluster, so combining marks and multi-part emoji are never split.",
+    "Text is measured with the same advances it is drawn with, and the font fallback runs per character, so Latin, Greek, Cyrillic and CJK mix in one string without you choosing a face. Input methods compose inside the field, and editing moves by grapheme cluster, so combining marks and multi-part emoji are never split. Right to left is not just shaping: direction is an axis a subtree inherits, so a Hebrew window mirrors — and can still hold a left-to-right code pane.",
   "home.languages.alt":
     "The same screen captured in Japanese, Simplified Chinese, Korean and Russian, quilted into one window.",
   "home.languages.link": "Read the text guide",
@@ -98,9 +98,9 @@ export const en = {
   "home.limits.heading": "What Limn does not do",
   "home.limits.body":
     "Every toolkit trades something. These are the trades, stated up front, because finding them out in week three is worse than reading them now.",
-  "home.limits.scripts.heading": "Text is shaped; layout is not mirrored",
+  "home.limits.scripts.heading": "Horizontal text only",
   "home.limits.scripts.body":
-    "Arabic, Hebrew, Devanagari and Thai join, reorder and place their marks wherever text is drawn — inside Label, TextField and TextArea, and on every button, tab, menu item and placeholder around them — and the ar and he bundles ship. What a right-to-left language does not get is the layout: insets, alignment, which side a scrollbar sits on, where a popup opens and which way an arrow key moves outside a text field all read left to right whatever the language.",
+    "Arabic, Hebrew, Devanagari and Thai shape wherever text is drawn, layout mirrors under an inherited right-to-left axis, and digits, ordering and case follow the language — the ar and he bundles ship, with a Bold for every script. What is not here is vertical writing: no top-to-bottom columns, no second axis through layout. Lines break; they are not justified.",
   "home.limits.a11y.heading": "No screen-reader bridge",
   "home.limits.a11y.body":
     "Keyboard navigation and focus rings are complete, but nothing is exposed to the platform's accessibility APIs. If a screen reader has to work, this is not the toolkit for that application yet.",
@@ -132,7 +132,7 @@ export const en = {
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn: Showcase",
   "showcase.description":
-    "Whole screens rendered by the toolkit: the demo application, the 3D viewport, a form, a laid-out window, and the same screen in four languages.",
+    "Whole screens rendered by the toolkit: the demo application, the same window mirrored right to left, the 3D viewport, a form, and a laid-out window.",
   "showcase.eyebrow": "Whole screens",
   "showcase.heading": "Showcase",
   "showcase.lede":
@@ -140,6 +140,9 @@ export const en = {
   "showcase.kitchen.heading": "The demo application",
   "showcase.kitchen.body":
     "Every component in one window, with a menu bar, tabs, a theme picker and a live performance footer.",
+  "showcase.rtl.heading": "The same window, right to left",
+  "showcase.rtl.body":
+    "The demo application under the Arabic bundle with the direction axis flipped: the menu bar, the tabs, the fields, the scrollbars and the performance footer all read from the right, and the text inside them joins and reorders as Arabic should. No screen was rewritten — direction is one inherited axis, set the way a control size is.",
   "showcase.forms.heading": "A form",
   "showcase.forms.body":
     "Captions, a validated field, a choice, a switch and the actions row: the worked example from the forms guide.",
