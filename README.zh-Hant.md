@@ -100,6 +100,10 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 
 若同一份建置要送到每個平台、而且無從得知它會落在哪一台機器上，就改用 `limn-video-ffmpeg-natives-all`。它不是 classifier，而是獨立的一個成品，替你把六個都列好了。也沒有什麼攔著你一次列出好幾個 classifier——要涵蓋兩個目標的套件包，就寫兩個。
 
+```kotlin
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+```
+
 把 classifier 留空，工具組照樣建置、照樣執行：解碼器會回報自己不可用，並說出它找過的平台，而所有不屬於 FFmpeg 的東西都繼續運作。這份 FFmpeg 建置採用 LGPL-2.1-或更高版本，動態連結且可替換，並在裝著它的 jar 裡帶著授權條款全文。
 
 ## 讓視窗出現在畫面上

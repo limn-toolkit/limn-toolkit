@@ -70,6 +70,14 @@ part in layout like a label does. The decoder behind it is a separate concern:
   decoder reports itself unavailable and everything else keeps working. The libraries are LGPL (version 2.1 or later) and the jar carries the licence
   text and notice alongside them; [Packaging](/docs/packaging/) has what shipping them means.
 
+  ```kotlin
+  implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
+  // A build for one known machine takes its classifier:
+  runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
+  // A bundle that ships everywhere takes the artifact that names all six:
+  runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+  ```
+
 Subtitles ride along with the video's own container: select the track before you start
 reading, and the player hands you timed text to draw however your design wants it.
 

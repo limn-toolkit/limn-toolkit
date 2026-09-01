@@ -116,6 +116,10 @@ plataformas e não tem como saber em que máquina vai cair: ele é um artefato p
 classifier, e nomeia os seis para que você não precise. Nada impede que você nomeie vários
 classifiers, também — um pacote para dois alvos leva dois.
 
+```kotlin
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+```
+
 Deixe o classifier de fora e o toolkit continua compilando e rodando: o decodificador se declara
 indisponível, nomeando a plataforma que procurou, e tudo que não é FFmpeg segue funcionando. O build
 do FFmpeg é LGPL-2.1-ou-posterior, ligado dinamicamente e substituível, e carrega o texto da sua

@@ -117,6 +117,10 @@ plateformes et ne peut pas savoir sur quelle machine elle atterrira : c’est un
 entière et non un classifier, et il nomme les six pour vous. Rien ne vous empêche non plus de
 nommer plusieurs classifiers : une distribution pour deux cibles en prend deux.
 
+```kotlin
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+```
+
 Omettez le classifier et la boîte à outils compile et tourne quand même : le décodeur se déclare
 indisponible, en nommant la plateforme qu’il a cherchée, et tout ce qui n’est pas FFmpeg continue
 de fonctionner. Le FFmpeg compilé est en LGPL-2.1-ou-ultérieure, lié dynamiquement et remplaçable,

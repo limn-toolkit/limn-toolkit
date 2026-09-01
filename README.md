@@ -115,6 +115,10 @@ know the machine it will land on: it is an artifact of its own rather than a cla
 names all six so you do not have to. Nothing stops you naming several classifiers, either — a
 bundle for two targets takes two.
 
+```kotlin
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+```
+
 Leave the classifier out and the toolkit still builds and runs: the decoder reports itself
 unavailable, naming the platform it looked for, and everything that is not FFmpeg keeps working.
 The FFmpeg build is LGPL-2.1-or-later, dynamically linked and replaceable, and carries its licence

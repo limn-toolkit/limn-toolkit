@@ -117,6 +117,10 @@ ausgeliefert wird und den Rechner nicht kennen kann, auf dem er landet: Es ist e
 und kein Classifier, und es nennt alle sechs, damit Sie es nicht tun müssen. Es hindert Sie auch
 nichts daran, mehrere Classifier zu nennen — ein Bündel für zwei Ziele nimmt zwei.
 
+```kotlin
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+```
+
 Lassen Sie den Classifier weg, und das Toolkit baut und läuft trotzdem: Der Decoder meldet sich als
 nicht verfügbar und nennt die Plattform, nach der er gesucht hat, und alles, was nicht FFmpeg ist,
 funktioniert weiter. Der FFmpeg-Build steht unter LGPL-2.1-oder-später, ist dynamisch gebunden und

@@ -100,6 +100,10 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 
 1 つのビルドをすべてのプラットフォームへ配布し、どのマシンに届くか知りようがないときは、代わりに `limn-video-ffmpeg-natives-all` を使ってください。これは classifier ではなく独立した成果物で、六つすべてをあなたの代わりに名指しします。複数の classifier を並べても構いません——2 つの対象向けの配布物なら 2 つです。
 
+```kotlin
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+```
+
 classifier を書かないままでも、ツールキットはビルドも実行もできます。デコーダーは、探したプラットフォームの名を挙げて自身が利用できないことを報告し、FFmpeg でないものはすべてそのまま動きます。FFmpeg のビルドは LGPL-2.1-or-later で、動的リンクで差し替え可能であり、ライセンス本文をそれを収める jar の中に併せて運びます。
 
 ## 画面にウィンドウを

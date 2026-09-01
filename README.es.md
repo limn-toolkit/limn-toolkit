@@ -116,6 +116,10 @@ plataformas y no pueda saber en qué máquina acabará: es un artefacto propio, 
 nombra los seis para que tú no tengas que hacerlo. Nada te impide nombrar varios clasificadores: un
 paquete para dos destinos lleva dos.
 
+```kotlin
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+```
+
 Omite el clasificador y el kit sigue compilando y ejecutándose: el decodificador se declara no
 disponible, nombrando la plataforma que buscó, y todo lo que no es FFmpeg sigue funcionando. La
 compilación de FFmpeg es LGPL-2.1-o-posterior, está enlazada dinámicamente y es reemplazable, y

@@ -1,5 +1,9 @@
 plugins {
-    `java-library`
+    // Not `java-library`: that plugin publishes a jar, and 0.5.0 shipped exactly that — a
+    // 261-byte decoy whose emptiness reads as a broken release to anyone who opens the
+    // directory on Central. A platform publishes `<packaging>pom</packaging>` and no jar at
+    // all, which is what the paragraph below has claimed all along.
+    `java-platform`
 }
 
 /*
@@ -33,8 +37,8 @@ val nativePlatforms = listOf(
 
 // ------------------------------------------------------------------ why the POM is written here
 //
-// The six are WRITTEN INTO the POM rather than declared as Gradle dependencies, and that is a
-// correction rather than a preference.
+// The six are WRITTEN INTO the POM rather than declared as Gradle dependencies (the platform's
+// `allowDependencies()` route), and that is a correction rather than a preference.
 //
 // Declared the obvious way — `runtimeOnly(project(":limn-video-ffmpeg")) { artifact { classifier
 // = ... } }` — they are correct in both the POM and the module metadata, and they also land on

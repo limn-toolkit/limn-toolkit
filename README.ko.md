@@ -114,6 +114,10 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 아티팩트이며, 여섯 개를 대신 적어 줍니다. 여러 classifier를 함께 적는 것도 막지 않습니다 — 두
 대상을 겨냥한 묶음이라면 두 개를 적으면 됩니다.
 
+```kotlin
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+```
+
 classifier를 빼도 툴킷은 그대로 빌드되고 실행됩니다. 디코더가 어떤 플랫폼을 찾았는지 밝히며
 자신을 쓸 수 없다고 알리고, FFmpeg이 아닌 것은 모두 그대로 동작합니다. 이 FFmpeg 빌드는
 LGPL-2.1-or-later이고, 동적으로 링크되어 교체할 수 있으며, 라이선스 본문을 자신을 담은 jar 안에

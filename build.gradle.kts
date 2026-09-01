@@ -224,7 +224,10 @@ subprojects {
     val moduleDescription = publishedModules[name] ?: return@subprojects
     apply(plugin = "com.vanniktech.maven.publish")
 
-    plugins.withId("java") {
+    // Both ids, because natives-all is a `java-platform` — a POM and nothing else — and a gate
+    // that only knew "java" left it publishing with none of the metadata below.
+    listOf("java", "java-platform").forEach { pluginId ->
+    plugins.withId(pluginId) {
         extensions.configure<MavenPublishBaseExtension> {
             // Uploads and stops. The last step stays a human pressing Publish on the Portal,
             // because that is the last moment at which a release can still be dropped: what
@@ -278,6 +281,7 @@ subprojects {
                 }
             }
         }
+    }
     }
 }
 
