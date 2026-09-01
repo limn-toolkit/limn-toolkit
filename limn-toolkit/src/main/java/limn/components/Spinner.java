@@ -281,9 +281,11 @@ public class Spinner extends Widget {
      * The value moves several ways (a step, a drag, a typed commit, a programmatic set), and a
      * cache that has to be invalidated at each of them is one new path away from painting a stale
      * number, which is the worst thing this widget could do. {@code mode} and {@code decimals}
-     * are final, so the value and the i18n epoch are the whole input — the epoch because the
-     * numbering system rides the locale (ADR 033), and a memo that could not see a locale switch
-     * would repaint yesterday's digits under it.
+     * are final, so the value, the i18n epoch and the effective locale are the whole input — the
+     * epoch because the numbering system rides the locale (ADR 033), and the locale itself
+     * because this widget's subtree can now hold its own (ADR 035), which moves the digits
+     * without moving the epoch; a memo that could see neither would repaint yesterday's digits
+     * under either kind of switch.
      *
      * <p>The layout direction is deliberately <em>not</em> part of that key, and adding it would
      * be cargo. What is memoized is a {@link String}: the digits a number renders as are the same
@@ -292,9 +294,12 @@ public class Spinner extends Widget {
      * uses them and cached nowhere.
      */
     private String formatted() {
-        if (formattedText == null || formattedFrom != value || formattedEpoch != I18n.epoch()) {
+        Locale locale = I18n.locale();
+        if (formattedText == null || formattedFrom != value || formattedEpoch != I18n.epoch()
+                || !locale.equals(formattedLocale)) {
             formattedFrom = value;
             formattedEpoch = I18n.epoch();
+            formattedLocale = locale;
             formattedText = format(value);
             if (mode == Mode.TIME) {
                 // The two fields are measured and drawn separately (each is independently
@@ -310,6 +315,7 @@ public class Spinner extends Widget {
     /** {@code NaN} until the first render, and never equal to a value, so the first call builds. */
     private double formattedFrom = Double.NaN;
     private long formattedEpoch;
+    private Locale formattedLocale;
     private String formattedText;
     private String formattedHours;
     private String formattedMinutes;

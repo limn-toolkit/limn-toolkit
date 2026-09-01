@@ -112,6 +112,26 @@ class SpinnerDigitsTest extends ComponentTestBase {
     }
 
     @Test
+    void aDeclaredSubtreeLocaleWritesItsOwnDigitsWithoutMovingTheEpoch() {
+        // ADR 035: the widget's own declaration moves the digits while the process stays
+        // Latin — the case the rendered-value memo now keys the effective locale for,
+        // because nothing bumps the i18n epoch here.
+        build(new Spinner(0, 100, 1).setValue(42));
+        assertTrue(painted().contains("42"));
+
+        spinner.setLocale(ARABIC);
+        try {
+            assertTrue(painted().contains("٤٢"),
+                    "an Arabic-locale spinner inside a Latin interface reads ٤٢");
+            assertEquals(Locale.ENGLISH, I18n.locale(),
+                    "and the process language never moved");
+        } finally {
+            spinner.setLocale(null);
+        }
+        assertTrue(painted().contains("42"), "clearing the declaration restores the digits");
+    }
+
+    @Test
     void theLocalizedDisplayItselfCommitsUnchanged() {
         // The editor is seeded from the display string, so committing an untouched edit must be
         // the identity whatever digits the display wore. This is the fact that forced parse to

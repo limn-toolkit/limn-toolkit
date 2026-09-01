@@ -61,4 +61,20 @@ class ChartFormatsDigitsTest {
         assertEquals("٣٫٥", ChartFormats.number().apply(3.5),
                 "the trailing localized zero is trimmed, not compared against ASCII '0'");
     }
+
+    @Test
+    void aFormatFollowsTheLocaleInScopeSeparatorsAndDigitsAlike() {
+        // ADR 035: a chart inside an ar-locale subtree formats under that subtree, because
+        // its passes hold the effective locale in scope and every format here reads
+        // I18n.locale() at the moment it formats. Separators come with the language, not
+        // only digits: the fold-then-localize pipeline runs on the platform's own output.
+        Locale enclosing = I18n.pushScope(Locale.forLanguageTag("ar"));
+        try {
+            assertEquals("٣٫٥", ChartFormats.number().apply(3.5));
+        } finally {
+            I18n.popScope(enclosing);
+        }
+        assertEquals("3.5", ChartFormats.number().apply(3.5),
+                "outside the scope the process language formats as before");
+    }
 }

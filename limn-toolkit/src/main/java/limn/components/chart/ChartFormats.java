@@ -10,9 +10,13 @@ import java.util.function.DoubleFunction;
  * screen when the application does not supply its own
  * {@link Chart#setValueFormat(DoubleFunction)}.
  *
- * <p>Every format here follows the {@linkplain I18n#locale() UI language}, read at the
- * moment it formats, so a locale switch reaches charts already on screen. A format is a
- * plain {@code DoubleFunction<String>}: anything else you write is equally acceptable.
+ * <p>Every format here follows the {@linkplain I18n#locale() language in effect where it
+ * formats}, read at that moment: a locale switch reaches charts already on screen, and a
+ * chart inside a subtree that {@linkplain limn.scene.Widget#setLocale declares its own
+ * locale} formats in that subtree's language (ADR 035) — separators and digits alike —
+ * because the chart's passes hold its effective locale in scope. A format is a plain
+ * {@code DoubleFunction<String>}: anything else you write is equally acceptable, and reads
+ * the same scope for free by asking {@code I18n.locale()} when it formats.
  *
  * <pre>{@code
  * chart.setValueFormat(ChartFormats.compact());          // 12500 -> "12.5k"

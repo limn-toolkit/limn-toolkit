@@ -693,7 +693,9 @@ Stated now, so the document does not overclaim later.
   interface will show `42`. *Since closed by ADR 033*: digits follow the locale's numbering
   system at format time, with a process override.
 - **Per-subtree locale.** ADR 006 §4, still open. This ADR delivers a per-subtree *direction*, which
-  is the shape the escape hatch would take, and does not deliver the language.
+  is the shape the escape hatch would take, and does not deliver the language. *Since closed by
+  ADR 035*: the locale inherits through the same chain, and the pass holds a widget's effective
+  locale in scope so string lookups, formatting and digits follow the subtree.
 - **Locale-aware collation and case mapping.** Unchanged from ADR 006 §4 and ADR 031 §7.1.
 - **Bold and italic in the four RTL and complex-script faces.** One Regular face each, unchanged
   from ADR 031 §7.1.

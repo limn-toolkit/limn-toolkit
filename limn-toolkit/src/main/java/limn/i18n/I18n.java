@@ -12,8 +12,9 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Process-wide UI language: the current {@linkplain #locale() locale}, the
- * registered {@linkplain #addBundle bundles}, and the {@linkplain #epoch() epoch}
+ * The UI language: the {@linkplain #processLocale() process locale}, the
+ * {@linkplain #locale() locale in effect here}, the registered
+ * {@linkplain #addBundle bundles}, and the {@linkplain #epoch() epoch}
  * that every {@link I18nString} validates its cache against.
  *
  * <p>Shaped after {@code Fonts} and {@code ControlSize}, because a language change
@@ -30,6 +31,20 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *
  * <p><b>Nothing is required.</b> With no bundle registered every string resolves to
  * the English it carries, which is what the toolkit did before this class existed.
+ *
+ * <h2>A subtree can hold its own language</h2>
+ * A widget that {@linkplain limn.scene.Widget#setLocale declares a locale} gives its
+ * whole subtree one, resolved down the tree exactly as {@code ControlSize} is
+ * (ADR 035). The mechanism this class contributes is the <b>scope</b>: while the
+ * toolkit measures, lays out, paints or dispatches an event to a widget, that
+ * widget's effective locale is {@linkplain #pushScope in scope}, and {@link #locale()}
+ * answers it. Everything that already read {@code I18n.locale()} at the moment it
+ * resolved, formatted or broke text &mdash; {@link I18nString#get()},
+ * {@link I18nString#format}, {@link #localizeDigits}, a chart format, a line
+ * breaker &mdash; follows the subtree it is working inside without knowing
+ * subtrees exist. That is the point: after ADR 006's own argument, the default
+ * spelling is the correct one, and a widget written naively cannot capture the
+ * wrong language.
  *
  * <p>Mutators are meant to be called on the UI thread (checked when a {@code Ui}
  * runtime is installed, so headless tests can drive them directly).
@@ -51,11 +66,46 @@ public final class I18n {
     /** Starts at 1 so an {@link I18nString}'s zero-initialised memo reads as stale. */
     private static volatile long epoch = 1;
 
+    /**
+     * The innermost open {@linkplain #pushScope scope} on this thread, or {@code null} for
+     * none. Thread-local rather than a plain static so a scope opened by a widget pass on
+     * the UI thread can never bleed into a worker formatting something concurrently.
+     */
+    private static final ThreadLocal<Locale> SCOPE = new ThreadLocal<>();
+
+    /**
+     * The subtree locales currently declared somewhere, each with the number of
+     * declarations naming it: what {@link #retainLocale} counts and {@link #setLocale}
+     * consults before letting a bundle drop a language. UI-thread confined.
+     */
+    private static final Map<Locale, Integer> RETAINED = new LinkedHashMap<>();
+
     private I18n() {
     }
 
-    /** The language the UI is in; {@link Locale#getDefault()} until something says otherwise. */
+    /**
+     * The language in effect <em>here</em>: the innermost open {@linkplain #pushScope
+     * scope}'s locale, else the {@linkplain #processLocale() process locale}.
+     *
+     * <p>Inside a widget's measure, layout, paint or event dispatch this is that widget's
+     * {@linkplain limn.scene.Widget#locale() effective locale}, because the toolkit opens
+     * the scope around each of those; everywhere else &mdash; application startup, a
+     * posted task, a worker thread &mdash; it is the process locale, exactly as before
+     * ADR 035. Reading it at the moment text is resolved or formatted is what makes code
+     * follow the subtree it is working inside.
+     */
     public static Locale locale() {
+        Locale scoped = SCOPE.get();
+        return scoped != null ? scoped : locale;
+    }
+
+    /**
+     * The process-wide UI language, ignoring any open scope: what {@link #setLocale}
+     * set, {@link Locale#getDefault()} until something says otherwise, and the root of
+     * the {@linkplain limn.scene.Widget#locale() widget resolution chain}. Almost every
+     * reader wants {@link #locale()} instead.
+     */
+    public static Locale processLocale() {
         return locale;
     }
 
@@ -64,16 +114,107 @@ public final class I18n {
      * {@linkplain StringBundle#prepare prepared} first (so a file-backed bundle
      * reads from disk here rather than inside the next measure pass), then the epoch
      * is bumped and listeners run, which is what re-lays-out every live scene.
+     * The outgoing language's tables are {@linkplain StringBundle#release released},
+     * unless a {@linkplain #retainLocale retained} subtree still reads them.
      */
     public static void setLocale(Locale next) {
         checkUiThread();
         Objects.requireNonNull(next, "locale");
-        if (locale.equals(next)) {
+        Locale previous = locale;
+        if (previous.equals(next)) {
             return;
         }
         locale = next;
         prepareAll(next);
+        if (!RETAINED.containsKey(previous)) {
+            releaseAll(previous);
+        }
         invalidate();
+    }
+
+    /**
+     * Opens a resolution scope: until the matching {@link #popScope}, {@link #locale()}
+     * on this thread answers {@code locale}. This is how a widget's effective locale
+     * reaches everything that resolves or formats text while the toolkit is inside that
+     * widget &mdash; {@code Widget} opens one around measure, layout, paint and event
+     * dispatch, and {@code Widget.tooltip()} around its own resolution. An application
+     * may open one too, to format something for a particular pane from outside a pass.
+     *
+     * <p>Scopes nest: the returned value is the scope this call replaced, and handing it
+     * back to {@link #popScope} restores it, so the idiom is
+     *
+     * <pre>{@code
+     * Locale enclosing = I18n.pushScope(locale);
+     * try {
+     *     ...
+     * } finally {
+     *     I18n.popScope(enclosing);
+     * }
+     * }</pre>
+     *
+     * @return the scope in effect before this call, possibly {@code null}: the value
+     *         {@link #popScope} must be given back
+     */
+    public static Locale pushScope(Locale locale) {
+        Objects.requireNonNull(locale, "locale");
+        Locale enclosing = SCOPE.get();
+        SCOPE.set(locale);
+        return enclosing;
+    }
+
+    /**
+     * Closes the innermost scope by restoring what {@link #pushScope} returned;
+     * {@code null} (the usual outermost case) restores "no scope", which is the
+     * process locale. Always call it in a {@code finally}.
+     */
+    public static void popScope(Locale enclosing) {
+        SCOPE.set(enclosing);
+    }
+
+    /**
+     * Declares that {@code locale} is being read somewhere &mdash; a widget or scene
+     * subtree resolves through it &mdash; so every bundle keeps (and any late-registered
+     * bundle gains) a prepared table for it, and {@link #setLocale} moving the process
+     * away from it does not drop what that subtree is still reading. Counted:
+     * {@code Widget.setLocale} and {@code Scene.setLocale} call this for a new
+     * declaration and {@link #releaseLocale} for the one it replaced, and an application
+     * with its own reason to resolve a language outside the tree may do the same.
+     *
+     * <p>Preparation happens here, on the first retain, for the reason {@link #setLocale}
+     * prepares: a file-backed bundle must read from disk now, not inside the measure pass
+     * of the frame that first shows the subtree.
+     */
+    public static void retainLocale(Locale locale) {
+        checkUiThread();
+        Objects.requireNonNull(locale, "locale");
+        Integer count = RETAINED.get(locale);
+        RETAINED.put(locale, count == null ? 1 : count + 1);
+        if (count == null) {
+            prepareAll(locale);
+        }
+    }
+
+    /**
+     * Undoes one {@link #retainLocale}. When the last retain for {@code locale} is
+     * released and it is not the process locale, every bundle is told to
+     * {@linkplain StringBundle#release release} its table for it. Releasing a locale
+     * that was never retained is a no-op, so a clear-before-declare cannot throw.
+     */
+    public static void releaseLocale(Locale locale) {
+        checkUiThread();
+        Objects.requireNonNull(locale, "locale");
+        Integer count = RETAINED.get(locale);
+        if (count == null) {
+            return;
+        }
+        if (count > 1) {
+            RETAINED.put(locale, count - 1);
+            return;
+        }
+        RETAINED.remove(locale);
+        if (!locale.equals(I18n.locale)) {
+            releaseAll(locale);
+        }
     }
 
     /**
@@ -91,14 +232,19 @@ public final class I18n {
 
     /**
      * The digits a formatted number is written in: the {@linkplain NumberingSystem#forLocale
-     * locale's own}, unless {@link #setNumberingSystem} declared otherwise. Process-wide by
-     * ADR 033's Decision 1: substitution happens at format time inside the widgets that render
-     * numbers they own, so application strings are never rewritten and no per-subtree axis is
-     * needed.
+     * own system} of the {@linkplain #locale() locale in effect here}, unless
+     * {@link #setNumberingSystem} declared otherwise. There is no numbering-system axis and
+     * ADR 033's Decision 1 still stands: substitution happens at format time inside the widgets
+     * that render numbers they own, so application strings are never rewritten. What changed
+     * with ADR 035 is only which locale the system is derived from &mdash; the effective one, so
+     * an Arabic subtree's spinner writes Arabic-Indic digits inside a Latin interface with no
+     * second mechanism. The declared override stays process-wide and wins everywhere, because it
+     * is a statement about the process ("this deployment writes Latin digits"), not about a
+     * subtree.
      */
     public static NumberingSystem numberingSystem() {
         NumberingSystem declared = declaredNumberingSystem;
-        return declared != null ? declared : NumberingSystem.forLocale(locale);
+        return declared != null ? declared : NumberingSystem.forLocale(locale());
     }
 
     /**
@@ -175,7 +321,8 @@ public final class I18n {
     /**
      * Registers a source of translations; the most recently added is consulted first,
      * so an application's own bundle overrides one the toolkit installed. Prepared for
-     * the current locale before it can be seen, then treated as a text change.
+     * the process locale and every {@linkplain #retainLocale retained} one before it
+     * can be seen, then treated as a text change.
      *
      * <p>Registering the same instance twice is a no-op.
      */
@@ -186,6 +333,9 @@ public final class I18n {
             return;
         }
         bundle.prepare(locale);
+        for (Locale retained : RETAINED.keySet()) {
+            bundle.prepare(retained);
+        }
         BUNDLES.add(0, bundle);
         invalidate();
     }
@@ -234,15 +384,18 @@ public final class I18n {
     private static volatile Locale declaredTextLocale;
 
     /**
-     * The language text is ordered and case-mapped in: the {@linkplain #locale() UI locale},
-     * unless {@link #setTextLocale} declared the content is in another language. The two are
-     * different facts — an English interface listing Swedish names must still put ä after z —
-     * but almost every application never needs to say so, and the default keeps order and
-     * case in the language the user is reading.
+     * The language text is ordered and case-mapped in: the {@linkplain #locale() locale in
+     * effect here}, unless {@link #setTextLocale} declared the content is in another language.
+     * The two are different facts — an English interface listing Swedish names must still put
+     * ä after z — but almost every application never needs to say so, and the default keeps
+     * order and case in the language the user is reading. Following {@code locale()} rather
+     * than the process locale is what makes a type-ahead fold, or a sort run inside a pass,
+     * answer for the subtree it is working inside (ADR 035), exactly as digits do; the
+     * declared override stays process-wide and wins everywhere, for ADR 034's reason.
      */
     public static Locale textLocale() {
         Locale declared = declaredTextLocale;
-        return declared != null ? declared : locale;
+        return declared != null ? declared : locale();
     }
 
     /**
@@ -304,9 +457,9 @@ public final class I18n {
     }
 
     /** The first bundle with an answer, else the English. Package-private: {@link I18nString}. */
-    static String resolve(String key, String english) {
+    static String resolve(String key, String english, Locale target) {
         for (StringBundle bundle : BUNDLES) {
-            String translated = bundle.lookup(key, locale);
+            String translated = bundle.lookup(key, target);
             if (translated != null) {
                 return translated;
             }
@@ -317,6 +470,12 @@ public final class I18n {
     private static void prepareAll(Locale target) {
         for (StringBundle bundle : BUNDLES) {
             bundle.prepare(target);
+        }
+    }
+
+    private static void releaseAll(Locale target) {
+        for (StringBundle bundle : BUNDLES) {
+            bundle.release(target);
         }
     }
 

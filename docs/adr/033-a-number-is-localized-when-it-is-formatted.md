@@ -61,7 +61,9 @@ inside the three widgets that render numbers they own — an application's strin
 rewritten, so the failure that forced direction off the locale (a Hebrew UI holding a
 left-to-right code pane) cannot recur for digits. If a real interface ever needs two numbering
 systems at once, the inheritance-chain precedent is the recorded route; it is not taken on
-speculation.
+speculation. *Amended in one word by ADR 035: the system now derives from the **effective**
+locale, so a subtree that declares its own language gets its digits through the locale axis —
+still no numbering-system axis, and the process-wide override still wins everywhere.*
 
 **2. Display is localized, input is tolerant, and input is not otherwise localized.** The
 display string carries the locale's digits. Because the editor is seeded from that string, parse

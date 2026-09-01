@@ -61,6 +61,9 @@ find "Straße" and makes Turkish i find İstanbul on purpose rather than by acci
   measured, each left, each for the reason given.
 - **Not a per-subtree language.** ADR 006 §4's per-subtree locale stays open; the
   inheritance-chain precedent remains the recorded route if a real interface ever needs it.
+  *Since closed by ADR 035, which took that route: `textLocale()` now derives from the
+  <b>effective</b> locale, so order and case follow a subtree that declares its own language —
+  still no second axis here, and the declared override still wins everywhere.*
 
 ## 3. Cost
 

@@ -32,6 +32,10 @@ the two at its own call site, typically once at startup. A widget that calls it 
 process-wide locale back in as a source of direction, which is the one thing the axis exists to keep
 out.
 
+Since ADR 035 the locale is an inherited axis of its own, resolved through this same chain: the
+Hebrew-UI-with-an-English-code-pane case is one declaration per axis
+(`setLocale(...)` and `setLayoutDirection(...)`), and neither is derived from the other.
+
 ## The resolution chain, and the two rules that come with it
 
 Declared, else the nearest declaring ancestor's, else the scene's default, else the host link's,

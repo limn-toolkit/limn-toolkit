@@ -393,6 +393,43 @@ public final class Scene implements WindowInput {
         relayout();
     }
 
+    private java.util.Locale locale; // null = fall through to a hosted root's host link
+
+    /**
+     * @return this scene's default locale, or {@code null} to fall through to a hosted root's
+     *         {@linkplain Widget#setInheritanceHost host link} and then to
+     *         {@link limn.i18n.I18n#processLocale()}. <b>Nullable by design</b>, for the reason
+     *         {@link #controlSize()} is: a popup's own scene declares nothing, which is what
+     *         lets it inherit from the widget that opened it.
+     */
+    public java.util.Locale locale() {
+        return locale;
+    }
+
+    /**
+     * Sets this window's default locale, the per-window root of the inheritance chain: what
+     * makes two windows in two languages expressible, which one process-wide locale could not
+     * say (ADR 006 §4, delivered by ADR 035). Widgets that declare their own locale, and their
+     * subtrees, are unaffected. {@code null} restores fall-through. Retains the declared
+     * locale's bundle tables exactly as {@link Widget#setLocale} does. UI thread only.
+     */
+    public void setLocale(java.util.Locale locale) {
+        Ui.checkUiThread();
+        if (Objects.equals(this.locale, locale)) {
+            return;
+        }
+        java.util.Locale previous = this.locale;
+        this.locale = locale;
+        if (locale != null) {
+            limn.i18n.I18n.retainLocale(locale);
+        }
+        if (previous != null) {
+            limn.i18n.I18n.releaseLocale(previous);
+        }
+        Widget.bumpLocaleEpoch();
+        relayout();
+    }
+
     // ------------------------------------------------------------- overlays
 
     /**

@@ -121,7 +121,7 @@ class WidgetLifecycleTest extends SceneTestBase {
 
     /**
      * A memo resolved <em>inside</em> {@code onDetached} dies with the detach. The funnel bumps
-     * both axes' epochs before the hook runs, and the hook may legally read either axis — the
+     * every axis's epoch before the hook runs, and the hook may legally read any axis — the
      * scene it is leaving is still there to answer. Without a reset once the field clears, that
      * read would be stamped current and survive the detach as the left scene's answer, held by
      * a widget that no longer has a scene at all.
@@ -129,26 +129,36 @@ class WidgetLifecycleTest extends SceneTestBase {
     @Test
     void aMemoResolvedInsideOnDetachedDiesWithTheDetach() {
         Scene scene = new Scene(new FixedBox(100, 100));
+        java.util.Locale hebrew = java.util.Locale.forLanguageTag("he");
         scene.setLayoutDirection(LayoutDirection.RTL);
         scene.setControlSize(ControlSize.LARGE);
+        scene.setLocale(hebrew);
+        try {
+            final LayoutDirection[] sawDirection = new LayoutDirection[1];
+            final ControlSize[] sawSize = new ControlSize[1];
+            final java.util.Locale[] sawLocale = new java.util.Locale[1];
+            FixedBox reader = new FixedBox(10, 10) {
+                @Override protected void onDetached() {
+                    sawDirection[0] = layoutDirection();
+                    sawSize[0] = controlSize();
+                    sawLocale[0] = locale();
+                }
+            };
+            scene.root().add(reader);
+            scene.root().remove(reader);
 
-        final LayoutDirection[] sawDirection = new LayoutDirection[1];
-        final ControlSize[] sawSize = new ControlSize[1];
-        FixedBox reader = new FixedBox(10, 10) {
-            @Override protected void onDetached() {
-                sawDirection[0] = layoutDirection();
-                sawSize[0] = controlSize();
-            }
-        };
-        scene.root().add(reader);
-        scene.root().remove(reader);
-
-        assertEquals(LayoutDirection.RTL, sawDirection[0],
-                "the hook reads the scene it is leaving, which is the order the field clears in");
-        assertEquals(ControlSize.LARGE, sawSize[0]);
-        assertEquals(LayoutDirection.processDefault(), reader.layoutDirection(),
-                "detached, the widget resolves as a fresh widget would, "
-                        + "rather than keeping the left scene's answer");
-        assertEquals(ControlSize.processDefault(), reader.controlSize());
+            assertEquals(LayoutDirection.RTL, sawDirection[0],
+                    "the hook reads the scene it is leaving, which is the order the field "
+                            + "clears in");
+            assertEquals(ControlSize.LARGE, sawSize[0]);
+            assertEquals(hebrew, sawLocale[0]);
+            assertEquals(LayoutDirection.processDefault(), reader.layoutDirection(),
+                    "detached, the widget resolves as a fresh widget would, "
+                            + "rather than keeping the left scene's answer");
+            assertEquals(ControlSize.processDefault(), reader.controlSize());
+            assertEquals(limn.i18n.I18n.processLocale(), reader.locale());
+        } finally {
+            scene.setLocale(null); // releases the retain; process statics outlive the test
+        }
     }
 }

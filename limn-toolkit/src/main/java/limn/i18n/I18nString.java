@@ -1,6 +1,7 @@
 package limn.i18n;
 
 import java.text.MessageFormat;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -45,8 +46,18 @@ public final class I18nString {
     private final String english;
 
     private String cached;
-    /** Valid iff {@code cachedEpoch == I18n.epoch()}; 0 is "never resolved". */
+    /** Valid iff {@code cachedEpoch == I18n.epoch()} and the locale matches; 0 is "never resolved". */
     private long cachedEpoch;
+    /**
+     * The locale {@link #cached} was resolved under. Part of the memo's key since ADR 035,
+     * because the same string can be read from two subtrees in two languages: inside a
+     * widget pass {@link I18n#locale()} answers that widget's effective locale, and a memo
+     * that could not see it would hand a Hebrew pane the label its Latin neighbour resolved
+     * a frame earlier. One slot still: a static string actually read in two languages every
+     * frame re-resolves per alternation, which is a bundle walk of hash gets and is paid
+     * only where two languages are genuinely on one screen.
+     */
+    private Locale cachedLocale;
 
     /**
      * Declares a localizable string.
@@ -80,15 +91,22 @@ public final class I18nString {
         return new I18nString(Objects.requireNonNull(text, "text"));
     }
 
-    /** The text in the current locale, or the English when nothing translates it. */
+    /**
+     * The text in the {@linkplain I18n#locale() locale in effect here}, or the English
+     * when nothing translates it. Inside a widget's measure, layout, paint or event
+     * dispatch that locale is the widget's own effective one, so the same declaration
+     * reads correctly from every subtree without the caller doing anything.
+     */
     public String get() {
         if (key == null) {
             return english;
         }
         long epoch = I18n.epoch();
-        if (cachedEpoch != epoch) {
-            cached = I18n.resolve(key, english);
+        Locale locale = I18n.locale();
+        if (cachedEpoch != epoch || !locale.equals(cachedLocale)) {
+            cached = I18n.resolve(key, english, locale);
             cachedEpoch = epoch;
+            cachedLocale = locale;
         }
         return cached;
     }

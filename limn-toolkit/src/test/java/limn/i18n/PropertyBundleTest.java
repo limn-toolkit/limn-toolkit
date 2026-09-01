@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PropertyBundleTest {
@@ -83,31 +83,50 @@ class PropertyBundleTest {
     }
 
     @Test
-    void onlyTheLocaleInUseIsResident() {
+    void onlyPreparedLocalesAreResidentAndReleaseDropsOne() {
+        // Since ADR 035 two languages can genuinely be on screen at once, so preparing a
+        // second locale keeps the first: the one-table-per-reader promise is now enforced
+        // by I18n's retain ledger calling release, not by prepare evicting its neighbour.
         Locale pt = Locale.forLanguageTag("pt");
         Locale ja = Locale.JAPANESE;
 
         bundle.prepare(pt);
-        assertEquals(pt, bundle.loadedLocale());
-        int ptSize = bundle.residentSize();
+        assertTrue(bundle.resident(pt));
+        int ptSize = bundle.residentSize(pt);
         assertTrue(ptSize > 0);
 
         bundle.prepare(ja);
-        assertEquals(ja, bundle.loadedLocale(), "the new language replaces the old one");
-        assertEquals(1, bundle.residentSize(),
-                "the Japanese fixture has one key; nothing of Portuguese is still held");
+        assertTrue(bundle.resident(pt), "a second language does not evict the first: a "
+                + "subtree may still be reading it every frame");
+        assertEquals(1, bundle.residentSize(ja), "the Japanese fixture has one key");
+        assertEquals(2, bundle.residentLocales());
+
+        bundle.release(pt);
+        assertFalse(bundle.resident(pt), "released: nothing of Portuguese is still held");
+        assertEquals(1, bundle.residentLocales());
 
         bundle.prepare(pt);
-        assertEquals(ptSize, bundle.residentSize(), "coming back re-reads the file");
+        assertEquals(ptSize, bundle.residentSize(pt), "coming back re-reads the file");
     }
 
     @Test
     void preparingTheSameLocaleTwiceDoesNotReload() {
         Locale pt = Locale.forLanguageTag("pt");
         bundle.prepare(pt);
-        Locale first = bundle.loadedLocale();
+        assertEquals(1, bundle.residentLocales());
         bundle.prepare(pt);
-        assertSame(first, bundle.loadedLocale());
+        assertEquals(1, bundle.residentLocales());
+    }
+
+    @Test
+    void aLookupForAnUnpreparedLocaleLoadsOnceAndKeepsIt() {
+        // The safety net under a caller that bypassed retain: loaded and KEPT, because the
+        // ask will repeat, and a lookup that swapped the resident table would make two
+        // languages alternating in one frame re-read both files per frame, forever.
+        Locale pt = Locale.forLanguageTag("pt");
+        assertFalse(bundle.resident(pt));
+        assertEquals("Guardar", bundle.lookup("test.shared", pt));
+        assertTrue(bundle.resident(pt), "the lazy load is cached, not thrown away");
     }
 
     private List<String> candidates(String tag) {

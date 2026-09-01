@@ -3,6 +3,7 @@ package limn.scene;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
+import limn.i18n.I18n;
 import limn.scene.event.CharEvent;
 import limn.scene.event.FileDropEvent;
 import limn.scene.event.KeyEvent;
@@ -12,6 +13,7 @@ import limn.scene.event.PreeditEvent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -94,8 +96,19 @@ public abstract class Widget {
     private ControlSize resolvedControlSize;
     private long resolvedEpoch;
 
-    /** The step {@link #lastSize} was measured at, part of {@link #measure}'s cache key. */
-    private ControlSize measuredControlSize;
+    /**
+     * The resolved axes {@link #lastSize} was measured under: one value, not a field per
+     * axis, which is the move the direction axis's own doc reserved for the first time a
+     * third axis wanted into {@link #measure}'s key. The locale is that third axis (a keyed
+     * string resolves to different text, so a subtree in another language genuinely
+     * measures differently); allocated only when a measure actually runs, compared
+     * field-by-field so a cache hit allocates nothing.
+     */
+    private MeasuredAxes measuredAxes;
+
+    /** See {@link #measuredAxes}. */
+    private record MeasuredAxes(ControlSize size, LayoutDirection direction, Locale locale) {
+    }
 
     /** Invalidates every memo in the process. O(1). Package-private: the five writers only. */
     static void bumpControlSizeEpoch() {
@@ -138,16 +151,48 @@ public abstract class Widget {
     private LayoutDirection resolvedLayoutDirection;
     private long resolvedDirectionEpoch;
 
-    /**
-     * The direction {@link #lastSize} was measured in, part of {@link #measure}'s cache key.
-     * A line of mixed content measures a fraction of a point differently in the two directions,
-     * so a size cache that cannot see the axis returns a stale answer across a change.
-     */
-    private LayoutDirection measuredLayoutDirection;
-
     /** Invalidates every direction memo in the process. O(1). Package-private: the writers only. */
     static void bumpLayoutDirectionEpoch() {
         layoutDirectionEpoch++;
+    }
+
+    // ------------------------------------------------------------- locale axis
+    // The third resolved axis, the same shape again on purpose: read the resolution
+    // contract on Widget.locale() before touching any of this, and keep all three apart.
+
+    /**
+     * Global validity stamp for every widget's {@link #locale()} memo: its own counter,
+     * for the cost reason the direction epoch is not the size epoch. Bumped by the four
+     * tree-side writers of a resolution input, each O(1): {@link #setLocale},
+     * {@link #setInheritanceHost}, {@link #setSceneRecursively} and
+     * {@link Scene#setLocale}.
+     *
+     * <p>The chain's fifth input, the process locale, lives in {@link I18n} and cannot
+     * bump a package-private counter here, so the memo is validated against <b>two</b>
+     * stamps: this one and {@link I18n#epoch()}, which every process-locale switch
+     * already moves. An i18n epoch bump that did not move the locale (a bundle
+     * registration) forces a spurious re-resolution that arrives at the same value:
+     * one link walked per widget per rare event, the price the direction axis's own
+     * doc puts on a merged counter, paid here for not putting a cross-package hook on
+     * the hot path of every {@code setLocale}.
+     */
+    private static long localeEpoch = 1;
+
+    /**
+     * The locale this widget declares for itself and its subtree; {@code null} = inherit.
+     * <b>Never resolved in a constructor</b>, for the reason a declared step is not:
+     * {@link #add} assigns the parent after the child is fully built.
+     */
+    private Locale declaredLocale;
+
+    /** Memo; valid iff both stamps below are current. */
+    private Locale resolvedLocale;
+    private long resolvedLocaleEpoch;
+    private long resolvedLocaleI18nEpoch;
+
+    /** Invalidates every locale memo in the process. O(1). Package-private: the writers only. */
+    static void bumpLocaleEpoch() {
+        localeEpoch++;
     }
 
     // ------------------------------------------------------------------ tree
@@ -196,7 +241,7 @@ public abstract class Widget {
     /**
      * The single funnel through which a subtree's scene is written: {@link #add},
      * {@link #remove}, {@link Scene}'s constructor, {@code Scene.pushOverlay} and
-     * {@code Scene.removeOverlay}. Bumps both inherited axes' epochs once, up front:
+     * {@code Scene.removeOverlay}. Bumps every inherited axis's epoch once, up front:
      * {@code pushOverlay}/{@code removeOverlay} move a whole <b>parentless</b> subtree
      * between scenes without touching any parent field, so a widget that resolved and
      * memoized before being pushed into a scene with a different default would otherwise
@@ -206,6 +251,7 @@ public abstract class Widget {
     final void setSceneRecursively(Scene newScene) {
         bumpControlSizeEpoch();
         bumpLayoutDirectionEpoch();
+        bumpLocaleEpoch();
         setSceneRecursivelyInternal(newScene);
     }
 
@@ -246,10 +292,11 @@ public abstract class Widget {
             // onDetached — legal there, and answered from the scene being left — is
             // stamped current and nothing later says otherwise: the widget would keep
             // the left scene's answer for as long as no global input moved. Zero is
-            // the stamp that is never current, on either axis, by the fields' own
+            // the stamp that is never current, on any axis, by the fields' own
             // contract.
             resolvedEpoch = 0;
             resolvedDirectionEpoch = 0;
+            resolvedLocaleEpoch = 0;
         }
     }
 
@@ -535,10 +582,21 @@ public abstract class Widget {
     /**
      * @return the hover tooltip text for this widget, or {@code null}/empty for
      *         none. The scene shows it after a short dwell, near the pointer.
-     *         Resolved by walking up from the hovered leaf (like {@link #cursor}).
+     *         Resolved by walking up from the hovered leaf (like {@link #cursor}),
+     *         under this widget's own {@linkplain #locale() locale}: a tooltip
+     *         belongs to the subtree it annotates, and the scene painting it is
+     *         outside any pass that would put that locale in scope.
      */
     public String tooltip() {
-        return tooltip == null ? null : tooltip.get();
+        if (tooltip == null) {
+            return null;
+        }
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            return tooltip.get();
+        } finally {
+            I18n.popScope(enclosing);
+        }
     }
 
     /** Sets the hover tooltip text ({@code null} clears it). UI thread only. */
@@ -658,13 +716,13 @@ public abstract class Widget {
     }
 
     /**
-     * Links this widget's <b>inherited axes</b> — its {@link ControlSize} and its
-     * {@link LayoutDirection} alike — to {@code host}, for the case the tree cannot express: a
-     * widget that is the root of its own {@link Scene} (a popup or dialog window) or a
-     * {@linkplain Scene#pushOverlay overlay}, both of which have no parent. One link carries
-     * both, because it says "this parentless panel belongs to that widget", which is a fact
-     * about neither axis; a second link that could name a different widget per axis would be a
-     * bug with no honest resolution.
+     * Links this widget's <b>inherited axes</b> — its {@link ControlSize}, its
+     * {@link LayoutDirection} and its {@linkplain #locale() locale} alike — to {@code host},
+     * for the case the tree cannot express: a widget that is the root of its own {@link Scene}
+     * (a popup or dialog window) or a {@linkplain Scene#pushOverlay overlay}, both of which
+     * have no parent. One link carries them all, because it says "this parentless panel
+     * belongs to that widget", which is a fact about no single axis; a second link that could
+     * name a different widget per axis would be a bug with no honest resolution.
      *
      * <p>The chain then continues from {@code host}, <b>live</b>, so a later change on the host
      * reaches the popup while it is open, which explicit forwarding could not do (and which
@@ -702,6 +760,7 @@ public abstract class Widget {
         this.inheritanceHost = host;
         bumpControlSizeEpoch();
         bumpLayoutDirectionEpoch();
+        bumpLocaleEpoch();
         markNeedsLayout();
     }
 
@@ -804,6 +863,120 @@ public abstract class Widget {
         markNeedsLayout();
     }
 
+    // ------------------------------------------------------------- locale axis
+
+    /**
+     * @return the locale this widget declares for itself <em>and its subtree</em>, or
+     *         {@code null} when it inherits. The "is it set here" reader; use
+     *         {@link #locale()} for the effective value.
+     */
+    public final Locale declaredLocale() {
+        return declaredLocale;
+    }
+
+    /**
+     * @return the effective locale, never {@code null}: this widget's declared value, else
+     *         the nearest declaring ancestor's, else its {@linkplain Scene#locale() scene
+     *         default}, else its {@linkplain #setInheritanceHost host}'s, else the
+     *         {@linkplain I18n#processLocale() process locale}. The language this subtree's
+     *         strings resolve in, its numbers take their digits from, and its text breaks
+     *         lines under (ADR 035); it is <b>not</b> a direction &mdash; a Hebrew-locale
+     *         subtree still lays out by its {@link #layoutDirection()}, and the two axes are
+     *         declared separately because they genuinely vary separately.
+     *
+     * <p><b>Widgets rarely need to read this.</b> While the toolkit is inside this widget's
+     * measure, layout, paint or an event handler, {@link I18n#locale()} already answers it
+     * (the pass holds it {@linkplain I18n#pushScope in scope}), so {@code I18nString.get()},
+     * {@code I18n.localizeDigits} and every other locale reader is correct unchanged. Read
+     * it explicitly to hand the answer somewhere the scope cannot follow: a posted task, a
+     * native window's title.
+     *
+     * <p><b>Never read it in a constructor or a field initializer</b>, for the reason the
+     * other axes forbid it: a widget has no parent while it is being constructed, so the
+     * answer there is the process locale no matter what the eventual parent declares.
+     *
+     * <p>Steady-state cost is two {@code long} compares and a field read. The memo is
+     * validated against its own epoch <em>and</em> {@link I18n#epoch()}, because the chain
+     * bottoms out in the process locale and {@link I18n#setLocale} cannot reach a counter in
+     * this package; a bundle registration therefore re-resolves this memo spuriously, one
+     * link per widget, which is the recorded price of keeping the axes' writers apart.
+     *
+     * <p>{@code final} by contract, for {@link #controlSize()}'s reason: {@link #measure}
+     * keys its cache on the resolved locale.
+     */
+    public final Locale locale() {
+        if (resolvedLocaleEpoch == localeEpoch && resolvedLocaleI18nEpoch == I18n.epoch()) {
+            return resolvedLocale;
+        }
+        Locale resolved = resolveLocale();
+        resolvedLocale = resolved;
+        resolvedLocaleEpoch = localeEpoch;
+        resolvedLocaleI18nEpoch = I18n.epoch();
+        return resolved;
+    }
+
+    /**
+     * One link of the resolution chain, and {@link #resolveControlSize()}'s chain exactly:
+     * the same order, for the same reasons, the scene default before the host link so
+     * {@link Scene#setLocale} stays reachable for every popup, menu and dialog scene. The
+     * bottom is {@link I18n#processLocale()} and deliberately not {@link I18n#locale()}:
+     * during a pass the latter answers the <em>enclosing</em> widget's scope, and a chain
+     * that consulted it would hand a parentless popup root whatever subtree happened to be
+     * mid-paint.
+     */
+    private Locale resolveLocale() {
+        if (declaredLocale != null) {
+            return declaredLocale;
+        }
+        if (parent != null) {
+            return parent.locale();
+        }
+        if (scene != null) {
+            Locale sceneDefault = scene.locale();
+            if (sceneDefault != null) {
+                return sceneDefault;
+            }
+        }
+        if (inheritanceHost != null) {
+            return inheritanceHost.locale();
+        }
+        return I18n.processLocale();
+    }
+
+    /**
+     * Sets the locale for this widget and every descendant that does not declare its own; it
+     * inherits down the tree like {@link #setControlSize}. {@code null} restores inheritance.
+     * This is ADR 006 §4's escape hatch, delivered by ADR 035: the recorded case is a Hebrew
+     * interface holding a left-to-right, English-locale code pane, where reading everything
+     * off the process locale is the shortcut that breaks it.
+     *
+     * <p>The declared locale is {@linkplain I18n#retainLocale retained} while the
+     * declaration stands, so every bundle keeps a prepared table for it; clearing or
+     * replacing the declaration releases it. A widget discarded while still declaring one
+     * keeps that retain &mdash; clear the declaration (or accept a resident table per
+     * language the process ever declared, which is usually one) when a locale-declaring
+     * subtree is dropped for good.
+     *
+     * <p>Re-measures whatever actually changed and repaints; a descendant that declares its
+     * own locale keeps its measure cache. No-op when unchanged. UI thread only.
+     */
+    public final void setLocale(Locale locale) {
+        Ui.checkUiThread();
+        if (Objects.equals(declaredLocale, locale)) {
+            return;
+        }
+        Locale previous = declaredLocale;
+        declaredLocale = locale;
+        if (locale != null) {
+            I18n.retainLocale(locale);
+        }
+        if (previous != null) {
+            I18n.releaseLocale(previous);
+        }
+        bumpLocaleEpoch();
+        markNeedsLayout();
+    }
+
     /**
      * Distance from this widget's top edge to its first text baseline, in logical points:
      * the alignment reference for {@link limn.scene.layout.Flex.CrossAlignment#BASELINE}.
@@ -834,49 +1007,62 @@ public abstract class Widget {
 
     /**
      * Measures the preferred size under {@code constraints}. Results are cached until
-     * {@link #markNeedsLayout()}, and the cache key includes the <b>resolved control
-     * size</b> and the <b>resolved layout direction</b>, so a container's change on either axis
-     * re-measures exactly the descendants whose resolved value actually changed and leaves
-     * overriding subtrees on their caches. That is why no deep-invalidation API is needed for
-     * either axis. Subclasses implement {@link #onMeasure}.
+     * {@link #markNeedsLayout()}, and the cache key includes the <b>resolved axes</b> — the
+     * control size, the layout direction and the locale, as one {@code MeasuredAxes} value —
+     * so a container's change on any axis re-measures exactly the descendants whose resolved
+     * value actually changed and leaves overriding subtrees on their caches. That is why no
+     * deep-invalidation API is needed for any axis. Subclasses implement {@link #onMeasure}.
      *
      * <p>The direction belongs in the key because a line of mixed content genuinely measures a
      * fraction of a point differently in the two directions: the paragraph direction decides
      * which bidi level a boundary neutral takes, which decides which run it extends, which
-     * decides which face measures it. A cache that cannot see the axis returns a stale size.
+     * decides which face measures it. The locale belongs there because a keyed string resolves
+     * to different <em>text</em> under a different language, and a number to different digits.
+     * A cache that cannot see an axis returns a stale size.
+     *
+     * <p>The widget's effective locale is held {@linkplain I18n#pushScope in scope} while
+     * {@link #onMeasure} runs, so everything the measure resolves or formats — an
+     * {@code I18nString}, a chart tick, a line break — answers in this subtree's language
+     * without the subclass doing anything (ADR 035).
      *
      * <p>Correctness is a property of the key: the only way this can return a stale size is
-     * if the resolved step <em>and</em> the resolved direction <em>and</em> the constraints
-     * <em>and</em> {@code needsMeasure} all say nothing changed, in which case nothing did.
-     *
-     * <p>A third axis wanting into this key would be the smell: the right move then is a single
-     * resolved-axes value rather than a fourth field, and it should be noticed the first time.
+     * if the resolved axes <em>and</em> the constraints <em>and</em> {@code needsMeasure} all
+     * say nothing changed, in which case nothing did.
      */
     public final Size measure(Constraints constraints) {
         ControlSize step = controlSize();
         LayoutDirection direction = layoutDirection();
+        Locale locale = locale();
+        MeasuredAxes measured = measuredAxes;
         if (!needsMeasure
-                && step == measuredControlSize
-                && direction == measuredLayoutDirection
+                && measured != null
+                && measured.size() == step
+                && measured.direction() == direction
+                && measured.locale().equals(locale)
                 && constraints.equals(lastConstraints)) {
             return lastSize;
         }
-        lastSize = Objects.requireNonNull(onMeasure(constraints), "onMeasure returned null");
+        Locale enclosing = I18n.pushScope(locale);
+        try {
+            lastSize = Objects.requireNonNull(onMeasure(constraints), "onMeasure returned null");
+        } finally {
+            I18n.popScope(enclosing);
+        }
         lastConstraints = constraints;
-        measuredControlSize = step;
-        measuredLayoutDirection = direction;
+        measuredAxes = new MeasuredAxes(step, direction, locale);
         needsMeasure = false;
         return lastSize;
     }
 
     /**
      * Reports the size this widget wants within {@code constraints}. Called once per
-     * layout pass, and the result is cached against the constraints, the resolved size step
-     * and the resolved layout direction, so it must be a pure function of them and of this
-     * widget's own state.
+     * layout pass, and the result is cached against the constraints and the resolved
+     * axes (size step, layout direction, locale), so it must be a pure function of them
+     * and of this widget's own state.
      *
      * <p>Resolve the {@link ControlSize} and the {@link LayoutDirection} once each here and
-     * thread them down; never read either in a constructor.
+     * thread them down; never read either in a constructor. The locale needs no threading:
+     * it is in scope, and {@link I18n#locale()} answers it wherever text is resolved.
      */
     protected abstract Size onMeasure(Constraints constraints);
 
@@ -886,7 +1072,12 @@ public abstract class Widget {
         this.y = y;
         this.width = width;
         this.height = height;
-        onLayout();
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            onLayout();
+        } finally {
+            I18n.popScope(enclosing);
+        }
     }
 
     /** Containers position children here (measure + {@link #layoutBox} per child). */
@@ -1075,12 +1266,16 @@ public abstract class Widget {
         }
         int depth = canvas.saveCount();
         boolean completed = false;
+        // The paint runs with this widget's locale in scope, so text resolved on the way
+        // down answers in this subtree's language; a child's own paintWidget nests its own.
+        Locale enclosing = I18n.pushScope(locale());
         try {
             onPaint(canvas);
             paintChildren(canvas);
             onPaintOverlay(canvas);
             completed = true;
         } finally {
+            I18n.popScope(enclosing);
             int leaked = canvas.saveCount() - depth;
             if (leaked != 0) {
                 if (completed) {
@@ -1272,21 +1467,44 @@ public abstract class Widget {
     protected void onFocusLost() {
     }
 
-    // package-private dispatch bridges for Scene
+    // Package-private dispatch bridges for Scene. Each holds this widget's locale in
+    // scope while the handler runs, so a handler that formats or resolves text (a
+    // spinner committing a typed value, a menu built on right-click) answers in this
+    // subtree's language, exactly as the measure and paint that will draw it do.
     final void dispatchMouse(MouseEvent event) {
-        onMouseEvent(event);
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            onMouseEvent(event);
+        } finally {
+            I18n.popScope(enclosing);
+        }
     }
 
     final void dispatchKey(KeyEvent event) {
-        onKeyEvent(event);
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            onKeyEvent(event);
+        } finally {
+            I18n.popScope(enclosing);
+        }
     }
 
     final void dispatchChar(CharEvent event) {
-        onCharTyped(event);
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            onCharTyped(event);
+        } finally {
+            I18n.popScope(enclosing);
+        }
     }
 
     final void dispatchPreedit(PreeditEvent event) {
-        onPreedit(event);
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            onPreedit(event);
+        } finally {
+            I18n.popScope(enclosing);
+        }
     }
 
     // Package bridges so Scene (same package) reads these without widening them.
@@ -1299,14 +1517,24 @@ public abstract class Widget {
     }
 
     final void dispatchFileDrop(FileDropEvent event) {
-        onFileDrop(event);
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            onFileDrop(event);
+        } finally {
+            I18n.popScope(enclosing);
+        }
     }
 
     final void notifyFocus(boolean gained) {
-        if (gained) {
-            onFocusGained();
-        } else {
-            onFocusLost();
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            if (gained) {
+                onFocusGained();
+            } else {
+                onFocusLost();
+            }
+        } finally {
+            I18n.popScope(enclosing);
         }
     }
 }

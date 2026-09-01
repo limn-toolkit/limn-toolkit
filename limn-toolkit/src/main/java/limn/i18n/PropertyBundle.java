@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A {@link StringBundle} backed by UTF-8 {@code .properties} files on the classpath,
@@ -43,15 +44,18 @@ public final class PropertyBundle implements StringBundle {
     private final ClassLoader loader;
 
     /**
-     * The table for the locale in use, and nothing else: a language nobody is reading
-     * costs no memory, the way a font nobody draws with is not resident.
+     * One table per locale something is reading, and nothing else: a language nobody is
+     * reading costs no memory, the way a font nobody draws with is not resident.
      *
-     * <p>Switching languages replaces it rather than accumulating: a process that has
-     * visited ten locales holds one table, not ten. Coming back re-reads the file,
-     * which happens once per switch inside {@link #prepare} and never on a paint path.
+     * <p>Who is reading is {@link I18n}'s ledger, not this class's guess: the process
+     * locale plus every {@linkplain I18n#retainLocale retained} subtree locale, each
+     * {@linkplain #prepare prepared} in and {@linkplain #release released} out. A process
+     * that has visited ten languages holds the tables for the ones on screen, not ten;
+     * before ADR 035 that number was exactly one, and it grew only because two languages
+     * can now genuinely be on screen at once. Coming back to a released language re-reads
+     * the file, inside {@code prepare} and never on a paint path.
      */
-    private volatile Locale loaded;
-    private volatile Map<String, String> table = Map.of();
+    private final Map<Locale, Map<String, String>> tables = new ConcurrentHashMap<>();
 
     private PropertyBundle(String base, ClassLoader loader) {
         this.base = Objects.requireNonNull(base, "base");
@@ -90,31 +94,42 @@ public final class PropertyBundle implements StringBundle {
 
     @Override
     public void prepare(Locale locale) {
-        if (locale.equals(loaded)) {
-            return;
-        }
-        table = load(locale);   // the previous locale's table becomes garbage here
-        loaded = locale;
+        tables.computeIfAbsent(locale, this::load);
+    }
+
+    @Override
+    public void release(Locale locale) {
+        tables.remove(locale);
     }
 
     @Override
     public String lookup(String key, Locale locale) {
-        if (!locale.equals(loaded)) {
-            // Only reachable for a bundle asked about a locale nobody prepared it for;
-            // I18n prepares on registration and before every switch is visible.
-            prepare(locale);
+        Map<String, String> table = tables.get(locale);
+        if (table == null) {
+            // Only reachable for a locale nobody prepared this bundle for; I18n prepares
+            // on registration, on retain and before every switch is visible. Loaded and
+            // KEPT rather than swapped in, because the ask will repeat: a lookup that
+            // replaced the resident table would make two languages alternating in one
+            // frame re-read both files per frame, forever.
+            table = tables.computeIfAbsent(locale, this::load);
         }
         return table.get(key);
     }
 
-    /** The locale currently resident, or {@code null} when nothing has been loaded. */
-    Locale loadedLocale() {
-        return loaded;
+    /** Whether a table for {@code locale} is resident (test observability). */
+    boolean resident(Locale locale) {
+        return tables.containsKey(locale);
     }
 
-    /** How many strings are resident: the memory this bundle is actually costing. */
-    int residentSize() {
-        return table.size();
+    /** How many strings {@code locale}'s table holds; 0 when it is not resident. */
+    int residentSize(Locale locale) {
+        Map<String, String> table = tables.get(locale);
+        return table == null ? 0 : table.size();
+    }
+
+    /** How many locales hold a resident table: the memory this bundle is actually costing. */
+    int residentLocales() {
+        return tables.size();
     }
 
     /** The classpath resources this family would read for {@code locale}, most general first. */

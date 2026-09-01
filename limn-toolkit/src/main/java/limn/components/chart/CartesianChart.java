@@ -57,18 +57,22 @@ public abstract class CartesianChart extends Chart {
     private List<String> cachedStackKeys = List.of();
     private int stackKeysGeneration = -1;
     // Cache keys for the two O(categories) scans below. Both fold in the UI language,
-    // because both cache resolved text and a language change re-reads nothing on its own.
-    // Both also fold in the direction: what they hold is a width, the width is taken from a
-    // line shaped for a paragraph direction, and nothing else in either key moves when that
-    // direction does. Without it the plot keeps a gutter measured for the other direction and
-    // is told it is current, which no screenshot shows and every geometry query is wrong about.
+    // because both cache resolved text and a language change re-reads nothing on its own —
+    // and the language is the i18n epoch AND the effective locale, because this widget's own
+    // declared locale (ADR 035) moves the resolution without moving the epoch. Both also fold
+    // in the direction: what they hold is a width, the width is taken from a line shaped for a
+    // paragraph direction, and nothing else in either key moves when that direction does.
+    // Without it the plot keeps a gutter measured for the other direction and is told it is
+    // current, which no screenshot shows and every geometry query is wrong about.
     private int scaleGeneration = -1;
     private long scaleEpoch = -1;
+    private java.util.Locale scaleLocale;
     private Font scaleFont;
     private boolean scaleRtl;
     private float tickLabelWidth;
     private int categoryScanGeneration = -1;
     private long categoryScanEpoch = -1;
+    private java.util.Locale categoryScanLocale;
     private Font categoryScanFont;
     private boolean categoryScanRtl;
     private float widestCategoryLabel;
@@ -370,12 +374,14 @@ public abstract class CartesianChart extends Chart {
      */
     private void resolveScale() {
         Font font = tokens().label();
+        java.util.Locale locale = limn.i18n.I18n.locale();
         if (scaleGeneration == dataGeneration() && scaleEpoch == limn.i18n.I18n.epoch()
-                && scaleFont == font && scaleRtl == rtl) {
+                && locale.equals(scaleLocale) && scaleFont == font && scaleRtl == rtl) {
             return;
         }
         scaleGeneration = dataGeneration();
         scaleEpoch = limn.i18n.I18n.epoch();
+        scaleLocale = locale;
         scaleFont = font;
         scaleRtl = rtl;
         resolveScaleUncached(font);
@@ -452,8 +458,10 @@ public abstract class CartesianChart extends Chart {
      * the width being cached, and no other part of the key moves when it changes.
      */
     private float widestCategoryLabel(Font font) {
+        java.util.Locale locale = limn.i18n.I18n.locale();
         if (categoryScanGeneration == dataGeneration() && categoryScanFont == font
-                && categoryScanEpoch == limn.i18n.I18n.epoch() && categoryScanRtl == rtl) {
+                && categoryScanEpoch == limn.i18n.I18n.epoch()
+                && locale.equals(categoryScanLocale) && categoryScanRtl == rtl) {
             return widestCategoryLabel;
         }
         float widest = 0;
@@ -464,6 +472,7 @@ public abstract class CartesianChart extends Chart {
         categoryScanGeneration = dataGeneration();
         categoryScanFont = font;
         categoryScanEpoch = limn.i18n.I18n.epoch();
+        categoryScanLocale = locale;
         categoryScanRtl = rtl;
         return widest;
     }
