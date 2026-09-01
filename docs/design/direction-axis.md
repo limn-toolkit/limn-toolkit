@@ -160,6 +160,17 @@ decision with a reason, not an oversight to improve on:
   to right inside a right-to-left paragraph; so the key that selects them does not move either.
 - An **accelerator label** does not mirror. `Ctrl+→` names the key with the arrow printed on it, and
   in a mirrored interface it is still that key.
+- A **media transport** does not mirror. The playback cluster inherits its arrangement from tape
+  decks, a scrub or progress bar advances left to right in any language, and the volume slider
+  beside them follows — every platform's bidi guidance lists media playback as the standing
+  exception, and no shipping player mirrors it. The toolkit has no transport widget of its own; a
+  player pins the panel it builds with a declared `LTR`, which is what the demo's video tab does.
+- A **pan control** does not mirror. It names physical space: its left end is the left speaker in
+  any language.
+- A **time-history chart** keeps its axis. The newest sample stays at the right and history grows
+  leftward in either direction, for the reason a clock face and a scrub bar do not mirror: time's
+  flow is not a reading order. Which side of a card or panel the chart hangs on is layout, and
+  mirrors normally.
 - **Video frames, images and 3D renders** are content. A rendered scene that mirrored would have its
   handedness reversed.
 - **`HOME` and `END`** stay logical everywhere, so `Shift+Home` produces one contiguous range of the

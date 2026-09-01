@@ -1714,6 +1714,13 @@ final class VideoScene {
             // for the eye. XSMALL is a compact step and not a miniature one: the hit targets are
             // still clamped to Strokes.MIN_HIT_TARGET.
             setControlSize(limn.scene.ControlSize.XSMALL);
+            // A transport reads left to right in either direction. The cluster inherits its
+            // arrangement from tape decks, the scrub bar advances the way the tape ran, and no
+            // player mirrors either — the platforms' own bidi guidance lists media playback as
+            // the standing exception. Declared once here, so the whole bar — buttons, volume,
+            // timeline, position — is one exception rather than five, using the same knob an
+            // application uses (docs/design/direction-axis.md).
+            setLayoutDirection(limn.scene.LayoutDirection.LTR);
             bar.setTooltip("Drag to scrub: keyframes while it moves, exactly where it is let go");
             bar.onChange(fraction -> {
                 dragging = true;

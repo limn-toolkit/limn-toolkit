@@ -62,6 +62,9 @@ final class AudioScene {
                 + "de-repetifies it, the slider pans it left/right (mono clips).")
                 .setMuted(true).setWrap(true));
         Slider pan = new Slider(-100, 100).setValue(0);
+        // Pan is physical space, not reading order: -100 is the LEFT speaker in any language,
+        // so the slider's axis does not mirror (docs/design/direction-axis.md).
+        pan.setLayoutDirection(limn.scene.LayoutDirection.LTR);
         pan.setTooltip("Pan for the next effect: -100 left … 100 right");
         Button playBlip = new Button("Blip (random pitch)");
         playBlip.onAction(() -> Sounds.play(blip, PlayOptions.DEFAULTS

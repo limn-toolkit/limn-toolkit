@@ -40,12 +40,14 @@ import java.util.Locale;
  * are visible in it too. The per-frame paint allocates nothing: the strings and
  * the unit's measured offset are computed on the 1 Hz latch, not per frame.
  *
- * <p><b>The footer reads with the tree around it.</b> The demo carries a live
- * direction picker in its toolbar, and a HUD that ignored the axis under it
- * would read as a bug report. Reading right to left, the first card of each row
- * is the rightmost one, every card right-aligns its text and hangs its chart on
- * the left, and the charts anchor their newest tick to the left edge — the
- * mirror of the right-anchored scroll below.
+ * <p><b>The footer reads with the tree around it — except for time.</b> The demo
+ * carries a live direction picker in its toolbar, and a HUD that ignored the
+ * axis under it would read as a bug report. Reading right to left, the first
+ * card of each row is the rightmost one, and every card right-aligns its text
+ * and hangs its chart on the left. The charts themselves keep their axis: the
+ * newest tick is the rightmost bar in either direction, because time's flow is
+ * not a reading order — the reason a scrub bar and a clock do not mirror
+ * (docs/design/direction-axis.md).
  */
 final class PerfFooter extends Widget {
 
@@ -286,18 +288,18 @@ final class PerfFooter extends Widget {
         // widest text here ("of 4096 MB", "12.3k tris") and the two share one card.
         float sx = rtl ? x + pad : x + w * 0.55f;
         float sw = w * 0.45f - pad;
-        barChart(canvas, sx, y + 8, sw, h - 14, gauge, rtl);
+        barChart(canvas, sx, y + 8, sw, h - 14, gauge);
     }
 
     /**
-     * One bar per tick in fixed slots, anchored to the edge reading ends on: the
-     * newest tick is always the bar nearest that edge — the rightmost reading left
-     * to right, the leftmost reading right to left — and history grows away from
-     * it, scrolling as old ticks fall off the (at most) {@link #SECONDS}-slot
-     * window.
+     * One bar per tick in fixed slots, anchored to the RIGHT edge <b>in both
+     * directions</b>: the newest tick is always the rightmost bar and history
+     * grows leftward, scrolling left as old ticks fall off the (at most)
+     * {@link #SECONDS}-slot window. Which side of the card the chart hangs on
+     * mirrors with the row; the axis inside it does not, because time's flow is
+     * not a reading order.
      */
-    private void barChart(Canvas canvas, float x, float y, float w, float h, Gauge gauge,
-            boolean rtl) {
+    private void barChart(Canvas canvas, float x, float y, float w, float h, Gauge gauge) {
         int n = gauge.count;
         if (n < 1 || w <= 2 || h <= 0) {
             return;
@@ -305,15 +307,14 @@ final class PerfFooter extends Widget {
         float scale = gauge.max();
         float slotW = w / SECONDS;
         float barW = Math.max(1f, slotW - 1f); // ~1px gap between bars
-        int firstSlot = SECONDS - n; // oldest held tick's slot, before mirroring
+        int firstSlot = SECONDS - n; // right-aligned: oldest held tick starts here
         for (int i = 0; i < n; i++) {
             float value = gauge.at(i);
             if (value <= 0) {
                 continue; // a zero tick reads as a gap, not a sliver
             }
             float bh = Math.max(1f, Math.min(1f, value / scale) * h);
-            int slot = rtl ? SECONDS - 1 - (firstSlot + i) : firstSlot + i;
-            canvas.fillRect(x + slot * slotW, y + h - bh, barW, bh, gauge.fill);
+            canvas.fillRect(x + (firstSlot + i) * slotW, y + h - bh, barW, bh, gauge.fill);
         }
     }
 
