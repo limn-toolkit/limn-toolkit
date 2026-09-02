@@ -764,17 +764,6 @@ public abstract class Widget {
         markNeedsLayout();
     }
 
-    /**
-     * @deprecated the link was never about size. It says "this parentless panel belongs to that
-     *         widget", which every inherited axis needs and none of them owns, so it is named
-     *         {@link #setInheritanceHost} and this delegates. A second link that could name a
-     *         different widget per axis would be a bug with no honest resolution.
-     */
-    @Deprecated
-    public final void setControlSizeHost(Widget host) {
-        setInheritanceHost(host);
-    }
-
     // --------------------------------------------------- layout direction axis
 
     /**

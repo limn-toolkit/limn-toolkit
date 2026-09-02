@@ -142,10 +142,10 @@ class ControlSizeTest extends ComponentTestBase {
 
     // -------------------------------------------------------------- host link
     //
-    // These call setControlSizeHost rather than setInheritanceHost on purpose. The link was
-    // renamed when it gained a second axis and the old name stays as a deprecated delegate;
-    // leaving this file on it is what keeps that delegate exercised, and the whole of what the
-    // rename may change is the name.
+    // The link is setInheritanceHost: it carries every inherited axis, and the control size is
+    // the one this file cares about. Its former name, setControlSizeHost, lived on for a while as
+    // a deprecated delegate that these tests kept exercised; with no released user to protect it
+    // was removed rather than carried, and this file moved to the name that remains.
 
     @Test
     void aHostLinkCarriesTheStepToAnOutOfTreeRoot() {
@@ -154,7 +154,7 @@ class ControlSizeTest extends ComponentTestBase {
         Probe popupRoot = new Probe(); // parentless, as a popup scene's root is
         assertSame(ControlSize.MEDIUM, popupRoot.controlSize());
 
-        popupRoot.setControlSizeHost(owner);
+        popupRoot.setInheritanceHost(owner);
         assertSame(ControlSize.SMALL, popupRoot.controlSize(), "inherits across the link");
 
         owner.setControlSize(ControlSize.XLARGE);
@@ -166,7 +166,7 @@ class ControlSizeTest extends ComponentTestBase {
         Probe owner = new Probe();
         owner.setControlSize(ControlSize.SMALL);
         Probe popupRoot = new Probe();
-        popupRoot.setControlSizeHost(owner);
+        popupRoot.setInheritanceHost(owner);
         Scene popupScene = new Scene(popupRoot);
         popupScene.setTextRuler(RULER);
 
@@ -186,7 +186,7 @@ class ControlSizeTest extends ComponentTestBase {
         host.setControlSize(ControlSize.XLARGE);
         Probe child = new Probe();
         parent.add(child);
-        child.setControlSizeHost(host);
+        child.setInheritanceHost(host);
         assertSame(ControlSize.XSMALL, child.controlSize(), "a real parent wins over the link");
     }
 
@@ -194,10 +194,10 @@ class ControlSizeTest extends ComponentTestBase {
     void aHostCycleIsRejected() {
         Probe a = new Probe();
         Probe b = new Probe();
-        b.setControlSizeHost(a);
-        assertThrows(IllegalArgumentException.class, () -> a.setControlSizeHost(b),
+        b.setInheritanceHost(a);
+        assertThrows(IllegalArgumentException.class, () -> a.setInheritanceHost(b),
                 "a resolves through b, so b -> a would spin forever");
-        assertThrows(IllegalArgumentException.class, () -> a.setControlSizeHost(a));
+        assertThrows(IllegalArgumentException.class, () -> a.setInheritanceHost(a));
     }
 
     // ------------------------------------------------------------ reparenting

@@ -221,7 +221,7 @@ class LayoutDirectionTest extends ComponentTestBase {
 
         // The deprecated name is the only thing that changed: one link, both axes, and a second
         // link that could name a different widget per axis would have no honest resolution.
-        popupRoot.setControlSizeHost(owner);
+        popupRoot.setInheritanceHost(owner);
         assertSame(ControlSize.SMALL, popupRoot.controlSize());
         assertSame(LayoutDirection.RTL, popupRoot.layoutDirection());
     }
