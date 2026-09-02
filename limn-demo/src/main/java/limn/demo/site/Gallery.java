@@ -223,11 +223,31 @@ public final class Gallery {
                 all.add(new Shot(shot.entry(), shot.palette(), shot.file(), window,
                         shot.settleMillis()));
             }
-            all.addAll(showcaseShots(outDir, big));
+            List<Shot> showcase = showcaseShots(outDir, big);
+            // The showcase window's FIRST capture is a warm-up, taken and thrown away.
+            //
+            // Twice now (30 Aug and 2 Sep 2026) the site published the kitchen sink's dark
+            // capture with a menu bar, a toolbar and nothing else — no title, no tabs, no form,
+            // no footer — while its light capture and every other dark capture were complete.
+            // The kitchen dark shot is the first one on this window, and the only shot that is;
+            // the same command on a workstation draws it whole, so what fails is the first frame
+            // the showcase window ever presents under the runner's software rasteriser, not the
+            // scene. The 3D entry already pays a second pass for a first frame it cannot trust
+            // (SiteShowcase.Entry.warmUpPass). Rather than mark the kitchen too and leave the
+            // next entry that lands first to rediscover this, the window itself is warmed: its
+            // first shot is a copy of the first real one, written beside the real captures and
+            // deleted below, so no real capture is ever the window's first.
+            Path warmUp = outDir.resolve(".showcase-warmup@2x.png");
+            if (!showcase.isEmpty()) {
+                Shot first = showcase.get(0);
+                all.add(new Shot(first.entry(), first.palette(), warmUp, big, first.settleMillis()));
+            }
+            all.addAll(showcase);
 
             Driver driver = new Driver(all, List.of(window, big));
             driver.start();
             backend.runEventLoop();
+            Files.deleteIfExists(warmUp);
             if (driver.failed()) {
                 System.exit(1);
             }
