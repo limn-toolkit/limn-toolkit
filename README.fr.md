@@ -226,14 +226,14 @@ application charge avec `ThemeFormat`.
 Toute boîte à outils échange quelque chose. Voici ces échanges, annoncés d’emblée, parce que les
 découvrir la troisième semaine est pire que les lire maintenant.
 
-- **Les écritures complexes sont dessinées partout, mais rien n’est mis en miroir.** L’arabe,
-  l’hébreu, le devanagari et le thaï se lient, se réordonnent et placent leurs signes partout où du
-  texte est dessiné : dans `Label`, `TextField` et `TextArea`, comme sur chaque bouton, onglet,
-  entrée de menu et texte indicatif autour d’eux ; les paquets `ar` et `he` sont bien publiés. Ce
-  qu’une langue de droite à gauche n’obtient pas, c’est la mise en page : marges intérieures,
-  alignement, côté où se place une barre de défilement, côté d’ouverture d’une popup, sens d’une
-  touche fléchée ailleurs que dans un champ de texte — tout va de gauche à droite, quelle que soit
-  la langue.
+- **De droite à gauche, c’est une ligne que vous écrivez, pas quelque chose que la langue
+  implique.** L’arabe, l’hébreu, le devanagari et le thaï prennent forme partout où du texte est
+  dessiné, et `scene.setLayoutDirection(LayoutDirection.RTL)` met en miroir toute l’interface —
+  rangées, marges intérieures, alignement, barres de défilement, popups, touches fléchées — comme un
+  axe que chaque sous-arbre peut redéfinir. La boîte à outils n’infère jamais cette direction de la
+  locale, parce qu’une fenêtre en hébreu contient généralement un îlot de gauche à droite ; les deux
+  se déclarent donc séparément. L’écriture verticale (le mongol, la forme verticale du CJC) n’est
+  pas prise en charge.
 - **Pas de pont vers les lecteurs d’écran.** La navigation au clavier et les anneaux de focus sont
   complets, mais rien n’est exposé aux API d’accessibilité de la plateforme.
 - **Avant la 1.0.** L’API bouge encore d’une version à l’autre, et OpenGL est le seul chemin de

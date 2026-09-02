@@ -218,12 +218,12 @@ Same macOS flag as above. What it saves is plain data, which your application lo
 Every toolkit trades something. These are the trades, said early, because finding them in week
 three is worse than reading them now.
 
-- **Complex scripts are drawn everywhere, but nothing is mirrored.** Arabic, Hebrew, Devanagari
-  and Thai join, reorder and place their marks wherever text is drawn — inside `Label`,
-  `TextField` and `TextArea`, and on every button, tab, menu item and placeholder around them —
-  and the `ar` and `he` bundles ship. What a right-to-left language does not get is the layout:
-  insets, alignment, which side a scrollbar sits on, where a popup opens and which way an arrow
-  key moves outside a text field all read left to right whatever the language.
+- **Right to left is a line you write, not something the language implies.** Arabic, Hebrew,
+  Devanagari and Thai shape wherever text is drawn, and `scene.setLayoutDirection(LayoutDirection.RTL)`
+  mirrors the whole interface — rows, insets, alignment, scrollbars, popups, arrow keys — as an
+  axis each subtree can override. The toolkit never infers that direction from the locale,
+  because a Hebrew window usually holds a left-to-right island, so the two are declared
+  separately. Vertical writing (Mongolian, the vertical form of CJK) is not supported.
 - **No screen reader bridge.** Keyboard navigation and focus rings are complete, but nothing is
   exposed to the platform's accessibility APIs.
 - **Before 1.0.** The API still moves between releases, and OpenGL is the only rendering path.

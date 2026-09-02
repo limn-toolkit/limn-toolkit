@@ -223,14 +223,13 @@ La misma opción de macOS de arriba. Lo que guarda son datos planos, que tu apli
 Todo kit renuncia a algo. Estas son las renuncias, dichas de entrada, porque descubrirlas en la
 tercera semana es peor que leerlas ahora.
 
-- **Las escrituras complejas se dibujan en todas partes, pero nada se refleja.** El árabe, el
-  hebreo, el devanagari y el tailandés se unen, se reordenan y colocan sus marcas allí donde se
-  dibuje texto: dentro de `Label`, `TextField` y `TextArea`, y en cada botón, pestaña, elemento de
-  menú y texto de sugerencia a su alrededor; los paquetes `ar` y `he` sí se publican. Lo que un
-  idioma de derecha a izquierda no obtiene es la disposición: los márgenes, la alineación, el lado
-  en el que va una barra de desplazamiento, el lado por el que se abre un menú emergente y hacia
-  dónde lleva una tecla de flecha cuando el foco no está en un campo de texto — todo va de
-  izquierda a derecha, sea cual sea el idioma.
+- **De derecha a izquierda es una línea que escribes, no algo que el idioma implique.** El árabe, el
+  hebreo, el devanagari y el tailandés toman forma allí donde se dibuje texto, y
+  `scene.setLayoutDirection(LayoutDirection.RTL)` refleja toda la interfaz — filas, márgenes,
+  alineación, barras de desplazamiento, menús emergentes, teclas de flecha — como un eje que cada
+  subárbol puede anular. El kit nunca infiere esa dirección de la configuración regional, porque una
+  ventana en hebreo suele contener una isla de izquierda a derecha, así que las dos se declaran por
+  separado. La escritura vertical (el mongol, la forma vertical de CJK) no se admite.
 - **Sin puente para lectores de pantalla.** La navegación con teclado y los anillos de foco están
   completos, pero nada se expone a las API de accesibilidad de la plataforma.
 - **Anterior a 1.0.** La API todavía se mueve entre versiones, y OpenGL es la única vía de

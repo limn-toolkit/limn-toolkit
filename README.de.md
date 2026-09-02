@@ -225,14 +225,14 @@ Dieselbe macOS-Option wie oben. Was er speichert, sind schlichte Daten, die Ihre
 Jedes Toolkit tauscht etwas ein. Das sind die Tauschgeschäfte, vorab genannt; sie in Woche drei zu
 entdecken ist schlimmer, als sie jetzt zu lesen.
 
-- **Komplexe Schriften werden überall gezeichnet, gespiegelt wird nichts.** Arabisch, Hebräisch,
-  Devanagari und Thai verbinden sich, stellen sich um und setzen ihre Zeichen richtig — überall, wo
-  Text gezeichnet wird: in `Label`, `TextField` und `TextArea` ebenso wie auf jeder Schaltfläche,
-  jedem Reiter, jedem Menüeintrag und jedem Platzhalter ringsum; die Bündel `ar` und `he` werden
-  ausgeliefert. Was eine von rechts nach links gelesene Sprache nicht bekommt, ist das Layout:
-  Innenabstände, Ausrichtung, die Seite, auf der eine Bildlaufleiste sitzt, die Seite, auf der ein
-  Popup aufgeht, und die Richtung, in die eine Pfeiltaste außerhalb eines Textfelds den Fokus
-  bewegt — alles läuft von links nach rechts, gleich welche Sprache.
+- **Von rechts nach links ist eine Zeile, die Sie schreiben, nicht etwas, das die Sprache
+  impliziert.** Arabisch, Hebräisch, Devanagari und Thai werden überall geformt, wo Text gezeichnet
+  wird, und `scene.setLayoutDirection(LayoutDirection.RTL)` spiegelt die ganze Oberfläche — Zeilen,
+  Innenabstände, Ausrichtung, Bildlaufleisten, Popups, Pfeiltasten — als eine Achse, die jeder
+  Teilbaum überschreiben kann. Das Toolkit leitet diese Richtung nie aus dem Gebietsschema ab, weil
+  ein hebräisches Fenster meist eine von links nach rechts gelesene Insel enthält; die beiden werden
+  daher getrennt deklariert. Vertikale Schrift (Mongolisch, die vertikale Form von CJK) wird nicht
+  unterstützt.
 - **Keine Screenreader-Brücke.** Tastaturnavigation und Fokusringe sind vollständig, aber nichts
   wird an die Barrierefreiheits-APIs der Plattform gemeldet.
 - **Vor 1.0.** Die API bewegt sich zwischen Releases noch, und OpenGL ist der einzige Renderpfad.

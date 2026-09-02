@@ -222,13 +222,13 @@ Mesma flag do macOS de cima. O que ele salva é dado puro, que a sua aplicação
 Todo toolkit troca alguma coisa. Estas são as trocas, ditas de saída, porque descobri-las na
 terceira semana é pior do que lê-las agora.
 
-- **As escritas complexas são desenhadas em todo lugar, mas nada é espelhado.** O árabe, o
-  hebraico, o devanágari e o tailandês se unem, se reordenam e posicionam suas marcas onde quer que
-  haja texto: dentro de `Label`, `TextField` e `TextArea`, e em cada botão, aba, item de menu e
-  texto de espera ao redor deles; os pacotes `ar` e `he` são publicados. O que um idioma da direita
-  para a esquerda não ganha é o leiaute: recuos, alinhamento, o lado em que fica uma barra de
-  rolagem, o lado em que um menu suspenso abre e o lado para onde uma tecla de seta leva quando o
-  foco não está em um campo de texto — tudo vai da esquerda para a direita, seja qual for o idioma.
+- **Da direita para a esquerda é uma linha que você escreve, não algo que o idioma implica.** O
+  árabe, o hebraico, o devanágari e o tailandês tomam forma onde quer que se desenhe texto, e
+  `scene.setLayoutDirection(LayoutDirection.RTL)` espelha a interface inteira — linhas, recuos,
+  alinhamento, barras de rolagem, menus suspensos, teclas de seta — como um eixo que cada subárvore
+  pode sobrescrever. O toolkit nunca infere essa direção do locale, porque uma janela em hebraico
+  costuma conter uma ilha da esquerda para a direita, então as duas são declaradas separadamente.
+  Escrita vertical (o mongol, a forma vertical de CJK) não é suportada.
 - **Sem ponte para leitores de tela.** A navegação por teclado e os anéis de foco estão completos,
   mas nada é exposto às APIs de acessibilidade da plataforma.
 - **Pré-1.0.** A API ainda se move entre releases, e OpenGL é o único caminho de renderização. Fixe
