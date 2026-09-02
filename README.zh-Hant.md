@@ -58,7 +58,7 @@ jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:x.y.z")
 }
 ```
 
@@ -69,11 +69,13 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.5.0</version>
+  <version>x.y.z</version>
 </dependency>
 ```
 
 </details>
+
+`x.y.z` 是目前的發行版本——本頁頂端的 Maven Central 徽章顯示著它，而本頁上的每一個座標都採用同一個號碼。
 
 這一行就是全部的安裝。`limn-backend-lwjgl` 是視窗與繪製器，而它會把 `limn-toolkit`——元件、版面與場景圖——匯出給任何相依於它的東西。後端把 LWJGL 在每個桌面平台的原生庫都帶了進來，所以沒有 classifier 要挑。
 
@@ -86,7 +88,7 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
     runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
@@ -101,7 +103,7 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 若同一份建置要送到每個平台、而且無從得知它會落在哪一台機器上，就改用 `limn-video-ffmpeg-natives-all`。它是獨立的一個 POM，版本跟著工具組走，按這次發布測試過的負載版本替你把六個都列好了。也沒有什麼攔著你一次列出好幾個 classifier——要涵蓋兩個目標的套件包，就寫兩個。
 
 ```kotlin
-runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
 
 把 classifier 留空，工具組照樣建置、照樣執行：解碼器會回報自己不可用，並說出它找過的平台，而所有不屬於 FFmpeg 的東西都繼續運作。這份 FFmpeg 建置採用 LGPL-2.1-或更高版本，動態連結且可替換，並在裝著它的 jar 裡帶著授權條款全文。
@@ -161,7 +163,7 @@ public static void main(String[] args) {
 每一種顏色、每一個圓角、每一級尺寸都來自主題，而 `limn-theme-editor` 就是寫主題的那塊畫面。把它嵌進你自己的設定頁，或者直接跑起來：
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.5.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
 macOS 的開關和上面一樣。它存下來的是純資料，你的應用用 `ThemeFormat` 讀回去。

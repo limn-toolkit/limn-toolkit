@@ -22,6 +22,7 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { fillVersion, limnVersion } from "../src/lib/version.mjs";
 
 const SITE_DIR = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const GUIDE_DIR = path.join(SITE_DIR, "src/guides");
@@ -44,6 +45,7 @@ async function main() {
     (await readJson(SHOWCASE, "showcase manifest")).entries.map((entry) => [entry.id, entry]),
   );
 
+  const version = limnVersion();
   const files = (await readdir(GUIDE_DIR)).filter((name) => name.endsWith(".md")).sort();
   if (files.length === 0) {
     fail(`no guide pages in ${path.relative(SITE_DIR, GUIDE_DIR)}`);
@@ -51,7 +53,9 @@ async function main() {
 
   const problems = [];
   for (const name of files) {
-    const source = await readFile(path.join(GUIDE_DIR, name), "utf8");
+    // `{{version}}` is filled in here, at build time, from the release the site documents:
+    // a guide never carries the number, so a release never has to rewrite one.
+    const source = fillVersion(await readFile(path.join(GUIDE_DIR, name), "utf8"), version);
     const route = name === "index.md" ? "index" : name.replace(/\.md$/, "");
     const body = expand(source, name, snippets, shots, problems);
     await writeFile(path.join(OUT_DIR, `${route}.md`), body, "utf8");

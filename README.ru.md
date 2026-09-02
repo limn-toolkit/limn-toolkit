@@ -62,7 +62,7 @@ JVM, получившая его где-то ещё, откажется запу
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:x.y.z")
 }
 ```
 
@@ -73,11 +73,14 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.5.0</version>
+  <version>x.y.z</version>
 </dependency>
 ```
 
 </details>
+
+`x.y.z` — это текущий релиз: значок Maven Central вверху этой страницы показывает его, и каждая
+координата на этой странице берёт тот же номер.
 
 Эта одна строка и есть вся установка. `limn-backend-lwjgl` — это окно и отрисовка, и он
 экспортирует `limn-toolkit` — виджеты, компоновку и граф сцены — всему, что от него зависит.
@@ -97,7 +100,7 @@ Y4M и синтетический источник; для MP4 и Matroska ну�
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
     runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
@@ -119,7 +122,7 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 нужны две.
 
 ```kotlin
-runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
 
 Не указывайте классификатор вовсе — тулкит всё равно соберётся и запустится: декодер сообщит, что
@@ -199,7 +202,7 @@ public static void main(String[] args) {
 запустите:
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.5.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
 Тот же флаг macOS, что и выше. То, что он сохраняет, — обычные данные, которые ваше приложение

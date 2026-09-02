@@ -58,7 +58,7 @@ macOS では `--java-options=-XstartOnFirstThread` を足してください。�
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:x.y.z")
 }
 ```
 
@@ -69,11 +69,13 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.5.0</version>
+  <version>x.y.z</version>
 </dependency>
 ```
 
 </details>
+
+`x.y.z` は現行のリリースです——このページの先頭にある Maven Central のバッジがそれを示しており、このページのすべての座標が同じ番号を取ります。
 
 その 1 行だけでインストールは終わりです。`limn-backend-lwjgl` はウィンドウとレンダラーであり、`limn-toolkit`——ウィジェット、レイアウト、シーングラフ——を、それに依存するものへエクスポートします。バックエンドはすべてのデスクトッププラットフォーム向けの LWJGL のネイティブを同梱するので、選ぶべき classifier はありません。
 
@@ -86,7 +88,7 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
     runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
@@ -101,7 +103,7 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 1 つのビルドをすべてのプラットフォームへ配布し、どのマシンに届くか知りようがないときは、代わりに `limn-video-ffmpeg-natives-all` を使ってください。これはツールキットと一緒に版が進む独立した POM で、このリリースでテストしたペイロードの版で六つすべてをあなたの代わりに名指しします。複数の classifier を並べても構いません——2 つの対象向けの配布物なら 2 つです。
 
 ```kotlin
-runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
 
 classifier を書かないままでも、ツールキットはビルドも実行もできます。デコーダーは、探したプラットフォームの名を挙げて自身が利用できないことを報告し、FFmpeg でないものはすべてそのまま動きます。FFmpeg のビルドは LGPL-2.1-or-later で、動的リンクで差し替え可能であり、ライセンス本文をそれを収める jar の中に併せて運びます。
@@ -161,7 +163,7 @@ public static void main(String[] args) {
 色も角丸もサイズの刻みも、すべてテーマから来ます。`limn-theme-editor` はそれを書くための画面です。自分の設定画面に埋め込んでもいいですし、そのまま起動しても構いません。
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.5.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
 macOS のフラグは上と同じです。保存されるのはただのデータで、アプリケーションは `ThemeFormat` で読み込みます。

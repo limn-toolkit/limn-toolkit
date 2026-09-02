@@ -62,7 +62,7 @@ la reciba en cualquier otro sistema se niega a arrancar.
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:x.y.z")
 }
 ```
 
@@ -73,11 +73,14 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.5.0</version>
+  <version>x.y.z</version>
 </dependency>
 ```
 
 </details>
+
+`x.y.z` es la versión actual — la insignia de Maven Central en lo alto de esta página la muestra, y
+todas las coordenadas de esta página llevan el mismo número.
 
 Esa única línea es toda la instalación. `limn-backend-lwjgl` es la ventana y el renderizador, y
 exporta `limn-toolkit` — los widgets, la disposición y el grafo de escena — a todo lo que dependa
@@ -97,7 +100,7 @@ una dependencia aparte porque es la única pieza de Limn con carga nativa y lice
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
     runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
@@ -119,7 +122,7 @@ tengas que hacerlo. Nada te impide nombrar varios clasificadores: un paquete par
 lleva dos.
 
 ```kotlin
-runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
 
 Omite el clasificador y el kit sigue compilando y ejecutándose: el decodificador se declara no
@@ -198,7 +201,7 @@ De un tema sale cada color, cada radio de esquina y cada paso de tamaño, y `lim
 la pantalla que escribe uno. Inclúyelo en tu propia pantalla de ajustes, o simplemente ejecútalo:
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.5.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
 La misma opción de macOS de arriba. Lo que guarda son datos planos, que tu aplicación carga con

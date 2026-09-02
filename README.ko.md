@@ -61,7 +61,7 @@ macOS에서는 `--java-options=-XstartOnFirstThread`를 덧붙이세요. 이 플
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:x.y.z")
 }
 ```
 
@@ -72,11 +72,14 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.5.0</version>
+  <version>x.y.z</version>
 </dependency>
 ```
 
 </details>
+
+`x.y.z`는 현재 릴리스입니다 — 이 페이지 맨 위의 Maven Central 배지가 그것을 보여 주고, 이 페이지의
+모든 좌표가 같은 번호를 씁니다.
 
 그 한 줄이 설치의 전부입니다. `limn-backend-lwjgl`은 창과 렌더러이고, 위젯과 레이아웃과 장면
 그래프인 `limn-toolkit`을 자신에게 의존하는 모든 것에 그대로 내보냅니다. 백엔드가 모든
@@ -95,7 +98,7 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
     runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
@@ -116,7 +119,7 @@ POM이며, 이 릴리스가 테스트된 페이로드 버전으로 여섯 개를
 함께 적는 것도 막지 않습니다 — 두 대상을 겨냥한 묶음이라면 두 개를 적으면 됩니다.
 
 ```kotlin
-runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
 
 classifier를 빼도 툴킷은 그대로 빌드되고 실행됩니다. 디코더가 어떤 플랫폼을 찾았는지 밝히며
@@ -190,7 +193,7 @@ public static void main(String[] args) {
 화면입니다. 당신의 설정 화면에 끼워 넣어도 되고, 그냥 실행해도 됩니다.
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.5.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
 macOS 플래그는 위와 같습니다. 저장되는 것은 평범한 데이터이고, 애플리케이션은 `ThemeFormat`으로

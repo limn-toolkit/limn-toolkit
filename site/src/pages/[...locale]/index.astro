@@ -10,6 +10,7 @@
 import Page from "../../layouts/Page.astro";
 import Figure from "../../components/Figure.astro";
 import Screenshot from "../../components/Screenshot.astro";
+import { limnVersion } from "../../lib/version.mjs";
 import CodeBlock from "../../components/CodeBlock.astro";
 import { localeRoutes, messages } from "../../i18n";
 import { localePath, type Locale } from "../../lib/i18n";
@@ -37,8 +38,10 @@ const component = (id: string) => gallery.entries.find((entry) => entry.id === i
 
 const hero = shot("kitchen");
 
+// The version is filled in at build time (src/lib/version.mjs): no source file carries it, so a
+// release never has to rewrite this page — see scripts/check-versions.sh at the root.
 const gradle = `dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:${limnVersion()}")
 }`;
 
 // The components row shows a handful of widgets rather than one, because "a set" is the

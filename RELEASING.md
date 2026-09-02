@@ -6,14 +6,17 @@ how they are kept in agreement, and why the automation stops where it stops.
 
 ## The model
 
-**`versions.properties` is the decision.** It names the next version, and landing a bumped entry
-on `main` is what releases it: the `tag-releases` workflow rewrites every version literal the
-documentation carries (`scripts/set-version.sh`), commits that to `main` as the release commit,
-tags it `v<version>`, and starts `publish`. Nothing in the tree carries the version otherwise:
+**`versions.properties` is the decision, and the only place the number is written.** Landing a
+bumped entry on `main` is what releases it: the `tag-releases` workflow tags that commit
+`v<version>` and starts `publish`. Nothing else in the tree carries the version:
 `build.gradle.kts` reads `-PlimnVersion` from the workflow and otherwise says the `-SNAPSHOT` of
-that same file, so a working clone is always one step ahead of the last release. Nobody types a
-tag, pushes one, or edits a README to say the number — the same arrangement as `limn-fonts`,
-`limn-ffmpeg-natives` and `limn-icons-tabler`.
+that same file, so a working clone is always one step ahead of the last release; the
+documentation writes **placeholders** — `x.y.z` in the READMEs, which GitHub renders raw and
+whose Maven Central badge says the current number, and `{{version}}` in the guides, which the
+site fills in at deploy time from the release it documents — and `scripts/check-versions.sh`
+refuses a literal, in `tag-releases` and again in `publish`. A release commits nothing. Nobody
+types a tag or pushes one — the same arrangement as `limn-fonts`, `limn-ffmpeg-natives` and
+`limn-icons-tabler`.
 
 **Nothing publishes itself.** `publish` runs the full `check` under xvfb, uploads, and stops,
 twice over: the Central deployment is staged until somebody presses Publish, and the GitHub
@@ -24,15 +27,16 @@ to spend, so the last moment at which a release can still be dropped is worth ke
 **The site follows the release, not the branch.** `site-deploy` runs on `release: published` and
 on demand, not on every push to main. The page documents coordinates a reader is meant to copy,
 and those coordinates resolve to nothing until the deployment is published. This is why the
-documentation for a version goes IN the commit that gets tagged — which is now the workflow's
-job — rather than in a follow-up: the page goes live at the moment what it describes does.
+number a page shows is the release the deploy documents, filled in at that moment: the page
+goes live saying what it describes, and never said it before.
 
 **What versions with the toolkit, and what does not.** Every module published from here carries
 the toolkit's version, including the two aggregator POMs (`limn-fonts-all`,
 `limn-video-ffmpeg-natives-all`), because "the set this Limn was tested with" is a fact about
 the toolkit. The fonts, the FFmpeg payload and the icon pack version on their own cadence, in
 repositories of their own (ADRs 036–038); this repository pins them in
-`gradle/libs.versions.toml`, and `set-version.sh` knows not to touch their coordinates.
+`gradle/libs.versions.toml`; their coordinates in the documentation ARE literals, by design —
+they are pins — and `check-versions.sh` fails when one disagrees with the catalog.
 
 ## Before the first release on a new machine
 
@@ -53,13 +57,13 @@ their releases with this key.
 
 ## Releasing
 
-1. **Land everything.** The code, the ADRs, the guides that describe the version's shape — but
-   not the version number itself: no README or guide is edited by hand to say it.
+1. **Land everything.** The code, the ADRs, the guides that describe the version's shape — never
+   the number: the documentation carries placeholders, and the check refuses anything else.
 2. **Bump `versions.properties`** (say `0.6.0` → `0.7.0`), commit, and push `main`.
-3. **Watch `tag-releases`, then `publish`.** The first rewrites the documentation, commits
-   "Say 0.7.0 in the documentation.", tags `v0.7.0` on that commit and dispatches the second,
-   which runs the full `check` under xvfb before anything is uploaded, verifies the tag and the
-   documentation, uploads the signed bundle, builds the demo jar and drafts the GitHub release.
+3. **Watch `tag-releases`, then `publish`.** The first checks the documentation, tags `v0.7.0`
+   and dispatches the second, which runs the full `check` under xvfb before anything is
+   uploaded, verifies the tag, uploads the signed bundle, builds the demo jar and drafts the
+   GitHub release. Nothing is committed by either.
 4. **Inspect the deployment** on <https://central.sonatype.com/publishing/deployments>. This is
    the last reversible moment: **Drop** discards it and costs nothing.
 5. **Publish it**, then **publish the draft release** on GitHub after editing its notes. The
@@ -75,8 +79,7 @@ Every artifact under `build/repo` should have a `.asc` beside it when a key is c
 
 **The build failed after the tag was made.** Nothing was uploaded. Fix it on main, delete the
 tag on the web UI (repository → Tags → the tag's ⋯ menu), and push: `tag-releases` sees the
-version untagged again and redoes the release commit, the tag and the dispatch on the fixed
-commit. If only the upload hiccuped and the tag itself is fine, re-run `publish` from the
+version untagged again and redoes the tag and the dispatch on the fixed commit. If only the upload hiccuped and the tag itself is fine, re-run `publish` from the
 Actions tab instead (version blank takes `versions.properties`). Once a version is published on
 Central, its tag is frozen: publish the fix as the next number.
 

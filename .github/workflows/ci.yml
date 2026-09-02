@@ -71,6 +71,12 @@ jobs:
             libxcursor1 libxi6 libxxf86vm1
 
       # Under xvfb-run so GL-backed tests get a real context instead of skipping.
+      # The documentation must carry placeholders, never the toolkit's version, and every pinned
+      # coordinate must agree with the catalog: twenty seconds here, so a PR that writes 0.6.0
+      # into a README fails before a release does.
+      - name: The documentation must carry placeholders, not versions
+        run: bash scripts/check-versions.sh
+
       - name: Gradle check
         run: xvfb-run -a ./gradlew check
         env:

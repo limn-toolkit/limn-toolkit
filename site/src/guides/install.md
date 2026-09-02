@@ -14,7 +14,7 @@ description: "The JDK you need, the two dependencies, the one macOS flag, and a 
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:{{version}}")
 }
 ```
 
@@ -36,7 +36,7 @@ Korean) and colour emoji:
 ```kotlin
 dependencies {
     // Every fallback face at the versions this release was tested with…
-    runtimeOnly("io.github.limn-toolkit:limn-fonts-all:0.5.0")
+    runtimeOnly("io.github.limn-toolkit:limn-fonts-all:{{version}}")
     // …or the two heavyweights by name, pinned to the FONT's own version:
     // runtimeOnly("io.github.limn-toolkit:limn-fonts-noto-cjk:2.004.1")
     // runtimeOnly("io.github.limn-toolkit:limn-fonts-noto-emoji:2.051.1")

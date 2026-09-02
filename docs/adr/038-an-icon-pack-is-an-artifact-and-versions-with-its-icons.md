@@ -57,7 +57,8 @@ the generated blob describe the same set.
   (`limn-icons-tabler:3.46.0.0`). Its API is unchanged.
 - A Tabler release that NanoSVG cannot draw would reach an application as a blank button rather
   than a failed build. The pack's release notes ask for a visual check of the demo after a bump.
-- `set-version.sh` learned a third family of coordinates that are not the toolkit's to stamp.
+- The documentation's version check (`scripts/check-versions.sh`) learned a third family of
+  pinned coordinates, required to agree with the catalog.
 
 ## Alternatives considered
 

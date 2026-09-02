@@ -5,10 +5,10 @@
 # that file, so bumping the file and pushing main is what makes a version exist. Nobody types a
 # tag.
 #
-# The documentation is the one place the number is a literal — ten READMEs are rendered raw by
-# GitHub with no build between the file and the reader — and tag-releases rewrites it
-# (scripts/set-version.sh) and commits that as the release commit before tagging. The `verify`
-# job below still refuses a tag whose docs disagree, which is what keeps a hand-made tag honest.
+# The documentation names NO version. The READMEs, rendered raw by GitHub, write `x.y.z` and let
+# the Maven Central badge say the number; the guides write `{{version}}`, which the site fills in
+# at deploy time from the release it documents. A release therefore commits nothing, and the
+# `verify` job below refuses a tag whose documentation carries a literal.
 #
 # Neither half of a release publishes itself. The upload STOPS at the Portal, where what arrives
 # is a deployment, validated and staged, that somebody opens and presses Publish on; the GitHub
@@ -119,19 +119,11 @@ jobs:
           fi
           echo "$TAG is $TAGGED"
 
-      # The coordinates in the documentation are literals, because ten READMEs are rendered raw by
-      # GitHub with no build step between the file and the reader. A literal is a thing that gets
-      # forgotten, and this one was: the READMEs described 0.3.0's shape while still carrying
-      # 0.2.0's number, so `limn-video-ffmpeg:0.2.0:natives-macos-aarch64` was a coordinate that
-      # had never existed and copying it failed to resolve rather than resolving to something old.
-      #
-      # This job is where that belongs. It exists to reject a typo before a build is spent on
-      # it, and a README promising a version nobody published is the same class of mistake,
-      # caught in the same twenty seconds. The script that REWRITES those coordinates is
-      # the script that checks them — one implementation, two modes — so the check cannot drift
-      # away from the fix it names.
-      - name: The documentation must say the version being tagged
-        run: bash scripts/set-version.sh --check "${{ steps.version.outputs.version }}"
+      # The documentation must name no toolkit version — placeholders only — and every pinned
+      # coordinate it does name (fonts, FFmpeg payload, icon pack) must agree with the catalog.
+      # Twenty seconds here, before a build is spent on a tag that would ship a wrong number.
+      - name: The documentation must carry placeholders, not versions
+        run: bash scripts/check-versions.sh
 
       # One upload per version, enforced rather than assumed.
       #

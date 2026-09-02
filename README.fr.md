@@ -62,7 +62,7 @@ une JVM qui la reçoit ailleurs refuse de démarrer.
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-backend-lwjgl:0.5.0")
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:x.y.z")
 }
 ```
 
@@ -73,11 +73,14 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-backend-lwjgl</artifactId>
-  <version>0.5.0</version>
+  <version>x.y.z</version>
 </dependency>
 ```
 
 </details>
+
+`x.y.z` est la version actuelle — le badge Maven Central en haut de cette page l’affiche, et
+chaque coordonnée de cette page porte le même numéro.
 
 Cette seule ligne, c’est toute l’installation. `limn-backend-lwjgl` est la fenêtre et le moteur de
 rendu, et il exporte `limn-toolkit` — les widgets, la mise en page et le graphe de scène — vers
@@ -98,7 +101,7 @@ native et une licence à elle.
 
 ```kotlin
 dependencies {
-    implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
+    implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
     runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
@@ -121,7 +124,7 @@ publication a été testée, pour vous éviter de le faire. Rien ne vous empêch
 plusieurs classifiers : une distribution pour deux cibles en prend deux.
 
 ```kotlin
-runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
+runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
 
 Omettez le classifier et la boîte à outils compile et tourne quand même : le décodeur se déclare
@@ -201,7 +204,7 @@ C’est d’un thème que viennent chaque couleur, chaque rayon d’angle et cha
 lancez-le tel quel :
 
 ```bash
-jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:0.5.0
+jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
 La même option macOS que ci-dessus. Ce qu’il enregistre est une donnée simple, que votre

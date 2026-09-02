@@ -84,7 +84,9 @@ a rehearsal ADR 036's first release skipped and paid for.
   sides say so.
 - The ABI number is a new thing to move, in two places, in order. It is also the first time a
   mismatch says what it is.
-- `set-version.sh` learned a second family of coordinates that are not the toolkit's to stamp.
+- The documentation's version check (`scripts/check-versions.sh`) learned a second family of
+  coordinates that are pins, not the toolkit's version: literal by design, and required to agree
+  with the catalog.
 - Two repositories must agree on the JNI surface and on the codec list. The handshake enforces
   the first; `CodecBreadthTest` and `LicenceTest` here, run against the pinned payload,
   enforce the second.
