@@ -87,18 +87,18 @@ dependencies {
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
 
-1 行目は Java と、すべてのプラットフォーム向けの JNI シムを持ってきます。2 行目は FFmpeg のライブラリを持ってきます。こちらは対象ごとに 1 つの classifier で公開されるので、1 台のマシンがダウンロードするのは 6 つすべてではなく 2 メガバイトほどで済みます。
+1 行目は Java と、それに伴ってすべてのプラットフォーム向けの JNI シムを持ってきます。2 行目は FFmpeg のライブラリを持ってきます——`limn-ffmpeg-natives` という、ツールキットではなく FFmpeg と一緒に版が進む成果物からで、Limn をアップグレードしてもキャッシュに残り続けます——対象ごとに 1 つの classifier なので、1 台のマシンがダウンロードするのは 6 つすべてではなく 2 メガバイトほどで済みます。
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
 natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
-1 つのビルドをすべてのプラットフォームへ配布し、どのマシンに届くか知りようがないときは、代わりに `limn-video-ffmpeg-natives-all` を使ってください。これは classifier ではなく独立した成果物で、六つすべてをあなたの代わりに名指しします。複数の classifier を並べても構いません——2 つの対象向けの配布物なら 2 つです。
+1 つのビルドをすべてのプラットフォームへ配布し、どのマシンに届くか知りようがないときは、代わりに `limn-video-ffmpeg-natives-all` を使ってください。これはツールキットと一緒に版が進む独立した POM で、このリリースでテストしたペイロードの版で六つすべてをあなたの代わりに名指しします。複数の classifier を並べても構いません——2 つの対象向けの配布物なら 2 つです。
 
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
@@ -172,7 +172,7 @@ macOS のフラグは上と同じです。保存されるのはただのデー�
 | --- | --- |
 | `limn-toolkit` | ウィジェット一式、レイアウト、シーングラフ、バックエンドの SPI、そして純 Java の動画デコーダー。何にも依存しません |
 | `limn-backend-lwjgl` | その SPI の背後にある GLFW、OpenGL、stb |
-| `limn-video-ffmpeg` | FFmpeg 経由の H.264/HEVC/VP9/VP8 と AAC/Opus/Vorbis。デスクトップ対象ごとに 1 つの classifier |
+| `limn-video-ffmpeg` | FFmpeg 経由の H.264/HEVC/VP9/VP8 と AAC/Opus/Vorbis。ペイロードは `limn-ffmpeg-natives` で、FFmpeg と一緒に版が進みます。デスクトップ対象ごとに 1 つの classifier |
 | `limn-icons-tabler` | 必要なら使える Tabler のアイコンパック |
 | `limn-theme-editor` | テーマを作る画面。あなたのアプリケーションに組み込めます |
 | `limn-fonts-all` | 汎 CJK 書体とカラー絵文字書体（それらを描かないアプリが背負うべきではない 26 メガバイト）に、残りのフォールバックを加えたもの。届くのはこのリリースでテストした版で、各書体はそれ自体が独立した成果物として、フォントと一緒に版が進みます |
@@ -200,7 +200,7 @@ macOS のフラグは上と同じです。保存されるのはただのデー�
 
 成果物が対象とするのは JDK 17 で、ビルド自体は 21 で動きます。GPU のないマシンでは、GL を使うテストは失敗ではなくスキップされます。
 
-MP4 の再生には、このリポジトリに**含まれていない**ネイティブのペイロードが必要です。リリースはそれを 6 つのプラットフォーム向けにビルドし、それぞれを 1 つの classifier として公開します。手元に用意するなら、`./scripts/build-ffmpeg.sh` が 1 分ほどで 1 つビルドし、`./scripts/fetch-ffmpeg.sh` が公開済みの jar から 1 つ取り出します。
+MP4 の再生には、このリポジトリに**含まれていない**ネイティブのペイロードが必要です。それは [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) という成果物で、FFmpeg と一緒に版が進み、ビルドはテストに使った版をほかの依存と同じように Maven Central から解決します——テストもデモも、手元で何もビルドせずに動画を再生します。ライター側のテストには、公開されているどれにも入っていないエンコーダーが必要です。そのリポジトリを隣にクローンして `full` ビルドをしておけば、自動的に拾われます。
 
 ## ライセンス
 

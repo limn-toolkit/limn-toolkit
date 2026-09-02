@@ -938,9 +938,10 @@ public final class FfmpegMedia implements AutoCloseable {
      * <p>False for the library that ships, which holds no encoder at all: a player does not encode,
      * and an encoder is not merely bytes; MPEG-4 Visual and AVC are licensed separately for
      * encoding and for decoding, so shipping one would buy patent surface for a capability
-     * nothing uses. The build that carries encoders is produced by
-     * {@code scripts/build-ffmpeg.sh --profile full}, and it exists so that the tests and the
-     * Kitchen Sink can make a file to read rather than commit one.
+     * nothing uses. The build that carries encoders is produced by the limn-ffmpeg-natives
+     * repository's {@code scripts/build-ffmpeg.sh --profile full}, never published, and picked
+     * up from a sibling clone by this module's tests and the Kitchen Sink so they can make a
+     * file to read rather than commit one (ADR 037).
      *
      * <p>A field read, except possibly once: the first call in a process may be the one that links
      * the native library, which on a build carrying the libraries in its jar extracts tens of
@@ -1069,8 +1070,10 @@ public final class FfmpegMedia implements AutoCloseable {
         Objects.requireNonNull(subtitleLanguages, "subtitleLanguages");
         FfmpegLibrary.require();
         if (!FfmpegNative.canWrite()) {
-            throw new FfmpegException("this FFmpeg build has no encoder; rebuild with "
-                    + "scripts/build-ffmpeg.sh --profile full");
+            throw new FfmpegException("this FFmpeg build has no encoder: the published payload "
+                    + "decodes only. A 'full' build from limn-ffmpeg-natives "
+                    + "(scripts/build-ffmpeg.sh --profile full, in a sibling clone) is what the "
+                    + "writer tests use");
         }
         int[] channels = new int[audio.size()];
         String[] languages = new String[audio.size()];

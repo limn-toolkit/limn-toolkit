@@ -59,8 +59,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The version and the tag, checked before six native builds are spent on a typo. It is the
-  # cheapest job in the file and everything else waits on it.
+  # The version and the tag, checked before anything is built. It is the cheapest job in the
+  # file and everything else waits on it.
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -120,9 +120,9 @@ jobs:
       # 0.2.0's number, so `limn-video-ffmpeg:0.2.0:natives-macos-aarch64` was a coordinate that
       # had never existed and copying it failed to resolve rather than resolving to something old.
       #
-      # This job is where that belongs. It exists to reject a typo before six native builds are
-      # spent on it, and a README promising a version nobody published is the same class of
-      # mistake, caught in the same twenty seconds. The script that REWRITES those coordinates is
+      # This job is where that belongs. It exists to reject a typo before a build is spent on
+      # it, and a README promising a version nobody published is the same class of mistake,
+      # caught in the same twenty seconds. The script that REWRITES those coordinates is
       # the script that checks them — one implementation, two modes — so the check cannot drift
       # away from the fix it names.
       - name: The documentation must say the version being tagged
@@ -156,14 +156,11 @@ jobs:
           fi
           echo "no successful publish run for $TAG yet"
 
-  # The decoder's six slices, built here and nowhere else. They are not in the repository and
-  # never will be: they exist for the length of this run, go into the jar, and are gone.
-  natives:
-    needs: verify
-    uses: ./.github/workflows/natives.yml
-
+  # No native build in here any more (ADR 037): the FFmpeg payload is the limn-ffmpeg-natives
+  # artifact, released from its own repository on FFmpeg's schedule, and the version this
+  # toolkit was tested with is pinned in gradle/libs.versions.toml like any other dependency.
   publish:
-    needs: [verify, natives]
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -187,24 +184,6 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      # The six slices the natives job built, merged back into the one tree the module packages
-      # from. `merge-multiple` is what makes six artifacts one directory: each carries the same
-      # `limn/video/ffmpeg/native/` shape with a different platform inside it.
-      #
-      # This is the only moment those binaries exist in a checkout. They are not committed, the
-      # tree ignores them, and the jar built below is the only place they are meant to live.
-      - name: Fetch the native payload
-        uses: actions/download-artifact@v8
-        with:
-          pattern: ffmpeg-native-*
-          merge-multiple: true
-          path: limn-video-ffmpeg/native/dist/player
-
-      - name: Check the payload is complete
-        run: |
-          echo "slices present:"
-          ls limn-video-ffmpeg/native/dist/player/limn/video/ffmpeg/native
-
       # GLFW needs a display and Mesa needs its software rasteriser: llvmpipe provides the
       # OpenGL 3.3 core profile the backend requires, with no GPU on the runner. Same list as
       # ci.yml, and for the same reason: trimming it does not fail here, it fails inside a
@@ -223,7 +202,6 @@ jobs:
         run: >-
           xvfb-run -a ./gradlew check
           -PlimnVersion=${{ needs.verify.outputs.version }}
-          -PlimnFfmpegProfile=player
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
 
@@ -234,7 +212,6 @@ jobs:
         run: >-
           ./gradlew publishToMavenCentral
           -PlimnVersion=${{ needs.verify.outputs.version }}
-          -PlimnFfmpegProfile=player
           --no-daemon
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
@@ -243,14 +220,13 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
 
       # The showcase, as one file a stranger can run: `jbang <url>` and the kitchen sink is on
-      # screen. Built HERE and not in draft-release because this is the job that has the six
-      # native slices merged into the tree, so the jar plays video on every desktop it lands on —
-      # and because that job deliberately has no checkout and no build.
+      # screen. Its FFmpeg payload for every desktop comes off the classpath now (the demo names
+      # all six classifiers), so no merge step precedes this. Built HERE and not in draft-release
+      # because that job deliberately has no checkout and no build.
       - name: Build the runnable demo jar
         run: >-
           ./gradlew :limn-demo:fatJar
           -PlimnVersion=${{ needs.verify.outputs.version }}
-          -PlimnFfmpegProfile=player
 
       - uses: actions/upload-artifact@v7
         with:
@@ -307,9 +283,10 @@ jobs:
           without (Roboto and the complex-script faces, from their own artifacts). Also
           published: \`limn-icons-tabler\`, \`limn-theme-editor\`, \`limn-fonts-all\` (opts
           into the pan-CJK and colour-emoji faces at the versions this release was tested
-          with), and \`limn-video-ffmpeg\` with one \`natives-<os>-<arch>\` classifier per
-          desktop target, plus \`limn-video-ffmpeg-natives-all\` for a bundle that ships
-          everywhere.
+          with), and \`limn-video-ffmpeg\`, whose FFmpeg payload is the separately versioned
+          \`limn-ffmpeg-natives\` artifact: add one of its \`natives-<os>-<arch>\` classifiers
+          for your platform, or \`limn-video-ffmpeg-natives-all\` (published here) for a
+          bundle that ships everywhere at the payload version this release was tested with.
 
           Nothing to install to see it: the kitchen sink demo is attached below, and
           [jbang](https://www.jbang.dev/download/) runs it from the asset URL.

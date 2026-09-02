@@ -92,30 +92,34 @@ both without spending a version number.
 
 ## The native payload, and where it comes from
 
-`limn-video-ffmpeg` carries FFmpeg for six desktop platforms, and **none of those binaries is in
-this repository**. The release builds them: `natives.yml` runs `scripts/build-ffmpeg.sh` on five
-runners — macOS covers two slices at once, each Linux architecture builds in a `manylinux_2_28`
-container because the script enforces a glibc floor of 2.28, and Windows builds under MSYS2's
-CLANG64 and CLANGARM64 — and hands the six back as artifacts that the publish job merges into the
-jar. They exist for the length of the run.
+Nowhere in this repository (ADR 037). `limn-video-ffmpeg` is Java; its FFmpeg libraries and the
+JNI shim in front of them are the `limn-ffmpeg-natives` artifact, built and released from
+<https://github.com/limn-toolkit/limn-ffmpeg-natives> on FFmpeg's schedule and versioned after
+it (`7.1.5.0` is FFmpeg 7.1.5). This repository pins the version it was tested with in
+`gradle/libs.versions.toml`, and three things follow from that one line: `limn-video-ffmpeg`'s
+runtime dependency on the shim jar, the six classifiers `limn-video-ffmpeg-natives-all` names,
+and the payload the tests run against. A release of Limn builds no native and uploads none.
 
-The module refuses to publish without all six, so a slice that fails to build stops the release
-rather than shipping a decoder that is missing a platform and says nothing.
+**Bumping the payload** is a dependency review like any other: change the catalog line, run
+`check` (the codec-breadth and licence tests re-verify what the new build links and reports),
+and land it. A shim ABI change is the one case with an order: the natives repository releases
+first with a new `LIMN_FFMPEG_ABI`, then `FfmpegLibrary.EXPECTED_ABI` moves here with the
+catalog line. An application that pins the two apart is told so at load time, by number.
 
 ### Working on it locally
 
-You need a payload only if you want MP4 playback while developing; without one the decoder
-reports itself unavailable, its tests skip, and everything else works.
+Nothing to do for playback: the tests and the demo resolve the published `player` payload from
+Maven Central like any other dependency, and CI does the same. The writer tests need an
+encoder nothing published carries: build the `full` profile in a sibling clone of the natives
+repository and both this module's tests and the demo pick it up by convention —
 
 ```
-./scripts/build-ffmpeg.sh                  # your platform, about a minute, needs a C compiler
-./scripts/build-ffmpeg.sh --profile full   # + encoders and the mov muxer the writer tests need
-./scripts/fetch-ffmpeg.sh                  # no toolchain: unpack the natives from the published jar
+git clone https://github.com/limn-toolkit/limn-ffmpeg-natives ../limn-ffmpeg-natives
+(cd ../limn-ffmpeg-natives && ./scripts/build-ffmpeg.sh --profile full)
 ```
 
-`fetch-ffmpeg.sh` takes them out of the jar on Maven Central, verified against the digest Central
-publishes, so what you run locally is what an application gets. It needs a release to exist; until
-one does, it says so and points at the build script. Neither route puts anything in git.
+— or point `-PlimnFfmpegNatives=<dir>` at one built elsewhere. Without it the writer tests skip
+and everything else runs.
 
 ## What is not published
 

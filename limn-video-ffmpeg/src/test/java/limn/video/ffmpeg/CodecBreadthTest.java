@@ -103,7 +103,7 @@ class CodecBreadthTest {
         for (String codec : VIDEO_DECODERS) {
             assertTrue(components.contains("decoder:" + codec),
                     codec + " is advertised by this module and is not in the linked library; the "
-                            + "configure line in scripts/build-ffmpeg.sh is what puts it there");
+                            + "configure line in limn-ffmpeg-natives' scripts/build-ffmpeg.sh is what puts it there");
         }
         for (String codec : AUDIO_DECODERS) {
             assertTrue(components.contains("decoder:" + codec),

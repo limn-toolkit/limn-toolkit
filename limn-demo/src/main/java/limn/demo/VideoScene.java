@@ -588,9 +588,9 @@ final class VideoScene {
      * evidence and the demo does not reach for it; point {@code -Dlimn.demo.video} at one of
      * those files to watch H.264 here.
      *
-     * <p>And if neither holds (which is every machine that has not run
-     * {@code scripts/build-ffmpeg.sh}, and every machine running the library that ships, because
-     * the shipped build has no encoder), this returns null and the tab says so. It does not throw:
+     * <p>And if neither holds (which is every machine running the payload that ships, because
+     * the shipped build has no encoder — only a {@code full} build from a sibling clone of
+     * limn-ffmpeg-natives has one), this returns null and the tab says so. It does not throw:
      * a decoder that is not installed is an ordinary state of the world, not a failure, and the
      * other entries are unaffected by it.
      */
@@ -674,12 +674,13 @@ final class VideoScene {
         String reason = limn.video.ffmpeg.FfmpegVideoDecoder.unavailableReason();
         if (reason != null) {
             return "The FFmpeg decoder is not installed on this machine: " + reason
-                    + "  Build it with scripts/build-ffmpeg.sh, or set -D" + OWN_FILE_PROPERTY
-                    + " to a file you already have.";
+                    + "  Add the limn-ffmpeg-natives classifier for this platform, or set -D"
+                    + OWN_FILE_PROPERTY + " to a file you already have.";
         }
         return "The FFmpeg decoder is installed but this build has no encoder, so it cannot make "
-                + "a clip to play; the library that ships is decode-only. Rebuild it with "
-                + "scripts/build-ffmpeg.sh --profile full, or set -D" + OWN_FILE_PROPERTY
+                + "a clip to play; the payload that ships is decode-only. A 'full' build from a "
+                + "sibling clone of limn-ffmpeg-natives (scripts/build-ffmpeg.sh --profile full) "
+                + "is picked up automatically, or set -D" + OWN_FILE_PROPERTY
                 + " to a file you already have.";
     }
 

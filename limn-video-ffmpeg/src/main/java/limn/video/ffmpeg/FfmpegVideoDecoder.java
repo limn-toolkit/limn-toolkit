@@ -23,9 +23,10 @@ import java.util.Locale;
  * Videos.warmUpAsync().start();   // optional: links the native on a worker rather than on a click
  * }</pre>
  *
- * <p><b>Installing it on a machine with no native library is harmless and is the expected case.</b>
- * The library is not committed and not built by Gradle, so it is absent everywhere it has not been
- * produced by {@code scripts/build-ffmpeg.sh}. This decoder then answers {@code false} to every
+ * <p><b>Installing it with no native library is harmless and is an expected case.</b> The
+ * FFmpeg libraries ride in a {@code natives-<os>-<arch>} classifier of the limn-ffmpeg-natives
+ * artifact an application adds for its platform (ADR 037), so a build that added none — or added
+ * another platform's — has no library here. This decoder then answers {@code false} to every
  * input, the decoders behind it in the probe order are reached exactly as if it were not there,
  * and {@link #unavailableReason()} says why in one sentence for anything that wants to explain
  * itself. Nothing throws, nothing logs, and nothing about the rest of the application changes.

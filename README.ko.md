@@ -96,13 +96,14 @@ dependencies {
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
 
-첫 줄은 모든 플랫폼용 자바 코드와 JNI 연결 계층을 가져옵니다. 둘째 줄은 FFmpeg 라이브러리를
-가져오는데, 대상마다 classifier 하나씩으로 배포되므로 한 대의 기기는 여섯 개 전부가 아니라
-2메가바이트쯤만 내려받습니다:
+첫 줄은 자바 코드와, 그와 함께 모든 플랫폼용 JNI 연결 계층을 가져옵니다. 둘째 줄은 FFmpeg
+라이브러리를 가져오는데 — 툴킷이 아니라 FFmpeg과 함께 버전이 오르는 아티팩트인
+`limn-ffmpeg-natives`에서 오므로, Limn을 올려도 캐시에 그대로 남습니다 — 대상마다 classifier
+하나씩이어서 한 대의 기기는 여섯 개 전부가 아니라 2메가바이트쯤만 내려받습니다:
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
@@ -110,9 +111,9 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
 빌드 하나를 모든 플랫폼에 배포해 어느 기기에 내려앉을지 알 수 없다면, 대신
-`limn-video-ffmpeg-natives-all`을 쓰세요. 이것은 classifier가 아니라 그 자체로 하나의
-아티팩트이며, 여섯 개를 대신 적어 줍니다. 여러 classifier를 함께 적는 것도 막지 않습니다 — 두
-대상을 겨냥한 묶음이라면 두 개를 적으면 됩니다.
+`limn-video-ffmpeg-natives-all`을 쓰세요. 이것은 툴킷과 함께 버전이 오르는 그 자체로 하나의
+POM이며, 이 릴리스가 테스트된 페이로드 버전으로 여섯 개를 대신 적어 줍니다. 여러 classifier를
+함께 적는 것도 막지 않습니다 — 두 대상을 겨냥한 묶음이라면 두 개를 적으면 됩니다.
 
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
@@ -201,7 +202,7 @@ macOS 플래그는 위와 같습니다. 저장되는 것은 평범한 데이터�
 | --- | --- |
 | `limn-toolkit` | 위젯 모음, 레이아웃, 장면 그래프, 백엔드 SPI, 그리고 순수 자바 영상 디코더. 의존성 없음 |
 | `limn-backend-lwjgl` | 그 SPI 뒤의 GLFW, OpenGL, stb |
-| `limn-video-ffmpeg` | FFmpeg을 통한 H.264/HEVC/VP9/VP8과 AAC/Opus/Vorbis. 데스크톱 대상마다 classifier 하나씩 |
+| `limn-video-ffmpeg` | FFmpeg을 통한 H.264/HEVC/VP9/VP8과 AAC/Opus/Vorbis. 페이로드는 FFmpeg과 함께 버전이 오르는 `limn-ffmpeg-natives`이며, 데스크톱 대상마다 classifier 하나씩 |
 | `limn-icons-tabler` | 원한다면 쓸 수 있는 Tabler 아이콘 팩 |
 | `limn-theme-editor` | 테마를 만드는 화면, 애플리케이션에 넣을 수 있음 |
 | `limn-fonts-all` | 범 CJK 서체와 컬러 이모지 서체(그릴 일 없는 앱이 짊어질 이유가 없는 26메가바이트), 거기에 나머지 대체 글꼴까지, 이 릴리스가 테스트된 버전 그대로 — 서체 하나하나가 폰트와 함께 버전이 오르는 독립 아티팩트 |
@@ -242,9 +243,11 @@ macOS 플래그는 위와 같습니다. 저장되는 것은 평범한 데이터�
 아티팩트가 겨냥하는 것은 JDK 17이고, 빌드 자체는 21에서 돌아갑니다. GPU가 없는 기기에서는 GL 기반
 테스트가 실패하는 대신 건너뜁니다.
 
-MP4 재생에는 이 저장소에 **없는** 네이티브 페이로드가 필요합니다 — 릴리스가 여섯 플랫폼용으로
-빌드해 각각 classifier 하나씩으로 배포합니다. 로컬에 두려면 `./scripts/build-ffmpeg.sh`가 1분쯤이면 하나를
-빌드하고, `./scripts/fetch-ffmpeg.sh`는 배포된 jar에서 하나를 꺼내 풉니다.
+MP4 재생에는 이 저장소에 **없는** 네이티브 페이로드가 필요합니다: 그것은 FFmpeg과 함께 버전이
+오르는 [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) 아티팩트이고,
+빌드는 테스트된 버전을 다른 의존성과 똑같이 Maven Central에서 가져옵니다 — 테스트와 데모는
+로컬에서 아무것도 빌드하지 않고 영상을 재생합니다. 라이터 테스트에는 배포된 어떤 것에도 들어
+있지 않은 인코더가 필요합니다. 그 저장소를 옆에 클론해 `full` 빌드를 해 두면 자동으로 집어 듭니다.
 
 ## 라이선스
 

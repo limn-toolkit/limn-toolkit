@@ -98,13 +98,14 @@ una dependencia aparte porque es la única pieza de Limn con carga nativa y lice
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
 
-La primera línea trae el Java y la capa JNI para todas las plataformas. La segunda trae las
-bibliotecas de FFmpeg, que se publican con un clasificador por destino, de modo que una máquina
-descarga unos dos megabytes en lugar de las seis:
+La primera línea trae el Java y, con él, la capa JNI para todas las plataformas. La segunda trae
+las bibliotecas de FFmpeg — de `limn-ffmpeg-natives`, un artefacto que cambia de versión con FFmpeg
+y no con el kit, de modo que sigue en tu caché de una actualización de Limn a otra — con un
+clasificador por destino, de modo que una máquina descarga unos dos megabytes en lugar de las seis:
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
@@ -112,9 +113,10 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
 Usa `limn-video-ffmpeg-natives-all` cuando una misma compilación se distribuya a todas las
-plataformas y no pueda saber en qué máquina acabará: es un artefacto propio, no un clasificador, y
-nombra los seis para que tú no tengas que hacerlo. Nada te impide nombrar varios clasificadores: un
-paquete para dos destinos lleva dos.
+plataformas y no pueda saber en qué máquina acabará: es un POM propio, con la versión del kit, y
+nombra los seis en la versión de la carga con la que se probó esta publicación, para que tú no
+tengas que hacerlo. Nada te impide nombrar varios clasificadores: un paquete para dos destinos
+lleva dos.
 
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
@@ -208,7 +210,7 @@ La misma opción de macOS de arriba. Lo que guarda son datos planos, que tu apli
 | --- | --- |
 | `limn-toolkit` | el conjunto de widgets, la disposición, el grafo de escena, las SPI del backend y los decodificadores de vídeo en Java puro; no depende de nada |
 | `limn-backend-lwjgl` | GLFW, OpenGL y stb detrás de esas SPI |
-| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 y AAC/Opus/Vorbis mediante FFmpeg; un clasificador por destino de escritorio |
+| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 y AAC/Opus/Vorbis mediante FFmpeg; la carga es `limn-ffmpeg-natives`, que cambia de versión con FFmpeg, un clasificador por destino de escritorio |
 | `limn-icons-tabler` | el paquete de iconos Tabler, si lo quieres |
 | `limn-theme-editor` | la pantalla que crea un tema, incorporable en tu aplicación |
 | `limn-fonts-all` | las tipografías pan-CJK y de emojis a color (26 MB que una aplicación que nunca las dibuja no debería cargar), más el resto de los respaldos, en las versiones con las que se probó esta publicación — cada tipografía es un artefacto propio que cambia de versión con la fuente |
@@ -252,10 +254,12 @@ Las decisiones de diseño están en [`docs/adr/`](docs/adr/), y cómo se hace un
 Los artefactos apuntan a JDK 17; la compilación en sí se ejecuta sobre 21. En una máquina sin GPU
 las pruebas que dependen de GL se omiten en lugar de fallar.
 
-La reproducción de MP4 necesita una carga nativa que **no** está en este repositorio: una
-publicación la compila para seis plataformas y publica un clasificador para cada una. Para tenerla
-en local, `./scripts/build-ffmpeg.sh` compila una en un minuto aproximadamente, o
-`./scripts/fetch-ffmpeg.sh` desempaqueta una del jar publicado.
+La reproducción de MP4 necesita una carga nativa que **no** está en este repositorio: es el
+artefacto [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives), que cambia
+de versión con FFmpeg, y la compilación resuelve desde Maven Central la versión con la que se
+probó, como cualquier otra dependencia — las pruebas y la demo reproducen vídeo sin compilar nada
+en local. Las pruebas de escritura necesitan un codificador que nada de lo publicado lleva; una
+compilación `full` en un clon hermano de ese repositorio se detecta automáticamente.
 
 ## Licencia
 

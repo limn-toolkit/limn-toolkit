@@ -376,8 +376,10 @@ what they exercise.
 
 ## The native, and what is normal about it missing
 
-Gradle never compiles C. The library comes from `scripts/build-ffmpeg.sh`, is not committed, and is
-absent on any machine that has not run it. Everything is written so that absence is ordinary:
+Gradle never compiles C. The library is the `limn-ffmpeg-natives` artifact, built and released
+from its own repository and versioned with FFmpeg (ADR 037): the shim arrives with
+`limn-video-ffmpeg`, the libraries in the `natives-<os>-<arch>` classifier an application adds,
+and a build that added none has no library. Everything is written so that absence is ordinary:
 `VideoDecoder.supports` answers false, the tests skip the way the GL-backed tests skip, and the demo
 shows a sentence in the picture's own box rather than an empty rectangle.
 
@@ -512,9 +514,11 @@ to the toolkit.
   `VideoScene.TAB_SOURCES`, named rather than sliced, and the entry it opens on must be one a
   capture can rely on: generated in memory, on screen in the frame the tab is built. An entry
   that encodes or demultiplexes a file first puts "Opening …" in every screenshot of that tab.
-- The FFmpeg tests need `./scripts/build-ffmpeg.sh --profile full`; the shipped `player` profile has
-  no encoder, and a test that needs a file to read cannot run against it. `--shim-only` recompiles
-  the C in a second against an FFmpeg that is already built.
+- The writer tests need a `full` build — `scripts/build-ffmpeg.sh --profile full` in a sibling
+  clone of limn-ffmpeg-natives, picked up from `../limn-ffmpeg-natives/native/dist/full` by
+  convention; the published `player` payload the other tests resolve from Central has no
+  encoder, and a test that needs a file to read cannot run against it. There, `--shim-only`
+  recompiles the C in a second against an FFmpeg that is already built.
 - **The writer's subtitle cues are contiguous and each names its own index** (`T0 C3`), so at every
   instant of a clip exactly one cue is on screen and "a scrub left a stale cue up" is a wrong string
   rather than a judgement about an interval. Its first cue of each track carries override tags and a

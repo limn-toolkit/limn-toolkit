@@ -7,7 +7,7 @@ plugins {
 }
 
 /*
- * The list of every platform's FFmpeg libraries, and nothing else.
+ * Every platform's FFmpeg libraries at once, and nothing else.
  *
  * Nothing is compiled here and nothing is meant to be: this module's entire content is its
  * dependency list. A distribution shipped as one cross-platform bundle cannot name the classifier
@@ -15,20 +15,21 @@ plugins {
  * day a seventh target exists. This is that list, kept here rather than in every build file that
  * consumes the decoder.
  *
- * It replaces a `natives-all` classifier that CARRIED the six payloads instead of naming them.
- * That artifact was a byte-for-byte duplicate of the six beside it — about 13.7 MB of the roughly
- * 27 MB of native code a release uploaded — and the Central Portal's monthly allowance is the
- * thing that made a duplicate stop being free. Naming them costs a POM.
+ * What it names changed with ADR 037 and what it IS did not. The payload now lives in the
+ * limn-ffmpeg-natives repository and versions with FFmpeg, so the six classifiers below belong to
+ * `limn-ffmpeg-natives` at the version the catalog pins — not to limn-video-ffmpeg at this
+ * module's own version, which is how it started. This POM stays HERE, versioned with the
+ * toolkit, for the same reason limn-fonts-all does: "which payload this Limn was tested with" is
+ * a fact about the toolkit. It carries no bytes, so re-publishing it every release costs nothing,
+ * and the ~2 MB slices it names are downloaded once per PAYLOAD version, not once per Limn.
  *
- * A classifier could not do this. Classifiers share the module's single POM, so dependencies
- * declared for `natives-all` would apply to `limn-video-ffmpeg` itself and every consumer of the
- * shim would drag all six platforms back in — which is the split this replaced. A sibling module
- * has its own POM, and that is the whole reason it is one.
+ * It replaced a `natives-all` classifier that CARRIED the six payloads instead of naming them —
+ * a byte-for-byte duplicate of the six beside it — and a classifier could not do this: classifiers
+ * share the module's single POM, so dependencies declared for one apply to the shim as well.
  */
 
-// The same six the decoder publishes, and spelled out for the same reason they are spelled out
-// there: a list discovered from what happens to exist calls a missing platform complete. See
-// requiredNativePlatforms in limn-video-ffmpeg/build.gradle.kts.
+// The same six the payload publishes, spelled out for the same reason they are spelled out
+// there: a list discovered from what happens to exist calls a missing platform complete.
 val nativePlatforms = listOf(
     "linux-aarch64", "linux-x86_64",
     "macos-aarch64", "macos-x86_64",
@@ -38,22 +39,10 @@ val nativePlatforms = listOf(
 // ------------------------------------------------------------------ why the POM is written here
 //
 // The six are WRITTEN INTO the POM rather than declared as Gradle dependencies (the platform's
-// `allowDependencies()` route), and that is a correction rather than a preference.
-//
-// Declared the obvious way — `runtimeOnly(project(":limn-video-ffmpeg")) { artifact { classifier
-// = ... } }` — they are correct in both the POM and the module metadata, and they also land on
-// this module's own testRuntimeClasspath. `check` then tries to RESOLVE them, and cannot: a
-// project dependency that selects a classifier needs the target project to expose that artifact
-// as a consumable variant, and limn-video-ffmpeg's natives-<os>-<arch> jars are publication
-// artifacts, not variants. It failed in the publish workflow's `check` step, which is the gate in
-// front of the upload, and nowhere before it: generating the POM, generating the metadata and
-// publishing to mavenLocal never resolve a test classpath, so every check made while writing this
-// module passed.
-//
-// Gradle module metadata is switched off here for the same reason it would otherwise matter. A
-// consumer that finds a .module prefers it over the POM, and there is no way to put these six
-// into one without also putting them on a configuration that resolves in this project. Without
-// it, Gradle and Maven read the same POM and get the same six — which is all this module is.
+// `allowDependencies()` route), and that is a correction rather than a preference: declared the
+// obvious way they also land on this module's own resolvable configurations, and module metadata
+// would offer a second, subtly different answer beside the POM's. Without metadata, Gradle and
+// Maven read the same POM and get the same six — which is all this module is.
 tasks.withType<GenerateModuleMetadata>().configureEach {
     enabled = false
 }
@@ -66,8 +55,8 @@ plugins.withId("maven-publish") {
                 nativePlatforms.forEach { platform ->
                     dependencies.appendNode("dependency").apply {
                         appendNode("groupId", project.group)
-                        appendNode("artifactId", "limn-video-ffmpeg")
-                        appendNode("version", project.version)
+                        appendNode("artifactId", "limn-ffmpeg-natives")
+                        appendNode("version", libs.versions.limn.ffmpeg.natives.get())
                         appendNode("classifier", "natives-$platform")
                         appendNode("scope", "runtime")
                     }

@@ -98,13 +98,14 @@ separada porque é a única peça do Limn com um payload nativo e uma licença p
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
 
-A primeira linha traz o Java e o shim JNI para todas as plataformas. A segunda traz as bibliotecas
-do FFmpeg, que são publicadas com um classifier por alvo, então uma máquina baixa cerca de dois
-megabytes em vez dos seis conjuntos:
+A primeira linha traz o Java e, com ele, o shim JNI para todas as plataformas. A segunda traz as
+bibliotecas do FFmpeg — de `limn-ffmpeg-natives`, um artefato que muda de versão junto com o
+FFmpeg, e não com o toolkit, então ele continua no seu cache de um upgrade do Limn para outro — com
+um classifier por alvo, então uma máquina baixa cerca de dois megabytes em vez dos seis conjuntos:
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
@@ -112,9 +113,10 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
 Use `limn-video-ffmpeg-natives-all` no lugar disso quando um único build é distribuído para todas as
-plataformas e não tem como saber em que máquina vai cair: ele é um artefato próprio, e não um
-classifier, e nomeia os seis para que você não precise. Nada impede que você nomeie vários
-classifiers, também — um pacote para dois alvos leva dois.
+plataformas e não tem como saber em que máquina vai cair: ele é um POM próprio, com a versão do
+toolkit, e nomeia os seis na versão do payload com que este release foi testado, para que você não
+precise. Nada impede que você nomeie vários classifiers, também — um pacote para dois alvos leva
+dois.
 
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
@@ -207,7 +209,7 @@ Mesma flag do macOS de cima. O que ele salva é dado puro, que a sua aplicação
 | --- | --- |
 | `limn-toolkit` | o conjunto de widgets, o layout, o grafo de cena, as SPIs de backend e os decodificadores de vídeo em Java puro; não depende de nada |
 | `limn-backend-lwjgl` | GLFW, OpenGL e stb por trás dessas SPIs |
-| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 e AAC/Opus/Vorbis via FFmpeg; um classifier por alvo de desktop |
+| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 e AAC/Opus/Vorbis via FFmpeg; o payload é `limn-ffmpeg-natives`, que muda de versão junto com o FFmpeg, um classifier por alvo de desktop |
 | `limn-icons-tabler` | o pacote de ícones Tabler, se você quiser |
 | `limn-theme-editor` | a tela que cria um tema, embutível na sua aplicação |
 | `limn-fonts-all` | as tipografias pan-CJK e de emoji colorido (26 MB que uma aplicação que nunca as desenha não deveria carregar), mais o resto dos fallbacks, nas versões com que este release foi testado — cada tipografia é um artefato próprio, que muda de versão junto com a fonte |
@@ -250,10 +252,12 @@ As decisões de design vivem em [`docs/adr/`](docs/adr/), e como um release é f
 O JDK 17 é o alvo dos artefatos; o build em si roda no 21. Em uma máquina sem GPU, os testes
 apoiados em GL são pulados em vez de falharem.
 
-A reprodução de MP4 precisa de um payload nativo que **não** está neste repositório — um release o
-compila para seis plataformas e publica um classifier para cada. Para tê-lo localmente,
-`./scripts/build-ffmpeg.sh` compila um em cerca de um minuto, ou `./scripts/fetch-ffmpeg.sh` extrai
-um do jar publicado.
+A reprodução de MP4 precisa de um payload nativo que **não** está neste repositório: ele é o
+artefato [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives), que muda de
+versão junto com o FFmpeg, e o build resolve do Maven Central a versão com que foi testado, como
+qualquer outra dependência — os testes e a demo reproduzem vídeo sem nada compilado localmente. Os
+testes de escrita precisam de um encoder que nada do que é publicado carrega; um build `full` em um
+clone irmão daquele repositório é detectado automaticamente.
 
 ## Licença
 

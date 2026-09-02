@@ -67,13 +67,16 @@ rewrite() {
         my $group = quotemeta($ENV{GROUP});
         my $version = $ENV{VERSION};
         my $semver = qr/\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\d+)?/;
-        # The font artifacts version with the FONT, not with this toolkit (ADR 036): a doc
-        # naming limn-fonts-noto-cjk:2.004.1 is naming Sans2.004, and stamping the toolkit
-        # version over it would fabricate a coordinate that never existed. limn-fonts-all is
-        # NOT exempt — it is published from here and versions with the toolkit.
-        my $own_fonts = qr/limn-fonts-(?:roboto|noto-[A-Za-z-]+)/;
-        s{($group:(?!$own_fonts:)[A-Za-z0-9._-]+:)$semver}{$1$version}g;
-        s{(<artifactId>limn-(?!fonts-(?:roboto|noto-))[A-Za-z0-9._-]+</artifactId>\s*<version>)[^<]*(</version>)}
+        # Artifacts that version on their OWN cadence rather than the toolkit one: the fonts
+        # with the font (ADR 036), the FFmpeg payload with FFmpeg (ADR 037). A doc naming
+        # limn-ffmpeg-natives:7.1.5.0 is naming FFmpeg 7.1.5, and stamping the toolkit version
+        # over it would fabricate a coordinate that never existed. The two aggregator POMs
+        # (limn-fonts-all, limn-video-ffmpeg-natives-all) are NOT exempt: they are published
+        # from here and version with the toolkit. (No apostrophes in here: this whole program
+        # is one single-quoted bash string.)
+        my $own_cadence = qr/limn-fonts-(?:roboto|noto-[A-Za-z-]+)|limn-ffmpeg-natives/;
+        s{($group:(?!$own_cadence:)[A-Za-z0-9._-]+:)$semver}{$1$version}g;
+        s{(<artifactId>limn-(?!fonts-(?:roboto|noto-)|ffmpeg-natives<)[A-Za-z0-9._-]+</artifactId>\s*<version>)[^<]*(</version>)}
          {$1$version$2}gsx;
     ' "$1"
 }
@@ -86,8 +89,8 @@ offending_lines() {
         my $group = quotemeta($ENV{GROUP});
         my $version = $ENV{VERSION};
         my $semver = qr/\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\d+)?/;
-        my $own_fonts = qr/limn-fonts-(?:roboto|noto-[A-Za-z-]+)/;
-        if (/$group:(?!$own_fonts:)[A-Za-z0-9._-]+:($semver)/ && $1 ne $version) {
+        my $own_cadence = qr/limn-fonts-(?:roboto|noto-[A-Za-z-]+)|limn-ffmpeg-natives/;
+        if (/$group:(?!$own_cadence:)[A-Za-z0-9._-]+:($semver)/ && $1 ne $version) {
             s/^\s+//; print "  $ARGV:$.: $_";
         } elsif (m{<version>($semver)</version>} && $1 ne $version) {
             s/^\s+//; print "  $ARGV:$.: $_";

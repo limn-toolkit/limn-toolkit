@@ -118,6 +118,15 @@ public final class FfmpegLibrary {
 
     private static final String RESOURCE_ROOT = "limn/video/ffmpeg/native/";
 
+    /**
+     * The shim ABI this Java expects; see {@link FfmpegNative#abi()}. Moves only when a native
+     * signature does, together with {@code LIMN_FFMPEG_ABI} in limn-ffmpeg-natives.
+     */
+    static final int EXPECTED_ABI = 1;
+
+    /** The payload artifact, named in every message that asks the reader to add or update it. */
+    private static final String PAYLOAD = "io.github.limn-toolkit:limn-ffmpeg-natives";
+
     /** Written by the build script: the libraries to load, in dependency order, one per line. */
     private static final String MANIFEST = "libraries.txt";
 
@@ -262,8 +271,9 @@ public final class FfmpegLibrary {
         String root = RESOURCE_ROOT + platform + "/";
         String manifestText = readResource(root + MANIFEST);
         if (manifestText == null) {
-            return "this build carries no FFmpeg native for " + platform
-                    + " (run scripts/build-ffmpeg.sh, or set " + LIBRARY_PROPERTY + ")";
+            return "this build carries no FFmpeg native for " + platform + ": add the " + PAYLOAD
+                    + " classifier natives-" + platform + " (or limn-video-ffmpeg-natives-all"
+                    + " for every platform), or set " + LIBRARY_PROPERTY;
         }
         List<String> names = readManifest(manifestText);
         if (names.isEmpty()) {
@@ -295,6 +305,22 @@ public final class FfmpegLibrary {
      * refusal here rather than an UnsatisfiedLinkError from somewhere in the middle of a decode.
      */
     private static String probe() {
+        // The ABI first, because it is the check whose failure names the fix. The shim and this
+        // class release apart now (ADR 037); an application that pinned an older or newer payload
+        // than this module's POM names is the way they drift, and a wrong number here is a
+        // sentence at load time instead of an UnsatisfiedLinkError on the first call that differs.
+        int abi;
+        try {
+            abi = FfmpegNative.abi();
+        } catch (UnsatisfiedLinkError error) {
+            return "the FFmpeg native loaded but predates the ABI handshake (no abi entry point): "
+                    + "it is an older " + PAYLOAD + " than this limn-video-ffmpeg expects";
+        }
+        if (abi != EXPECTED_ABI) {
+            return "the FFmpeg native speaks shim ABI " + abi + " and this limn-video-ffmpeg expects "
+                    + EXPECTED_ABI + ": align the " + PAYLOAD + " version with the one this module's"
+                    + " POM names";
+        }
         try {
             String identity = FfmpegNative.identity();
             if (identity == null || identity.isBlank()) {

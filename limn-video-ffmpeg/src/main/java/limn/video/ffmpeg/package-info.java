@@ -6,9 +6,11 @@
  * pure-Java decoders cost an application that never plays an MP4 no codec on its classpath, and
  * no FFmpeg at all.
  *
- * <p><b>The library is not committed and Gradle does not build it.</b> It is produced by
- * {@code scripts/build-ffmpeg.sh} and is absent on every machine that has not run that script,
- * which is the normal case rather than a broken one. Everything here is written so that absence is
+ * <p><b>The library is not in this repository and Gradle does not build it.</b> It is the
+ * limn-ffmpeg-natives artifact, versioned with FFmpeg (ADR 037): this module brings its JNI shim
+ * along, and an application adds the {@code natives-<os>-<arch>} classifier for its platform. A
+ * build that added none has no library, which is an ordinary case rather than a broken one.
+ * Everything here is written so that absence is
  * ordinary: {@link limn.video.ffmpeg.FfmpegVideoDecoder#supports} answers {@code false},
  * {@link limn.video.ffmpeg.FfmpegLibrary#isAvailable()} answers {@code false} and never throws,
  * and any decoder installed behind this one is reached exactly as if this one were not there.

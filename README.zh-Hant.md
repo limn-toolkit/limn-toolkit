@@ -87,18 +87,18 @@ dependencies {
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
 
-第一行帶來 Java 的部分，以及每個平台的 JNI 墊片。第二行帶來 FFmpeg 的原生庫，它們每個目標各發布一個 classifier，所以一台機器下載的大約是兩 MB，而不是全部六份：
+第一行帶來 Java 的部分，連同每個平台的 JNI 墊片。第二行帶來 FFmpeg 的原生庫——來自 `limn-ffmpeg-natives`，一個版本跟著 FFmpeg 而不是跟著工具組走的成品，所以 Limn 升級時它仍留在你的快取裡——每個目標各一個 classifier，所以一台機器下載的大約是兩 MB，而不是全部六份：
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
 natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
-若同一份建置要送到每個平台、而且無從得知它會落在哪一台機器上，就改用 `limn-video-ffmpeg-natives-all`。它不是 classifier，而是獨立的一個成品，替你把六個都列好了。也沒有什麼攔著你一次列出好幾個 classifier——要涵蓋兩個目標的套件包，就寫兩個。
+若同一份建置要送到每個平台、而且無從得知它會落在哪一台機器上，就改用 `limn-video-ffmpeg-natives-all`。它是獨立的一個 POM，版本跟著工具組走，按這次發布測試過的負載版本替你把六個都列好了。也沒有什麼攔著你一次列出好幾個 classifier——要涵蓋兩個目標的套件包，就寫兩個。
 
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
@@ -172,7 +172,7 @@ macOS 的開關和上面一樣。它存下來的是純資料，你的應用用 `
 | --- | --- |
 | `limn-toolkit` | 元件集、版面、場景圖、後端 SPI 與純 Java 影片解碼器；不依賴任何東西 |
 | `limn-backend-lwjgl` | 那些 SPI 背後的 GLFW、OpenGL 與 stb |
-| `limn-video-ffmpeg` | 透過 FFmpeg 支援 H.264/HEVC/VP9/VP8 與 AAC/Opus/Vorbis；每個桌面目標各一個 classifier |
+| `limn-video-ffmpeg` | 透過 FFmpeg 支援 H.264/HEVC/VP9/VP8 與 AAC/Opus/Vorbis；負載是 `limn-ffmpeg-natives`，版本跟著 FFmpeg 走，每個桌面目標各一個 classifier |
 | `limn-icons-tabler` | Tabler 圖示包，需要就用 |
 | `limn-theme-editor` | 編寫主題的畫面，可嵌入你的應用程式 |
 | `limn-fonts-all` | 泛中日韓字體與彩色表情符號字體（一個從不繪製它們的應用程式不該背負的 26 MB），加上其餘的遞補字體，各自固定在這次發布測試過的版本——每個字體都是獨立的一個成品，版本跟著字型走 |
@@ -200,7 +200,7 @@ macOS 的開關和上面一樣。它存下來的是純資料，你的應用用 `
 
 成品的目標是 JDK 17，建置本身則在 21 上執行。在沒有 GPU 的機器上，以 GL 為底的測試會跳過，而不是失敗。
 
-MP4 播放需要一份**不在**這個倉庫裡的原生負載——發布時會為六個平台建置它，並各發布一個 classifier。若要在本機取得，`./scripts/build-ffmpeg.sh` 大約一分鐘就能建置一份，或者 `./scripts/fetch-ffmpeg.sh` 會從已發布的 jar 解出一份。
+MP4 播放需要一份**不在**這個倉庫裡的原生負載：它是 [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) 成品，版本跟著 FFmpeg 走，建置會像對待其他任何相依套件一樣，從 Maven Central 解析出它測試時所用的版本——測試與示範程式在本機什麼都不用建置就能播放影片。寫入端的測試需要一個已發布的任何成品都不帶的編碼器；在旁邊複製那個倉庫並做一次 `full` 建置，就會被自動拾取。
 
 ## 授權
 

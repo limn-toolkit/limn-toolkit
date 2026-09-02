@@ -62,19 +62,22 @@ part in layout like a label does. The decoder behind it is a separate concern:
 - **The pure-Java decoders** ship in `limn-toolkit` itself, with no native code and no
   third-party dependency. They read Y4M and generate test patterns, which is enough to drive
   the widget and not enough to play a film.
-- **`limn-video-ffmpeg`** decodes H.264 and AAC in MP4 through a trimmed FFmpeg. Its native
-  libraries ride in one `natives-<os>-<arch>` classifier per desktop target, for the same
-  platforms the backend covers (macOS, Windows and Linux, x64 and ARM64 alike); add the one
-  your machine is, or the separate `limn-video-ffmpeg-natives-all` artifact, which names all six,
-  for a bundle that ships everywhere. Leave it out and the
-  decoder reports itself unavailable and everything else keeps working. The libraries are LGPL (version 2.1 or later) and the jar carries the licence
-  text and notice alongside them; [Packaging](/docs/packaging/) has what shipping them means.
+- **`limn-video-ffmpeg`** decodes H.264 and AAC in MP4 through a trimmed FFmpeg. The FFmpeg
+  libraries are a separate artifact, `limn-ffmpeg-natives`, versioned with FFmpeg rather than
+  with the toolkit (so it stays in your cache across Limn upgrades), one `natives-<os>-<arch>`
+  classifier per desktop target, for the same platforms the backend covers (macOS, Windows and
+  Linux, x64 and ARM64 alike); add the one your machine is, or `limn-video-ffmpeg-natives-all`,
+  a POM versioned with the toolkit that names all six at the payload version this release was
+  tested with, for a bundle that ships everywhere. The JNI shim comes with `limn-video-ffmpeg`
+  itself. Leave the libraries out and the decoder reports itself unavailable and everything else
+  keeps working. They are LGPL (version 2.1 or later) and each jar carries the licence text and
+  notice alongside them; [Packaging](/docs/packaging/) has what shipping them means.
 
   ```kotlin
   implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
-  // A build for one known machine takes its classifier:
-  runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
-  // A bundle that ships everywhere takes the artifact that names all six:
+  // A build for one known machine takes the payload's classifier for it:
+  runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
+  // A bundle that ships everywhere takes the POM that names all six:
   runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
   ```
 

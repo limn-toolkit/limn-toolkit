@@ -99,13 +99,14 @@ eigenen Lizenz ist.
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
 
-Die erste Zeile bringt das Java und den JNI-Shim für jede Plattform. Die zweite bringt die
-FFmpeg-Bibliotheken, die einen Classifier je Ziel ausliefern, sodass ein Rechner etwa zwei Megabyte
-lädt statt aller sechs:
+Die erste Zeile bringt das Java und mit ihm den JNI-Shim für jede Plattform. Die zweite bringt die
+FFmpeg-Bibliotheken — aus `limn-ffmpeg-natives`, einem Artefakt, dessen Version FFmpeg folgt und
+nicht dem Toolkit, sodass es über Limn-Upgrades hinweg in Ihrem Cache bleibt — einen Classifier je
+Ziel, sodass ein Rechner etwa zwei Megabyte lädt statt aller sechs:
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
@@ -113,9 +114,10 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
 Nehmen Sie stattdessen `limn-video-ffmpeg-natives-all`, wenn ein Build an jede Plattform
-ausgeliefert wird und den Rechner nicht kennen kann, auf dem er landet: Es ist ein eigenes Artefakt
-und kein Classifier, und es nennt alle sechs, damit Sie es nicht tun müssen. Es hindert Sie auch
-nichts daran, mehrere Classifier zu nennen — ein Bündel für zwei Ziele nimmt zwei.
+ausgeliefert wird und den Rechner nicht kennen kann, auf dem er landet: Es ist eine eigene POM,
+deren Version dem Toolkit folgt, und sie nennt alle sechs in der Nutzlast-Version, mit der dieses
+Release getestet wurde, damit Sie es nicht tun müssen. Es hindert Sie auch nichts daran, mehrere
+Classifier zu nennen — ein Bündel für zwei Ziele nimmt zwei.
 
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
@@ -210,7 +212,7 @@ Dieselbe macOS-Option wie oben. Was er speichert, sind schlichte Daten, die Ihre
 | --- | --- |
 | `limn-toolkit` | der Widget-Satz, Layout, der Szenengraph, die Backend-SPIs und die reinen Java-Video-Decoder; ohne jede Abhängigkeit |
 | `limn-backend-lwjgl` | GLFW, OpenGL und stb hinter diesen SPIs |
-| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 und AAC/Opus/Vorbis über FFmpeg; ein Classifier je Desktop-Ziel |
+| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 und AAC/Opus/Vorbis über FFmpeg; die Nutzlast ist `limn-ffmpeg-natives`, dessen Version FFmpeg folgt, ein Classifier je Desktop-Ziel |
 | `limn-icons-tabler` | das Tabler-Icon-Paket, falls Sie es wollen |
 | `limn-theme-editor` | der Bildschirm, der ein Theme erstellt, einbettbar in Ihre Anwendung |
 | `limn-fonts-all` | die Pan-CJK- und Farb-Emoji-Schriften (26 MB, die eine Anwendung, die sie nie zeichnet, nicht tragen sollte), dazu die übrigen Fallbacks, in den Versionen, mit denen dieses Release getestet wurde — jede Schrift ein eigenes Artefakt, dessen Version der Schrift folgt |
@@ -255,10 +257,12 @@ Entwurfsentscheidungen stehen in [`docs/adr/`](docs/adr/), und wie ein Release e
 Die Artefakte zielen auf JDK 17; der Build selbst läuft auf 21. Auf einem Rechner ohne GPU werden
 die GL-gestützten Tests übersprungen, statt zu scheitern.
 
-Die MP4-Wiedergabe braucht eine native Nutzlast, die **nicht** in diesem Repository liegt — ein
-Release baut sie für sechs Plattformen und veröffentlicht je einen Classifier. Um sie lokal zu
-haben, baut `./scripts/build-ffmpeg.sh` eine in etwa einer Minute, oder
-`./scripts/fetch-ffmpeg.sh` packt eine aus dem veröffentlichten Jar aus.
+Die MP4-Wiedergabe braucht eine native Nutzlast, die **nicht** in diesem Repository liegt: Es ist
+das Artefakt [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives), dessen
+Version FFmpeg folgt, und der Build löst die Version, mit der er getestet wurde, wie jede andere
+Abhängigkeit von Maven Central auf — die Tests und die Demo spielen Video ab, ohne dass lokal etwas
+gebaut wird. Die Writer-Tests brauchen einen Encoder, den nichts Veröffentlichtes enthält; ein
+`full`-Build in einem Geschwister-Klon jenes Repositorys wird automatisch aufgegriffen.
 
 ## Lizenz
 

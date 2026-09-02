@@ -97,13 +97,14 @@ it is the one piece of Limn with a native payload and a licence of its own.
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
 
-The first line brings the Java and the JNI shim for every platform. The second brings the FFmpeg
-libraries, which ship one classifier per target so a machine downloads about two megabytes rather
-than all six:
+The first line brings the Java and, with it, the JNI shim for every platform. The second brings
+the FFmpeg libraries — from `limn-ffmpeg-natives`, an artifact that versions with FFmpeg rather
+than with the toolkit, so it stays in your cache across Limn upgrades — one classifier per target,
+so a machine downloads about two megabytes rather than all six:
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
@@ -111,9 +112,9 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
 Use `limn-video-ffmpeg-natives-all` instead when one build is shipped to every platform and cannot
-know the machine it will land on: it is an artifact of its own rather than a classifier, and it
-names all six so you do not have to. Nothing stops you naming several classifiers, either — a
-bundle for two targets takes two.
+know the machine it will land on: it is a POM of its own, versioned with the toolkit, and it names
+all six at the payload version this release was tested with, so you do not have to. Nothing stops
+you naming several classifiers, either — a bundle for two targets takes two.
 
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
@@ -204,7 +205,7 @@ Same macOS flag as above. What it saves is plain data, which your application lo
 | --- | --- |
 | `limn-toolkit` | the widget set, layout, the scene graph, the backend SPIs and the pure-Java video decoders; depends on nothing |
 | `limn-backend-lwjgl` | GLFW, OpenGL and stb behind those SPIs |
-| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis via FFmpeg; one classifier per desktop target |
+| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis via FFmpeg; the payload is `limn-ffmpeg-natives`, versioned with FFmpeg, one classifier per desktop target |
 | `limn-icons-tabler` | the Tabler icon pack, if you want it |
 | `limn-theme-editor` | the screen that authors a theme, embeddable in your application |
 | `limn-fonts-all` | the pan-CJK and colour-emoji faces (26 MB an app that never draws them should not carry), plus the rest of the fallbacks, at the versions this release was tested with — each face an artifact of its own that versions with the font |
@@ -246,9 +247,12 @@ Design decisions live in [`docs/adr/`](docs/adr/), and how a release is made in
 JDK 17 is what the artifacts target; the build itself runs on 21. On a machine with no GPU the
 GL-backed tests skip rather than fail.
 
-MP4 playback needs a native payload that is **not** in this repository — a release builds it for
-six platforms and publishes one classifier each. To have it locally, `./scripts/build-ffmpeg.sh`
-builds one in about a minute, or `./scripts/fetch-ffmpeg.sh` unpacks one from the published jar.
+MP4 playback needs a native payload that is **not** in this repository: it is the
+[`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) artifact, versioned
+with FFmpeg, and the build resolves the version it was tested with from Maven Central like any
+other dependency — the tests and the demo play video with nothing built locally. The writer tests
+need an encoder nothing published carries; a `full` build in a sibling clone of that repository is
+picked up automatically.
 
 ## License
 

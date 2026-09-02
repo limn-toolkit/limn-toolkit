@@ -10,10 +10,11 @@ import java.util.List;
 /**
  * What every test here needs: a reason to skip, and a clip to read.
  *
- * <p><b>Skipping is the normal outcome, not a failure.</b> The native library is not committed and
- * Gradle does not build it, so it is absent on every machine that has not run
- * {@code scripts/build-ffmpeg.sh}, which includes a fresh clone and will include the CI machines
- * until phase 6b gives them a build step. These tests therefore skip cleanly there, exactly as the
+ * <p><b>Skipping is an ordinary outcome, not a failure.</b> The published {@code player} payload
+ * arrives from Maven Central for the tests (ADR 037), so decoding runs on a fresh clone and on CI
+ * alike; what is still absent unless a developer built it is the {@code full} profile with the
+ * encoders the WRITER tests need, in a sibling clone of limn-ffmpeg-natives. Those tests, and any
+ * run without network to resolve the payload, skip cleanly, exactly as the
  * GL-backed tests in the backend's suite skip where no context can be created, and the ones that
  * do not need the library at all keep running.
  */

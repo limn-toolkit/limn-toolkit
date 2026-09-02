@@ -2,9 +2,10 @@
 //
 // Layers (conceptual, top to bottom):
 //   limn-demo → limn-toolkit ← limn-backend-lwjgl
-//   limn-toolkit carries the widget set and the pure-Java decoders; the decoder with a
+//   limn-toolkit carries the widget set and the pure-Java decoders; the decoder over a
 //   native payload is limn-video-ffmpeg, which nothing depends on, so a codec with a
-//   licence and a platform matrix can never reach a base module (ADR 030).
+//   licence and a platform matrix can never reach a base module (ADR 030). The payload
+//   itself is not here at all: it is limn-ffmpeg-natives, versioned with FFmpeg (ADR 037).
 //
 // The backend module IMPLEMENTS the SPI (limn.backend.*) defined in limn-toolkit
 // (dependency inversion): no module above it sees LWJGL/OpenGL.
@@ -39,16 +40,19 @@ val publishedModules = mapOf(
     "limn-icons-tabler" to "The Tabler icon pack as Limn icons; an application opts in.",
     "limn-theme-editor" to "The screen that authors a Theme; an application opts in.",
     "limn-video-ffmpeg" to
-            "H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis out of MP4 and Matroska, via FFmpeg. Carries " +
-            "native libraries for macOS, Linux and Windows on x86_64 and aarch64 under " +
-            "LGPL-2.1-or-later; see NOTICE-ffmpeg.txt in the jar. On any other platform the " +
+            "H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis out of MP4 and Matroska, via FFmpeg. The " +
+            "native payload is the limn-ffmpeg-natives artifact, versioned with FFmpeg: this " +
+            "module brings its JNI shim along, and an application adds one natives-<os>-<arch> " +
+            "classifier of it (macOS, Linux, Windows; x86_64, aarch64; LGPL-2.1-or-later, see " +
+            "NOTICE-ffmpeg.txt in those jars) or limn-video-ffmpeg-natives-all. Without one the " +
             "decoder reports itself unavailable and the rest of the toolkit is unaffected.",
     "limn-backend-lwjgl" to "The LWJGL backend: GLFW, OpenGL and stb behind the toolkit's SPIs.",
     "limn-video-ffmpeg-natives-all" to
             "Every desktop platform's FFmpeg libraries at once, for a distribution shipped as " +
             "one cross-platform bundle. It carries no code and no binaries: it names the six " +
-            "natives-<os>-<arch> artifacts of limn-video-ffmpeg so a build that cannot know its " +
-            "machine does not have to name them itself.",
+            "natives-<os>-<arch> classifiers of limn-ffmpeg-natives, at the version this " +
+            "toolkit release was tested with, so a build that cannot know its machine does not " +
+            "have to name them itself.",
     "limn-fonts-all" to
             "Every fallback face at once — the limn-fonts artifacts (pan-CJK, colour emoji, " +
             "the complex scripts) at the versions this toolkit release was tested with. It " +

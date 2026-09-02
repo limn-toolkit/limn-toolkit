@@ -11,6 +11,12 @@ limn-fonts-roboto = "1.0.1"
 limn-fonts-noto-cjk = "2.004.1"
 limn-fonts-noto-emoji = "2.051.1"
 limn-fonts-noto-scripts = "1.0.1"
+# The FFmpeg payload, from the limn-ffmpeg-natives repository, versioned with FFmpeg (ADR 037):
+# the first three components are the FFmpeg inside, the fourth is that repository's packaging.
+# limn-video-ffmpeg depends on its main jar (the JNI shim); the six natives-<os>-<arch>
+# classifiers are an application's choice, and limn-video-ffmpeg-natives-all names them at this
+# exact version. The shim's ABI number is checked at load time (FfmpegLibrary.EXPECTED_ABI).
+limn-ffmpeg-natives = "7.1.5.0"
 
 [libraries]
 lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
@@ -27,6 +33,7 @@ limn-fonts-roboto = { module = "io.github.limn-toolkit:limn-fonts-roboto", versi
 limn-fonts-noto-cjk = { module = "io.github.limn-toolkit:limn-fonts-noto-cjk", version.ref = "limn-fonts-noto-cjk" }
 limn-fonts-noto-emoji = { module = "io.github.limn-toolkit:limn-fonts-noto-emoji", version.ref = "limn-fonts-noto-emoji" }
 limn-fonts-noto-scripts = { module = "io.github.limn-toolkit:limn-fonts-noto-scripts", version.ref = "limn-fonts-noto-scripts" }
+limn-ffmpeg-natives = { module = "io.github.limn-toolkit:limn-ffmpeg-natives", version.ref = "limn-ffmpeg-natives" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

@@ -13,10 +13,9 @@ dependencies {
     // Same shape as the icon pack: a module nothing in the toolkit depends on, taken here
     // because the demo is an application and this one is a screen an application embeds.
     implementation(project(":limn-theme-editor"))
-    // The one dependency in this build with a native payload, and the demo is the only thing that
-    // takes it. Its library is not committed and not built by Gradle, so on a machine that never
-    // ran scripts/build-ffmpeg.sh this contributes some classes that report themselves
-    // unavailable; the demo still builds, still runs, and still plays everything else.
+    // The decoder over a native payload, and the demo is the only thing in this build that takes
+    // it. The payload itself is the limn-ffmpeg-natives artifact (ADR 037): the shim arrives
+    // with this module, and the libraries are named below.
     implementation(project(":limn-video-ffmpeg"))
     // The opt-in faces, taken here for the same reason the icon pack is: the demo is an
     // APPLICATION, and this is an application's choice (ADR 036). Roboto and the complex-script
@@ -25,6 +24,29 @@ dependencies {
     // whole kitchen.
     runtimeOnly(libs.limn.fonts.noto.cjk)
     runtimeOnly(libs.limn.fonts.noto.emoji)
+    // The FFmpeg libraries for every desktop target (ADR 037). limn-video-ffmpeg brings the shim;
+    // the libraries are the application's choice, and this application's fatJar is one file that
+    // has to play video on whichever desktop `jbang <url>` lands it on — so all six, the same
+    // thing limn-video-ffmpeg-natives-all would name, written out because a project cannot depend
+    // on a sibling POM's dependency list without publishing it first.
+    val payload = libs.limn.ffmpeg.natives.get()
+    listOf("linux-aarch64", "linux-x86_64", "macos-aarch64", "macos-x86_64",
+            "windows-aarch64", "windows-x86_64").forEach { platform ->
+        runtimeOnly("${payload.module}:${payload.versionConstraint.requiredVersion}:natives-$platform")
+    }
+}
+
+// A developer's `full` payload (encoders, for the writer scenes), from a sibling clone of
+// limn-ffmpeg-natives by convention or from -PlimnFfmpegNatives, ahead of the published player
+// payload on this module's classpath: main resources come before dependency jars, so the full
+// build's manifests and libraries shadow the player's at the same paths. This module is never
+// published, and the fatJar the release attaches is built on a runner that has no sibling clone.
+val devNatives: File = (findProperty("limnFfmpegNatives") as String?)?.let { file(it) }
+    ?: rootDir.resolve("../limn-ffmpeg-natives/native/dist/full")
+sourceSets {
+    named("main") {
+        resources.srcDir(devNatives)
+    }
 }
 
 val isMacOs = System.getProperty("os.name").lowercase().contains("mac")
@@ -112,9 +134,6 @@ tasks.named<JavaExec>("run") {
 // The file name carries no version. GitHub serves the newest release's asset by name at
 // /releases/latest/download/<name>, so the URL in ten READMEs never has to be bumped; which
 // version somebody is holding is in the manifest.
-val demoFfmpegProfile: String = (findProperty("limnFfmpegProfile") as String?)
-    ?: if (project(":limn-video-ffmpeg").file("native/dist/full").isDirectory) "full" else "player"
-
 tasks.register<Jar>("fatJar") {
     group = "distribution"
     description = "Everything the demo needs in one runnable jar, for the GitHub release."
@@ -136,11 +155,14 @@ tasks.register<Jar>("fatJar") {
     exclude("module-info.class", "META-INF/versions/*/module-info.class")
 
     from(sourceSets["main"].output)
+    // The closure below unpacks the sibling modules' jars, and a closure hides from Gradle which
+    // tasks produce them: with `check` in the same graph it refused to run this task at all
+    // ("uses this output of task ':limn-backend-lwjgl:jar' without declaring a dependency"). The
+    // configuration itself knows, so depending on it is what makes the order explicit.
+    dependsOn(configurations.runtimeClasspath)
+    // Everything on the runtime classpath, which since ADR 037 includes the FFmpeg payload: the
+    // shim from limn-ffmpeg-natives' main jar and the libraries from the six classifiers this
+    // module names above. The release asset therefore plays video on every desktop it runs on
+    // with nothing merged in by a workflow.
     from({ configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) } })
-    // The FFmpeg libraries, which limn-video-ffmpeg's main jar deliberately does not carry: they
-    // ride in the natives-<os>-<arch> classifiers and this jar has no classifier to choose. The
-    // publish workflow merges all six here before building this, so the release asset plays
-    // video on every desktop it runs on. A machine that never built a payload contributes
-    // nothing and the video tab reports itself unavailable, exactly as it does today.
-    from(project(":limn-video-ffmpeg").file("native/dist/$demoFfmpegProfile"))
 }

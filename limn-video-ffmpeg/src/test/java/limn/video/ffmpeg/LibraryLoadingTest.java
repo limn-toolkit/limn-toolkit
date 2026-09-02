@@ -125,8 +125,8 @@ class LibraryLoadingTest {
 
     @Test
     void aBuildWithNoNativeForThisPlatformReportsItAndDoesNotThrow() throws Exception {
-        // A class loader over the compiled classes but NOT the resources: exactly what a machine
-        // that never ran scripts/build-ffmpeg.sh sees.
+        // A class loader over the compiled classes but NOT the payload jars: exactly what an
+        // application that added no natives-<os>-<arch> classifier sees.
         try (URLClassLoader isolated = new URLClassLoader(new URL[] {classesLocation()},
                 ClassLoader.getPlatformClassLoader())) {
             Class<?> library = isolated.loadClass(FfmpegLibrary.class.getName());

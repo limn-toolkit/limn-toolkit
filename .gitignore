@@ -10,20 +10,6 @@ node_modules/
 dist/
 .astro/
 
-# FFmpeg source, objects and every build tree scripts/build-ffmpeg.sh produces: all of it,
-# including the `player` profile that ships. No binary this project did not write lives in git.
-#
-# What publishes the decoder is the release build, which produces the six desktop slices and
-# packages them into the jar; a developer who wants MP4 locally fetches that payload with
-# scripts/fetch-ffmpeg.sh or builds it with scripts/build-ffmpeg.sh. Neither is required to work
-# on anything else: without a payload the decoder reports itself unavailable, its tests skip, and
-# the rest of the toolkit does not notice.
-#
-# The one thing that must NOT be silent is publishing without it. limn-video-ffmpeg/build.gradle.kts
-# refuses a publish whose payload is absent or short a platform. An empty resource directory
-# contributes nothing rather than failing, so without that check the jar would ship with no decoder
-# in it and one line in the log.
-limn-video-ffmpeg/native/
 .idea/
 *.iml
 *.ipr

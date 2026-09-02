@@ -99,13 +99,15 @@ native et une licence à elle.
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
 
-La première ligne apporte le Java et la couche JNI pour toutes les plateformes. La seconde apporte
-les bibliothèques FFmpeg, publiées à raison d’un classifier par cible, de sorte qu’une machine
-télécharge environ deux mégaoctets plutôt que les six :
+La première ligne apporte le Java et, avec lui, la couche JNI pour toutes les plateformes. La
+seconde apporte les bibliothèques FFmpeg — depuis `limn-ffmpeg-natives`, un artefact versionné avec
+FFmpeg plutôt qu’avec le toolkit, de sorte qu’il reste dans votre cache d’une mise à jour de Limn à
+l’autre — à raison d’un classifier par cible, de sorte qu’une machine télécharge environ deux
+mégaoctets plutôt que les six :
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
@@ -113,9 +115,10 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
 Utilisez plutôt `limn-video-ffmpeg-natives-all` quand une seule compilation est livrée à toutes les
-plateformes et ne peut pas savoir sur quelle machine elle atterrira : c’est un artefact à part
-entière et non un classifier, et il nomme les six pour vous. Rien ne vous empêche non plus de
-nommer plusieurs classifiers : une distribution pour deux cibles en prend deux.
+plateformes et ne peut pas savoir sur quelle machine elle atterrira : c’est un POM à part entière,
+versionné avec le toolkit, et il nomme les six à la version de la charge avec laquelle cette
+publication a été testée, pour vous éviter de le faire. Rien ne vous empêche non plus de nommer
+plusieurs classifiers : une distribution pour deux cibles en prend deux.
 
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
@@ -210,7 +213,7 @@ application charge avec `ThemeFormat`.
 | --- | --- |
 | `limn-toolkit` | l’ensemble de widgets, la mise en page, le graphe de scène, les SPI des backends et les décodeurs vidéo en Java pur ; ne dépend de rien |
 | `limn-backend-lwjgl` | GLFW, OpenGL et stb derrière ces SPI |
-| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 et AAC/Opus/Vorbis via FFmpeg ; un classifier par cible de bureau |
+| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 et AAC/Opus/Vorbis via FFmpeg ; la charge est `limn-ffmpeg-natives`, versionné avec FFmpeg, un classifier par cible de bureau |
 | `limn-icons-tabler` | le jeu d’icônes Tabler, si vous le voulez |
 | `limn-theme-editor` | l’écran qui compose un thème, intégrable dans votre application |
 | `limn-fonts-all` | les fontes pan-CJC et emoji couleur (26 Mo qu’une application qui ne les dessine jamais ne devrait pas porter), plus le reste des replis, dans les versions avec lesquelles cette publication a été testée — chaque fonte est un artefact à part entière, versionné avec la fonte |
@@ -255,10 +258,12 @@ publiée dans [`RELEASING.md`](RELEASING.md).
 JDK 17 est ce que visent les artefacts ; la compilation elle-même tourne sur 21. Sur une machine
 sans GPU, les tests qui passent par GL sont ignorés plutôt que mis en échec.
 
-La lecture MP4 a besoin d’une charge native qui n’est **pas** dans ce dépôt — une publication la
-compile pour six plateformes et en publie un classifier pour chacune. Pour en avoir une localement,
-`./scripts/build-ffmpeg.sh` en construit une en une minute environ, ou `./scripts/fetch-ffmpeg.sh`
-en extrait une du jar publié.
+La lecture MP4 a besoin d’une charge native qui n’est **pas** dans ce dépôt : c’est l’artefact
+[`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives), versionné avec
+FFmpeg, et la compilation résout depuis Maven Central la version avec laquelle elle a été testée,
+comme n’importe quelle autre dépendance — les tests et la démo lisent la vidéo sans rien compiler
+localement. Les tests d’écriture ont besoin d’un encodeur qu’aucune publication n’embarque ; une
+compilation `full` dans un clone voisin de ce dépôt est reprise automatiquement.
 
 ## Licence
 

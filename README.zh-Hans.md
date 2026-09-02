@@ -87,18 +87,18 @@ dependencies {
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0")
-    runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg:0.5.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
 }
 ```
 
-第一行带来 Java 部分和覆盖每个平台的 JNI shim。第二行带来 FFmpeg 库，它们按每个目标发布一个 classifier，所以一台机器下载的大约是两兆字节，而不是全部六份：
+第一行带来 Java 部分，连同覆盖每个平台的 JNI shim。第二行带来 FFmpeg 库——来自 `limn-ffmpeg-natives`，一个版本跟着 FFmpeg 而不是跟着工具包走的构件，所以 Limn 升级时它仍留在你的缓存里——每个目标一个 classifier，所以一台机器下载的大约是两兆字节，而不是全部六份：
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
 natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```
 
-如果一个构建产物要发往所有平台，无从知道自己会落在哪台机器上，那就改用 `limn-video-ffmpeg-natives-all`。它不是 classifier，而是独立的一个构件，替你把六个都写上了。同时写上好几个 classifier 也没什么不可以——面向两个目标的分发包就写两个。
+如果一个构建产物要发往所有平台，无从知道自己会落在哪台机器上，那就改用 `limn-video-ffmpeg-natives-all`。它是独立的一个 POM，版本跟着工具包走，按本次发布测试过的载荷版本替你把六个都写上了。同时写上好几个 classifier 也没什么不可以——面向两个目标的分发包就写两个。
 
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:0.5.0")
@@ -172,7 +172,7 @@ macOS 的开关和上面一样。它存下来的是纯数据，你的应用用 `
 | --- | --- |
 | `limn-toolkit` | 组件集、布局、场景图、后端 SPI 与纯 Java 视频解码器；不依赖任何东西 |
 | `limn-backend-lwjgl` | 这些 SPI 背后的 GLFW、OpenGL 与 stb |
-| `limn-video-ffmpeg` | 通过 FFmpeg 支持 H.264/HEVC/VP9/VP8 与 AAC/Opus/Vorbis；每个桌面目标一个 classifier |
+| `limn-video-ffmpeg` | 通过 FFmpeg 支持 H.264/HEVC/VP9/VP8 与 AAC/Opus/Vorbis；载荷是 `limn-ffmpeg-natives`，版本跟着 FFmpeg 走，每个桌面目标一个 classifier |
 | `limn-icons-tabler` | Tabler 图标包，如果你需要的话 |
 | `limn-theme-editor` | 编写主题的那个界面，可以嵌入你的应用 |
 | `limn-fonts-all` | 泛中日韩字体与彩色表情符号字体（一个从不绘制它们的应用不该背上的 26 兆字节），加上其余的回退字体，各自固定在本次发布测试过的版本——每个字体都是独立的一个构件，版本跟着字体走 |
@@ -200,7 +200,7 @@ macOS 的开关和上面一样。它存下来的是纯数据，你的应用用 `
 
 构件面向的是 JDK 17，构建本身跑在 21 上。在没有 GPU 的机器上，依赖 GL 的测试会跳过，而不是失败。
 
-MP4 播放需要一份**不在**本仓库里的原生载荷——发布时会为六个平台构建它，并为每个平台发布一个 classifier。想在本地拥有一份，`./scripts/build-ffmpeg.sh` 大约一分钟就能构建出来，或者 `./scripts/fetch-ffmpeg.sh` 从已发布的 jar 中解出一份。
+MP4 播放需要一份**不在**本仓库里的原生载荷：它是 [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) 构件，版本跟着 FFmpeg 走，构建会像对待其他任何依赖一样，从 Maven Central 解析出它测试时所用的版本——测试和演示程序在本地什么都不用构建就能播放视频。写入端的测试需要一个已发布的任何构件都不带的编码器；在旁边克隆那个仓库并做一次 `full` 构建，就会被自动拾取。
 
 ## 许可
 
