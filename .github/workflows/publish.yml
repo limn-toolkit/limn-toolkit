@@ -1,13 +1,14 @@
 # Publishes the library modules to Maven Central, off a tag, and drafts the GitHub release.
 #
-# The version comes from the tag and from nowhere else: build.gradle.kts reads -PlimnVersion and
-# otherwise says -SNAPSHOT, so `v0.1.0` is what makes 0.1.0 exist. No artifact in the tree carries
-# a version, and nothing is left saying "0.1.0" after a release.
+# The version comes from the tag, and the tag comes from versions.properties through the
+# tag-releases workflow: build.gradle.kts reads -PlimnVersion and otherwise says the -SNAPSHOT of
+# that file, so bumping the file and pushing main is what makes a version exist. Nobody types a
+# tag.
 #
-# The documentation is the one exception, and it is not one a tag can reach. Ten READMEs are
-# rendered raw by GitHub with no build between the file and the reader, so the coordinates they
-# hand somebody to copy are literals. Run `scripts/set-version.sh <version>` and commit the result
-# in the commit the tag will point at; the `verify` job refuses the tag if that was not done.
+# The documentation is the one place the number is a literal — ten READMEs are rendered raw by
+# GitHub with no build between the file and the reader — and tag-releases rewrites it
+# (scripts/set-version.sh) and commits that as the release commit before tagging. The `verify`
+# job below still refuses a tag whose docs disagree, which is what keeps a hand-made tag honest.
 #
 # Neither half of a release publishes itself. The upload STOPS at the Portal, where what arrives
 # is a deployment, validated and staged, that somebody opens and presses Publish on; the GitHub
@@ -36,8 +37,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to publish, without the leading v (e.g. 0.1.0)"
-        required: true
+        description: "Version to publish, without the leading v. Blank takes versions.properties."
+        required: false
         type: string
       force:
         description: "Upload again even though this version was already uploaded once"
@@ -83,8 +84,12 @@ jobs:
       - name: Resolve the version
         id: version
         run: |
-          if [ -n "${{ inputs.version }}" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ inputs.version }}"
+            if [ -z "$VERSION" ]; then
+              VERSION="$(sed -n 's/^limn-toolkit[[:space:]]*=[[:space:]]*//p' versions.properties | tr -d '[:space:]')"
+              echo "version left blank; versions.properties says $VERSION"
+            fi
           else
             VERSION="${GITHUB_REF_NAME#v}"
           fi
@@ -104,7 +109,7 @@ jobs:
         run: |
           TAG="v${{ steps.version.outputs.version }}"
           if ! git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
-            echo "::error::$TAG does not exist. Tag the commit you mean to release first."
+            echo "::error::$TAG does not exist. A push to main with the bumped versions.properties creates it."
             exit 1
           fi
           TAGGED="$(git rev-parse "$TAG^{commit}")"
@@ -281,12 +286,14 @@ jobs:
 
           That one line brings \`limn-toolkit\` with it — and the fonts a UI cannot do
           without (Roboto and the complex-script faces, from their own artifacts). Also
-          published: \`limn-icons-tabler\`, \`limn-theme-editor\`, \`limn-fonts-all\` (opts
+          published: \`limn-theme-editor\`, \`limn-fonts-all\` (opts
           into the pan-CJK and colour-emoji faces at the versions this release was tested
           with), and \`limn-video-ffmpeg\`, whose FFmpeg payload is the separately versioned
           \`limn-ffmpeg-natives\` artifact: add one of its \`natives-<os>-<arch>\` classifiers
           for your platform, or \`limn-video-ffmpeg-natives-all\` (published here) for a
           bundle that ships everywhere at the payload version this release was tested with.
+          The Tabler icon pack, \`limn-icons-tabler\`, versions with Tabler and is released
+          from its own repository.
 
           Nothing to install to see it: the kitchen sink demo is attached below, and
           [jbang](https://www.jbang.dev/download/) runs it from the asset URL.

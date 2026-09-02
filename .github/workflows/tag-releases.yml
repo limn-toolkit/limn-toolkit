@@ -1,0 +1,84 @@
+# Turns versions.properties into a release, on every push to main, so nobody types a tag, pushes
+# one, or edits a README to say the number: landing a bumped entry on main IS the decision.
+#
+# If `v<version>` is not on origin yet, this job:
+#   1. rewrites every version literal the documentation carries (scripts/set-version.sh) — the
+#      READMEs are rendered raw by GitHub with no build between the file and the reader, so the
+#      coordinates in them are literals, and publish's verify job refuses a tag whose docs
+#      disagree with it — and commits that to main as the release commit, if anything changed;
+#   2. tags that commit and pushes the tag;
+#   3. starts the publish run for it explicitly, since a ref pushed with the workflow's own token
+#      wakes no other workflow (GitHub's recursion guard; workflow_dispatch is the exception).
+# Entries already tagged are left alone, so the workflow is idempotent and runs harmlessly on
+# every push. What stays human: pressing Publish on the Central Portal, and publishing the drafted
+# GitHub release, which is what deploys the site.
+#
+# The release commit is pushed to main with the workflow's token, which needs main to accept a
+# push from Actions (no branch protection against it). It does not re-trigger this workflow.
+
+name: tag-releases
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: tag-releases
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Release what versions.properties asks for
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          VERSION="$(sed -n 's/^limn-toolkit[[:space:]]*=[[:space:]]*//p' versions.properties | tr -d '[:space:]')"
+          TAG="v$VERSION"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "· $TAG already on origin (bump versions.properties for a new release)"
+            exit 0
+          fi
+          # The same expression publish accepts, so a typo stops here and not after a build.
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)[0-9]+)?$'; then
+            echo "::error::'$VERSION' in versions.properties is not a release version (expected 1.2.3, or 1.2.3-rc1)"
+            exit 1
+          fi
+
+          # 1. The documentation says the version. A rewrite that changes nothing commits nothing.
+          bash scripts/set-version.sh "$VERSION"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -q -m "Say $VERSION in the documentation." \
+              -m "Written by the tag-releases workflow from versions.properties: the coordinates a reader copies are literals in files GitHub renders raw, so the number lives in the commit that gets tagged."
+            git push origin HEAD:main
+            echo "✚ release commit $(git rev-parse --short HEAD): the documentation now says $VERSION"
+          else
+            echo "· the documentation already says $VERSION"
+          fi
+
+          # 2. The tag, on the commit that carries the documentation.
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "refs/tags/$TAG"
+
+          # 3. The publish, started by hand because the token's own push cannot start it.
+          gh workflow run publish.yml --ref "$TAG" -f version="$VERSION"
+          echo "✚ $TAG created at $(git rev-parse HEAD); publish dispatched"
+          {
+            echo "### Tagged and dispatched $TAG"
+            echo ""
+            echo "publish runs the full check, uploads, and stages a deployment on <https://central.sonatype.com/publishing/deployments> and a draft release; both wait for a human."
+          } >> "$GITHUB_STEP_SUMMARY"

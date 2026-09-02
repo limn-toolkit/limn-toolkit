@@ -6,21 +6,33 @@ how they are kept in agreement, and why the automation stops where it stops.
 
 ## The model
 
-**The tag is the decision.** `v0.1.0` means "this commit is what I want 0.1.0 to be". Nothing in
-the tree carries a release version: `build.gradle.kts` reads `-PlimnVersion` and otherwise says
-`0.1.0-SNAPSHOT`, so a release edits no file and leaves nothing behind saying the wrong thing.
+**`versions.properties` is the decision.** It names the next version, and landing a bumped entry
+on `main` is what releases it: the `tag-releases` workflow rewrites every version literal the
+documentation carries (`scripts/set-version.sh`), commits that to `main` as the release commit,
+tags it `v<version>`, and starts `publish`. Nothing in the tree carries the version otherwise:
+`build.gradle.kts` reads `-PlimnVersion` from the workflow and otherwise says the `-SNAPSHOT` of
+that same file, so a working clone is always one step ahead of the last release. Nobody types a
+tag, pushes one, or edits a README to say the number — the same arrangement as `limn-fonts`,
+`limn-ffmpeg-natives` and `limn-icons-tabler`.
 
-**Nothing publishes itself.** Pushing the tag uploads and stops, twice over: the Central
-deployment is staged until somebody presses Publish, and the GitHub release is created as a
-draft. That is not caution for its own sake — Central keeps what it accepts. A wrong artifact
-cannot be replaced, only superseded by a version number nobody wanted to spend, so the last
-moment at which a release can still be dropped is worth keeping.
+**Nothing publishes itself.** `publish` runs the full `check` under xvfb, uploads, and stops,
+twice over: the Central deployment is staged until somebody presses Publish, and the GitHub
+release is created as a draft. That is not caution for its own sake — Central keeps what it
+accepts. A wrong artifact cannot be replaced, only superseded by a version number nobody wanted
+to spend, so the last moment at which a release can still be dropped is worth keeping.
 
 **The site follows the release, not the branch.** `site-deploy` runs on `release: published` and
 on demand, not on every push to main. The page documents coordinates a reader is meant to copy,
 and those coordinates resolve to nothing until the deployment is published. This is why the
-documentation for a version goes IN the commit that gets tagged rather than in a follow-up: the
-page goes live at the moment what it describes does.
+documentation for a version goes IN the commit that gets tagged — which is now the workflow's
+job — rather than in a follow-up: the page goes live at the moment what it describes does.
+
+**What versions with the toolkit, and what does not.** Every module published from here carries
+the toolkit's version, including the two aggregator POMs (`limn-fonts-all`,
+`limn-video-ffmpeg-natives-all`), because "the set this Limn was tested with" is a fact about
+the toolkit. The fonts, the FFmpeg payload and the icon pack version on their own cadence, in
+repositories of their own (ADRs 036–038); this repository pins them in
+`gradle/libs.versions.toml`, and `set-version.sh` knows not to touch their coordinates.
 
 ## Before the first release on a new machine
 
@@ -41,35 +53,32 @@ their releases with this key.
 
 ## Releasing
 
-1. **Land everything, including the documentation for this version.** `site/src/guides/install.md`
-   and the README name coordinates; they are part of the release, not a follow-up.
-2. **Rehearse locally** (optional, and free):
-   ```
-   ./gradlew publishAllPublicationsToBuildDirRepository -PlimnVersion=0.1.0
-   ```
-   Every artifact under `build/repo` should have a `.asc` beside it. No signature means no key
-   reached Gradle, and the release would be rejected after uploading.
-3. **Tag, annotated**, and push it:
-   ```
-   git tag -a v0.1.0 -m "v0.1.0" && git push origin v0.1.0
-   ```
-   Annotated rather than lightweight: a tag is a claim about a commit and deserves an author, a
-   date and a message. `gh release` falls back to the commit message for a lightweight one.
-4. **Watch `publish`.** It runs the full `check` under xvfb before anything is uploaded, verifies
-   that the tag exists and points at the commit being built, uploads the signed bundle, and
-   drafts the GitHub release.
-5. **Inspect the deployment** on <https://central.sonatype.com/publishing/deployments>. This is
+1. **Land everything.** The code, the ADRs, the guides that describe the version's shape — but
+   not the version number itself: no README or guide is edited by hand to say it.
+2. **Bump `versions.properties`** (say `0.6.0` → `0.7.0`), commit, and push `main`.
+3. **Watch `tag-releases`, then `publish`.** The first rewrites the documentation, commits
+   "Say 0.7.0 in the documentation.", tags `v0.7.0` on that commit and dispatches the second,
+   which runs the full `check` under xvfb before anything is uploaded, verifies the tag and the
+   documentation, uploads the signed bundle, builds the demo jar and drafts the GitHub release.
+4. **Inspect the deployment** on <https://central.sonatype.com/publishing/deployments>. This is
    the last reversible moment: **Drop** discards it and costs nothing.
-6. **Publish it**, then **publish the draft release** on GitHub after editing its notes. The
+5. **Publish it**, then **publish the draft release** on GitHub after editing its notes. The
    second one deploys the site.
+
+Rehearsing locally is still free and still worth it before a bump:
+```
+./gradlew publishAllPublicationsToBuildDirRepository -PlimnVersion=0.7.0
+```
+Every artifact under `build/repo` should have a `.asc` beside it when a key is configured.
 
 ## When something goes wrong
 
-**The build failed after the tag was pushed.** Fix it on main, then re-run `publish` from the
-Actions tab with the version typed in. It verifies that the tag exists and points at the commit
-it is building, so a fix has to be tagged too — move the tag with `git tag -f` and
-`git push --force origin v0.1.0` if nothing has been published under it yet. Once a version is
-published on Central, the tag that produced it is frozen: publish the fix as a new version.
+**The build failed after the tag was made.** Nothing was uploaded. Fix it on main, delete the
+tag on the web UI (repository → Tags → the tag's ⋯ menu), and push: `tag-releases` sees the
+version untagged again and redoes the release commit, the tag and the dispatch on the fixed
+commit. If only the upload hiccuped and the tag itself is fine, re-run `publish` from the
+Actions tab instead (version blank takes `versions.properties`). Once a version is published on
+Central, its tag is frozen: publish the fix as the next number.
 
 **The deployment is wrong.** Drop it on the Portal, delete the draft release, and start over with
 the same version — nothing was consumed.

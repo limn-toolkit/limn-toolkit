@@ -18,13 +18,18 @@ plugins {
     alias(libs.plugins.central.publish) apply false
 }
 
+// The version the next release carries, from versions.properties — the one file that names it.
+// The release itself arrives as -PlimnVersion from the publish workflow (which took it from the
+// tag, which tag-releases made from that same file); a working clone reads the -SNAPSHOT of it,
+// which is also what publishToMavenLocal wants, and is ahead of the last release rather than
+// behind it.
+val nextVersion = java.util.Properties().apply {
+    file("versions.properties").inputStream().use { load(it) }
+}.getProperty("limn-toolkit") ?: throw GradleException("versions.properties names no limn-toolkit version")
+
 allprojects {
     group = "io.github.limn-toolkit"
-    // The release version comes from the tag, through the workflow, and lives nowhere in this
-    // file: a version written here is one that has to be edited twice per release (once to
-    // release, once to reopen the snapshot) and is wrong in the tree in between. A working
-    // clone therefore always reads -SNAPSHOT, which is also what publishToMavenLocal wants.
-    version = (findProperty("limnVersion") as String?) ?: "0.1.0-SNAPSHOT"
+    version = (findProperty("limnVersion") as String?) ?: "$nextVersion-SNAPSHOT"
 }
 
 // What is published, and what a one-line description of it says in the POM.
@@ -37,7 +42,6 @@ val publishedModules = mapOf(
     "limn-toolkit" to
             "The widget set, layout, the scene graph, the backend SPIs and the pure-Java video " +
             "decoders; depends on nothing.",
-    "limn-icons-tabler" to "The Tabler icon pack as Limn icons; an application opts in.",
     "limn-theme-editor" to "The screen that authors a Theme; an application opts in.",
     "limn-video-ffmpeg" to
             "H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis out of MP4 and Matroska, via FFmpeg. The " +
