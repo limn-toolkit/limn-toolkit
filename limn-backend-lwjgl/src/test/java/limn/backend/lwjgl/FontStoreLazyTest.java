@@ -82,9 +82,9 @@ class FontStoreLazyTest {
         // not which font it was — and the second one is here because a batch that grew from two
         // loaders to three is exactly where one of them stops being freed.
         StbFont cjk = StbFont.loadResourceIfPresent(
-                "/limn/backend/lwjgl/fonts/Roboto-Regular.ttf", "Roboto");
+                "/limn/fonts/Roboto-Regular.ttf", "Roboto");
         StbFont script = StbFont.loadResourceIfPresent(
-                "/limn/backend/lwjgl/fonts/Roboto-Regular.ttf", "Roboto");
+                "/limn/fonts/Roboto-Regular.ttf", "Roboto");
         assertNotNull(cjk);
         assertNotNull(script);
         RuntimeException unreadable = new java.io.UncheckedIOException(

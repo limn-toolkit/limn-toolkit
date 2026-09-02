@@ -21,7 +21,7 @@ class ColorEmojiTest {
     void corruptFontDegradesToNullInsteadOfCrashing() throws Exception {
         byte[] full;
         try (InputStream in = ColorEmojiTest.class.getResourceAsStream(
-                "/limn/backend/lwjgl/fonts/NotoColorEmoji.ttf")) {
+                "/limn/fonts/NotoColorEmoji.ttf")) {
             Assumptions.assumeTrue(in != null, "Noto Color Emoji is optional");
             full = in.readAllBytes();
         }
@@ -41,7 +41,7 @@ class ColorEmojiTest {
     @Test
     void decodedBitmapCacheIsBoundedAndMissesArePinned() {
         ColorEmojiFont font = ColorEmojiFont.loadResourceIfPresent(
-                "/limn/backend/lwjgl/fonts/NotoColorEmoji.ttf");
+                "/limn/fonts/NotoColorEmoji.ttf");
         Assumptions.assumeTrue(font != null, "Noto Color Emoji is optional");
         java.util.concurrent.atomic.AtomicInteger decodes = new java.util.concurrent.atomic.AtomicInteger();
         limn.graphics.ImageDecoder decoder = bytes -> {
@@ -78,7 +78,7 @@ class ColorEmojiTest {
     void extractsPngForAColorGlyph() throws Exception {
         byte[] bytes;
         try (InputStream in = ColorEmojiTest.class.getResourceAsStream(
-                "/limn/backend/lwjgl/fonts/NotoColorEmoji.ttf")) {
+                "/limn/fonts/NotoColorEmoji.ttf")) {
             Assumptions.assumeTrue(in != null,
                     "Noto Color Emoji is optional; run scripts/fetch-fonts.sh to enable color emoji");
             bytes = in.readAllBytes();
@@ -116,12 +116,12 @@ class ColorEmojiTest {
     void aColourGlyphFitsTheLineItIsMeasuredInto() throws Exception {
         byte[] bytes;
         try (InputStream in = ColorEmojiTest.class.getResourceAsStream(
-                "/limn/backend/lwjgl/fonts/NotoColorEmoji.ttf")) {
+                "/limn/fonts/NotoColorEmoji.ttf")) {
             Assumptions.assumeTrue(in != null, "Noto Color Emoji is optional");
             bytes = in.readAllBytes();
         }
         StbFont roboto = StbFont.loadResourceIfPresent(
-                "/limn/backend/lwjgl/fonts/Roboto-Regular.ttf", "Roboto");
+                "/limn/fonts/Roboto-Regular.ttf", "Roboto");
         Assumptions.assumeTrue(roboto != null, "Roboto is bundled");
         // Measured at size 1, so every number below is in ems and the bars hold at any size.
         limn.graphics.TextMetrics em = roboto.measure("", 1f);

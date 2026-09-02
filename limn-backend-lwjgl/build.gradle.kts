@@ -30,6 +30,20 @@ val lwjglTargets = mapOf(
 dependencies {
     api(project(":limn-toolkit"))
 
+    // The faces, as artifacts (ADR 036): each versions with its font, so a toolkit release
+    // stops re-shipping megabytes that did not change and an application's cache keeps them
+    // across upgrades.
+    //
+    // Roboto is REQUIRED — it is the default family and the last resort every resolve degrades
+    // to, and FontStore fails construction with a message naming this artifact if a build
+    // manages to exclude it. The complex-script faces come by default too, at 1.1 MB: without
+    // them Arabic, Hebrew, Devanagari and Thai shape into .notdef boxes out of the box, which
+    // is not a default worth shipping (ADR 006, ADR 032). The two heavyweights — pan-CJK at
+    // 16 MB and colour emoji at 10 MB — are the application's choice, like the icon pack: add
+    // limn-fonts-noto-cjk / limn-fonts-noto-emoji (or limn-fonts-all for everything at once).
+    runtimeOnly(libs.limn.fonts.roboto)
+    runtimeOnly(libs.limn.fonts.noto.scripts)
+
     implementation(platform(libs.lwjgl.bom))
     implementation(libs.lwjgl.core)
     implementation(libs.lwjgl.glfw)
@@ -62,6 +76,11 @@ dependencies {
     // rasterizer there is. Somebody has to draw all six thousand of them once.
     testImplementation(project(":limn-icons-tabler"))
     testRuntimeOnly(libs.junit.platform.launcher)
+    // The opt-in faces, for the tests only: the CJK/emoji fallback chain, the colour-emoji
+    // pipeline and VendoredFontsTest's digests all exercise what an APPLICATION may add, and
+    // somebody has to keep exercising it. An application that adds neither ships neither.
+    testRuntimeOnly(libs.limn.fonts.noto.cjk)
+    testRuntimeOnly(libs.limn.fonts.noto.emoji)
 }
 
 // Some tests here verify GPU behaviour against a REAL context (the video colour
@@ -78,21 +97,13 @@ tasks.withType<Test>().configureEach {
     }
 }
 
-// The fonts are vendored binaries, and a sources jar is not where a binary belongs.
+// The one font still vendored here is a binary, and a sources jar is not where a binary belongs.
 //
-// They reach the main source set as resources, which is exactly what a sources jar copies as
-// well: 28 MB of faces beside 0.25 MB of source, the same type design twice, and none of it
-// answers the question a sources jar exists to answer. The pan-CJK face alone is 16 MB and the
-// colour emoji face 10 MB; see the README beside them.
-//
-// Matched by extension in that directory rather than by name, which is why the four
-// complex-script faces needed no change here and the next one will not either. A face added under
-// some other extension would slip through, and that is the trade: a name list misses the next
-// file for certain, an extension list only for a format nothing here uses.
-//
-// The licences and that README stay, because those are text and they are what a reader who opens
-// this directory actually needs. Same trade, same three lines, as limn-video-ffmpeg makes for its
-// native payload.
+// It is three kilobytes now — the menu key symbols, authored by this project, the only face that
+// survived ADR 036's move of every other font into the limn-fonts artifacts — but the rule is
+// about kind, not size, and keeping it means the next vendored binary is excluded before anyone
+// re-learns why. The licence and the README beside it stay: those are text, and they are what a
+// reader who opens the directory actually needs.
 tasks.named<Jar>("sourcesJar") {
     exclude("limn/backend/lwjgl/fonts/*.ttf", "limn/backend/lwjgl/fonts/*.otf")
 }

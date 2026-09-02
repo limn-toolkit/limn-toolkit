@@ -166,7 +166,9 @@ radius, the size step every control inherits — and one call swaps it at runtim
 
 **Your users' languages.** Text is measured with the same advances it is drawn with, and font
 fallback runs per character, so Latin, Greek, Cyrillic and CJK mix in one string without you
-choosing a face. Input methods compose inside the field, and editing moves by grapheme cluster.
+choosing a face — the CJK and emoji faces ride one opt-in dependency (`limn-fonts-all`), the
+rest come with the backend. Input methods compose inside the field, and editing moves by
+grapheme cluster.
 
 <p align="center">
   <picture>
@@ -205,6 +207,7 @@ Same macOS flag as above. What it saves is plain data, which your application lo
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis via FFmpeg; one classifier per desktop target |
 | `limn-icons-tabler` | the Tabler icon pack, if you want it |
 | `limn-theme-editor` | the screen that authors a theme, embeddable in your application |
+| `limn-fonts-all` | the pan-CJK and colour-emoji faces (26 MB an app that never draws them should not carry), plus the rest of the fallbacks, at the versions this release was tested with — each face an artifact of its own that versions with the font |
 
 ## Before you commit to it
 

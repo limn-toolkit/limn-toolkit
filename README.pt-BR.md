@@ -169,8 +169,9 @@ o passo de tamanho que todo controle herda — e uma chamada troca tudo em tempo
 
 **Os idiomas dos seus usuários.** O texto é medido com os mesmos avanços com que é desenhado, e o
 fallback de fonte roda caractere a caractere, então latino, grego, cirílico e CJK se misturam em uma
-mesma string sem você escolher tipografia. Os métodos de entrada compõem dentro do campo, e a edição
-anda por cluster de grafema.
+mesma string sem você escolher tipografia — as tipografias CJK e de emoji chegam em uma única
+dependência opcional (`limn-fonts-all`), o resto vem com o backend. Os métodos de entrada compõem
+dentro do campo, e a edição anda por cluster de grafema.
 
 <p align="center">
   <picture>
@@ -209,6 +210,7 @@ Mesma flag do macOS de cima. O que ele salva é dado puro, que a sua aplicação
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 e AAC/Opus/Vorbis via FFmpeg; um classifier por alvo de desktop |
 | `limn-icons-tabler` | o pacote de ícones Tabler, se você quiser |
 | `limn-theme-editor` | a tela que cria um tema, embutível na sua aplicação |
+| `limn-fonts-all` | as tipografias pan-CJK e de emoji colorido (26 MB que uma aplicação que nunca as desenha não deveria carregar), mais o resto dos fallbacks, nas versões com que este release foi testado — cada tipografia é um artefato próprio, que muda de versão junto com a fonte |
 
 ## Antes de se comprometer com ele
 

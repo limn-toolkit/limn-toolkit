@@ -22,7 +22,7 @@ class StbFontTest {
 
     @BeforeAll
     static void load() {
-        font = StbFont.loadResource("/limn/backend/lwjgl/fonts/Roboto-Regular.ttf", "Roboto");
+        font = StbFont.loadResource("/limn/fonts/Roboto-Regular.ttf", "Roboto");
     }
 
     @AfterAll
@@ -335,7 +335,7 @@ class StbFontTest {
 
     private static byte[] readRoboto() {
         try (java.io.InputStream in = StbFontTest.class.getResourceAsStream(
-                "/limn/backend/lwjgl/fonts/Roboto-Regular.ttf")) {
+                "/limn/fonts/Roboto-Regular.ttf")) {
             assertNotNull(in, "the bundled Roboto is not optional for this module's tests");
             return in.readAllBytes();
         } catch (java.io.IOException failure) {

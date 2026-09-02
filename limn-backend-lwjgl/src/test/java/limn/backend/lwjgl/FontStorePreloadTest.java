@@ -140,7 +140,7 @@ class FontStorePreloadTest {
     private SystemFonts.Face probeFace() throws IOException {
         Path file = tempDir.resolve("probe.ttf");
         try (InputStream in = FontStore.class.getResourceAsStream(
-                "/limn/backend/lwjgl/fonts/Roboto-Regular.ttf")) {
+                "/limn/fonts/Roboto-Regular.ttf")) {
             Files.write(file, in.readAllBytes());
         }
         return new SystemFonts.Face(PROBE_FAMILY, "Regular", file, 0, false, false);

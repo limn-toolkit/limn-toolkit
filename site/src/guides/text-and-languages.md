@@ -114,12 +114,15 @@ to break at all and is cut where it stops fitting.
 
 ## Which scripts render
 
-Latin, Greek and Cyrillic come from the default family. Everything else comes from a Noto
-face the backend carries and parses in the background the first time a character needs one:
-Chinese, Japanese and Korean from the pan-CJK face, Arabic, Hebrew, Devanagari and Thai from
-one small face each, and emoji in colour. There is nothing to install, nothing to register
-and nothing to choose; a code point that no face at all covers is the only thing that draws
-as an empty box.
+Latin, Greek and Cyrillic come from the default family, and Arabic, Hebrew, Devanagari and
+Thai from one small Noto face each — those arrive with the backend and parse in the
+background the first time a character needs one. Chinese, Japanese, Korean and colour emoji
+come from two faces the application opts into, because together they are 26 MB an app that
+never draws them should not carry: add `limn-fonts-all` (every fallback at the versions this
+release was tested with) or name `limn-fonts-noto-cjk` / `limn-fonts-noto-emoji` yourself —
+see [Install](/docs/install/). Nothing to register and nothing to choose after that line; a
+code point no face covers is the only thing that draws as an empty box, and the log names
+the artifact that would fix it.
 
 So the answer to "can I put this language in a `Label`" is now yes for every script above.
 What is left to weigh is everything around the text, which is the rest of this page.

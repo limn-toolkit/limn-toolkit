@@ -23,7 +23,7 @@ class SystemFontsTest {
     void parsesFamilyAndStyleFromRealFont() throws Exception {
         Path file = Files.createTempFile("roboto", ".ttf");
         try (InputStream in = SystemFontsTest.class.getResourceAsStream(
-                "/limn/backend/lwjgl/fonts/Roboto-Bold.ttf")) {
+                "/limn/fonts/Roboto-Bold.ttf")) {
             assertNotNull(in, "bundled Roboto-Bold must be on the classpath");
             Files.copy(in, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         }

@@ -27,8 +27,27 @@ macOS and Linux, x64 and ARM alike. There is nothing per-platform to add: the JV
 slice that matches the machine it is running on, and the rest sit inert on the classpath,
 costing download size and nothing else.
 
-Both come from Maven Central, so `mavenCentral()` in your `repositories` block is the whole
-of the setup. If you want what is on `main` rather than what was released, development builds
+It also brings the fonts a UI cannot do without: Roboto (the default family) and the four
+faces that make Arabic, Hebrew, Devanagari and Thai render, each versioned with the font
+rather than with the toolkit. Two faces are yours to opt into, because together they are
+26 MB an app that never draws them should not carry — the pan-CJK face (Chinese, Japanese,
+Korean) and colour emoji:
+
+```kotlin
+dependencies {
+    // Every fallback face at the versions this release was tested with…
+    runtimeOnly("io.github.limn-toolkit:limn-fonts-all:0.5.0")
+    // …or the two heavyweights by name, pinned to the FONT's own version:
+    // runtimeOnly("io.github.limn-toolkit:limn-fonts-noto-cjk:2.004.1")
+    // runtimeOnly("io.github.limn-toolkit:limn-fonts-noto-emoji:2.051.1")
+}
+```
+
+Without them the toolkit runs unchanged and those scripts draw as empty boxes; the log names
+the artifact that fixes it.
+
+Everything comes from Maven Central, so `mavenCentral()` in your `repositories` block is the
+whole of the setup. If you want what is on `main` rather than what was released, development builds
 are published as snapshots to `https://central.sonatype.com/repository/maven-snapshots/`.
 
 :::caution[On macOS, read this first]

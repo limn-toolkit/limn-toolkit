@@ -172,8 +172,9 @@ Laufzeit.
 
 **Die Sprachen Ihrer Nutzer.** Text wird mit denselben Vorschüben gemessen, mit denen er gezeichnet
 wird, und der Schrift-Fallback läuft pro Zeichen, so mischen sich Latein, Griechisch, Kyrillisch
-und CJK in einer Zeichenkette, ohne dass Sie eine Schrift wählen. Eingabemethoden komponieren im
-Feld selbst, und die Bearbeitung bewegt sich in Graphem-Clustern.
+und CJK in einer Zeichenkette, ohne dass Sie eine Schrift wählen — die CJK- und Emoji-Schriften
+kommen über eine einzige Opt-in-Abhängigkeit (`limn-fonts-all`), der Rest kommt mit dem Backend.
+Eingabemethoden komponieren im Feld selbst, und die Bearbeitung bewegt sich in Graphem-Clustern.
 
 <p align="center">
   <picture>
@@ -212,6 +213,7 @@ Dieselbe macOS-Option wie oben. Was er speichert, sind schlichte Daten, die Ihre
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 und AAC/Opus/Vorbis über FFmpeg; ein Classifier je Desktop-Ziel |
 | `limn-icons-tabler` | das Tabler-Icon-Paket, falls Sie es wollen |
 | `limn-theme-editor` | der Bildschirm, der ein Theme erstellt, einbettbar in Ihre Anwendung |
+| `limn-fonts-all` | die Pan-CJK- und Farb-Emoji-Schriften (26 MB, die eine Anwendung, die sie nie zeichnet, nicht tragen sollte), dazu die übrigen Fallbacks, in den Versionen, mit denen dieses Release getestet wurde — jede Schrift ein eigenes Artefakt, dessen Version der Schrift folgt |
 
 ## Bevor Sie sich festlegen
 

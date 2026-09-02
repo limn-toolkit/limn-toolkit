@@ -18,6 +18,13 @@ dependencies {
     // ran scripts/build-ffmpeg.sh this contributes some classes that report themselves
     // unavailable; the demo still builds, still runs, and still plays everything else.
     implementation(project(":limn-video-ffmpeg"))
+    // The opt-in faces, taken here for the same reason the icon pack is: the demo is an
+    // APPLICATION, and this is an application's choice (ADR 036). Roboto and the complex-script
+    // faces need no line — they come with the backend — but the i18n scenes draw CJK and emoji,
+    // and the fatJar is the screenshot rig for every README, so the kitchen sink opts into the
+    // whole kitchen.
+    runtimeOnly(libs.limn.fonts.noto.cjk)
+    runtimeOnly(libs.limn.fonts.noto.emoji)
 }
 
 val isMacOs = System.getProperty("os.name").lowercase().contains("mac")

@@ -10,14 +10,16 @@ import java.util.HexFormat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * The Noto faces that ship in this module are the ones {@code scripts/fetch-fonts.sh} pins, byte
- * for byte.
+ * The Noto faces on this suite's classpath — the limn-fonts artifacts' resources, since ADR 036
+ * moved them out of this module — are the builds this suite was written against, byte for byte.
  *
  * <p>They are parsed by stb, which is C, so what they are is worth more than a comment saying what
- * they should be: a hand-placed or re-downloaded face that is not the pinned build would otherwise
- * reach a release without anything noticing. Moving a pin means changing the commit and the digest
- * in that script and the digest here together, which is the point, because those are the two
- * places that must agree.
+ * they should be. The faces now version apart from this repository, and that is exactly why this
+ * test exists on this side of the split: bumping a font dependency in the version catalog is a
+ * one-line diff that swaps megabytes of binary nobody reviews, and this is what makes that diff
+ * fail until the digests here — and the layout facts {@code ComplexScriptFallbackTest} pins —
+ * are re-verified against the new build. The pins themselves live in the limn-fonts repository's
+ * {@code scripts/fetch-fonts.sh}; these digests are the two repositories' agreement.
  *
  * <p>The four script faces are pinned for a second reason on top of that one. What they are asked
  * for is not coverage but <em>layout</em> — the conjuncts, the reordering and the contextual forms
@@ -53,14 +55,14 @@ class VendoredFontsTest {
     private static void assertPinned(String file, String sha256) throws Exception {
         byte[] bytes;
         try (InputStream in = VendoredFontsTest.class.getResourceAsStream(
-                "/limn/backend/lwjgl/fonts/" + file)) {
+                "/limn/fonts/" + file)) {
             // The faces are optional the way the GL context and the FFmpeg native are: absent, the
-            // toolkit falls back to Roboto, so a checkout without them still builds green.
+            // toolkit falls back to Roboto, so a build resolving offline still runs green.
             Assumptions.assumeTrue(in != null, file + " is optional");
             bytes = in.readAllBytes();
         }
         assertEquals(sha256, HexFormat.of().formatHex(
                         MessageDigest.getInstance("SHA-256").digest(bytes)),
-                file + " is not the build scripts/fetch-fonts.sh pins");
+                file + " is not the build this suite's layout facts were verified against");
     }
 }

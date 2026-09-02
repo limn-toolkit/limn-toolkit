@@ -65,7 +65,7 @@ class StbFontTtcTest {
 
     private static byte[] bundled(String resource) throws Exception {
         try (InputStream in = StbFontTtcTest.class.getResourceAsStream(
-                "/limn/backend/lwjgl/fonts/" + resource)) {
+                "/limn/fonts/" + resource)) {
             assertNotNull(in, "bundled font must be on the classpath: " + resource);
             return in.readAllBytes();
         }

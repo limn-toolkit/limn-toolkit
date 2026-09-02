@@ -171,8 +171,9 @@ ejecución.
 
 **Los idiomas de tus usuarios.** El texto se mide con los mismos avances con los que se dibuja, y
 el respaldo de fuentes funciona carácter a carácter, así que latino, griego, cirílico y CJK se
-mezclan en una misma cadena sin que elijas tipografía. Los métodos de entrada componen dentro del
-campo y la edición avanza por grupos de grafemas.
+mezclan en una misma cadena sin que elijas tipografía — las tipografías CJK y de emojis llegan en
+una única dependencia opcional (`limn-fonts-all`), el resto viene con el backend. Los métodos de
+entrada componen dentro del campo y la edición avanza por grupos de grafemas.
 
 <p align="center">
   <picture>
@@ -210,6 +211,7 @@ La misma opción de macOS de arriba. Lo que guarda son datos planos, que tu apli
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 y AAC/Opus/Vorbis mediante FFmpeg; un clasificador por destino de escritorio |
 | `limn-icons-tabler` | el paquete de iconos Tabler, si lo quieres |
 | `limn-theme-editor` | la pantalla que crea un tema, incorporable en tu aplicación |
+| `limn-fonts-all` | las tipografías pan-CJK y de emojis a color (26 MB que una aplicación que nunca las dibuja no debería cargar), más el resto de los respaldos, en las versiones con las que se probó esta publicación — cada tipografía es un artefacto propio que cambia de versión con la fuente |
 
 ## Antes de comprometerte
 

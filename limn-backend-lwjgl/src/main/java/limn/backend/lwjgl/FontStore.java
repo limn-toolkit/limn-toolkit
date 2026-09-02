@@ -18,10 +18,11 @@ import java.util.Map;
 import java.util.TreeSet;
 
 /**
- * Backend-wide font registry (CPU data, shared by all windows). Ships the four
- * embedded Roboto faces (Regular, Bold, Italic, Bold-Italic; Apache 2.0), which
- * back {@link Font#DEFAULT_FAMILY} and any unknown family, plus the optional Noto
- * fallbacks. Loading is lazy throughout: only Roboto Regular parses at
+ * Backend-wide font registry (CPU data, shared by all windows). The four Roboto faces
+ * (Regular, Bold, Italic, Bold-Italic; Apache 2.0) back {@link Font#DEFAULT_FAMILY} and any
+ * unknown family; they arrive from the required {@code limn-fonts-roboto} artifact, and the
+ * optional Noto fallbacks from the {@code limn-fonts-*} artifacts an application opts in to
+ * (ADR 036). Loading is lazy throughout: only Roboto Regular parses at
  * construction; the style variants parse on first resolve, and the heavyweight
  * Noto fallbacks arrive from a background parse (see
  * {@link #parseHeavyFallbacks}/{@link #installHeavyFallbacks}). A {@link Font}'s
@@ -57,6 +58,23 @@ final class FontStore implements AutoCloseable {
 
     /** Max resident dynamically-loaded system faces; bundled faces don't count. */
     private static final int MAX_SYSTEM_FACES = 6;
+
+    /**
+     * Where a bundled face lives on the classpath: {@code limn/fonts/}, the path the
+     * limn-fonts artifacts publish their resources under (ADR 036). Only the menu symbols —
+     * authored by this project, versioned with it — still live in this module's own resources,
+     * under the old {@code limn/backend/lwjgl/fonts/} path.
+     *
+     * <p>The old path is kept as a fallback for every face all the same: it costs one
+     * {@code getResource} probe, and it is the documented location an application could have
+     * been placing a region-variant CJK file at since before the artifacts existed.
+     */
+    private static String bundledPath(String file) {
+        String modern = "/limn/fonts/" + file;
+        return FontStore.class.getResource(modern) != null
+                ? modern
+                : "/limn/backend/lwjgl/fonts/" + file;
+    }
 
     private final Map<String, StbFont> byFamily = new HashMap<>();
     private final Map<StbFont, Integer> faceIds = new IdentityHashMap<>();
@@ -105,14 +123,10 @@ final class FontStore implements AutoCloseable {
      * exactly what the epoch bump and the catalog notification re-shape.
      */
     private static final List<LazyFace> SCRIPT_FALLBACKS = List.of(
-            new LazyFace("Noto Sans Arabic",
-                    "/limn/backend/lwjgl/fonts/NotoSansArabic-Regular.ttf"),
-            new LazyFace("Noto Sans Hebrew",
-                    "/limn/backend/lwjgl/fonts/NotoSansHebrew-Regular.ttf"),
-            new LazyFace("Noto Sans Devanagari",
-                    "/limn/backend/lwjgl/fonts/NotoSansDevanagari-Regular.ttf"),
-            new LazyFace("Noto Sans Thai",
-                    "/limn/backend/lwjgl/fonts/NotoSansThai-Regular.ttf"));
+            new LazyFace("Noto Sans Arabic", bundledPath("NotoSansArabic-Regular.ttf")),
+            new LazyFace("Noto Sans Hebrew", bundledPath("NotoSansHebrew-Regular.ttf")),
+            new LazyFace("Noto Sans Devanagari", bundledPath("NotoSansDevanagari-Regular.ttf")),
+            new LazyFace("Noto Sans Thai", bundledPath("NotoSansThai-Regular.ttf")));
 
     // On-demand kicks (one-shot, UI thread): the heavy Noto fallbacks load on
     // the FIRST glyph the primary face lacks; the OS font enumeration runs on
@@ -190,14 +204,26 @@ final class FontStore implements AutoCloseable {
         // fallbacks (CJK + color emoji, tens of MB, plus the four complex-script
         // faces) on a background task the backend kicks off (see
         // parseHeavyFallbacks/installHeavyFallbacks).
-        StbFont roboto = register("Roboto", "/limn/backend/lwjgl/fonts/Roboto-Regular.ttf",
-                "roboto", Font.DEFAULT_FAMILY);
+        // Roboto arrives from the limn-fonts-roboto artifact, and unlike every other face it is
+        // NOT optional: it is the last resort everything else degrades to, so its absence fails
+        // here, loudly and immediately, rather than as a first frame with no text. The artifact
+        // is a declared runtime dependency of this module and arrives transitively; the one way
+        // it goes missing is a build that excluded it, and this message is for whoever did.
+        String robotoRegular = bundledPath("Roboto-Regular.ttf");
+        if (FontStore.class.getResource(robotoRegular) == null) {
+            throw new IllegalStateException(
+                    "the default UI font is not on the classpath: limn-backend-lwjgl requires "
+                            + "io.github.limn-toolkit:limn-fonts-roboto (a runtime dependency "
+                            + "that normally arrives transitively). If the build excludes it, "
+                            + "remove the exclusion; there is no Roboto-less mode.");
+        }
+        StbFont roboto = register("Roboto", robotoRegular, "roboto", Font.DEFAULT_FAMILY);
         lazyBundled.put("roboto bold",
-                new LazyFace("Roboto Bold", "/limn/backend/lwjgl/fonts/Roboto-Bold.ttf"));
+                new LazyFace("Roboto Bold", bundledPath("Roboto-Bold.ttf")));
         lazyBundled.put("roboto italic",
-                new LazyFace("Roboto Italic", "/limn/backend/lwjgl/fonts/Roboto-Italic.ttf"));
+                new LazyFace("Roboto Italic", bundledPath("Roboto-Italic.ttf")));
         lazyBundled.put("roboto bold italic",
-                new LazyFace("Roboto Bold Italic", "/limn/backend/lwjgl/fonts/Roboto-BoldItalic.ttf"));
+                new LazyFace("Roboto Bold Italic", bundledPath("Roboto-BoldItalic.ttf")));
         familyNames.add("Roboto");
         // Roboto is also the last-resort fallback: when the primary is switched to a
         // system font that lacks a glyph Roboto has (e.g. accented Greek), fall back
@@ -332,16 +358,16 @@ final class FontStore implements AutoCloseable {
     static HeavyFallbacks parseHeavyFallbacks() {
         return parseHeavyFallbacks(
                 () -> firstPresent("Noto Sans CJK",
-                        "/limn/backend/lwjgl/fonts/NotoSansCJK-Regular.otf",
-                        "/limn/backend/lwjgl/fonts/NotoSansCJK-Regular.ttf",
-                        "/limn/backend/lwjgl/fonts/NotoSansJP-Regular.ttf",
-                        "/limn/backend/lwjgl/fonts/NotoSansSC-Regular.otf"),
+                        bundledPath("NotoSansCJK-Regular.otf"),
+                        bundledPath("NotoSansCJK-Regular.ttf"),
+                        bundledPath("NotoSansJP-Regular.ttf"),
+                        bundledPath("NotoSansSC-Regular.otf")),
                 FontStore::parseScriptFallbacks,
                 // Emoji come from the color font (CBDT bitmaps), drawn as images with their
                 // own cmap/advance; stb can't open it (bitmap-only), so it isn't an StbFont
                 // face in the chain. Absent → no emoji (a .notdef box).
                 () -> ColorEmojiFont.loadResourceIfPresent(
-                        "/limn/backend/lwjgl/fonts/NotoColorEmoji.ttf"));
+                        bundledPath("NotoColorEmoji.ttf")));
     }
 
     /**
@@ -406,7 +432,9 @@ final class FontStore implements AutoCloseable {
                 return face;
             }
         }
-        LOG.log(Level.INFO, "optional fallback font not bundled ({0}); see fonts/README.md", name);
+        LOG.log(Level.INFO, "optional fallback font not on the classpath ({0}); the "
+                + "io.github.limn-toolkit:limn-fonts-* artifacts carry the faces, one "
+                + "dependency per face (or limn-fonts-all for every fallback at once)", name);
         return null;
     }
 
@@ -472,7 +500,8 @@ final class FontStore implements AutoCloseable {
             LOG.log(Level.INFO, "color emoji enabled (Noto Color Emoji)");
             changed = true;
         } else if (loaded.cjk() != null || colorEmoji == null) {
-            LOG.log(Level.INFO, "color emoji font not bundled. See fonts/README.md");
+            LOG.log(Level.INFO, "color emoji font not on the classpath; "
+                    + "io.github.limn-toolkit:limn-fonts-noto-emoji carries it");
         }
         if (changed) {
             resolutionChanged(); // cached resolutions may now upgrade to a face that just arrived

@@ -34,6 +34,7 @@ include(
     "limn-theme-editor",
     "limn-video-ffmpeg",
     "limn-video-ffmpeg-natives-all",
+    "limn-fonts-all",
     "limn-backend-lwjgl",
     "limn-demo",
 )

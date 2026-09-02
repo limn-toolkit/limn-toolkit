@@ -49,6 +49,12 @@ val publishedModules = mapOf(
             "one cross-platform bundle. It carries no code and no binaries: it names the six " +
             "natives-<os>-<arch> artifacts of limn-video-ffmpeg so a build that cannot know its " +
             "machine does not have to name them itself.",
+    "limn-fonts-all" to
+            "Every fallback face at once — the limn-fonts artifacts (pan-CJK, colour emoji, " +
+            "the complex scripts) at the versions this toolkit release was tested with. It " +
+            "carries no bytes: a POM naming three runtime dependencies, versioned with the " +
+            "toolkit because which font versions it was tested against is a fact about the " +
+            "toolkit.",
 )
 
 subprojects {

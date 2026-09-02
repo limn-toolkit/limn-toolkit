@@ -172,8 +172,9 @@ remplace à l’exécution.
 
 **Les langues de vos utilisateurs.** Le texte est mesuré avec les mêmes avances que celles de son
 tracé, et le repli de police se fait caractère par caractère. Latin, grec, cyrillique et CJC se
-mélangent donc dans une même chaîne sans que vous choisissiez de fonte. Les méthodes de saisie
-composent dans le champ, et l’édition avance par groupe de graphèmes.
+mélangent donc dans une même chaîne sans que vous choisissiez de fonte — les fontes CJC et emoji
+arrivent par une seule dépendance optionnelle (`limn-fonts-all`), le reste vient avec le backend.
+Les méthodes de saisie composent dans le champ, et l’édition avance par groupe de graphèmes.
 
 <p align="center">
   <picture>
@@ -212,6 +213,7 @@ application charge avec `ThemeFormat`.
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 et AAC/Opus/Vorbis via FFmpeg ; un classifier par cible de bureau |
 | `limn-icons-tabler` | le jeu d’icônes Tabler, si vous le voulez |
 | `limn-theme-editor` | l’écran qui compose un thème, intégrable dans votre application |
+| `limn-fonts-all` | les fontes pan-CJC et emoji couleur (26 Mo qu’une application qui ne les dessine jamais ne devrait pas porter), plus le reste des replis, dans les versions avec lesquelles cette publication a été testée — chaque fonte est un artefact à part entière, versionné avec la fonte |
 
 ## Avant de vous engager
 

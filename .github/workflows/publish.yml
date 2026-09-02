@@ -303,10 +303,13 @@ jobs:
           }
           \`\`\`
 
-          That one line brings \`limn-toolkit\` with it. Also published:
-          \`limn-icons-tabler\`, \`limn-theme-editor\`, and \`limn-video-ffmpeg\` with one
-          \`natives-<os>-<arch>\` classifier per desktop target, plus
-          \`limn-video-ffmpeg-natives-all\` for a bundle that ships everywhere.
+          That one line brings \`limn-toolkit\` with it — and the fonts a UI cannot do
+          without (Roboto and the complex-script faces, from their own artifacts). Also
+          published: \`limn-icons-tabler\`, \`limn-theme-editor\`, \`limn-fonts-all\` (opts
+          into the pan-CJK and colour-emoji faces at the versions this release was tested
+          with), and \`limn-video-ffmpeg\` with one \`natives-<os>-<arch>\` classifier per
+          desktop target, plus \`limn-video-ffmpeg-natives-all\` for a bundle that ships
+          everywhere.
 
           Nothing to install to see it: the kitchen sink demo is attached below, and
           [jbang](https://www.jbang.dev/download/) runs it from the asset URL.

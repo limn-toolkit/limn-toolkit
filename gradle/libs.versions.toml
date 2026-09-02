@@ -3,6 +3,14 @@ lwjgl = "3.4.1"
 jlayer = "1.0.1"
 junit = "6.1.1"
 central-publish = "0.37.0"
+# The faces, from the limn-fonts repository, where each versions with its font rather than with
+# this toolkit (ADR 036). Bumping one of these swaps megabytes of binary nobody reviews in a
+# one-line diff; VendoredFontsTest is what makes that diff fail until the new build's digests
+# and ComplexScriptFallbackTest's layout facts are re-verified against it.
+limn-fonts-roboto = "1.0.1"
+limn-fonts-noto-cjk = "2.004.1"
+limn-fonts-noto-emoji = "2.051.1"
+limn-fonts-noto-scripts = "1.0.1"
 
 [libraries]
 lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
@@ -15,6 +23,10 @@ lwjgl-stb = { module = "org.lwjgl:lwjgl-stb" }
 lwjgl-harfbuzz = { module = "org.lwjgl:lwjgl-harfbuzz" }
 lwjgl-nanovg = { module = "org.lwjgl:lwjgl-nanovg" }
 lwjgl-tinyfd = { module = "org.lwjgl:lwjgl-tinyfd" }
+limn-fonts-roboto = { module = "io.github.limn-toolkit:limn-fonts-roboto", version.ref = "limn-fonts-roboto" }
+limn-fonts-noto-cjk = { module = "io.github.limn-toolkit:limn-fonts-noto-cjk", version.ref = "limn-fonts-noto-cjk" }
+limn-fonts-noto-emoji = { module = "io.github.limn-toolkit:limn-fonts-noto-emoji", version.ref = "limn-fonts-noto-emoji" }
+limn-fonts-noto-scripts = { module = "io.github.limn-toolkit:limn-fonts-noto-scripts", version.ref = "limn-fonts-noto-scripts" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
