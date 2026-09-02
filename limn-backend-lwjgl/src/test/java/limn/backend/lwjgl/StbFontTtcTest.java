@@ -64,8 +64,15 @@ class StbFontTtcTest {
     }
 
     private static byte[] bundled(String resource) throws Exception {
-        try (InputStream in = StbFontTtcTest.class.getResourceAsStream(
-                "/limn/fonts/" + resource)) {
+        // Both bundled locations, the same pair FontStore probes: the limn-fonts artifacts
+        // publish under limn/fonts/, and the menu symbols still live in this module's own
+        // resources under the old path.
+        InputStream found = StbFontTtcTest.class.getResourceAsStream("/limn/fonts/" + resource);
+        if (found == null) {
+            found = StbFontTtcTest.class.getResourceAsStream(
+                    "/limn/backend/lwjgl/fonts/" + resource);
+        }
+        try (InputStream in = found) {
             assertNotNull(in, "bundled font must be on the classpath: " + resource);
             return in.readAllBytes();
         }
