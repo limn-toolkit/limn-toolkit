@@ -214,7 +214,7 @@ application charge avec `ThemeFormat`.
 | `limn-toolkit` | l’ensemble de widgets, la mise en page, le graphe de scène, les SPI des backends et les décodeurs vidéo en Java pur ; ne dépend de rien |
 | `limn-backend-lwjgl` | GLFW, OpenGL et stb derrière ces SPI |
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 et AAC/Opus/Vorbis via FFmpeg ; la charge est `limn-ffmpeg-natives`, versionné avec FFmpeg, un classifier par cible de bureau |
-| `limn-icons-tabler` | le jeu d’icônes Tabler, si vous le voulez |
+| `limn-icons-tabler` | le jeu d’icônes Tabler, si vous le voulez — désormais un artefact à part entière, versionné avec Tabler (`3.46.0.x` est Tabler 3.46.0) |
 | `limn-theme-editor` | l’écran qui compose un thème, intégrable dans votre application |
 | `limn-fonts-all` | les fontes pan-CJC et emoji couleur (26 Mo qu’une application qui ne les dessine jamais ne devrait pas porter), plus le reste des replis, dans les versions avec lesquelles cette publication a été testée — chaque fonte est un artefact à part entière, versionné avec la fonte |
 

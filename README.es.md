@@ -211,7 +211,7 @@ La misma opción de macOS de arriba. Lo que guarda son datos planos, que tu apli
 | `limn-toolkit` | el conjunto de widgets, la disposición, el grafo de escena, las SPI del backend y los decodificadores de vídeo en Java puro; no depende de nada |
 | `limn-backend-lwjgl` | GLFW, OpenGL y stb detrás de esas SPI |
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 y AAC/Opus/Vorbis mediante FFmpeg; la carga es `limn-ffmpeg-natives`, que cambia de versión con FFmpeg, un clasificador por destino de escritorio |
-| `limn-icons-tabler` | el paquete de iconos Tabler, si lo quieres |
+| `limn-icons-tabler` | el paquete de iconos Tabler, si lo quieres — ahora un artefacto propio, que cambia de versión con Tabler (`3.46.0.x` es Tabler 3.46.0) |
 | `limn-theme-editor` | la pantalla que crea un tema, incorporable en tu aplicación |
 | `limn-fonts-all` | las tipografías pan-CJK y de emojis a color (26 MB que una aplicación que nunca las dibuja no debería cargar), más el resto de los respaldos, en las versiones con las que se probó esta publicación — cada tipografía es un artefacto propio que cambia de versión con la fuente |
 

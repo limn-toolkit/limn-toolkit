@@ -1,6 +1,6 @@
 // limn-theme-editor: the screen an application embeds so its users can build a palette.
 //
-// It sits where limn-icons-tabler sits: it is built on a vocabulary the widget set
+// It sits where the icon pack sat before it moved out (ADR 038): it is built on a vocabulary the widget set
 // publishes (limn.components.Theme, and the Theme.Builder that opened it up) and NOTHING
 // depends on it, so an application that only wears a theme never ships the screen that
 // authors one. The dependency can only point this way (see settings.gradle.kts).

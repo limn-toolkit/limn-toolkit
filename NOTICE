@@ -59,17 +59,13 @@ Mosaic display faces (limn-demo/fonts, the demo only; no library jar carries the
   through Fonts.load, the same public call an application would use for a typeface it
   ships itself.
 
-Tabler Icons (limn-icons-tabler resources: the drawings, and the names generated from them)
-  Copyright (c) 2020-2026 Paweł Kuna
-  MIT License: full text in
-  limn-icons-tabler/src/main/resources/limn/icons/tabler/LICENSE.txt
-  Version 3.46.0, from https://registry.npmjs.org/@tabler/icons/-/icons-3.46.0.tgz
-  SHA-256 6d727ad0489854d2d7d07ba9baa6476af7ee415aaa2eba1adc0deab48556852b
-  The tarball is not committed; scripts/generate-tabler-icons.py verifies that checksum
-  before reading a byte of it, and regenerates the blob, the index and the enums from it.
-
-  Nothing depends on limn-icons-tabler. An application that wants none of these icons
-  excludes the module and ships none of them, the way limn-video-ffmpeg works.
+Tabler Icons (via the limn-icons-tabler artifact, which the demo jar attached to a release bundles)
+  MIT License, Copyright (c) 2020-2024 Paweł Kuna — https://tabler.io/icons
+  The pack is not part of this repository since ADR 038: it is built and released from
+  https://github.com/limn-toolkit/limn-icons-tabler, versioned with Tabler, and carries the
+  licence text inside its jar (limn/icons/tabler/LICENSE.txt). Nothing published from this
+  repository depends on it; limn-demo, which is not published, takes it as an application would,
+  and so the runnable demo jar on a GitHub release contains it.
 
 --------------------------------------------------------------------------------
 Dependencies (limn-backend-lwjgl only; limn-toolkit has none beyond the JDK)

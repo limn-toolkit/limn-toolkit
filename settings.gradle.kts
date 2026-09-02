@@ -18,10 +18,11 @@ dependencyResolutionManagement {
 //   that came in are pure Java with no native and no third-party dependency, which is why they
 //   could come in at all.
 //
-//   limn-icons-tabler MUST NOT be depended on by limn-toolkit or the backend. An icon pack is an
-//   application's choice of vocabulary, not the toolkit's: the widget set ships the handful of
-//   glyphs its own controls draw and nothing more, so an application that wants none of a pack
-//   pays for none of it. The same rule is what leaves room for a second pack beside this one.
+//   limn-icons-tabler is no longer a module here at all (ADR 038): it is an artifact of its own,
+//   versioned with Tabler, compiled against the published toolkit as compileOnly. The rule it
+//   used to state still holds and is now structural: an icon pack is an application's choice of
+//   vocabulary, not the toolkit's, so nothing in this build may depend on it except limn-demo —
+//   which is an application. The widget set ships the handful of glyphs its own controls draw.
 //
 //   limn-theme-editor MUST NOT be depended on by limn-toolkit or the backend. It is a tool for
 //   authoring a palette, not a part of wearing one: an application ships a Theme, and the screen
@@ -30,7 +31,6 @@ dependencyResolutionManagement {
 //   nothing reads the editor.
 include(
     "limn-toolkit",
-    "limn-icons-tabler",
     "limn-theme-editor",
     "limn-video-ffmpeg",
     "limn-video-ffmpeg-natives-all",

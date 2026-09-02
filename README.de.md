@@ -213,7 +213,7 @@ Dieselbe macOS-Option wie oben. Was er speichert, sind schlichte Daten, die Ihre
 | `limn-toolkit` | der Widget-Satz, Layout, der Szenengraph, die Backend-SPIs und die reinen Java-Video-Decoder; ohne jede Abhängigkeit |
 | `limn-backend-lwjgl` | GLFW, OpenGL und stb hinter diesen SPIs |
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 und AAC/Opus/Vorbis über FFmpeg; die Nutzlast ist `limn-ffmpeg-natives`, dessen Version FFmpeg folgt, ein Classifier je Desktop-Ziel |
-| `limn-icons-tabler` | das Tabler-Icon-Paket, falls Sie es wollen |
+| `limn-icons-tabler` | das Tabler-Icon-Paket, falls Sie es wollen — inzwischen ein eigenes Artefakt, dessen Version Tabler folgt (`3.46.0.x` ist Tabler 3.46.0) |
 | `limn-theme-editor` | der Bildschirm, der ein Theme erstellt, einbettbar in Ihre Anwendung |
 | `limn-fonts-all` | die Pan-CJK- und Farb-Emoji-Schriften (26 MB, die eine Anwendung, die sie nie zeichnet, nicht tragen sollte), dazu die übrigen Fallbacks, in den Versionen, mit denen dieses Release getestet wurde — jede Schrift ein eigenes Artefakt, dessen Version der Schrift folgt |
 

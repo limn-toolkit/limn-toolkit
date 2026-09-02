@@ -173,7 +173,7 @@ macOS 的開關和上面一樣。它存下來的是純資料，你的應用用 `
 | `limn-toolkit` | 元件集、版面、場景圖、後端 SPI 與純 Java 影片解碼器；不依賴任何東西 |
 | `limn-backend-lwjgl` | 那些 SPI 背後的 GLFW、OpenGL 與 stb |
 | `limn-video-ffmpeg` | 透過 FFmpeg 支援 H.264/HEVC/VP9/VP8 與 AAC/Opus/Vorbis；負載是 `limn-ffmpeg-natives`，版本跟著 FFmpeg 走，每個桌面目標各一個 classifier |
-| `limn-icons-tabler` | Tabler 圖示包，需要就用 |
+| `limn-icons-tabler` | Tabler 圖示包，需要就用——如今是獨立的一個成品，版本跟著 Tabler 走（`3.46.0.x` 即 Tabler 3.46.0）|
 | `limn-theme-editor` | 編寫主題的畫面，可嵌入你的應用程式 |
 | `limn-fonts-all` | 泛中日韓字體與彩色表情符號字體（一個從不繪製它們的應用程式不該背負的 26 MB），加上其餘的遞補字體，各自固定在這次發布測試過的版本——每個字體都是獨立的一個成品，版本跟著字型走 |
 

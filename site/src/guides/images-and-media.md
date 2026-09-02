@@ -29,8 +29,14 @@ The toolkit takes an `Icon` wherever a small vector mark belongs: a button, a te
 leading slot, a menu item. Icons are drawn as paths rather than loaded as bitmaps, so they
 stay sharp at every control size and pick up the theme's colour.
 
-The `limn-icons-tabler` module packages the Tabler icon set if you would rather not draw
-your own.
+The `limn-icons-tabler` artifact packages the Tabler icon set if you would rather not draw your
+own — one enum constant per icon, drawn through the same `SvgIcon`. It is versioned with Tabler
+rather than with the toolkit (`3.46.0.x` is Tabler 3.46.0), so it stays in your cache across
+Limn upgrades:
+
+```kotlin
+implementation("io.github.limn-toolkit:limn-icons-tabler:3.46.0.0")
+```
 
 ## Sound
 

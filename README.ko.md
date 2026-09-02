@@ -203,7 +203,7 @@ macOS 플래그는 위와 같습니다. 저장되는 것은 평범한 데이터�
 | `limn-toolkit` | 위젯 모음, 레이아웃, 장면 그래프, 백엔드 SPI, 그리고 순수 자바 영상 디코더. 의존성 없음 |
 | `limn-backend-lwjgl` | 그 SPI 뒤의 GLFW, OpenGL, stb |
 | `limn-video-ffmpeg` | FFmpeg을 통한 H.264/HEVC/VP9/VP8과 AAC/Opus/Vorbis. 페이로드는 FFmpeg과 함께 버전이 오르는 `limn-ffmpeg-natives`이며, 데스크톱 대상마다 classifier 하나씩 |
-| `limn-icons-tabler` | 원한다면 쓸 수 있는 Tabler 아이콘 팩 |
+| `limn-icons-tabler` | 원한다면 쓸 수 있는 Tabler 아이콘 팩 — 이제는 Tabler와 함께 버전이 오르는 독립 아티팩트(`3.46.0.x`는 Tabler 3.46.0) |
 | `limn-theme-editor` | 테마를 만드는 화면, 애플리케이션에 넣을 수 있음 |
 | `limn-fonts-all` | 범 CJK 서체와 컬러 이모지 서체(그릴 일 없는 앱이 짊어질 이유가 없는 26메가바이트), 거기에 나머지 대체 글꼴까지, 이 릴리스가 테스트된 버전 그대로 — 서체 하나하나가 폰트와 함께 버전이 오르는 독립 아티팩트 |
 

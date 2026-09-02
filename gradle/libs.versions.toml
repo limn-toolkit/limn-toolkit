@@ -17,6 +17,11 @@ limn-fonts-noto-scripts = "1.0.1"
 # classifiers are an application's choice, and limn-video-ffmpeg-natives-all names them at this
 # exact version. The shim's ABI number is checked at load time (FfmpegLibrary.EXPECTED_ABI).
 limn-ffmpeg-natives = "7.1.5.0"
+# The Tabler icon pack, from the limn-icons-tabler repository, versioned with Tabler (ADR 038):
+# the first three components are the Tabler release inside, the fourth that repository's own.
+# Compiled against the published toolkit as compileOnly, so it names no toolkit version and
+# nothing here depends on it but the demo — an application, which is the shape a pack is for.
+limn-icons-tabler = "3.46.0.0"
 
 [libraries]
 lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
@@ -34,6 +39,7 @@ limn-fonts-noto-cjk = { module = "io.github.limn-toolkit:limn-fonts-noto-cjk", v
 limn-fonts-noto-emoji = { module = "io.github.limn-toolkit:limn-fonts-noto-emoji", version.ref = "limn-fonts-noto-emoji" }
 limn-fonts-noto-scripts = { module = "io.github.limn-toolkit:limn-fonts-noto-scripts", version.ref = "limn-fonts-noto-scripts" }
 limn-ffmpeg-natives = { module = "io.github.limn-toolkit:limn-ffmpeg-natives", version.ref = "limn-ffmpeg-natives" }
+limn-icons-tabler = { module = "io.github.limn-toolkit:limn-icons-tabler", version.ref = "limn-icons-tabler" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

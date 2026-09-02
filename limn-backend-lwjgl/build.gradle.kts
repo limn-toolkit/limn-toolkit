@@ -71,10 +71,6 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
-    // Test-only, and deliberately here rather than in the pack: the pack depends on the
-    // toolkit alone and so cannot rasterize anything, while this module owns the only
-    // rasterizer there is. Somebody has to draw all six thousand of them once.
-    testImplementation(project(":limn-icons-tabler"))
     testRuntimeOnly(libs.junit.platform.launcher)
     // The opt-in faces, for the tests only: the CJK/emoji fallback chain, the colour-emoji
     // pipeline and VendoredFontsTest's digests all exercise what an APPLICATION may add, and

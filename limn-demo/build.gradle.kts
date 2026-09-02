@@ -7,9 +7,11 @@ plugins {
 dependencies {
     implementation(project(":limn-toolkit"))
     implementation(project(":limn-backend-lwjgl"))
-    // The APPLICATION ships decoders, not the backend: limn-backend-lwjgl must never see these
-    // modules, or which decoders exist would stop being the application's decision.
-    implementation(project(":limn-icons-tabler"))
+    // The APPLICATION ships the icon pack, not the backend: limn-backend-lwjgl must never see
+    // it, or which icons exist would stop being the application's decision. Since ADR 038 the
+    // pack is an artifact of its own, versioned with Tabler, and this is the one line in this
+    // repository that names it — the shape any application would have.
+    implementation(libs.limn.icons.tabler)
     // Same shape as the icon pack: a module nothing in the toolkit depends on, taken here
     // because the demo is an application and this one is a screen an application embeds.
     implementation(project(":limn-theme-editor"))
