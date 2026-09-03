@@ -156,6 +156,19 @@ tasks.register<Jar>("fatJar") {
     // A dozen module descriptors in one classpath jar describe nothing that exists.
     exclude("module-info.class", "META-INF/versions/*/module-info.class")
 
+    // The licences, FIRST, because first wins above: a dependency that ships a META-INF/LICENSE of
+    // its own would otherwise be the one this jar answers with. A jar handed to a stranger by
+    // URL is a distribution, and every text a distribution owes travels inside it: this
+    // repository's own terms, and the two the merged dependencies do not carry themselves —
+    // LWJGL's jars have no licence file, and JLayer's (LGPL) has none either. Both texts are the
+    // upstream projects' own, verbatim.
+    from(rootProject.files("LICENSE", "NOTICE")) {
+        into("META-INF")
+    }
+    from(layout.projectDirectory.dir("licenses")) {
+        into("META-INF/licenses")
+    }
+
     from(sourceSets["main"].output)
     // The closure below unpacks the sibling modules' jars, and a closure hides from Gradle which
     // tasks produce them: with `check` in the same graph it refused to run this task at all
@@ -167,4 +180,24 @@ tasks.register<Jar>("fatJar") {
     // module names above. The release asset therefore plays video on every desktop it runs on
     // with nothing merged in by a workflow.
     from({ configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) } })
+
+    // Read back out of the archive rather than trusted from the copy specs above: EXCLUDE keeps
+    // whichever entry arrived first, and a reordering of the from() calls would silently ship a
+    // dependency's LICENSE under this jar's name. The check costs one zip listing.
+    doLast {
+        val expected = mapOf(
+            "META-INF/LICENSE" to rootProject.file("LICENSE"),
+            "META-INF/NOTICE" to rootProject.file("NOTICE"),
+            "META-INF/licenses/LWJGL-LICENSE.txt" to file("licenses/LWJGL-LICENSE.txt"),
+            "META-INF/licenses/LGPL-2.1.txt" to file("licenses/LGPL-2.1.txt"),
+        )
+        val archive = zipTree(archiveFile.get().asFile)
+        for ((entry, source) in expected) {
+            val found = archive.matching { include(entry) }.files.singleOrNull()
+                ?: throw GradleException("${archiveFileName.get()} carries no $entry")
+            if (!found.readBytes().contentEquals(source.readBytes())) {
+                throw GradleException("$entry in ${archiveFileName.get()} is not ${source.name}")
+            }
+        }
+    }
 }

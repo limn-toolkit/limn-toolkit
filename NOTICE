@@ -110,7 +110,8 @@ JLayer 1.0.1 (javazoom:jlayer), for MP3 decoding
   from Maven Central it is a jar of its own beside limn-backend-lwjgl's, and the
   one bundle this repository builds that contains it — the runnable demo jar
   attached to a GitHub release — carries the same unmodified classes, which
-  anyone can replace by re-packing the jar. Applications that need to avoid
+  anyone can replace by re-packing the jar, with the licence text beside them
+  at META-INF/licenses/LGPL-2.1.txt. Applications that need to avoid
   LGPL obligations can exclude this dependency; Limn keeps MP3 support isolated
   behind the AudioDecoder SPI, and every other audio format (WAV, OGG) works
   without it.

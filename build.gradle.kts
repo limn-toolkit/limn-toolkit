@@ -295,6 +295,21 @@ subprojects {
                 }
             }
         }
+
+        // LICENSE and NOTICE in every jar that leaves here — classes, sources and javadoc alike.
+        // The POM names the licence, but a POM is not what a redistributor has in hand: NOTICE is
+        // where the third-party terms are, and the Apache licence asks that it travel with the
+        // work. A jar's reader has no repository to look in, which is the same reason the fonts
+        // and the FFmpeg payload carry theirs.
+        //
+        // The jvm.tasks base type rather than the bundling one the DSL spells `Jar`: the
+        // publishing plugin's javadoc jar extends the base directly, and the narrower type
+        // matched the classes and sources jars while the javadoc jar shipped without.
+        tasks.withType<org.gradle.jvm.tasks.Jar>().configureEach {
+            metaInf {
+                from(rootProject.file("LICENSE"), rootProject.file("NOTICE"))
+            }
+        }
     }
     }
 }
