@@ -510,9 +510,10 @@ final class VideoScene {
                     writingFirst(VideoScene::y4mFile)),
             new Source("MP4", "A real encoded container, demultiplexed by a trimmed FFmpeg behind "
                     + "a JNI shim, with the soundtrack that is inside the file rather than the "
-                    + "generated one. The clip is encoded into the temporary directory first, "
-                    + "because nothing this demo can generate is shipped with it. Or set "
-                    + "-Dlimn.demo.video to play a file of your own.",
+                    + "generated one: ten seconds of Big Buck Bunny in H.264, shipped with this "
+                    + "program (CC BY 3.0, Blender Foundation). A build that carries an encoder "
+                    + "writes its own clip instead, with two soundtracks and two subtitle tracks "
+                    + "for the pickers. Or set -Dlimn.demo.video to play a file of your own.",
                     onAWorker(VideoScene::openEncoded)),
             new Source("10-bit", "The Gradient entry's pattern in 10-bit 4:2:0, and the difference "
                     + "is countable: the same one-code-per-column ramp has four times as many "
@@ -574,6 +575,9 @@ final class VideoScene {
     /** Where a real encoded file comes from, so that none has to be committed. */
     private static final String OWN_FILE_PROPERTY = "limn.demo.video";
 
+    /** The excerpt the build copies out of media/, next to its licence; see the build file. */
+    static final String BUNDLED_CLIP = "/limn/demo/media/Big_Buck_Bunny_360_10s_1MB.mp4";
+
     private static Path mp4Cache;
 
     /**
@@ -590,9 +594,12 @@ final class VideoScene {
      *
      * <p>And if neither holds (which is every machine running the payload that ships, because
      * the shipped build has no encoder — only a {@code full} build from a sibling clone of
-     * limn-ffmpeg-natives has one), this returns null and the tab says so. It does not throw:
-     * a decoder that is not installed is an ordinary state of the world, not a failure, and the
-     * other entries are unaffected by it.
+     * limn-ffmpeg-natives has one), the ten-second Big Buck Bunny excerpt the build copies into
+     * this jar is written to the temporary directory and played: real H.264, which is what the
+     * decoder exists to read and what nothing here can encode. Only a decoder that will not load
+     * at all makes this return null, and then the tab says so. It does not throw: a decoder that
+     * is not installed is an ordinary state of the world, not a failure, and the other entries
+     * are unaffected by it.
      */
     private static Opened openEncoded() {
         String own = System.getProperty(OWN_FILE_PROPERTY);
@@ -604,7 +611,7 @@ final class VideoScene {
             return openContainer(file);
         }
         if (!limn.video.ffmpeg.FfmpegMedia.canWriteClip()) {
-            return null;
+            return openContainer(bundledClip());
         }
         if (mp4Cache == null) {
             try {
@@ -639,6 +646,29 @@ final class VideoScene {
             }
         }
         return openContainer(mp4Cache);
+    }
+
+    /**
+     * The bundled excerpt as a file: the decoder opens paths, not streams, so the resource is
+     * copied out once per run into a directory that is this process's alone.
+     */
+    static Path bundledClip() {
+        if (mp4Cache == null) {
+            try (java.io.InputStream in = VideoScene.class.getResourceAsStream(BUNDLED_CLIP)) {
+                if (in == null) {
+                    throw new IllegalStateException("this jar carries no " + BUNDLED_CLIP);
+                }
+                Path folder = Files.createTempDirectory("limn-demo-");
+                folder.toFile().deleteOnExit();
+                Path file = folder.resolve("big-buck-bunny-360.mp4");
+                file.toFile().deleteOnExit();
+                Files.copy(in, file);
+                mp4Cache = file;
+            } catch (IOException error) {
+                throw new UncheckedIOException("cannot unpack the demo's bundled clip", error);
+            }
+        }
+        return mp4Cache;
     }
 
     /**

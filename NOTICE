@@ -166,7 +166,9 @@ Big Buck Bunny: three ten-second H.264 excerpts
   https://peach.blender.org/ and https://www.bigbuckbunny.org/
   Creative Commons Attribution 3.0 Unported:
   https://creativecommons.org/licenses/by/3.0/
-  Full text in media/LICENSE-CC-BY-3.0.txt.
+  Full text in media/LICENSE-CC-BY-3.0.txt. The 360p excerpt and that text also
+  travel inside the limn-demo jar (limn/demo/media/), so the program that plays
+  it from its coordinate carries its attribution with it.
 
   Redistributed unmodified. The excerpts were transcoded from the original by
   https://test-videos.co.uk/bigbuckbunny/mp4-h264, which publishes them on the

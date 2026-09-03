@@ -1,5 +1,6 @@
 import org.gradle.kotlin.dsl.support.serviceOf
 import java.util.zip.ZipFile
+import org.gradle.language.jvm.tasks.ProcessResources
 
 // limn-demo: the "kitchen sink" application and --screenshot mode for visual verification.
 //
@@ -56,8 +57,8 @@ dependencies {
 // A developer's `full` payload (encoders, for the writer scenes), from a sibling clone of
 // limn-ffmpeg-natives by convention or from -PlimnFfmpegNatives, ahead of the published player
 // payload on this module's classpath: main resources come before dependency jars, so the full
-// build's manifests and libraries shadow the player's at the same paths. This module is never
-// published, and the fatJar the release attaches is built on a runner that has no sibling clone.
+// build's manifests and libraries shadow the player's at the same paths. The published artifact
+// and the fatJar the release attaches are built on a runner that has no sibling clone.
 //
 // "Beside this repository" means beside the MAIN checkout, which is not always rootDir: a linked
 // git worktree (the kind an agent or a `git worktree add` under .claude/worktrees/ makes) has a
@@ -102,6 +103,19 @@ fun JavaExec.reportFfmpegPayload(payload: File) {
 sourceSets {
     named("main") {
         resources.srcDir(devNatives)
+    }
+}
+
+// The smallest Big Buck Bunny excerpt from media/, into the jar, with its licence beside it.
+// The MP4 entry of the video screen used to encode its own clip, and the payload that ships
+// has no encoder (ADR 011: no GPL component, so no x264), so every copy of this program that
+// somebody ran from its coordinate opened that entry on nothing. ADR 027 keeps media/ out of
+// the modules' payloads and says why; the dated note under its "not media in a module" bullet
+// records this one exception: the demo is an application, not a library, and one megabyte of
+// licensed H.264 is what makes its decoder demonstrable to a stranger.
+tasks.named<ProcessResources>("processResources") {
+    from(rootProject.files("media/Big_Buck_Bunny_360_10s_1MB.mp4", "media/LICENSE-CC-BY-3.0.txt")) {
+        into("limn/demo/media")
     }
 }
 

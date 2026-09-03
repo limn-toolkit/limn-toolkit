@@ -58,6 +58,11 @@ it with a larger corpus for anyone who has one.
   still the wrong trade.
 - **Not media in a module.** `media/` is at the repository root and no `limn-*` module reads from
   it at build time. Nothing here reaches a published jar; the modules' payload is unchanged.
+  *Amended 2026-09-03:* one exception, and it is an application, not a library. `limn-demo` is
+  published and run from its coordinate since 0.7.0, and its MP4 entry generated its clip with an
+  encoder the shipping payload does not have, so every stranger who ran it opened that entry on
+  nothing. Its build now copies the 360p excerpt and the CC-BY text into the jar
+  (`limn/demo/media/`); the libraries still carry no media, and the corpus itself is unchanged.
 - **Not media without paperwork.** Three things or it does not go in: a licence that permits
   redistribution, the attribution that licence requires (in `media/README.md` and in `NOTICE`,
   because a reader of one is not a reader of the other), and a recorded digest, so a file can be
