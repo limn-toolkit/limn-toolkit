@@ -124,9 +124,17 @@ public final class ThemeFormat {
      * <p>Deterministic and newline-terminated with {@code \n} on every platform: two
      * writes of equal palettes produce equal strings, so a saved file can be diffed and a
      * round trip can be asserted.
+     *
+     * @throws IllegalArgumentException if the name or the typeface family contains a line
+     *                                  break or another control character. The format is one
+     *                                  key per line and a value cannot span or end one: written
+     *                                  as-is, such a name came back as a different name or as
+     *                                  an extra key, silently, on the next load
      */
     public static String write(Theme theme) {
         Objects.requireNonNull(theme, "theme");
+        requireSingleLine(KEY_NAME, theme.name);
+        requireSingleLine(KEY_FONT_FAMILY, theme.fontFamily);
         StringBuilder out = new StringBuilder(512);
         out.append("# Limn theme\n");
         out.append(KEY_NAME).append(" = ").append(theme.name).append('\n');
@@ -137,6 +145,15 @@ public final class ThemeFormat {
             out.append(token.key()).append(" = ").append(token.read(theme).toHex()).append('\n');
         }
         return out.toString();
+    }
+
+    private static void requireSingleLine(String key, String value) {
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) {
+                throw new IllegalArgumentException("'" + key + "' contains a control character"
+                        + " at index " + i + "; the format is one key per line");
+            }
+        }
     }
 
     /**

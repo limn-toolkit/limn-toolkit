@@ -71,6 +71,18 @@ class ThemeFormatTest {
      * the first {@code =} and keeps the rest, so nothing has to be quoted.
      */
     @Test
+    void aNameWithALineBreakIsRefusedRatherThanWrittenAsTwoLines() {
+        // Written as-is, "Ocean\nname = Deep" came back as two names, or as an extra key,
+        // and the round trip changed the palette without a word.
+        Theme broken = Theme.dark().toBuilder().name("Ocean\nname = Deep").build();
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> ThemeFormat.write(broken));
+        assertTrue(error.getMessage().contains("name"), error.getMessage());
+        Theme brokenFace = Theme.dark().toBuilder().fontFamily("Inter\rdark = false").build();
+        assertThrows(IllegalArgumentException.class, () -> ThemeFormat.write(brokenFace));
+    }
+
+    @Test
     void aFamilyNameKeepsItsSpaces() {
         Theme theme = Theme.builder("Spaced", true).fontFamily("Helvetica Neue LT Std").build();
         assertEquals("Helvetica Neue LT Std",
