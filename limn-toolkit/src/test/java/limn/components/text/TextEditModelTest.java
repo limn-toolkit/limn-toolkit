@@ -8,8 +8,10 @@ import limn.graphics.ShapedText.Position;
 import limn.graphics.ShapedText.Span;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -996,5 +998,341 @@ class TextEditModelTest {
         m.deleteForward(); // nothing after the cursor
         m.deleteWordForward();
         assertNull(m.lineDamage());
+    }
+
+    // ------------------------------------------------- undo as differences
+
+    @Test
+    void aDeletingRunCoalescesFromBothEndsIntoOneStep() {
+        TextEditModel m = new TextEditModel(true);
+        m.setText("abcde");
+        m.setCursor(3, false);
+        m.backspace();      // c
+        m.deleteForward();  // d
+        m.backspace();      // b
+        assertEquals("ae", m.text());
+        // Three clusters, taken from either side of one caret, are one run of deleting: the
+        // step grows at whichever end the key removed from, and one undo puts all three back.
+        assertTrue(m.undo());
+        assertEquals("abcde", m.text());
+        assertEquals(3, m.cursor(), "the caret is where the run began");
+        assertFalse(m.canUndo());
+        assertTrue(m.redo());
+        assertEquals("ae", m.text());
+    }
+
+    @Test
+    void theOldestStepsGoWhenTheRetainedTextOutgrowsTheBudget() {
+        // The budget is four mebibytes of removed-plus-inserted text at two bytes a char, so a
+        // paste of a million characters is two mebibytes against it.
+        String million = "x".repeat(1 << 20);
+        TextEditModel m = new TextEditModel(true);
+        m.setText("");
+        m.insert(million);
+        m.insert(million);
+        m.insert(million); // six mebibytes retained: the first paste has to go
+        assertTrue(m.undo());
+        assertTrue(m.undo());
+        assertFalse(m.undo(), "the oldest paste was dropped to stay inside the budget");
+        assertEquals(million, m.text(), "and what remains undoes to the text it left behind");
+    }
+
+    @Test
+    void theNewestStepIsKeptEvenWhenItAloneExceedsTheBudget() {
+        TextEditModel m = new TextEditModel(true);
+        m.setText("start");
+        m.insert("x".repeat(3 << 20)); // six mebibytes in one step: over the budget by itself
+        assertTrue(m.canUndo(), "an edit nobody can take back is worse than one that costs its size");
+        m.insertCodePoint('y');
+        // The small step behind it is the newest now, so the big one is the oldest and goes.
+        assertTrue(m.undo());
+        assertFalse(m.undo());
+        assertEquals("start" + "x".repeat(3 << 20), m.text());
+    }
+
+    /**
+     * What a step restores, as the caller can observe it. The anchor itself is private; a
+     * collapsed selection reads the same whether it is stored as {@code -1} or as the cursor.
+     */
+    private record Observed(String text, int cursor, Affinity affinity, boolean selected,
+                            int selectionStart, int selectionEnd) {
+
+        static Observed of(TextEditModel m) {
+            return new Observed(m.text(), m.cursor(), m.caret().affinity(), m.hasSelection(),
+                    m.selectionStart(), m.selectionEnd());
+        }
+    }
+
+    /**
+     * The implementation the difference-based history replaced, kept as the oracle: a copy of the
+     * whole text and caret pushed before every step, runs of typing and of deleting coalescing
+     * into the step that began them, two hundred deep. It is the naive model on purpose — it
+     * cannot be wrong about what an undo restores, only expensive — and the model under test has
+     * to agree with it at every undo and redo of every sequence below.
+     */
+    private static final class SnapshotHistory {
+        private final ArrayDeque<Observed> undo = new ArrayDeque<>();
+        private final ArrayDeque<Observed> redo = new ArrayDeque<>();
+        private String lastKind = "OTHER";
+
+        void remember(String kind, Observed before) {
+            boolean coalesce = !kind.equals("OTHER") && kind.equals(lastKind) && !undo.isEmpty();
+            if (!coalesce) {
+                undo.push(before);
+                while (undo.size() > 200) {
+                    undo.removeLast();
+                }
+            }
+            redo.clear();
+            lastKind = kind;
+        }
+
+        void motion() {
+            lastKind = "OTHER";
+        }
+
+        void reset() {
+            undo.clear();
+            redo.clear();
+            lastKind = "OTHER";
+        }
+
+        Observed undo(Observed now) {
+            if (undo.isEmpty()) {
+                return null;
+            }
+            redo.push(now);
+            lastKind = "OTHER";
+            return undo.pop();
+        }
+
+        Observed redo(Observed now) {
+            if (redo.isEmpty()) {
+                return null;
+            }
+            undo.push(now);
+            lastKind = "OTHER";
+            return redo.pop();
+        }
+    }
+
+    /** Pieces an edit can be made of: clusters of one and two chars, a mark, a newline, a space. */
+    private static final String[] PIECES = {
+            "a", "b", "c", " ", "\n", "é", "😀", "ع", "ب",
+    };
+
+    private static String randomText(Random random) {
+        StringBuilder text = new StringBuilder();
+        int pieces = random.nextInt(7);
+        for (int i = 0; i < pieces; i++) {
+            text.append(PIECES[random.nextInt(PIECES.length)]);
+        }
+        return text.toString();
+    }
+
+    /**
+     * One random operation against both the model and the oracle, with the line index checked
+     * after it. The recording rule for each edit — whether it makes a step, and of which kind —
+     * is the one the model documents, restated here rather than read back from it.
+     */
+    private static void randomOperation(Random random, TextEditModel m, SnapshotHistory oracle,
+                                        boolean multiline, int step) {
+        Observed before = Observed.of(m);
+        boolean selected = m.hasSelection();
+        int op = random.nextInt(20);
+        switch (op) {
+            case 0, 1, 2 -> {
+                String text = randomText(random);
+                m.insert(text);
+                if (!text.isEmpty() || selected) {
+                    oracle.remember("OTHER", before);
+                }
+            }
+            case 3, 4, 5, 6 -> {
+                int[] points = {'x', 'y', '\n', 0x1F600, 0x0301, 0x0639};
+                m.insertCodePoint(points[random.nextInt(points.length)]);
+                oracle.remember(selected ? "OTHER" : "TYPING", before);
+            }
+            case 7, 8 -> {
+                m.backspace();
+                if (selected) {
+                    oracle.remember("OTHER", before);
+                } else if (before.cursor() > 0) {
+                    oracle.remember("DELETING", before);
+                }
+            }
+            case 9 -> {
+                m.deleteForward();
+                if (selected) {
+                    oracle.remember("OTHER", before);
+                } else if (before.cursor() < before.text().length()) {
+                    oracle.remember("DELETING", before);
+                }
+            }
+            case 10 -> {
+                m.deleteWordBackward();
+                if (selected || before.cursor() > 0) {
+                    oracle.remember("OTHER", before);
+                }
+            }
+            case 11 -> {
+                m.deleteWordForward();
+                if (selected || before.cursor() < before.text().length()) {
+                    oracle.remember("OTHER", before);
+                }
+            }
+            case 12 -> {
+                m.deleteSelection();
+                if (selected) {
+                    oracle.remember("OTHER", before);
+                }
+            }
+            case 13, 14 -> {
+                m.setCursor(random.nextInt(before.text().length() + 3) - 1, random.nextBoolean());
+                oracle.motion();
+            }
+            case 15 -> {
+                boolean select = random.nextBoolean();
+                int which = random.nextInt(8);
+                switch (which) {
+                    case 0 -> m.moveLeft(select);
+                    case 1 -> m.moveRight(select);
+                    case 2 -> m.moveHome(select);
+                    case 3 -> m.moveEnd(select);
+                    case 4 -> m.moveWordLeft(select);
+                    case 5 -> m.moveWordRight(select);
+                    case 6 -> m.moveUp(select);
+                    default -> m.moveDown(select);
+                }
+                // Up and Down on a single-line model are documented no-ops, and a no-op ends
+                // no typing run.
+                if (which < 6 || multiline) {
+                    oracle.motion();
+                }
+            }
+            case 16 -> {
+                m.selectAll();
+                oracle.motion();
+            }
+            case 17 -> {
+                Observed expected = oracle.undo(before);
+                assertEquals(expected != null, m.undo(), "undo availability at step " + step);
+                if (expected != null) {
+                    assertEquals(expected, Observed.of(m), "undo restored the wrong state at step "
+                            + step);
+                }
+            }
+            case 18 -> {
+                Observed expected = oracle.redo(before);
+                assertEquals(expected != null, m.redo(), "redo availability at step " + step);
+                if (expected != null) {
+                    assertEquals(expected, Observed.of(m), "redo restored the wrong state at step "
+                            + step);
+                }
+            }
+            default -> {
+                if (random.nextInt(10) == 0) {
+                    m.setText(randomText(random) + randomText(random));
+                    oracle.reset();
+                } else {
+                    m.clearSelection(); // neither an edit nor, by the model's rule, a motion
+                }
+            }
+        }
+        assertLineIndexMatchesARecount(m, random, step);
+    }
+
+    /** The line index against a from-scratch recount of the text: every start, every probe. */
+    private static void assertLineIndexMatchesARecount(TextEditModel m, Random random, int step) {
+        String text = m.text();
+        List<Integer> starts = new ArrayList<>();
+        starts.add(0);
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == '\n') {
+                starts.add(i + 1);
+            }
+        }
+        assertEquals(starts.size(), m.lineCount(), "line count at step " + step);
+        for (int line = 0; line < starts.size(); line++) {
+            assertEquals(starts.get(line), m.lineStartOfLine(line),
+                    "start of line " + line + " at step " + step);
+            int end = line + 1 < starts.size() ? starts.get(line + 1) - 1 : text.length();
+            assertEquals(text.substring(starts.get(line), end), m.lineText(line),
+                    "text of line " + line + " at step " + step);
+        }
+        for (int probe = 0; probe < 4; probe++) {
+            int index = random.nextInt(text.length() + 1);
+            int expected = 0;
+            for (int i = 0; i < index; i++) {
+                if (text.charAt(i) == '\n') {
+                    expected++;
+                }
+            }
+            assertEquals(expected, m.lineOf(index), "lineOf(" + index + ") at step " + step);
+        }
+    }
+
+    @Test
+    void undoAndRedoAgreeWithTheSnapshotModelOverRandomEdits() {
+        for (int seed = 1; seed <= 40; seed++) {
+            Random random = new Random(seed);
+            boolean multiline = seed % 2 == 0;
+            TextEditModel m = new TextEditModel(!multiline);
+            SnapshotHistory oracle = new SnapshotHistory();
+            m.setText(randomText(random));
+            for (int step = 0; step < 300; step++) {
+                randomOperation(random, m, oracle, multiline, step);
+            }
+            // Then all the way back and all the way forward, past every step still retained.
+            Observed here = Observed.of(m);
+            int undone = 0;
+            for (Observed expected = oracle.undo(Observed.of(m)); expected != null;
+                    expected = oracle.undo(Observed.of(m))) {
+                assertTrue(m.undo(), "seed " + seed + ": undo " + undone);
+                assertEquals(expected, Observed.of(m), "seed " + seed + ": undo " + undone);
+                undone++;
+            }
+            assertFalse(m.undo(), "seed " + seed + ": nothing left to undo");
+            for (int i = 0; i < undone; i++) {
+                Observed expected = oracle.redo(Observed.of(m));
+                assertNotNull(expected);
+                assertTrue(m.redo(), "seed " + seed + ": redo " + i);
+                assertEquals(expected, Observed.of(m), "seed " + seed + ": redo " + i);
+            }
+            assertEquals(here, Observed.of(m), "seed " + seed + ": the round trip lands home");
+            // Whatever the random phase had itself undone is still ahead, behind home.
+            for (Observed expected = oracle.redo(Observed.of(m)); expected != null;
+                    expected = oracle.redo(Observed.of(m))) {
+                assertTrue(m.redo(), "seed " + seed);
+                assertEquals(expected, Observed.of(m), "seed " + seed);
+            }
+            assertFalse(m.redo(), "seed " + seed + ": nothing left to redo");
+        }
+    }
+
+    @Test
+    void theLineIndexMatchesARecountAfterEveryRandomEdit() {
+        // Multiline only, and newline-heavy: the single-line half of the test above never has a
+        // second line, and what this pins is the splice of the index, not the text.
+        for (int seed = 1; seed <= 20; seed++) {
+            Random random = new Random(1000 + seed);
+            TextEditModel m = new TextEditModel(false);
+            m.setText("one\ntwo\nthree\n\nfive");
+            for (int step = 0; step < 400; step++) {
+                switch (random.nextInt(6)) {
+                    case 0 -> m.insert("\n".repeat(random.nextInt(4)) + randomText(random));
+                    case 1 -> m.insertCodePoint(random.nextBoolean() ? '\n' : 'q');
+                    case 2 -> m.backspace();
+                    case 3 -> m.deleteForward();
+                    case 4 -> m.setCursor(random.nextInt(m.length() + 1), random.nextBoolean());
+                    default -> {
+                        if (!m.undo()) {
+                            m.redo();
+                        }
+                    }
+                }
+                assertLineIndexMatchesARecount(m, random, step);
+            }
+        }
     }
 }

@@ -18,8 +18,8 @@ import java.util.regex.Pattern;
  * are never split; a surrogate pair is the simplest such cluster.
  *
  * <p>Line lookups ({@code lineOf}/{@code lineCount}/{@code lineText}/…) are
- * served from a line-start index rebuilt lazily after an edit, so paint-time
- * queries never rescan the whole buffer.
+ * served from a line-start index that every edit keeps in step with itself,
+ * so neither a paint-time query nor the edit before it rescans the buffer.
  *
  * <p><b>The caret is an index and a side</b>, {@link #caret()}, because on a direction boundary one
  * index is two points on the screen and only the side says which. The side lives here, beside the
@@ -47,8 +47,18 @@ public final class TextEditModel {
     /** One extended grapheme cluster, the unit of caret movement and deletion. */
     private static final Pattern GRAPHEME = Pattern.compile("\\X");
 
-    /** Undo depth (snapshots): enough for a long session, bounded for memory. */
+    /** Undo depth (steps): enough for a long session, bounded for memory. */
     private static final int MAX_UNDO = 200;
+
+    /**
+     * How much replaced and inserted text the undo stack keeps, in bytes, before the oldest step
+     * goes. A step costs what it moved, not what the document was: two hundred steps used to be
+     * two hundred copies of the whole text, which for a long document was the document two
+     * hundred times over, with no ceiling. Four mebibytes is a paste of two million characters
+     * behind the latest edit, and the newest step is always kept even when it alone is bigger,
+     * because an edit that cannot be undone at all is worse than one that costs its size.
+     */
+    private static final long UNDO_BYTE_BUDGET = 4L << 20;
 
     private final StringBuilder buffer = new StringBuilder();
     private final boolean singleLine;
@@ -65,11 +75,13 @@ public final class TextEditModel {
     /** Sticky column (char offset within line) for Up/Down runs; -1 = unset. */
     private int goalColumn = -1;
 
-    // Line-start cache: starts[i] is the char index where line i begins.
-    // Rebuilt lazily (linesDirty) after any buffer mutation.
+    // Line index: lineStarts[i] is the char index where line i begins, for i < lines. Kept in
+    // step by splice(), the one place the buffer changes, from the edit itself: the lines an edit
+    // removed and added are known there, and everything after them merely shifts. It used to be
+    // rebuilt from a full rescan after every edit — twice, once to count and once to fill — which
+    // made a keystroke cost the length of the document.
     private int[] lineStarts = {0};
-    private int cachedLineCount = 1;
-    private boolean linesDirty;
+    private int lines = 1;
     private long textVersion;
 
     // Line damage since the last clearLineDamage(): one splice held precisely, a second edit
@@ -82,20 +94,62 @@ public final class TextEditModel {
     /** Line count when the first pending edit began: the old extent of a whole-document splice. */
     private int damageOldLineCount;
 
-    // Undo/redo: full snapshots pushed before each mutation; runs of plain
-    // typing (and runs of deleting) coalesce into a single step.
+    // Undo/redo: one step per mutation, recorded before it lands; runs of plain typing (and runs
+    // of deleting) coalesce into a single step.
     private enum EditKind { OTHER, TYPING, DELETING }
 
     /**
-     * The side travels with the cursor. An undo that restored only the index would put a correct
-     * caret on the wrong side of a direction boundary, where it draws a whole run away from where
-     * the next character lands, and the next arrow press would jump.
+     * One undoable edit as the difference it made: at {@code offset}, {@code removed} became
+     * {@code inserted}. Undo puts {@code removed} back over {@code inserted}; redo does the
+     * reverse; the same step serves both stacks, because the difference reads the same either
+     * way. What a step costs is the text it moved, not the text there was.
+     *
+     * <p>The caret travels with the step, side included. An undo that restored only the index
+     * would put a correct caret on the wrong side of a direction boundary, where it draws a whole
+     * run away from where the next character lands, and the next arrow press would jump. On the
+     * undo stack the triple is the caret as it stood <em>before</em> the edit; on the redo stack it
+     * is the caret as it stood when undo was pressed — the two states the two stacks restore.
+     *
+     * <p>The two texts are builders because a typing run grows its step one character at a time,
+     * and a deleting run grows it one cluster at a time from either end. A step is only ever
+     * extended while it is the newest thing that happened, and an undo, a redo, a caret move and
+     * every other edit all end that — so the same builders can sit on both stacks in turn
+     * without either seeing the other's writes.
      */
-    private record Snapshot(String text, int cursor, Affinity affinity, int anchor) {
+    private static final class Step {
+        /** Where the difference begins; a Backspace run moves it back one cluster at a time. */
+        private int offset;
+        private final StringBuilder removed;
+        private final StringBuilder inserted;
+        private final int cursor;
+        private final Affinity affinity;
+        private final int anchor;
+
+        Step(int offset, StringBuilder removed, StringBuilder inserted, int cursor,
+             Affinity affinity, int anchor) {
+            this.offset = offset;
+            this.removed = removed;
+            this.inserted = inserted;
+            this.cursor = cursor;
+            this.affinity = affinity;
+            this.anchor = anchor;
+        }
+
+        /** The same difference, carrying the caret to restore when popped from the other stack. */
+        Step withCaret(int cursor, Affinity affinity, int anchor) {
+            return new Step(offset, removed, inserted, cursor, affinity, anchor);
+        }
+
+        /** What this step holds against the budget: both texts, two bytes a char. */
+        long bytes() {
+            return (removed.length() + inserted.length()) * 2L;
+        }
     }
 
-    private final ArrayDeque<Snapshot> undoStack = new ArrayDeque<>();
-    private final ArrayDeque<Snapshot> redoStack = new ArrayDeque<>();
+    private final ArrayDeque<Step> undoStack = new ArrayDeque<>();
+    private final ArrayDeque<Step> redoStack = new ArrayDeque<>();
+    /** The sum of {@link Step#bytes()} over {@link #undoStack}, held against the budget. */
+    private long undoBytes;
     private EditKind lastEdit = EditKind.OTHER;
 
     /** A model for one line (newlines rejected on insert) or for many. */
@@ -128,15 +182,14 @@ public final class TextEditModel {
      */
     public void setText(String text) {
         noteWholeEdit();
-        buffer.setLength(0);
-        buffer.append(sanitize(text));
+        splice(0, buffer.length(), sanitize(text));
         cursor = buffer.length();
         cursorAffinity = Affinity.DOWNSTREAM;
         anchor = -1;
         goalColumn = -1;
-        markTextChanged();
         undoStack.clear();
         redoStack.clear();
+        undoBytes = 0;
         lastEdit = EditKind.OTHER;
     }
 
@@ -160,19 +213,21 @@ public final class TextEditModel {
         if (value.isEmpty() && !hasSelection()) {
             return; // e.g. pasting an empty clipboard: not an edit, nothing recorded
         }
-        remember(hasSelection() ? EditKind.OTHER : kind); // replacing a selection never coalesces
+        int start = selectionStart();
+        int end = selectionEnd();
+        // One step for the whole splice, and replacing a selection never coalesces.
+        record(hasSelection() ? EditKind.OTHER : kind, start, end, value);
         // One note for the whole splice, delete and insert together: two notes would compose,
         // and composition widens to the whole document (see lineDamage()), turning every
         // type-over-a-selection into a full re-derivation for the view holding per-line state.
-        noteEditStart(selectionStart(), selectionEnd());
+        noteEditStart(start, end);
         deleteSelectionRaw();
-        buffer.insert(cursor, value);
+        splice(cursor, cursor, value);
         cursor += value.length();
         // The caret TRAILS what was just typed, so the next character of the same script appears
         // where the caret is. That is what UPSTREAM means, and it is why every edit below leaves it.
         cursorAffinity = Affinity.UPSTREAM;
         goalColumn = -1;
-        markTextChanged();
         noteEditEnd(cursor);
     }
 
@@ -183,12 +238,11 @@ public final class TextEditModel {
             return;
         }
         if (cursor > 0) {
-            remember(EditKind.DELETING);
             int previous = previousGrapheme(cursor);
+            record(EditKind.DELETING, previous, cursor, "");
             noteEditStart(previous, cursor);
-            buffer.delete(previous, cursor);
+            splice(previous, cursor, "");
             cursor = previous;
-            markTextChanged();
             noteEditEnd(cursor);
         }
         cursorAffinity = Affinity.UPSTREAM;
@@ -203,11 +257,10 @@ public final class TextEditModel {
             return;
         }
         if (cursor < buffer.length()) {
-            remember(EditKind.DELETING);
             int next = nextGrapheme(cursor);
+            record(EditKind.DELETING, cursor, next, "");
             noteEditStart(cursor, next);
-            buffer.delete(cursor, next);
-            markTextChanged();
+            splice(cursor, next, "");
             noteEditEnd(cursor);
         }
         cursorAffinity = Affinity.UPSTREAM;
@@ -243,26 +296,25 @@ public final class TextEditModel {
             anchor = -1;
             return false;
         }
-        remember(EditKind.OTHER);
+        record(EditKind.OTHER, selectionStart(), selectionEnd(), "");
         noteEditStart(selectionStart(), selectionEnd());
         deleteSelectionRaw();
         noteEditEnd(cursor);
         return true;
     }
 
-    /** Selection removal without recording; the caller has already snapshotted. */
+    /** Selection removal without recording; the caller has already recorded the step. */
     private void deleteSelectionRaw() {
         if (!hasSelection()) {
             anchor = -1;
             return;
         }
         int start = selectionStart();
-        buffer.delete(start, selectionEnd());
+        splice(start, selectionEnd(), "");
         cursor = start;
         cursorAffinity = Affinity.UPSTREAM;
         anchor = -1;
         goalColumn = -1;
-        markTextChanged();
     }
 
     /** Selects the whole buffer and leaves the cursor at its end. */
@@ -281,17 +333,65 @@ public final class TextEditModel {
 
     // ------------------------------------------------------------- undo/redo
 
-    /** Records the current state as an undo step (unless coalescing with the last). */
-    private void remember(EditKind kind) {
+    /**
+     * Records the edit about to replace {@code [start, end)} with {@code value} as an undo step,
+     * or extends the last step with it when the two coalesce. Called <b>before</b> the buffer
+     * moves, because the text being removed is a fact about the old buffer, and so is the caret
+     * the step will restore.
+     */
+    private void record(EditKind kind, int start, int end, String value) {
         boolean coalesce = kind != EditKind.OTHER && kind == lastEdit && !undoStack.isEmpty();
-        if (!coalesce) {
-            undoStack.push(new Snapshot(text(), cursor, cursorAffinity, anchor));
-            while (undoStack.size() > MAX_UNDO) {
-                undoStack.removeLast();
-            }
+        if (!coalesce || !extend(undoStack.peek(), start, end, value)) {
+            Step step = new Step(start, new StringBuilder(end - start).append(buffer, start, end),
+                    new StringBuilder(value), cursor, cursorAffinity, anchor);
+            undoStack.push(step);
+            undoBytes += step.bytes();
+        } else {
+            undoBytes += (end - start + value.length()) * 2L;
+        }
+        // Depth first, then bytes; and the newest step stays whatever it weighs, because a stack
+        // trimmed to nothing by one large paste would leave that paste the one edit nobody can
+        // take back.
+        while (undoStack.size() > MAX_UNDO
+                || (undoBytes > UNDO_BYTE_BUDGET && undoStack.size() > 1)) {
+            undoBytes -= undoStack.removeLast().bytes();
         }
         redoStack.clear();
         lastEdit = kind;
+    }
+
+    /**
+     * Folds the edit replacing {@code [start, end)} with {@code value} into {@code step}, or
+     * answers {@code false} when the two are not one contiguous difference. A typing run appends
+     * to what the step inserted; a deleting run grows what it removed at either end, which is
+     * Backspace and Delete respectively. The three shapes are the only ones the coalescing kinds
+     * produce — every caret move ends a run before it can leave the step's edge — so the fallback
+     * is a guard and not a case, and a guard that fails closed: an edit this cannot express becomes
+     * a step of its own, one undo finer than promised and never a wrong text.
+     */
+    private boolean extend(Step step, int start, int end, String value) {
+        int insertedEnd = step.offset + step.inserted.length();
+        if (end == start && start == insertedEnd) {
+            step.inserted.append(value);
+            return true;
+        }
+        if (!value.isEmpty()) {
+            return false;
+        }
+        if (end == step.offset) {
+            // Backspace: the cluster before the step's edge, prepended to what it removed, and
+            // the step now begins where that cluster did.
+            step.removed.insert(0, buffer, start, end);
+            step.offset = start;
+            return true;
+        }
+        if (start == insertedEnd) {
+            // Delete: the cluster after what the step inserted, which in the old text sat right
+            // after what it removed.
+            step.removed.append(buffer, start, end);
+            return true;
+        }
+        return false;
     }
 
     /** @return whether there was anything to undo */
@@ -299,8 +399,11 @@ public final class TextEditModel {
         if (undoStack.isEmpty()) {
             return false;
         }
-        redoStack.push(new Snapshot(text(), cursor, cursorAffinity, anchor));
-        restore(undoStack.pop());
+        Step step = undoStack.pop();
+        undoBytes -= step.bytes();
+        redoStack.push(step.withCaret(cursor, cursorAffinity, anchor));
+        // Put back what the step removed, over what it inserted.
+        restore(step, step.offset + step.inserted.length(), step.removed.toString());
         return true;
     }
 
@@ -309,8 +412,12 @@ public final class TextEditModel {
         if (redoStack.isEmpty()) {
             return false;
         }
-        undoStack.push(new Snapshot(text(), cursor, cursorAffinity, anchor));
-        restore(redoStack.pop());
+        Step step = redoStack.pop();
+        Step back = step.withCaret(cursor, cursorAffinity, anchor);
+        undoStack.push(back);
+        undoBytes += back.bytes();
+        // Put back what the step inserted, over what it removed.
+        restore(step, step.offset + step.removed.length(), step.inserted.toString());
         return true;
     }
 
@@ -324,15 +431,19 @@ public final class TextEditModel {
         return !redoStack.isEmpty();
     }
 
-    private void restore(Snapshot snapshot) {
+    /**
+     * Replaces {@code [step.offset, replacedEnd)} with {@code value} and puts the caret where the
+     * step says. The damage is the whole document, as it was when a step was a whole text: the
+     * consumer's contract is that undo and redo answer unbounded, and a bounded answer here would
+     * be a change to it rather than a saving.
+     */
+    private void restore(Step step, int replacedEnd, String value) {
         noteWholeEdit();
-        buffer.setLength(0);
-        buffer.append(snapshot.text());
-        cursor = snapshot.cursor();
-        cursorAffinity = snapshot.affinity();
-        anchor = snapshot.anchor();
+        splice(step.offset, replacedEnd, value);
+        cursor = step.cursor;
+        cursorAffinity = step.affinity;
+        anchor = step.anchor;
         goalColumn = -1;
-        markTextChanged();
         lastEdit = EditKind.OTHER;
     }
 
@@ -678,12 +789,11 @@ public final class TextEditModel {
             return;
         }
         if (cursor > 0) {
-            remember(EditKind.OTHER);
             int start = alignToGrapheme(previousWordBoundary(cursor));
+            record(EditKind.OTHER, start, cursor, "");
             noteEditStart(start, cursor);
-            buffer.delete(start, cursor);
+            splice(start, cursor, "");
             cursor = start;
-            markTextChanged();
             noteEditEnd(cursor);
         }
         cursorAffinity = Affinity.UPSTREAM; // an edit, not a motion
@@ -699,11 +809,10 @@ public final class TextEditModel {
         }
         if (cursor < buffer.length()) {
             int end = alignToGraphemeForward(nextWordBoundary(cursor));
-            if (end > cursor) { // only snapshot undo state for a real edit
-                remember(EditKind.OTHER);
+            if (end > cursor) { // only record an undo step for a real edit
+                record(EditKind.OTHER, cursor, end, "");
                 noteEditStart(cursor, end);
-                buffer.delete(cursor, end);
-                markTextChanged();
+                splice(cursor, end, "");
                 noteEditEnd(cursor);
             }
         }
@@ -896,16 +1005,15 @@ public final class TextEditModel {
     public int lineEnd(int index) {
         int i = Math.max(0, Math.min(index, buffer.length()));
         int line = lineOf(i);
-        return line + 1 < lineCount() ? lineStarts[line + 1] - 1 : buffer.length();
+        return line + 1 < lines ? lineStarts[line + 1] - 1 : buffer.length();
     }
 
     /** @return zero-based line number of {@code index} */
     public int lineOf(int index) {
-        ensureLines();
         int limit = Math.max(0, Math.min(index, buffer.length()));
         // Binary search: the last line whose start is <= limit.
         int lo = 0;
-        int hi = cachedLineCount - 1;
+        int hi = lines - 1;
         while (lo < hi) {
             int mid = (lo + hi + 1) >>> 1;
             if (lineStarts[mid] <= limit) {
@@ -919,24 +1027,21 @@ public final class TextEditModel {
 
     /** Number of lines; always at least 1, and 1 for a single-line model. */
     public int lineCount() {
-        ensureLines();
-        return cachedLineCount;
+        return lines;
     }
 
     /** @return char index where the zero-based {@code line} starts */
     public int lineStartOfLine(int line) {
-        ensureLines();
-        return lineStarts[Math.max(0, Math.min(line, cachedLineCount - 1))];
+        return lineStarts[Math.max(0, Math.min(line, lines - 1))];
     }
 
     /** @return the text of the zero-based {@code line} (no trailing newline) */
     public String lineText(int line) {
-        ensureLines();
-        if (line < 0 || line >= cachedLineCount) {
+        if (line < 0 || line >= lines) {
             return "";
         }
         int start = lineStarts[line];
-        int end = line + 1 < cachedLineCount ? lineStarts[line + 1] - 1 : buffer.length();
+        int end = line + 1 < lines ? lineStarts[line + 1] - 1 : buffer.length();
         return buffer.substring(start, end);
     }
 
@@ -1027,33 +1132,56 @@ public final class TextEditModel {
         damageWhole = true;
     }
 
-    private void markTextChanged() {
-        linesDirty = true;
-        textVersion++;
+    /**
+     * The one place the buffer changes: replaces {@code [start, end)} with {@code value}, moves
+     * the line index with it and bumps {@link #textVersion()}. Every mutator comes through here,
+     * which is what lets the index be maintained instead of rebuilt — an edit that reached the
+     * buffer some other way would leave the index describing a text that no longer exists.
+     *
+     * <p>The lines that begin inside the replaced range are exactly the ones the edit removes:
+     * a line starts one past a newline, so a start in {@code (start, end]} is a newline in
+     * {@code [start, end)}. The lines the edit adds are the newlines in {@code value}; every
+     * line after the range keeps its place and shifts by the change in length. The line the
+     * range begins in is kept whatever happens, because its start is at or before {@code start}.
+     * So the work is the tail of the index plus the inserted text, and never the buffer.
+     */
+    private void splice(int start, int end, String value) {
+        // Read the old index before the buffer moves: both bounds are facts about the old text.
+        int first = lineOf(start);
+        int last = lineOf(end);
+        int added = 0;
+        for (int i = 0; i < value.length(); i++) {
+            if (value.charAt(i) == '\n') {
+                added++;
+            }
+        }
+        int kept = lines - (last + 1);
+        int count = first + 1 + added + kept;
+        int[] target = lineStarts;
+        if (count > target.length) {
+            target = new int[Math.max(count, target.length * 2)];
+            System.arraycopy(lineStarts, 0, target, 0, first + 1);
+        }
+        // The tail first, in one move (arraycopy is safe over its own source), then the shift;
+        // then the new starts into the gap that opened.
+        System.arraycopy(lineStarts, last + 1, target, first + 1 + added, kept);
+        int delta = value.length() - (end - start);
+        for (int i = first + 1 + added; i < count; i++) {
+            target[i] += delta;
+        }
+        int at = first + 1;
+        for (int i = 0; i < value.length(); i++) {
+            if (value.charAt(i) == '\n') {
+                target[at++] = start + i + 1;
+            }
+        }
+        lineStarts = target;
+        lines = count;
+        buffer.replace(start, end, value);
+        markTextChanged();
     }
 
-    /** Rebuilds the line-start index after an edit (lazy, once per mutation). */
-    private void ensureLines() {
-        if (!linesDirty && lineStarts.length > 0) {
-            return;
-        }
-        int count = 1;
-        for (int i = 0; i < buffer.length(); i++) {
-            if (buffer.charAt(i) == '\n') {
-                count++;
-            }
-        }
-        if (lineStarts.length < count) {
-            lineStarts = new int[Math.max(count, lineStarts.length * 2)];
-        }
-        lineStarts[0] = 0;
-        int line = 1;
-        for (int i = 0; i < buffer.length(); i++) {
-            if (buffer.charAt(i) == '\n') {
-                lineStarts[line++] = i + 1;
-            }
-        }
-        cachedLineCount = count;
-        linesDirty = false;
+    private void markTextChanged() {
+        textVersion++;
     }
 }
