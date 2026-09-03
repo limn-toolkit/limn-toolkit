@@ -104,6 +104,49 @@ class ChartLayoutCostTest extends ComponentTestBase {
                         + small.hoverMeasures() + ": the pointer path is rescanning the data");
     }
 
+    /** Five paints of a settled sideways chart whose twelve category names have {@code width} characters. */
+    private int paintsOfSidewaysLabels(int width) {
+        List<String> labels = new ArrayList<>();
+        double[] values = new double[12];
+        for (int i = 0; i < 12; i++) {
+            String name = "category " + i + " named much wider than any gutter can hold";
+            labels.add(name.substring(0, Math.min(width, name.length())));
+            values[i] = i;
+        }
+        BarChart chart = new BarChart();
+        chart.setAnimationDuration(0);
+        chart.setLabels(labels);
+        chart.addSeries(ChartSeries.of("v", values));
+        chart.setLegendPosition(Chart.LegendPosition.NONE);
+        chart.setHorizontal(true);
+
+        CountingRuler ruler = new CountingRuler();
+        Scene scene = new Scene(chart, new AtomicLong()::get);
+        scene.setTextRuler(ruler);
+        FakeCanvas canvas = new FakeCanvas(400, 400);
+        scene.renderFrame(canvas);
+
+        ruler.calls.set(0);
+        for (int i = 0; i < 5; i++) {
+            scene.renderFrame(canvas);
+        }
+        return ruler.calls.get();
+    }
+
+    @Test
+    void labelsCutToTheGutterAreNotReShapedCharacterByCharacterEveryPaint() {
+        // Sideways, with category names far wider than the gutter, so every drawn label is
+        // ellipsized. Cutting was a loop that dropped one character and measured again, per
+        // label, per paint: forty characters over meant forty measurements a label a frame,
+        // and a chart paints every frame of a transition. The uncut chart is the floor: what
+        // the harness's per-cluster shaping of the tick labels costs regardless.
+        int uncut = paintsOfSidewaysLabels(4);
+        int cut = paintsOfSidewaysLabels(48);
+        assertTrue(cut <= uncut + 12,
+                "five paints with twelve cut labels cost " + cut + " measurements against "
+                        + uncut + " with none cut: the labels are being re-cut every paint");
+    }
+
     @Test
     void aPointerMoveCostsAFewMeasurementsAndNotAFrameOfLayout() {
         // Twenty moves over a 400-category chart, turned sideways so the pointer path has to

@@ -808,28 +808,42 @@ public abstract class Chart extends Widget {
         return rtl ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
     }
 
+    private static final String ELLIPSIS = "…";
+
     /**
      * {@code text} shortened with an ellipsis until it fits {@code maxWidth}, or
      * {@code ""} when not even the ellipsis fits. Category labels are application data:
      * they are as long as they are, and a chart that lets them collide is unreadable.
+     *
+     * <p>Shaped once and cut where {@link ShapedText#fitEnd} says, then re-shaped once or
+     * twice, the way {@code Label} does it. The obvious loop (drop a character, measure,
+     * repeat) made a label that overflows by forty characters cost forty shapings a paint,
+     * and a chart paints every frame of a value transition; worse, each candidate was a
+     * distinct string in the ruler's memo, so a few long labels evicted every other widget's
+     * text from it and everything on screen re-shaped each frame.
      */
     protected final String ellipsize(String text, Font font, float maxWidth) {
-        if (text.isEmpty() || measure(text, font).width() <= maxWidth) {
+        if (text.isEmpty()) {
             return text;
         }
-        String ellipsis = "…";
-        if (measure(ellipsis, font).width() > maxWidth) {
+        ShapedText.Direction base = baseFor(isRtl());
+        ShapedText line = shaped(text, font, base);
+        if (line.metrics().width() <= maxWidth) {
+            return text;
+        }
+        float ellipsisWidth = shaped(ELLIPSIS, font, base).metrics().width();
+        if (ellipsisWidth > maxWidth) {
             return "";
         }
-        int end = text.length();
-        while (end > 0) {
-            String candidate = text.substring(0, end) + ellipsis;
-            if (measure(candidate, font).width() <= maxWidth) {
-                return candidate;
-            }
-            end--;
+        int cut = line.fitEnd(0, maxWidth - ellipsisWidth);
+        String shown = text.substring(0, cut) + ELLIPSIS;
+        // fitEnd said where to cut against the uncut shaping; the kept prefix beside an ellipsis
+        // can join or kern a hair wider. Zero or one iteration for Latin.
+        while (cut > 0 && shaped(shown, font, base).metrics().width() > maxWidth) {
+            cut = line.caretIndex(line.caretOrdinal(cut) - 1);
+            shown = text.substring(0, cut) + ELLIPSIS;
         }
-        return ellipsis;
+        return shown;
     }
 
     // ------------------------------------------------------------- lifecycle

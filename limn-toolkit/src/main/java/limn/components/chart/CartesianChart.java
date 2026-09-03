@@ -77,6 +77,15 @@ public abstract class CartesianChart extends Chart {
     private boolean categoryScanRtl;
     private float widestCategoryLabel;
 
+    /** The sideways category labels as drawn, cut to the gutter; see {@link #shownCategoryLabel}. */
+    private ShapedText[] shownCategoryLabels;
+    private int shownGeneration = -1;
+    private long shownEpoch = -1;
+    private java.util.Locale shownLocale;
+    private Font shownFont;
+    private boolean shownRtl;
+    private float shownAvailable = Float.NaN;
+
     CartesianChart(boolean beginAtZero) {
         valueAxis = new ChartAxis(beginAtZero, true);
         valueAxis.owner = this;
@@ -477,6 +486,35 @@ public abstract class CartesianChart extends Chart {
         return widest;
     }
 
+    /**
+     * Category label {@code i} cut to the gutter and shaped, held from one paint to the next
+     * under the same key {@link #widestCategoryLabel} uses plus the gutter's width, so that a
+     * settled chart shapes nothing at all when it paints. The line is checked against the
+     * ruler's epoch as well: a held shaping outlives a face swap only if it is re-shaped.
+     */
+    private ShapedText shownCategoryLabel(int i, String text, Font font, float available) {
+        java.util.Locale locale = limn.i18n.I18n.locale();
+        int count = categoryCount();
+        if (shownCategoryLabels == null || shownCategoryLabels.length != count
+                || shownGeneration != dataGeneration() || shownFont != font
+                || shownEpoch != limn.i18n.I18n.epoch() || !locale.equals(shownLocale)
+                || shownRtl != rtl || shownAvailable != available) {
+            shownCategoryLabels = new ShapedText[count];
+            shownGeneration = dataGeneration();
+            shownFont = font;
+            shownEpoch = limn.i18n.I18n.epoch();
+            shownLocale = locale;
+            shownRtl = rtl;
+            shownAvailable = available;
+        }
+        ShapedText line = shownCategoryLabels[i];
+        if (line == null || !line.matches(line.text(), font, line.baseDirection(), textRuler())) {
+            line = shapeLabel(ellipsize(text, font, available), font);
+            shownCategoryLabels[i] = line;
+        }
+        return line;
+    }
+
     /** Takes the axis gutters out of the content box; what is left is the plot. */
     private void layoutPlot(SizeTokens t, float x, float y, float w, float h) {
         Font font = t.label();
@@ -652,7 +690,7 @@ public abstract class CartesianChart extends Chart {
                 float available = rtl
                         ? contentLeft() + contentBoxWidth() - (plotX + plotWidth) - gap
                         : plotX - gap - contentLeft();
-                ShapedText line = shapeLabel(ellipsize(text, font, available), font);
+                ShapedText line = shownCategoryLabel(i, text, font, available);
                 TextMetrics m = line.metrics();
                 float center = bandCenter(i);
                 canvas.drawText(line, gutterLabelX(gap, m.width()),
