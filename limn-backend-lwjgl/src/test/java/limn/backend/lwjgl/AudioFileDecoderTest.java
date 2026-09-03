@@ -144,6 +144,17 @@ class AudioFileDecoderTest {
         }
     }
 
+    @Test
+    void aChunkSizeJustUnderTwoGigabytesIsATruncatedChunkNotACrash() {
+        // Sizes above 2^31 already read negative and were clamped; the band just below
+        // 2^31 wrapped the offset arithmetic instead and escaped the clamp.
+        short[] pcm = {100, -100, 200, -200};
+        byte[] file = wav(pcm, 1, 22_050, 16);
+        ByteBuffer.wrap(file).order(ByteOrder.LITTLE_ENDIAN).putInt(40, 0x7FFFFFF0);
+        AudioClip clip = new AudioFileDecoder().decode(file);
+        assertEquals(4, clip.samples().length, "the data chunk is read to the end of the file");
+    }
+
     // ------------------------------------------------------------ WAV writers
 
     private static byte[] wav(short[] samples, int channels, int rate, int bits) {

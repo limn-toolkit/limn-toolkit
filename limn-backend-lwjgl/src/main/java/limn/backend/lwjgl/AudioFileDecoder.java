@@ -71,15 +71,16 @@ final class AudioFileDecoder implements AudioDecoder {
         int dataOffset = -1;
         int dataLength = 0;
 
-        // Walk the RIFF chunk list (each chunk is word-aligned).
+        // Walk the RIFF chunk list (each chunk is word-aligned). Chunk sizes are unsigned 32-bit
+        // and the arithmetic is done in long, as the streaming reader does: a declared size just
+        // under 2^31 added to an int offset wrapped negative, escaped the clamp, and sent the walk
+        // to a negative position, where reading a tag threw instead of tolerating the truncation.
         int pos = 12;
         while (pos + 8 <= bytes.length) {
             String id = tag(bytes, pos);
-            int size = bb.getInt(pos + 4);
+            long declared = bb.getInt(pos + 4) & 0xFFFFFFFFL;
             int body = pos + 8;
-            if (size < 0 || body + size > bytes.length) {
-                size = bytes.length - body; // tolerate a truncated final chunk
-            }
+            int size = (int) Math.min(declared, bytes.length - body); // tolerate a truncated final chunk
             if ("fmt ".equals(id) && size >= 16) {
                 formatCode = bb.getShort(body) & 0xFFFF;
                 channels = bb.getShort(body + 2) & 0xFFFF;
