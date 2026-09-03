@@ -184,10 +184,22 @@ subprojects {
         val javaSources = fileTree(projectDir) {
             include("src/*/java/**/*.java")
         }
+        // The check has no product, only a verdict, and a task with inputs and no outputs is
+        // one Gradle has to run every time: nothing on disk can say the verdict is still
+        // current. The marker is that something. It is a file so the task can be up-to-date,
+        // and cacheable, and it names the count so a reader of build/reports can see what
+        // was looked at, which is all a passing check has to say.
+        val marker = layout.buildDirectory.file("reports/architecture/ok.txt")
         val checkArchitecture = tasks.register("checkArchitecture") {
             description = "Fails if forbidden imports are found (AWT/Swing/SWT anywhere; LWJGL outside the backend)."
             group = "verification"
+            // Relative, so a cache entry written on one machine is a hit on another: the
+            // verdict depends on what the files say, not on where the checkout sits.
             inputs.files(javaSources)
+                    .withPropertyName("javaSources")
+                    .withPathSensitivity(PathSensitivity.RELATIVE)
+            outputs.file(marker).withPropertyName("marker")
+            outputs.cacheIf { true }
             doLast {
                 val forbiddenEverywhere = listOf("java.awt.", "javax.swing.", "org.eclipse.swt.")
                 val lwjglAllowed = moduleName == "limn-backend-lwjgl"
@@ -208,6 +220,11 @@ subprojects {
                     throw GradleException(
                         "Architecture violations in :$moduleName\n" + violations.joinToString("\n")
                     )
+                }
+                val checked = javaSources.files.size
+                marker.get().asFile.apply {
+                    parentFile.mkdirs()
+                    writeText(":$moduleName: $checked source file(s), no forbidden import\n")
                 }
             }
         }
