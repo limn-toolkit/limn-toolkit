@@ -64,6 +64,18 @@ export const ko: Catalog = {
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
   "home.hero.caption": "이번 빌드 중에 Limn이 그린 데모 애플리케이션.",
 
+  "home.try.heading": "지금 실행해 보기",
+  "home.try.body":
+    "키친 싱크와 테마 편집기를 Maven Central에서 바로. 클론할 것도 없고, 설치할 것도 jbang 하나뿐입니다. JDK가 없으면 그것까지 받아 옵니다. 내려받는 것은 툴킷과 폰트, 그리고 이 기계의 네이티브 라이브러리뿐이고, 나머지 다섯 플랫폼의 것은 오지 않습니다.",
+  "home.try.osLabel": "운영 체제",
+  "home.try.macos": "macOS",
+  "home.try.linux": "Linux",
+  "home.try.windows": "Windows",
+  "home.try.demoComment": "키친 싱크",
+  "home.try.editorComment": "테마 편집기",
+  "home.try.note":
+    "<code>-XstartOnFirstThread</code>는 macOS 전용이라, 다른 곳의 JVM은 받으면 시작을 거부합니다. 별칭은 최신 릴리스를 실행합니다. 버전을 고정하려면 좌표를 적으세요: <code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>. 네트워크가 없다면, 데모는 <a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">릴리스마다 첨부된 파일 하나</a>로도 있습니다.",
+
   "home.install.eyebrow": "5분",
   "home.install.heading": "의존성 하나와 main 메서드",
   "home.install.body":

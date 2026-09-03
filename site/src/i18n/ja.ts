@@ -63,6 +63,18 @@ export const ja: Catalog = {
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
   "home.hero.caption": "このビルド中に Limn が描画したデモアプリケーション。",
 
+  "home.try.heading": "今すぐ試す",
+  "home.try.body":
+    "キッチンシンクとテーマエディタを、Maven Central からそのまま。クローンするものはなく、入れるものも jbang だけです。JDK がなければ、それも取ってきます。ダウンロードされるのはツールキットとフォント、そしてこのマシンのネイティブライブラリだけで、ほかの 5 つのプラットフォームの分は来ません。",
+  "home.try.osLabel": "オペレーティングシステム",
+  "home.try.macos": "macOS",
+  "home.try.linux": "Linux",
+  "home.try.windows": "Windows",
+  "home.try.demoComment": "キッチンシンク",
+  "home.try.editorComment": "テーマエディタ",
+  "home.try.note":
+    "<code>-XstartOnFirstThread</code> は macOS 専用で、ほかの OS の JVM は受け取ると起動を拒みます。エイリアスは最新リリースを起動します。バージョンを固定するには座標を書いてください: <code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>。ネットワークがなければ、デモは<a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">リリースごとに添付された 1 ファイル</a>としても手に入ります。",
+
   "home.install.eyebrow": "5 分",
   "home.install.heading": "依存 1 つと main メソッド",
   "home.install.body":

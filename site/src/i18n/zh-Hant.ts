@@ -62,6 +62,18 @@ export const zhHant: Catalog = {
   "home.hero.meta": "JDK 17 · Windows、macOS、Linux · Apache-2.0",
   "home.hero.caption": "本次建置期間由 Limn 繪製的示範應用程式。",
 
+  "home.try.heading": "立刻試試",
+  "home.try.body":
+    "陳列和主題編輯器，直接來自 Maven Central：沒有什麼要複製，也沒有什麼要裝，除了 jbang；你要是沒有 JDK，它連 JDK 一起取來。下載的是工具組、字型，以及這台機器的原生程式庫，另外五個平台的不會下載。",
+  "home.try.osLabel": "作業系統",
+  "home.try.macos": "macOS",
+  "home.try.linux": "Linux",
+  "home.try.windows": "Windows",
+  "home.try.demoComment": "陳列",
+  "home.try.editorComment": "主題編輯器",
+  "home.try.note":
+    "<code>-XstartOnFirstThread</code> 只有 macOS 認得，別的系統上的 JVM 收到它會拒絕啟動。別名跑的是最新發行版；想固定某個版本，就寫座標：<code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>。沒有網路時，展示程式也是<a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">附在每次發行裡的一個檔案</a>。",
+
   "home.install.eyebrow": "五分鐘",
   "home.install.heading": "一個相依套件和一個 main 方法",
   "home.install.body":

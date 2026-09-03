@@ -10,6 +10,25 @@ description: "The JDK you need, the two dependencies, the one macOS flag, and a 
   Apple's 4.1 compatibility layer; a machine with no GPU at all can fall back to Mesa's
   software rasteriser, which is how the screenshots on this site are taken.
 
+## Try it before you install anything
+
+The demo application and the theme editor are on Maven Central as runnable artifacts, and
+[jbang](https://www.jbang.dev/download/) starts either from its name — fetching a JDK first
+if you have none:
+
+```bash
+jbang demo@limn-toolkit/limn-toolkit           # the kitchen sink: every widget in one window
+jbang theme-editor@limn-toolkit/limn-toolkit   # the screen that authors a theme
+```
+
+On macOS put `--java-options=-XstartOnFirstThread` before the name; the flag is macOS-only, and
+the caution below says why. What downloads is the toolkit, the fonts and the native libraries
+of the machine you are on: each artifact's POM selects them by operating system, so the other
+five platforms' never arrive. The names run the newest release; to pin one, use the coordinate
+instead — `jbang io.github.limn-toolkit:limn-demo:{{version}}`, or `limn-theme-editor` for the
+editor. With no network, the demo is also one file attached to every release, every platform
+inside: `jbang limn-demo-all.jar`.
+
 ## Add the dependencies
 
 ```kotlin

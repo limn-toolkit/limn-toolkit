@@ -65,6 +65,18 @@ export const ar: Catalog = {
   "home.hero.meta": "JDK 17 · Windows وmacOS وLinux · Apache-2.0",
   "home.hero.caption": "التطبيق التوضيحي، كما رسمه Limn أثناء بناء هذا الموقع.",
 
+  "home.try.heading": "جرّبه الآن",
+  "home.try.body":
+    "التطبيق التوضيحي ومحرّر السمات، مباشرة من Maven Central: لا شيء تستنسخه، ولا شيء تثبّته سوى jbang، الذي يجلب JDK أيضًا إن لم يكن لديك. ما يُنزَّل هو مجموعة الأدوات والخطوط والمكتبات الأصلية لهذا الجهاز، لا مكتبات المنصات الخمس الأخرى.",
+  "home.try.osLabel": "نظام التشغيل",
+  "home.try.macos": "macOS",
+  "home.try.linux": "Linux",
+  "home.try.windows": "Windows",
+  "home.try.demoComment": "التطبيق التوضيحي",
+  "home.try.editorComment": "محرّر السمات",
+  "home.try.note":
+    "<code>-XstartOnFirstThread</code> خاص بـ macOS وحده، وأي JVM يتلقّاه في نظام آخر يرفض أن يبدأ. الأسماء المستعارة تشغّل أحدث إصدار؛ لتثبيت إصدار بعينه، اذكر الإحداثية: <code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>. بلا شبكة، التطبيق التوضيحي متاح أيضًا <a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">ملفًا واحدًا مرفقًا بكل إصدار</a>.",
+
   "home.install.eyebrow": "خمس دقائق",
   "home.install.heading": "اعتمادية واحدة ودالة main",
   "home.install.body":

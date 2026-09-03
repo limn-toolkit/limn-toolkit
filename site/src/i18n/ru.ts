@@ -64,6 +64,18 @@ export const ru: Catalog = {
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
   "home.hero.caption": "Демонстрационное приложение, отрисованное Limn во время этой сборки.",
 
+  "home.try.heading": "Попробуйте прямо сейчас",
+  "home.try.body":
+    "Витрина и редактор тем — прямо с Maven Central: клонировать нечего, устанавливать нечего, кроме jbang, который заодно скачает JDK, если её у вас нет. Скачиваются тулкит, шрифты и нативные библиотеки этой машины, а не остальных пяти платформ.",
+  "home.try.osLabel": "Операционная система",
+  "home.try.macos": "macOS",
+  "home.try.linux": "Linux",
+  "home.try.windows": "Windows",
+  "home.try.demoComment": "витрина",
+  "home.try.editorComment": "редактор тем",
+  "home.try.note":
+    "<code>-XstartOnFirstThread</code> существует только на macOS, и JVM, получившая его где-то ещё, откажется запускаться. Алиасы запускают последний релиз; чтобы закрепить версию, назовите координату: <code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>. Без сети демо есть и <a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">одним файлом, приложенным к каждому релизу</a>.",
+
   "home.install.eyebrow": "Пять минут",
   "home.install.heading": "Одна зависимость и метод main",
   "home.install.body":

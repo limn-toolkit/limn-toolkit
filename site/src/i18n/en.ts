@@ -42,6 +42,20 @@ export const en = {
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
   "home.hero.caption": "The demo application, rendered by Limn during this build.",
 
+  // The block under the hero: the two programs, runnable by alias, one tab per operating
+  // system. `note` carries {{version}}, filled in at build time like the guides are.
+  "home.try.heading": "Try it now",
+  "home.try.body":
+    "The kitchen sink and the theme editor, straight from Maven Central: nothing to clone, and nothing to install but jbang, which fetches a JDK if you have none. What downloads is the toolkit, the fonts and the native libraries of this machine, not the other five platforms'.",
+  "home.try.osLabel": "Operating system",
+  "home.try.macos": "macOS",
+  "home.try.linux": "Linux",
+  "home.try.windows": "Windows",
+  "home.try.demoComment": "the kitchen sink",
+  "home.try.editorComment": "the theme editor",
+  "home.try.note":
+    "<code>-XstartOnFirstThread</code> is macOS-only, and a JVM given it anywhere else refuses to start. The aliases run the newest release; to pin one, name the coordinate: <code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>. Offline, the demo is also <a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">one file attached to every release</a>.",
+
   "home.install.eyebrow": "Five minutes",
   "home.install.heading": "One dependency and a main method",
   "home.install.body":

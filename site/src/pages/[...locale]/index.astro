@@ -10,7 +10,7 @@
 import Page from "../../layouts/Page.astro";
 import Figure from "../../components/Figure.astro";
 import Screenshot from "../../components/Screenshot.astro";
-import { limnVersion } from "../../lib/version.mjs";
+import { fillVersion, limnVersion } from "../../lib/version.mjs";
 import CodeBlock from "../../components/CodeBlock.astro";
 import { localeRoutes, messages } from "../../i18n";
 import { localePath, type Locale } from "../../lib/i18n";
@@ -43,6 +43,23 @@ const hero = shot("kitchen");
 const gradle = `dependencies {
     implementation("io.github.limn-toolkit:limn-backend-lwjgl:${limnVersion()}")
 }`;
+
+// The two programs, runnable by alias, one tab per operating system. The macOS tab carries the
+// flag inside the command rather than in a sentence beside it, because a sentence that says
+// "add this on macOS" is one a reader on macOS pastes past. The aliases resolve the newest
+// release from Maven Central, so nothing here carries a version; the note beside them does,
+// filled in at build time like every {{version}} in the guides.
+const aliases = (flag: string) =>
+  [
+    `jbang ${flag}demo@limn-toolkit/limn-toolkit  # ${msg("home.try.demoComment")}`,
+    `jbang ${flag}theme-editor@limn-toolkit/limn-toolkit  # ${msg("home.try.editorComment")}`,
+  ].join("\n");
+const systems = [
+  { id: "macos", label: msg("home.try.macos"), code: aliases("--java-options=-XstartOnFirstThread ") },
+  { id: "linux", label: msg("home.try.linux"), code: aliases("") },
+  { id: "windows", label: msg("home.try.windows"), code: aliases("") },
+] as const;
+const tryNote = fillVersion(msg("home.try.note"));
 
 // The components row shows a handful of widgets rather than one, because "a set" is the
 // claim it is making. Picked for variety of shape, not for importance.
@@ -111,6 +128,46 @@ const limits = ["scripts", "a11y", "version"] as const;
         base={base}
         eager
       />
+    </div>
+
+    {/* Under the headline and before the install: what it takes to SEE the toolkit is one
+        command, and that answer belongs above the one that takes a build file. A radio group
+        rather than buttons, so it is a choice from the keyboard and works with scripting off;
+        the script below only pre-selects the reader's own system. */}
+    <div class="wrap try" data-try>
+      <div class="try__copy">
+        <h2>{msg("home.try.heading")}</h2>
+        <p>{msg("home.try.body")}</p>
+        <p class="try__note"><Fragment set:html={tryNote} /></p>
+      </div>
+      <div class="try__tabs" role="group" aria-label={msg("home.try.osLabel")}>
+        {
+          systems.map((system, index) => (
+            <Fragment>
+              <input
+                type="radio"
+                name="try-system"
+                id={`try-${system.id}`}
+                value={system.id}
+                checked={index === 0}
+              />
+              <label for={`try-${system.id}`}>{system.label}</label>
+            </Fragment>
+          ))
+        }
+        {
+          systems.map((system) => (
+            <div class="try__panel" data-system={system.id}>
+              <CodeBlock
+                code={system.code}
+                language="bash"
+                label={msg("codeBlock.copy")}
+                copiedLabel={msg("codeBlock.copied")}
+              />
+            </div>
+          ))
+        }
+      </div>
     </div>
   </section>
 
@@ -286,6 +343,97 @@ const limits = ["scripts", "a11y", "version"] as const;
     font-family: var(--mono);
     font-size: var(--text-xs);
     letter-spacing: 0.02em;
+  }
+
+  /* ------------------------------------------------------------------- try */
+
+  .try {
+    display: grid;
+    gap: clamp(1.25rem, 3vw, 2.5rem);
+    align-items: start;
+    margin-block-start: clamp(2.5rem, 5vw, 4rem);
+    padding-block-start: clamp(1.5rem, 3vw, 2.25rem);
+    border-block-start: 1px solid var(--rule);
+  }
+
+  /* The same split as the install below it, and for the same reason: two commands with a
+     comment each are the widest thing in this section, and they get the wide column. */
+  @media (min-width: 62rem) {
+    .try {
+      grid-template-columns: 4fr 8fr;
+    }
+  }
+
+  .try__copy h2 {
+    font-size: var(--text-2xl);
+  }
+
+  .try__copy p {
+    margin-block-start: 0.75rem;
+    max-inline-size: 46ch;
+    color: var(--limn-text-muted);
+  }
+
+  .try__note {
+    font-size: var(--text-sm);
+    line-height: 1.65;
+  }
+
+  .try__tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  /* The radios stay in the document for the keyboard and the screen reader; only their
+     boxes are hidden, and the label wearing the focus ring is what a keyboard user sees. */
+  .try__tabs input {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .try__tabs label {
+    padding: 0.35rem 0.9rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    color: var(--limn-text-muted);
+    font-family: var(--mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.02em;
+    cursor: pointer;
+  }
+
+  .try__tabs label:hover {
+    color: var(--limn-text);
+    border-color: var(--limn-primary);
+  }
+
+  .try__tabs input:checked + label {
+    color: var(--limn-text);
+    border-color: var(--limn-primary);
+    background-color: var(--tint);
+  }
+
+  .try__tabs input:focus-visible + label {
+    outline: 2px solid var(--limn-primary);
+    outline-offset: 2px;
+  }
+
+  /* One panel per system, and only the checked system's is laid out. General siblings rather
+     than a script, so the tabs work before any JavaScript runs and without it. */
+  .try__panel {
+    display: none;
+    flex-basis: 100%;
+    margin-block-start: 0.5rem;
+  }
+
+  #try-macos:checked ~ [data-system="macos"],
+  #try-linux:checked ~ [data-system="linux"],
+  #try-windows:checked ~ [data-system="windows"] {
+    display: block;
   }
 
   /* --------------------------------------------------------------- install */
@@ -482,3 +630,15 @@ const limits = ["scripts", "a11y", "version"] as const;
     justify-content: center;
   }
 </style>
+
+<script>
+  // Pre-select the reader's own system, and nothing more: the tabs are radios and work without
+  // this. The user agent is the only signal a static page has, and a wrong guess costs a click.
+  for (const group of document.querySelectorAll<HTMLElement>("[data-try]")) {
+    const agent = navigator.userAgent;
+    const system = /Mac/.test(agent) ? "macos" : /Win/.test(agent) ? "windows" : /Linux|X11/.test(agent) ? "linux" : null;
+    if (!system) continue;
+    const input = group.querySelector<HTMLInputElement>(`input[value="${system}"]`);
+    if (input) input.checked = true;
+  }
+</script>

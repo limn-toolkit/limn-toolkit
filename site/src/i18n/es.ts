@@ -64,6 +64,18 @@ export const es: Catalog = {
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
   "home.hero.caption": "La aplicación de demostración, renderizada por Limn durante esta compilación.",
 
+  "home.try.heading": "Pruébalo ahora",
+  "home.try.body":
+    "El escaparate y el editor de temas, directamente desde Maven Central: nada que clonar, y nada que instalar salvo jbang, que también descarga un JDK si no tienes ninguno. Lo que se descarga es el toolkit, las fuentes y las bibliotecas nativas de esta máquina, no las de las otras cinco plataformas.",
+  "home.try.osLabel": "Sistema operativo",
+  "home.try.macos": "macOS",
+  "home.try.linux": "Linux",
+  "home.try.windows": "Windows",
+  "home.try.demoComment": "el escaparate",
+  "home.try.editorComment": "el editor de temas",
+  "home.try.note":
+    "<code>-XstartOnFirstThread</code> es solo de macOS, y una JVM que lo reciba en cualquier otro sistema se niega a arrancar. Los alias ejecutan la versión más reciente; para fijar una, nombra la coordenada: <code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>. Sin red, la demo también es <a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">un solo archivo adjunto a cada versión</a>.",
+
   "home.install.eyebrow": "Cinco minutos",
   "home.install.heading": "Una dependencia y un método main",
   "home.install.body":
