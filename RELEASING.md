@@ -143,34 +143,24 @@ and everything else runs.
 
 ## What the build is allowed to download
 
-Two files say it, and a release runs on a machine that trusts nothing else.
+Two things are pinned by hash, and both are the kind a bot can keep pinned.
 `gradle/wrapper/gradle-wrapper.properties` carries `distributionSha256Sum`, so the wrapper
-refuses a Gradle distribution whose bytes are not the published ones, and
-`gradle/verification-metadata.xml` carries a SHA-256 for every artifact any task here resolves
-— the libraries, their natives for all six targets, the fonts, the payload, the icon pack, the
-test framework and the publishing plugin with everything it pulls. A jar that does not match is
-a failed build, not a warning: a compromised mirror or a re-uploaded artifact stops in front of
-`check`, not after a signed bundle has left for Central. The same reason every `uses:` in the
-workflows names a commit rather than a tag.
+refuses a Gradle distribution whose bytes are not the published ones, and every `uses:` in the
+workflows names a commit rather than a tag, so a tag moved under a compromised action cannot
+reach a run here. Dependabot rewrites both when it bumps them: the wrapper's checksum beside
+its URL, an action's SHA beside its version comment.
 
-**Changing a dependency** therefore has a second step, and the failure names it: bump the
-catalog (or the wrapper), then regenerate the entry —
-
-```
-./gradlew --write-verification-metadata sha256 check :limn-demo:fatJar aggregateJavadoc \
-    :limn-demo:exportThemeTokens publishAllPublicationsToBuildDirRepository
-```
-
-— and read the diff before committing it. The task list is every entry point the workflows run,
-because Gradle records what the build resolved and nothing more: a task left out is a
-configuration whose artifacts are not in the file, and CI finds that out the day it runs one.
-Existing entries are kept, so a regeneration only ever adds; remove the stale component by hand
-when a version is retired. A Dependabot pull request that bumps the catalog needs this run on
-top before it is green.
+The libraries themselves are pinned to exact versions in `gradle/libs.versions.toml` and
+resolved from Maven Central over TLS, and that is where it stops. A checksum file for every
+artifact (`gradle/verification-metadata.xml`) was tried and taken out again: generated from
+the same download it would later check, with no signature behind it, it could only ever say
+that an artifact changed since the file was written, which Central does not allow, and it
+made every dependency bump a second commit that no bot could write. The projects that keep
+one are the ones everybody else builds on; this is not one of them.
 
 For a new **Gradle version**, the wrapper's checksum is the one published at
-<https://gradle.org/release-checksums/> for the `-bin.zip`, copied by hand, never by a script
-that fetches it from the same place it fetches the distribution.
+<https://gradle.org/release-checksums/> for the `-bin.zip`, copied by hand or by the bot,
+never by a script that fetches it from the same place it fetches the distribution.
 
 ## The two artifacts that are run rather than depended on
 

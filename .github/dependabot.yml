@@ -7,14 +7,19 @@
 # builds like any other change before anyone merges it. Weekly, because an action release is
 # rarely urgent and a daily stream of one-line pull requests is how a review stops happening.
 #
-# Not Gradle. gradle/verification-metadata.xml pins a checksum for every artifact the build
-# resolves, and a bump of the catalog or the wrapper is green only with that file regenerated
-# in the same change (RELEASING.md, "What the build is allowed to download"); a bot's pull
-# request cannot carry that, so every one it opened arrived red, which is noise dressed as
-# review. Library bumps stay a human's commit, metadata and catalog together.
+# Gradle too, for the same reason and the same file: gradle/libs.versions.toml pins the
+# toolkit's dependencies exactly (the fonts, the FFmpeg payload and the icon pack among
+# them), and a bump there is a review — VendoredFontsTest, the codec-breadth and licence tests
+# say what changed — that is easier to have when it arrives as a pull request than when
+# somebody remembers to look. The wrapper rides in the same ecosystem, checksum and URL
+# together (RELEASING.md, "What the build is allowed to download").
 version: 2
 updates:
   - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: gradle
     directory: /
     schedule:
       interval: weekly
