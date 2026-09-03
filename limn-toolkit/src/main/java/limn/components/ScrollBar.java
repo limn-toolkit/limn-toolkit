@@ -35,6 +35,16 @@ import java.util.Objects;
  * </ul>
  * The host calls {@link #onScrolled()} when it scrolls and {@link #onHostActivity()}
  * on pointer movement (for {@code AUTO}).
+ *
+ * <p><b>The hold is a timer, not an animation.</b> A reveal lasts {@code HOLD_SECONDS} past
+ * the last scroll or pointer movement and then fades; the fade in and out are transitions,
+ * which tick only while a value moves. The hold itself used to be a real-time ticker that
+ * returned "still holding" every frame for a second after every pointer move, and a scene
+ * keeps its frame pump running while any ticker is alive: moving the pointer over a form
+ * inside a scroll view rendered at the display's rate with nothing on screen changing, and
+ * resting it over the bar rendered forever. The hold is now a timestamp compared on demand
+ * and one delayed task armed for the moment it expires, so a bar that is showing and still
+ * asks for no frame at all.
  */
 public class ScrollBar extends Widget {
 
@@ -85,11 +95,15 @@ public class ScrollBar extends Widget {
     private boolean hoverBar;
     private boolean dragging;
     private float dragGrab;
-    private double sinceScroll = HOLD_SECONDS;
-    private double sinceHostActivity = HOLD_SECONDS;
+    /** Wall-clock stamps of the last scroll and the last pointer activity; -1 means never. */
+    private long lastScrollNanos = -1;
+    private long lastActivityNanos = -1;
+    /** The clock the hold is measured on; injectable so a test can let a hold expire at will. */
+    private java.util.function.LongSupplier clock = System::nanoTime;
+    /** Whether a delayed check for the hold's end is already posted; at most one is. */
+    private boolean holdArmed;
     /** Last answer of {@link #hasOverflow}, so the first time it turns true can announce itself. */
     private boolean overflowed;
-    private boolean ticking;
     // Reused toolkit animators: the bar fades and the thumb widens through these
     // instead of hand-rolled interpolation. Opacity's duration is set per direction
     // (quick in, slow out) right before each target change.
@@ -150,15 +164,19 @@ public class ScrollBar extends Widget {
 
     /** The host scrolled: reveal the bar (ON_SCROLL / AUTO). */
     public void onScrolled() {
-        sinceScroll = 0;
-        ensureTicking();
+        lastScrollNanos = clock.getAsLong();
+        settle();
     }
 
-    /** The pointer is active over the host: reveal the bar (AUTO). */
+    /**
+     * The pointer is active over the host: reveal the bar (AUTO). Called for every pointer
+     * move over the host, so it must cost nothing while the bar is already showing: a stamp
+     * and two comparisons, no invalidation and no frame.
+     */
     public void onHostActivity() {
         if (policy == Policy.AUTO) {
-            sinceHostActivity = 0;
-            ensureTicking();
+            lastActivityNanos = clock.getAsLong();
+            settle();
         }
     }
 
@@ -175,11 +193,16 @@ public class ScrollBar extends Widget {
     public void refresh() {
         boolean overflow = hasOverflow();
         if (overflow && !overflowed) {
-            sinceScroll = 0;
+            lastScrollNanos = clock.getAsLong();
         }
         overflowed = overflow;
-        ensureTicking();
+        settle();
         invalidate();
+    }
+
+    /** Lets a test decide when a hold has expired. Package-private. */
+    void clock(java.util.function.LongSupplier nanos) {
+        clock = Objects.requireNonNull(nanos, "nanos");
     }
 
     /**
@@ -209,32 +232,55 @@ public class ScrollBar extends Widget {
         if (policy == Policy.ALWAYS || hoverBar || dragging) {
             return true;
         }
-        if (sinceScroll < HOLD_SECONDS) {
+        if (holdRemaining(lastScrollNanos) > 0) {
             return true;
         }
-        return policy == Policy.AUTO && sinceHostActivity < HOLD_SECONDS;
+        return policy == Policy.AUTO && holdRemaining(lastActivityNanos) > 0;
     }
 
-    private void ensureTicking() {
-        if (ticking || scene() == null) {
-            return;
+    /** Seconds left of the hold that {@code stamp} started, or 0 when it never started or ended. */
+    private double holdRemaining(long stamp) {
+        if (stamp < 0) {
+            return 0;
         }
-        ticking = true;
-        scene().addRealTimeTicker(this::tick); // chrome: the bar fades on wall time, like Transition
+        return Math.max(0, HOLD_SECONDS - (clock.getAsLong() - stamp) / 1e9);
     }
 
-    private boolean tick(double dt) {
-        sinceScroll += dt;
-        sinceHostActivity += dt;
+    /**
+     * Points the two transitions at what the state says they should show, and makes sure the
+     * moment a hold expires is on the calendar. A transition already heading for the target
+     * is left alone, so calling this on every pointer move over a showing bar changes nothing
+     * and asks for nothing.
+     */
+    private void settle() {
         boolean reveal = shouldShow();
         opacity.duration(reveal ? FADE_IN_SECONDS : FADE_OUT_SECONDS).to(reveal ? 1 : 0);
         widthLevel.to(hoverBar || dragging ? 1 : 0);
-        // This ticker only tracks the hold timers; once the hold window elapses the
-        // target is stable and the two transitions finish on their own tickers.
-        boolean holding = hoverBar || dragging || sinceScroll < HOLD_SECONDS
-                || (policy == Policy.AUTO && sinceHostActivity < HOLD_SECONDS);
-        ticking = holding;
-        return holding;
+        armHold();
+    }
+
+    private void armHold() {
+        if (holdArmed || scene() == null) {
+            return;
+        }
+        double remaining = Math.max(holdRemaining(lastScrollNanos),
+                policy == Policy.AUTO ? holdRemaining(lastActivityNanos) : 0);
+        if (remaining <= 0) {
+            return; // nothing timed is pending: hover and drag end by their own events
+        }
+        holdArmed = true;
+        limn.concurrent.Ui.postDelayed(this::onHoldElapsed, (long) Math.ceil(remaining * 1000) + 1);
+    }
+
+    /**
+     * The delayed check: a hold that activity has since extended re-arms for the new end, one
+     * that really ended fades the bar. Package-private so a test can fire it on its own clock.
+     */
+    void onHoldElapsed() {
+        holdArmed = false;
+        if (scene() != null) {
+            settle();
+        }
     }
 
     private float maxOffset() {
@@ -328,11 +374,12 @@ public class ScrollBar extends Widget {
         switch (event.type()) {
             case ENTER -> {
                 hoverBar = true;
-                ensureTicking();
+                settle();
             }
             case EXIT -> {
                 hoverBar = false;
-                ensureTicking();
+                // Leaving the bar starts nothing timed; it fades unless a hold is still running.
+                settle();
             }
             case PRESS -> {
                 if (event.button() != Keys.MOUSE_LEFT) {
@@ -357,7 +404,7 @@ public class ScrollBar extends Widget {
                     model.setOffset(model.offset() + dir * model.viewportLength());
                     onScrolled();
                 }
-                ensureTicking();
+                settle();
                 event.consume();
             }
             case DRAG -> {
@@ -377,7 +424,7 @@ public class ScrollBar extends Widget {
             case RELEASE -> {
                 if (dragging) {
                     dragging = false;
-                    ensureTicking();
+                    settle();
                     event.consume();
                 }
             }

@@ -7,6 +7,7 @@ import limn.scene.layout.Padding;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Dragging and track-paging math of the shared {@link ScrollBar}. */
@@ -86,5 +87,50 @@ class ScrollBarTest extends ComponentTestBase {
         assertEquals(2f, Strokes.SCROLLBAR_MARGIN, 0f);
         assertTrue(ScrollBar.thickness() > 2 * Strokes.SCROLLBAR_MARGIN,
                 "the margin is what the track thickness carries on both sides");
+    }
+
+    @Test
+    void pointerActivityRevealsTheBarAndTheHoldEndsOnATimerNotATicker() {
+        long[] now = {System.nanoTime()};
+        Model model = new Model();
+        ScrollBar bar = mount(ScrollBar.Policy.AUTO, model);
+        bar.clock(() -> now[0]);
+        // Let the first-overflow flash expire on the injected clock, and take the ticker
+        // population as the floor: what this test asserts is that activity adds none.
+        now[0] += 5_000_000_000L;
+        bar.onHoldElapsed();
+        assertFalse(bar.revealing(), "the flash has expired");
+
+        bar.onHostActivity();
+        assertTrue(bar.revealing(), "pointer activity over the host reveals the bar");
+        for (int i = 0; i < 100; i++) {
+            now[0] += 8_000_000L; // 120 moves at the display's rate, all inside the hold
+            bar.onHostActivity();
+        }
+        assertTrue(bar.revealing(), "and keeps it revealed while the pointer moves");
+
+        // The delayed check finds the hold extended and stays quiet; time passes; it ends it.
+        bar.onHoldElapsed();
+        assertTrue(bar.revealing(), "a check that lands inside an extended hold changes nothing");
+        now[0] += 2_000_000_000L;
+        bar.onHoldElapsed();
+        assertFalse(bar.revealing(), "the hold has ended and the bar is fading");
+    }
+
+    @Test
+    void restingThePointerOnTheBarHoldsItWithoutAnyTimer() {
+        Model model = new Model();
+        ScrollBar bar = mount(ScrollBar.Policy.AUTO, model);
+        scene.mouseMoved(ScrollBar.thickness() / 2, 100);
+        scene.inputBatchEnded();
+        assertTrue(bar.revealing(), "the pointer over the bar shows it");
+        // Nothing timed is pending here: hover ends by its own EXIT event, so a bar rested on
+        // asks for no frame, where it used to keep a ticker alive for as long as the rest.
+        scene.mouseMoved(-50, -50);
+        scene.inputBatchEnded();
+        long[] now = {System.nanoTime() + 5_000_000_000L};
+        bar.clock(() -> now[0]);
+        bar.onHoldElapsed();
+        assertFalse(bar.revealing(), "off the bar and past every hold, it fades");
     }
 }
