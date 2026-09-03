@@ -300,14 +300,20 @@ jobs:
           The Tabler icon pack, \`limn-icons-tabler\`, versions with Tabler and is released
           from its own repository.
 
-          Nothing to install to see it: the kitchen sink demo is attached below, and
-          [jbang](https://www.jbang.dev/download/) runs it from the asset URL.
+          Nothing to install to see it: the kitchen sink and the theme editor are on Central
+          as runnable artifacts, and [jbang](https://www.jbang.dev/download/) starts either
+          from its coordinate, fetching only this machine's native libraries.
 
           \`\`\`bash
-          jbang https://github.com/$GH_REPO/releases/latest/download/limn-demo-all.jar
+          jbang io.github.limn-toolkit:limn-demo:$VERSION
+          jbang io.github.limn-toolkit:limn-theme-editor:$VERSION
           \`\`\`
 
-          On macOS add \`--java-options=-XstartOnFirstThread\`, which is macOS-only.
+          On macOS add \`--java-options=-XstartOnFirstThread\` before the coordinate; the flag is
+          macOS-only. \`jbang demo@limn-toolkit/limn-toolkit\` and
+          \`jbang theme-editor@limn-toolkit/limn-toolkit\` are the same two at the newest
+          release. For a machine with no network, the demo is also attached below as one file
+          with every platform inside: \`jbang limn-demo-all.jar\`.
 
           ---
           NOTES

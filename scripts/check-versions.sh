@@ -23,8 +23,9 @@ cd "$(dirname "$0")/.."
 
 GROUP="io.github.limn-toolkit"
 # The modules whose version is the toolkit's. Spelled out rather than discovered from settings,
-# because the two aggregator POMs are the point: they version with the toolkit too.
-OWN="limn-toolkit|limn-backend-lwjgl|limn-video-ffmpeg|limn-theme-editor|limn-video-ffmpeg-natives-all|limn-fonts-all"
+# because the two aggregator POMs are the point: they version with the toolkit too. So does the
+# demo, published to be run rather than depended on: the jbang command in every README names it.
+OWN="limn-toolkit|limn-backend-lwjgl|limn-video-ffmpeg|limn-theme-editor|limn-video-ffmpeg-natives-all|limn-fonts-all|limn-demo"
 
 # The pinned families, and the catalog entry each must agree with.
 pin_of() {
