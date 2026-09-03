@@ -237,6 +237,7 @@ public abstract class Flex extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
+        measuredWith = constraints;
         float mainMax = vertical ? constraints.maxHeight() : constraints.maxWidth();
         boolean mainBounded = mainMax != Constraints.UNBOUNDED_LIMIT;
         int visible = visibleCount();
@@ -288,6 +289,16 @@ public abstract class Flex extends Widget {
     private float[] mainSizes = new float[8];
     private float[] crossSizes = new float[8];
 
+    /**
+     * The constraints the last {@link #onMeasure} ran under, so that {@link #onLayout} can ask
+     * each fixed child the question it already answered. Layout used to ask with the box's own
+     * loose size instead, whose cross bound is the measured maximum rather than the incoming one;
+     * the two rarely coincide, {@code Widget.measure} caches one answer, and every fixed leaf
+     * therefore ran its onMeasure twice per pass. The answers are the same by construction: a
+     * child that fit the measure-time bound fits the final one, which is that measure's maximum.
+     */
+    private Constraints measuredWith;
+
     @Override
     protected void onLayout() {
         int childCount = children().size();
@@ -303,6 +314,17 @@ public abstract class Flex extends Widget {
         float crossSize = vertical ? width() : height();
         float gapsTotal = gap * (visible - 1);
         Constraints bounds = Constraints.loose(width(), height());
+        // Fixed children are asked what measure asked them, so the answer is the cached one
+        // (see measuredWith). The one shape where layout must ask something new is STRETCH
+        // under an unbounded incoming cross: measure could not stretch to a bound it did not
+        // have, and stretching to the box now is the point of the mode.
+        float measuredCross = measuredWith == null ? Constraints.UNBOUNDED_LIMIT
+                : vertical ? measuredWith.maxWidth() : measuredWith.maxHeight();
+        Constraints fixedBounds = measuredWith != null && crossSize <= measuredCross
+                && !(crossAlignment == CrossAlignment.STRETCH
+                        && measuredCross == Constraints.UNBOUNDED_LIMIT)
+                ? measuredWith
+                : bounds;
 
         // Pass 1: measure fixed children (unbounded main), count flex weight.
         float fixedMain = 0;
@@ -317,7 +339,7 @@ public abstract class Flex extends Widget {
                 totalFlex += flex;
                 continue;
             }
-            Size size = child.measure(childConstraints(bounds, Constraints.UNBOUNDED_LIMIT));
+            Size size = child.measure(childConstraints(fixedBounds, Constraints.UNBOUNDED_LIMIT));
             mainSizes[i] = mainOf(size);
             crossSizes[i] = crossOf(size);
             fixedMain += mainSizes[i];
