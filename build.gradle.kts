@@ -346,9 +346,12 @@ gradle.taskGraph.whenReady {
         throw GradleException(
             "refusing to publish ${project.version} to Maven Central unsigned: no signing key " +
                     "is configured, and Central requires a signature on every artifact of a " +
-                    "release. Set signingInMemoryKey and signingInMemoryKeyPassword in " +
-                    "~/.gradle/gradle.properties, or as ORG_GRADLE_PROJECT_ environment " +
-                    "variables (which is what .github/workflows/publish.yml does)."
+                    "release. Set signingInMemoryKey and signingInMemoryKeyPassword as " +
+                    "ORG_GRADLE_PROJECT_ environment variables (which is what " +
+                    ".github/workflows/publish.yml does) — from a workstation, in an " +
+                    "environment file outside the repository, sourced for the one command; " +
+                    "never in ~/.gradle/gradle.properties, which every project on the machine " +
+                    "reads (see RELEASING.md)."
         )
     }
 }

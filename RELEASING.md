@@ -66,8 +66,9 @@ their releases with this key.
    GitHub release. Nothing is committed by either.
 4. **Inspect the deployment** on <https://central.sonatype.com/publishing/deployments>. This is
    the last reversible moment: **Drop** discards it and costs nothing.
-5. **Publish it**, then **publish the draft release** on GitHub after editing its notes. The
-   second one deploys the site.
+5. **Publish it** on the Portal. From here on the version exists and cannot be taken back.
+6. **Publish the draft release** on GitHub after editing its notes. This is what deploys the
+   site.
 
 Rehearsing locally is still free and still worth it before a bump:
 ```
@@ -79,9 +80,13 @@ Every artifact under `build/repo` should have a `.asc` beside it when a key is c
 
 **The build failed after the tag was made.** Nothing was uploaded. Fix it on main, delete the
 tag on the web UI (repository → Tags → the tag's ⋯ menu), and push: `tag-releases` sees the
-version untagged again and redoes the tag and the dispatch on the fixed commit. If only the upload hiccuped and the tag itself is fine, re-run `publish` from the
-Actions tab instead (version blank takes `versions.properties`). Once a version is published on
-Central, its tag is frozen: publish the fix as the next number.
+version untagged again and redoes the tag and the dispatch on the fixed commit. If only the
+upload hiccuped and the tag itself is fine, re-run `publish` from the Actions tab instead, with
+the **tag selected as the ref** in the dispatch dialog (version blank takes
+`versions.properties`): the `verify` job refuses a run whose checked-out commit is not the one
+the tag points at, so a dispatch from `main` fails by design rather than publishing whatever
+`main` has become. Once a version is published on Central, its tag is frozen: publish the fix
+as the next number.
 
 **The deployment is wrong.** Drop it on the Portal, delete the draft release, and start over with
 the same version — nothing was consumed.

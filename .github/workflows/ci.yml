@@ -44,15 +44,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Temurin 17, because the build itself targets 17: every module compiles with
-      # `options.release.set(17)` and the aggregate Javadoc links the Java 17 API.
-      # Raising this without raising those lets 18+ API slip into review builds that the
-      # published jars' own compile then rejects.
+      # Temurin 21, matching the toolchain in build.gradle.kts; the classes still target 17
+      # via options.release, and the aggregate Javadoc links the Java 17 API. The compiler
+      # is what keeps 18+ API out of the published jars, not the JDK installed here — and the
+      # JDK still has to be 21, because the Javadoc doclet differs between 17 and 21 and
+      # /api/ is themed against 21's.
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
-          # Must match the toolchain in build.gradle.kts: the Javadoc doclet
-          # differs between 17 and 21 and /api/ is themed against 21.
           java-version: "21"
 
       # Caches the wrapper and the dependency cache; nothing else about the Gradle build

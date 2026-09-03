@@ -107,13 +107,12 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
 
-      # Temurin 17, because the build itself targets 17: every module compiles with
-      # `options.release.set(17)` and the aggregate Javadoc links the Java 17 API.
+      # Temurin 21, matching the toolchain in build.gradle.kts; the classes still target 17
+      # via options.release, and the aggregate Javadoc links the Java 17 API. The Javadoc
+      # doclet differs between 17 and 21, and /api/ is themed against 21's.
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
-          # Must match the toolchain in build.gradle.kts: the Javadoc doclet
-          # differs between 17 and 21 and /api/ is themed against 21.
           java-version: "21"
 
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
@@ -134,9 +133,10 @@ jobs:
         run: ./gradlew :limn-demo:exportThemeTokens
 
       # WITH the version, which is the whole difference between a published page and this
-      # one: build.gradle.kts falls back to "0.1.0-SNAPSHOT" when -PlimnVersion is absent,
-      # and aggregateJavadoc puts project.version in the title. Deployed without it, /api/
-      # announced itself as "Limn UI 0.1.0-SNAPSHOT" while documenting 0.5.0.
+      # one: without -PlimnVersion build.gradle.kts says the -SNAPSHOT of whatever
+      # versions.properties names, and aggregateJavadoc puts project.version in the title.
+      # Deployed without it, /api/ once announced itself as a snapshot while documenting a
+      # release.
       #
       # It comes from the gate rather than from the tag because both triggers have to work,
       # and a manual run has no tag. On a release the two are the same value: the gate only
