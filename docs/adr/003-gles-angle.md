@@ -1,6 +1,13 @@
 # ADR 003: GL ES 3.0 as the authored profile, ANGLE as the portable context
 
-- **Status:** Proposed. Extends ADR 001 route (a); supersedes nothing.
+- **Status:** Proposed; **deferred, not started** (recorded 2026-09-03). None of §4's facade or
+  §7's phases exists in the tree, and §8's questions 1, 2, 4 and 5 are as open as the day they were
+  written. The one thing §9.1 scheduled ahead of the port — the Wayland track, step 4 — landed on
+  its own as ADR 028, because it fixed a defect that existed then, and nothing since has needed a
+  context OpenGL could not give. What restarts this is exactly what §9 names: a Windows 10/11
+  guest that answers questions 2 and 4 (R1 and R4 on D3D11), and then §9.1's step 5 — commit to
+  Phase 1's call-site diff or re-scope the plan to what ANGLE turns out to do. Extends ADR 001
+  route (a); supersedes nothing.
 - **Requirements this answers** (as stated by the project owner):
   1. Keep doing everything the backend does today; no feature may be traded for portability.
   2. Reach as many machines as possible: Windows (Windows XP forward if at all possible; state
