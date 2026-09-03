@@ -13,33 +13,18 @@ dependencies. Each remains under its own license; the terms below govern those
 components, not Limn itself.
 
 --------------------------------------------------------------------------------
-Bundled in this repository (limn-backend-lwjgl resources)
+Bundled in this repository
 --------------------------------------------------------------------------------
 
-Roboto (font family: Regular, Bold, Italic, Bold Italic)
-  Copyright Google Inc.
-  Apache License 2.0: full text in
-  limn-backend-lwjgl/src/main/resources/limn/backend/lwjgl/fonts/Roboto-LICENSE.txt
-
-Noto Sans CJK (optional script fallback; committed here, refreshed by
-scripts/fetch-fonts.sh)
-  Copyright Google Inc. and contributors
-  SIL Open Font License 1.1: full text in
-  limn-backend-lwjgl/src/main/resources/limn/backend/lwjgl/fonts/NotoSansCJK-LICENSE.txt
-
-Noto Color Emoji (optional emoji fallback; committed here, refreshed by
-scripts/fetch-fonts.sh)
-  Copyright Google Inc. and contributors
-  SIL Open Font License 1.1: full text in
-  limn-backend-lwjgl/src/main/resources/limn/backend/lwjgl/fonts/NotoColorEmoji-LICENSE.txt
-
-Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari, Noto Sans Thai
-(optional script fallbacks; committed here, refreshed by scripts/fetch-fonts.sh)
+Limn Menu Symbols (limn-backend-lwjgl resources; the one font this repository ships)
   Copyright 2022 The Noto Project Authors (https://github.com/notofonts/)
   SIL Open Font License 1.1: full text in
-  limn-backend-lwjgl/src/main/resources/limn/backend/lwjgl/fonts/NotoSansScripts-LICENSE.txt
-  One licence file for the four, because upstream publishes one for the whole
-  fonts/ tree they come from rather than one per family.
+  limn-backend-lwjgl/src/main/resources/limn/backend/lwjgl/fonts/LimnMenuSymbols-LICENSE.txt
+  A subset and merge of glyphs from Noto Sans Symbols 2, Noto Sans Symbols and
+  Noto Sans Math — the twenty key symbols a shortcut hint is written with —
+  produced by scripts/generate-menu-symbols.py from pinned Noto builds. It
+  carries no Reserved Font Name. It lives here rather than in limn-fonts
+  because its glyph set must stay in step with what the menu code draws.
 
 Mosaic display faces (limn-demo/fonts, the demo only; no library jar carries them)
   Each under the SIL Open Font License 1.1, with the full text beside it in
@@ -59,9 +44,47 @@ Mosaic display faces (limn-demo/fonts, the demo only; no library jar carries the
   through Fonts.load, the same public call an application would use for a typeface it
   ships itself.
 
-Tabler Icons (via the limn-icons-tabler artifact, which the demo jar attached to a release bundles)
+--------------------------------------------------------------------------------
+Fonts (the limn-fonts artifacts; ADR 036)
+--------------------------------------------------------------------------------
+
+No UI face is in this repository. Each arrives as a Maven artifact built and
+released from https://github.com/limn-toolkit/limn-fonts, versioned with the font
+rather than with this toolkit, and carries its own licence text inside the jar
+under limn/fonts/ — a jar's reader has no repository to look in. The versions
+this toolkit was tested with are pinned in gradle/libs.versions.toml, and
+limn-fonts-all (published from here) names the optional three at those versions.
+
+Roboto (limn-fonts-roboto; Regular, Bold, Italic, Bold Italic)
+  Copyright Google Inc.
+  Apache License 2.0: full text in the jar at limn/fonts/Roboto-LICENSE.txt
+  The default family and the last resort every resolve degrades to: a required
+  runtime dependency of limn-backend-lwjgl, so it arrives with the backend.
+
+Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari, Noto Sans Thai
+(limn-fonts-noto-scripts; the complex-script fallbacks)
+  Copyright 2022 The Noto Project Authors (https://github.com/notofonts/)
+  SIL Open Font License 1.1: full text in the jar at
+  limn/fonts/NotoSansScripts-LICENSE.txt
+  One licence file for the four, because upstream publishes one for the whole
+  fonts/ tree they come from rather than one per family. A default runtime
+  dependency of limn-backend-lwjgl, so it too arrives with the backend.
+
+Noto Sans CJK (limn-fonts-noto-cjk; the application opts in)
+  Copyright Google Inc. and contributors
+  SIL Open Font License 1.1: full text in the jar at limn/fonts/NotoSansCJK-LICENSE.txt
+
+Noto Color Emoji (limn-fonts-noto-emoji; the application opts in)
+  Copyright Google Inc. and contributors
+  SIL Open Font License 1.1: full text in the jar at limn/fonts/NotoColorEmoji-LICENSE.txt
+
+--------------------------------------------------------------------------------
+Icons (the limn-icons-tabler artifact; ADR 038)
+--------------------------------------------------------------------------------
+
+Tabler Icons (via limn-icons-tabler, which the demo jar attached to a release bundles)
   MIT License, Copyright (c) 2020-2024 Paweł Kuna — https://tabler.io/icons
-  The pack is not part of this repository since ADR 038: it is built and released from
+  The pack is not part of this repository: it is built and released from
   https://github.com/limn-toolkit/limn-icons-tabler, versioned with Tabler, and carries the
   licence text inside its jar (limn/icons/tabler/LICENSE.txt). Nothing published from this
   repository depends on it; limn-demo, which is not published, takes it as an application would,
@@ -71,27 +94,32 @@ Tabler Icons (via the limn-icons-tabler artifact, which the demo jar attached to
 Dependencies (limn-backend-lwjgl only; limn-toolkit has none beyond the JDK)
 --------------------------------------------------------------------------------
 
-LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -openal, -stb, -nanovg, -tinyfd)
+LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -openal, -stb, -harfbuzz, -nanovg, -tinyfd)
   Copyright Lightweight Java Game Library contributors
-  BSD 3-Clause: https://github.com/LWJGL/lwjgl3/blob/master/LICENSE
+  BSD 3-Clause: https://github.com/LWJGL/lwjgl3/blob/master/LICENSE.md
   LWJGL in turn bundles native libraries under their own permissive licenses,
   notably: GLFW (zlib), OpenAL Soft (LGPL 2.1, dynamically linked native
-  library), stb (public domain / MIT), NanoSVG (zlib), tinyfiledialogs (zlib).
+  library), stb (public domain / MIT), HarfBuzz (Old MIT), NanoSVG (zlib),
+  tinyfiledialogs (zlib).
 
 JLayer 1.0.1 (javazoom:jlayer), for MP3 decoding
   Copyright JavaZOOM
   GNU Lesser General Public License 2.1:
   https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
-  Used as an unmodified, separately distributable jar dependency. Applications
-  that need to avoid LGPL obligations can exclude this dependency; Limn keeps
-  MP3 support isolated behind the AudioDecoder SPI, and every other audio
-  format (WAV, OGG) works without it.
+  Used unmodified, and never combined with Limn's own code at the source level:
+  from Maven Central it is a jar of its own beside limn-backend-lwjgl's, and the
+  one bundle this repository builds that contains it — the runnable demo jar
+  attached to a GitHub release — carries the same unmodified classes, which
+  anyone can replace by re-packing the jar. Applications that need to avoid
+  LGPL obligations can exclude this dependency; Limn keeps MP3 support isolated
+  behind the AudioDecoder SPI, and every other audio format (WAV, OGG) works
+  without it.
 
 JUnit 5 / JUnit Platform (test-only, not distributed)
   Eclipse Public License 2.0: https://www.eclipse.org/legal/epl-2.0/
 
 --------------------------------------------------------------------------------
-Native libraries built by this repository (limn-video-ffmpeg only)
+Native libraries (the limn-ffmpeg-natives artifact; limn-video-ffmpeg only; ADR 037)
 --------------------------------------------------------------------------------
 
 FFmpeg: libavcodec, libavformat, libavutil, libswresample
@@ -99,31 +127,34 @@ FFmpeg: libavcodec, libavformat, libavutil, libswresample
   GNU Lesser General Public License 2.1 or later:
   https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
   Source: https://ffmpeg.org/releases/
-  The exact version, its checksum and the complete configure line are in
-  scripts/build-ffmpeg.sh, which is what produced the binaries and is sufficient
-  to reproduce them.
+  No FFmpeg binary is in this repository and none is built by it. The libraries,
+  and the JNI shim (liblimnffmpeg) in front of them, are the limn-ffmpeg-natives
+  artifact, built and released from
+  https://github.com/limn-toolkit/limn-ffmpeg-natives on FFmpeg's schedule and
+  versioned after it. That repository holds the exact FFmpeg version, its
+  checksum and the complete configure line, and the jars it publishes carry the
+  licence text and a notice beside the binaries
+  (limn/video/ffmpeg/native/LICENSE-ffmpeg.txt and NOTICE-ffmpeg.txt): a jar's
+  reader has no repository to look in. limn-video-ffmpeg depends on the shim
+  jar; an application adds one natives-<os>-<arch> classifier of the payload,
+  or limn-video-ffmpeg-natives-all (published from here) for all six.
 
   Built WITHOUT --enable-gpl and WITHOUT --enable-nonfree, so no GPL component
   (libpostproc, the three GPL x86 optimisation files, the GPL filters) and no
   nonfree component (Fraunhofer FDK AAC, OpenSSL) is present. x264 and x265 are
-  not linked. A test reads the licence and the configure line back out of the
-  built library, so this paragraph cannot quietly stop being true.
+  not linked. A test here reads the licence and the configure line back out of
+  the linked library, so this paragraph cannot quietly stop being true.
 
   DYNAMICALLY LINKED. The four FFmpeg libraries are shipped as separate shared
-  libraries beside Limn's shim (liblimnffmpeg), never statically linked into it,
-  so they can be replaced with a modified build without relinking anything,
-  which is the freedom the LGPL exists to protect. See docs/adr/011.
+  libraries beside Limn's shim, never statically linked into it, so they can be
+  replaced with a modified build without relinking anything, which is the
+  freedom the LGPL exists to protect. See
+  docs/adr/011-ffmpeg-licence-and-linking.md.
 
-  No FFmpeg binary is in this repository. The libraries a published jar carries
-  are produced by the release build from the source and the configure line named
-  above, packaged into the jar for every desktop target, and the licence text and
-  this notice travel in the jar beside them: a jar's reader has no repository to
-  look in. A developer who wants them locally fetches that payload with
-  scripts/fetch-ffmpeg.sh or builds it with scripts/build-ffmpeg.sh; without one,
-  the decoder reports itself unavailable and nothing else changes.
-
-  Applications that do not play video can exclude limn-video-ffmpeg entirely; it
-  is a separate module and nothing else depends on it.
+  Without the payload on the classpath the decoder reports itself unavailable
+  and nothing else changes. Applications that do not play video can exclude
+  limn-video-ffmpeg entirely; it is a separate module and nothing else depends
+  on it.
 
 --------------------------------------------------------------------------------
 Sample media (media/)
@@ -140,11 +171,11 @@ Big Buck Bunny: three ten-second H.264 excerpts
   https://test-videos.co.uk/bigbuckbunny/mp4-h264, which publishes them on the
   same terms; provenance and the digest of each file are in media/README.md.
 
-  They exist because the FFmpeg build here carries no H.264 encoder and never
-  will (that encoder is x264, which is GPL), so a clip exercising the decoder
-  this project ships cannot be produced by this project.
+  They exist because the FFmpeg build this project ships carries no H.264
+  encoder and never will (that encoder is x264, which is GPL), so a clip
+  exercising the decoder cannot be produced by this project.
 
   Note on patents: FFmpeg states that it does not know whether its code uses
   patented algorithms. Distributing a decoder for a standardised codec may
   attract obligations from a patent pool in some jurisdictions, independently of
-  the copyright licence above. See docs/adr/011 §5.
+  the copyright licence above. See docs/adr/011-ffmpeg-licence-and-linking.md §5.

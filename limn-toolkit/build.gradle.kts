@@ -17,3 +17,11 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
+
+// RepositoryNoticeTest reads the repository's NOTICE, which is outside every input Gradle infers
+// for a test task. Declared, so an edit to NOTICE reruns the test instead of replaying a green
+// result from the build cache — on a runner with a warm cache that is the difference between a
+// check and a memory of one.
+tasks.named<Test>("test") {
+    inputs.file(rootProject.file("NOTICE")).withPathSensitivity(PathSensitivity.NONE)
+}
