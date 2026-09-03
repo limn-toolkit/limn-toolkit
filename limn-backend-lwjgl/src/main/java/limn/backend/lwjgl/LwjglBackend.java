@@ -205,7 +205,7 @@ public final class LwjglBackend implements Backend {
             LOG.log(Level.WARNING, "{0}=''{1}'' is not x11, wayland or any; ignoring it",
                     PLATFORM_PROPERTY, requested);
         }
-        if (isMacOs() || System.getProperty("os.name", "").toLowerCase().contains("win")) {
+        if (isMacOs() || System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
             return;
         }
         String display = System.getenv("DISPLAY");
@@ -245,7 +245,7 @@ public final class LwjglBackend implements Backend {
     }
 
     private static boolean isMacOs() {
-        return System.getProperty("os.name", "").toLowerCase().contains("mac");
+        return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac");
     }
 
     /** Wakes the sleeping event loop. Safe from any thread. */

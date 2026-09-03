@@ -1250,7 +1250,7 @@ final class LwjglWindow implements NativeWindow {
     }
 
     private static final boolean MACOS =
-            System.getProperty("os.name", "").toLowerCase().contains("mac");
+            System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac");
     // NSFloatingWindowLevel (GLFW's always-on-top) sits at 3, below the Dock
     // (kCGDockWindowLevel 20) and the menu bar (kCGMainMenuWindowLevel 24). To
     // cover them we jump to NSPopUpMenuWindowLevel (101): clear above both, still
