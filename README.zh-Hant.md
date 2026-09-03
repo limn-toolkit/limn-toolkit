@@ -200,7 +200,7 @@ macOS 的開關和上面一樣。它存下來的是純資料，你的應用用 `
 ./gradlew :limn-demo:run # the demo application, every component in one window
 ```
 
-成品的目標是 JDK 17，建置本身則在 21 上執行。在沒有 GPU 的機器上，以 GL 為底的測試會跳過，而不是失敗。
+成品的目標是 JDK 17，建置本身則在 21 上執行，也需要一個 21。裝在 Gradle 會尋找的位置的 JDK 21 直接可用；裝在非標準位置的，用 `~/.gradle/gradle.properties` 裡的 `org.gradle.java.installations.paths` 指明；哪裡都找不到時，工具鏈解析器會在第一次使用時下載一個——這是建置在取得相依套件之外唯一的一次連網。在沒有 GPU 的機器上，以 GL 為底的測試會跳過，而不是失敗。
 
 MP4 播放需要一份**不在**這個倉庫裡的原生負載：它是 [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) 成品，版本跟著 FFmpeg 走，建置會像對待其他任何相依套件一樣，從 Maven Central 解析出它測試時所用的版本——測試與示範程式在本機什麼都不用建置就能播放影片。寫入端的測試需要一個已發布的任何成品都不帶的編碼器；在旁邊複製那個倉庫並做一次 `full` 建置，就會被自動拾取。
 

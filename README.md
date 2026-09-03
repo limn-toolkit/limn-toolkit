@@ -247,8 +247,12 @@ Design decisions live in [`docs/adr/`](docs/adr/), and how a release is made in
 ./gradlew :limn-demo:run # the demo application, every component in one window
 ```
 
-JDK 17 is what the artifacts target; the build itself runs on 21. On a machine with no GPU the
-GL-backed tests skip rather than fail.
+JDK 17 is what the artifacts target; the build itself runs on 21, and needs one. A JDK 21 that is
+installed where Gradle looks is used as it is; one in a non-standard place is named with
+`org.gradle.java.installations.paths` in `~/.gradle/gradle.properties`; and when none is found at
+all, the toolchain resolver downloads one on first use, which is the one network access the build
+makes beyond fetching dependencies. On a machine with no GPU the GL-backed tests skip rather than
+fail.
 
 MP4 playback needs a native payload that is **not** in this repository: it is the
 [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) artifact, versioned

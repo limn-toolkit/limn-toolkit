@@ -252,8 +252,12 @@ As decisões de design vivem em [`docs/adr/`](docs/adr/), e como um release é f
 ./gradlew :limn-demo:run # the demo application, every component in one window
 ```
 
-O JDK 17 é o alvo dos artefatos; o build em si roda no 21. Em uma máquina sem GPU, os testes
-apoiados em GL são pulados em vez de falharem.
+O JDK 17 é o alvo dos artefatos; o build em si roda no 21, e precisa de um. Um JDK 21 instalado
+onde o Gradle procura é usado como está; um em lugar fora do padrão é apontado com
+`org.gradle.java.installations.paths` em `~/.gradle/gradle.properties`; e quando nenhum é
+encontrado, o resolvedor de toolchain baixa um no primeiro uso — o único acesso à rede que o build
+faz além de buscar dependências. Em uma máquina sem GPU, os testes apoiados em GL são pulados em
+vez de falharem.
 
 A reprodução de MP4 precisa de um payload nativo que **não** está neste repositório: ele é o
 artefato [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives), que muda de

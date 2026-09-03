@@ -1,3 +1,15 @@
+// The build pins its toolchain to JDK 21 (build.gradle.kts says why), and without a resolver
+// Gradle can only use a 21 it already finds installed: a machine with nothing but a 17 fails at
+// compileJava with "download repositories have not been configured". This convention plugin is
+// that configuration. It adds one thing the build otherwise never does — a network download,
+// from Foojay's Disco API, of a JDK it keeps under ~/.gradle/jdks — and only when no JDK 21 is
+// discoverable at all; a 21 in a non-standard place is named with
+// org.gradle.java.installations.paths instead and downloads nothing. The version is pinned like
+// every other dependency; it is the resolver's, not a JDK's, and moves on its own schedule.
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
+
 rootProject.name = "limn-toolkit"
 
 dependencyResolutionManagement {

@@ -257,7 +257,11 @@ Entwurfsentscheidungen stehen in [`docs/adr/`](docs/adr/), und wie ein Release e
 ./gradlew :limn-demo:run # the demo application, every component in one window
 ```
 
-Die Artefakte zielen auf JDK 17; der Build selbst läuft auf 21. Auf einem Rechner ohne GPU werden
+Die Artefakte zielen auf JDK 17; der Build selbst läuft auf 21 und braucht eines. Ein JDK 21, das
+dort installiert ist, wo Gradle sucht, wird so verwendet; eines an einem unüblichen Ort wird mit
+`org.gradle.java.installations.paths` in `~/.gradle/gradle.properties` benannt; und wird gar keines
+gefunden, lädt der Toolchain-Resolver beim ersten Gebrauch eines herunter — der einzige
+Netzwerkzugriff des Builds neben dem Auflösen von Abhängigkeiten. Auf einem Rechner ohne GPU werden
 die GL-gestützten Tests übersprungen, statt zu scheitern.
 
 Die MP4-Wiedergabe braucht eine native Nutzlast, die **nicht** in diesem Repository liegt: Es ist

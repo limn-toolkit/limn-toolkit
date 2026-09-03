@@ -258,8 +258,12 @@ publiée dans [`RELEASING.md`](RELEASING.md).
 ./gradlew :limn-demo:run # the demo application, every component in one window
 ```
 
-JDK 17 est ce que visent les artefacts ; la compilation elle-même tourne sur 21. Sur une machine
-sans GPU, les tests qui passent par GL sont ignorés plutôt que mis en échec.
+JDK 17 est ce que visent les artefacts ; la compilation elle-même tourne sur 21, et il lui en faut
+un. Un JDK 21 installé là où Gradle regarde est utilisé tel quel ; un JDK à un emplacement
+inhabituel se déclare avec `org.gradle.java.installations.paths` dans `~/.gradle/gradle.properties` ;
+et si aucun n’est trouvé, le résolveur de toolchain en télécharge un au premier usage, le seul accès
+réseau de la compilation en dehors de la résolution des dépendances. Sur une machine sans GPU, les
+tests qui passent par GL sont ignorés plutôt que mis en échec.
 
 La lecture MP4 a besoin d’une charge native qui n’est **pas** dans ce dépôt : c’est l’artefact
 [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives), versionné avec

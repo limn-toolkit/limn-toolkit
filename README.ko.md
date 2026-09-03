@@ -243,8 +243,11 @@ macOS 플래그는 위와 같습니다. 저장되는 것은 평범한 데이터�
 ./gradlew :limn-demo:run # the demo application, every component in one window
 ```
 
-아티팩트가 겨냥하는 것은 JDK 17이고, 빌드 자체는 21에서 돌아갑니다. GPU가 없는 기기에서는 GL 기반
-테스트가 실패하는 대신 건너뜁니다.
+아티팩트가 겨냥하는 것은 JDK 17이고, 빌드 자체는 21에서 돌아가며 그 21이 필요합니다. Gradle이
+찾아보는 곳에 설치된 JDK 21은 그대로 쓰입니다. 표준이 아닌 위치에 있는 것은
+`~/.gradle/gradle.properties`의 `org.gradle.java.installations.paths`로 지정합니다. 어디에서도
+찾지 못하면 툴체인 리졸버가 처음 쓸 때 하나를 내려받는데, 의존성 가져오기 말고는 빌드가 네트워크에
+닿는 유일한 지점입니다. GPU가 없는 기기에서는 GL 기반 테스트가 실패하는 대신 건너뜁니다.
 
 MP4 재생에는 이 저장소에 **없는** 네이티브 페이로드가 필요합니다: 그것은 FFmpeg과 함께 버전이
 오르는 [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) 아티팩트이고,

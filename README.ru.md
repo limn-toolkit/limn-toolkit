@@ -255,8 +255,11 @@ jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-e
 ./gradlew :limn-demo:run # the demo application, every component in one window
 ```
 
-Артефакты нацелены на JDK 17; сама сборка выполняется на 21. На машине без GPU тесты, опирающиеся
-на GL, пропускаются, а не падают.
+Артефакты нацелены на JDK 17; сама сборка выполняется на 21, и он ей нужен. JDK 21, установленный
+там, где Gradle ищет, используется как есть; установленный в нестандартном месте указывается через
+`org.gradle.java.installations.paths` в `~/.gradle/gradle.properties`; а если не найден ни один,
+резолвер тулчейнов скачивает его при первом запуске — единственное обращение сборки к сети помимо
+получения зависимостей. На машине без GPU тесты, опирающиеся на GL, пропускаются, а не падают.
 
 Воспроизведение MP4 требует нативной нагрузки, которой в этом репозитории **нет**: это артефакт
 [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives), версия которого идёт

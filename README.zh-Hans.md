@@ -200,7 +200,7 @@ macOS 的开关和上面一样。它存下来的是纯数据，你的应用用 `
 ./gradlew :limn-demo:run # the demo application, every component in one window
 ```
 
-构件面向的是 JDK 17，构建本身跑在 21 上。在没有 GPU 的机器上，依赖 GL 的测试会跳过，而不是失败。
+构件面向的是 JDK 17，构建本身跑在 21 上，也需要一个 21。装在 Gradle 会查找的位置的 JDK 21 直接可用；装在非标准位置的，用 `~/.gradle/gradle.properties` 里的 `org.gradle.java.installations.paths` 指明；哪里都找不到时，工具链解析器会在第一次使用时下载一个——这是构建在获取依赖之外唯一的一次联网。在没有 GPU 的机器上，依赖 GL 的测试会跳过，而不是失败。
 
 MP4 播放需要一份**不在**本仓库里的原生载荷：它是 [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) 构件，版本跟着 FFmpeg 走，构建会像对待其他任何依赖一样，从 Maven Central 解析出它测试时所用的版本——测试和演示程序在本地什么都不用构建就能播放视频。写入端的测试需要一个已发布的任何构件都不带的编码器；在旁边克隆那个仓库并做一次 `full` 构建，就会被自动拾取。
 
