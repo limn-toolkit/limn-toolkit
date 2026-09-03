@@ -120,11 +120,22 @@ public final class ThemeEditorFiles {
                 .start();
     }
 
+    /**
+     * The longest slug a theme's name becomes. A name is not length-limited (it
+     * can arrive from a file), and the slug is handed to the platform's save
+     * panel as its preselected file name; the panel bounds what it is given,
+     * but a file name this long is not a file name anyone wanted.
+     */
+    static final int MAX_SLUG_LENGTH = 64;
+
     /** {@code "Ocean Deep"} → {@code "ocean-deep.limntheme"}, a name a file system accepts. */
     static String fileNameFor(Theme theme) {
         String slug = theme.name.trim().toLowerCase(java.util.Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-+)|(-+$)", "");
+        if (slug.length() > MAX_SLUG_LENGTH) {
+            slug = slug.substring(0, MAX_SLUG_LENGTH).replaceAll("-+$", "");
+        }
         return (slug.isEmpty() ? "palette" : slug) + '.' + ThemeFormat.EXTENSION;
     }
 

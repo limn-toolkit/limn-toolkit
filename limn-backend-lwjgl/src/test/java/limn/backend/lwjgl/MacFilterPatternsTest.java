@@ -105,6 +105,50 @@ class MacFilterPatternsTest {
     }
 
     @Test
+    void anOrdinaryTitleAndPathPassThroughFitUntouched() {
+        MacFilterPatterns.Bounded in = MacFilterPatterns.fit("Save as…",
+                "/Users/someone/works/clients/acme/projects/2026/redesign/ocean-deep.limntheme");
+        assertEquals("Save as…", in.title());
+        assertEquals("/Users/someone/works/clients/acme/projects/2026/redesign/ocean-deep.limntheme",
+                in.location());
+    }
+
+    @Test
+    void aLocationThatCannotFitIsDroppedBeforeTheTitleIsTouched() {
+        // The shape that aborted the process: a theme whose name is a few
+        // hundred letters, saved from a deep working directory. The panel then
+        // opens on its default folder with the caller's title intact.
+        String location = "/Users/someone/works/" + "a".repeat(700) + ".limntheme";
+        MacFilterPatterns.Bounded in = MacFilterPatterns.fit("Save as…", location);
+        assertEquals("Save as…", in.title());
+        assertEquals("", in.location());
+    }
+
+    @Test
+    void aTitleThatCannotFitAloneIsCutOnACodePointBoundary() {
+        // 400 four-byte code points: 1600 bytes, over the buffer twice.
+        String title = "\uD83C\uDF0A".repeat(400);
+        MacFilterPatterns.Bounded in = MacFilterPatterns.fit(title, "/tmp/x");
+        assertEquals("", in.location());
+        assertTrue(in.title().length() < title.length());
+        assertEquals(0, in.title().length() % 2, "never half a surrogate pair");
+        assertTrue(title.startsWith(in.title()));
+        // And what is left is in bounds with the scaffolding counted the same
+        // way expand() counts it, plus the margin nothing may eat into.
+        assertTrue(in.title().length() / 2 * 4 <= 1000 - (430 + 15 + 20 + 13),
+                "the cut title leaves the command under the buffer with the margin intact");
+        assertTrue((in.title().length() / 2 + 1) * 4 > 1000 - (430 + 15 + 20 + 13),
+                "and is the longest prefix that does");
+    }
+
+    @Test
+    void fitTakesNullsAsTinyfdDoes() {
+        MacFilterPatterns.Bounded in = MacFilterPatterns.fit(null, null);
+        assertEquals("", in.title());
+        assertEquals("", in.location());
+    }
+
+    @Test
     void patternsShorterThanTinyfdsStripDefeatAllAccountingSoNothingExpands() {
         // tinyfd unconditionally skips two bytes of every pattern; a shorter one
         // makes it strcat from past the terminator, so the emitted entry cannot

@@ -89,9 +89,9 @@ final class TinyFdDialogs implements FileDialogs {
     public Optional<Path> openFile(String title, Path initial, Filter filter) {
         beforeBlockingCall();
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            String location = initialPath(initial);
+            MacFilterPatterns.Bounded in = bound(title, initial);
             String picked = TinyFileDialogs.tinyfd_openFileDialog(
-                    title, location, patterns(stack, filter, title, location),
+                    in.title(), in.location(), patterns(stack, filter, in),
                     description(filter), false);
             return picked == null ? Optional.empty() : Optional.of(Path.of(picked));
         }
@@ -101,9 +101,9 @@ final class TinyFdDialogs implements FileDialogs {
     public List<Path> openFiles(String title, Path initial, Filter filter) {
         beforeBlockingCall();
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            String location = initialPath(initial);
+            MacFilterPatterns.Bounded in = bound(title, initial);
             String picked = TinyFileDialogs.tinyfd_openFileDialog(
-                    title, location, patterns(stack, filter, title, location),
+                    in.title(), in.location(), patterns(stack, filter, in),
                     description(filter), true);
             if (picked == null) {
                 return List.of();
@@ -120,9 +120,9 @@ final class TinyFdDialogs implements FileDialogs {
     public Optional<Path> saveFile(String title, Path initial, Filter filter) {
         beforeBlockingCall();
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            String location = initialPath(initial);
+            MacFilterPatterns.Bounded in = bound(title, initial);
             String picked = TinyFileDialogs.tinyfd_saveFileDialog(
-                    title, location, patterns(stack, filter, title, location), description(filter));
+                    in.title(), in.location(), patterns(stack, filter, in), description(filter));
             return picked == null ? Optional.empty() : Optional.of(Path.of(picked));
         }
     }
@@ -130,8 +130,24 @@ final class TinyFdDialogs implements FileDialogs {
     @Override
     public Optional<Path> chooseFolder(String title, Path initial) {
         beforeBlockingCall();
-        String picked = TinyFileDialogs.tinyfd_selectFolderDialog(title, initialPath(initial));
+        MacFilterPatterns.Bounded in = bound(title, initial);
+        String picked = TinyFileDialogs.tinyfd_selectFolderDialog(in.title(), in.location());
         return picked == null ? Optional.empty() : Optional.of(Path.of(picked));
+    }
+
+    /**
+     * The title and location as the native may see them. Off Windows, tinyfd
+     * builds the helper's command line by strcat into a fixed buffer, so the
+     * two are cut to what fits (see {@link MacFilterPatterns#fit}); the
+     * accounting is the macOS one, the larger of the two helpers' scaffolds,
+     * which keeps the Linux command in bounds by a wider margin. Windows takes
+     * both through wide-character buffers the binding sizes to the input.
+     */
+    private static MacFilterPatterns.Bounded bound(String title, Path initial) {
+        String location = initialPath(initial);
+        return Platform.get() == Platform.WINDOWS
+                ? new MacFilterPatterns.Bounded(title, location)
+                : MacFilterPatterns.fit(title, location);
     }
 
     /** tinyfd takes "" for "no preference" and a trailing separator to mean a directory. */
@@ -146,7 +162,7 @@ final class TinyFdDialogs implements FileDialogs {
     }
 
     private static PointerBuffer patterns(MemoryStack stack, Filter filter,
-                                          String title, String location) {
+                                          MacFilterPatterns.Bounded in) {
         if (filter == null || filter.patterns().isEmpty()) {
             return null;
         }
@@ -162,7 +178,7 @@ final class TinyFdDialogs implements FileDialogs {
             if (patterns.isEmpty()) {
                 return null;
             }
-            patterns = MacFilterPatterns.expand(patterns, title, location);
+            patterns = MacFilterPatterns.expand(patterns, in.title(), in.location());
         }
         PointerBuffer buffer = stack.mallocPointer(patterns.size());
         for (String pattern : patterns) {

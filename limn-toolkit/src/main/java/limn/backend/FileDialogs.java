@@ -45,6 +45,12 @@ import java.util.Optional;
  * <p>These are the platform's own panels, so how they look, where they appear,
  * and which shortcuts and sidebar places they offer are the platform's to
  * decide, not the toolkit theme's, and not this API's.
+ *
+ * <p><b>Title and initial path are bounded on macOS and Linux.</b> There the
+ * helper's command line has a fixed size, so a title and an initial path that
+ * would not fit it together are shortened before the call: the path is dropped
+ * in favour of the panel's own default folder first, and only a title too long
+ * on its own is cut. A few hundred bytes between them always fit.
  */
 public interface FileDialogs {
 

@@ -63,6 +63,58 @@ final class MacFilterPatterns {
     private MacFilterPatterns() {
     }
 
+    /** A title and location that, with no type list at all, leave tinyfd's command in bounds. */
+    record Bounded(String title, String location) {
+    }
+
+    /**
+     * The title and initial location cut down to what tinyfd's command buffer
+     * can take before any type list is added. tinyfd strcats both into the
+     * same {@value #TINYFD_BUFFER}-byte command as the patterns, unchecked;
+     * {@link #expand} budgets the patterns against the two but nothing bounded
+     * the two themselves, and a save panel opened with a long file name (a
+     * theme's name becomes one) plus a deep working directory overran the
+     * buffer in the native, which the bundled dylib's stack protector turns
+     * into an abort of the whole process.
+     *
+     * <p>The location goes first, whole: a preselected path that does not fit
+     * is no worse replaced by the panel's own default folder, where a title
+     * cut mid-word is visibly wrong. Only when the title alone still does not
+     * fit is it truncated, on a code point boundary, so the panel opens with
+     * the start of what the caller wrote rather than not opening at all.
+     */
+    static Bounded fit(String title, String location) {
+        String safeTitle = title == null ? "" : title;
+        String safeLocation = location == null ? "" : location;
+        if (commandBytes(List.of(), safeTitle, safeLocation) <= TINYFD_BUFFER - MARGIN) {
+            return new Bounded(safeTitle, safeLocation);
+        }
+        safeLocation = "";
+        int allowed = TINYFD_BUFFER - MARGIN - commandBytes(List.of(), "", "");
+        return new Bounded(truncateUtf8(safeTitle, allowed), safeLocation);
+    }
+
+    /** The longest prefix of {@code text} whose marshalled UTF-8 is at most {@code bytes}. */
+    private static String truncateUtf8(String text, int bytes) {
+        int used = 0;
+        int i = 0;
+        while (i < text.length()) {
+            int next = i + 1;
+            char c = text.charAt(i);
+            if (Character.isHighSurrogate(c) && next < text.length()
+                    && Character.isLowSurrogate(text.charAt(next))) {
+                next = i + 2;
+            }
+            int cost = utf8Length(text.substring(i, next));
+            if (used + cost > bytes) {
+                break;
+            }
+            used += cost;
+            i = next;
+        }
+        return text.substring(0, i);
+    }
+
     /**
      * The caller's patterns reduced to what tinyfd can deliver safely on
      * macOS (run before {@link #expand}). tinyfd turns every pattern into an
