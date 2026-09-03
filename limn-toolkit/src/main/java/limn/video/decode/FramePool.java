@@ -37,6 +37,16 @@ public final class FramePool implements VideoFrame.Recycler {
      */
     public static final int MAX_SLOTS = 64;
 
+    /**
+     * Most direct memory one pool may reserve, over all its slots: one gibibyte. A pool is built
+     * from a header nobody has checked yet, before a single sample is read, and it commits its
+     * pages on construction; without a ceiling, thirty bytes claiming a picture of 32768 by 32768
+     * reserved 1.5&nbsp;GiB per slot and took the process down with them. The number is what the
+     * largest picture anyone plays needs with room to spare: an 8K frame (7680 by 4320) is
+     * 50&nbsp;MiB in 4:2:0 at 8 bits and 200&nbsp;MiB in 4:4:4 at 10 (two bytes a sample), so three of the latter fit.
+     */
+    public static final long MAX_BYTES = 1L << 30;
+
     private final int slots;
     private final PixelFormat format;
     private final VideoColor color;
@@ -65,8 +75,16 @@ public final class FramePool implements VideoFrame.Recycler {
             VideoFrame.Writer writer = VideoFrame.Writer.allocate(slot, this);
             writer.configure(width, height, format, color);
             for (int plane = 0; plane < format.planeCount(); plane++) {
-                int bytes = (int) format.minPlaneBytes(plane, width, height, strides[plane]);
-                ByteBuffer buffer = ByteBuffer.allocateDirect(bytes);
+                long wanted = format.minPlaneBytes(plane, width, height, strides[plane]);
+                if (wanted > Integer.MAX_VALUE) {
+                    // Unreachable under MAX_BYTES, kept because the cast below is the kind that
+                    // fails quietly: truncated, it reserved a hundred kilobytes for a plane of
+                    // four gigabytes and left the size check downstream to notice.
+                    throw new IllegalArgumentException("plane " + plane + " of a " + width + "x"
+                            + height + " " + format + " picture needs " + wanted
+                            + " bytes, more than one buffer can hold");
+                }
+                ByteBuffer buffer = ByteBuffer.allocateDirect((int) wanted);
                 planes[slot][plane] = buffer;
                 writer.setPlane(plane, buffer, strides[plane]);
             }
@@ -83,7 +101,8 @@ public final class FramePool implements VideoFrame.Recycler {
      *               showing while the next is produced, which is the smallest useful number.
      * @param width  picture width in pixels, in {@code [1..PixelFormat.MAX_DIMENSION]}
      * @param height picture height in pixels, in the same range
-     * @throws IllegalArgumentException if {@code slots} or a dimension is out of range
+     * @throws IllegalArgumentException if {@code slots} or a dimension is out of range, or the
+     *                                  pool would reserve more than {@link #MAX_BYTES}
      * @throws NullPointerException     if {@code format} or {@code color} is null
      * @throws OutOfMemoryError         if the direct memory for the planes cannot be reserved
      */
@@ -91,11 +110,35 @@ public final class FramePool implements VideoFrame.Recycler {
                                VideoColor color) {
         Objects.requireNonNull(format, "format");
         Objects.requireNonNull(color, "color");
+        long bytes = bytesFor(slots, width, height, format);
+        if (bytes > MAX_BYTES) {
+            throw new IllegalArgumentException(slots + " pictures of " + width + "x" + height
+                    + " in " + format + " would reserve " + (bytes >> 20) + " MiB, above the "
+                    + (MAX_BYTES >> 20) + " MiB a pool may hold");
+        }
+        return new FramePool(slots, width, height, format, color);
+    }
+
+    /**
+     * The direct memory {@link #of} would reserve for these arguments, computed without reserving
+     * any of it: what a source that has just read a header, and nothing else, asks before it
+     * commits to the header's word.
+     *
+     * @throws IllegalArgumentException if {@code slots} or a dimension is out of range
+     * @throws NullPointerException     if {@code format} is null
+     */
+    public static long bytesFor(int slots, int width, int height, PixelFormat format) {
+        Objects.requireNonNull(format, "format");
         if (slots < 1 || slots > MAX_SLOTS) {
             throw new IllegalArgumentException(
                     "slots must be in [1.." + MAX_SLOTS + "], got " + slots);
         }
-        return new FramePool(slots, width, height, format, color);
+        long bytes = 0;
+        for (int plane = 0; plane < format.planeCount(); plane++) {
+            int stride = format.alignedStride(plane, width, 4);
+            bytes += format.minPlaneBytes(plane, width, height, stride);
+        }
+        return bytes * slots;
     }
 
     /** @return pictures this pool owns, free or not */

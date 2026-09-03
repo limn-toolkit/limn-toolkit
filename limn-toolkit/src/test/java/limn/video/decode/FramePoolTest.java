@@ -116,6 +116,30 @@ class FramePoolTest {
     }
 
     @Test
+    void aPoolAboveTheCeilingIsRefusedBeforeAnythingIsReserved() {
+        // Thirty bytes of header can describe this; three of them in I420 are 4.5 GiB.
+        assertEquals(3L * (32768L * 32768L * 3 / 2),
+                FramePool.bytesFor(3, 32768, 32768, PixelFormat.I420));
+        long before = directMemoryUsed();
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> FramePool.of(3, 32768, 32768, PixelFormat.I420, VideoColor.BT709_LIMITED));
+        assertTrue(error.getMessage().contains("MiB"), error.getMessage());
+        assertTrue(directMemoryUsed() - before < 1 << 20, "and nothing was reserved on the way");
+        // The ceiling is generous where it should be: three 8K pictures at the heaviest layout fit.
+        assertTrue(FramePool.bytesFor(3, 7680, 4320, PixelFormat.I444_10LE) <= FramePool.MAX_BYTES);
+    }
+
+    static long directMemoryUsed() {
+        for (java.lang.management.BufferPoolMXBean pool : java.lang.management.ManagementFactory
+                .getPlatformMXBeans(java.lang.management.BufferPoolMXBean.class)) {
+            if (pool.getName().equals("direct")) {
+                return pool.getMemoryUsed();
+            }
+        }
+        return 0;
+    }
+
+    @Test
     void everySlotOfAFullPoolIsDistinctMemory() {
         // The bit index is the slot index: at the ceiling the free mask is all ones, which the
         // shift that builds it cannot express and which is why that case is written out separately.

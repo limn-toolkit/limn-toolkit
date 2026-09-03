@@ -193,6 +193,38 @@ class Y4mReaderTest {
     }
 
     @Test
+    void aHeaderAskingForGigabytesIsRefusedAtOpen() throws IOException {
+        // Well formed, in range per axis, and 4.5 GiB of pictures for thirty bytes of input.
+        Path file = write("huge.y4m", "YUV4MPEG2 W32768 H32768 F30:1 C420\n");
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+                () -> new Y4mDecoder().openStream(file));
+        assertTrue(error.getMessage().contains("MiB"), error.getMessage());
+    }
+
+    @Test
+    void aRegularFileShorterThanOnePictureReservesNothingBeforeItFails() throws IOException {
+        // Under the ceiling (3 x 96 MiB) and still far more than four bytes of input deserve.
+        Path file = write("short.y4m", "YUV4MPEG2 W8000 H8000 F30:1 C420\n", new byte[]{1, 2, 3, 4});
+        long before = FramePoolTest.directMemoryUsed();
+        try (VideoStreamSource source = new Y4mDecoder().openStream(file)) {
+            assertEquals(8000, source.width(), "open still answers from the header");
+            IllegalStateException error =
+                    assertThrows(IllegalStateException.class, source::readFrame);
+            assertTrue(error.getMessage().contains("ends inside a picture"), error.getMessage());
+        }
+        assertTrue(FramePoolTest.directMemoryUsed() - before < 16L << 20,
+                "the pictures the header described were never reserved");
+    }
+
+    @Test
+    void aHeaderWithNothingAfterItIsAStreamOfNoPictures() throws IOException {
+        Path file = write("none.y4m", "YUV4MPEG2 W2 H2 F30:1 C420\n");
+        try (VideoStreamSource source = new Y4mDecoder().openStream(file)) {
+            assertEquals(VideoStreamSource.Read.END, source.readFrame());
+        }
+    }
+
+    @Test
     void aTruncatedPictureIsNotAClearEnd() throws IOException {
         byte[] whole = planes(new int[]{1, 2, 3, 4}, new int[]{5}, new int[]{6});
         Path file = write("cut.y4m", "YUV4MPEG2 W2 H2 F30:1 C420\n", whole);

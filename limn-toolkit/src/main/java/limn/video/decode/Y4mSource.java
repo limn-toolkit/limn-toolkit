@@ -30,6 +30,13 @@ final class Y4mSource implements VideoStreamSource {
 
     private static final int BUFFER_BYTES = 1 << 16;
 
+    /**
+     * Picture size from which a regular file shorter than one picture is refused before the pool is
+     * reserved. Below it the reservation is nothing and the read path's own report (which line or
+     * plane ran short) is the better error; above it the reservation is the harm being avoided.
+     */
+    private static final long SIZE_CHECK_FROM = 1L << 20;
+
     private final Path file;
     private final SeekableByteChannel channel;
     private final ByteBuffer input;
@@ -42,7 +49,14 @@ final class Y4mSource implements VideoStreamSource {
     private final int frameRateDen;
     private final PixelFormat format;
     private final VideoColor color;
-    private final FramePool pool;
+    private final int slots;
+    /**
+     * Built on the first picture, not on open. The header is the only thing known at open and it
+     * is the input's word: reserving the pictures it describes before reading one committed up to
+     * the pool's ceiling for a file of thirty bytes, and a regular file shorter than one picture
+     * can be told apart from a real stream before anything is reserved at all.
+     */
+    private FramePool pool;
     /** Payload bytes of one picture: the planes back to back, tight, with no padding anywhere. */
     private final long pictureBytes;
 
@@ -64,7 +78,14 @@ final class Y4mSource implements VideoStreamSource {
         this.frameRateDen = header.rateDen;
         this.format = header.format;
         this.color = color;
-        this.pool = FramePool.of(slots, header.width, header.height, header.format, color);
+        this.slots = slots;
+        long reserve = FramePool.bytesFor(slots, header.width, header.height, header.format);
+        if (reserve > FramePool.MAX_BYTES) {
+            throw malformed("a " + header.width + "x" + header.height + " picture in "
+                    + header.format + " needs " + (reserve >> 20) + " MiB for " + slots
+                    + " pictures in flight, above the " + (FramePool.MAX_BYTES >> 20)
+                    + " MiB a source will reserve");
+        }
         long bytes = 0;
         for (int plane = 0; plane < header.format.planeCount(); plane++) {
             bytes += (long) header.format.planeByteWidth(plane, header.width)
@@ -144,6 +165,27 @@ final class Y4mSource implements VideoStreamSource {
     public Read readFrame() {
         if (closed || ended) {
             return Read.END;
+        }
+        if (pool == null) {
+            try {
+                if (resettable) {
+                    long available = channel.size() - dataStart;
+                    if (available == 0) {
+                        ended = true; // a header and nothing after it: a stream of no pictures
+                        return Read.END;
+                    }
+                    // Only a picture worth not reserving is refused from the file's size; a small
+                    // one is reserved and read, so that what is wrong with a short file is
+                    // reported by the line or the plane that is wrong, not by arithmetic.
+                    if (pictureBytes >= SIZE_CHECK_FROM && available < pictureBytes) {
+                        throw malformed("the input ends inside a picture's planes: " + available
+                                + " bytes follow the header and one picture is " + pictureBytes);
+                    }
+                }
+            } catch (IOException error) {
+                throw new UncheckedIOException("cannot read " + file, error);
+            }
+            pool = FramePool.of(slots, width, height, format, color);
         }
         VideoFrame.Writer writer = pool.acquire();
         if (writer == null) {
