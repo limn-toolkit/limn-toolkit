@@ -295,8 +295,9 @@ val hostNativesModules = setOf("limn-demo", "limn-theme-editor")
 // arch is what the JVM reports: every 64-bit ARM JVM says "aarch64", while 64-bit Intel is
 // "amd64" on Linux and Windows and "x86_64" on macOS — and one profile cannot name two values,
 // so the Intel rows say "not ARM", which is the only other 64-bit answer LWJGL ships for.
-class HostPlatform(
-    val id: String, val lwjglClassifier: String, val osKey: String, val osValue: String, val arch: String)
+data class HostPlatform(
+    val id: String, val lwjglClassifier: String, val osKey: String, val osValue: String, val arch: String,
+) : java.io.Serializable
 val hostPlatforms = listOf(
     HostPlatform("linux-aarch64", "natives-linux-arm64", "name", "linux", "aarch64"),
     HostPlatform("linux-x86_64", "natives-linux", "name", "linux", "!aarch64"),
@@ -306,15 +307,13 @@ val hostPlatforms = listOf(
     HostPlatform("windows-x86_64", "natives-windows", "family", "windows", "!aarch64"),
 )
 
-fun groovy.util.Node.child(name: String): groovy.util.Node? =
-    (get(name) as List<*>).firstOrNull() as groovy.util.Node?
-fun groovy.util.Node.childText(name: String): String? = child(name)?.text()
-
 // The LWJGL modules the backend uses and the classifiers it declares them under, READ from its
 // build rather than copied here: the backend is where a ninth LWJGL module or a seventh target
 // would be added, and this only redistributes what it says. The classifier set is checked
 // against the table above so that a new target fails this build rather than resolving nothing.
-class LwjglDeclaration(val modules: List<String>, val version: String)
+// Read at configuration time, into plain strings: what the POM task runs later must carry no
+// reference to a project or to this script, or the configuration cache refuses to store it.
+data class LwjglDeclaration(val modules: List<String>, val version: String) : java.io.Serializable
 fun lwjglAsDeclaredByTheBackend(): LwjglDeclaration {
     val backend = project(":limn-backend-lwjgl")
     val modules = backend.configurations.getByName("implementation").dependencies
@@ -333,57 +332,104 @@ fun lwjglAsDeclaredByTheBackend(): LwjglDeclaration {
     return LwjglDeclaration(modules, libs.versions.lwjgl.get())
 }
 
-fun groovy.util.Node.appendDependency(
-        group: String, artifact: String, version: String, classifier: String? = null) {
-    appendNode("dependency").apply {
-        appendNode("groupId", group)
-        appendNode("artifactId", artifact)
-        appendNode("version", version)
-        classifier?.let { appendNode("classifier", it) }
-        appendNode("scope", "runtime")
-    }
-}
+/**
+ * The POM reshaping and its check, as a static object with no member of this script in reach:
+ * the lambdas that call it run inside tasks the configuration cache serializes, and a script
+ * function referenced from one of them is a reference to the script object, which cannot be
+ * stored. Everything it needs arrives as plain values.
+ */
+object HostNativesPom {
+    fun child(node: groovy.util.Node, name: String): groovy.util.Node? =
+        (node.get(name) as List<*>).firstOrNull() as groovy.util.Node?
 
-/** Reshapes a generated POM so that it names one platform's natives at a time. */
-fun shapeForHost(pom: groovy.util.Node, group: String) {
-    val lwjgl = lwjglAsDeclaredByTheBackend()
-    val dependencies = pom.child("dependencies") ?: pom.appendNode("dependencies")
-    val perPlatform = hostPlatforms.associate { it.id to mutableListOf<groovy.util.Node>() }
-    for (dependency in dependencies.children().filterIsInstance<groovy.util.Node>().toList()) {
-        val classifier = dependency.childText("classifier")
-        if (classifier != null && classifier.startsWith("natives-")) {
-            // The module's own per-platform payload, declared six times so that the fat jar
-            // carries all of them: in the POM each goes into its platform's profile instead.
-            val platform = perPlatform[classifier.removePrefix("natives-")]
-                ?: throw GradleException("$classifier names a platform the host-natives table does not know")
-            dependencies.remove(dependency)
-            platform += dependency
-        } else if (dependency.childText("groupId") == group &&
-                dependency.childText("artifactId") in publishedModules) {
-            // Every path that could reach the backend's all-platform LWJGL is cut, and only a
-            // module of this build can be such a path: the fonts and the icon pack, published
-            // from their own repositories, name no backend. An exclusion that matches nothing
-            // would be harmless, but a reader of the POM would still have to work that out.
-            dependency.appendNode("exclusions").appendNode("exclusion").apply {
-                appendNode("groupId", "org.lwjgl")
-                appendNode("artifactId", "*")
+    fun childText(node: groovy.util.Node, name: String): String? = child(node, name)?.text()
+
+    private fun children(node: groovy.util.Node?): List<groovy.util.Node> =
+        node?.children()?.filterIsInstance<groovy.util.Node>().orEmpty()
+
+    private fun appendDependency(
+            into: groovy.util.Node, group: String, artifact: String, version: String,
+            classifier: String? = null) {
+        into.appendNode("dependency").apply {
+            appendNode("groupId", group)
+            appendNode("artifactId", artifact)
+            appendNode("version", version)
+            classifier?.let { appendNode("classifier", it) }
+            appendNode("scope", "runtime")
+        }
+    }
+
+    /** Reshapes a generated POM so that it names one platform's natives at a time. */
+    fun shape(pom: groovy.util.Node, group: String, published: Set<String>,
+              lwjgl: LwjglDeclaration, platforms: List<HostPlatform>) {
+        val dependencies = child(pom, "dependencies") ?: pom.appendNode("dependencies")
+        val perPlatform = platforms.associate { it.id to mutableListOf<groovy.util.Node>() }
+        for (dependency in children(dependencies).toList()) {
+            val classifier = childText(dependency, "classifier")
+            if (classifier != null && classifier.startsWith("natives-")) {
+                // The module's own per-platform payload, declared six times so that the fat
+                // jar carries all of them: in the POM each goes into its platform's profile.
+                val platform = perPlatform[classifier.removePrefix("natives-")]
+                    ?: throw GradleException("$classifier names a platform the host-natives table does not know")
+                dependencies.remove(dependency)
+                platform += dependency
+            } else if (childText(dependency, "groupId") == group &&
+                    childText(dependency, "artifactId") in published) {
+                // Every path that could reach the backend's all-platform LWJGL is cut, and only
+                // a module of this build can be such a path: the fonts and the icon pack,
+                // published from their own repositories, name no backend.
+                dependency.appendNode("exclusions").appendNode("exclusion").apply {
+                    appendNode("groupId", "org.lwjgl")
+                    appendNode("artifactId", "*")
+                }
             }
         }
+        lwjgl.modules.forEach { module -> appendDependency(dependencies, "org.lwjgl", module, lwjgl.version) }
+        val profiles = pom.appendNode("profiles")
+        platforms.forEach { platform ->
+            val profile = profiles.appendNode("profile")
+            profile.appendNode("id", "natives-${platform.id}")
+            profile.appendNode("activation").appendNode("os").apply {
+                appendNode(platform.osKey, platform.osValue)
+                appendNode("arch", platform.arch)
+            }
+            val natives = profile.appendNode("dependencies")
+            lwjgl.modules.forEach { module ->
+                appendDependency(natives, "org.lwjgl", module, lwjgl.version, platform.lwjglClassifier)
+            }
+            perPlatform.getValue(platform.id).forEach { natives.append(it) }
+        }
     }
-    lwjgl.modules.forEach { module -> dependencies.appendDependency("org.lwjgl", module, lwjgl.version) }
-    val profiles = pom.appendNode("profiles")
-    hostPlatforms.forEach { platform ->
-        val profile = profiles.appendNode("profile")
-        profile.appendNode("id", "natives-${platform.id}")
-        profile.appendNode("activation").appendNode("os").apply {
-            appendNode(platform.osKey, platform.osValue)
-            appendNode("arch", platform.arch)
+
+    /** What is wrong with a shipped POM, as sentences; empty when it resolves one platform at a time. */
+    fun problems(pom: groovy.util.Node, group: String, published: Set<String>,
+                 platforms: List<HostPlatform>): List<String> {
+        val plain = children(child(pom, "dependencies"))
+        val problems = mutableListOf<String>()
+        plain.filter { childText(it, "classifier")?.startsWith("natives-") == true }
+            .forEach { problems += "${childText(it, "artifactId")}:${childText(it, "classifier")} sits outside every profile" }
+        plain.filter {
+            childText(it, "groupId") == group && childText(it, "artifactId") in published &&
+                    child(it, "exclusions") == null
         }
-        val natives = profile.appendNode("dependencies")
-        lwjgl.modules.forEach { module ->
-            natives.appendDependency("org.lwjgl", module, lwjgl.version, platform.lwjglClassifier)
+            .forEach { problems += "${childText(it, "artifactId")} can still reach LWJGL's natives for every platform" }
+        val lwjglModules = plain.filter { childText(it, "groupId") == "org.lwjgl" }.map { childText(it, "artifactId") }
+        if (lwjglModules.isEmpty()) problems += "no LWJGL module is declared plain"
+        val profiles = children(child(pom, "profiles"))
+        val ids = profiles.map { childText(it, "id") }
+        val expected = platforms.map { "natives-${it.id}" }
+        if (ids != expected) problems += "profiles are $ids, expected $expected"
+        profiles.forEach { profile ->
+            val natives = children(child(profile, "dependencies"))
+            val lwjglNatives = natives.filter { childText(it, "groupId") == "org.lwjgl" }
+            if (lwjglNatives.map { childText(it, "artifactId") } != lwjglModules) {
+                problems += "${childText(profile, "id")} does not carry one native per plain LWJGL module"
+            }
+            if (natives.any { childText(it, "classifier") == null }) {
+                problems += "${childText(profile, "id")} carries a dependency without a classifier"
+            }
         }
-        perPlatform.getValue(platform.id).forEach { natives.append(it) }
+        return problems
     }
 }
 
@@ -448,8 +494,13 @@ subprojects {
                 }
             }
             if (this@subprojects.name in hostNativesModules) {
+                // Everything the reshaping needs is read now, into values the task can carry.
+                val group = this@subprojects.group.toString()
+                val published = publishedModules.keys.toSet()
+                val lwjgl = lwjglAsDeclaredByTheBackend()
+                val platforms = hostPlatforms
                 publications.withType<MavenPublication>().configureEach {
-                    pom.withXml { shapeForHost(asNode(), this@subprojects.group.toString()) }
+                    pom.withXml { HostNativesPom.shape(asNode(), group, published, lwjgl, platforms) }
                 }
             }
         }
@@ -468,34 +519,12 @@ subprojects {
                 dependsOn(generatePom)
                 val pomFile = layout.buildDirectory.file("publications/maven/pom-default.xml")
                 val group = this@subprojects.group.toString()
+                val published = publishedModules.keys.toSet()
+                val platforms = hostPlatforms
                 inputs.file(pomFile)
                 doLast {
                     val pom = groovy.xml.XmlParser(false, false).parse(pomFile.get().asFile)
-                    val plain = pom.child("dependencies")?.children()?.filterIsInstance<groovy.util.Node>().orEmpty()
-                    val problems = mutableListOf<String>()
-                    plain.filter { it.childText("classifier")?.startsWith("natives-") == true }
-                        .forEach { problems += "${it.childText("artifactId")}:${it.childText("classifier")} sits outside every profile" }
-                    plain.filter {
-                        it.childText("groupId") == group && it.childText("artifactId") in publishedModules &&
-                                it.child("exclusions") == null
-                    }
-                        .forEach { problems += "${it.childText("artifactId")} can still reach LWJGL's natives for every platform" }
-                    val lwjglModules = plain.filter { it.childText("groupId") == "org.lwjgl" }.map { it.childText("artifactId") }
-                    if (lwjglModules.isEmpty()) problems += "no LWJGL module is declared plain"
-                    val profiles = pom.child("profiles")?.children()?.filterIsInstance<groovy.util.Node>().orEmpty()
-                    val ids = profiles.map { it.childText("id") }
-                    val expected = hostPlatforms.map { "natives-${it.id}" }
-                    if (ids != expected) problems += "profiles are $ids, expected $expected"
-                    profiles.forEach { profile ->
-                        val natives = profile.child("dependencies")?.children()?.filterIsInstance<groovy.util.Node>().orEmpty()
-                        val lwjglNatives = natives.filter { it.childText("groupId") == "org.lwjgl" }
-                        if (lwjglNatives.map { it.childText("artifactId") } != lwjglModules) {
-                            problems += "${profile.childText("id")} does not carry one native per plain LWJGL module"
-                        }
-                        if (natives.any { it.childText("classifier") == null }) {
-                            problems += "${profile.childText("id")} carries a dependency without a classifier"
-                        }
-                    }
+                    val problems = HostNativesPom.problems(pom, group, published, platforms)
                     if (problems.isNotEmpty()) {
                         throw GradleException(
                             "${pomFile.get()} would not resolve one platform at a time:\n  " +
