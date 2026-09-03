@@ -50,13 +50,19 @@ tasks.withType<GenerateModuleMetadata>().configureEach {
 plugins.withId("maven-publish") {
     extensions.configure<PublishingExtension> {
         publications.withType<MavenPublication>().configureEach {
+            // Plain values, resolved here rather than inside the action: the action is what
+            // the configuration cache serialises, and `project.group` or the catalog read from
+            // in there drags the script object along, which the cache refuses to store.
+            val group = project.group.toString()
+            val payloadVersion = libs.versions.limn.ffmpeg.natives.get()
+            val platforms = nativePlatforms.toList()
             pom.withXml {
                 val dependencies = asNode().appendNode("dependencies")
-                nativePlatforms.forEach { platform ->
+                platforms.forEach { platform ->
                     dependencies.appendNode("dependency").apply {
-                        appendNode("groupId", project.group)
+                        appendNode("groupId", group)
                         appendNode("artifactId", "limn-ffmpeg-natives")
-                        appendNode("version", libs.versions.limn.ffmpeg.natives.get())
+                        appendNode("version", payloadVersion)
                         appendNode("classifier", "natives-$platform")
                         appendNode("scope", "runtime")
                     }

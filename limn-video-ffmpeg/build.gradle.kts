@@ -73,9 +73,13 @@ dependencies {
 }
 
 tasks.named<Test>("test") {
+    // Copied into a plain value here, outside the action: the action is what the configuration
+    // cache serialises, and an action that reads the script-level `devNatives` captures the whole
+    // script object with it, which is the one thing the cache refuses to store. A File it can.
+    val payload: File = devNatives
     doFirst {
-        if (devNatives.isDirectory) {
-            logger.lifecycle("limn-video-ffmpeg: tests run against the 'full' payload at $devNatives")
+        if (payload.isDirectory) {
+            logger.lifecycle("limn-video-ffmpeg: tests run against the 'full' payload at $payload")
         } else {
             logger.lifecycle("limn-video-ffmpeg: tests run against the published 'player' payload; " +
                     "the writer tests skip (a 'full' build from limn-ffmpeg-natives beside this " +

@@ -40,13 +40,18 @@ tasks.withType<GenerateModuleMetadata>().configureEach {
 plugins.withId("maven-publish") {
     extensions.configure<PublishingExtension> {
         publications.withType<MavenPublication>().configureEach {
+            // Plain strings, resolved here rather than inside the action: the action is what
+            // the configuration cache serialises, and `project.group` or the catalog read from
+            // in there drags the script object along, which the cache refuses to store.
+            val group = project.group.toString()
+            val versions = fontArtifacts.mapValues { (_, version) -> version.get() }
             pom.withXml {
                 val dependencies = asNode().appendNode("dependencies")
-                fontArtifacts.forEach { (artifact, version) ->
+                versions.forEach { (artifact, version) ->
                     dependencies.appendNode("dependency").apply {
-                        appendNode("groupId", project.group)
+                        appendNode("groupId", group)
                         appendNode("artifactId", artifact)
-                        appendNode("version", version.get())
+                        appendNode("version", version)
                         appendNode("scope", "runtime")
                     }
                 }
