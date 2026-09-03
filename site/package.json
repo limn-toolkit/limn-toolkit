@@ -16,8 +16,7 @@
     "dev": "pnpm generate && astro dev",
     "build": "pnpm generate && node scripts/timed.mjs astro-build npx astro build",
     "check:links": "node scripts/timed.mjs check:links node scripts/check-links.mjs",
-    "preview": "astro preview",
-    "check": "astro check"
+    "preview": "astro preview"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.3",

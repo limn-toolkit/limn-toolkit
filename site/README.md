@@ -26,7 +26,9 @@ The captures are gitignored and slow to render, so a second checkout need not re
 `ln -s /path/to/the/main/clone/site/captures captures`, and copy that clone's
 `src/styles/tokens.generated.css` (or run `exportThemeTokens` again).
 
-## Do not run `astro check`
+## There is no `pnpm check`
 
-It prompts to install `@astrojs/check` and `typescript`, and neither is among the dependencies
-on purpose. Do not add them; `pnpm exec astro build` is the verification, and it runs the gates.
+`astro check` prompts to install `@astrojs/check` and `typescript`, and neither is among the
+dependencies on purpose, so the script that ran it is gone rather than made to work. Do not add
+them. The verification is `pnpm exec astro build`: it compiles every page, expands every snippet
+and shot, and runs the gates [`website.md`](../docs/design/website.md) lists.
