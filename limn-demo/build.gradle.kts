@@ -50,8 +50,47 @@ dependencies {
 // payload on this module's classpath: main resources come before dependency jars, so the full
 // build's manifests and libraries shadow the player's at the same paths. This module is never
 // published, and the fatJar the release attaches is built on a runner that has no sibling clone.
+//
+// "Beside this repository" means beside the MAIN checkout, which is not always rootDir: a linked
+// git worktree (the kind an agent or a `git worktree add` under .claude/worktrees/ makes) has a
+// rootDir of its own, whose parent holds other worktrees and no sibling clone at all, so from
+// there the writer scenes quietly got the player payload and nothing said why. A worktree is
+// recognisable without asking git: its .git is a FILE, not a directory, holding
+// `gitdir: <main>/.git/worktrees/<name>`, and the main checkout is three levels above that.
+val mainRepositoryDir: File = run {
+    val dotGit = rootDir.resolve(".git")
+    if (!dotGit.isFile) {
+        return@run rootDir
+    }
+    val gitDir = rootDir.resolve(dotGit.readText().trim().removePrefix("gitdir:").trim()).normalize()
+    val commonDir = gitDir.parentFile?.parentFile
+    if (gitDir.parentFile?.name == "worktrees" && commonDir?.name == ".git") {
+        commonDir.parentFile
+    } else {
+        rootDir
+    }
+}
 val devNatives: File = (findProperty("limnFfmpegNatives") as String?)?.let { file(it) }
-    ?: rootDir.resolve("../limn-ffmpeg-natives/native/dist/full")
+    ?: mainRepositoryDir.resolve("../limn-ffmpeg-natives/native/dist/full").normalize()
+
+/**
+ * Says, at the start of a run, which payload the writer scenes are about to get. The scenes
+ * themselves only know that an encoder is missing; the reason (no sibling clone, or a worktree
+ * that could not see it) is only visible here. Takes the directory as a value rather than
+ * reading the script-level one inside the action, because the configuration cache serialises
+ * the action and refuses a reference to the script.
+ */
+fun JavaExec.reportFfmpegPayload(payload: File) {
+    doFirst {
+        if (payload.isDirectory) {
+            logger.lifecycle("limn-demo: the 'full' FFmpeg payload at $payload shadows the published one")
+        } else {
+            logger.lifecycle("limn-demo: the published 'player' FFmpeg payload; the writer scenes " +
+                    "have no encoder (a 'full' build from limn-ffmpeg-natives beside the main " +
+                    "repository, or -PlimnFfmpegNatives=<dir>, gives them one)")
+        }
+    }
+}
 sourceSets {
     named("main") {
         resources.srcDir(devNatives)
@@ -73,6 +112,8 @@ tasks.register<JavaExec>("captureGallery") {
     mainClass.set("limn.demo.site.Gallery")
     classpath = sourceSets["main"].runtimeClasspath
     workingDir = rootDir
+    // The writer scenes are captured too, so the capture says which payload it filmed them with.
+    reportFfmpegPayload(devNatives)
     // The pristine captures, deliberately outside site/public/: `pnpm build:gallery` reads
     // them and writes only derivatives into public/gallery/. Pointing this back at
     // site/public/ would make the derivation's output its own input on the next run, and
@@ -107,6 +148,7 @@ application {
 }
 
 tasks.named<JavaExec>("run") {
+    reportFfmpegPayload(devNatives)
     // Relative --screenshot paths resolve from the repository root.
     workingDir = rootDir
     // The video tab's caption tells the reader to set this, and a JavaExec starts a fresh JVM that
