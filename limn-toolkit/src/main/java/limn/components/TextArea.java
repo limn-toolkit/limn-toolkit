@@ -118,6 +118,12 @@ public class TextArea extends Widget {
     private int preeditFocusEnd;
     /** Widest measured line, cached; {@code < 0} = dirty. Recomputed only after edits. */
     private float cachedContentWidth = -1;
+    /**
+     * Each line's scanned width, the array {@link #cachedContentWidth} is the maximum of. Kept so
+     * that an edit re-scans only the lines it touched ({@link #noteTextChanged}); null until the
+     * first full scan, and while wrapping, where no line can be wider than the column.
+     */
+    private float[] lineWidths;
     /** The font the width cache was built under, half of its validity key. */
     private Font cachedWidthFont;
     /** Probe metrics under that font, the other half. See {@link #contentWidth}. */
@@ -466,15 +472,19 @@ public class TextArea extends Widget {
      * not make the ruler hold it either.</b> One {@link ShapedText} kept per <em>painted</em> line
      * is the budget; one kept per line of the buffer is a second copy of a long document, and the
      * scrollbar's extent is the one question that has to look at every line. So the scan asks
-     * {@link TextRuler#scanWidth} and keeps nothing, at either end.
+     * {@link TextRuler#scanWidth} and keeps one float per line ({@link #lineWidths}), which is
+     * what lets an edit re-scan the lines it touched and nothing else; the strings themselves are
+     * kept at neither end.
      *
      * <p><b>{@code scanWidth} rather than {@code measure}, and the difference is the whole cost of
      * typing in a long document.</b> A shaping ruler answers {@code measure} by shaping into a
      * bounded memo, which is right for the strings a frame is about to paint and wrong for this
      * loop in every way a loop can be wrong for a cache: it touches every line, in the same cyclic
-     * order, so past the memo's depth it misses on every line every time; it re-runs on every
-     * keystroke, because {@link #invalidateContentWidth} drops the cache and the
-     * {@link #ensureCursorVisible} that follows the edit reads it straight back; and the memo is
+     * order, so past the memo's depth it misses on every line every time; it used to re-run on
+     * every keystroke, because every edit dropped the cache and the {@link #ensureCursorVisible}
+     * that follows the edit read it straight back (an edit now re-scans only the lines it
+     * replaced, see {@link #noteTextChanged}, and the whole scan is for a font or ruler change);
+     * and the memo is
      * process-wide, so on its way through it evicts the captions belonging to widgets that did
      * nothing, which then repaint cold. Measured on a 1000-line document, that is a whole
      * re-shaping of the document per character typed. A scan over text nobody is drawing must not
@@ -517,17 +527,67 @@ public class TextArea extends Widget {
         }
         Font f = t.body();
         TextMetrics probe = textRuler().measure(PROBE, f);
-        if (cachedContentWidth < 0 || !f.equals(cachedWidthFont) || !probe.equals(cachedWidthProbe)) {
+        if (cachedContentWidth < 0 || lineWidths == null || !f.equals(cachedWidthFont)
+                || !probe.equals(cachedWidthProbe)) {
             TextRuler ruler = textRuler();
+            int lines = model.lineCount();
+            float[] widths = new float[lines];
             float widest = 0;
-            for (int line = 0; line < model.lineCount(); line++) {
-                widest = Math.max(widest, ruler.scanWidth(model.lineText(line), f));
+            for (int line = 0; line < lines; line++) {
+                widths[line] = ruler.scanWidth(model.lineText(line), f);
+                widest = Math.max(widest, widths[line]);
             }
+            lineWidths = widths;
             cachedContentWidth = widest;
             cachedWidthFont = f;
             cachedWidthProbe = probe;
+            model.clearLineDamage();
         }
         return Math.max(cachedContentWidth, shapedWidthFloor);
+    }
+
+    /**
+     * Re-scans only the lines an edit replaced and keeps every other width, so that a keystroke
+     * costs one scan and not one per line of the document. The maximum is kept with it: an edit
+     * that did not touch the widest line can only raise it, and one that did is the rare case
+     * where the array is walked again, which is arithmetic over floats and asks the ruler nothing.
+     */
+    private void spliceLineWidths(TextEditModel.LineDamage damage) {
+        int first = damage.firstLine();
+        int removed = damage.oldLastLine() - first + 1;
+        int inserted = damage.newLastLine() - first + 1;
+        int lines = model.lineCount();
+        if (first < 0 || removed < 0 || inserted < 0 || first + removed > lineWidths.length
+                || lineWidths.length - removed + inserted != lines) {
+            // Damage that does not describe the array held: a full scan is always right.
+            cachedContentWidth = -1;
+            lineWidths = null;
+            return;
+        }
+        boolean widestRemoved = false;
+        for (int line = first; line < first + removed; line++) {
+            widestRemoved |= lineWidths[line] == cachedContentWidth;
+        }
+        float[] widths = new float[lines];
+        System.arraycopy(lineWidths, 0, widths, 0, first);
+        System.arraycopy(lineWidths, first + removed, widths, first + inserted,
+                lineWidths.length - first - removed);
+        TextRuler ruler = textRuler();
+        float widest = widestRemoved ? 0 : cachedContentWidth;
+        for (int line = first; line < first + inserted; line++) {
+            widths[line] = ruler.scanWidth(model.lineText(line), cachedWidthFont);
+            widest = Math.max(widest, widths[line]);
+        }
+        if (widestRemoved) {
+            for (int line = 0; line < first; line++) {
+                widest = Math.max(widest, widths[line]);
+            }
+            for (int line = first + inserted; line < lines; line++) {
+                widest = Math.max(widest, widths[line]);
+            }
+        }
+        lineWidths = widths;
+        cachedContentWidth = widest;
     }
 
     /**
@@ -2077,9 +2137,32 @@ public class TextArea extends Widget {
     }
 
     private void fireChange() {
-        invalidateContentWidth(); // text changed: widest line may differ
+        noteTextChanged(); // text changed: widest line may differ
         goalX = Float.NaN; // an edit ends a vertical run, exactly as it resets the model's column
         onChange.accept(model.text());
+    }
+
+    /**
+     * What an edit does to the horizontal extent. The shaped floor goes, as it must (see
+     * {@link #invalidateContentWidth}); the scanned widths are spliced rather than dropped when
+     * the model can say which lines moved. Unwrapped, this widget is the only reader of that
+     * damage and clears it; wrapping, the row map is, and nothing here is derived per line.
+     */
+    private void noteTextChanged() {
+        shapedWidthFloor = 0;
+        if (softWrap || lineWidths == null || cachedContentWidth < 0) {
+            cachedContentWidth = -1;
+            lineWidths = null;
+            return;
+        }
+        TextEditModel.LineDamage damage = model.lineDamage();
+        if (damage == null) {
+            cachedContentWidth = -1;
+            lineWidths = null;
+            return;
+        }
+        spliceLineWidths(damage);
+        model.clearLineDamage();
     }
 
     /**
@@ -2089,14 +2172,19 @@ public class TextArea extends Widget {
      */
     private void invalidateContentWidth() {
         cachedContentWidth = -1;
+        lineWidths = null;
         shapedWidthFloor = 0;
     }
 
-    /** Runs {@code edit}; fires onChange (and dirties the width cache) if the text changed. */
+    /**
+     * Runs {@code edit}; fires onChange (and dirties the width cache) if the text changed. Told
+     * by the model's version, not by copying the document out twice and comparing: that was two
+     * full copies per edit on every path through here, for a question the model already answers.
+     */
     private void fireIfChanged(Runnable edit) {
-        String before = model.text();
+        long before = model.textVersion();
         edit.run();
-        if (!before.equals(model.text())) {
+        if (model.textVersion() != before) {
             fireChange();
         }
     }

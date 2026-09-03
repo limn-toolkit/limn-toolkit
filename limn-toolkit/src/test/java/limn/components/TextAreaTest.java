@@ -476,9 +476,9 @@ class TextAreaTest extends ComponentTestBase {
      * What typing costs as a function of how much text the document holds: nothing, in the one
      * currency that matters.
      *
-     * <p>Every edit invalidates the widest-line cache and the {@code ensureCursorVisible} that
-     * follows reads it straight back, so the document is scanned once per character typed. That
-     * scan must not be a scan of <em>shapings</em>. A shaping ruler memoizes, and this loop is the
+     * <p>Every edit used to invalidate the widest-line cache, and the {@code ensureCursorVisible}
+     * that follows read it straight back, so the document was scanned once per character typed.
+     * That scan must not be a scan of <em>shapings</em>. A shaping ruler memoizes, and this loop is the
      * worst client a memo can have: it walks every line in the same cyclic order, so past the
      * memo's depth it misses on every line every time, and the memo is process-wide, so it evicts
      * the captions of widgets that did nothing and they repaint cold. Measured on the shipping
@@ -487,8 +487,10 @@ class TextAreaTest extends ComponentTestBase {
      *
      * <p>So the assertion is an equality and not a threshold: a keystroke in a 1000-line document
      * hands the ruler exactly as many strings to shape as one in a 100-line document, because what
-     * gets shaped is what gets <em>drawn</em>. The scan is still O(lines) and still runs, which the
-     * second half checks &mdash; it has moved to the cheap question, not disappeared.
+     * gets shaped is what gets <em>drawn</em>. The scan, once the cheap question, then stopped
+     * being a scan of the document at all: the widths are kept per line and an edit re-scans the
+     * lines it touched, which the second half checks &mdash; one scan per keystroke, whatever the
+     * document holds.
      */
     @Test
     void typingDoesNotReshapeTheDocumentItIsTypedInto() {
@@ -501,8 +503,11 @@ class TextAreaTest extends ComponentTestBase {
         assertTrue(large.shapes() < 100,
                 "even the short document is being scanned through the shaper");
 
-        assertTrue(large.scans() >= 1000 && small.scans() >= 100,
-                "the widest-line scan stopped happening; the extent is no longer the widest line");
+        assertEquals(small.scans(), large.scans(),
+                "a keystroke scanned more lines in the longer document: the widest-line scan is "
+                        + "walking the document again");
+        assertTrue(large.scans() >= 1 && large.scans() <= 2,
+                "a keystroke scans the line it edited, not the document: " + large.scans());
     }
 
     /**
