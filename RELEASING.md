@@ -10,7 +10,10 @@ how they are kept in agreement, and why the automation stops where it stops.
 bumped entry on `main` is what releases it: the `tag-releases` workflow tags that commit
 `v<version>` and starts `publish`. Nothing else in the tree carries the version:
 `build.gradle.kts` reads `-PlimnVersion` from the workflow and otherwise says the `-SNAPSHOT` of
-that same file, so a working clone is always one step ahead of the last release; the
+that same file. Because the bump IS the release, that snapshot carries the number of the last
+release (or of the one about to land), not of the next one — and Maven orders `0.6.0-SNAPSHOT`
+*below* `0.6.0`, so a consumer must pin an exact version: a range or `latest` resolves to the
+release, never to the snapshot that is newer in time. The
 documentation writes **placeholders** — `x.y.z` in the READMEs, which GitHub renders raw and
 whose Maven Central badge says the current number, and `{{version}}` in the guides, which the
 site fills in at deploy time from the release it documents — and `scripts/check-versions.sh`

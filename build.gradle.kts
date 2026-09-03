@@ -18,11 +18,13 @@ plugins {
     alias(libs.plugins.central.publish) apply false
 }
 
-// The version the next release carries, from versions.properties — the one file that names it.
-// The release itself arrives as -PlimnVersion from the publish workflow (which took it from the
-// tag, which tag-releases made from that same file); a working clone reads the -SNAPSHOT of it,
-// which is also what publishToMavenLocal wants, and is ahead of the last release rather than
-// behind it.
+// The version a release carries, from versions.properties — the one file that names it. The
+// release itself arrives as -PlimnVersion from the publish workflow (which took it from the tag,
+// which tag-releases made from that same file); a working clone reads the -SNAPSHOT of it, which
+// is also what publishToMavenLocal wants. Because landing the bump IS the release, that snapshot
+// carries the LAST release's number (or the one about to land), not the next one's, and Maven
+// orders 0.6.0-SNAPSHOT below 0.6.0: a consumer that wants the snapshot has to pin it exactly,
+// and one that resolves a range or `latest` gets the release, never the snapshot.
 val nextVersion = java.util.Properties().apply {
     file("versions.properties").inputStream().use { load(it) }
 }.getProperty("limn-toolkit") ?: throw GradleException("versions.properties names no limn-toolkit version")
