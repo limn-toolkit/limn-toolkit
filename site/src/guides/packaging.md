@@ -15,13 +15,15 @@ Two things beyond your own code:
 2. **A JDK 17 or newer**, unless you are confident your users already have one. Bundling it
    is usually the right answer for a desktop application.
 
-If you use the optional FFmpeg video decoder, its native libraries also ride inside the
-`limn-video-ffmpeg` jar, for the same desktop targets as the backend's own natives, so MP4
-playback needs no extra step on any of them, and where a slice is missing the decoder reports
-itself unavailable and the rest of the application is unaffected. Those libraries are a
+If you use the optional FFmpeg video decoder, its native libraries are a separate artifact,
+`limn-ffmpeg-natives`, one `natives-<os>-<arch>` classifier per desktop target, and again the
+dependency block you develop with is the one you ship: name the classifier for the machine you
+build for, or `limn-video-ffmpeg-natives-all` for a bundle that goes everywhere
+([Images and media](/docs/images-and-media/) shows both). Where a slice is missing the decoder
+reports itself unavailable and the rest of the application is unaffected. Those libraries are a
 trimmed FFmpeg under the LGPL, version 2.1 or later, dynamically linked and replaceable,
-which is what that licence asks. The jar carries the licence text and the notice that
-shipping them requires, so a distribution that includes the jar has already shipped both. If
+which is what that licence asks. Each jar carries the licence text and the notice that
+shipping them requires, so a distribution that includes it has already shipped both. If
 you would rather distribute no FFmpeg at all, leave the module out: nothing depends on it, and
 every other media format keeps working.
 
