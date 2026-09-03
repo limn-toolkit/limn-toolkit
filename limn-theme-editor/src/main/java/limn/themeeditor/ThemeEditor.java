@@ -219,6 +219,16 @@ public final class ThemeEditor extends Widget {
     @Override
     protected void onAttached() {
         Fonts.addChangeListener(fontCatalogListener);
+        // A change that landed while this editor was off screen reached nobody: the listener was
+        // not subscribed. That is the ordinary shape of the background enumeration, which is
+        // kicked by the first listing (this editor's construction) and lands some frames later,
+        // possibly after a settings page has been closed again; an editor that only subscribed
+        // here would reopen offering the bundled families for the life of the process. Compared
+        // rather than rebuilt unconditionally so the first attach, and every attach where nothing
+        // moved, leaves the control the constructor built in place.
+        if (!offeredFamilies().equals(fontFamilies)) {
+            rebuildFontChoice();
+        }
     }
 
     @Override
@@ -446,6 +456,19 @@ public final class ThemeEditor extends Widget {
         return cornerSlider;
     }
 
+    /**
+     * The font control as it stands, so a test can tell a rebuilt picker from the one it had.
+     * A new instance each time the catalog moves; see {@link #fontRow}.
+     */
+    ComboBox fontChoice() {
+        return fontChoice;
+    }
+
+    /** The families the picker offers, in its order, so a test reads the catalog through the control. */
+    List<String> offeredFontFamilies() {
+        return fontFamilies;
+    }
+
     /** The number beside the shape slider, so a test can read what it is showing. */
     Label cornerReadout() {
         return cornerReadout;
@@ -642,20 +665,12 @@ public final class ThemeEditor extends Widget {
      *
      * <p>Runs on every catalog change, which in practice is twice: once at construction against
      * the bundled families, and once when the background enumeration of the operating system
-     * lands. Anything the user has chosen in between survives, because the selection is written
-     * back from the builder rather than from the old control.
+     * lands, or, if the editor was off screen at that moment, when it is next attached. Anything
+     * the user has chosen in between survives, because the selection is written back from the
+     * builder rather than from the old control.
      */
     private void rebuildFontChoice() {
-        List<String> families = new ArrayList<>();
-        families.add(Font.DEFAULT_FAMILY);
-        families.addAll(Fonts.available());
-        String chosen = builder.fontFamily();
-        if (!families.contains(chosen)) {
-            // A palette naming a family this machine lacks still has to be representable in the
-            // control, or opening the file would silently rewrite the palette to the default.
-            families.add(chosen);
-        }
-        fontFamilies = List.copyOf(families);
+        fontFamilies = offeredFamilies();
 
         List<I18nString> items = new ArrayList<>(fontFamilies.size());
         for (String family : fontFamilies) {
@@ -678,6 +693,23 @@ public final class ThemeEditor extends Widget {
         fontRow.add(Expanded.of(fontChoice, 1));
         fontRow.add(fontNote.setMuted(true));
         syncFontControl();
+    }
+
+    /**
+     * What the picker should be offering right now: the default, then the catalog as it stands,
+     * then the palette's own family if the catalog lacks it. A palette naming a family this
+     * machine does not have still has to be representable in the control, or opening the file
+     * would silently rewrite the palette to the default.
+     */
+    private List<String> offeredFamilies() {
+        List<String> families = new ArrayList<>();
+        families.add(Font.DEFAULT_FAMILY);
+        families.addAll(Fonts.available());
+        String chosen = builder.fontFamily();
+        if (!families.contains(chosen)) {
+            families.add(chosen);
+        }
+        return List.copyOf(families);
     }
 
     /** Writes the picker and its note from the builder, without reading either back as an edit. */
