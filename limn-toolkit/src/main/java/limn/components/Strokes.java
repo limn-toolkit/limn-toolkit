@@ -189,7 +189,9 @@ public final class Strokes {
 
     /**
      * Scrollbar chrome breathing room, and what keeps {@code thickness() = WIDE + 4}
-     * trivial. Its uses must move in lockstep or dragging desynchronises from painting.
+     * trivial. {@code ScrollBar} reads it for both its track geometry and its drag
+     * arithmetic, which is what keeps the two in lockstep: a bar that painted with one
+     * margin and dragged with another would put the thumb a pixel away from the pointer.
      */
     public static final float SCROLLBAR_MARGIN = 2;
 

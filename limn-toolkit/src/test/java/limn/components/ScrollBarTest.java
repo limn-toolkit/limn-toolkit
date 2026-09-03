@@ -77,4 +77,14 @@ class ScrollBarTest extends ComponentTestBase {
         scene.inputBatchEnded();
         assertEquals(0, model.offset, "a hidden bar ignores clicks");
     }
+
+    @Test
+    void theTrackMarginIsTheToolkitConstant() {
+        // ADR 002 recorded that Strokes.SCROLLBAR_MARGIN was declared and read by nobody while
+        // ScrollBar kept a private twin that agreed by coincidence. The bar reads the constant
+        // now; this pins the value every screenshot was baselined on.
+        assertEquals(2f, Strokes.SCROLLBAR_MARGIN, 0f);
+        assertTrue(ScrollBar.thickness() > 2 * Strokes.SCROLLBAR_MARGIN,
+                "the margin is what the track thickness carries on both sides");
+    }
 }

@@ -70,7 +70,8 @@ public class ScrollBar extends Widget {
 
     private static final float THIN = 5;
     private static final float WIDE = 11;
-    private static final float MARGIN = 2;
+    /** Breathing room around the track, the toolkit-wide constant so painting and dragging agree. */
+    private static final float MARGIN = Strokes.SCROLLBAR_MARGIN;
     private static final float MIN_THUMB = 28;
     private static final double WIDTH_SECONDS = 0.10;
     private static final double FADE_IN_SECONDS = 0.09;
