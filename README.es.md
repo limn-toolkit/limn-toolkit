@@ -263,6 +263,11 @@ probó, como cualquier otra dependencia — las pruebas y la demo reproducen ví
 en local. Las pruebas de escritura necesitan un codificador que nada de lo publicado lleva; una
 compilación `full` en un clon hermano de ese repositorio se detecta automáticamente.
 
+Trabajar en el toolkit en sí empieza por [`docs/design/README.md`](docs/design/README.md): dice qué
+corresponde a un Javadoc, a un ADR y a una nota de diseño, e indexa las notas por subsistema. El
+sitio web es un consumidor de este repositorio, con una compilación propia, descrita en
+[`docs/design/website.md`](docs/design/website.md).
+
 ## Licencia
 
 [Apache-2.0](LICENSE), con concesión explícita de patentes. Los componentes incluidos y sus propias

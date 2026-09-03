@@ -257,6 +257,11 @@ other dependency — the tests and the demo play video with nothing built locall
 need an encoder nothing published carries; a `full` build in a sibling clone of that repository is
 picked up automatically.
 
+Working on the toolkit itself starts at [`docs/design/README.md`](docs/design/README.md): it says
+what belongs in a Javadoc, in an ADR and in a design note, and indexes the notes by subsystem. The
+website is a consumer of this repository with a build of its own, described in
+[`docs/design/website.md`](docs/design/website.md).
+
 ## License
 
 [Apache-2.0](LICENSE), with an explicit patent grant. The bundled components and their own

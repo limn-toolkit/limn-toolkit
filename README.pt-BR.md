@@ -262,6 +262,11 @@ qualquer outra dependência — os testes e a demo reproduzem vídeo sem nada co
 testes de escrita precisam de um encoder que nada do que é publicado carrega; um build `full` em um
 clone irmão daquele repositório é detectado automaticamente.
 
+Trabalhar no toolkit em si começa por [`docs/design/README.md`](docs/design/README.md): ele diz o
+que pertence a um Javadoc, a um ADR e a uma nota de design, e indexa as notas por subsistema. O
+site é um consumidor deste repositório, com um build próprio, descrito em
+[`docs/design/website.md`](docs/design/website.md).
+
 ## Licença
 
 [Apache-2.0](LICENSE), com concessão explícita de patentes. Os componentes embarcados e suas

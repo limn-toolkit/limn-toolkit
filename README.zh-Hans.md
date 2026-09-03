@@ -204,6 +204,8 @@ macOS 的开关和上面一样。它存下来的是纯数据，你的应用用 `
 
 MP4 播放需要一份**不在**本仓库里的原生载荷：它是 [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) 构件，版本跟着 FFmpeg 走，构建会像对待其他任何依赖一样，从 Maven Central 解析出它测试时所用的版本——测试和演示程序在本地什么都不用构建就能播放视频。写入端的测试需要一个已发布的任何构件都不带的编码器；在旁边克隆那个仓库并做一次 `full` 构建，就会被自动拾取。
 
+要改动工具包本身，从 [`docs/design/README.md`](docs/design/README.md) 开始：它说明什么该写进 Javadoc、什么该写进 ADR、什么该写进设计笔记，并按子系统给笔记编了索引。网站是本仓库的一个消费者，有自己的一套构建，写在 [`docs/design/website.md`](docs/design/website.md) 里。
+
 ## 许可
 
 [Apache-2.0](LICENSE)，含明确的专利授权。随附的组件及其各自的许可列在 [`NOTICE`](NOTICE) 中；FFmpeg 解码器采用 LGPL-2.1-或更高版本，许可证文本随它的 jar 一起提供。

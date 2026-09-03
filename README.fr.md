@@ -268,6 +268,11 @@ comme n’importe quelle autre dépendance — les tests et la démo lisent la v
 localement. Les tests d’écriture ont besoin d’un encodeur qu’aucune publication n’embarque ; une
 compilation `full` dans un clone voisin de ce dépôt est reprise automatiquement.
 
+Travailler sur le toolkit lui-même commence par [`docs/design/README.md`](docs/design/README.md) :
+il dit ce qui relève d’une Javadoc, d’un ADR et d’une note de conception, et indexe les notes par
+sous-système. Le site web est un consommateur de ce dépôt, avec un build qui lui est propre, décrit
+dans [`docs/design/website.md`](docs/design/website.md).
+
 ## Licence
 
 [Apache-2.0](LICENSE), avec une concession de brevets explicite. Les composants embarqués et leurs

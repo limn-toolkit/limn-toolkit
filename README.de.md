@@ -267,6 +267,11 @@ Abhängigkeit von Maven Central auf — die Tests und die Demo spielen Video ab,
 gebaut wird. Die Writer-Tests brauchen einen Encoder, den nichts Veröffentlichtes enthält; ein
 `full`-Build in einem Geschwister-Klon jenes Repositorys wird automatisch aufgegriffen.
 
+Wer am Toolkit selbst arbeitet, beginnt bei [`docs/design/README.md`](docs/design/README.md): Es
+sagt, was in ein Javadoc, in ein ADR und in eine Design-Notiz gehört, und verzeichnet die Notizen
+nach Subsystem. Die Website ist ein Konsument dieses Repositorys mit einem eigenen Build,
+beschrieben in [`docs/design/website.md`](docs/design/website.md).
+
 ## Lizenz
 
 [Apache-2.0](LICENSE), mit einer ausdrücklichen Patentgewährung. Die mitgelieferten Komponenten
