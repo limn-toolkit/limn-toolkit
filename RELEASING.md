@@ -133,6 +133,37 @@ git clone https://github.com/limn-toolkit/limn-ffmpeg-natives ../limn-ffmpeg-nat
 — or point `-PlimnFfmpegNatives=<dir>` at one built elsewhere. Without it the writer tests skip
 and everything else runs.
 
+## What the build is allowed to download
+
+Two files say it, and a release runs on a machine that trusts nothing else.
+`gradle/wrapper/gradle-wrapper.properties` carries `distributionSha256Sum`, so the wrapper
+refuses a Gradle distribution whose bytes are not the published ones, and
+`gradle/verification-metadata.xml` carries a SHA-256 for every artifact any task here resolves
+— the libraries, their natives for all six targets, the fonts, the payload, the icon pack, the
+test framework and the publishing plugin with everything it pulls. A jar that does not match is
+a failed build, not a warning: a compromised mirror or a re-uploaded artifact stops in front of
+`check`, not after a signed bundle has left for Central. The same reason every `uses:` in the
+workflows names a commit rather than a tag.
+
+**Changing a dependency** therefore has a second step, and the failure names it: bump the
+catalog (or the wrapper), then regenerate the entry —
+
+```
+./gradlew --write-verification-metadata sha256 check :limn-demo:fatJar aggregateJavadoc \
+    :limn-demo:exportThemeTokens publishAllPublicationsToBuildDirRepository
+```
+
+— and read the diff before committing it. The task list is every entry point the workflows run,
+because Gradle records what the build resolved and nothing more: a task left out is a
+configuration whose artifacts are not in the file, and CI finds that out the day it runs one.
+Existing entries are kept, so a regeneration only ever adds; remove the stale component by hand
+when a version is retired. A Dependabot pull request that bumps the catalog needs this run on
+top before it is green.
+
+For a new **Gradle version**, the wrapper's checksum is the one published at
+<https://gradle.org/release-checksums/> for the `-bin.zip`, copied by hand, never by a script
+that fetches it from the same place it fetches the distribution.
+
 ## What is not published
 
 `limn-demo`: it is the kitchen sink and the verification scenes, not a library, and publishing it
