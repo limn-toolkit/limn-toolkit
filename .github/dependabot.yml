@@ -1,0 +1,24 @@
+# What keeps the pins in the workflows from becoming permanent.
+#
+# Every `uses:` in .github/workflows names a commit, not a tag, so a tag moved under a
+# compromised action cannot reach a run here — and so nothing moves on its own, which is the
+# other half of that decision. This is the half that moves things: a pull request per update,
+# with the SHA and the version comment beside it rewritten together, that the ci workflow
+# builds like any other change before anyone merges it. Weekly, because an action release is
+# rarely urgent and a daily stream of one-line pull requests is how a review stops happening.
+#
+# Gradle too, for the same reason and the same file: gradle/libs.versions.toml pins the
+# toolkit's dependencies exactly (the fonts, the FFmpeg payload and the icon pack among
+# them), and a bump there is a review — VendoredFontsTest, the codec-breadth and licence tests
+# say what changed — that is easier to have when it arrives as a pull request than when
+# somebody remembers to look.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
