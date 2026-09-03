@@ -110,8 +110,12 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
     private boolean failed;
     private boolean closed;
     private Thread streamThread;
-    private short[] streamScratch;
-    private ShortBuffer streamUpload; // direct scratch for alBufferData, reused
+    /**
+     * The direct staging buffer every {@code alBufferData} reads from. Touched only under the
+     * monitor (priming in {@link #playStream}, phase C and the seek refill), which is what makes
+     * one shared buffer safe where one shared decode scratch was not: see {@link Stream#scratch}.
+     */
+    private ShortBuffer streamUpload;
 
     @Override
     public synchronized Playback play(AudioClip clip, float gain, boolean loop) {
@@ -484,15 +488,15 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
             alSource = alGenSources();
             Stream stream = new Stream(alSource, source, channels,
                     source.sampleRate(), options);
-            ensureStreamScratch();
+            ensureStreamUpload();
             for (int i = 0; i < STREAM_BUFFERS; i++) {
-                int frames = readChunk(stream);
+                int frames = readChunk(stream, stream.scratch);
                 if (frames <= 0) {
                     break;
                 }
                 int buffer = alGenBuffers();
                 queuedBuffers[queued++] = buffer;
-                uploadChunk(stream, buffer, frames);
+                uploadChunk(stream, buffer, stream.scratch, frames);
                 alSourceQueueBuffers(stream.source, buffer);
                 stream.framesInBuffer.put(buffer, frames);
             }
@@ -535,11 +539,10 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
     /**
      * Chunk buffers lent to a decode and taken back once it has been uploaded.
      *
-     * <p>A refill decodes into {@code streamScratch} and then copies out, because the scratch is
-     * reused across the jobs of one pass, so the copy needs somewhere to land. Allocating that
-     * somewhere per chunk was 32&nbsp;KB of garbage roughly six times a second per playing
-     * stream, for the whole duration of playback: a track left running is a steady quarter of a
-     * megabyte per second of nothing.
+     * <p>A refill decodes straight into the borrowed chunk, which then rides the job into the
+     * upload. Allocating that chunk per refill was 32&nbsp;KB of garbage roughly six times a
+     * second per playing stream, for the whole duration of playback: a track left running is a
+     * steady quarter of a megabyte per second of nothing.
      *
      * <p>Touched only by the service thread, which is the one that decodes, uploads and returns.
      *
@@ -568,16 +571,22 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         }
     }
 
-    private void ensureStreamScratch() {
-        if (streamScratch == null) {
-            streamScratch = new short[STREAM_CHUNK_FRAMES * 2];
+    private void ensureStreamUpload() {
+        if (streamUpload == null) {
             streamUpload = MemoryUtil.memAllocShort(STREAM_CHUNK_FRAMES * 2);
         }
     }
 
-    /** Reads one chunk, rewinding once at end-of-data when looping. */
-    private int readChunk(Stream stream) {
-        int frames = stream.decoder.readFrames(streamScratch, STREAM_CHUNK_FRAMES);
+    /**
+     * Reads one chunk into {@code out}, rewinding once at end-of-data when looping.
+     *
+     * <p>The destination is the caller's, never a field: a refill lands in the chunk it borrowed,
+     * priming and seeks land in the stream's own scratch. The one array this class used to decode
+     * everything into was written by the priming caller and by the service thread's unlocked
+     * phase at the same time, and two tracks started a moment apart traded samples through it.
+     */
+    private int readChunk(Stream stream, short[] out) {
+        int frames = stream.decoder.readFrames(out, STREAM_CHUNK_FRAMES);
         if (frames <= 0 && stream.loop) {
             // First end-of-data reveals the track length; positionSeconds
             // wraps by it so a looping stream reports in-track time.
@@ -585,7 +594,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
                 stream.loopLengthFrames = stream.framesDelivered;
             }
             stream.decoder.reset();
-            frames = stream.decoder.readFrames(streamScratch, STREAM_CHUNK_FRAMES);
+            frames = stream.decoder.readFrames(out, STREAM_CHUNK_FRAMES);
         }
         if (frames > 0) {
             stream.framesDelivered += frames;
@@ -593,9 +602,9 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         return frames;
     }
 
-    private void uploadChunk(Stream stream, int buffer, int frames) {
+    private void uploadChunk(Stream stream, int buffer, short[] pcm, int frames) {
         streamUpload.clear();
-        streamUpload.put(streamScratch, 0, frames * stream.channels).flip();
+        streamUpload.put(pcm, 0, frames * stream.channels).flip();
         alBufferData(buffer,
                 stream.channels == 1 ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16,
                 streamUpload, stream.sampleRate);
@@ -666,15 +675,17 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
             applySeeks(seeking);
             // Phase B, UNLOCKED: decoding is file I/O + codec work; a slow
             // disk must not stall play()/mixer calls on the UI thread. Safe
-            // without the lock: each decoder is touched only by this thread
-            // after start (stop() merely flags; reaping happens back here).
+            // without the lock because everything it touches is this thread's
+            // alone: each decoder after its start (stop() merely flags; reaping
+            // happens back here, or in close() after this thread has exited),
+            // the chunk pool, and the borrowed chunk the decode lands in. A
+            // caller priming a new track meanwhile writes its own stream's
+            // scratch, not anything on this path.
             for (RefillJob job : jobs) {
                 try {
-                    int frames = readChunk(job.stream);
+                    job.pcm = borrowChunk();
+                    int frames = readChunk(job.stream, job.pcm);
                     if (frames > 0) {
-                        job.pcm = borrowChunk();
-                        System.arraycopy(streamScratch, 0, job.pcm, 0,
-                                frames * job.stream.channels);
                         job.frames = frames;
                     }
                 } catch (Throwable error) {
@@ -721,7 +732,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
             try {
                 stream.decoder.seek(job.micros);
                 for (; chunks < STREAM_BUFFERS; chunks++) {
-                    int read = readChunk(stream);
+                    int read = readChunk(stream, stream.scratch);
                     if (read <= 0) {
                         break; // seeked past the end of the track; it drains and is reaped
                     }
@@ -731,7 +742,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
                     // in a method that decodes unlocked and uploads locked, which is a lot of
                     // exposure in this file to save an allocation nobody can measure.
                     pcm[chunks] = new short[read * stream.channels];
-                    System.arraycopy(streamScratch, 0, pcm[chunks], 0, pcm[chunks].length);
+                    System.arraycopy(stream.scratch, 0, pcm[chunks], 0, pcm[chunks].length);
                     frames[chunks] = read;
                 }
             } catch (Throwable error) {
@@ -851,6 +862,15 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
 
     /** Stops, frees and closes stream {@code i} (idempotent per stream). */
     private void reapStream(int index, Stream stream) {
+        reapStream(index, stream, true);
+    }
+
+    /**
+     * {@link #reapStream(int, Stream)}, with the decoder left open when the service thread may
+     * still be inside it: the AL half is safe to take away under the monitor (that thread never
+     * touches AL without it), the decoder half is not.
+     */
+    private void reapStream(int index, Stream stream, boolean closeDecoder) {
         stream.finished = true;
         streams.remove(index);
         try {
@@ -863,7 +883,12 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         } catch (Throwable error) {
             LOG.log(Level.DEBUG, "stream cleanup failed", error);
         }
-        closeQuietly(stream.decoder);
+        if (closeDecoder) {
+            closeQuietly(stream.decoder);
+        } else {
+            LOG.log(Level.WARNING, "stream decoder left open: the service thread is still "
+                    + "decoding from it at shutdown");
+        }
     }
 
     private static void closeQuietly(AudioStreamSource source) {
@@ -876,12 +901,43 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
 
     // --------------------------------------------------------------- shutdown
 
+    /**
+     * Shutdown in three steps whose order is the point. First the monitor is taken only long
+     * enough to mark the engine closed and take the service thread's handle; then that thread is
+     * interrupted and joined, outside the monitor because it needs the monitor to observe the
+     * flag and leave; and only once it has left are the decoders closed and the device torn
+     * down. Closing the decoders first, under the monitor, looked orderly and was a use after
+     * free: the service thread decodes with the monitor released, and a stream's decoder being
+     * closed under it (a Vorbis handle freed, its encoded bytes returned) while it was inside a
+     * native read was a crash on exit with a track playing.
+     *
+     * <p>A thread that has not left by the deadline keeps its decoders: they leak, which is
+     * logged, rather than being pulled from under a read that is still running.
+     */
     @Override
     public void close() {
         Thread thread;
         synchronized (this) {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            thread = streamThread;
+            streamThread = null;
+        }
+        boolean serviceThreadGone = true;
+        if (thread != null) {
+            thread.interrupt();
+            try {
+                thread.join(500);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            serviceThreadGone = !thread.isAlive();
+        }
+        synchronized (this) {
             for (int i = streams.size() - 1; i >= 0; i--) {
-                reapStream(i, streams.get(i));
+                reapStream(i, streams.get(i), serviceThreadGone);
             }
             for (Voice voice : voices) {
                 alDeleteSources(voice.source);
@@ -892,13 +948,9 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
             }
             bufferByClip.clear();
             clipOrder.clear();
-            closed = true;
-            thread = streamThread;
-            streamThread = null;
             if (streamUpload != null) {
                 MemoryUtil.memFree(streamUpload);
                 streamUpload = null;
-                streamScratch = null;
             }
             if (context != 0L) {
                 alcMakeContextCurrent(0L);
@@ -910,16 +962,6 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
                 device = 0L;
             }
             initialized = false;
-        }
-        // Join OUTSIDE the monitor: the service thread needs it to observe
-        // 'closed' and exit; joining while holding it would deadlock.
-        if (thread != null) {
-            thread.interrupt();
-            try {
-                thread.join(500);
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-            }
         }
     }
 
@@ -949,6 +991,13 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         final boolean loop;
         final boolean positional;
         final Map<Integer, Integer> framesInBuffer = new HashMap<>();
+        /**
+         * Where this stream's priming and seek decodes land. Priming runs on the caller's thread
+         * before the stream is in {@link #streams}, seeks on the service thread after; nothing
+         * else reads it, so the two never meet. Refills do not use it: they decode into the chunk
+         * they borrowed, on the service thread alone.
+         */
+        final short[] scratch = new short[STREAM_CHUNK_FRAMES * 2];
         float playGain;
         AudioBus bus;
         long completedFrames;   // frames fully played (dequeued)
