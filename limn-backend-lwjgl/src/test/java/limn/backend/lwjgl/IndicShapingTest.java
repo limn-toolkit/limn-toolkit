@@ -245,8 +245,11 @@ class IndicShapingTest {
             // reports success for the wrong tag. Nothing logs, nothing throws, nothing returns
             // false. Only the glyphs are different, and only for scripts that need a shaper — the
             // Latin in the same build would look untouched.
-            assertTrue(HarfBuzzShaper.shapeRun(handle, HINDI, 0, HINDI.length(), lowercase, false,
-                    scale, new HarfBuzzShaper.Output()), "the wrong tag succeeds, loudly nowhere");
+            try (HarfBuzzShaper.Session session = new HarfBuzzShaper.Session()) {
+                assertTrue(HarfBuzzShaper.shapeRun(handle, session, HINDI, 0, HINDI.length(),
+                        lowercase, false, scale, new HarfBuzzShaper.Output()),
+                        "the wrong tag succeeds, loudly nowhere");
+            }
         }
     }
 
@@ -478,8 +481,10 @@ class IndicShapingTest {
     private static HarfBuzzShaper.Output shaped(HarfBuzzShaper.Handle handle, String text,
                                                 int scriptTag, float scale) {
         HarfBuzzShaper.Output out = new HarfBuzzShaper.Output();
-        assertTrue(HarfBuzzShaper.shapeRun(handle, text, 0, text.length(), scriptTag, false, scale,
-                out), "the shaper declined the run");
+        try (HarfBuzzShaper.Session session = new HarfBuzzShaper.Session()) {
+            assertTrue(HarfBuzzShaper.shapeRun(handle, session, text, 0, text.length(), scriptTag,
+                    false, scale, out), "the shaper declined the run");
+        }
         return out;
     }
 

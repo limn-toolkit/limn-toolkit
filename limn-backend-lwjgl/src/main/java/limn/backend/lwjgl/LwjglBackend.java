@@ -73,7 +73,7 @@ public final class LwjglBackend implements Backend {
     private final FontStore fontStore;
     private limn.graphics.FontCatalog fontCatalog;
     private limn.graphics.FontLoader fontLoader;
-    private final limn.graphics.TextRuler textRuler;
+    private final ShapingRuler textRuler;
     private final limn.graphics.ImageDecoder imageDecoder;
     private final limn.graphics.SvgRasterizer svgRasterizer = new NanoSvgRasterizer();
     // Stateless router → the current window's per-context Gl3DContext (owned by its GlCanvas).
@@ -795,6 +795,7 @@ public final class LwjglBackend implements Backend {
         Sounds.uninstallDecoder(audioDecoder);
         audio.close();
         uiRuntime.close();
+        textRuler.close(); // its native shaping buffers, before the store it shaped from
         fontStore.close();
         for (Long handle : cursors.values()) {
             glfwDestroyCursor(handle); // glfwDestroyCursor(NULL) is a documented no-op

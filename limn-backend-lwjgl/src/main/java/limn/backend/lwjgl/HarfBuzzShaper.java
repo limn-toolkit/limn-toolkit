@@ -3,6 +3,8 @@ package limn.backend.lwjgl;
 import org.lwjgl.util.harfbuzz.hb_glyph_info_t;
 import org.lwjgl.util.harfbuzz.hb_glyph_position_t;
 
+import org.lwjgl.system.MemoryUtil;
+
 import java.nio.ByteBuffer;
 import java.util.Map;
 
@@ -41,7 +43,7 @@ import static org.lwjgl.util.harfbuzz.HarfBuzz.HB_SCRIPT_TIBETAN;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.HB_SCRIPT_UNKNOWN;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_blob_create;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_blob_destroy;
-import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_buffer_add_utf16;
+import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_buffer_clear_contents;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_buffer_create;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_buffer_destroy;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_buffer_get_glyph_infos;
@@ -56,6 +58,7 @@ import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_font_create;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_font_destroy;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_font_set_scale;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_shape;
+import static org.lwjgl.util.harfbuzz.HarfBuzz.nhb_buffer_add_utf16;
 
 /**
  * The one place in this repository that knows what HarfBuzz is. Everything above the backend
@@ -243,6 +246,96 @@ final class HarfBuzzShaper {
     // ------------------------------------------------------------------ shaping
 
     /**
+     * What one ruler shapes <em>through</em>: one {@code hb_buffer} and one native copy of the
+     * paragraph, both kept for the life of the ruler and reused by every run it shapes.
+     *
+     * <p><b>Why a session and not a fresh buffer per run.</b> A line is shaped run by run, and a
+     * mixed Arabic/Latin line is five to ten runs. Creating and destroying a buffer per run was a
+     * malloc pair per run, and handing the {@code CharSequence} overload the whole paragraph as
+     * context per run made LWJGL re-encode the whole paragraph to native UTF-16 <em>per run</em>:
+     * ten runs, ten copies of the same characters, on every memo miss. The context has to be the
+     * whole paragraph &mdash; that is what keeps an Arabic word joined across a run boundary the
+     * itemizer drew for a font change, and what makes clusters come back as offsets into the whole
+     * string &mdash; so the saving is to encode it once and point every run at the same bytes.
+     *
+     * <p><b>UI-thread confined, like the ruler that owns it</b>, and for the same reason the memo
+     * is: nothing here is synchronized. The buffer and the native copy are freed with the ruler;
+     * a ruler nobody closes leaks one small buffer, not one per run.
+     */
+    static final class Session implements AutoCloseable {
+
+        /** Enough native bytes for a caption without a resize; a document line grows it once. */
+        private static final int INITIAL_BYTES = 256;
+
+        // The hb_buffer, made on the first run and cleared between runs rather than remade. 0
+        // until then, and 0 again if HarfBuzz would not make one.
+        private long buffer;
+
+        // The paragraph as native UTF-16, and WHICH paragraph, by identity. A String never
+        // changes, so the same reference is the same bytes, and the runs of one shaping all arrive
+        // with the same reference: the first encodes, the rest find it there. Comparing by
+        // equality instead would cost a walk as long as the encode it saves.
+        private ByteBuffer utf16;
+        private String encoded;
+
+        private boolean closed;
+
+        // Read by the test that pins the cost model: one buffer for the session, one encode per
+        // paragraph, however many runs. Package-private counters rather than a seam, because the
+        // seam would have to stand between this class and HarfBuzz, and there is nothing to put
+        // there that is not HarfBuzz.
+        int buffersCreated;
+        int encodes;
+
+        /** The buffer to shape into, or 0 when HarfBuzz would not make one or this is closed. */
+        private long buffer() {
+            if (buffer == 0 && !closed) {
+                buffer = hb_buffer_create();
+                if (buffer != 0) {
+                    buffersCreated++;
+                }
+            }
+            return buffer;
+        }
+
+        /**
+         * The address of {@code text} as native UTF-16, encoded now if this session holds some
+         * other paragraph and found otherwise.
+         */
+        private long address(String text) {
+            if (text != encoded) {
+                int needed = Math.max(2, text.length() * 2);
+                if (utf16 == null) {
+                    utf16 = MemoryUtil.memAlloc(Math.max(INITIAL_BYTES, needed));
+                } else if (utf16.capacity() < needed) {
+                    utf16 = MemoryUtil.memRealloc(utf16, Math.max(needed, utf16.capacity() * 2));
+                }
+                MemoryUtil.memUTF16(text, false, utf16);
+                encoded = text;
+                encodes++;
+            }
+            return MemoryUtil.memAddress(utf16);
+        }
+
+        @Override
+        public void close() {
+            if (closed) {
+                return; // idempotent, as every native owner in this package is
+            }
+            closed = true;
+            if (buffer != 0) {
+                hb_buffer_destroy(buffer);
+                buffer = 0;
+            }
+            if (utf16 != null) {
+                MemoryUtil.memFree(utf16);
+                utf16 = null;
+            }
+            encoded = null;
+        }
+    }
+
+    /**
      * Where one shaped run lands: parallel arrays, grown in place and reused across runs and
      * across calls, because a shaper that allocated per run would allocate per string per frame
      * for the callers that cannot hold their value.
@@ -286,31 +379,36 @@ final class HarfBuzzShaper {
      * an addition somebody has to remember. {@code ShapedText.Builder.glyph} demands whole-string
      * offsets and rejects anything else, so the two ends agree by contract.
      *
-     * @param handle the face to shape with; its glyph ids mean nothing in any other face
-     * @param text   the whole line, passed as context
-     * @param start  first char of the run to shape
-     * @param end    one past the last
-     * @param script the HarfBuzz script tag from {@link #scriptTag}
-     * @param rtl    whether this run reads right to left
-     * @param scale  font units to logical points, from {@link StbFont#scaleForSize}
-     * @param out    filled with {@code out.count} glyphs in the run's own visual order
+     * @param handle  the face to shape with; its glyph ids mean nothing in any other face
+     * @param session the caller's buffer and native copy of {@code text}, reused run after run
+     * @param text    the whole line, passed as context
+     * @param start   first char of the run to shape
+     * @param end     one past the last
+     * @param script  the HarfBuzz script tag from {@link #scriptTag}
+     * @param rtl     whether this run reads right to left
+     * @param scale   font units to logical points, from {@link StbFont#scaleForSize}
+     * @param out     filled with {@code out.count} glyphs in the run's own visual order
      * @return whether shaping produced an answer; {@code false} leaves {@code out} untouched and
      *         asks the caller for its degraded path
      */
-    static boolean shapeRun(Handle handle, String text, int start, int end, int script,
-                            boolean rtl, float scale, Output out) {
+    static boolean shapeRun(Handle handle, Session session, String text, int start, int end,
+                            int script, boolean rtl, float scale, Output out) {
         if (handle == null || handle.closed) {
             return false;
         }
-        long buffer = 0;
         try {
-            buffer = hb_buffer_create();
+            long buffer = session.buffer();
             if (buffer == 0) {
                 return false;
             }
+            // Cleared, not reset: clear_contents drops the characters, the glyphs and the segment
+            // properties the last run set, and keeps the Unicode functions and flags, which are
+            // exactly the parts that never change between runs. A reset would redo those too.
+            hb_buffer_clear_contents(buffer);
             // text is the CONTEXT and (start, end - start) is the item: see the method note. The
-            // CharSequence overload copies to native memory itself, so no manual encode.
-            hb_buffer_add_utf16(buffer, text, start, end - start);
+            // raw-address overload takes the paragraph the session already encoded; the
+            // CharSequence overload would encode it again, in full, for this one run.
+            nhb_buffer_add_utf16(buffer, session.address(text), text.length(), start, end - start);
             hb_buffer_set_direction(buffer, rtl ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
             // Set, never guessed. hb_buffer_guess_segment_properties would re-derive the script
             // from the first strong character of the item, which disagrees with the itemizer for
@@ -348,10 +446,6 @@ final class HarfBuzzShaper {
                     "HarfBuzz failed to shape a run; it falls back to the degraded path: "
                             + failure, failure);
             return false;
-        } finally {
-            if (buffer != 0) {
-                hb_buffer_destroy(buffer);
-            }
         }
     }
 

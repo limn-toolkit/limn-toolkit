@@ -109,10 +109,12 @@ class StbFontTtcTest {
 
                 String text = "Hambur";
                 HarfBuzzShaper.Output shaped = new HarfBuzzShaper.Output();
-                assertTrue(HarfBuzzShaper.shapeRun(handle, text, 0, text.length(),
-                                HarfBuzzShaper.scriptTag(Character.UnicodeScript.LATIN), false,
-                                face.scaleForSize(16f), shaped),
-                        "a plain Latin run in a face that covers it must shape");
+                try (HarfBuzzShaper.Session session = new HarfBuzzShaper.Session()) {
+                    assertTrue(HarfBuzzShaper.shapeRun(handle, session, text, 0, text.length(),
+                                    HarfBuzzShaper.scriptTag(Character.UnicodeScript.LATIN), false,
+                                    face.scaleForSize(16f), shaped),
+                            "a plain Latin run in a face that covers it must shape");
+                }
 
                 // No ligature in "Hambur", so the shaper's answer IS the cmap's answer — for the
                 // face it was opened over. Comparing the two is what catches a shaper reading a

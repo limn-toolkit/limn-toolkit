@@ -36,8 +36,13 @@ import java.util.Map;
  *
  * <p>UI-thread confined, like everything that reaches {@link FontStore}: the memo and the reusable
  * shaping buffers are unsynchronized.
+ *
+ * <p><b>Closed by whoever made it.</b> The shaping session below holds native memory &mdash; one
+ * HarfBuzz buffer and one copy of the paragraph being shaped &mdash; that only {@link #close()}
+ * returns. The backend closes the ruler it installed and a canvas closes the one it made for
+ * itself, before either closes the store the ruler shapes from.
  */
-final class ShapingRuler implements TextRuler {
+final class ShapingRuler implements TextRuler, AutoCloseable {
 
     /**
      * Entries in the shape memo.
@@ -101,6 +106,11 @@ final class ShapingRuler implements TextRuler {
     // the memo above exists to protect.
     private final HarfBuzzShaper.Output shaped = new HarfBuzzShaper.Output();
 
+    // The buffer the runs are shaped in and the native copy of the paragraph they are shaped
+    // against: one of each for the ruler's whole life, not one per run. See the class itself for
+    // what that saves; what it costs is that this ruler has to be closed.
+    private final HarfBuzzShaper.Session session = new HarfBuzzShaper.Session();
+
     // How a face becomes a shaper. StbFont::shaper in production; the seam exists because the one
     // thing this class must never get wrong is what it does when there is NO shaper, and that
     // branch is otherwise reachable only on a machine where the native is missing — which is to
@@ -120,6 +130,21 @@ final class ShapingRuler implements TextRuler {
                  java.util.function.Function<StbFont, HarfBuzzShaper.Handle> shaperFor) {
         this.fonts = fonts;
         this.shaperFor = shaperFor;
+    }
+
+    /**
+     * Frees the native shaping buffers. Idempotent; a closed ruler still answers, through the
+     * degraded path, because a ruler that threw after its backend went away would take the last
+     * frame of a closing window with it.
+     */
+    @Override
+    public void close() {
+        session.close();
+    }
+
+    /** The shaping session, for the test that counts what one shaping costs in native calls. */
+    HarfBuzzShaper.Session session() {
+        return session;
     }
 
     /**
@@ -378,7 +403,8 @@ final class ShapingRuler implements TextRuler {
             // registered script and selects the generic shaper in silence.
             int tag = HarfBuzzShaper.scriptTag(script);
             float scale = face.scaleForSize(size);
-            if (HarfBuzzShaper.shapeRun(handle, text, from, to, tag, rtl, scale, shaped)) {
+            if (HarfBuzzShaper.shapeRun(handle, session, text, from, to, tag, rtl, scale,
+                    shaped)) {
                 for (int g = 0; g < shaped.count; g++) {
                     // Clusters are already offsets into the WHOLE string, because the whole string
                     // went in as context: nothing is added back here, and nothing may be. The

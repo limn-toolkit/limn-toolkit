@@ -220,6 +220,9 @@ final class GlCanvas implements Canvas {
             backdrop.dispose();
         }
         batch.close();
+        if (ownRuler != null) {
+            ownRuler.close(); // the ruler a canvas without a backend made for itself
+        }
     }
 
     // ------------------------------------------------------------ frame info

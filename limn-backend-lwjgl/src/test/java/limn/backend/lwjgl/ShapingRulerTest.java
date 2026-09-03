@@ -4,6 +4,7 @@ import limn.graphics.Font;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -507,6 +508,61 @@ class ShapingRulerTest {
         // destroy the HarfBuzz side FIRST. If it did not, this second close would be a double free
         // of the font bytes rather than a no-op.
         face.close();
+    }
+
+    @Test
+    void aTenRunLineIsEncodedOnceAndShapedInOneBufferHoweverManyRunsItHas() {
+        Assumptions.assumeTrue(HarfBuzzShaper.isAvailable(),
+                "no native, no shaping calls to count");
+        try (FontStore store = new FontStore(); ShapingRuler ruler = new ShapingRuler(store)) {
+            // Five Latin words and five Cyrillic ones, alternating: one bidi run, split by script
+            // into ten, all in Roboto. The run count is what this pins the cost model against,
+            // and it is asserted rather than assumed so that an itemizer that stopped splitting
+            // here could not make the counts below pass by shaping less.
+            String text = "ab БВ cd БВ ef БВ gh БВ ij БВ";
+            HarfBuzzShaper.Session session = ruler.session();
+
+            ShapedText line = ruler.shape(text, FONT);
+
+            assertEquals(10, line.runs().size(), "the fixture must exercise ten shaping calls");
+            assertNotEquals(ShapedText.NO_GLYPH, line.glyphId(0),
+                    "the runs degraded, so nothing was counted");
+            // Ten runs, one native copy of the paragraph and one buffer: the two numbers the old
+            // path paid ten times over, once per hb_buffer_create and once per re-encode of the
+            // whole context. A count of ten here is the regression this test exists to catch.
+            assertEquals(1, session.encodes, "the paragraph is encoded once, not once per run");
+            assertEquals(1, session.buffersCreated, "one buffer, cleared between runs");
+
+            // A second paragraph costs one more encode and no more buffers; a memo hit costs
+            // neither.
+            ruler.shape("БВ ab", FONT);
+            assertEquals(2, session.encodes);
+            assertEquals(1, session.buffersCreated);
+            ruler.shape(text, FONT);
+            assertEquals(2, session.encodes, "a memo hit shapes nothing");
+        }
+    }
+
+    @Test
+    void aClosedRulerStillAnswersAndClosesAgainWithoutComplaint() {
+        try (FontStore store = new FontStore()) {
+            ShapingRuler ruler = new ShapingRuler(store);
+            ShapedText before = ruler.shape("abc", FONT);
+            assertTrue(before.glyphCount() > 0);
+
+            ruler.close();
+            ruler.close(); // a second close is a no-op, as every native owner here has it
+
+            // The buffers are gone, so a run can no longer be shaped and takes the degraded path:
+            // the same value the ruler gives on a machine with no native, and never an exception
+            // from a widget painting its last frame while the backend goes away.
+            ShapedText after = ruler.shape("abd", FONT);
+            assertEquals(3, after.glyphCount());
+            for (int g = 0; g < after.glyphCount(); g++) {
+                assertEquals(ShapedText.NO_GLYPH, after.glyphId(g));
+            }
+            assertEquals(unshaped(store, "abd", FONT), after.metrics().width(), EPS);
+        }
     }
 
     @Test
