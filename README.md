@@ -47,16 +47,34 @@ dependency, with **no Swing, no JavaFX and no native toolkit underneath**.
 
 ## Try it now
 
-The kitchen sink — every widget, the charts, the media player, the 3D viewport — in one command.
-Nothing to clone, and nothing to install but
-[jbang](https://www.jbang.dev/download/), which fetches a JDK too if you have none:
+The kitchen sink — every widget, the charts, the media player, the 3D viewport — in one command,
+and the theme editor in another. Nothing to clone, and nothing to install but
+[jbang](https://www.jbang.dev/download/), which fetches a JDK too if you have none. Both come
+from Maven Central as thin artifacts: what arrives is the toolkit, the fonts and the native
+libraries of the machine you are on — not the other five platforms'.
+
+On macOS:
+
+```bash
+jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+```
+
+On Linux and Windows:
+
+```bash
+jbang demo@limn-toolkit/limn-toolkit
+jbang theme-editor@limn-toolkit/limn-toolkit
+```
+
+That flag is macOS-only, and a JVM given it anywhere else refuses to start. Those two run the
+newest release; to pin one, name the coordinate instead — `io.github.limn-toolkit:limn-demo:x.y.z`
+and `io.github.limn-toolkit:limn-theme-editor:x.y.z`. With no network, the demo is also one file
+attached to every release, every platform inside:
 
 ```bash
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
-
-On macOS add `--java-options=-XstartOnFirstThread`. That flag is macOS-only, and a JVM given it
-anywhere else refuses to start.
 
 ## Install
 

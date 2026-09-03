@@ -47,16 +47,35 @@ Limn рисует свои пиксели сам. Виджеты, компоно
 
 ## Попробуйте прямо сейчас
 
-Вся витрина — каждый виджет, графики, медиаплеер, 3D-вьюпорт — одной командой. Клонировать нечего,
-устанавливать нечего, кроме [jbang](https://www.jbang.dev/download/),
-который заодно скачает JDK, если её у вас нет:
+Вся витрина — каждый виджет, графики, медиаплеер, 3D-вьюпорт — одной командой, а редактор тем —
+второй. Клонировать нечего, устанавливать нечего, кроме [jbang](https://www.jbang.dev/download/),
+который заодно скачает JDK, если её у вас нет. Оба приходят с Maven Central тонкими артефактами:
+скачиваются тулкит, шрифты и нативные библиотеки той машины, за которой вы сидите, — а не
+остальных пяти платформ.
+
+На macOS:
+
+```bash
+jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+```
+
+На Linux и Windows:
+
+```bash
+jbang demo@limn-toolkit/limn-toolkit
+jbang theme-editor@limn-toolkit/limn-toolkit
+```
+
+Этот флаг существует только на macOS, и JVM, получившая его где-то ещё, откажется запускаться.
+Эти две команды запускают последний релиз; чтобы закрепить версию, назовите вместо них
+координату — `io.github.limn-toolkit:limn-demo:x.y.z` и
+`io.github.limn-toolkit:limn-theme-editor:x.y.z`. Без сети демо есть и одним файлом,
+приложенным к каждому релизу, со всеми платформами внутри:
 
 ```bash
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
-
-На macOS добавьте `--java-options=-XstartOnFirstThread`. Этот флаг существует только на macOS, и
-JVM, получившая его где-то ещё, откажется запускаться.
 
 ## Установка
 

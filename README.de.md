@@ -48,15 +48,34 @@ einer Abhängigkeit, **ohne Swing, ohne JavaFX und ohne natives Toolkit darunter
 ## Jetzt ausprobieren
 
 Die ganze Auslage — jedes Widget, die Diagramme, der Mediaplayer, der 3D-Viewport — in einem
-Befehl. Nichts zu klonen, und nichts zu installieren außer
-[jbang](https://www.jbang.dev/download/), das auch ein JDK holt, wenn Sie keines haben:
+Befehl, und der Theme-Editor in einem zweiten. Nichts zu klonen, und nichts zu installieren außer
+[jbang](https://www.jbang.dev/download/), das auch ein JDK holt, wenn Sie keines haben. Beide
+kommen als schlanke Artefakte von Maven Central: was ankommt, sind das Toolkit, die Schriften und
+die nativen Bibliotheken der Maschine, an der Sie sitzen — nicht die der anderen fünf Plattformen.
+
+Unter macOS:
+
+```bash
+jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+```
+
+Unter Linux und Windows:
+
+```bash
+jbang demo@limn-toolkit/limn-toolkit
+jbang theme-editor@limn-toolkit/limn-toolkit
+```
+
+Die Option gibt es nur unter macOS, und eine JVM, die sie anderswo bekommt, startet nicht. Die
+beiden Befehle starten die neueste Version; um eine festzunageln, nennen Sie stattdessen die
+Koordinate — `io.github.limn-toolkit:limn-demo:x.y.z` und
+`io.github.limn-toolkit:limn-theme-editor:x.y.z`. Ohne Netz gibt es die Demo auch als eine Datei
+an jedem Release, mit allen Plattformen darin:
 
 ```bash
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
-
-Unter macOS fügen Sie `--java-options=-XstartOnFirstThread` hinzu. Die Option gibt es nur unter
-macOS, und eine JVM, die sie anderswo bekommt, startet nicht.
 
 ## Installation
 

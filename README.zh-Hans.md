@@ -46,13 +46,27 @@ Limn 自己绘制每一个像素。组件、布局、文本、图表、媒体与
 
 ## 立刻试试
 
-整个陈列——每一个控件、图表、媒体播放器、3D 视口——一条命令就跑起来。没有什么要克隆，也没有什么要装，除了 [jbang](https://www.jbang.dev/download/)；你要是没有 JDK，它连 JDK 一起取来。
+整个陈列——每一个控件、图表、媒体播放器、3D 视口——一条命令就跑起来，主题编辑器再一条。没有什么要克隆，也没有什么要装，除了 [jbang](https://www.jbang.dev/download/)；你要是没有 JDK，它连 JDK 一起取来。两者都以精简构件的形式来自 Maven Central：到手的是工具包、字体，以及你这台机器的原生库——另外五个平台的不会下载。
+
+macOS 上：
+
+```bash
+jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+```
+
+Linux 和 Windows 上：
+
+```bash
+jbang demo@limn-toolkit/limn-toolkit
+jbang theme-editor@limn-toolkit/limn-toolkit
+```
+
+这个开关只有 macOS 认，别的系统上的 JVM 收到它会拒绝启动。这两条命令运行的是最新发布版；想固定某个版本，就改写坐标——`io.github.limn-toolkit:limn-demo:x.y.z` 和 `io.github.limn-toolkit:limn-theme-editor:x.y.z`。没有网络时，演示程序也作为一个文件附在每次发布里，所有平台的东西都在里面：
 
 ```bash
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
-
-在 macOS 上加 `--java-options=-XstartOnFirstThread`。这个开关只有 macOS 认，别的系统上的 JVM 收到它会拒绝启动。
 
 ## 安装
 

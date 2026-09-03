@@ -47,15 +47,33 @@ Limn은 픽셀을 스스로 그립니다. 위젯, 레이아웃, 텍스트, 차�
 
 ## 지금 실행해 보기
 
-키친 싱크 — 모든 위젯, 차트, 미디어 플레이어, 3D 뷰포트 — 를 명령 하나로. 클론할 것도 없고,
-설치할 것도 [jbang](https://www.jbang.dev/download/) 하나뿐입니다. JDK가 없으면 그것까지 받아 옵니다.
+키친 싱크 — 모든 위젯, 차트, 미디어 플레이어, 3D 뷰포트 — 를 명령 하나로, 테마 편집기는 또
+하나로. 클론할 것도 없고, 설치할 것도 [jbang](https://www.jbang.dev/download/) 하나뿐입니다. JDK가
+없으면 그것까지 받아 옵니다. 둘 다 Maven Central에서 얇은 아티팩트로 옵니다. 내려받는 것은 툴킷과
+폰트, 그리고 지금 쓰는 이 기계의 네이티브 라이브러리뿐이고, 나머지 다섯 플랫폼의 것은 오지 않습니다.
+
+macOS에서는:
+
+```bash
+jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+```
+
+Linux와 Windows에서는:
+
+```bash
+jbang demo@limn-toolkit/limn-toolkit
+jbang theme-editor@limn-toolkit/limn-toolkit
+```
+
+이 플래그는 macOS 전용이라, 다른 곳의 JVM은 받으면 시작을 거부합니다. 이 두 명령은 최신 릴리스를
+실행합니다. 버전을 고정하려면 대신 좌표를 적으세요 — `io.github.limn-toolkit:limn-demo:x.y.z`와
+`io.github.limn-toolkit:limn-theme-editor:x.y.z`입니다. 네트워크가 없다면, 데모는 릴리스마다 파일
+하나로도 첨부되어 있고 모든 플랫폼의 것이 그 안에 들어 있습니다.
 
 ```bash
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
-
-macOS에서는 `--java-options=-XstartOnFirstThread`를 덧붙이세요. 이 플래그는 macOS 전용이라, 다른
-곳의 JVM은 받으면 시작을 거부합니다.
 
 ## 설치
 

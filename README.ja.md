@@ -46,13 +46,27 @@ Limn はピクセルを自分で描きます。ウィジェット、レイアウ
 
 ## 今すぐ試す
 
-キッチンシンク——すべてのウィジェット、チャート、メディアプレーヤー、3D ビューポート——がコマンド 1 つで動きます。クローンするものはなく、入れるものも [jbang](https://www.jbang.dev/download/) だけです。JDK がなければ、それも取ってきます。
+キッチンシンク——すべてのウィジェット、チャート、メディアプレーヤー、3D ビューポート——がコマンド 1 つで、テーマエディタがもう 1 つで動きます。クローンするものはなく、入れるものも [jbang](https://www.jbang.dev/download/) だけです。JDK がなければ、それも取ってきます。どちらも Maven Central から薄いアーティファクトとして届きます。手元に来るのはツールキットとフォント、そして今使っているマシンのネイティブライブラリだけで、ほかの 5 つのプラットフォームの分は来ません。
+
+macOS では:
+
+```bash
+jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+```
+
+Linux と Windows では:
+
+```bash
+jbang demo@limn-toolkit/limn-toolkit
+jbang theme-editor@limn-toolkit/limn-toolkit
+```
+
+このフラグは macOS 専用で、ほかの OS の JVM は受け取ると起動を拒みます。この 2 つは最新リリースを起動します。バージョンを固定したいなら、代わりに座標を書いてください——`io.github.limn-toolkit:limn-demo:x.y.z` と `io.github.limn-toolkit:limn-theme-editor:x.y.z` です。ネットワークがないなら、デモはリリースごとに 1 ファイルとしても添付されていて、すべてのプラットフォームの分が中に入っています。
 
 ```bash
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
-
-macOS では `--java-options=-XstartOnFirstThread` を足してください。このフラグは macOS 専用で、ほかの OS の JVM は受け取ると起動を拒みます。
 
 ## インストール
 
