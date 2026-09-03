@@ -30,9 +30,10 @@ import java.util.concurrent.CancellationException;
  * both {@code .gltf} (JSON, with base64 {@code data:} buffers) and {@code .glb}
  * (binary container). Reads the node hierarchy, mesh primitives
  * (POSITION/NORMAL/TEXCOORD_0 + indices), metallic-roughness materials and encoded
- * texture images. External-file buffers/images and skinning/animation are not yet
- * supported (a later phase). Images are kept encoded here; decoding them is the
- * separate, off-thread-able step {@link GltfModel#decodeTextures()}.
+ * texture images. Buffers and images must be embedded, as {@code data:} URIs or the GLB
+ * binary chunk: a reference to an external file is refused. Skinning and animation are
+ * not read; nodes are placed by their static transforms. Images are kept encoded here;
+ * decoding them is the separate, off-thread-able step {@link GltfModel#decodeTextures()}.
  *
  * <p>Every entry point reads and parses on the thread that calls it. The {@code ...Async} ones put
  * that on the {@code Ui} worker pool and deliver on the UI thread, which is what an application
@@ -324,7 +325,7 @@ public final class GltfLoader {
                             readFloats(intOf(attrs.get("TEXCOORD_0")), 2, "TEXCOORD_0"));
                 }
                 int[] indices = prim.containsKey("indices")
-                        ? readIndices(intOf(prim.get("indices")))
+                        ? readIndices(intOf(prim.get("indices")), data.vertexCount())
                         : sequential(data.vertexCount());
                 // glTF primitive modes: 4 = TRIANGLES (native); strips/fans are
                 // converted to lists at load; points/lines have no pipeline here.
@@ -625,7 +626,13 @@ public final class GltfLoader {
             return out;
         }
 
-        private int[] readIndices(int accessorIndex) {
+        /**
+         * The primitive's indices, each checked against {@code vertexCount}: the accessor is
+         * bounded against its buffer, but the values in it are bounded by nothing else, and once
+         * uploaded they drive {@code glDrawElements}, which reads the vertex buffer at whatever
+         * index it is given. A primitive that carries normals goes to the device as-is.
+         */
+        private int[] readIndices(int accessorIndex, int vertexCount) {
             Map<String, Object> acc = obj(accessors.get(accessorIndex));
             Map<String, Object> bv = viewOf(acc, "indices");
             byte[] buffer = buffers.get(intOr(bv, "buffer", 0));
@@ -643,12 +650,18 @@ public final class GltfLoader {
             ByteBuffer bb = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN);
             int[] out = new int[count];
             for (int i = 0; i < count; i++) {
-                out[i] = switch (componentType) {
+                int index = switch (componentType) {
                     case 5121 -> bb.get(base + i) & 0xFF;         // UNSIGNED_BYTE
                     case 5123 -> bb.getShort(base + i * 2) & 0xFFFF; // UNSIGNED_SHORT
-                    case 5125 -> bb.getInt(base + i * 4);         // UNSIGNED_INT
+                    case 5125 -> bb.getInt(base + i * 4);         // UNSIGNED_INT: above 2^31 reads negative
                     default -> 0; // unreachable: indexSize already threw
                 };
+                if (index < 0 || index >= vertexCount) {
+                    throw new IllegalArgumentException("index " + i + " of accessor " + accessorIndex
+                            + " is " + (index < 0 ? index & 0xFFFFFFFFL : index)
+                            + ", outside the primitive's " + vertexCount + " vertices");
+                }
+                out[i] = index;
             }
             return out;
         }

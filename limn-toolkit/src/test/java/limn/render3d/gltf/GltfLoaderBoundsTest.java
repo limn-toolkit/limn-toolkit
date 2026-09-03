@@ -28,11 +28,15 @@ class GltfLoaderBoundsTest {
 
     /** Four VEC3 positions (48 bytes) then six unsigned-short indices (12): 60 bytes in all. */
     private static byte[] model(long positionCount, long indexCount) {
+        return model(positionCount, indexCount, new int[]{0, 1, 2, 0, 2, 3});
+    }
+
+    private static byte[] model(long positionCount, long indexCount, int[] indices) {
         ByteBuffer bb = ByteBuffer.allocate(60).order(ByteOrder.LITTLE_ENDIAN);
         for (float v : new float[]{-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0}) {
             bb.putFloat(v);
         }
-        for (int v : new int[]{0, 1, 2, 0, 2, 3}) {
+        for (int v : indices) {
             bb.putShort((short) v);
         }
         String json = """
@@ -99,6 +103,22 @@ class GltfLoaderBoundsTest {
         // wrapped negative compares as comfortably inside the buffer.
         assertThrows(IllegalArgumentException.class,
                 () -> GltfLoader.load(model(Integer.MAX_VALUE, 6)));
+    }
+
+    @Test
+    void anIndexBeyondThePrimitivesVerticesIsRefusedBeforeItReachesTheDevice() {
+        // The accessor fits its buffer; the value in it points past the four vertices, and
+        // glDrawElements would have read the vertex buffer there.
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> GltfLoader.load(model(4, 6, new int[]{0, 1, 2, 0, 2, 7})));
+        assertTrue(error.getMessage().contains("7"), error.getMessage());
+        assertTrue(error.getMessage().contains("4 vertices"), error.getMessage());
+    }
+
+    @Test
+    void aDocumentOfNothingButBracketsIsRefusedRatherThanOverflowingTheStack() {
+        byte[] brackets = "[".repeat(200_000).getBytes(StandardCharsets.UTF_8);
+        assertThrows(IllegalArgumentException.class, () -> GltfLoader.load(brackets));
     }
 
     @Test

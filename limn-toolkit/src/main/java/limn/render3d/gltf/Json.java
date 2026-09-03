@@ -13,8 +13,16 @@ import java.util.Map;
  */
 final class Json {
 
+    /**
+     * Deepest nesting accepted. A glTF document is a handful of levels deep; the parser recurses
+     * per level, so without a limit a file of nothing but {@code [} ends the thread it is parsed
+     * on with a StackOverflowError, which on the synchronous load path is the UI thread.
+     */
+    static final int MAX_DEPTH = 64;
+
     private final String s;
     private int i;
+    private int depth;
 
     private Json(String s) {
         this.s = s;
@@ -43,9 +51,11 @@ final class Json {
     private Map<String, Object> object() {
         Map<String, Object> map = new LinkedHashMap<>();
         expect('{');
+        enter();
         ws();
         if (peek() == '}') {
             i++;
+            depth--;
             return map;
         }
         while (true) {
@@ -58,6 +68,7 @@ final class Json {
             ws();
             char c = next();
             if (c == '}') {
+                depth--;
                 return map;
             }
             if (c != ',') {
@@ -69,9 +80,11 @@ final class Json {
     private List<Object> array() {
         List<Object> list = new ArrayList<>();
         expect('[');
+        enter();
         ws();
         if (peek() == ']') {
             i++;
+            depth--;
             return list;
         }
         while (true) {
@@ -80,11 +93,19 @@ final class Json {
             ws();
             char c = next();
             if (c == ']') {
+                depth--;
                 return list;
             }
             if (c != ',') {
                 throw err("',' or ']'");
             }
+        }
+    }
+
+    private void enter() {
+        if (++depth > MAX_DEPTH) {
+            throw new IllegalArgumentException(
+                    "JSON nested deeper than " + MAX_DEPTH + " levels at " + i);
         }
     }
 
