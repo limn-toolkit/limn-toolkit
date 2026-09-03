@@ -1,5 +1,5 @@
 [versions]
-lwjgl = "3.4.1"
+lwjgl = "3.4.3"
 jlayer = "1.0.1"
 junit = "6.1.1"
 central-publish = "0.37.0"
