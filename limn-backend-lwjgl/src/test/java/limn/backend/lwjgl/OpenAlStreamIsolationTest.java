@@ -75,26 +75,32 @@ class OpenAlStreamIsolationTest {
             throws InterruptedException {
         OpenAlAudio audio = new OpenAlAudio();
         BlockingSource source = new BlockingSource();
-        assumeTrue(audio.isAvailable(), "needs an audio device");
-        Playback track = audio.playStream(source, PlayOptions.DEFAULTS);
-        assumeTrue(track != Playback.NONE, "the device would not take a streaming track");
+        try {
+            assumeTrue(audio.isAvailable(), "needs an audio device");
+            Playback track = audio.playStream(source, PlayOptions.DEFAULTS);
+            assumeTrue(track != Playback.NONE, "the device would not take a streaming track");
 
-        CountDownLatch entered = new CountDownLatch(1);
-        CountDownLatch release = new CountDownLatch(1);
-        source.entered = entered;
-        source.release = release;
-        assertTrue(entered.await(10, TimeUnit.SECONDS),
-                "the service thread to be inside a refill decode");
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            source.entered = entered;
+            source.release = release;
+            assertTrue(entered.await(10, TimeUnit.SECONDS),
+                    "the service thread to be inside a refill decode");
 
-        // Shut down with the read still blocked. The interrupt close() sends is what lets the
-        // read return (a real codec would simply finish its chunk); the decoder must be closed
-        // after that return, never during it.
-        audio.close();
+            // Shut down with the read still blocked. The interrupt close() sends is what lets
+            // the read return (a real codec would simply finish its chunk); the decoder must be
+            // closed after that return, never during it.
+            audio.close();
 
-        assertFalse(source.closedWhileReading.get(),
-                "the decoder was not closed while a read was inside it");
-        assertTrue(source.closed.get(),
-                "and it was closed once the service thread had left, not leaked");
+            assertFalse(source.closedWhileReading.get(),
+                    "the decoder was not closed while a read was inside it");
+            assertTrue(source.closed.get(),
+                    "and it was closed once the service thread had left, not leaked");
+        } finally {
+            // Whatever the assumptions said: a device left open when the test JVM exits is a
+            // segfault inside OpenAL Soft's own teardown on Linux, reported against no test.
+            assertDoesNotThrow(audio::close);
+        }
     }
 
     /** Silence that can be held open mid-read, remembering which array each read was given. */
