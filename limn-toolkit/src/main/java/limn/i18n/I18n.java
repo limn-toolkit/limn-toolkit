@@ -158,7 +158,13 @@ public final class I18n {
     public static Locale pushScope(Locale locale) {
         Objects.requireNonNull(locale, "locale");
         Locale enclosing = SCOPE.get();
-        SCOPE.set(locale);
+        // Every widget opens a scope around its measure, layout and paint, and nearly every
+        // one resolves to the language its parent resolved to: the scope changes at subtree
+        // boundaries, not at every node. A push that would set what is already set costs a
+        // thread-local write per widget per pass for nothing, and the matching pop another.
+        if (enclosing != locale) {
+            SCOPE.set(locale);
+        }
         return enclosing;
     }
 
@@ -168,7 +174,9 @@ public final class I18n {
      * process locale. Always call it in a {@code finally}.
      */
     public static void popScope(Locale enclosing) {
-        SCOPE.set(enclosing);
+        if (SCOPE.get() != enclosing) {
+            SCOPE.set(enclosing);
+        }
     }
 
     /**

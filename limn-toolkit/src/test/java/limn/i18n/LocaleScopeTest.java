@@ -85,6 +85,23 @@ class LocaleScopeTest {
     }
 
     @Test
+    void aScopeEqualToTheEnclosingOneStillNestsAndRestores() {
+        // The common shape: a child resolving to its parent's language. The push is elided
+        // as a write, and the pop must still leave exactly what the outer push found.
+        Locale outer = I18n.pushScope(HEBREW);
+        try {
+            Locale inner = I18n.pushScope(HEBREW);
+            assertEquals(HEBREW, inner, "the enclosing scope is what the inner push found");
+            assertEquals(HEBREW, I18n.locale());
+            I18n.popScope(inner);
+            assertEquals(HEBREW, I18n.locale(), "popping the inner scope keeps the outer one");
+        } finally {
+            I18n.popScope(outer);
+        }
+        assertEquals(I18n.processLocale(), I18n.locale());
+    }
+
+    @Test
     void anI18nStringResolvesUnderTheScopeAndItsMemoSeesTheLocale() {
         I18nString save = new I18nString("test.scope.save", "Save");
         register(PropertyBundle.of(PT_BR, Map.of("test.scope.save", "Salvar")));
