@@ -696,15 +696,20 @@ Stated now, so the document does not overclaim later.
   is the shape the escape hatch would take, and does not deliver the language. *Since closed by
   ADR 035*: the locale inherits through the same chain, and the pass holds a widget's effective
   locale in scope so string lookups, formatting and digits follow the subtree.
-- **Locale-aware collation and case mapping.** Unchanged from ADR 006 §4 and ADR 031 §7.1.
+- **Locale-aware collation and case mapping.** Unchanged from ADR 006 §4 and ADR 031 §7.1. *Since
+  closed by ADR 034*: a collator and whole-string case mapping in the language the text is in.
 - **Bold and italic in the four RTL and complex-script faces.** One Regular face each, unchanged
-  from ADR 031 §7.1.
+  from ADR 031 §7.1. *Since, 63f7869*: each family ships its Bold; Italic is closed as not
+  applicable, because upstream publishes none for these scripts, and italic renders upright.
 - ~~**Soft wrap in `TextArea`.** Unchanged from ADR 031 §7.1; `Label` is still the only widget that
   breaks lines.~~ **Done, 2026-09-01** (recorded in ADR 031 §7.1): opt-in via `setSoftWrap`, and
   §1.4 holds unchanged — wrapped, nothing overflows the reading axis, so `scrollX` sits at the
   leading edge's `0` in both directions, and every row is flush against the edge reading starts
   from, exactly as unwrapped lines are.
-- **A mirrored website.** Finding 13. `site/` has no RTL locale and this work gives it none.
+- ~~**A mirrored website.** Finding 13. `site/` has no RTL locale and this work gives it none.~~
+  **Done, 2026-09-01** (ffc88f1): `site/` gained an Arabic catalog, and one `dir` attribute on the
+  page mirrors it, on the same reasoning as §1 — direction is declared beside the language, not
+  derived from it.
 - **Icon classification.** Finding 12, by decision. Every one of the 5130 Tabler constants is
   `Mirroring.NEVER` until an application says otherwise, and that includes the ones whose names
   contain the word `LEFT`.
@@ -1042,9 +1047,13 @@ because a language can be written in either and only the script says which.
 
 - **Bold and italic in the four RTL faces** and **soft wrap in `TextArea`**: unchanged, still not
   done. *(True when written; soft wrap has since closed, 2026-09-01 — §8's entry records it.)*
-- **Vertical writing, Arabic-Indic digits, per-subtree locale, collation**: unchanged.
-- **A mirrored website**: unchanged, and the gallery now pins `LTR` per entry so it stays that way
-  deliberately rather than by luck.
+- **Vertical writing, Arabic-Indic digits, per-subtree locale, collation**: unchanged. *(True when
+  written; digits, per-subtree locale and collation have since closed under ADRs 033, 035 and 034,
+  and §8's entries say so.)*
+- ~~**A mirrored website**: unchanged, and the gallery now pins `LTR` per entry so it stays that way
+  deliberately rather than by luck.~~ **Done, 2026-09-01** (ffc88f1), and the gallery still pins
+  `LTR` per entry: the site reading right to left and its captures reading left to right are two
+  decisions, and the second was taken here on purpose.
 - **Icon classification**: correct as written. All six setters named in §1.5 gained their overload
   and every icon is `NEVER` until a call site says otherwise.
 - **The `Insets` leading/trailing type**: correct, and 9.3 strengthens the reason.

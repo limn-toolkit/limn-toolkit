@@ -7,19 +7,24 @@ the shape of the thing and the ways it goes wrong.
 ## The layers, and which way they may see each other
 
 ```
-limn.video (limn-toolkit)     the vocabulary: a frame, a source, a decoder facade, two clocks,
+limn-toolkit
+  limn.video                  the vocabulary: a frame, a source, a decoder facade, two clocks,
                               a player, and the surface SPI. Depends on nothing.
-limn.components.VideoView     a widget that borrows one of those and draws it.
-limn-video                    pure-Java decoders. No native, no third-party dependency.
-limn-video-ffmpeg             the only native in the repository. Depends on limn-toolkit alone.
+  limn.video.decode           the pure-Java decoders, Y4M and the synthetic pattern. No native,
+                              no third-party dependency, which is why they could come in (ADR 030).
+  limn.components             VideoView, which borrows a stream and draws it, and MediaControls.
+limn-video-ffmpeg             the FFmpeg decoder, in Java, over the shim and the libraries of the
+                              limn-ffmpeg-natives artifact (ADR 037). Depends on limn-toolkit alone.
 limn-backend-lwjgl            the device side of the surface SPI, and the audio engine.
 ```
 
-Two edges must stay absent and neither is enforced by `checkArchitecture`, which greps import lines
-and can therefore see a forbidden *package* and never a forbidden *dependency*: `limn-components`
-must not gain an edge to either video module, and `limn-video` must not gain one to
-`limn-video-ffmpeg`. `settings.gradle.kts` and the module build files are where that is written
-down, and they are the only place it exists.
+One edge must stay absent and it is not enforced by `checkArchitecture`, which greps import lines
+and can therefore see a forbidden *package* and never a forbidden *dependency*: `limn-toolkit`
+must not gain an edge to `limn-video-ffmpeg`. It is what is left of ADR 008's boundary after the
+widgets and the pure-Java decoders moved in, and the half that carried the weight: the decoder
+with a native payload, a licence and a platform matrix stays in a module of its own, so an
+application that plays no MP4 carries no FFmpeg. `settings.gradle.kts` and the module build files
+are where that is written down, and they are the only place it exists.
 
 ## The four lifetimes, which is where most defects live
 
