@@ -81,11 +81,18 @@ jobs:
       # The version, from the tag or from the dispatch input, with the leading v removed.
       # Rejected here rather than by Gradle if it is not a version: the tag is a human's typing,
       # and `v0.1` or `0.1.0-SNAPSHOT` should not reach an upload.
+      #
+      # The input reaches the shell through env, never spliced into the script: a `${{ }}` inside
+      # `run:` is substituted as text before the shell parses it, so the typed value is code until
+      # the grep below has seen it, which is the wrong order. Every other step in these workflows
+      # already takes its values this way.
       - name: Resolve the version
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ inputs.version }}"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
             if [ -z "$VERSION" ]; then
               VERSION="$(sed -n 's/^limn-toolkit[[:space:]]*=[[:space:]]*//p' versions.properties | tr -d '[:space:]')"
               echo "version left blank; versions.properties says $VERSION"
@@ -106,8 +113,10 @@ jobs:
       # of what the artifact was built from. A release nobody can check out is not one anybody
       # can support.
       - name: Verify the tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          TAG="v${{ steps.version.outputs.version }}"
+          TAG="v$VERSION"
           if ! git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
             echo "::error::$TAG does not exist. A push to main with the bumped versions.properties creates it."
             exit 1
@@ -198,8 +207,9 @@ jobs:
       - name: Gradle check
         run: >-
           xvfb-run -a ./gradlew check
-          -PlimnVersion=${{ needs.verify.outputs.version }}
+          -PlimnVersion="$VERSION"
         env:
+          VERSION: ${{ needs.verify.outputs.version }}
           LIBGL_ALWAYS_SOFTWARE: "1"
 
       # ORG_GRADLE_PROJECT_<name> is how a Gradle property arrives from an environment, which is
@@ -208,9 +218,10 @@ jobs:
       - name: Publish to Maven Central
         run: >-
           ./gradlew publishToMavenCentral
-          -PlimnVersion=${{ needs.verify.outputs.version }}
+          -PlimnVersion="$VERSION"
           --no-daemon
         env:
+          VERSION: ${{ needs.verify.outputs.version }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
@@ -223,7 +234,9 @@ jobs:
       - name: Build the runnable demo jar
         run: >-
           ./gradlew :limn-demo:fatJar
-          -PlimnVersion=${{ needs.verify.outputs.version }}
+          -PlimnVersion="$VERSION"
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

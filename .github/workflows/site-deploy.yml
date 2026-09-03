@@ -30,10 +30,12 @@ on:
     types: [published]
   workflow_dispatch:
 
+# Read-only for the workflow, and widened per JOB, the same shape as publish.yml: the build job
+# runs this repository's own Gradle and Node builds, and used to do so holding `pages: write`
+# and `id-token: write` because they were granted up here for everyone. Only the deploy job
+# needs them — one action call, no checkout, no build — so only the deploy job gets them.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # Serialises deploys so two merges cannot race: later runs queue behind the live one.
 # `cancel-in-progress` stays false: cancelling a deployment mid-flight can leave the
@@ -76,7 +78,7 @@ jobs:
                       --json tagName --jq '.[].tagName' \
                     | sed 's/^v//' | sort -V | tail -1)"
           echo "version=$NEWEST" >> "$GITHUB_OUTPUT"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"
             echo "manual run: deploying whatever was chosen, documenting ${NEWEST:-no release yet}"
             exit 0
@@ -199,10 +201,16 @@ jobs:
         with:
           path: site/dist
 
+  # The only job that can write anything, and deliberately the smallest: it fetches no tree and
+  # runs no build, only the artifact the job before it uploaded. `pages: write` publishes the
+  # deployment; `id-token: write` is what actions/deploy-pages authenticates it with.
   deploy:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
