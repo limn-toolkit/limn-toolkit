@@ -1,3 +1,6 @@
+import org.gradle.kotlin.dsl.support.serviceOf
+import java.util.zip.ZipFile
+
 // limn-demo: the "kitchen sink" application and --screenshot mode for visual verification.
 //
 // Published, and not as a library: nothing should depend on it, and its POM is shaped for the
@@ -233,24 +236,32 @@ tasks.register<Jar>("fatJar") {
     // shim from limn-ffmpeg-natives' main jar and the libraries from the six classifiers this
     // module names above. The release asset therefore plays video on every desktop it runs on
     // with nothing merged in by a workflow.
-    from({ configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) } })
+    // As a Provider mapped over the configuration, and unzipped through the ArchiveOperations
+    // service rather than the project's zipTree: a closure that reaches for the project at
+    // execution time cannot be stored by the configuration cache, and this task is what the
+    // release workflow runs after `check`.
+    val runtimeJars = configurations.runtimeClasspath
+    val archives = project.serviceOf<org.gradle.api.file.ArchiveOperations>()
+    from(runtimeJars.map { files -> files.map { if (it.isDirectory) it else archives.zipTree(it) } })
 
     // Read back out of the archive rather than trusted from the copy specs above: EXCLUDE keeps
     // whichever entry arrived first, and a reordering of the from() calls would silently ship a
     // dependency's LICENSE under this jar's name. The check costs one zip listing.
+    // Resolved now, as plain files: the action below may hold no reference to the project.
+    val expected = mapOf(
+        "META-INF/LICENSE" to rootProject.file("LICENSE"),
+        "META-INF/NOTICE" to rootProject.file("NOTICE"),
+        "META-INF/licenses/LWJGL-LICENSE.txt" to file("licenses/LWJGL-LICENSE.txt"),
+        "META-INF/licenses/LGPL-2.1.txt" to file("licenses/LGPL-2.1.txt"),
+    )
     doLast {
-        val expected = mapOf(
-            "META-INF/LICENSE" to rootProject.file("LICENSE"),
-            "META-INF/NOTICE" to rootProject.file("NOTICE"),
-            "META-INF/licenses/LWJGL-LICENSE.txt" to file("licenses/LWJGL-LICENSE.txt"),
-            "META-INF/licenses/LGPL-2.1.txt" to file("licenses/LGPL-2.1.txt"),
-        )
-        val archive = zipTree(archiveFile.get().asFile)
-        for ((entry, source) in expected) {
-            val found = archive.matching { include(entry) }.files.singleOrNull()
-                ?: throw GradleException("${archiveFileName.get()} carries no $entry")
-            if (!found.readBytes().contentEquals(source.readBytes())) {
-                throw GradleException("$entry in ${archiveFileName.get()} is not ${source.name}")
+        ZipFile(archiveFile.get().asFile).use { archive ->
+            for ((entry, source) in expected) {
+                val found = archive.getEntry(entry)
+                    ?: throw GradleException("${archiveFileName.get()} carries no $entry")
+                if (!archive.getInputStream(found).readAllBytes().contentEquals(source.readBytes())) {
+                    throw GradleException("$entry in ${archiveFileName.get()} is not ${source.name}")
+                }
             }
         }
     }
