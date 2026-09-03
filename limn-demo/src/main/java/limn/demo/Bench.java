@@ -212,6 +212,7 @@ final class Bench {
                 double secs = (System.nanoTime() - startNanos) / 1e9;
                 out.append(kv("scroll_paints_per_s", (scene.metrics().totalFrames() - startPaints) / secs));
                 out.append(kv("scroll_frame_ms", scene.metrics().frameTime().average()));
+                out.append(kv("scroll_painted_widgets", scene.metrics().paintedWidgets().average()));
                 out.append(kv("scroll_cpu_pct", cpu.pct("scroll")));
                 cpu.phase = "end";
                 window.requestClose();

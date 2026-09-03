@@ -168,6 +168,18 @@ public interface Canvas {
     }
 
     /**
+     * The current clip as a rectangle in <em>current</em> coordinates, or {@code null} when this
+     * canvas cannot say: it does not track clips, or the transform is rotated and the clip's
+     * device-space box has no rectangular pre-image. A caller may use a non-null answer only to
+     * skip work whose every pixel would be clipped away, which is what {@code Widget} does for a
+     * subtree scrolled entirely out of a viewport; nothing may draw <em>more</em> because of it.
+     * The default is the null answer, so a canvas that inherits it simply paints everything.
+     */
+    default Rect clipBounds() {
+        return null;
+    }
+
+    /**
      * Intersects the clip with a rounded rectangle. V1 limitations: the clip
      * state tracks one rounded rect, so nested rounded clips intersect their
      * rectangles exactly, but only the most recent corner radius applies, as

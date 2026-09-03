@@ -575,8 +575,9 @@ public final class Scene implements WindowInput {
     /**
      * Enables partial rendering: frames repaint only the damaged region
      * (plus the previous frame's, for double buffering) instead of the whole
-     * window. Experimental (Phase A): painting is still a full tree walk;
-     * only rasterization is confined. Default off.
+     * window. A subtree that misses the pass region is skipped from the paint
+     * walk too ({@code culledFromPaint}), as one that misses the canvas clip is
+     * in every mode. Default off.
      */
     public void setPartialRendering(boolean enabled) {
         Ui.checkUiThread();

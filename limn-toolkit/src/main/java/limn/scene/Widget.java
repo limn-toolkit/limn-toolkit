@@ -1250,6 +1250,9 @@ public abstract class Widget {
         if (scene != null && scene.culledFromPaint(this)) {
             return; // partial rendering: this subtree misses the repaint pass
         }
+        if (missesClip(canvas)) {
+            return; // every pixel of this subtree is clipped away: scrolled out of a viewport
+        }
         if (scene != null) {
             scene.metrics().countPaintedWidget();
         }
@@ -1273,6 +1276,25 @@ public abstract class Widget {
                 canvas.restoreToCount(depth);
             }
         }
+    }
+
+    /**
+     * Whether this widget's box, grown by {@link #paintOutset()} and the pixel analytic
+     * antialiasing feathers, lies wholly outside the canvas's current clip. The same test partial
+     * rendering makes against its pass rect ({@code Scene.culledFromPaint}), made against the
+     * clip instead, so that a ScrollView over a long column walks and emits only the rows that
+     * can show: without it every scrolled-out row still ran its paint and put its quads in the
+     * batch for the GPU to discard. A canvas that cannot report its clip answers null, and then
+     * nothing is skipped.
+     */
+    private boolean missesClip(Canvas canvas) {
+        limn.graphics.Rect clip = canvas.clipBounds();
+        if (clip == null) {
+            return false;
+        }
+        float outset = 1 + paintOutset();
+        return width + outset <= clip.x() || -outset >= clip.x() + clip.width()
+                || height + outset <= clip.y() || -outset >= clip.y() + clip.height();
     }
 
     /** Class names already reported, so a widget painted every frame is named once and not 60 times. */

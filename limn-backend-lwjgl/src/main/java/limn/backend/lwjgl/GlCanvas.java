@@ -413,6 +413,24 @@ final class GlCanvas implements Canvas {
     }
 
     @Override
+    public limn.graphics.Rect clipBounds() {
+        State s = state();
+        Transform2D t = s.transform;
+        if (t.m01 != 0 || t.m10 != 0 || t.m00 == 0 || t.m11 == 0) {
+            return null; // rotated or degenerate: the device box has no rectangular pre-image
+        }
+        // Axis-aligned: device = local * m + t on each axis, so the pre-image is the box between
+        // the two mapped-back edges, whichever way a negative scale turned them.
+        float x0 = (s.clipX0 - t.tx) / t.m00;
+        float x1 = (s.clipX1 - t.tx) / t.m00;
+        float y0 = (s.clipY0 - t.ty) / t.m11;
+        float y1 = (s.clipY1 - t.ty) / t.m11;
+        float left = Math.min(x0, x1);
+        float top = Math.min(y0, y1);
+        return new limn.graphics.Rect(left, top, Math.max(x0, x1) - left, Math.max(y0, y1) - top);
+    }
+
+    @Override
     public void clipRoundRect(RoundRect roundRect) {
         RoundRect rr = roundRect.normalized();
         intersectClipAabb(rr.x(), rr.y(), rr.width(), rr.height());
