@@ -189,8 +189,14 @@ final class FilesScene {
      */
     private static Path sampleSketchFolder(Label status) {
         try {
-            Path dir = Path.of(System.getProperty("java.io.tmpdir"), "limn-demo-sketches");
-            Files.createDirectories(dir);
+            // A fresh directory per run, not a fixed name under the shared temp dir: on a
+            // multi-user machine a fixed name is anyone's to pre-create, with entries that are
+            // symbolic links to files this user owns, and writeString follows them.
+            if (sketchFolder == null) {
+                sketchFolder = Files.createTempDirectory("limn-demo-sketches-");
+                sketchFolder.toFile().deleteOnExit();
+            }
+            Path dir = sketchFolder;
             Files.writeString(dir.resolve("doodle.limn"), "limn sample sketch\n");
             Files.writeString(dir.resolve("shapes.limn"), "limn sample sketch\n");
             Files.writeString(dir.resolve("not-a-sketch.txt"), "decoy\n");
@@ -201,6 +207,9 @@ final class FilesScene {
             return null;
         }
     }
+
+    /** The sample folder of this run, once made; see {@link #sampleSketchFolder}. */
+    private static Path sketchFolder;
 
     /** A generated two-tone "L" tile, enough to show the icon slot without assets. */
     private static Image appIcon(int size) {

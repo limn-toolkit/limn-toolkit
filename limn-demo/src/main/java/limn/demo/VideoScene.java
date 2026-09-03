@@ -608,9 +608,13 @@ final class VideoScene {
         }
         if (mp4Cache == null) {
             try {
-                Path file = Files.createTempFile("limn-demo-", ".mp4");
+                // The encoder wants a name that does not exist yet, so the file is not created
+                // here and then deleted for it to reuse (a moment in which the name is anyone's):
+                // it gets a name inside a directory that is this process's alone.
+                Path folder = Files.createTempDirectory("limn-demo-");
+                folder.toFile().deleteOnExit();
+                Path file = folder.resolve("clip.mp4");
                 file.toFile().deleteOnExit();
-                Files.deleteIfExists(file);
                 // Small and short on purpose. The encode is on a worker and no longer freezes the
                 // window, but it is still what the viewer waits for before there is a picture, and
                 // the view scales whatever it gets to its box, so a smaller clip looks the same
