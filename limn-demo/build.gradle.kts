@@ -36,6 +36,13 @@ dependencies {
             "windows-aarch64", "windows-x86_64").forEach { platform ->
         runtimeOnly("${payload.module}:${payload.versionConstraint.requiredVersion}:natives-$platform")
     }
+
+    // The gallery capture's writer is the one piece of this module with a contract worth a test
+    // that needs no window: it is what stands between a queued capture and a manifest that
+    // promises it.
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 // A developer's `full` payload (encoders, for the writer scenes), from a sibling clone of

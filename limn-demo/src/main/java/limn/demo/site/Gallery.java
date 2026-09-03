@@ -19,6 +19,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 /**
  * Renders every gallery entry twice (once in {@code Limn}, once in {@code Limn Light})
@@ -193,6 +200,7 @@ public final class Gallery {
             }
         }
 
+        FrameWriter writer = new FrameWriter();
         try (Backend backend = new LwjglBackend()) {
             // Invisible window: the capture must not depend on a desktop, and on CI there
             // is none. Sized ONCE: every entry shares this canvas.
@@ -244,9 +252,13 @@ public final class Gallery {
             }
             all.addAll(showcase);
 
-            Driver driver = new Driver(all, List.of(window, big));
+            Driver driver = new Driver(all, List.of(window, big), writer);
             driver.start();
             backend.runEventLoop();
+            // Every capture is on disk before the warm-up is deleted or a manifest promises
+            // anything: the writes were queued, and a queued write that failed is a file the
+            // site would fail the build over, so it fails this task here instead.
+            writer.join();
             Files.deleteIfExists(warmUp);
             if (driver.failed()) {
                 System.exit(1);
@@ -377,6 +389,131 @@ public final class Gallery {
     }
 
     /**
+     * Encodes and writes the captures off the render thread.
+     *
+     * <p>The readback has to happen on the render thread: it is a GL call, and it is the point
+     * where the CPU waits for the frame. The encode that follows it does not. Left inside the
+     * frame, the way {@code captureFramebuffer(Path)} does it for one screenshot, a PNG of a
+     * 2048×1400 frame was measured at 65 ms and a component frame at 17–25 ms, which over the
+     * 4,480 frames of a run came to about 145 s of a 185 s capture spent with the window idle.
+     * The image is handed here instead, and the loop asks for the next frame.
+     *
+     * <p><b>Bounded.</b> A frame is 11 MB raw and the loop produces them faster than the pool
+     * drains them, so a queue with no ceiling is thousands of frames in the heap before the
+     * first film ends. {@link #write} blocks while every slot is taken; that is back-pressure
+     * on the render thread, which is the right thread to slow down, rather than an
+     * OutOfMemoryError halfway through the showcase.
+     *
+     * <p><b>The bytes are the same bytes.</b> This is {@link Images#save} on the same encoder,
+     * on another thread; the site hashes every capture, and a second PNG writer here would be
+     * a second set of hashes.
+     *
+     * <p>A failure has nobody to throw to on a worker, so the first one is kept and
+     * {@link #join} reports it after every queued write has finished: a capture that never
+     * reached the disk fails this task, instead of leaving the manifest promising a file the
+     * site then fails its own build over.
+     */
+    static final class FrameWriter {
+
+        /** How long {@link #join} waits for the queue to drain before calling it a hang. */
+        private static final long DRAIN_TIMEOUT_MINUTES = 10;
+
+        private final ExecutorService pool;
+        private final Semaphore slots;
+        private final BiConsumer<Image, Path> save;
+        private final AtomicReference<Throwable> failure = new AtomicReference<>();
+
+        /**
+         * One thread short of the machine, so the render thread keeps a core, and twice that
+         * many frames in flight: enough that the encoders never starve between captures, and
+         * a couple of hundred megabytes at most on a workstation.
+         */
+        FrameWriter() {
+            this(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
+        }
+
+        FrameWriter(int threads) {
+            this(threads, Math.max(2, threads * 2), (image, file) ->
+                    Images.save(image, ImageFormat.PNG, file));
+        }
+
+        /** The seam the test uses: a {@code save} that can be made slow, or made to fail. */
+        FrameWriter(int threads, int inFlight, BiConsumer<Image, Path> save) {
+            if (threads < 1 || inFlight < 1) {
+                throw new IllegalArgumentException(
+                        "threads and inFlight must be positive: " + threads + ", " + inFlight);
+            }
+            this.pool = Executors.newFixedThreadPool(threads, runnable -> {
+                Thread thread = new Thread(runnable, "gallery-writer");
+                // Not a daemon: a JVM that exits with a write still queued has lost a capture,
+                // and join() is what ends these, not the end of main.
+                thread.setDaemon(false);
+                return thread;
+            });
+            this.slots = new Semaphore(inFlight);
+            this.save = save;
+        }
+
+        /**
+         * Queues {@code image} to be written to {@code file}, blocking while the in-flight
+         * ceiling is reached. The image is retained until its write finishes and released
+         * with it, so what the ceiling bounds is memory, not only work.
+         *
+         * @throws IllegalStateException after {@link #join}: a write queued then would never
+         *                               be waited for, and a capture nobody waits for is a
+         *                               capture that may not exist
+         */
+        void write(Image image, Path file) {
+            java.util.Objects.requireNonNull(image, "image");
+            java.util.Objects.requireNonNull(file, "file");
+            slots.acquireUninterruptibly();
+            try {
+                pool.execute(() -> {
+                    try {
+                        save.accept(image, file);
+                    } catch (RuntimeException | Error error) {
+                        failure.compareAndSet(null, error);
+                    } finally {
+                        slots.release();
+                    }
+                });
+            } catch (RejectedExecutionException rejected) {
+                slots.release();
+                throw new IllegalStateException("the writer has been joined; " + file
+                        + " would never be written", rejected);
+            }
+        }
+
+        /**
+         * Waits for every queued write, then reports the first failure among them, with the
+         * cause attached. No further {@link #write} is accepted afterwards.
+         *
+         * @throws IOException if a write failed, or the queue did not drain in
+         *                     {@link #DRAIN_TIMEOUT_MINUTES}, which is a stuck disk rather than
+         *                     a slow one
+         */
+        void join() throws IOException {
+            pool.shutdown();
+            boolean drained;
+            try {
+                drained = pool.awaitTermination(DRAIN_TIMEOUT_MINUTES, TimeUnit.MINUTES);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted while the captures were still being written",
+                        interrupted);
+            }
+            if (!drained) {
+                throw new IOException("the captures were still being written after "
+                        + DRAIN_TIMEOUT_MINUTES + " minutes; giving up");
+            }
+            Throwable first = failure.get();
+            if (first != null) {
+                throw new IOException("a capture was not written: " + first.getMessage(), first);
+            }
+        }
+    }
+
+    /**
      * Walks the shot list inside the frame callback. Kept as a small object rather than a
      * pile of arrays because the cursor and the warmup counter have to move together, and
      * a lambda capturing two mutable boxes is where an off-by-one hides.
@@ -385,6 +522,8 @@ public final class Gallery {
 
         private final List<Shot> shots;
         private final List<NativeWindow> windows;
+        /** Where every captured image goes; the encode is not this thread's work. */
+        private final FrameWriter writer;
         private NativeWindow window;
         private int index = -1;
         private int frames;
@@ -412,9 +551,10 @@ public final class Gallery {
         /** The watchdog's frame ceiling for the whole run; see the constructor. */
         private final long frameBudget;
 
-        Driver(List<Shot> shots, List<NativeWindow> windows) {
+        Driver(List<Shot> shots, List<NativeWindow> windows, FrameWriter writer) {
             this.shots = shots;
             this.windows = windows;
+            this.writer = writer;
             // The watchdog's ceiling. Settle waits and flat-frame retries are wall-clock,
             // and a settling window renders at whatever rate it achieves: headless that is
             // hundreds of frames a second, because a scene with any live animation defeats
@@ -497,7 +637,12 @@ public final class Gallery {
                 if (scene != null && film != null) {
                     // A filmed frame: this one is already on screen with its pointer in it.
                     Shot shot = shots.get(index);
-                    renderer.captureFramebuffer(frameFile(shot, frameIndex));
+                    // The file is named NOW: the sink runs at the end of this frame, after the
+                    // index below has moved on, and a sink that asked then would write every
+                    // frame under the next frame's name. The pixels are read on this thread,
+                    // as they must be; the encode is the writer's.
+                    Path file = frameFile(shot, frameIndex);
+                    renderer.captureFramebuffer(image -> writer.write(image, file));
                     if (++frameIndex >= film.frames()) {
                         System.out.println("  " + shot.file().getFileName()
                                 + " + " + film.frames() + " frame(s)");
@@ -540,7 +685,7 @@ public final class Gallery {
                         }
                         // Fall through to the frame request below and try again.
                     } else if (still != null) {
-                        Images.save(still, ImageFormat.PNG, shot.file());
+                        writer.write(still, shot.file());
                         still = null;
                         stillPending = false;
                         // The still is the poster, and it is captured before any pointer
