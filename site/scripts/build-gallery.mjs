@@ -124,6 +124,22 @@ const SHOWCASE_FRAME_STRIDE = 2;
  */
 const LOSSY_QUALITIES = [88, 80, 72, 64];
 
+/**
+ * How many manifest entries are derived at once.
+ *
+ * One at a time, this step was measured at 135 s, most of it in the encoders, and an entry's
+ * pipeline spends much of that waiting on a single libvips thread while the rest of the
+ * machine is idle. A few entries in flight fill it. Not many more: each filmed entry holds
+ * every page of its film in memory until the animation is encoded, and the showcase films are
+ * hundreds of full-window frames each, so a wide pool is a wide heap for a gain the
+ * encoders cannot deliver once they are all busy.
+ *
+ * Nothing here trades determinism for the speed: the outputs are collected in manifest order,
+ * every published byte is a pure function of one capture and this file, and `publish` still
+ * compares every one of them against the last run.
+ */
+const DERIVATION_CONCURRENCY = 4;
+
 /** The published still formats, widest support last so `<source>` order is cheap. */
 const DERIVATIVES = [
   { ext: "avif", options: { quality: 55 } },
@@ -241,13 +257,18 @@ async function main() {
   const problems = [];
   const entries = [];
 
-  for (const entry of manifest.entries) {
+  // Entries are derived a few at a time (see `inParallel`), and each one reports into a list
+  // of its own, gathered below in manifest order. A shared list would fill in whichever
+  // order the encoders happened to finish, and the build's error message would then name the
+  // same problems in a different order on every run, which reads as a different failure.
+  const derived = await inParallel(manifest.entries, DERIVATION_CONCURRENCY, async (entry) => {
+    const problems = [];
     const snippet = regions.get(entry.region);
     if (snippet === undefined) {
       problems.push(
         `entry '${entry.id}' names region '${entry.region}', which no source file carries`,
       );
-      continue;
+      return { problems };
     }
     const images = {};
     for (const [theme, file] of Object.entries(entry.images)) {
@@ -277,7 +298,13 @@ async function main() {
         images[theme].animation = animation;
       }
     }
-    entries.push({ id: entry.id, title: entry.title, snippet, images });
+    return { entry: { id: entry.id, title: entry.title, snippet, images }, problems };
+  });
+  for (const each of derived) {
+    problems.push(...each.problems);
+    if (each.entry) {
+      entries.push(each.entry);
+    }
   }
 
   if (problems.length > 0) {
@@ -296,8 +323,8 @@ async function main() {
     fail(`no showcase manifest at ${SHOWCASE_MANIFEST}\n  run: ./gradlew :limn-demo:captureGallery`);
   }
   const showcase = JSON.parse(await readFile(SHOWCASE_MANIFEST, "utf8"));
-  const shots = [];
-  for (const entry of showcase.entries) {
+  const filmed = await inParallel(showcase.entries, DERIVATION_CONCURRENCY, async (entry) => {
+    const problems = [];
     const images = {};
     for (const [theme, file] of Object.entries(entry.images)) {
       if (!existsSync(path.join(CAPTURES_DIR, file))) {
@@ -335,7 +362,11 @@ async function main() {
         }
       }
     }
-    shots.push({ id: entry.id, title: entry.title, locale: entry.locale, images });
+    return { shot: { id: entry.id, title: entry.title, locale: entry.locale, images }, problems };
+  });
+  const shots = filmed.map((each) => each.shot);
+  for (const each of filmed) {
+    problems.push(...each.problems);
   }
 
   // Drained again, because `problems` is shared with the component pass above and the check
@@ -445,8 +476,14 @@ async function animate(entry, theme, box, problems, options = {}) {
     if (resize) {
       pipeline = pipeline.resize(resize);
     }
-    digests.push(createHash("sha1").update(await pipeline.clone().raw().toBuffer()).digest("hex"));
-    frames.push(await pipeline.png().toBuffer());
+    // The digest is of the PNG the encoder is about to be handed, not of a second decode of
+    // the same pixels: the encoder is deterministic, so two frames encode alike exactly when
+    // their pixels are alike, and running the crop and resize twice per frame was half of
+    // what this loop cost. The digest identifies a frame; its value is compared and never
+    // published, so what it is taken over may change without a byte of output changing.
+    const frame = await pipeline.png().toBuffer();
+    digests.push(createHash("sha1").update(frame).digest("hex"));
+    frames.push(frame);
   }
 
   // Runs of identical frames are collapsed HERE, into one frame holding for the run's whole
@@ -522,6 +559,25 @@ async function animate(entry, theme, box, problems, options = {}) {
     frames: pages.length,
     durationMs: delays.reduce((total, each) => total + each, 0),
   };
+}
+
+/**
+ * Runs `work` over `items` with at most `limit` of them in flight, and returns the results in
+ * the items' own order, whatever order they finished in. A small pool rather than
+ * `Promise.all`, which would start every entry at once and hold every film's frames in memory
+ * together; see `DERIVATION_CONCURRENCY`.
+ */
+async function inParallel(items, limit, work) {
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await work(items[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
 }
 
 /** Keeps an extract box inside the image, which `trim` plus a margin can walk out of. */
