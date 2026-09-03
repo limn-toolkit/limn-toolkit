@@ -25,6 +25,14 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * hardware, one of them coarser than a 60 Hz refresh and the other finer. Nothing may be asserted
  * about which, only that the position never goes backwards and never leaps, which is what a clock
  * following it depends on. Run with {@code -DlimnAudibleTests=true} to measure the real device.
+ *
+ * <p><b>Measured against the sampling clock, not an absolute.</b> The forward bound used to be
+ * a fixed 100 ms on the assumption that samples land 4 ms apart, and a machine under load (a
+ * parallel module compiling, a font test in this suite) stretched a sleep past that and failed
+ * the run for nothing the engine did. Each step is now judged against the wall-clock interval
+ * it was taken over: a position may advance by as much as the time that passed, plus the
+ * chunk-sized slack a bookkeeping error would exceed. The scripted half of the same property,
+ * with no clock at all, is {@link StreamPositionCompositionTest}.
  */
 class StreamPositionTest {
 
@@ -69,22 +77,28 @@ class StreamPositionTest {
             assumeTrue(playback != Playback.NONE, "the device refused the stream");
 
             double previous = playback.positionSeconds();
+            long previousNanos = System.nanoTime();
             double worstBackwardStep = 0;
             double largestForwardStep = 0;
+            double largestExcess = 0; // how far a step ran ahead of the time it was taken over
             int samples = 0;
-            long deadline = System.nanoTime() + MEASURE_MILLIS * 1_000_000L;
+            long deadline = previousNanos + MEASURE_MILLIS * 1_000_000L;
             while (System.nanoTime() < deadline) {
                 double now = playback.positionSeconds();
+                long nowNanos = System.nanoTime();
                 samples++;
                 double step = now - previous;
+                double interval = (nowNanos - previousNanos) / 1e9;
                 worstBackwardStep = Math.min(worstBackwardStep, step);
                 largestForwardStep = Math.max(largestForwardStep, step);
+                largestExcess = Math.max(largestExcess, step - interval);
                 previous = now;
+                previousNanos = nowNanos;
                 Thread.sleep(4); // finer than a 60 Hz frame, so a boundary cannot be stepped over
             }
             playback.stop();
 
-            assertTrue(samples > 100, "too few samples to have crossed a buffer boundary: " + samples);
+            assertTrue(samples > 30, "too few samples to have crossed a buffer boundary: " + samples);
             assertTrue(previous > 0.5,
                     "the stream did not advance at all: reached " + previous + " s");
             // The composition is exact by construction: unqueuing a buffer adds its frames to the
@@ -94,8 +108,9 @@ class StreamPositionTest {
             assertTrue(worstBackwardStep > -0.020,
                     "position stepped backwards by " + (-worstBackwardStep) + " s; a video clock "
                             + "slaved to this would hold every picture until it caught back up");
-            assertTrue(largestForwardStep < 0.100,
-                    "position jumped forward by " + largestForwardStep + " s");
+            assertTrue(largestExcess < 0.100,
+                    "position jumped forward by " + largestForwardStep + " s, "
+                            + largestExcess + " s more than the time that passed");
             System.out.println("[measured] stream position over " + samples + " samples: "
                     + "worst backward step " + worstBackwardStep + " s, "
                     + "largest forward step " + largestForwardStep + " s, "

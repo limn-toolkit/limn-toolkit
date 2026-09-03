@@ -965,6 +965,26 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         }
     }
 
+    /**
+     * The position a streamed playback reports: the frames the service thread has unqueued so
+     * far plus the device's offset into what is still queued. The two halves move at different
+     * moments and this is what keeps the sum continuous: unqueuing a buffer adds its frames to
+     * the completed count under the monitor in the same step that removes exactly those frames
+     * from the device's queue-relative offset, so a reader holding the monitor never sees one
+     * half moved without the other. A looping stream reports in-track time.
+     *
+     * <p>Pure, so the arithmetic (and the loop wrap) can be driven by a scripted device in a
+     * test, where the real device advances on its own clock and can only be sampled.
+     */
+    static double composedPositionSeconds(long completedFrames, double deviceOffsetSeconds,
+                                          int sampleRate, long loopLengthFrames) {
+        double frames = completedFrames + deviceOffsetSeconds * sampleRate;
+        if (loopLengthFrames > 0) {
+            frames %= loopLengthFrames; // looping: report in-track time
+        }
+        return frames / sampleRate;
+    }
+
     // ----------------------------------------------------------------- types
 
     /** A reusable OpenAL source; {@code generation} invalidates stale handles on reuse. */
@@ -1190,12 +1210,9 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
                 if (stream.finished || !initialized) {
                     return 0;
                 }
-                double frames = stream.completedFrames
-                        + alGetSourcef(stream.source, AL_SEC_OFFSET) * stream.sampleRate;
-                if (stream.loopLengthFrames > 0) {
-                    frames %= stream.loopLengthFrames; // looping: report in-track time
-                }
-                return frames / stream.sampleRate;
+                return composedPositionSeconds(stream.completedFrames,
+                        alGetSourcef(stream.source, AL_SEC_OFFSET), stream.sampleRate,
+                        stream.loopLengthFrames);
             }
         }
 
