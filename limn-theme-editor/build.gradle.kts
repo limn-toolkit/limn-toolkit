@@ -29,6 +29,15 @@ dependencies {
     compileOnly(project(":limn-backend-lwjgl"))
     runtimeOnly(project(":limn-backend-lwjgl"))
 
+    // The two opt-in faces, so the artifact is COMPLETE when it is run rather than embedded:
+    // the family picker in this screen lists every face the machine has and previews the palette
+    // in it, and a theme editor that draws Chinese, Japanese, Korean or an emoji as an empty box
+    // is not previewing anything. Runtime only, and an application that embeds the editor and
+    // never draws those scripts excludes the two by name; the backend's own note on them
+    // (limn-backend-lwjgl/build.gradle.kts) says what each weighs.
+    runtimeOnly(libs.limn.fonts.noto.cjk)
+    runtimeOnly(libs.limn.fonts.noto.emoji)
+
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
@@ -38,6 +47,22 @@ application {
     mainClass.set("limn.themeeditor.ThemeEditorApp")
     // Deliberately NOT applicationDefaultJvmArgs: -XstartOnFirstThread is macOS-only and would
     // be baked into the start scripts of every platform, where the JVM refuses to start on it.
+}
+
+// The same main class, named in the PUBLISHED jar's manifest, so that the coordinate is enough:
+// `jbang io.github.limn-toolkit:limn-theme-editor:<version>` opens the editor, with no --main to
+// remember and nothing cloned. The POM that jar ships with names a backend for the machine
+// resolving it and every fallback face (see the root build's host-natives note), which is what
+// makes the coordinate runnable rather than merely resolvable. A Main-Class costs an embedding
+// application nothing: the attribute is read only by a launcher handed the jar itself.
+tasks.named<Jar>("jar") {
+    manifest {
+        attributes(
+            "Main-Class" to "limn.themeeditor.ThemeEditorApp",
+            "Implementation-Title" to "Limn theme editor",
+            "Implementation-Version" to project.version,
+        )
+    }
 }
 
 tasks.named<JavaExec>("run") {

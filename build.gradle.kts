@@ -36,15 +36,26 @@ allprojects {
 
 // What is published, and what a one-line description of it says in the POM.
 //
-// limn-demo is absent on purpose: it is the kitchen sink and the verification scenes, not a
-// library, and publishing it would invite an application to depend on it. Everything else is
-// something an application legitimately puts on its classpath, including the two it OPTS IN to
-// (the icon pack and the theme editor), which are modules precisely so that choice exists.
+// Everything here is something an application legitimately puts on its classpath — including
+// the theme editor, which it OPTS IN to, a module precisely so that choice exists — with one
+// exception that is published for the opposite reason. limn-demo is not a library and no
+// application should depend on it; it is published so that a stranger can RUN it, from its
+// coordinate, with nothing cloned: `jbang io.github.limn-toolkit:limn-demo:<version>`. Its POM
+// is shaped for that reader (see hostNativesModules below) and its description says so.
 val publishedModules = mapOf(
     "limn-toolkit" to
             "The widget set, layout, the scene graph, the backend SPIs and the pure-Java video " +
             "decoders; depends on nothing.",
-    "limn-theme-editor" to "The screen that authors a Theme; an application opts in.",
+    "limn-theme-editor" to
+            "The screen that authors a Theme; an application opts in. Also a program: the jar " +
+            "names ThemeEditorApp as its Main-Class and the POM brings a backend and every " +
+            "fallback face, so `jbang io.github.limn-toolkit:limn-theme-editor:<version>` opens it.",
+    "limn-demo" to
+            "The kitchen sink: every widget, the charts, the media player and the 3D viewport in " +
+            "one window. An application, not a library — nothing should depend on it. Published " +
+            "so that `jbang io.github.limn-toolkit:limn-demo:<version>` runs it from Maven " +
+            "Central with nothing cloned; its POM selects the native libraries of the machine " +
+            "it resolves on (Maven <os> profiles), so only that platform's are downloaded.",
     "limn-video-ffmpeg" to
             "H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis out of MP4 and Matroska, via FFmpeg. The " +
             "native payload is the limn-ffmpeg-natives artifact, versioned with FFmpeg: this " +
@@ -253,6 +264,129 @@ subprojects {
 // accepts is permanent, and it checks what a file repository never would: every artifact carries
 // a signature, by a key it can find on a public keyserver. A -SNAPSHOT version goes to a separate
 // repository under the same task, where neither of those holds and nothing is permanent.
+
+// ------------------------------------------------------- the natives a runnable artifact names
+//
+// limn-backend-lwjgl declares LWJGL's natives for every desktop target, and rightly so: it is a
+// library, an application adds it once and deploys wherever it likes. A jar somebody RUNS from
+// its coordinate is the opposite case. The machine resolving it is the machine running it, and
+// the other five platforms' twelve megabytes are pure cost, downloaded to sit inert. So the two
+// runnable modules publish a POM that says one platform at a time: LWJGL is excluded from every
+// dependency that could carry it, the LWJGL modules are declared again plain, and each platform's
+// natives — LWJGL's, and whatever natives-<os>-<arch> classifier the module names itself, which
+// for the demo is the FFmpeg payload — sit in a <profile> keyed on the JVM's os.name and os.arch.
+//
+// Maven activates such profiles in a DEPENDENCY's POM, not only in the project's, and so does
+// jbang: verified against 0.141 with an artifact of this shape installed to ~/.m2, `jbang info
+// tools` resolved natives-macos-arm64 and nothing else, with the exclusion honoured, and jbang
+// took the classifier of a GAV, a RELEASE metaversion, and -XstartOnFirstThread through either
+// spelling of --java-options.
+//
+// Gradle cannot read a profile, and Gradle is not the reader this is for. The module metadata
+// stays published beside the POM and still says what it always did — the backend, with every
+// platform — so an application that takes limn-theme-editor from a Gradle build gets the
+// classpath it got before. Two answers, one per reader, each the right one for what that reader
+// can do with it; the sibling aggregator POMs switch their metadata off for the opposite reason,
+// because there the two readers can do the same thing and must be told the same list.
+val hostNativesModules = setOf("limn-demo", "limn-theme-editor")
+
+// One row per desktop target, and how Maven tells it apart. The family names are Maven's, and
+// Linux goes by os.name rather than by family because Maven's "unix" family includes macOS. The
+// arch is what the JVM reports: every 64-bit ARM JVM says "aarch64", while 64-bit Intel is
+// "amd64" on Linux and Windows and "x86_64" on macOS — and one profile cannot name two values,
+// so the Intel rows say "not ARM", which is the only other 64-bit answer LWJGL ships for.
+class HostPlatform(
+    val id: String, val lwjglClassifier: String, val osKey: String, val osValue: String, val arch: String)
+val hostPlatforms = listOf(
+    HostPlatform("linux-aarch64", "natives-linux-arm64", "name", "linux", "aarch64"),
+    HostPlatform("linux-x86_64", "natives-linux", "name", "linux", "!aarch64"),
+    HostPlatform("macos-aarch64", "natives-macos-arm64", "family", "mac", "aarch64"),
+    HostPlatform("macos-x86_64", "natives-macos", "family", "mac", "!aarch64"),
+    HostPlatform("windows-aarch64", "natives-windows-arm64", "family", "windows", "aarch64"),
+    HostPlatform("windows-x86_64", "natives-windows", "family", "windows", "!aarch64"),
+)
+
+fun groovy.util.Node.child(name: String): groovy.util.Node? =
+    (get(name) as List<*>).firstOrNull() as groovy.util.Node?
+fun groovy.util.Node.childText(name: String): String? = child(name)?.text()
+
+// The LWJGL modules the backend uses and the classifiers it declares them under, READ from its
+// build rather than copied here: the backend is where a ninth LWJGL module or a seventh target
+// would be added, and this only redistributes what it says. The classifier set is checked
+// against the table above so that a new target fails this build rather than resolving nothing.
+class LwjglDeclaration(val modules: List<String>, val version: String)
+fun lwjglAsDeclaredByTheBackend(): LwjglDeclaration {
+    val backend = project(":limn-backend-lwjgl")
+    val modules = backend.configurations.getByName("implementation").dependencies
+        .filter { it.group == "org.lwjgl" && it.name != "lwjgl-bom" }
+        .map { it.name }.distinct().sorted()
+    val classifiers = backend.configurations.getByName("runtimeOnly").dependencies
+        .filter { it.group == "org.lwjgl" }
+        .flatMap { (it as ExternalModuleDependency).artifacts.mapNotNull { artifact -> artifact.classifier } }
+        .toSet()
+    val expected = hostPlatforms.map { it.lwjglClassifier }.toSet()
+    if (modules.isEmpty() || classifiers != expected) {
+        throw GradleException(
+            "limn-backend-lwjgl declares LWJGL modules $modules under classifiers $classifiers, " +
+                    "but the host-natives table in the root build knows $expected: update the table.")
+    }
+    return LwjglDeclaration(modules, libs.versions.lwjgl.get())
+}
+
+fun groovy.util.Node.appendDependency(
+        group: String, artifact: String, version: String, classifier: String? = null) {
+    appendNode("dependency").apply {
+        appendNode("groupId", group)
+        appendNode("artifactId", artifact)
+        appendNode("version", version)
+        classifier?.let { appendNode("classifier", it) }
+        appendNode("scope", "runtime")
+    }
+}
+
+/** Reshapes a generated POM so that it names one platform's natives at a time. */
+fun shapeForHost(pom: groovy.util.Node, group: String) {
+    val lwjgl = lwjglAsDeclaredByTheBackend()
+    val dependencies = pom.child("dependencies") ?: pom.appendNode("dependencies")
+    val perPlatform = hostPlatforms.associate { it.id to mutableListOf<groovy.util.Node>() }
+    for (dependency in dependencies.children().filterIsInstance<groovy.util.Node>().toList()) {
+        val classifier = dependency.childText("classifier")
+        if (classifier != null && classifier.startsWith("natives-")) {
+            // The module's own per-platform payload, declared six times so that the fat jar
+            // carries all of them: in the POM each goes into its platform's profile instead.
+            val platform = perPlatform[classifier.removePrefix("natives-")]
+                ?: throw GradleException("$classifier names a platform the host-natives table does not know")
+            dependencies.remove(dependency)
+            platform += dependency
+        } else if (dependency.childText("groupId") == group &&
+                dependency.childText("artifactId") in publishedModules) {
+            // Every path that could reach the backend's all-platform LWJGL is cut, and only a
+            // module of this build can be such a path: the fonts and the icon pack, published
+            // from their own repositories, name no backend. An exclusion that matches nothing
+            // would be harmless, but a reader of the POM would still have to work that out.
+            dependency.appendNode("exclusions").appendNode("exclusion").apply {
+                appendNode("groupId", "org.lwjgl")
+                appendNode("artifactId", "*")
+            }
+        }
+    }
+    lwjgl.modules.forEach { module -> dependencies.appendDependency("org.lwjgl", module, lwjgl.version) }
+    val profiles = pom.appendNode("profiles")
+    hostPlatforms.forEach { platform ->
+        val profile = profiles.appendNode("profile")
+        profile.appendNode("id", "natives-${platform.id}")
+        profile.appendNode("activation").appendNode("os").apply {
+            appendNode(platform.osKey, platform.osValue)
+            appendNode("arch", platform.arch)
+        }
+        val natives = profile.appendNode("dependencies")
+        lwjgl.modules.forEach { module ->
+            natives.appendDependency("org.lwjgl", module, lwjgl.version, platform.lwjglClassifier)
+        }
+        perPlatform.getValue(platform.id).forEach { natives.append(it) }
+    }
+}
+
 subprojects {
     val moduleDescription = publishedModules[name] ?: return@subprojects
     apply(plugin = "com.vanniktech.maven.publish")
@@ -313,6 +447,63 @@ subprojects {
                     url = uri(rootProject.layout.buildDirectory.dir("repo"))
                 }
             }
+            if (this@subprojects.name in hostNativesModules) {
+                publications.withType<MavenPublication>().configureEach {
+                    pom.withXml { shapeForHost(asNode(), this@subprojects.group.toString()) }
+                }
+            }
+        }
+
+        // The shape above is a promise to a reader who is not here — a POM is read on a machine
+        // this build never sees — so `check` reads the POM this build would ship and refuses one
+        // that names a native outside its profile or leaves a path to the backend's full set open.
+        if (this@subprojects.name in hostNativesModules) {
+            // Matched by name rather than looked up: the publishing plugin registers the task
+            // later than this block runs, and a lookup would find nothing to depend on.
+            val generatePom = tasks.withType<GenerateMavenPom>()
+                .matching { it.name == "generatePomFileForMavenPublication" }
+            val checkHostNativesPom = tasks.register("checkHostNativesPom") {
+                group = "verification"
+                description = "Fails if the published POM names natives outside the platform profiles."
+                dependsOn(generatePom)
+                val pomFile = layout.buildDirectory.file("publications/maven/pom-default.xml")
+                val group = this@subprojects.group.toString()
+                inputs.file(pomFile)
+                doLast {
+                    val pom = groovy.xml.XmlParser(false, false).parse(pomFile.get().asFile)
+                    val plain = pom.child("dependencies")?.children()?.filterIsInstance<groovy.util.Node>().orEmpty()
+                    val problems = mutableListOf<String>()
+                    plain.filter { it.childText("classifier")?.startsWith("natives-") == true }
+                        .forEach { problems += "${it.childText("artifactId")}:${it.childText("classifier")} sits outside every profile" }
+                    plain.filter {
+                        it.childText("groupId") == group && it.childText("artifactId") in publishedModules &&
+                                it.child("exclusions") == null
+                    }
+                        .forEach { problems += "${it.childText("artifactId")} can still reach LWJGL's natives for every platform" }
+                    val lwjglModules = plain.filter { it.childText("groupId") == "org.lwjgl" }.map { it.childText("artifactId") }
+                    if (lwjglModules.isEmpty()) problems += "no LWJGL module is declared plain"
+                    val profiles = pom.child("profiles")?.children()?.filterIsInstance<groovy.util.Node>().orEmpty()
+                    val ids = profiles.map { it.childText("id") }
+                    val expected = hostPlatforms.map { "natives-${it.id}" }
+                    if (ids != expected) problems += "profiles are $ids, expected $expected"
+                    profiles.forEach { profile ->
+                        val natives = profile.child("dependencies")?.children()?.filterIsInstance<groovy.util.Node>().orEmpty()
+                        val lwjglNatives = natives.filter { it.childText("groupId") == "org.lwjgl" }
+                        if (lwjglNatives.map { it.childText("artifactId") } != lwjglModules) {
+                            problems += "${profile.childText("id")} does not carry one native per plain LWJGL module"
+                        }
+                        if (natives.any { it.childText("classifier") == null }) {
+                            problems += "${profile.childText("id")} carries a dependency without a classifier"
+                        }
+                    }
+                    if (problems.isNotEmpty()) {
+                        throw GradleException(
+                            "${pomFile.get()} would not resolve one platform at a time:\n  " +
+                                    problems.joinToString("\n  "))
+                    }
+                }
+            }
+            tasks.named("check") { dependsOn(checkHostNativesPom) }
         }
 
         // LICENSE and NOTICE in every jar that leaves here — classes, sources and javadoc alike.

@@ -1,4 +1,7 @@
 // limn-demo: the "kitchen sink" application and --screenshot mode for visual verification.
+//
+// Published, and not as a library: nothing should depend on it, and its POM is shaped for the
+// one reader it has — a launcher resolving it to RUN it (see the publishing note at the end).
 
 plugins {
     application
@@ -30,7 +33,9 @@ dependencies {
     // the libraries are the application's choice, and this application's fatJar is one file that
     // has to play video on whichever desktop `jbang <url>` lands it on — so all six, the same
     // thing limn-video-ffmpeg-natives-all would name, written out because a project cannot depend
-    // on a sibling POM's dependency list without publishing it first.
+    // on a sibling POM's dependency list without publishing it first. The published POM does not
+    // say all six: each moves into the <profile> of its platform there, so a launcher resolving
+    // the coordinate fetches the one the machine can load.
     val payload = libs.limn.ffmpeg.natives.get()
     listOf("linux-aarch64", "linux-x86_64", "macos-aarch64", "macos-x86_64",
             "windows-aarch64", "windows-x86_64").forEach { platform ->
@@ -249,4 +254,47 @@ tasks.register<Jar>("fatJar") {
             }
         }
     }
+}
+
+// ------------------------------------------------------------------ the jar Maven Central holds
+//
+// The same program, published thin: this jar and a POM, and the launcher's Maven cache does the
+// rest. `jbang io.github.limn-toolkit:limn-demo:<version>` fetches the toolkit, the fonts, the
+// icon pack and — through the profiles the root build writes into the POM — the LWJGL and FFmpeg
+// natives of the machine it runs on, and not the other five platforms'. The fat jar above stays
+// for the reader with no network or no cache to fill; this one is for everyone else, and it is
+// the coordinate every README leads with.
+//
+// Publishing it does not make it a library, and ADR 038's rule is not bent by it. That rule says
+// an icon pack is an application's choice of vocabulary and nothing in this build may depend on
+// it but the demo — because the demo IS an application. It still is: what changes is that a
+// stranger can now start it from its coordinate, which is what an application is for.
+//
+// The manifest is what makes the coordinate enough. jbang runs a jar by its Main-Class, and a
+// jar without one needs --main on the command line, which a README then has to carry.
+tasks.named<Jar>("jar") {
+    manifest {
+        attributes(
+            "Main-Class" to "limn.demo.Main",
+            "Implementation-Title" to "Limn kitchen sink",
+            "Implementation-Version" to project.version,
+        )
+    }
+}
+
+// A developer's `full` payload shadows the published one on this module's classpath (see
+// devNatives above), and it does so by being a main resource — which the jar and the sources
+// jar would carry out of the machine. The release builds on a runner with no sibling clone, but
+// publishToMavenLocal and a workstation release do not, so what shadows the payload for `run`
+// is kept out of every archive by name, whatever the sibling clone happens to hold.
+tasks.withType<Jar>().configureEach {
+    // Not the fat jar: a developer's own build of it playing the writer scenes is the point of
+    // the sibling clone, and that jar is the release runner's to build clean.
+    if (name == "fatJar") return@configureEach
+    val shadowing by lazy {
+        fileTree(devNatives).files
+            .map { devNatives.toPath().relativize(it.toPath()).joinToString("/") }
+            .toSet()
+    }
+    exclude { details -> details.path in shadowing }
 }
