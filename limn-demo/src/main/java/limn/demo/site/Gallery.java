@@ -60,32 +60,32 @@ public final class Gallery {
     private static final int WARMUP_FRAMES = 24;
 
     /**
-     * Wall-clock milliseconds a shot keeps rendering past its warmup frames before the
-     * shutter, for the few that ask. Zero for the component entries, which are deterministic
-     * scene-time stills, and zero for most showcase screens too: this is paid per palette, in
-     * seconds, and it is charged only to {@code SiteShowcase.Entry.settles}.
-     *
-     * <p>A showcase capture is a whole application screen, and the kitchen sink's performance
-     * footer latches its readout on a once-per-second wall-clock heartbeat: every gauge shows
-     * a dash until the first beat, and the CPU gauge until the second, because the process CPU
-     * probe reports nothing before a prior read has given it a baseline. Frames cannot buy
-     * this (the loop renders far faster than the heartbeat), so raising
-     * {@link #WARMUP_FRAMES} instead, the obvious edit, captures the dashes no matter how high
-     * it goes. Two beats plus scheduling slack is the floor; a value below that puts the empty
-     * footer back on the site's front page.
-     */
-    private static final long SHOWCASE_SETTLE_MS = 2_600;
-
-    /**
-     * The cadence a settling shot renders at: one frame per {@link Ui#postDelayed} interval
-     * instead of back-to-back. Requesting the next frame directly (the edit that makes the
-     * settle "finish faster") lets an invisible window render thousands of frames a second,
-     * and the footer then latches exactly that: a four-digit FPS and a whole core of CPU, a
+     * The cadence a footer-priming shot renders at: one frame per {@link Ui#postDelayed}
+     * interval instead of back-to-back. A showcase capture is a whole application screen, and
+     * the kitchen sink's performance footer reports what the loop achieves; requesting the
+     * next frame directly lets an invisible window render thousands of frames a second, and
+     * the footer then reports exactly that: a four-digit FPS and a whole core of CPU, a
      * capture advertising the spin loop rather than the toolkit. Sixteen milliseconds is a
      * 60 Hz display's frame, the number a reader can compare with the machine in front of
      * them.
+     *
+     * <p>The footer's gauges latch on a once-per-second wall-clock heartbeat, and the driver
+     * used to wait 2.6 s per shot for two beats to land: 31 s of a run that now takes 50.
+     * It asks the footer for its readings instead ({@code PerfFooter.sampleNow}): a baseline
+     * once the warm-up frames are done, since those still carry the scene's opening
+     * transitions and a scene that animates requests its own frames faster than this pace,
+     * then {@link #PRIME_FRAMES} more frames at this pace, then the reading the picture
+     * shows. The interval that reading is taken over is real, so the FPS in the picture is a
+     * measurement of what the loop achieved in it. Not necessarily a paced one: a scene that
+     * animates anything requests its own frames faster than this throttle, and the footer
+     * reports the busiest window in the process, so the kitchen sink published several
+     * hundred fps under the 2.6 s wait too (762 in the capture of 2026-08-18). The pace is
+     * the ceiling for a scene that has settled, not a promise about one that has not.
      */
     private static final long SETTLE_PACE_MS = 16;
+
+    /** Paced frames between the footer's baseline and the reading it is photographed with. */
+    private static final int PRIME_FRAMES = 30;
 
     /**
      * Wall-clock milliseconds a shot may keep retrying after its still comes back as one
@@ -196,7 +196,7 @@ public final class Gallery {
                     Films.forEntry(entry.id()));
             for (Palette palette : PALETTES) {
                 shots.add(new Shot(english, palette, outDir.resolve(
-                        entry.id() + "-" + palette.key() + "@2x.png"), null, 0));
+                        entry.id() + "-" + palette.key() + "@2x.png"), null, false));
             }
         }
 
@@ -229,7 +229,7 @@ public final class Gallery {
             List<Shot> all = new ArrayList<>();
             for (Shot shot : shots) {
                 all.add(new Shot(shot.entry(), shot.palette(), shot.file(), window,
-                        shot.settleMillis()));
+                        shot.primesFooter()));
             }
             List<Shot> showcase = showcaseShots(outDir, big);
             // The showcase window's FIRST capture is a warm-up, taken and thrown away.
@@ -248,7 +248,7 @@ public final class Gallery {
             Path warmUp = outDir.resolve(".showcase-warmup@2x.png");
             if (!showcase.isEmpty()) {
                 Shot first = showcase.get(0);
-                all.add(new Shot(first.entry(), first.palette(), warmUp, big, first.settleMillis()));
+                all.add(new Shot(first.entry(), first.palette(), warmUp, big, first.primesFooter()));
             }
             all.addAll(showcase);
 
@@ -282,11 +282,12 @@ public final class Gallery {
      * light-palette surfaces, because the other driver had switched the palette between
      * this one's build and its paint. One driver, one shot at a time, removes the race.
      *
-     * <p>{@code settleMillis} is wall-clock the shutter waits past the warmup frames:
-     * {@link #SHOWCASE_SETTLE_MS} for a showcase screen, zero for a component still.
+     * <p>{@code primesFooter} is whether the screen carries a live performance footer the
+     * shutter primes after the warm-up frames ({@code SiteShowcase.Entry.settles}); a
+     * component still never does.
      */
     private record Shot(GalleryEntry entry, Palette palette, Path file, NativeWindow window,
-                        long settleMillis) {
+                        boolean primesFooter) {
     }
 
     /**
@@ -299,9 +300,9 @@ public final class Gallery {
             for (Palette palette : PALETTES) {
                 // A palette-invariant entry renders the same pixels in both palettes AND both
                 // passes write the same file, so the second pass buys nothing but a second
-                // settle wait, measured at 2.6 s each, which is 18 s of this run spent
-                // overwriting bytes with identical bytes. One pass, unless the entry asked for
-                // the warm-up (see Entry.warmUpPass, which is what the 3D screen needs).
+                // warm-up, which is this run spent overwriting bytes with identical bytes.
+                // One pass, unless the entry asked for the warm-up (see Entry.warmUpPass,
+                // which is what the 3D screen needs).
                 if (entry.paletteInvariant() && !entry.warmUpPass()
                         && !palette.key().equals(INVARIANT_KEY)) {
                     continue;
@@ -324,15 +325,11 @@ public final class Gallery {
                                     : new GalleryScenes.Built(scene, null, null, null);
                         },
                         entry.filmed() ? Films.forShowcase(entry.id()) : null);
-                // Per entry, not per pass. The settle used to be blanket, and it was the
-                // single largest thing in this run's wall clock: a screen with nothing on a
-                // real clock in it renders its final pixels in the warm-up frames and then
-                // waited 2.6 s anyway. Two entries ask for it (SiteShowcase.Entry.settling);
-                // the rest photograph as soon as they have drawn, exactly as the component
-                // stills already did.
+                // Per entry, not per pass: only the screens with a live performance footer
+                // are primed and paced (SiteShowcase.Entry.settling); the rest photograph as
+                // soon as they have drawn, exactly as the component stills already did.
                 shots.add(new Shot(adapted, palette, outDir.resolve(
-                        showcaseFile(entry, palette)), window,
-                        entry.settles() ? SHOWCASE_SETTLE_MS : 0));
+                        showcaseFile(entry, palette)), window, entry.settles()));
             }
         }
         return shots;
@@ -540,8 +537,12 @@ public final class Gallery {
         /** Frames of it already captured, which is also the number in the file name. */
         private int frameIndex;
         private boolean buttonDown;
-        /** When the current shot was bound, the zero its settle wait is measured from. */
+        /** When the current shot was bound, the zero its flat-frame retry is measured from. */
         private long shotStartNanos;
+        /** The frame the current shot's footer took its baseline on; -1 until it has. */
+        private int footerBaselineFrame = -1;
+        /** Whether the footer has been asked for the reading the picture shows. */
+        private boolean footerSampled;
         /** The shot a flat-frame warning was already printed for, so a retry logs once. */
         private int flatWarnedIndex = -1;
         /** Last frame's still, delivered by the capture sink; judged at the next frame. */
@@ -555,20 +556,20 @@ public final class Gallery {
             this.shots = shots;
             this.windows = windows;
             this.writer = writer;
-            // The watchdog's ceiling. Settle waits and flat-frame retries are wall-clock,
-            // and a settling window renders at whatever rate it achieves: headless that is
-            // hundreds of frames a second, because a scene with any live animation defeats
-            // the SETTLE_PACE_MS throttle. Budgeting those shots by warmup frames alone is
-            // the edit that starved this run one shot from the end after a legitimate
-            // retry; two frames per waited millisecond covers the fastest observed rate
-            // with room, while keeping a genuine hang a bounded failure.
-            long settle = 0;
+            // The watchdog's ceiling. Flat-frame retries are wall-clock, and a paced window
+            // renders at whatever rate it achieves: headless that is hundreds of frames a
+            // second, because a scene with any live animation defeats the SETTLE_PACE_MS
+            // throttle. Budgeting those shots by warmup frames alone is the edit that
+            // starved this run one shot from the end after a legitimate retry; two frames
+            // per retry millisecond covers the fastest observed rate with room, while
+            // keeping a genuine hang a bounded failure.
+            long retries = 0;
             for (Shot shot : shots) {
-                if (shot.settleMillis() > 0) {
-                    settle += (shot.settleMillis() + FLAT_RETRY_MS) * 2;
+                if (shot.primesFooter()) {
+                    retries += FLAT_RETRY_MS * 2;
                 }
             }
-            this.frameBudget = WARMUP_FRAMES * shots.size() * 12L + 128 + settle;
+            this.frameBudget = WARMUP_FRAMES * shots.size() * 12L + 128 + retries;
         }
 
         /** Both windows stay open until the last shot, then close together. */
@@ -650,7 +651,7 @@ public final class Gallery {
                         film = null;
                         scene = null;
                     }
-                } else if (scene != null && ++frames >= WARMUP_FRAMES && settled()) {
+                } else if (scene != null && ++frames >= WARMUP_FRAMES) {
                     Shot shot = shots.get(index);
                     // The still is inspected before it is accepted: a frame whose every
                     // pixel is one colour is a scene that has not drawn, not a picture of
@@ -662,7 +663,20 @@ public final class Gallery {
                     // late in the frame that scheduled it, so the pixels are judged at the
                     // top of the frame after; deciding at the call site reads a capture
                     // that has not happened yet.
-                    if (still == null && !stillPending) {
+                    if (shot.primesFooter() && footerBaselineFrame < 0) {
+                        // The baseline, once the opening transitions are done; the paced
+                        // frames that follow are what the reading is measured over. See
+                        // SETTLE_PACE_MS.
+                        footerBaselineFrame = frames;
+                        primeFooters(scene.root());
+                    } else if (shot.primesFooter() && !footerSampled) {
+                        if (frames - footerBaselineFrame >= PRIME_FRAMES) {
+                            // The reading the picture shows; the frame requested below paints
+                            // it, and the shutter fires on that one.
+                            footerSampled = true;
+                            primeFooters(scene.root());
+                        }
+                    } else if (still == null && !stillPending) {
                         stillPending = true;
                         renderer.captureFramebuffer(image -> still = image);
                     } else if (still != null && uniform(still)) {
@@ -674,8 +688,7 @@ public final class Gallery {
                                     + " came back as one flat colour: the scene has not"
                                     + " actually drawn; retrying");
                         }
-                        if (System.nanoTime() - shotStartNanos
-                                > (shot.settleMillis() + FLAT_RETRY_MS) * 1_000_000L) {
+                        if (System.nanoTime() - shotStartNanos > FLAT_RETRY_MS * 1_000_000L) {
                             System.err.println("gallery: " + shot.file().getFileName()
                                     + " never rendered anything; failing rather than"
                                     + " publishing a blank capture");
@@ -717,11 +730,11 @@ public final class Gallery {
                     closeAll();
                     return;
                 }
-                // A shot with a settle wait is paced; everything else renders flat out. The
+                // A shot with a live footer is paced; everything else renders flat out. The
                 // request goes through the UI queue with a delay rather than straight back to
                 // the window, and that indirection IS the throttle; see SETTLE_PACE_MS for
                 // what removing it puts in the published footer.
-                if (shots.get(index).settleMillis() > 0) {
+                if (shots.get(index).primesFooter()) {
                     NativeWindow paced = window;
                     Ui.postDelayed(paced::requestFrame, SETTLE_PACE_MS);
                 } else {
@@ -730,15 +743,14 @@ public final class Gallery {
             });
         }
 
-        /**
-         * Whether the current shot's settle wait has passed. Wall clock, not frames, on
-         * purpose: {@link #WARMUP_FRAMES} is scene time for transitions, while the readouts
-         * the settle exists for (the performance footer's gauges) latch on real-time
-         * heartbeats that no number of frames can hurry.
-         */
-        private boolean settled() {
-            return System.nanoTime() - shotStartNanos
-                    >= shots.get(index).settleMillis() * 1_000_000L;
+        /** Asks every performance footer under {@code root} for its reading now. */
+        private static void primeFooters(Widget root) {
+            if (root instanceof limn.demo.PerfFooter footer) {
+                footer.sampleNow();
+            }
+            for (Widget child : root.children()) {
+                primeFooters(child);
+            }
         }
 
         /** Whether every pixel of the capture is one colour, a scene that has not drawn. */
@@ -818,6 +830,8 @@ public final class Gallery {
             film = null;
             still = null;
             stillPending = false;
+            footerBaselineFrame = -1;
+            footerSampled = false;
             shotStartNanos = System.nanoTime();
             return true;
         }

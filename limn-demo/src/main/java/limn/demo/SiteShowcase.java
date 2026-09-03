@@ -41,9 +41,8 @@ public final class SiteShowcase {
      *               is the screen, and a film costs well over a hundred files and a share of the
      *               capture's wall clock. Turn it on only when the screen's claim is a change a
      *               still cannot show
-     * @param settles whether this screen needs the shutter to wait on the wall clock before it
-     *               is worth photographing. Almost none do, and it is the most expensive thing
-     *               an entry can ask for: see {@link #settling()} for what buys it
+     * @param settles whether this screen carries a live performance footer the shutter must
+     *               prime before it is worth photographing: see {@link #settling()}
      */
     public record Entry(String id, String title, Locale locale, LayoutDirection direction,
                         boolean paletteInvariant, boolean warmUpPass, boolean filmed,
@@ -89,9 +88,11 @@ public final class SiteShowcase {
          * does not need it is the most effective way to make this capture slow: it was blanket
          * before, and the screens that did not need it were most of the run.
          *
-         * <p>Two things buy it today, both named where they are asked for: a live performance
-         * footer, whose gauges latch on a once-per-second heartbeat that frames cannot hurry,
-         * and the 3D window, whose first frame can present before its geometry does.
+         * <p>One thing buys it today: a live performance footer, whose gauges latch on a
+         * once-per-second heartbeat that frames cannot hurry. The driver used to wait 2.6 s
+         * of wall clock per shot for two beats; it now asks the footer for a sample once the
+         * warm-up frames have run, which is the same second reading a real interval apart,
+         * and photographs on the frame after.
          */
         public Entry settling() {
             return new Entry(id, title, locale, direction, paletteInvariant, warmUpPass, filmed,

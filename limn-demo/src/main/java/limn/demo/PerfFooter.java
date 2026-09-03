@@ -49,7 +49,7 @@ import java.util.Locale;
  * not a reading order — the reason a scrub bar and a clock do not mirror
  * (docs/design/direction-axis.md).
  */
-final class PerfFooter extends Widget {
+public final class PerfFooter extends Widget {
 
     private static final float HEIGHT = 104;
     // Bar-chart window: the last 30 ticks (one per second). The ring holds
@@ -146,6 +146,26 @@ final class PerfFooter extends Widget {
         boolean rtl = layoutDirection() == LayoutDirection.RTL;
         drawRow(canvas, rowFrame, pad, pad, width() - 2 * pad, rowH, rtl);
         drawRow(canvas, rowProcess, pad, pad + rowH + gap, width() - 2 * pad, rowH, rtl);
+    }
+
+    /**
+     * Takes a sample now, off the heartbeat, and repaints with it. For the site's capture
+     * driver, which photographs this screen: every gauge shows a dash until the first beat
+     * and the CPU gauge until the second, because both need a reading a real interval apart
+     * from an earlier one, and the driver used to wait 2.6 s of wall clock per shot for the
+     * two beats to land. The first reading is the latch the first paint takes; this is the
+     * second, over however long the warm-up frames took, which is a real interval measured
+     * on the real clock and not a number invented for the picture. No-op off screen.
+     */
+    public void sampleNow() {
+        if (scene() == null || !isShowing() || !ticking) {
+            return;
+        }
+        if (!latched) {
+            latched = true; // the baseline the first paint would have taken
+        }
+        sample();
+        invalidate();
     }
 
     // ------------------------------------------------------------- 1 Hz sampler
