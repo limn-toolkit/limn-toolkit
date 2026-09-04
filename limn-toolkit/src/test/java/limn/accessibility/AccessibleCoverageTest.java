@@ -106,7 +106,6 @@ class AccessibleCoverageTest {
             "limn.components.chart.LineChart",
             "limn.scene.layout.Column",
             "limn.scene.layout.Expanded",
-            "limn.scene.layout.Padding",
             "limn.scene.layout.Row",
             "limn.scene.layout.SizedBox",
             "limn.scene.layout.Stack"
@@ -177,7 +176,15 @@ class AccessibleCoverageTest {
             // place. The clip outlives the node: isShowing() walks widgets rather than nodes, so a
             // collapsed pane's controls publish visible and not showing for free. Pinned by
             // limn.components.SplitPaneAccessibilityTest.
-            "limn.components.SplitPane$Pane"
+            "limn.components.SplitPane$Pane",
+            // Declares no role, name, action or state of its own and no onPaint, so §1.6's
+            // predicate deletes it in silence and hoists its child. The insets outlive the node as
+            // the child's origin, and under a right-to-left subtree that origin is insets.right().
+            // Unlike a private pane, it is public and non-final and carries the whole naming
+            // surface, so an application that names, tooltips, roles or focuses one materialises a
+            // GROUP over the padded rectangle: transparency here is per instance, and that node is
+            // the escape hatch rather than a leak. Pinned by limn.scene.PaddingAccessibilityTest.
+            "limn.scene.layout.Padding"
     ));
 
     @Test
