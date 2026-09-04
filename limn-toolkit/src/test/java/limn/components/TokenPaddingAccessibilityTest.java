@@ -33,11 +33,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * as the content having moved rather than as the page having been rebuilt.
  *
  * <p><b>Transparency here is per instance and not per class.</b> TokenPadding is public and
- * non-final and carries the whole of Widget's naming surface, so an application that names, roles,
- * tooltips or focuses one gets a node: a {@code GROUP} over the outer, padding-inclusive rectangle,
- * with the content unchanged underneath at the inset offset. That is the supported way to ask for a
- * named region without writing a wrapper class, and the fourth test is what keeps a future
- * "TokenPadding is always deleted" shortcut honest.
+ * non-final and carries the whole of Widget's naming surface, so an application that names, roles
+ * or tooltips one gets a node: a {@code GROUP} over the outer, padding-inclusive rectangle, with the
+ * content unchanged underneath at the inset offset. That is the supported way to ask for a named
+ * region without writing a wrapper class, and the fourth test is what keeps a future "TokenPadding
+ * is always deleted" shortcut honest. Focusing alone is not a fourth verb, for the reason
+ * {@code PaddingAccessibilityTest} pins on the superclass: it supplies nothing to publish, so the
+ * node survives as {@code UNKNOWN} and unnamed.
  *
  * <p>The generic predicate is not re-tested here — {@code AccessibleTreeTest} pins it, and
  * {@code PaddingAccessibilityTest} pins what a plain {@link limn.scene.layout.Padding}'s deletion

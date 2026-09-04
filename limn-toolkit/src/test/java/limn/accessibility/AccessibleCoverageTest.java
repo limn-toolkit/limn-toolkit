@@ -205,9 +205,11 @@ class AccessibleCoverageTest {
             // predicate deletes it in silence and hoists its child. The insets outlive the node as
             // the child's origin, and under a right-to-left subtree that origin is insets.right().
             // Unlike a private pane, it is public and non-final and carries the whole naming
-            // surface, so an application that names, tooltips, roles or focuses one materialises a
-            // GROUP over the padded rectangle: transparency here is per instance, and that node is
-            // the escape hatch rather than a leak. Pinned by limn.scene.PaddingAccessibilityTest.
+            // surface, so an application that names, tooltips or roles one materialises a GROUP
+            // over the padded rectangle: transparency here is per instance, and that node is the
+            // escape hatch rather than a leak. Focusing alone is not a fourth verb -- it supplies
+            // nothing to publish, so the node survives as UNKNOWN and unnamed, which is a defect
+            // the walk warns about and not a hatch. Pinned by limn.scene.PaddingAccessibilityTest.
             "limn.scene.layout.Padding"
     ));
 

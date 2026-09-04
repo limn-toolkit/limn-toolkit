@@ -26,10 +26,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p><b>Transparency here is per instance and not per class.</b> Unlike a private pane that can
  * never acquire a tooltip, Padding is public and non-final and carries the whole of Widget's naming
- * surface, so an application that names, tooltips, roles or focuses one gets a node: a {@code GROUP}
- * over the outer, padded rectangle, with its child unchanged underneath. That is the intended
- * escape hatch for an application that wants a named region and does not want a wrapper class for
- * it, and the last two tests are what keep a future "Padding is always deleted" shortcut honest.
+ * surface, so an application that names, tooltips or roles one gets a node: a {@code GROUP} over the
+ * outer, padded rectangle, with its child unchanged underneath. That is the intended escape hatch
+ * for an application that wants a named region and does not want a wrapper class for it, and the
+ * last tests are what keep a future "Padding is always deleted" shortcut honest.
+ *
+ * <p><b>Focusing one is not a fourth verb.</b> Those three each supply something the node can be
+ * published as; {@code setFocusable} supplies nothing, so the widget survives on the predicate's
+ * focusable branch alone and is published as {@code UNKNOWN} with no name, which §12.1 refuses on
+ * both counts and the walk warns about. It materialises a node, but one the application still owes
+ * a role and a name.
  *
  * <p>Two things deliberately are not re-tested here, because they are the mechanism's rather than
  * this widget's: the generic predicate, which {@code AccessibleTreeTest} pins, and the resolution of
@@ -178,6 +184,45 @@ class PaddingAccessibilityTest extends AccessibleTestBase {
      * The escape hatch: an application that wants the region named gets a node for it, over the
      * outer box, with no code in Padding and no new identity for what it wraps.
      */
+    /**
+     * Focusing one is not the fourth escape hatch, and this is what it really does.
+     *
+     * <p>The other three verbs supply something the node can be published as. {@code setFocusable}
+     * supplies nothing: the widget survives the predicate through the focusable branch alone, with
+     * no role and no name to its name, so the walk publishes {@code UNKNOWN} and warns. §12.1
+     * refuses both of those -- no {@code UNKNOWN} role anywhere, every focusable node named -- so
+     * what this pins is a half-materialised node that an application still owes a role and a name,
+     * and not a supported way to ask for a focusable region.
+     */
+    @Test
+    void focusingAPaddingAloneMaterialisesANodeThatIsNotYetSayable() {
+        Padding padding = new Padding(ASYMMETRIC, new Probe(Accessible.Role.BUTTON, "ok"));
+        bind(padding);
+        frame();
+
+        padding.setFocusable(true);
+        frame();
+
+        AccessibleNode unknown = null;
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            if (tree().node(i).role() == Accessible.Role.UNKNOWN) {
+                unknown = tree().node(i);
+            }
+        }
+        assertNotNull(unknown,
+                "it is not deleted -- the predicate's focusable branch keeps it" + describe(tree()));
+        assertEquals("", unknown.name(),
+                "but nothing named it, and focus is not a name" + describe(tree()));
+
+        padding.setAccessibleRole(Accessible.Role.GROUP);
+        padding.setAccessibleName("Sidebar");
+        frame();
+
+        AccessibleNode named = node("Sidebar");
+        assertEquals(Accessible.Role.GROUP, named.role(),
+                "the two verbs that do supply something are what finish it" + describe(tree()));
+    }
+
     @Test
     void namingAPaddingMaterialisesTheOuterBoxAndRekeysNothing() {
         Padding padding = new Padding(ASYMMETRIC, new Probe(Accessible.Role.BUTTON, "ok"));
