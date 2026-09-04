@@ -102,8 +102,7 @@ class AccessibleCoverageTest {
             "limn.components.chart.BarChart",
             "limn.components.chart.DonutChart",
             "limn.components.chart.LineChart",
-            "limn.scene.layout.Expanded",
-            "limn.scene.layout.SizedBox"
+            "limn.scene.layout.Expanded"
     ));
 
     /**
@@ -259,7 +258,28 @@ class AccessibleCoverageTest {
             // ancestry — a describe hook on Flex would fail this name and would silently describe
             // Row, TokenColumn and TokenRow at once. Pinned by
             // limn.scene.ColumnAccessibilityTest.
-            "limn.scene.layout.Column"
+            "limn.scene.layout.Column",
+            // Declares no role, name, description, action or state, declares no onPaint so the
+            // paints-and-says-nothing warning stays silent, and is never focusable of its own
+            // accord, so §1.6's predicate deletes it and hoists its one child — or hoists nothing,
+            // since the two-argument constructor is a childless spacer and this is the only member
+            // of §7's scaffolding row that can hold nothing at all. What the deletion leaves behind
+            // is not an origin but a whole rectangle: onLayout forces the child to
+            // (0, 0, width(), height()) on both axes, so the published box of a control wrapped in
+            // one is the wrapper's box and never the control's own measure, and MediaControls'
+            // volume slider is seventy-two points wide in the tree for exactly that reason. The
+            // fixed number is a request the parent may refuse — a stretching column or the tight
+            // root constraint clamps it away — so what a reader is told is what was granted.
+            // Nothing in the class reads layoutDirection(), so unlike Padding and Column the
+            // deletion leaves no mirroring expression behind. It is final and setterless, so unlike
+            // Padding, Row, Column and Stack this entry stands on no ancestor staying hookless, no
+            // subclass can inherit a hook, and no application call can move its box; TokenBox
+            // repeats the body rather than extending it and owes its own step. The naming surface
+            // is public, so transparency is per instance — and the GROUP an application
+            // materialises here is co-extensive with its child rather than a larger enclosing
+            // region, which is the one way this hatch differs from Padding's. Pinned by
+            // limn.scene.SizedBoxAccessibilityTest.
+            "limn.scene.layout.SizedBox"
     ));
 
     @Test
