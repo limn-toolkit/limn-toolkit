@@ -1,0 +1,3218 @@
+# ADR 039. An accessible tree is a snapshot, and the platform reads it on its own thread
+
+- **Status:** Proposed, 2026-09-04. Nothing here is implemented. Closes the "No screen reader
+  bridge" bullet the README carries in ten languages, and delivers ADR 006 §5's promise that
+  accessibility labels are `I18nString`s. The work is a new `limn.accessibility` package, four
+  hooks on `Widget`, one `default` member on `NativeWindow`, three bridges in `limn-backend-lwjgl`,
+  and a short list of corrections to seams that were never observed before and turn out not to fire
+  (§8). §11 is what the first cut deliberately does not do; §14 is the order the work lands in. It
+  lands as
+  `docs/adr/039-an-accessible-tree-is-a-snapshot-and-the-platform-reads-it-on-its-own-thread.md`,
+  with its `docs/adr/README.md` row landing beside it, and every section below is written to be read
+  from there rather than from a draft.
+- **Date:** 2026-09-04
+- **Companion, and it lands in this commit.** ADR 040, *A handler answers the user, and a watcher
+  hears everything*, is in `docs/adr/` as Proposed, 2026-09-03, with its own row in the index, and it
+  names this record throughout. It was still being drafted when §9 was first written, so §9 is now a
+  reconciliation rather than a list of requests: it says which of this record's four requirements ADR
+  040 answered, answers the five open items ADR 040 addressed here — its §6.1 to §6.4 in design, and
+  §6.16 by not needing it — and states plainly the one place the two records describe the same bridge
+  differently and which of them governs it (§9.3). **Neither record waits on the other.**
+- **Scope:** what an accessible node is, how a widget supplies one, which events exist and how they
+  are coalesced, which thread each platform calls on and how that call reaches toolkit state, how
+  the backend hands over a bridge, where popups and dialogs sit in the tree, what any of it costs
+  when nothing is listening, and how it is tested. Braille, speech and magnification are the
+  assistive technology's; this document's job is to give it something true to read. System
+  accessibility *settings* — high contrast, reduced motion, a system text scale — are a different
+  decision with a different shape and are not here.
+- **Audience:** whoever writes the three bridges, and whoever adds a widget and has to say what it
+  is. Every number in §0 was measured by the three platform spikes, on a named machine on a named
+  day, and each is cited by the run that produced it rather than by a file. A constant that is not in
+  this document is deliberate: the spikes established that platform constants are read off the
+  machine under test, never recalled, and §12.3 keeps that rule.
+- **Where the evidence is, and where it is not.** The three spikes were throwaway probes built
+  outside this repository, and they do not land. What this record carries is their verdicts, each
+  attributed to a named machine on a named day so that a doubtful one can be **re-measured rather
+  than re-read**. The raw transcripts are deliberately not committed: they are megabytes of log from
+  guests that no longer exist, carrying those guests' paths and user ids, and a record whose evidence
+  is a file nobody can open is no better off than one with no citation at all. What does land is the
+  half that has to be run again — the lab suite of §12.2, one directory per platform under
+  `scripts/a11y/`, brought in by each bridge's own phase (§14). **No path outside this repository is
+  cited anywhere below**, and none should be added: a record that points at a scratch directory stops
+  being checkable the day after it is written.
+- **Compatibility.** Nine releases, `v0.1.0` through `v0.7.0`, are on Maven Central under
+  `io.github.limn-toolkit`, and `README.md` carries the badge and the one-dependency install snippet,
+  so a stranger can already compile against the types §8 changes. What is true is narrower than
+  "nothing depends on this" and is still the whole justification: **the owner knows of no consumer,
+  and a `0.x` line promises no compatibility.** On that ground, where an existing API fights the tree
+  the API changes rather than gaining a deprecated twin; §8 lists every such change and says why, and
+  every migration §8 forces is inside this repository. ADR 040 §3.7 says what the same reasoning
+  would owe once the line is `1.0`, and it applies here unchanged.
+- **What in this document is a specification, and what is a survey.** The model (§1.2–§1.4), the
+  identity rule (§1.3), the threading contract (§3) and the per-platform interface mapping (§2) are
+  specifications: each is wrong for every widget at once if it is wrong at all, and each is written
+  to be implemented as it stands. **§7's per-widget table is a survey** — the starting point each
+  component's own pipeline step begins from and corrects, not a list to be implemented literally.
+  §7 says so in its own words, §7.2 records the corrections already known, and §14's phase 4 is the
+  pipeline that settles them one component at a time. Holding the two to the same standard is how
+  this record would become untrustworthy in both directions at once.
+
+---
+
+## 0. What was measured before anything was decided
+
+Three spikes were built and run: a working UI Automation provider on Windows 11 ARM64, a working
+AT-SPI2 application on Ubuntu 24.04 GNOME, and a working `NSAccessibilityElement` subclass on
+macOS 26.6.2. All three are Java at `--release 17` with no native code of our own. Their verdicts
+are settled, and this design is built on them rather than around them.
+
+The macOS spike was **re-run on an unlocked guest after this ADR's first draft, and then verified a
+second time by an independent agent that wrote its own client from scratch and set out to break the
+first one's conclusions.** Both reached the same place; the verifier corrected three of the first
+agent's claims and cleared the confound that would have made all of them worthless. Two results
+moved as a consequence: the end-to-end client path is proven and the pump behaviour is measured.
+Findings 4, 4a, 4b and 5 are the current state, §2.2 and §3.2 are written on it, and §13 records
+which of its open items that closed and which narrower ones it opened. Where a paragraph below reads
+as an argument against a design this document no longer holds, that is deliberate: the discarded
+design was reasonable on the evidence available, and the measurement that discarded it is the
+interesting part.
+
+**One thing must be said before any macOS number is quoted anywhere: this was one button in a probe,
+not the toolkit's own tree.** The provider published a single element, under one window, and never
+mutated it. Everything Finding 4 establishes about the *mechanism* is measured; everything about a
+tree that changes is items 20 to 23 of §13.
+
+### Finding 1: on Windows the platform calls us on its own threads, several at once, holding no lock
+
+Across two client passes the provider took 2191 calls. 2031 of them arrived on UI Automation RPC
+threads that LWJGL's callback trampoline attaches to the JVM as daemons — up to three live at once
+— and 2007 arrived while the main thread was demonstrably not inside `glfwPollEvents`. Nothing took
+a lock on our behalf. The hookup is the one exception: `WM_GETOBJECT` arrived on the GLFW main
+thread ten times out of ten, every time inside the pump, because a sent message is delivered only
+when the owning thread enters a message-retrieval call.
+
+Provider state must therefore be safe to read from an arbitrary thread, without the UI thread's
+cooperation and without a lock the UI thread also takes. That one measurement decides the shape of
+everything below.
+
+### Finding 2: on Windows a stalled message pump is an accessibility outage, not a frame drop
+
+A deliberate experiment abandoned the pump for forty seconds. During the stall the provider took
+one call. A fresh client started mid-stall wrote its header and then could not complete `FindFirst`
+for the top-level window at all; the instant the pump resumed it ran to completion and invoked the
+button. Already-attached clients keep reaching the provider on RPC threads; a client trying to
+*attach* cannot, because both `WM_GETOBJECT` and the HWND host provider's own properties travel as
+sent messages.
+
+The toolkit already owns the instrument for this: the slow-handler and slow-task budgets, each 8 ms,
+each logging a WARNING and counting. Those budgets are now also the accessibility budget.
+
+### Finding 3: on Linux the platform never calls us, and describing two objects cost 46 round trips
+
+AT-SPI2 is a wire protocol, not a C API. A pure-Java D-Bus client over
+`java.net.UnixDomainSocketAddress` served `libatspi` — the library Orca is built on — and Orca
+itself, with no JNI, no libffi, no LWJGL and an empty classpath. Over a full run there were 51
+inbound calls from four client connections, every handler on our own reader thread; the main thread
+was never re-entered. A handler must never block and must never make a blocking call on the same
+connection, because the reply would arrive on the thread parked waiting for it.
+
+The cost measurement that decides the data structure: `libatspi` made 46 synchronous round trips to
+describe **two** objects, at roughly 0.67 ms each. That is why `org.a11y.atspi.Cache.GetItems`
+exists, returning `a((so)(so)(so)iiassusau)` — reference, application, parent, index-in-parent,
+child-count, interfaces, name, role, description, states — for the whole tree in one message. A real
+tree must be able to answer it from something already assembled.
+
+Three smaller facts from the same run. Both guests' buses are `unix:path=`, so Java's inability to
+open an abstract socket did not bite. The registry writes `org.a11y.atspi.Application.Id` back to us
+immediately after `Socket.Embed`, so `Properties.Set` must be answered before the tree is queried.
+And `Accessible.GetState` is `au` of exactly two `uint32`, low word first — a real GTK application
+answers `au 2 0 0`, and a struct of two would be wrong.
+
+### Finding 4: on macOS the platform calls us on the thread we are already on, and only while that thread is in the pump
+
+*This finding changed after the first draft of this ADR. The macOS spike was re-run on an unlocked
+guest on 2026-09-03/04, and then re-run again by an independent verifier with its own client. The
+two things the draft carried as unproven are now measured, and the three claims the verifier
+falsified are corrected in place rather than left standing. The runs behind it are the re-run on the
+unlocked arm64 guest on 2026-09-03/04 — a verification pass, a threading pass, a notification pass
+and an unprivileged pass — and the independent verifier's sweeps with a client of its own on
+2026-09-04. The first pass's own transcript is superseded by both and nothing here rests on it. Every
+one of these is reproducible from `scripts/a11y/macos/` once phase 7 lands it (§12.2), which is the
+form this record's macOS evidence takes.*
+
+Every callback into Java — the runtime-added `accessibilityPerformPress` and the
+`accessibilityTitle` and `accessibilityLabel` implementations — ran on the process main thread,
+which under `-XstartOnFirstThread` is the Java UI thread (`pthread_main_np()` returned 1). No
+thread-attach problem arose and no locking is needed, because a macOS accessibility callback *is*
+the UI thread.
+
+**The end-to-end path is now proven.** A separate-process client using the ordinary API
+(`AXUIElementCreateApplication` → `AXChildren` → `AXUIElementPerformAction`) found an element named
+`Probe` with role `AXButton` **nested under the window AppKit vends**, pressed it, and the press
+arrived back inside Java on the main thread — logged by the Java implementation *after* the
+provider announced `READY`, so the self-test's own direct message send cannot be mistaken for it.
+`AXUIElementCopyElementAtPosition` found the same element (`CFEqual`) through the application
+element and through the system-wide element.
+
+**Nothing in the provider had to change to make that work**, and the list of what turned out to be
+unnecessary is the useful half of the result: `setAccessibilityChildren:` on the GLFW content view
+was sufficient on its own to surface the element under the *window's* children; the runtime subclass
+answered role, label, title and `isAccessibilityElement` exactly as built;
+`setAccessibilityFrameInParentSpace:` was the right call and surfaced correctly in screen space;
+`accessibilityHitTest:` was never needed, because AppKit hit-tests from the frame itself; and the
+window needed to answer nothing at all. Five suspected fixes, none of them required.
+
+**The root confound was caught and cleared, and that is why the result can be believed.** Everything
+in the lab runs through `sudo launchctl asuser 501`, which runs as **root**, and root is
+accessibility-trusted whatever TCC says — so every `trusted=true` the first pass recorded was
+suspect, and with it every downstream measurement. The verifier re-ran the identical client from a
+plain shell as an ordinary `uid=501` user with no `sudo`: same find, same press, Java's press counter
+advanced. The grant is real and not an artifact of running as root.
+
+**And the pump hypothesis is now a measurement rather than a hypothesis.** Latency tracks the loop's
+sleep, and past a threshold accessibility degrades to the point of failing:
+
+| loop mode | a full by-name find (median) | outcome |
+| --- | --- | --- |
+| `glfwWaitEventsTimeout(5)` | **0.8–0.9 ms** | every find succeeded |
+| `glfwPollEvents` + 16 ms sleep | **130–224 ms** | every find succeeded |
+| `glfwPollEvents` + 250 ms sleep | **~1.5 s** | degraded, and every find still completed |
+| `glfwPollEvents` + 2 s sleep | — | **usually `kAXErrorCannotComplete`**; across the verifier's sweeps one traversal did succeed, in 17.6 s, and the failures were consistent at ~19 s |
+
+The provider's own counters say why: in **every** mode the run ended `axReadsWhileSleeping=1`, and
+that one is the provider's startup self-read. Every client-caused read arrived while the loop was
+inside the pump. In the 2 s mode nothing reached Java for 36 seconds while the client's finds timed
+out, and then one pump served the whole backlog in about a millisecond — which also rules out any
+out-of-process attribute cache: every value a client ever received was produced by our own code
+being called.
+
+**Two caveats the verifier established, and this record carries both rather than the tidier story.**
+The first agent reported that a traversal *never* succeeds at a 2 s pump interval, with failure
+latencies of 10 s and 26 s; the independent sweeps found one success and a consistent ~19 s failure,
+so **the categorical claim is false** and the last row says "usually" for that reason. The design
+consequence survives the correction untouched — seventeen seconds is an outage a blind user
+experiences as a window with no content, and a design cannot be built on the one run that got
+through. The second caveat bites harder on how these numbers may be used: **the traversal time is a
+property of the client, not of the bridge.** Two clients measured against one unchanged provider
+disagreed, so no figure in that table may be quoted as a cost of this bridge, in a benchmark, in a
+budget, or to a reader. What the table measures is the *relationship* between the main thread's
+sleep and a client's ability to finish, and that relationship is what §3.2 is built on.
+
+Two consequences this design is built on. Idling in `glfwWaitEvents` is the *best* state, not a
+risk — it is where a screen reader is served in under a millisecond. And **long synchronous work on
+the UI thread is an accessibility outage on macOS exactly as it is on Windows**, with a measured
+cliff somewhere between 250 ms and 2 s. The toolkit's 8 ms slow-handler and slow-task budgets sit
+two orders of magnitude inside it, which is the argument for making them the accessibility budget
+on this platform too.
+
+The provider mechanism is proven: `objc_allocateClassPair` on `NSAccessibilityElement`,
+`class_addMethod` with an LWJGL libffi implementation, the press callback firing for real and
+returning `BOOL=true`, `NSAccessibilityPostNotification` delivering to a real `AXObserver` built on
+`AXObserverCreate` — the machinery VoiceOver itself is built on — in another process, carrying the
+correct element and the updated value, and — the one that decides §2.2's shape —
+**`setAccessibilityChildren:` on the GLFW content view being sufficient on its own** to place a
+Java-built element under the window a screen reader walks.
+
+**One asymmetry in notification delivery, measured, and the bridge must respect it.**
+`AXValueChanged` is delivered to an observer registered on the element **or** on the application
+element; `AXFocusedUIElementChanged` arrives **only** on the application-element registration. A
+bridge that posted focus per element would post into silence. AppKit's own encoding for `accessibilityPerformPress` is `B16@0:8`, read out
+of the running AppKit rather than recalled, so the return is a C `bool` and a `char` would be wrong.
+
+### Finding 4a: on macOS, three things AppKit does for us that a bridge would otherwise do wrong
+
+All three come out of the same run, and each deletes code this design had planned to write.
+
+**AppKit hit-tests our elements from their frames.** The probe never implemented
+`accessibilityHitTest:` — the switch stayed off — and `AXUIElementCopyElementAtPosition` still
+returned the element, `CFEqual` to the one found by name, through both the application element and
+the system-wide element. Hit testing on macOS is a consequence of publishing correct frames, not a
+method to implement.
+
+**AppKit converts the frame.** `setAccessibilityFrameInParentSpace:` with `(40, 40, 160, 48)` in the
+content view's own coordinates surfaced to the client as `AXFrame = rect(240, 412, 160, 48)` in
+screen coordinates, for a window at `rect(200, 172, 400, 328)`. The bottom-left origin, the title
+bar, and the flip against the screen are all AppKit's. A bridge that computes a screen rectangle
+itself is doing arithmetic it can hand back.
+
+**AppKit vends the window, and the walk shows exactly what it vends:** `AXWindow/AXStandardWindow`
+with the window's title, `AXRaise`, its close, full-screen and minimize buttons, and an
+`AXStaticText` for the title. That is no longer an assumption about what AppKit usually does — it is
+this window, dumped. **The window itself needed to answer nothing of ours**: no method was added to
+it, no attribute was overridden on it, and the element still surfaced under its children.
+
+### Finding 4b: what the macOS run still does not cover
+
+Recorded here because §13 is built from it and because a spike's silence is easy to read as
+success. VoiceOver itself was never run; every client was a purpose-built `AXUIElement` consumer.
+The tree was one element under one window and never mutated, so adding and removing elements while
+a client is attached, destroying an element a client holds, and focus movement between elements are
+all untested — and the spike names the last of those the obvious crash vector. No text, no value
+setting and no selection were exercised, which is where a real bridge does its hardest work. The
+guest runs a pt-BR system and **no non-ASCII string ever crossed the boundary**, which matters more
+here than in most designs, because publishing localized names is half of what this ADR is for.
+It is arm64 only, on macOS 26.6.2, on one machine.
+
+### Finding 5: AppKit maps label and title to different attributes, and a bridge that guesses is silently wrong
+
+`-accessibilityTitle` becomes `AXTitle`; `-accessibilityLabel` becomes `AXDescription`. The spike's
+first client matched `AXTitle` only and had to be rewritten to match either. A model carrying one
+undifferentiated "name" leaves the bridge guessing, and the wrong guess is not an error — it is an
+element a screen reader cannot find.
+
+The re-run supplied the sharpest possible evidence for this, by making the mistake itself. The
+spike's threading instrumentation hooked `-accessibilityLabel`, and reported **zero** client reads
+across an entire five-mode sweep — not because nothing was reading, but because a by-name walk asks
+for `AXTitle` and never asks for `AXDescription`. Every threading number in Finding 4 depends on
+that hook being moved. A bridge making the same choice publishes a name into an attribute the
+client walking the tree does not read, and observes silence that looks exactly like an empty
+application.
+
+### Finding 6: the toolkit has no accessibility surface, and its observation seams are the wrong shape
+
+A case-insensitive search of both modules for `accessib`, `a11y`, `UIAutomation`, `NSAccessibility`
+and `AT-SPI` finds only prose. `Widget` has no id, name, role or description; its only free text is
+`tooltip()`, an `I18nString` resolved under the widget's own locale, whose backing value has no
+getter. `Scene` is `final`, so no bridge subclasses it and every scene-level funnel must be a change
+to `Scene` itself. `Widget` is abstract and subclassable, so per-widget seams stay available where
+scene-level ones do not.
+
+What is missing, precisely. There is no focus observer: `Scene#setFocus` is private and is the
+single funnel, and `Widget#notifyFocus` is the package-private per-widget one. There is no tree
+observer: `Widget#onAttached` and `#onDetached` are protected, firing top-down and bottom-up
+respectively, and `Widget#setSceneRecursively` and `Scene#onWidgetDetached` are the two funnels,
+both package-private. There is no geometry observer: `layoutBox` is `public final` and writes the
+four fields with no hook, and `moveChild` writes `x` and `y` behind even that. And `Scene#root()` is
+not the whole tree — overlays are a second root set, so an in-scene dialog or menu is invisible to
+anything walking the root alone.
+
+**And there is no state observer at all.** `Widget#invalidate()` calls `Scene#damageWidget`, which
+adds a clipped damage rectangle when partial rendering is on and calls `scheduleFrame()`. It does
+not set `layoutDirty`, it does not call `markLayoutDirty`, and it tells nothing else.
+`Checkbox#setChecked`, `Slider#apply`, every text edit and every other state-bearing setter in
+`limn.components` reaches exactly that path and no other. A design that hung its accessibility flag
+off the attach, focus, overlay and layout funnels — as the first draft of this one did — would raise
+no event for a checkbox toggle, a slider move or a keystroke, which is three quarters of what a
+screen reader exists to report. `Scene#damageWidget`, `#damageWidgetRegion`, `#damage(Rect)` and
+`#markContainedLayout` are the funnel every repaint actually goes through, and §1.1 hangs the flag
+there.
+
+Every component change callback is a single-slot replace, so a bridge registering on one silently
+unregisters the application's handler. That is the state of the code today and it is what the first
+draft of this ADR reasoned from; ADR 040 has since decided to change it, and §9.3 says why this
+design's shape did not change with it. `Widget#setInheritanceHost` — the only link from a popup,
+menu or dialog root back to its opener, and the link every one of them already sets — is write-only.
+
+### Finding 7: the actuation surface is uneven, and four entries are traps
+
+`Checkbox#toggle()` is public and does not check `isEnabled()`, so an accessibility toggle mapped
+straight onto it flips a disabled checkbox and fires the application's handler. `Slider#setValue` is
+silent by design and has no user-equivalent, so an accessibility set cannot notify the application
+through the toolkit at all. `Button`'s action is private with no `click()`. `MenuItem#activate()` is
+package-private, and `MenuItem#hasSubmenu()` is false for an *empty* submenu while `isSelectable()`
+stays true, so an action advertised from `isSelectable()` alone does nothing on those rows. And
+`Scene#requestFocus` tests the widget's own `isVisible()` and its ancestry, not `isShowing()`, so an
+accessibility focus request can land in a hidden subtree.
+
+### Finding 8: the coordinate chain exists, and its two ends are UI-thread-confined
+
+`Widget#localToSceneX/Y` sum to the parentless root. `NativeWindow#screenX/screenY` give the content
+origin in native screen coordinates; `#logicalToScreenFactor()` is documented as the multiplier from
+logical points to native screen coordinates — 1.0 on macOS, the monitor scale on Windows and X11 —
+and already folds in `overrideContentScale`. That is exactly what each platform wants: UI Automation
+takes physical screen pixels, NSAccessibility takes points, AT-SPI2 takes pixels. One multiplier,
+three correct answers.
+
+Two constraints ride with it. `LwjglWindow#screenX`, `#screenY` and `#setScreenPosition` each open
+with a UI-thread check, so a foreign thread cannot ask a window where it is. And under
+`supportsAbsolutePositioning() == false` — Wayland — `screenX/screenY` answer `0, 0` and the whole
+chain silently yields scene-relative numbers.
+
+### Finding 9: after layout, bounds are already physical, and reading order is already logical
+
+ADR 032 decided there is no mirror transform anywhere: mirroring is a placement decision inside each
+container's `onLayout`. The consequence is large and easy to miss — after layout `x/y/width/height`
+are always physical, left-origin parent coordinates, in RTL as in LTR. Screen bounds need no
+direction handling at all. Reading order, conversely, must be `children()` order, which is paint
+order, which is `Scene#focusTraverse`'s depth-first order, which is logical. A tree built by sorting
+nodes on x would be right in LTR and backwards in RTL.
+
+### Finding 10: text indices disagree between the toolkit's own two models
+
+`TextEditModel` indexes in UTF-16 `char` offsets, and its caret is a `(charIndex, Affinity)` pair,
+not a bare index, because an index on a direction boundary is two points on the line.
+`PreeditEvent#caret()` and `#blockSizes()` are in code points. `NSRange` is UTF-16; AT-SPI2's `Text`
+counts characters. Whichever unit the tree standardises on has to be stated once and converted at
+exactly one boundary, or emoji and CJK extension text produce silently wrong carets.
+
+`TextEditModel` also has no change counter and no damage record. A text event's insert and delete
+offsets therefore cannot be read off the model; they have to be computed.
+
+### Finding 11: what a client would find in the demo today, and what CI can gate
+
+The demo's de-facto status bar is a muted `Label` whose text is replaced by hand, and nothing marks
+it as anything. Icon-only buttons — the tool bar's, the media transport's, the tabbed pane's strip
+buttons, a text field's trailing button — carry a tooltip or nothing. `ListView` rows are real
+widgets that are pooled and rebound, so accessible identity cannot be widget identity. Menus are a
+parallel model: `Menu` and `MenuItem` are not widgets, and the tree cannot be derived from the widget
+tree alone.
+
+CI runs on `ubuntu-latest` only, under `xvfb-run`, with no session bus and no AT-SPI registry, and
+there is no macOS or Windows runner in any workflow. `checkArchitecture` scans test sources too and
+forbids `org.lwjgl.*` outside `limn-backend-lwjgl` by import line. `StubWindow` and `RecordingWindow`
+both answer a zero screen origin and a unit factor, so no headless double as it stands can support an
+assertion about a real screen rectangle.
+
+### Finding 12: neither spike needed a native shim, and the one dependency that could replace one costs 458 KB and a logging facade
+
+The Windows provider is 25 vtable slots served by 16 libffi closures over five call interfaces, in
+806 lines of Java, using nothing outside `org.lwjgl.system`. The Linux client is 719 lines for the
+D-Bus layer and 65 KB of class files with an empty classpath, validated by 104 offline assertions
+including seven golden messages captured off the wire from the reference implementation. The
+evaluated alternative, `com.github.hypfvieh:dbus-java` 5.2.0 on its native-unixsocket transport, is
+468,798 bytes across four jars, and `dbus-java-core`'s `module-info` requires `org.slf4j`, so a
+toolkit that ships no logging facade would gain one.
+
+Against that, ADR 037 prices the alternative shape exactly: the one native shim this project owns
+needs its own repository, a five-runner matrix, six classifier jars, a consumer rehearsal, Central
+credentials and an ABI handshake — and ADR 028 §4 already calls a JNI payload in
+`limn-backend-lwjgl` "the first native payload" there.
+
+### Finding 13: one wake that does not fire, and one callback that tells nobody
+
+`UiRuntime#post` enqueues and then wakes the native loop **only when the caller is not the UI
+thread**. That is right for every caller that exists today: a UI-thread post happens inside a drain
+or inside an input dispatch, and the loop re-reads `nanosUntilNextDeadline()` — which returns `0`
+while immediate work is queued — before it sleeps again. It is wrong for exactly one shape: code
+running on the UI thread *while the loop is parked inside the pump*, that is not itself a GLFW
+event. A macOS accessibility callback is that shape and is the only one in the process.
+`LwjglBackend#runEventLoop` parks in `glfwWaitEvents()` with no timeout whenever no window has asked
+for a frame, and an AX request serviced by the run loop inside `nextEventMatchingMask:` produces no
+`NSEvent`, so the pump does not return and the queued task waits for unrelated input.
+
+**The obvious fix — wake unconditionally — is not free, and the count that would have justified it
+is wrong.** The toolkit and the backend hold 22 `Ui.post`/`Ui.postDelayed` call sites between them,
+not 14, and they are not all event-shaped. `TextField` and `TextArea` blink the caret through a
+*self-rescheduling* `postDelayed` whose javadoc says why — "so a focused field lets the event loop
+sleep between blinks instead of pinning it at the frame rate" — and `Spinner`, `ScrollBar`,
+`VideoView`, `MediaControls` and `Scene`'s tooltip dwell all re-arm themselves the same way. An
+unconditional wake makes every one of those posts write a native event from inside the drain the
+loop is already awake for. §8 takes the narrower fix instead.
+
+`LwjglWindow#windowMovedTo` is the whole of the window-position callback: it updates `lastScreenX/Y`
+and moves child popups. It requests no frame and notifies nothing else. The content-scale callback
+beside it does set `frameRequested`. A window drag therefore changes every screen rectangle this
+design publishes, and produces no frame in which to say so.
+
+### Finding 14: four components whose real shape the tree has to match
+
+**Every `Scene` overlay is modal.** `pushOverlay`'s contract is "a full-scene modal layer painted on
+top of everything: it captures all input and confines focus"; hit-testing never reaches the content
+beneath it, `focusTraverse` collects from `inputRoot()`, and `requestFocus` refuses a widget outside
+it. So "what a modal blocks" is already computed exactly, once, and is one private method away.
+
+**`PopupMenu.MenuSurface` is the size of the whole scene.** Its `onMeasure` returns the maximum
+constraints; its `onLayout` sets its bounds to the scene in the in-scene mounting, and it is the
+popup window's root in the native one. The menu a user sees is `Column`, which holds `x`, `y`, `w`,
+`visibleH`, per-item `top[]` and `hgt[]`, and `highlight` — a plain `int`. The rectangle of a menu,
+the rectangle of a row, and the identity of the row the user is on are all in `Column`, and none of
+them is in the widget's box.
+
+**`ListView` mounts cells directly.** `Map<Integer, Widget> mounted` is data index → child widget,
+and `Adapter#rowAt`/`#recycle` pool them. There is no per-row wrapper widget, and this design does
+not add one.
+
+**`PasswordField`'s masked line carries the secret, and its index space is the secret's.**
+`shapeDisplay` returns `ShapedText.uniform` over **the model's own text**, so the caret, the click
+mapping and the selection band need no translation — the class's javadoc calls the count-preserving
+substitution the old mask string needed "not a thing that can go wrong any more, because there is no
+second string". The dots are then *drawn*, one per caret stop, never typeset. Two consequences a
+facet must respect, and they pull in opposite directions. The painted mask is one cell per grapheme
+cluster, so its length is `caretCount() - 1` and an astral character is one dot where the model has
+two `char`s — publishing model offsets beside a dot-per-grapheme string would run the caret past the
+end of it. And `shapeDisplay`'s result carries the secret as its `text()`; the class marks that line
+`TRAP` in its own source, because the only guarded call in the file is the one that would paint it.
+Anything reading that line for the tree has to take its caret stops and never its text (§7).
+
+---
+
+## 1. Decision
+
+### 1.1 The tree is an immutable whole-window snapshot, published by the UI thread, read by anyone
+
+The toolkit builds `limn.accessibility.AccessibleTree` — every node of the scene root and its
+overlays — and publishes it through a `volatile` reference. Bridges read it from whatever thread the
+platform gave them, with no lock and no hop.
+
+Finding 1 and Finding 3 decide this together, and it is the only shape that serves both. On Windows
+the platform calls us on RPC threads while the UI thread sleeps; there is nothing to synchronise
+with, and the alternative — posting to the UI thread and waiting — has no upper bound, because the
+UI thread parks with no drain for the whole life of a native file dialog. On Linux the platform never
+calls us at all, but `Cache.GetItems` wants the entire tree in one message, and 46 round trips for
+two objects is what pulling per property costs.
+
+The correctness argument for staleness is short: **a snapshot goes stale only while the UI thread is
+running, and the UI thread publishes before it goes back to sleep.** The publish happens inside the
+frame, after `layoutPass` and `updateHover` — bounds are settled there and hover has already moved
+whatever state it moves — and before the paint passes. Every change that matters to an assistive
+technology already schedules a frame, so the frame is the flush point and no new scheduling is
+invented. An application that mutates without invalidating gets no accessibility event, which is the
+same defect ADR 023 already names and already tests.
+
+**The frame is the flush point because damage is the trigger.** Finding 6 is the reason this has to
+be said explicitly: the accessibility dirty flag rides `Scene#damageWidget`, `#damageWidgetRegion`,
+`#damage(Rect)` and `#markContainedLayout` — the funnel `Widget#invalidate()` goes through and
+therefore the funnel every value, state, text, caret and selection change in `limn.components` goes
+through — together with the structural funnels that do not damage anything (`setSceneRecursively`,
+`setFocus`, `pushOverlay`/`removeOverlay`, `markLayoutDirty`, `onWidgetDetached`) and the explicit
+`Widget#invalidateAccessible()` for a change that is neither painted nor structural. Hanging the flag
+on the structural funnels alone would mean a checkbox toggle raises nothing, because a toggle is a
+repaint and nothing else.
+
+**Damage is a coarse trigger, so the publish step compares before it publishes.** A caret blink, a
+hover ripple and a chart tween all damage something and change no accessible fact. The walk
+therefore writes into a **scratch buffer the scene owns and reuses**, comparing each field against
+the published snapshot as it writes; if nothing differs, there is no snapshot, no publish and no
+event. Only a difference costs the immutable copy a reader may hold. Names are compared by *source* —
+the `I18nString` reference, the node's locale and `I18n.epoch()` — and the previously resolved string
+is carried over when all three match, so a repaint does not re-resolve every name in the window. §6
+prices each state and §12.1 measures it.
+
+**A field may only be compared by something cheaper than producing it, and text is where that rule
+bites.** Deciding that a text node is unchanged must not require materialising its text — and today
+it would: `TextEditModel#text()` is `buffer.toString()`, a fresh `String` on every call, so a caret
+blink in a window with three text fields would allocate three strings per frame to conclude that
+nothing changed. That is not a rounding error against §6's promise, it is a direct contradiction of
+it, and it is the shape of defect `AccessiblePublishCostTest` exists to catch. So the same
+compare-by-source rule that covers names covers text: `TextEditModel` gains a **revision counter**, a
+`long` bumped by every mutating operation (§8), the published node carries the revision its string
+came from, and the walk compares two `long`s. The string is produced only when the revision moved —
+which is also the only frame on which a `TEXT_CHANGED` diff is wanted. `PasswordField`'s masked line
+is derived from the same model and rides the same counter. The general rule, for whoever adds the
+next facet: **if a field's comparison allocates, the field needs a cheaper witness, and a monotonic
+counter on the model is usually it.**
+
+**A derived string has no source to compare, and a formatted name or value text is where that
+bites.** `I18nString#get()` caches its resolution by epoch and locale, so comparing a name by source
+costs a reference comparison and re-resolves nothing. But `I18nString#format(Object…)` is documented
+as *never* cached — "the arguments vary per call, and caching them would be caching the wrong thing" —
+and `Spinner`'s value text is a `String.format` through `I18n.localizeDigits`. A widget that formats
+*inside* `onAccessibility` has therefore already allocated by the time any comparison runs, and the
+quiet frame stops being free: a spinner, a progress bar and a slider with a read-out would allocate a
+string each per damaged frame to conclude that nothing changed. That is `TextEditModel#text()`'s
+defect in a different costume, so it takes the same cure. **A derived string is never built in the
+walk. The widget hands over the string it is already holding, together with the witness it cached it
+against** — `a.name(String cached, long witness)` and `a.valueText(String cached, long witness)`,
+compared as two `long`s and never as two strings. `Spinner` already keeps exactly that cache for
+painting, keyed on the value, the locale and the epoch, so that `onMeasure` cannot drift from
+`paintValue`; §8 gives that cache a counter and gives every widget that formats the same shape. A
+name that is *not* derived stays an `I18nString` and is compared by source, which is every name in
+`limn.components` except these. §6 states the promise in exactly those two cases and no wider, and
+`AccessiblePublishCostTest` carries a `Spinner` for the same reason it carries a `TextField`.
+
+**The facets are records in the published tree and columns in the scratch buffer, and that
+distinction is what makes the quiet frame free.** A facet is immutable because a reader on an RPC
+thread holds it (§1.2); but a `new ToggleFacet(...)` per node per walk would allocate on exactly the
+frames §6 promises allocate nothing, and a caret blink in a window of two hundred nodes would then
+be two hundred short-lived records. So the `Accessibility` builder's facet setters take the facet's
+*fields* — `a.toggle(state)`, `a.value(v, min, max, step, text)` — and write them into the scratch
+buffer's parallel columns, where they are compared like every other field. The immutable records are
+materialised in step 6 of §5.3, in the copy, and only for nodes that carry them. A widget's
+`onAccessibility` therefore never constructs a facet, which is also one less thing for it to get
+wrong.
+
+**Both platforms that can be asked before a frame exists may build one on the spot.** On macOS an AX
+callback *is* the UI thread (Finding 4); on Windows `WM_GETOBJECT` arrives on the UI thread inside
+the pump, 10 times out of 10 (Finding 1). At those two points, and only there, a bridge may call
+`Host#republishNow()` (§5.2) and answer from what it gets — exact freshness for one build per burst.
+This is not a nicety on Windows: it is the only way the first client is answered at all (§3.1). Such
+a build walks and publishes; it does **not** lay out and does not render, so it is safe from inside a
+native callback and keeps the reentrancy rule §12.1 asserts. **Such a build requests a frame whenever
+it published anything**, whether or not the layout under it was dirty, because a reentrant publish
+defers registry work to that frame and something has to buy it (§5.2, §5.3). If layout happens to be
+dirty at that moment the bounds it publishes are the last laid-out ones, so the corrected tree and
+its `BOUNDS_CHANGED` arrive on the same frame it has already asked for. The data structure and the
+reader code are identical on all three platforms.
+
+### 1.2 A node carries a role, a name with provenance, states, bounds, and typed facets
+
+A node is `role` + `name` + `nameFrom` + `description` + `locale` + `states` + `bounds` +
+`relations` + zero or more **facets**. A facet is a small immutable record describing one behaviour:
+`ToggleFacet`, `ValueFacet`, `SelectionFacet`, `SelectionItemFacet`, `ExpandFacet`, `TextFacet`,
+`ScrollFacet`, `WindowFacet`, `ActionFacet`.
+
+Facets exist because the three platforms disagree about where behaviour lives, and the disagreement
+is not cosmetic. UI Automation has no "checked" property: checked-ness lives inside
+`IToggleProvider::get_ToggleState`, reached through `GetPatternProvider`. AT-SPI2 has no toggle
+interface: checked-ness is a state bit read by `Accessible.GetState`, and the verb is a row in
+`Action.GetActions`. NSAccessibility has neither: it is `accessibilityValue` answering `@0`/`@1`/`@2`
+plus `accessibilityPerformPress`. A flat boolean forces the UIA bridge to fabricate a pattern; a
+pattern list forces the AT-SPI bridge to fabricate a state. `GetPatternProvider` and
+`Accessible.GetInterfaces` are mirror images of one another, and one facet set answers both.
+
+The facet is the single source and each of the three views is computed from it, so a state bit that a
+facet also expresses is derived, never stored twice. `State` therefore holds only what all three
+platforms carry as a flag: `ENABLED`, `FOCUSABLE`, `FOCUSED`, `VISIBLE`, `SHOWING`, `SELECTABLE`,
+`SELECTED`, `CHECKED`, `MIXED`, `PRESSED`, `EXPANDED`, `HAS_POPUP`, `READ_ONLY`, `EDITABLE`,
+`MULTI_LINE`, `PASSWORD`, `INVALID`, `REQUIRED`, `BUSY`, `MODAL`, `ACTIVE`, `DEFAULT`, `HORIZONTAL`,
+`VERTICAL` — with `CHECKED`, `MIXED`, `EXPANDED`, `SELECTED` and `READ_ONLY` derived from their
+facets.
+
+`ENABLED` and `READ_ONLY` are separate bits and are never conflated. Every platform separates them —
+UIA has `IsEnabled` against `ValuePattern.IsReadOnly`, AT-SPI2 has `SENSITIVE`/`ENABLED` against
+`READ_ONLY`/`EDITABLE`, AppKit has `accessibilityEnabled` against the text attributes — and merging
+them makes a disabled field announce as read-only and leaves a genuinely read-only enabled field
+inexpressible.
+
+`VISIBLE` and `SHOWING` are also separate, because offscreen is not invisible: a scrolled-away list
+row is visible and not showing. UI Automation takes that as `IsOffscreen`; AT-SPI2 takes it as
+`STATE_SHOWING` off while `STATE_VISIBLE` stays on. `Widget#isShowing()` is the predicate that
+already does the clipping walk.
+
+**`ENABLED`, `FOCUSABLE` and `VISIBLE` are inherited down the walk and are not read off the widget,
+and getting that wrong is the difference between a tree that agrees with the keyboard and one that
+lies.** `Widget#isEnabled()`, `#isFocusable()` and `#isVisible()` each answer that widget's **own
+flag** and consult no ancestor — only `#isShowing()` walks the chain. But `Scene#focusTraverse`
+prunes: its `collectFocusable` returns at the first ancestor that is not visible or not enabled, so
+disabling a form's container removes every control inside it from the Tab order. A tree that read the
+three predicates directly would publish every one of those controls as `ENABLED` and `FOCUSABLE` —
+a screen reader would offer the whole disabled form, announce each field as operable, and have each
+invocation refused by §1.9's gate with nothing said about why. It is §1.13's modal defect again,
+arrived at from inside the widget tree instead of from an overlay.
+
+So the walk carries two booleans down and ANDs them: a node is `ENABLED` only if it and every
+ancestor answer `isEnabled()`, `VISIBLE` only if it and every ancestor answer `isVisible()`, and
+`FOCUSABLE` only if it answers `isFocusable()` **and** the carried enabled-and-visible flag is still
+true — which is `collectFocusable`'s prune, stated as a state rule. `SHOWING` stays `isShowing()`,
+which already walks. The carried flags are exactly where §1.13's modal subtraction lands too, so the
+two rules are one mechanism and one traversal, and `AccessibleFocusOrderTest`'s equality becomes an
+identity rather than a coincidence that holds until someone disables a `Row`.
+
+The whole node is a value. It holds no `Widget` reference and no `Runnable`, because a UI Automation
+client can hold an element for minutes and a snapshot that pinned a detached subtree through it would
+be a leak the garbage collector cannot see.
+
+### 1.3 Identity is minted over the widget tree, never over the published tree, and survives frames
+
+Screen readers hold references: UI Automation caches by a `RuntimeId` integer array, AT-SPI2 by a
+D-Bus object path, NSAccessibility by a retained Objective-C object. Identity is therefore a
+first-class property of the model, not a bridge's problem.
+
+**The rule that decides everything else in this section: a node's identity is a function of the
+widget tree alone, and never of the published tree.** An earlier draft keyed a node by
+`(published parent id, local key)`, and that was a fatal defect rather than an infelicity. §1.6's
+transparency verdict is computed from *runtime state* — a `Column` that gains a name through
+`setAccessibleName`, a `Stack` that is made focusable, a group that acquires a non-default state
+stops being transparent and starts being published. Under a published-parent key, the frame in which
+that happens re-keys **every node in the subtree beneath it**, because each of their published
+parents changed. A screen reader experiences that as every element it is holding becoming invalid at
+once, in the middle of reading — and it is caused by a property change on an ancestor the user never
+touched. Identity has to be independent of the accident of which ancestors are currently interesting
+enough to publish.
+
+So: every node has a process-wide `long id` from one monotonic counter, minted on first publication
+and keyed by **(owner id, local key)**, where the **owner** is the widget or synthetic node that
+*declared* this node — a widget-tree fact that no transparency verdict, no hoisting and no overlay
+push can change. There are three sources for the local key, in this order:
+
+1. **A key the parent widget chose for this child widget**, supplied from `onAccessibilityChild`
+   through `Accessibility#key(long)`, scoped by that parent widget's own id. A container that
+   recycles its children owns their identity and nothing else can.
+2. **A key the owner chose for a synthetic child** — a model index for an indexed child, a menu
+   item's minted serial for a menu row, a series index for a chart series — scoped by the owner's
+   own id. Synthetic children nest, and each level scopes under the level above, so a menu row inside
+   a submenu column is keyed the same way at any depth.
+3. **A per-widget serial** from a `WeakHashMap<Widget, Long>` in the tree builder, created when a
+   bridge first attaches. This is the default and covers every ordinary widget, and it is scoped by
+   nothing at all: the widget object *is* the key.
+
+**Rule 3 is what makes the rule at the top of this section true**, because a widget's own serial
+depends on no ancestor whatsoever. Rules 1 and 2 need a scope, and they take it from the *owner's*
+id, which by rule 3 is itself ancestor-independent — so the whole chain is. Three consequences worth
+stating, because each is a case an earlier draft got wrong:
+
+- **A transparency flip re-keys nothing.** A container that starts or stops being published changes
+  the tree's *shape*, which is a `STRUCTURE_CHANGED`, and changes no identifier at all. That is the
+  whole point.
+- **Moving a widget in the widget tree keeps its identity**, because it is the same object. A screen
+  reader is told the structure changed and finds the element it was holding still valid, which is
+  what it would want.
+- **The `ListView` case is unaffected by the change**, because a pooled cell's identity was never its
+  own serial — it is the data index its owner assigns, scoped by the list's serial, and the list's
+  serial does not move.
+
+**Rule 1 is what makes `ListView` correct, and it exists because rule 3 cannot be.** Finding 14: the
+list mounts pooled cells directly as its own children, `mounted` is data index → widget, and there is
+no per-row wrapper widget — this design does not invent one, because §7.1 admits only widgets and
+synthetic children and a synthetic node with widget children would be a third kind. So `ListView`
+keys each mounted cell by its **data index**: the cell recycled from row 3 to row 9 is minted row 9's
+identifier, and a cell that returns to row 3 gets row 3's back out of the intern table. A model that
+keyed a node by the widget it came from would tell the assistive technology that row 3 had become
+row 9; keying by the pooled widget's serial is precisely that model.
+
+The same rule retires the one place an object was standing in for a key. A menu row is keyed by a
+`long` minted on the `MenuItem` at construction, not by its identity hash: `System.identityHashCode`
+is 32 bits and collides, and the collision here is two menu rows becoming one element (§8).
+
+**There is no packed ordinal and no reserved zero.** An identifier is never derived by putting a
+child's index in the low bits of its owner's identifier: index 0 would then be indistinguishable from
+the owner, and that identifier is the whole of identity on every platform — the `RuntimeId`, the
+object path, the key of the macOS element map — so the collision would be a merged element rather
+than a cosmetic clash.
+
+Path keys are interned in a bounded per-owner table so that a row scrolled away and back keeps its
+identifier. Eviction is least-recently-published and emits `NODE_DESTROYED`, so a client holding an
+evicted element sees it go away rather than go wrong. The `WeakHashMap` means a widget never meeting
+an assistive technology allocates nothing, and a detached-then-reattached widget keeps its identity
+because it is the same object.
+
+`AccessibleIdentityTest` pins the rule directly, and it is the test this section exists for: a scene
+in which a transparent ancestor is given a name mid-run publishes a *different shape* and the **same
+identifiers** for every node below it, and the emitted events are structural rather than a wave of
+destructions.
+
+Each bridge derives its own form: `SAFEARRAY(VT_I4){UiaAppendRuntimeId, hi, lo}`, which UI Automation
+prefixes with the HWND's own runtime id — the spike confirmed that contract;
+`/org/a11y/atspi/accessible/<id>`; and an `NSAccessibilityElement` subclass instance carrying the id,
+recovered through a map from its pointer, which is the shape the Windows spike already used to
+recover a Java object from a COM interface pointer.
+
+A node that leaves the tree does not vanish from the platform's view. Its Windows element survives
+until its refcount drops and answers `UIA_E_ELEMENTNOTAVAILABLE` meanwhile; its AT-SPI path answers
+`org.freedesktop.DBus.Error.UnknownObject` after a `Cache.RemoveAccessible` signal; its macOS element
+is posted `NSAccessibilityUIElementDestroyedNotification` and released.
+
+### 1.4 The snapshot stores links, not child lists
+
+Each node holds `parent`, `firstChild`, `lastChild`, `nextSibling` and `previousSibling` as array
+indices into the tree. `IRawElementProviderFragment::Navigate` takes `NextSibling` and
+`PreviousSibling` from a node the client is already holding, and a children-list model makes every
+step scan the parent. The links cost four ints per node and remove that scan on every platform.
+
+### 1.5 A widget supplies its node through four protected hooks
+
+```java
+protected void onAccessibility(Accessibility a) { }
+protected void onAccessibilityChild(Widget child, Accessibility a) { }
+protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) { return false; }
+protected boolean onSyntheticAction(long key, Accessible.Action action, Accessible.Argument arg) { return false; }
+```
+
+They follow `onPaint`, `onMeasure` and `onKeyEvent` exactly, and each runs on the UI thread inside
+`I18n.pushScope(locale())`, the way `tooltip()` already does.
+
+`onAccessibility` fills in this widget's node and declares its synthetic children.
+`onAccessibilityChild` lets a container add what only it knows about a child — `ListView` gives a
+mounted row cell the role `LIST_ITEM`, its selected state, its position in the set **and its identity
+key** (§1.3); `TabbedPane` numbers its headers; `ContextMenus.ContextRegion` puts `HAS_POPUP` and
+`ActionFacet{SHOW_MENU}` on the one child it wraps, which is how a right-click menu reaches the node
+that has the bounds instead of costing a node of its own. The `Accessibility` builder is allocated
+once per publish and reused down the walk, and its setters write primitives into the scratch buffer's
+columns rather than taking constructed records (§1.1), so describing a node allocates nothing at all.
+
+The two action hooks are separate deliberately, and the separation is the point: an action addressed
+to the widget itself and an action addressed to a synthetic child cannot be distinguished by a
+sentinel key, because a model index of zero is a legitimate key. **The widget performs its own
+action.** That is what makes an assistive technology's set-value tell the application: `Slider`
+reaches its own private user-equivalent path with the from-user flag set, `Checkbox` keeps its own
+enabled guard, `Button` reaches its private action, and `MenuItem` is activated through the owner
+that already knows whether the row is selectable. No component gains a public `click()` that would
+have to re-derive a guard the component already has.
+
+**What a widget gets for free, with no override at all:** bounds from `x/y/width/height`; `ENABLED`,
+`FOCUSABLE`, `FOCUSED`, `VISIBLE` and `SHOWING` from the existing predicates; `locale()` for the
+node's language; children from `children()` in tree order; the `FOCUS` and `SCROLL_INTO_VIEW`
+actions when it is focusable, because `requestFocus()` and `revealInView()` exist for every widget;
+and a name from `tooltipSource()` when nothing else supplied one.
+
+**Two free-name defaults carry most of the demo without an application change.** A node with no name
+takes its tooltip, which names every icon-only control in the toolkit — the media transport buttons
+whose tooltips already flip with the play state, the tool-bar buttons, the tabbed pane's strip
+buttons. A `TextField` with no name takes its placeholder. Both sources already exist and both
+already resolve under the widget's own locale.
+
+**The application's controls**, all on `Widget`, all public and final:
+
+```java
+public void setAccessibleName(I18nString name)          // and a String overload
+public void setAccessibleDescription(I18nString text)   // and a String overload
+public void setAccessibleRole(Accessible.Role role)
+public void setAccessibleIgnored(boolean ignored)
+public void invalidateAccessible()
+```
+
+An application-set name always wins over one derived in `onAccessibility`, so renaming a component
+never requires subclassing it. These live behind one nullable reference field on `Widget`, `null`
+until an application names the widget — the shape `cursor`, `imageCursor`, `tooltip` and
+`inheritanceHost` already have. One reference per widget is the whole per-widget memory cost of this
+ADR. The four setters go through `invalidateAccessible()` themselves, because a name, a description,
+a role or an ignored flag written by an application is exactly the change that paints nothing.
+
+**`invalidateAccessible` sets the node flag *and buys the frame that reads it*, for the same reason
+`announce` does.** The flag is consumed in the publish step and the publish step runs inside a frame;
+the state this record describes everywhere else is a parked loop with no frame pending (§6). A method
+that only set the flag would therefore do nothing at all on the quiet window — the change would
+surface on the next unrelated repaint, or never — and a call that marks something pending without
+buying a frame is a no-op with a comforting name. So it sets the flag unconditionally, which costs
+one store and is what keeps switching a bridge on mid-session free of an audit (§6), and it calls the
+scene's frame primitive `scheduleFrame()` — never `requestRender()`, which would declare damage this
+change does not have (§5.2, §8) — **only when a bridge is attached and listening**. With nothing
+listening the flag is still set and no frame is spent, which is the same bargain `announce` and
+`Host#requestRestamp` strike and keeps §6's promise exact. `Widget#setTooltip` and
+`Widget#setFocusable` are the two toolkit setters that gain the call (§8); an application's own
+unpainted state change is the case it exists for.
+
+An announcement is raised on the scene, because it is a message to the user rather than a property of
+a box:
+
+```java
+public void announce(I18nString text, Accessible.Politeness politeness)
+```
+
+`POLITE` waits for the assistive technology to finish; `ASSERTIVE` interrupts. All three platforms
+carry the distinction and it decides whether a user is cut off mid-sentence, so it is not a boolean.
+
+**`announce` must buy the frame that drains it, and an earlier draft did not.** The queue is drained
+in the publish step, and the steady state this record describes everywhere else is a parked loop with
+no frame pending (§6): a screen reader is reading, nothing is repainting, and there is no next frame.
+An announcement enqueued into that state is never spoken — the application's one mechanism for
+saying something out loud goes silent exactly when the interface is quiet, which is when it is most
+likely to be used. So `announce` enqueues and then calls the scene's frame primitive directly, the
+same hand-obedience to ADR 023 that `requestRepublish` and `requestRestamp` need (§5.2), and for the
+same reason: marking something pending without buying a frame is a no-op with a comforting name. It
+buys the frame only when a bridge is attached and listening; with nothing listening the entry is
+still enqueued and still bounded, so an application's diagnostics do not depend on a reader being
+present, but no frame is spent on speech nobody will hear.
+
+### 1.6 Transparent and ignored are different, and both are needed
+
+**Transparent** means no node and children hoisted into the parent in place. **Ignored** means no
+node and no children.
+
+Transparency is the default, and it is a predicate rather than a per-class opt-in: a node whose role
+is `GROUP`, whose name and description are empty, which offers no action and carries no state beyond
+the defaults is removed and its children hoisted. That single rule deletes `Row`, `Column`, `Flex`,
+`Stack`, `Padding`, `SizedBox`, `Expanded`, the four `Token*` wrappers, `BackdropPanel`,
+`SplitPane`'s panes, `ComboBox`'s scene-popup wrapper and `Dialog`'s card column and action row from
+the tree without a line of accessibility code in any of them. A screen reader hears the controls
+rather than the scaffolding.
+
+Because `FOCUSABLE` is not a default state, a focusable widget survives the predicate. A focusable
+widget with no declared role is a defect: it gets `UNKNOWN` and the toolkit logs a WARNING once per
+class, in the same shape as the canvas-depth warning `paintWidget` already logs. `limn.components`
+may never produce one, and §12.1's coverage test enforces it.
+
+**The predicate is evaluated on the widget's own declared facts, never on the inherited bits.** With
+`ENABLED`, `VISIBLE` and `FOCUSABLE` carried down the walk (§1.2), a `Row` inside a disabled form
+would otherwise carry a non-default state — not enabled — and survive a predicate that asks whether
+anything beyond the defaults is set. Disabling one container would then materialise a `GROUP` node
+for every scaffold box beneath it, and re-shape the tree on a property change that is not about
+structure at all. So transparency asks only about the widget's own role, its own name and
+description, its own actions and the states it declared for itself; the inherited bits are applied
+to the nodes that survive, afterwards. A disabled form is a form whose controls announce as disabled,
+not a form that grows a skeleton.
+
+**A widget that paints and is deleted by the predicate is warned about, once per class.** A
+non-focusable widget that draws its own content — a custom gauge, a sparkline, a HUD — is a `GROUP`
+with no name, no action and no non-default state, so the rule deletes it and the interface it drew
+is simply absent from the tree with nothing said. That is not hypothetical: `limn-demo`'s own
+`PerfFooter extends Widget`, paints a thirty-bar chart, and is exactly that shape. The predicate
+therefore asks one more question before it deletes: does this class declare `onPaint` anywhere
+between itself and `Widget`? The answer is computed once per class into a `ClassValue` on the delete
+path only, and when it is yes the toolkit logs a WARNING naming the class and the three one-line
+fixes — `setAccessibleName`, `setAccessibleRole`, or `setAccessibleIgnored(true)` to say the drawing
+is decorative and mean it. It stays a warning rather than a node, because a name is the only thing
+that would make such a node useful and only the application has one.
+
+Ignored is what an application reaches for on a spacer image or a decorative rule, and what a
+component reaches for on a mark it draws that carries no information. **A control that can be
+operated is never ignored, and an operation is never deleted with the box that carried it.** A text
+field's trailing button and a search field's clear button are operable — the setter takes an icon and
+a `Runnable`, and the search field wires it to `clear()` — so they are real nodes with real names.
+Marking an interactive control decorative is not a deferral, it is hiding it. The one wrapper that
+carries an operation without carrying any geometry of its own, `ContextMenus.ContextRegion`, is
+transparent *and* keeps its action, because it moves the action onto the child it wraps (§1.5)
+rather than onto "some ancestor": the region measures and lays out to exactly its content's box, so
+the child's node is the box a user would right-click.
+
+### 1.7 Names are `I18nString`s resolved under the subtree's locale, and they carry their provenance
+
+ADR 006 §5 decided that accessibility labels are `I18nString`s. ADR 035 decided that the locale is a
+property of the subtree and that the pass carries it. Both apply here unamended: the builder resolves
+a name inside `I18n.pushScope(node.locale())`, because it runs outside any pass that would put that
+locale in scope. A name read from a bridge thread, outside any scope, would answer in the process
+locale; the snapshot holds the already-resolved string, so no bridge ever resolves anything. The tree
+carries the locale epoch and `I18n.epoch()` it resolved under, and a move in either re-resolves every
+name in the tree exactly once — the same rare, spurious invalidation ADR 035 already accepted, paid
+on the same rare events.
+
+`nameFrom` records where the name came from: `CONTENT` (the widget's own painted text), `LABEL`
+(another widget, through a `LABELLED_BY` relation), `TOOLTIP`, `PLACEHOLDER`, `EXPLICIT`. Finding 5
+is why it exists. On macOS a `CONTENT` name is published as `accessibilityTitle` and any other as
+`accessibilityLabel`, **never both**, because VoiceOver reads `AXTitle` and then `AXDescription` and
+a name published in both is spoken twice for every control in the interface. On Windows and Linux the
+name goes to `Name` either way, and a `LABEL` provenance additionally publishes `LabeledBy` and
+`RELATION_LABELLED_BY`.
+
+The node also carries its resolved `Locale`, which AT-SPI2 takes directly as `Accessible.Locale` and
+UI Automation as `Culture`. That is ADR 035's motivating case — a Hebrew interface holding an LTR
+code pane — arriving intact at the screen reader's pronunciation.
+
+### 1.8 Bounds are scene points plus a window stamp, converted once per bridge
+
+Every node's bounds are logical points in its own scene, which after layout are already physical and
+left-origin in both directions (Finding 9). The tree additionally carries, captured on the UI thread
+at publish time, the values a reader needs and cannot ask for: the window's `screenX` and `screenY`,
+its `logicalToScreenFactor()`, its `supportsAbsolutePositioning()`, and the scene's own height,
+which is the content view's height and is what the macOS bridge flips against.
+
+That is not a convenience. `LwjglWindow#screenX` is UI-thread-confined; a UIA RPC thread or an
+AT-SPI reader thread that tried to ask would throw. A window move or a content-scale change therefore
+re-stamps the header and walks nothing, and the backend asks for that through the bridge (§5.2).
+
+Each bridge converts once, in its own idiom. Windows and X11 multiply and add and are done. **macOS
+does not convert to screen coordinates at all**, and Finding 4a is why: the spike published
+`setAccessibilityFrameInParentSpace:` with `(40, 40, 160, 48)` in the content view's own
+coordinates, and the client read back `rect(240, 412, 160, 48)` in screen coordinates. The bottom-left
+origin, the title bar and the flip are AppKit's arithmetic. So the macOS bridge publishes each node's
+box in the content view's space — the same x, and `contentHeight - (y + height)` for the y — and
+touches neither `screenX`/`screenY` nor a display height. A bridge that flipped against the primary
+display itself would be reimplementing, on the one platform that does it for us, the line this
+document was about to call the classic source of "the element is in the wrong place". On Wayland
+`supportsAbsolutePositioning()` is false and the origin is a placeholder, so the AT-SPI bridge
+answers `ATSPI_COORD_TYPE_WINDOW` truthfully and answers a screen request with the window answer,
+which is what GTK does there and for the same reason.
+
+### 1.9 An action is a post that re-checks its own preconditions
+
+The snapshot holds action identifiers, not callbacks, and **the call crosses in one direction: the
+platform calls the bridge, the bridge calls the scene, and the scene posts.** That direction is not a
+detail, because the map it needs is on the toolkit side: only the scene knows which widget or
+synthetic child a node id stands for, and only the UI thread may read that map, since the UI thread
+rebuilds it on every publish and a lookup racing a rebuild is a torn read in the one structure that
+has to be exact. So actuation is a member of `AccessibilityBridge.Host` — the scene-side object every
+bridge already holds — and not of the bridge (§5.2):
+
+```java
+boolean perform(long nodeId, Accessible.Action action, Accessible.Argument arg);
+```
+
+A bridge calls it from whatever thread the platform gave it. It resolves nothing itself: it checks
+that the id is in the currently published snapshot — an immutable read, safe from any thread, and the
+one refusal that can honestly be immediate — posts the identifier with `Ui.post`, and returns. The
+id-to-`(owner widget, synthetic key)` map is read **inside the posted task, on the UI thread that owns
+it**, which calls the widget's own `onAccessibilityAction` or `onSyntheticAction` hook (§1.5) and
+raises `INVOKED` when a `PRESS` succeeded. **Nothing in `limn-toolkit` calls a bridge except the six
+members of §5.2 — `publish`, `emit`, `attach` and `detach`, which tell it something, and
+`isListening` and `needsPrimingPublish`, which only ask it something; nothing in a bridge touches a
+widget, a scene or a window; and everything a platform asks of the toolkit arrives through the four
+`Host` members.** Those three clauses are the whole of the seam. The two questions are named here
+rather than elided because the scene asks the first of them on **every frame** (§5.3 step 2) and the
+second once per bind: they are the gate §6's whole cost argument rests on, they return a constant on
+`NONE`, and a seam sentence that left them out would be describing a cheaper interface than the one
+this record specifies. Every row of §2 that says "posted" means this call. All three
+platforms accept the asynchrony:
+`IInvokeProvider::Invoke` is defined as permitted to be asynchronous, `Action.DoAction` returns a
+boolean, and `accessibilityPerformPress` returns a `BOOL`. The boolean means **accepted**, not
+**done**, and an id that no longer resolves is one more precondition that fails on arrival rather
+than a different answer to the platform.
+
+**The post has to wake the loop, and today it does not always.** Finding 13: `Ui.post` wakes only
+from a foreign thread, and a macOS AX callback is the UI thread with the loop parked in
+`glfwWaitEvents`. Left alone, every VoiceOver action would sit in the queue until the user moved the
+mouse — and Finding 4 now measures that the loop being parked there is the *normal* state while a
+screen reader is reading, not an edge case. §8 makes a UI-thread post wake the loop whenever the loop
+is parked, which is exactly this case and no other.
+
+**There is no bounded wait anywhere**, and that is a decision rather than caution. On macOS the
+platform's thread *is* the UI thread, so a post-and-wait is an instant self-deadlock, and the same
+bridge code runs on all three. Beyond that, nothing here could bound such a wait honestly: the UI
+thread parks with no drain for the whole life of a native file chooser on macOS and Linux (ADR 022)
+and for the whole of a native resize drag on Windows and macOS. A bounded wait would either return a
+lie after its timeout — which is exactly what the snapshot returns immediately, with no thread parked
+and no timeout constant nobody can justify — or hang the screen reader.
+
+On arrival the posted task re-checks what the snapshot cannot promise: that the node still exists,
+that its widget is still attached, that it is enabled **and every ancestor is** — the same chain
+§1.2 publishes, because `Widget#isEnabled()` answers only its own flag and a control inside a
+disabled container would otherwise pass a gate the keyboard refuses — that `isShowing()` is true,
+not `isVisible()`, because `Scene#requestFocus`'s own guard would let a focus request land in a
+hidden subtree, and that the widget is reachable. Reachability is **two** tests, not one: the window must
+not be modal-blocked, **and** the node must be inside the topmost overlay when there is one.
+`NativeWindow#isModalBlocked()` answers `false` for the host of an in-scene modal by construction,
+because the modal names its host as an owner exception, so a bridge gating on it alone would happily
+invoke a button underneath a Wayland dialog — exactly the case ADR 028 created.
+
+Parameterless verbs live in `ActionFacet`: `PRESS`, `TOGGLE`, `EXPAND`, `COLLAPSE`, `SELECT`,
+`DESELECT`, `SHOW_MENU`, `INCREMENT`, `DECREMENT`, `SCROLL_INTO_VIEW`, `FOCUS`, `CANCEL`. Each
+carries a localized name, because `Action.GetActions` returns `a(sss)` — name, description, key
+binding — and the key-binding column is where an `Accelerator#display()` string belongs.
+
+**Parameterised setters take the same `perform` call and are not published in the same list.** They
+cannot be methods on a facet: a facet is an immutable record a reader holds on an RPC thread, and it
+carries no widget and no callback (§1.2), so there is nothing on one to call. They are
+`Accessible.Action` constants — `SET_VALUE`, `SET_TEXT`, `SET_CARET`, `SET_SELECTION` — carrying an
+`Accessible.Argument`, itself a sealed value with no widget in it: `Argument.NONE`,
+`Argument.OfValue(double)`, `Argument.OfText(String)`, `Argument.OfRange(int start, int end)`. So
+**`Accessible.Action` is the dispatch vocabulary and `ActionFacet` publishes only its parameterless
+subset**, and that split is not tidiness: AT-SPI2 cannot express a parameterised action in
+`GetActions` at all and puts these on the `Value`, `Text` and `EditableText` interfaces instead, so
+flattening them into one list makes `GetActions` unanswerable. What advertises a parameterised setter
+is the facet's presence — a node with a `ValueFacet` is settable, a node with a `TextFacet` and
+without `READ_ONLY` is editable — which is exactly what `IValueProvider::SetValue`,
+`Value.CurrentValue` and `setAccessibilityValue:` ask about, and each bridge routes its own platform's
+setter into `perform` with the matching `Argument`.
+
+### 1.10 Every per-node event is the difference between two published snapshots
+
+There is one event source for node events, and it is a diff. When a snapshot is published the builder
+compares it with the previous one and emits `FOCUS_CHANGED`, `ACTIVE_DESCENDANT_CHANGED`,
+`STRUCTURE_CHANGED`, `NAME_CHANGED`, `DESCRIPTION_CHANGED`, `STATE_CHANGED`, `VALUE_CHANGED`,
+`SELECTION_CHANGED`, `TEXT_CHANGED`, `CARET_MOVED`, `TEXT_SELECTION_CHANGED`, `BOUNDS_CHANGED` and
+`NODE_DESTROYED`.
+
+Nothing in any component emits an event and this bridge subscribes to nothing. **The reason for that
+has changed since the first draft and the decision has not**, so both halves are worth stating. The
+original reason was Finding 6's: every component change callback is a single-slot replace, so a
+bridge registering on one would silently unregister the application's handler. ADR 040, which lands
+beside this record, removes exactly that hazard — it adds a second channel any number of parties may
+watch, and guarantees an application's handler runs whatever a watcher does. So that argument is
+spent, and §9 is where the two records are reconciled.
+
+What survives it is three things, and they are why the diff stays. **Bounds.** ADR 040 deliberately
+does not carry per-widget geometry — it emits one coarse `LAYOUT` change per pass, because hooking
+`layoutBox` and `moveChild` would put that channel on the innermost loop of every scroll frame —
+while all three platforms want a rectangle per node, so the walk that produces them happens every
+frame something moves regardless. **The snapshot is not optional.** Windows and Linux read it from
+threads that may not touch a widget at all (§3.1, §3.3) and `Cache.GetItems` wants the whole tree
+pre-assembled (Finding 3), so once the walk is paid for the diff is the cheapest event source there
+is. **And a node's existence is a whole-tree question**: §1.6's transparency predicate deletes a
+node and hoists its children on facts about its own subtree, so "this widget's name changed" cannot
+be patched into a published tree without re-deciding whether that widget is in it. Coalescing then
+comes free, because a diff between consecutive snapshots is by construction one event per node per
+publish and a publish happens at most once per frame; and a new event kind later is a new comparison
+rather than a change to every component.
+
+Four kinds of event are **raised, not diffed**, because no diff within one window could ever produce
+them:
+
+- `WINDOW_OPENED` and `WINDOW_CLOSED`, raised inside `attach` and `detach` — whose only callers are
+  `Scene#bind` and `Scene#observeWindowClosed` — because on a rebind the bridge is the only object
+  that knows there was an outgoing tree to close (§5.3). They are the two events the scene does not
+  hand over through `emit`, and the reason is stated where the replacement rule is. Each window
+  is its own `Scene` with its own snapshot and its own diff, so a native dialog, a menu window or a
+  combo popup window appearing is invisible to any within-window comparison. This is how Orca learns
+  a dialog appeared (`Event.Window.Create` and `Activate`), how NVDA learns it
+  (`Window_WindowOpened`), and how VoiceOver follows it (`AXWindowCreated`).
+- `WINDOW_ACTIVATED` and `WINDOW_DEACTIVATED`, from the scene's window-focus funnel.
+- `ANNOUNCEMENT`, from `Scene#announce`. It is never coalesced, and it is drained at the top of the
+  publish step — **before the re-present guard and before both dirty flags are consulted** — because
+  it is the application speaking and not a property of any node. A frame that changes nothing in the
+  tree still carries the announcements queued since the last one, and `announce` itself buys that
+  frame (§1.5).
+- `INVOKED`, raised by the action dispatcher after a `PRESS` succeeds, because UI Automation has
+  `Invoke_Invoked` and the other two have nothing to raise. It is raised for a press **the assistive
+  technology performed** and not for one the user performed with the mouse, because a press that
+  changes no state leaves no difference between two snapshots to find. §11 states that loss and §9
+  says why it is not bought back.
+
+`TEXT_CHANGED`'s insert and delete offsets are computed from a common-prefix and common-suffix
+comparison of the two published strings, because `TextEditModel` carries no change counter and no
+damage record (Finding 10). At 60 Hz that is one insert or one delete per keystroke, which is what a
+keystroke echo needs; two edits landing in one frame yield one contiguous replaced range covering
+both, which every platform can carry and none can distinguish from the truth. `BOUNDS_CHANGED`
+collapses to one window-level event past a threshold, which is what a scroll is.
+
+Events are handed to the bridge on the UI thread immediately after the snapshot they refer to, so
+every event names a node the bridge can already resolve. **Handing over is not raising, on any of the
+three.** A diff between two frames of a scrolling list or a dragged slider can be hundreds of nodes
+wide, and every raise is a cross-process call: a bridge that raised them inline would spend the UI
+thread's frame budget in `UiaRaiseAutomationEvent` or `NSAccessibilityPostNotification`, which is the
+exact stall Finding 2 calls an accessibility outage. So all three bridges take the bounded queue the
+Linux one needed anyway:
+
+- The flush **enqueues**, and the queue has a fixed capacity. On overflow it collapses to a single
+  invalidate-everything event for the window — `UiaRaiseStructureChangedEvent(ChildrenInvalidated)`,
+  `NSAccessibilityLayoutChangedNotification`, `Cache.AddAccessible` for the root — rather than
+  dropping events silently or growing without bound.
+- **A collapse is a reconciliation, not just a signal, because `NODE_DESTROYED` is the one event a
+  bridge cannot afford to lose.** The macOS bridge releases an element on `NODE_DESTROYED` and the
+  Windows bridge drops its map entry there (§2.2, §3.4); an overflow that swallowed those
+  per-node events would leak every element that went away in the same burst, and the burst that
+  overflows is precisely the one that destroyed a lot of nodes. So a bridge handling the collapse
+  **reconciles its element registry against the tree it has just been handed** — every id in the
+  registry that is absent from the published tree is destroyed and released, in the platform's own
+  idiom, before the invalidate-everything event is raised. That is stronger than replaying the
+  dropped events: it is a full sweep, it needs no reserved capacity, and it is the same operation
+  `attach` and `detach` need anyway (§5.3), so there is one implementation of it per bridge and not
+  three. **It runs on the thread that handles the collapse** — the drain thread on Windows, the UI
+  thread on macOS — which is also the thread that owns removal there (§3.4). On Linux there is
+  nothing to sweep, because nothing is retained per node: the collapse is one `Cache.AddAccessible`
+  for the root and the client re-reads.
+- **Windows and Linux drain on a thread of the bridge's own, and on Linux that is emphatically not
+  the reader thread.** The Windows spike raised an event from an RPC thread and from inside `Invoke`
+  and got `S_OK` both times, so a raise does not need the UI thread, and the Windows bridge starts
+  one drain thread of its own. On Linux the reader thread is the thread that serves every inbound
+  call (Finding 3), so draining onto it would park the whole provider on a full socket buffer — the
+  exact mirror of the hazard Finding 3 identifies, and an earlier draft of this section walked into
+  it by saying the bridge "already owns its socket writer" as though the reader and the writer were
+  the same thread. They are two threads; §3.3 sets out the split. One drain thread per bridge, so
+  events never reorder relative to one another.
+- **macOS drains on the UI thread**, because `NSAccessibilityPostNotification` is an AppKit call and
+  AppKit is main-thread-only. It gets a per-frame budget instead of a thread, and overflows into the
+  same collapse. That budget is a policy, not a measurement, and §13 names the experiment that sets
+  it.
+
+**An event carries its own values, because by the time it is raised the snapshot it came from may be
+two publishes old.** A queue means the drain and the publish are no longer the same moment: on
+Windows and Linux the drain is another thread entirely, and on macOS a budgeted overflow carries work
+into the next frame. So `AccessibleEvent` holds the node id, the property, and the old and new values
+themselves — which is what `UiaRaiseAutomationPropertyChangedEvent` wants anyway, since it takes both
+variants. A bridge that raised an event and then read "the current value" out of the live snapshot
+would report the newest value under an older event, and the two would disagree for exactly as long as
+the queue is deep. The one thing an event may not carry is a `Widget`, for §1.2's reason.
+
+What each platform raises for each event is §2.4; when it raises it is here.
+
+### 1.11 A popup's contents are described where they actually live
+
+ADR 028's two mountings survive into the accessibility tree unchanged, because pretending otherwise
+forces a bridge to fabricate a relationship the platform does not have.
+
+**A native popup, menu or dialog** is its own `NativeWindow` with its own `Scene`, so it publishes its
+own tree and appears to the platform as its own top-level accessible window, announced by
+`WINDOW_OPENED` and by focus moving into it. **An in-scene popup** is an overlay in the owner's scene,
+so it appears as a subtree of that window's tree, parented to the scene root and carrying `MODAL`
+when it is one.
+
+The rule that makes both correct is: **the widget that draws a popup's contents is the widget that
+describes them.** `ComboBox.PopupPanel` is the `LIST` and owns one `LIST_ITEM` per option; the
+`ComboBox` itself carries only `COMBO_BOX`, `EXPANDED`, `HAS_POPUP` and the selected item's text.
+`PopupMenu.MenuSurface` is the `MENU` and owns its rows. `Dialog`'s panel is the `DIALOG` and owns
+its content. Because ADR 028 makes the panel either a window's scene root or an overlay's child, this
+one rule produces exactly one description with correct coordinates in both mountings. Hanging
+synthetic options off the `ComboBox` widget instead would produce either duplicates or bounds
+measured against the wrong window's origin, and would break `ElementProviderFromPoint`,
+`accessibilityHitTest:` and `GetAccessibleAtPoint` in the native mounting.
+
+In both mountings the popup's root carries a `POPUP_FOR` relation to the node that opened it, and the
+opener carries the mirror `CONTROLLER_FOR`, so a client walking either direction finds the other. The
+opener is already known: every popup, menu and dialog calls `Widget#setInheritanceHost` on its root
+today for the size, direction and locale chain, and §8 makes that link readable.
+
+**A relation target is resolved to the nearest published ancestor, and dropped when there is none.**
+The inheritance host is an *axis-resolution* host, not an accessibility parent, and the two disagree
+in a case that is not rare: `Dialog#inheritanceHostFor` returns the opener widget only when a
+`show(Widget)` overload recorded one, and otherwise returns `owner.root()` — a `Column` or a `Stack`
+that §1.6's predicate deletes. `PopupMenu` passes whatever anchor `beginOpen` was given, which may be
+a `Padding` for the same reason. A relation naming a node that was never published is worse than no
+relation: on Windows it is a `RuntimeId` for an element that answers `UIA_E_ELEMENTNOTAVAILABLE`, on
+Linux an object path that answers `UnknownObject`, and on macOS a nil. So the builder walks up from
+the host through the transparency deletions to the first node it actually published and uses that.
+When the walk reaches nothing published — the host has left the tree — the relation is dropped and the
+mirror is not emitted either.
+
+**And a relation that resolves to the window root of the popup's own window is dropped rather than
+published.** A `show(Scene)` dialog is that case: the walk lands on the scene root, which is already
+the dialog's accessible ancestor, so `POPUP_FOR` would name exactly what `Navigate(Parent)`,
+`accessibilityParent` and `Accessible.Parent` already say. No information, and one more thing that has
+to stay true. Dropping it also removes, on every platform at once, the one place where this section's
+own rule collided with §2.2: **macOS elides the window root**, because AppKit vends the window and a
+second one would have VoiceOver announce two — so a relation naming that node resolved to a nil on
+precisely the platform where a nil target is hardest to notice. The rule's worst case is now
+unreachable in the mounting that produced it.
+
+**What is left is the cross-window case, and it is real.** A native popup, menu or dialog is its own
+window with its own tree, so its `POPUP_FOR` names a node in the *owner's* tree — and on macOS the
+owner's window root is elided too. There the bridge answers with the object AppKit already vends for
+that window, which is the same object the elision defers to and is reachable from the content view
+the bridge holds; if §13.27's probe finds that AppKit will not let us name it that way, the bridge
+drops the relation and does not emit the mirror, which is this rule applied rather than bent. Windows
+and Linux have a real element for the owner's root either way and publish the pair unchanged.
+
+**On Windows a popup HWND's fragment root answers `NULL` from `Navigate(Parent)`.** A fragment root
+hosted in an HWND is placed in the UI Automation tree by its host provider — `UiaHostProviderFromHwnd`,
+which the spike used and proved — and GLFW creates popups with no owner HWND, so there is no
+cross-HWND fragment relationship to offer. Answering a foreign window's element from `Navigate(Parent)`
+would build a tree that disagrees with UI Automation's own HWND tree: a client walking down from the
+desktop would find the popup as a top-level, a client walking up from the popup would land somewhere
+else, and the two paths would carry different `RuntimeId` prefixes, because UI Automation prefixes each
+with its own HWND's runtime id. The logical link is the relation and only the relation.
+
+### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
+
+```
+WINDOW, DIALOG, ALERT, GROUP, SCROLL_PANE, SCROLL_BAR, SPLIT_PANE, SPLITTER, TOOL_BAR,
+MENU_BAR, MENU, MENU_ITEM, CHECK_MENU_ITEM, RADIO_MENU_ITEM, SEPARATOR,
+BUTTON, TOGGLE_BUTTON, CHECK_BOX, SWITCH, RADIO_BUTTON, RADIO_GROUP,
+LABEL, HEADING, IMAGE, VIDEO, CANVAS, CHART, CHART_SERIES,
+PROGRESS_BAR, SLIDER, SPIN_BUTTON,
+TEXT_FIELD, TEXT_AREA, PASSWORD_FIELD, SEARCH_FIELD,
+COMBO_BOX, LIST, LIST_ITEM, TAB_LIST, TAB, TAB_PANEL,
+COLOR_CHOOSER, UNKNOWN
+```
+
+Not a string, and not a per-platform constant: the three platforms disagree about the vocabulary, and
+each bridge owns a table indexed by ordinal, so every degradation is visible in one file per platform.
+The rule that keeps it honest is procedural: **a new role requires a row in §2.1, §2.2 and §2.3 that
+names a real platform constant, and a bridge that would have to invent one is an argument for reusing
+an existing role.** That is the discipline ADR 032 applied when it refused to classify five thousand
+icons.
+
+Three constants exist only because a platform would otherwise be lied to. `SWITCH` is not `CHECK_BOX`:
+UI Automation has no switch control type and takes `CheckBox` plus a localized control type, AT-SPI2
+has `ROLE_TOGGLE_BUTTON`, and AppKit has `AXCheckBox` with the switch subrole — three answers a single
+`CHECK_BOX` would collapse. `HEADING` exists because a `Label` with the title typographic role is a
+heading and every platform has one. `RADIO_MENU_ITEM` exists because the tabbed pane's overflow list is
+a single-selection group built today out of check items, and reporting independent checkboxes is a lie
+the enum can retire (§8).
+
+### 1.13 What a modal blocks is published, not only enforced
+
+Gating actuation is not enough. A screen reader user behind an open dialog is told, by every node
+underneath it, `ENABLED` and `FOCUSABLE` and `SHOWING` — so the reader offers the whole background
+interface, announces each control as operable, and the invocation is then refused by §1.9's gate with
+no way to say why. The tree has to carry the fact, not just the dispatcher.
+
+The scene already computes it exactly. Finding 14: every `Scene` overlay is modal by construction,
+and `inputRoot()` — the top overlay, or the root when there is none — is what hit-testing,
+`focusTraverse` and `requestFocus` are already confined to. So: **a published node outside
+`inputRoot()` loses `ENABLED` and loses `FOCUSABLE`**, and the top overlay's own node carries `MODAL`.
+Nothing else changes: those nodes stay in the tree, stay `VISIBLE` and stay `SHOWING`, because they
+are genuinely on screen and a user may still want to read what is behind the dialog.
+
+**This is the same mechanism as §1.2's inherited flags and shares its traversal**: the walk carries
+an enabled-and-focusable flag down, the modal rule clears it for everything outside `inputRoot()`,
+and a disabled ancestor clears it for its own subtree. Two rules, one boolean, one pass — and the
+same invariant at the end of both, stated on the bit that can carry it: **the set of nodes published
+`FOCUSABLE` is exactly the set `focusTraverse` can reach.** Not the enabled set, and the difference is
+not pedantry. `Scene#collectFocusable` prunes at any widget that is not visible or not enabled and
+then adds one only when `isFocusable()`, so a `Label`, a `ScrollBar` and a `Separator` inside
+`inputRoot()` are `ENABLED` and are not tab stops — as they should be, since a screen reader reads far
+more of a window than a keyboard can land on. `ENABLED` is what may be *operated*, `FOCUSABLE` is what
+Tab reaches, the modal rule and the disabled-ancestor rule clear both together — which is why one
+boolean carries them — and only the second is an equality.
+
+All three platforms carry this on the bit we already have — `IsEnabled` false, `STATE_SENSITIVE` and
+`STATE_ENABLED` off (which is what GTK does under a modal grab), `accessibilityEnabled` false — and
+none of them has a separate "blocked" property to carry it better. The result is that the tree agrees
+with the keyboard, which is the invariant §12.1 already enforces for reading order, applied to a
+second axis. Modality on a *native* window is unchanged and is still `NativeWindow#isModalBlocked()`;
+§1.9's action gate keeps both tests, because it also has to defend against a snapshot that predates
+the modal.
+
+---
+
+## 2. The three platforms, interface by interface
+
+**Every row below that says *posted* means the one inbound path of §1.9**: the bridge calls
+`Host#perform(nodeId, action, argument)` from whatever thread the platform gave it, and the scene
+posts, resolves and re-checks on the UI thread. No bridge resolves a node id to a widget, on any
+platform.
+
+Constants below are named, not numbered, except where a spike read the number off the machine. The
+rule §12.3 keeps: **AT-SPI2 roles and states are read from `Atspi-2.0.typelib`; AppKit selectors and
+encodings are read from the running AppKit with `class_getInstanceMethod` and
+`method_getTypeEncoding`; UI Automation ids are read from `uiautomationcore.h` or the interop assembly
+on the guest.** A recalled constant is a defect that compiles.
+
+### 2.1 Windows: UI Automation
+
+| Interface / member | Answered from | Note |
+| --- | --- | --- |
+| `IRawElementProviderSimple::get_ProviderOptions` | `ProviderOptions_ServerSideProvider` | proven |
+| `…::GetPropertyValue(id)` | role, name, description, states, bounds, locale, id, `IsDialog` | `VT_EMPTY` for anything unanswered is accepted; the spike saw UIA ask for ids we do not answer and not complain |
+| `…::GetPropertyValue(IsControlElement)`, `…(IsContentElement)` | `true` for every published node | the spike had to answer both, and did, for both its elements. They are how UIA builds its control and content views, and a provider that leaves them `VT_EMPTY` is asking every client to guess which of its elements are worth showing |
+| `…::GetPatternProvider(id)` | **the facet set** | Invoke ← `ActionFacet.PRESS`; Toggle ← `ToggleFacet`; RangeValue ← `ValueFacet`; **Value ← `ValueFacet` or `TextFacet`**; Selection ← `SelectionFacet`; SelectionItem ← `SelectionItemFacet`; ExpandCollapse ← `ExpandFacet`; Scroll ← `ScrollFacet`; ScrollItem ← a scrollable ancestor; Window and Transform ← `WindowFacet`; Text ← `TextFacet` (phase 2, §11) |
+| `…::get_HostRawElementProvider` | `UiaHostProviderFromHwnd` on the root, `NULL` on every child | proven |
+| `IRawElementProviderFragment::Navigate` | the stored links (§1.4) | Parent, FirstChild, LastChild proven. A popup fragment root answers `NULL` for Parent (§1.11) |
+| `…::GetRuntimeId` | `SAFEARRAY(VT_I4){UiaAppendRuntimeId, hi, lo}` | proven: UIA replaced the leading marker with the HWND's own runtime id, which is the contract |
+| `…::get_BoundingRectangle` | `UiaRect` of four doubles, screen pixels, top-left | proven |
+| `…::SetFocus` | posted `FOCUS` | proven; the root reports `IsKeyboardFocusable` false, so a client's `SetFocus` on the window throws client-side, which is expected |
+| `…::get_FragmentRoot` | the window's root node | proven |
+| `…::GetEmbeddedFragmentRoots` | `NULL` | in-scene popups are inside this fragment; native popups are their own HWND fragment root |
+| `IRawElementProviderFragmentRoot::ElementProviderFromPoint` | deepest node containing the screen point, from the snapshot's bounds | proven. **Not** `Widget#hitTest`: it returns `null` for a disabled subtree at every level, and UI Automation expects to find a disabled button under the pointer |
+| `…::GetFocus` | the focused node | proven |
+| `IInvokeProvider::Invoke` | posted `PRESS`; raises `Invoke_Invoked` | proven, including raising the event from inside `Invoke` on an RPC thread |
+| `IToggleProvider`, `IRangeValueProvider`, `IValueProvider`, `ISelectionProvider`, `ISelectionItemProvider`, `IExpandCollapseProvider`, `IScrollProvider`, `IWindowProvider` | the matching facets | to be built; each is the same vtable-of-closures shape as the four proven ones |
+| `UiaRaiseAutomationEvent`, `…PropertyChangedEvent`, `…StructureChangedEvent`, `…NotificationEvent` | the event flush | the first is proven returning `S_OK` from an RPC thread |
+| `UiaClientsAreListening` | the listening gate | proven resolvable and callable |
+| `UiaDisconnectProvider`; `UiaReturnRawElementProvider(hwnd, 0, 0, NULL)` on `WM_DESTROY` | teardown | both proven returning `S_OK`, process exiting cleanly |
+
+**`IValueProvider` comes from `TextFacet` as well as from `ValueFacet`, and without that a Windows
+text field vends no pattern at all.** `TextPattern` is deferred to phase 2 (§11) and a text widget
+has no `ValueFacet` — it has never had a numeric value — so mapping `Value` from `ValueFacet` alone
+leaves `TextField`, `TextArea`, `PasswordField` and `SearchField` with an empty pattern list on the
+one platform where the pattern list is the whole of a control's behaviour. NVDA would find a named
+element it cannot read the contents of, cannot set, and cannot report as read-only. So a node with a
+`TextFacet` vends `IValueProvider`: `get_Value` is the facet's text — the mask, never the secret, on
+a `PasswordField` — `get_IsReadOnly` is the `READ_ONLY` state, and `SetValue` is the whole-value set
+§11 already scopes. The same hole existed on macOS, where `accessibilityValue` was mapped from
+`ValueFacet` and `ToggleFacet` only; §2.2 adds `TextFacet` there for the same reason and the same
+text.
+
+An in-scene dialog is **not** given `WindowFacet`. Vending `IWindowProvider` from a node that is not
+an HWND advertises `Close()`, `SetVisualState()`, `WaitForInputIdle()` and `CanMaximize` on an overlay
+that has none of them. UI Automation's answer for a dialog rendered inside a window is
+`UIA_IsDialogPropertyId`, and that is what the bridge publishes.
+
+Two mechanical facts the spike paid for and the bridge inherits. `JNI.invoke*` names encode only the
+pointer-sized and narrow arguments plus the return letter, and `SafeArrayCreateVector`'s 16-bit
+`VARTYPE` has no matching overload, so ABI reasoning leaks into that one call site. And a `VARIANT`
+must be zeroed whole — 24 bytes — before every write, because leaving `VT_EMPTY` over a stale payload
+is a latent crash in a caller that trusts the union.
+
+### 2.2 macOS: NSAccessibility
+
+| Attribute / action / notification | Answered from | Note |
+| --- | --- | --- |
+| `accessibilityRole`, `accessibilitySubrole` | role | role constants resolve by `dlsym` on AppKit; `NSAccessibilityButtonRole` proven to dereference to `AXButton` |
+| `accessibilityRoleDescription` | localized from the role under the node's locale | AppKit's default is English-only |
+| `accessibilityTitle` / `accessibilityLabel` | name, chosen by `nameFrom` | Finding 5. `CONTENT` → title; anything else → label; **never both** |
+| `accessibilityHelp` | description | the tooltip lands here when it is not the name |
+| `accessibilityValue`, `accessibilityMinValue`, `accessibilityMaxValue` | `ValueFacet`; `ToggleFacet` as `@0`/`@1`/`@2`; **`TextFacet` as its text** | three facets share one attribute, which is why they are separate facets rather than one field. A text node with no `TextFacet`-sourced value is a field VoiceOver cannot read (§2.1) |
+| `setAccessibilityFrameInParentSpace:` | bounds in the content view's space, y measured from its bottom | **proven end to end**: `(40,40,160,48)` in parent space read back as `rect(240,412,160,48)` on screen. AppKit owns the flip and the title bar (§1.8). `accessibilityFrame` is implemented too, answering the same box, for a client that asks the element directly. Struct-by-value both ways needs libffi; `CGRect` proven at size 32, alignment 8 |
+| `accessibilityParent`, `accessibilityChildren` | the snapshot links | **the top of the tree is pushed, everything below it is pulled** — see below. `setAccessibilityChildren:` on the content view is proven sufficient to place a Java-built element under the window a screen reader walks, and the push is **repeated whenever the root's children change**, because that array is a snapshot AppKit holds and an overlay opening changes it |
+| `accessibilityFocusedUIElement` | the focused node's element | **not proven, and not obviously ours to answer**: our elements are not responders, and the spike never moved focus. §13 carries the experiment; until it runs the bridge posts `AXFocusedUIElementChanged` (which is delivered, and only at application level) and does not claim the attribute |
+| `isAccessibilityElement` | `true` for every published node | transparent and ignored widgets never become nodes |
+| `accessibilityEnabled`, `accessibilityFocused` / `setAccessibilityFocused:` | states | `setAccessibilityEnabled:` proven; a `BOOL` argument rides the low bits of a pointer-sized slot |
+| `accessibilitySelectedChildren` | `SelectionFacet` | |
+| `accessibilityHitTest:` | **not implemented** | measured, and it is the surprise of the run: with no override at all, `AXUIElementCopyElementAtPosition` returned our element `CFEqual` to the one found by name, through the application element *and* the system-wide element. AppKit hit-tests from the frames. The encoding is on record (`@32@0:8{CGPoint=dd}16`) so implementing it later is cheap, and §13 keeps that open for a tree deeper than the one element the spike published |
+| `accessibilityIdentifier` | the node id, as a string | stable across frames by §1.3 |
+| `accessibilityPerformPress`, `…Increment`, `…Decrement`, `…ShowMenu`, `…Pick`, `…Cancel`, `…Confirm` | `ActionFacet` | **press proven end to end**: an out-of-process client's `AXUIElementPerformAction(kAXPressAction)` arrived in Java on the main thread. AppKit's encoding is `B16@0:8`, so the return is a C `bool`. The other six are the same shape and are untested |
+| `accessibilityNumberOfCharacters`, `accessibilitySelectedText`, `accessibilitySelectedTextRange`, `accessibilityStringForRange:`, `accessibilityRangeForLine:`, `accessibilityInsertionPointLineNumber` | `TextFacet` | `NSRange` is UTF-16, which is `TextEditModel`'s unit exactly |
+| `accessibilityFrameForRange:` | **not answered in the first cut** | §11: there is no geometry seam behind it |
+| `NSAccessibilityPostNotification` | the event flush | **proven delivered out of process** to a real `AXObserver`, carrying the updated value. `AXValueChanged` reaches an observer registered on the element *or* on the application element; `AXFocusedUIElementChanged` reaches **only** the application-element registration, so focus is posted at application level and never per element |
+| `…PostNotificationWithUserInfo` with `AnnouncementRequested` | `ANNOUNCEMENT` | politeness rides `NSAccessibilityPriorityKey` |
+
+macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
+— beyond the root's own children, which the push below requires up front, an element exists only for a
+node the platform has asked about — and keeps a map from node id to element so a client's retained
+element stays the same object across publishes. That map is UI-thread-confined and checked (§3.4),
+which is a simplification only this platform gets.
+
+**It releases on three occasions, and on none of them from inside a callback (§3.2).** On
+`NODE_DESTROYED`, posting
+`NSAccessibilityUIElementDestroyedNotification` first; on the reconciliation sweep that follows an
+event-queue collapse, because a collapse is precisely the burst in which the per-node destructions
+were dropped; and on `attach` replacing a live host or `detach`, because a rebind invalidates every
+element at once and an earlier draft released nothing there at all (§1.10, §5.3). That release is the
+least-tested thing in this section (§13.20): the spike retained every object it made and freed none. A live LWJGL `Callback` pins
+its Java object through a JNI global reference until `free()`, which is the discipline
+`LwjglWindow#destroy` already applies to the preedit callback.
+
+**The top of the tree is pushed once; everything below it is pulled. And the window root is not
+vended at all.** This is the part of the design the re-run changed most, so the reasoning is set out
+in full rather than asserted.
+
+*What the measurement settled.* An earlier draft of this ADR reasoned that a push model could not
+work, because §6's honest listening gate on macOS is "someone has asked" — a flag set the first time
+one of our own implementations is entered — and with `setAccessibilityChildren:` nothing of ours is
+entered until elements have already been pushed, which needs a published tree, which the flag gates:
+a cycle that never starts. It concluded that the bridge should add `accessibilityChildren`,
+`accessibilityHitTest:` and `accessibilityFocusedUIElement` to GLFW's content view class, so that the
+first ask would be both attach and gate. The spike then measured the opposite premise:
+`setAccessibilityChildren:` on the content view **is** sufficient — `viaWindow=true`, the element
+nested under `AXWindow` in the walk — and `accessibilityHitTest:` was never needed. Three
+`class_addMethod` calls on a class GLFW owns are no longer worth their risk to buy something a proven
+one-line push already buys.
+
+*So the cycle is cut at the other end, and it costs one walk — on the first frame, not at bind.* The
+bridge pushes the root's children onto the content view with `setAccessibilityChildren:`. That is the
+whole push, and it is a handful of elements, not the tree: `accessibilityChildren` on *our own element
+class* answers everything below, which is a pull, and the first such call is the gate.
+
+**The push happens on the scene's first frame, and it happens again whenever the root's children
+change.** Both halves were wrong in an earlier draft and each was wrong on its own.
+
+*Not at bind.* `Scene#bind` does not lay out — `layoutDirty` starts true, `width` and `height` are
+zero, and `layoutPass` runs only from the frame path — so a tree built there describes every widget
+as a zero-size box at the origin, and the elements pushed from it would be a window full of nothing,
+in the corner. §5.3 gives the scene a priming publish on its first frame instead, after `layoutPass`,
+and §5.2 makes `republishNow()` refuse to describe a scene that has never laid out at all. Same one
+walk per window, one frame later, against geometry that exists.
+
+*And not once.* The pushed array is a snapshot AppKit holds; nothing re-derives it. Pushing it once
+and never again freezes the top of the tree at whatever the first frame contained, while the
+published root's children genuinely change underneath — **an in-scene overlay is a child of the
+root**, so opening a modal dialog or a menu adds one, and that is the single change a screen reader
+user most needs to be told about. So every *ordinary* publish compares the root's child list with the
+one last pushed and re-pushes when they differ (§5.3). A **reentrant** publish never does: it would
+replace, from inside an AX callback, the array AppKit is walking (§3.2). Everything deeper is a pull
+and needs no push at all.
+
+That trades a strictly-honest gate for one tree walk per window on its first frame, and the trade is
+worth naming: on macOS, unlike Windows, a window that is never touched by an assistive technology
+still pays one describe pass in its life. It buys the elimination of the only piece of this design
+that would have modified a class the windowing library owns.
+
+*And AppKit already vends the window.* The walk shows exactly what: `AXWindow/AXStandardWindow` with
+the title, `AXRaise`, the close, full-screen and minimize buttons and an `AXStaticText` for the
+title (Finding 4a). Hanging our own `WINDOW`-role root off the content view would publish a window
+inside a window, and VoiceOver would announce it twice and offer two sets of window actions. So the
+window's root node is **elided on macOS**: its children are what gets pushed. The platform's own
+object is already the answer, and a second one is a lie a client will act on.
+
+**Eliding a node has three consequences, and all three are this bridge's, so they are listed here
+rather than discovered.** Its `WindowFacet` maps to nothing — for the same reason an in-scene dialog
+is given no `IWindowProvider` on Windows. **No event whose subject is the window root is posted by
+us**: `WINDOW_OPENED`, `WINDOW_CLOSED` and a window-level `BOUNDS_CHANGED` are already AppKit's
+`AXWindowCreated`, `AXUIElementDestroyed`, `AXMoved` and `AXResized` on the object it vends, and
+posting ours beside them would double every one — which is §2.4's macOS column read together with
+this paragraph. And **a relation whose target resolves to a window root cannot be named here**: §1.11
+drops that relation outright in the in-scene mounting, on every platform, and in the cross-window
+mounting this bridge answers with AppKit's own window object and otherwise drops it (§13.27). A
+dialog, in scene or native, still carries `MODAL`, which the bridge publishes as `AXModal` on the
+dialog's own element.
+
+Because the content view class is shared by every GLFW window in the process, nothing here is
+installed on it: the push is a message to one instance, and every implementation the bridge writes
+lives on its own `NSAccessibilityElement` subclass, where `self` identifies the node through the
+bridge's own map — the same recovery the Windows spike used to get a Java object back from a COM
+interface pointer.
+
+### 2.3 Linux: AT-SPI2
+
+We own a socket and a reader thread; there is no vtable and no callback. The bridge serves D-Bus
+objects at `/org/a11y/atspi/accessible/<id>`, plus `…/root` and `…/cache`.
+
+| Interface / member | Answered from | Note |
+| --- | --- | --- |
+| `Accessible` `Name`, `Description`, `Parent`, `ChildCount`, `Locale`, `AccessibleId`, `HelpText` | name, description, links, locale, id | `Locale` is why the node carries its own resolved locale rather than the window's |
+| `Accessible.GetChildAtIndex`, `GetChildren`, `GetIndexInParent` | the snapshot links | |
+| `Accessible.GetRole`, `GetRoleName`, `GetLocalizedRoleName` | role | numbers from the typelib; the localized name resolved under the node's locale |
+| `Accessible.GetState` | states, as **`au` of exactly two `uint32`, low word first** | measured: a real GTK application answers `au 2 0 0` |
+| `Accessible.GetAttributes` | `a{ss}` including `toolkit` | |
+| `Accessible.GetInterfaces` | **the facet set**, as interface names | the mirror image of UIA's `GetPatternProvider`, and the second reason facets exist |
+| `Accessible.GetRelationSet` | relations, as `a(ua(so))` | `LABELLED_BY`, `LABEL_FOR`, `DESCRIBED_BY`, `CONTROLLER_FOR`, `CONTROLLED_BY`, `MEMBER_OF`, `POPUP_FOR` |
+| `Application` `ToolkitName`, `Version`, `AtspiVersion`, writable `Id`, `GetLocale` | fixed, plus the registry's write | measured: the registry sets `Id` immediately after `Embed`, so `Properties.Set` must already work |
+| `Component.GetExtents`, `GetPosition`, `GetSize` | bounds converted, per `coord_type` | `COORD_TYPE_SCREEN` = 0, `COORD_TYPE_WINDOW` = 1; on Wayland the screen answer is the window answer, as GTK's is |
+| `Component.Contains`, `GetAccessibleAtPoint` | a bounds walk over the snapshot | again not `Widget#hitTest`, for the disabled-node reason |
+| `Component.GetLayer`, `GetMDIZOrder`, `GetAlpha` | `LAYER_WIDGET` / `LAYER_WINDOW`, 0, 1.0 | |
+| `Component.GrabFocus` | posted `FOCUS` | |
+| `Action.NActions`, `GetActions`, `GetName`, `GetDescription`, `GetLocalizedName`, `GetKeyBinding`, `DoAction` | `ActionFacet` | `GetActions` is `a(sss)`; the third column is the key binding, where `Accelerator#display()` goes |
+| `Value` `CurrentValue` (read/write), `MinimumValue`, `MaximumValue`, `MinimumIncrement` | `ValueFacet` | numeric only; a display form such as a spinner's `07:30` is published through `Text` |
+| `Text`, `EditableText` | `TextFacet` | **offsets converted from UTF-16 to characters at this boundary and nowhere else**; `GetRangeExtents` is not answered in the first cut (§11) |
+| `Selection` | `SelectionFacet` | |
+| `Cache.GetItems` | the whole snapshot, **pre-marshalled** | measured: 46 round trips for two objects without it |
+| `Cache.AddAccessible`, `RemoveAccessible` signals | `STRUCTURE_CHANGED`, `NODE_DESTROYED` | |
+| `Event.Object` `StateChanged`, `ChildrenChanged`, `PropertyChange`, `TextChanged`, `TextCaretMoved`, `TextSelectionChanged`, `SelectionChanged`, `ActiveDescendantChanged`, `BoundsChanged`, `Announcement`; `Event.Window` `Activate`, `Deactivate`, `Create`, `Destroy`; `Event.Focus` `Focus` | the event flush | `Event.Focus.Focus` is deprecated and still what Orca listens for, so it is emitted beside the `StateChanged` |
+| `Socket.Embed` on the a11y bus; `org.a11y.Status.IsEnabled` on the session bus | attach, and the listening gate | both proven |
+| `org.freedesktop.DBus.Introspectable.Introspect` on every intermediate node | synthesised from the exported paths | not needed by `libatspi` or Orca, and needed by `busctl tree`; a bridge that cannot be browsed is much harder to debug |
+
+**AT-SPI2 has exactly one application object per connection, and that decides the shape of the Linux
+bridge.** Windows are children of the application, not applications of their own. Two windows each
+doing their own `Socket.Embed` would put Limn on the desktop twice, as two applications named by
+window title, and two objects at `/org/a11y/atspi/accessible/root` on one connection is a path
+collision. Orca would treat a combo popup as a separate application. So the Linux bridge is
+**process-wide behind per-window facades**: one connection, one reader thread, one application node,
+one `frame` child per window, and per-window `accessibility()` returns a facade that registers that
+window's subtree with it. It lives in `limn-backend-lwjgl` beside `LwjglBackend`, which already keeps
+the window list, so no SPI member has to be invented to enumerate windows. Windows and macOS bridges
+stay per window. This asymmetry is real, and it is the one place the three implementations do not have
+the same shape.
+
+**Process-wide is not the same as stateless, and §3.4 assigns every piece of it a thread.** Being
+one connection with one application object means there is process-wide mutable state even though
+there is no per-node registry: the table of window facades — the application's `frame` children,
+written by the UI thread as scenes bind and detach and read by the reader thread on every `root`
+query — each facade's own `volatile` published tree, the listening flag the reader thread writes, the
+outbound queue the UI thread and the reader thread both feed, and the marshalled cache body below.
+The rule that keeps it honest is the one §3.3 states for the sockets, applied to memory: **the reader
+thread and the UI thread never mutate the same field**, and everything they share is either an
+immutable value published through a `volatile` write or a concurrent queue. Node ids are process-wide
+by §1.3, minted from one counter, so one application object can carry every window's subtree with no
+possibility of a path collision between them — which is what makes this shape available at all.
+
+The pre-marshalled `Cache.GetItems` body is the bridge's, not the toolkit's: `AccessibleTree` knows
+nothing about D-Bus. The bridge keeps one marshalled buffer keyed on a process-wide publish counter
+and rebuilds it lazily on the first `GetItems` after any window publishes. **The reader thread is the
+only thread that touches that buffer** — it is the only thread that answers `GetItems` — so it needs
+no lock; the counter is a `volatile long` the UI thread bumps.
+
+Two rules from Finding 3 that are not negotiable in handler code. A handler must not block, and must
+never make a blocking call on the same connection. And `NEGOTIATE_UNIX_FD` succeeds on both buses and
+must **not** be sent: agreeing lets a peer send a message carrying a file descriptor, which
+`java.nio` cannot receive, and AT-SPI2 never needs one.
+
+### 2.4 The events, side by side
+
+| Event | Windows | macOS | Linux |
+| --- | --- | --- | --- |
+| `FOCUS_CHANGED` | `AutomationFocusChanged`, plus a `HasKeyboardFocus` property change on both | `FocusedUIElementChanged`, **posted at application level** — measured: an observer registered on the element does not receive it | `StateChanged` detail `focused` 1 then 0, plus the deprecated `Event.Focus.Focus` |
+| `ACTIVE_DESCENDANT_CHANGED` | `SelectionItem_ElementSelected` on the item | `SelectedChildrenChanged` | `ActiveDescendantChanged` |
+| `STRUCTURE_CHANGED` | `UiaRaiseStructureChangedEvent` with `ChildAdded` / `ChildRemoved` / bulk / `ChildrenInvalidated` | `Created`, `UIElementDestroyed`, `LayoutChanged` | `Cache.AddAccessible` / `RemoveAccessible` plus `ChildrenChanged` detail `add` / `remove`, detail1 = index |
+| `NAME_CHANGED`, `DESCRIPTION_CHANGED`, `STATE_CHANGED`, `VALUE_CHANGED` | `UiaRaiseAutomationPropertyChangedEvent` with the property id and both variants | `TitleChanged`, `ValueChanged` | `PropertyChange` detail `accessible-name` / `-description` / `-value`, or `StateChanged` |
+| `SELECTION_CHANGED` | `SelectionItem_ElementSelected`, or `Selection_Invalidated` in bulk | `SelectedChildrenChanged` | `SelectionChanged` |
+| `TEXT_CHANGED` | `Text_TextChanged` | `ValueChanged` on the text element | `TextChanged` detail `insert` / `delete`, detail1 = offset, detail2 = length, any_data = the text |
+| `CARET_MOVED` | `Text_TextSelectionChanged` | `SelectedTextChanged` | `TextCaretMoved`, detail1 = offset |
+| `TEXT_SELECTION_CHANGED` | `Text_TextSelectionChanged` | `SelectedTextChanged` | `TextSelectionChanged` |
+| `INVOKED` | `Invoke_Invoked` | — (the action's return is the acknowledgement) | — (`DoAction`'s boolean is) |
+| `BOUNDS_CHANGED` | `BoundingRectangle` property change, or one `LayoutInvalidated` in bulk | `Moved` / `Resized` on a window, `LayoutChanged` in bulk | `BoundsChanged` |
+| `WINDOW_OPENED` / `WINDOW_CLOSED` | `Window_WindowOpened` / `Window_WindowClosed` | `WindowCreated` / `UIElementDestroyed` | `Event.Window` `Create` / `Destroy` |
+| `WINDOW_ACTIVATED` / `WINDOW_DEACTIVATED` | focus change into the window | `MainWindowChanged`, `FocusedWindowChanged` | `Event.Window` `Activate` / `Deactivate` |
+| `NODE_DESTROYED` | element answers `UIA_E_ELEMENTNOTAVAILABLE` | `UIElementDestroyed`, then release | `Cache.RemoveAccessible` |
+| `ANNOUNCEMENT` | `UiaRaiseNotificationEvent` | `AnnouncementRequested` with a priority | `Event.Object` `Announcement` |
+
+The two blanks are the model being honest: nothing is invented to fill a cell.
+
+---
+
+## 3. The threading contract, per platform
+
+The three platforms differ in **who calls** and **on which thread**, and a single answer would be
+wrong twice.
+
+### 3.1 Windows
+
+**Who calls.** UI Automation, on RPC threads it creates and LWJGL's callback trampoline attaches to
+the JVM as daemons. Measured: up to three live at once, 2031 of 2191 calls, 2007 of them while the UI
+thread was not in the pump. No lock is taken on our behalf. The one exception is `WM_GETOBJECT`, which
+arrives on the UI thread inside `glfwPollEvents`.
+
+**How a call reaches toolkit state.** It does not. Every provider method answers from the published
+snapshot, with no hop and no wait. `AccessibleTree` is immutable and published through a `volatile`
+write of a fully constructed object, so the Java memory model gives every reader a consistent view
+with no lock on either side.
+
+**Where the first snapshot comes from, which is the one thing a per-frame publish cannot supply.**
+`UiaClientsAreListening()` is false on every frame drawn before a client attaches — that is what it
+is for — and the loop sleeps in `glfwWaitEvents` and renders only windows that asked for a frame. So
+at the instant `WM_GETOBJECT` arrives there has never been a publish, and a bridge that could only
+wait for the next frame would return a root provider with nothing behind it. Worse, the calls that
+follow are immediate and synchronous: the spike recorded 160 provider calls on the main thread inside
+`UiaReturnRawElementProvider` itself — `get_ProviderOptions`, `get_HostRawElementProvider`,
+`Navigate(Parent)`, a `QueryInterface` burst — before that function returned.
+
+So the `WM_GETOBJECT` handler calls `Host#republishNow()` before it returns the root provider. It is
+allowed to: the message arrives on the UI thread inside the pump, 10 times out of 10, which is the
+same permission and the same argument macOS has (§1.1). The build walks and publishes and does not
+lay out, so it cannot re-enter layout from inside a native message handler. From the next frame
+onward `UiaClientsAreListening()` is true and the ordinary per-frame publish takes over; the flag
+starts set and is cleared only by a publish, so the first frame after an attach always publishes even
+if nothing has changed since. A republish requested from an RPC thread (`Host#requestRepublish()`)
+goes the asynchronous way, because by then a tree exists and one frame of staleness is the trade
+§1.1 already made.
+
+**What the snapshot costs.** One allocation per publish, sized to the node count, on frames where the
+tree was dirty **and** a client is listening. Idle frames publish nothing. The arrays are never reused
+between generations, because a reader may still hold the previous one; immutability plus the garbage
+collector is the whole lifetime story. §12.1 requires the per-publish cost to be measured with an
+`AllocationProbe` before this ships, and the idle-frame cost to be asserted at exactly zero.
+
+**When the UI thread is blocked by a modal or a file dialog.** Already-attached clients keep reading
+the snapshot and keep getting answers, because their calls never touch the UI thread. Actions they
+post queue up and run when the drain resumes. A client *attaching* during the block is the open
+question: `TinyFdDialogs`' own javadoc says that on Windows — and only on Windows — the chooser is a
+Win32 common dialog that "pumps its own message loop on this thread", and a thread pumping messages
+delivers sent messages, which is what `WM_GETOBJECT` is. That is an inference from two documented
+facts, not a measurement, and this design does not assert it: §13 carries it as an open item with the
+experiment. A native resize drag definitely does block the pump, because GLFW's own poll does not
+return during one.
+
+**When the event pump stalls.** Measured in Finding 2: an already-attached client keeps working, a new
+one cannot attach at all, and the whole subtree is unreachable until the pump resumes. The rule for
+the toolkit is the rule it already has — keep handlers and tasks inside the 8 ms budget — and the
+WARNING that budget already logs is now also an accessibility warning.
+
+### 3.2 macOS
+
+**Who calls.** AppKit, on the process main thread, which under `-XstartOnFirstThread` is the Java UI
+thread. Measured directly, twice, and once from an ordinary unprivileged client so that the
+lab's `sudo` is not the reason (Finding 4).
+
+**How a call reaches toolkit state.** It is already there. No hop, no lock, no wait — a macOS
+accessibility callback *is* the UI thread, and that is the largest structural difference between this
+platform and the other two.
+
+The bridge still answers from the snapshot rather than from live widgets, for one reason worth
+stating: the callback arrives inside `glfwWaitEvents`, at a point where no Java code expects re-entry
+into the widget tree. Reading a snapshot means an AX request never re-enters layout, never observes a
+half-applied mutation, and shares its correctness argument with the other two bridges. What macOS
+does, at the top of a callback with the dirty flag set, is call `Host#republishNow()` — one build per
+burst, guarded by the snapshot version, buying exact freshness. That build walks and describes; it
+does not mutate the tree and it does not lay out, and §12.1 asserts both.
+
+**And it publishes reentrantly, which on this platform is the difference between a fresh answer and a
+crash.** The callback is standing on elements this bridge vended and AppKit is holding. An ordinary
+publish would run the release sweep and free the ones absent from the new tree — including,
+plausibly, the element being asked — re-push `setAccessibilityChildren:` under a walk already in
+progress, and drain notifications from inside a notification callback. So `republishNow()` hands the
+tree over as `publish(tree, reentrant = true)`, and a reentrant publish stores it and does nothing
+else; every deferred obligation is paid by the next frame, which the same call has already bought
+(§5.2, §5.3). This is the one rule that macOS's callback-is-the-UI-thread property makes *harder*
+rather than easier, because on this platform there is no other thread whose absence would have
+stopped it.
+
+**A rebuild there runs application code somewhere the toolkit has never run it before, and it is
+contained like everywhere else.** `onAccessibility` is application code the moment an application
+subclasses a widget, and on this path it runs inside a libffi closure invoked by AppKit, under a
+`glfwWaitEvents` frame. Every other place application code runs has a contained crash phase —
+`FRAME`, `INPUT`, `TASK`, `TICKER`, `DECODE`, `EVENT_POLL`, `WINDOW_CLOSE` — and an uncontained
+exception here would unwind through Objective-C, where the behaviour is undefined and the symptom
+is a process that dies with no Java stack. So `CrashPhase` gains `ACCESSIBILITY`, `republishNow()` wraps the walk in
+the same `Crashes.dispatch` contract the frame uses, and a crashed describe pass leaves the previous
+snapshot published and answers from it. The same containment covers the Windows `WM_GETOBJECT` build
+and the per-frame publish, which are the same walk on different threads.
+
+**A callback that schedules work must also wake the loop it is standing inside.** An AX action posts
+a task and a rebuild may request a frame, and neither wakes the pump today (Finding 13), so both
+would wait for unrelated input — a VoiceOver press that lands when the user next moves the mouse is
+indistinguishable from a press that was ignored. §8 makes every scheduling path wake the loop when
+the loop is parked, which for a UI-thread caller is exactly the re-entrant case and cannot race.
+
+**When the UI thread is blocked.** Accessibility stops completely, for the duration. A `tinyfd`
+chooser on macOS runs `osascript` through `popen` and reads one line; no GLFW callback fires, no frame
+is drawn, no posted task runs, and no AX callback is answered either. That is the correct outcome
+rather than a defect: the panel on screen is another program drawing its own window, and VoiceOver is
+talking to *it* (ADR 022). The same is true during a native resize drag, and it is the same window in
+which the application is already frozen.
+
+**The pump rule is measured, and it is the same rule Windows imposes.** Finding 4: AX requests reach
+Java only while the loop is inside GLFW's event pump — every client-caused read in every loop mode
+arrived there, and in the worst mode nothing reached Java for 36 seconds and then one pump served the
+whole backlog at once. The consequences for this design are three, and none of them costs anything
+today.
+
+`glfwWaitEvents` is the *right* idle state, not a hazard: it is where a by-name find completes in
+0.9 ms. `LwjglBackend#runEventLoop` already parks there, so the loop needs no change for
+accessibility's sake — only the wake of §8, so that work scheduled from inside a callback does not
+wait for the next unrelated event.
+
+An ordinary frame loop is fine and a stalled one is not, with a cliff rather than a slope: at 16 ms
+between pumps a screen reader's traversal costs a couple of hundred milliseconds, at 250 ms it costs
+about a second and a half and still completes, and somewhere between 250 ms and 2 s it stops
+completing *reliably* — `kAXErrorCannotComplete`, which a screen reader presents to its user as a
+window with no content. **Not "never": the verifier saw one traversal get through at a 2 s pump
+interval, in 17.6 seconds**, and the record says so because a design must not rest on a categorical
+claim that is false. It rests on the weaker and sufficient one — seventeen seconds and a
+coin-flip is not an interface. That is the same failure Finding 2 measured on Windows, arrived at
+from the other direction, and it means the toolkit's existing 8 ms slow-handler and slow-task budgets
+are the accessibility budget on this platform too, with two orders of magnitude of headroom.
+
+**None of those latencies is a cost of this bridge and none may be quoted as one.** Two clients
+measured against one unchanged provider disagreed, so the numbers characterise the client that took
+them. What transfers to this design is the relationship — main-thread sleep governs whether a client
+can finish at all — and nothing finer.
+
+*What the spike deliberately did not settle*: **why** nothing was served during 36 seconds of
+two-second pumps — whether the AX server stops forwarding to a process it has marked unresponsive, or
+the requests never reach the run-loop mode `glfwPollEvents` services. The observation is
+reproducible; the mechanism is not established, and §13 keeps it there rather than letting a guess
+into the rationale.
+
+### 3.3 Linux
+
+**Who calls.** Nobody. We open a socket and read messages we chose to read, on our own reader thread.
+Measured: 51 inbound calls from four client connections, every handler on that thread, the main thread
+never re-entered.
+
+**How a call reaches toolkit state.** Through the snapshot, from the reader thread, with no hop. The
+two hard rules, both from the measurement: a handler must not block, and must never make a blocking
+call on the same connection, because the reply would arrive on the thread parked waiting for it.
+Reading an immutable snapshot satisfies both trivially, which is the point.
+
+**There are two threads on this platform, a reader and a writer, and the split is not an
+implementation detail.** An earlier draft put the outbound drain on "the bridge's own thread", which
+on Linux reads as the reader thread — and that is the same mistake as blocking in a handler, made
+from the other side. A blocking write on a full send buffer parks whichever thread performs it, and
+the reader thread is the one thread that serves every inbound call from every client; parking it
+stops the entire provider until the peer drains, which is a hazard a well-behaved client cannot even
+detect it is causing.
+
+So: **the reader thread never writes to the connection, and the writer thread never reads from it.**
+The reader parses a message, computes its answer from the published snapshot — which is why the
+snapshot has to be a snapshot — and enqueues the reply. The writer performs every write on the
+connection: replies and signals both, in enqueue order, which is what keeps D-Bus's own ordering
+guarantees intact. The UI thread's event flush enqueues onto the same queue and blocks on nothing.
+A direct write from the UI thread would park *it* instead, which is the third version of the same
+bug.
+
+The queue's bound applies to **signals only**. A reply may never be dropped or collapsed: a client
+that made a method call is waiting for exactly one answer, and swallowing it hangs that client rather
+than degrading it. So an overflow collapses the pending signals into one invalidate-everything with
+the registry reconciliation of §1.10, and the replies ride through untouched.
+
+**`Cache.GetItems`** is answered from the pre-marshalled body the bridge builds lazily on the first
+request after a publish. Without it, describing two objects cost 46 round trips; a real tree of a few
+hundred nodes would cost thousands.
+
+**When the UI thread is blocked, and when the pump stalls.** Nothing happens to accessibility. The
+reader thread is ours, the snapshot is already published, and every read is answered. Only actions
+queue. This is the one place Linux is strictly better off than the other two, and it falls straight out
+of owning the transport.
+
+### 3.4 The bridge's own mutable state, and which thread owns each piece
+
+The snapshot is immutable and needs no thread. Everything else a bridge keeps is mutable, is the
+bridge's own, and needs an owner named here rather than chosen three times by whoever implements
+first. The **registry** — the map from a node id to the platform object that stands for it — is the
+one that bites hardest, and on Windows an unassigned one is not survivable: the provider is entered
+from up to three RPC threads at once, with **no lock taken on our behalf** (Finding 1), and an element
+is created the first time a client navigates to a node. Two RPC threads reaching the same unvisited
+node concurrently would create two objects for one id under a plain `HashMap`, hand each client a
+different element for the same node, and — in the map itself — race a resize.
+
+**Every mutable structure in every bridge, and its owner.** Nothing is left to symmetry, because the
+three platforms genuinely differ:
+
+| Structure | Windows | macOS | Linux |
+| --- | --- | --- | --- |
+| the published tree | `volatile` field, written by the UI thread, read by any RPC thread | `volatile` field, written and read by the UI thread | one `volatile` field **per window facade**, written by the UI thread, read by the reader thread |
+| id → platform element, and pointer → object | two `ConcurrentHashMap`s; minted by `computeIfAbsent` from any RPC thread; removed as below | one plain `HashMap`, UI thread only, `Ui.checkUiThread()` on every touch | **none**: an object path *is* the id, so the reader thread parses it and resolves against the published tree |
+| element removal | the **drain thread**, as it raises each `NODE_DESTROYED` and as it runs a collapse's sweep; plus the two whole-registry empties below | the **UI thread**, which is also the drain thread here | nothing to remove |
+| the whole-registry empty on `attach`-over-a-live-host and on `detach` | the **UI thread**, after the drain thread has been stopped and joined, so the two never race | the UI thread | drop the facade's tree reference; nothing else |
+| the outbound event queue | bounded; producer the UI thread, single consumer the drain thread | bounded; the UI thread at both ends, under a per-frame budget (§1.10) | bounded **signals only**; producers the UI thread and the reader thread, single consumer the writer thread (§3.3) |
+| the last-pushed root child array | — | the UI thread, compared and re-pushed in the frame step (§5.3) | — |
+| the listening gate | no state: `UiaClientsAreListening()` is asked once per frame on the UI thread | a `volatile boolean` set the first time one of our implementations is entered — which is the UI thread either way | a `volatile boolean` written by the reader thread on `Socket.Embed` and on `PropertiesChanged`, read by the UI thread |
+| the process-wide window table (§2.3) | — | — | copy-on-write; **written by the UI thread** at a facade's `attach`/`detach`, read by the reader thread on every `root` query |
+| the pre-marshalled `Cache.GetItems` body | — | — | **the reader thread alone** builds and holds it; a `volatile long` publish counter written by the UI thread is what invalidates it |
+| D-Bus serials and the socket | — | — | the **writer thread** performs every write and assigns every signal serial; the reader thread performs every read; neither does the other's (§3.3) |
+
+Three rules make that table small enough to keep in one head. **`ConcurrentHashMap.remove` is the
+whole of the ownership protocol on Windows**: the drain thread removes each entry as it announces it,
+the UI thread's whole-registry empty removes all of them, the two are kept apart by stopping the drain
+first, and `remove` returning non-null is still what decides who releases — so a double removal is a
+removal and no ordering argument has to be re-derived at each call site. Removal is not
+release, since the COM object survives until its refcount drops and answers
+`UIA_E_ELEMENTNOTAVAILABLE` meanwhile, which is exactly the behaviour §1.3 promises a client holding a
+stale element. **The sweep runs where the drain runs**, which is the drain thread on Windows, the UI
+thread on macOS and nowhere on Linux, because the sweep exists for the collapse and the collapse is
+the drain's to handle (§1.10, §5.3) — an earlier draft put the sweep in the publish step and the
+per-node removal on the drain thread, which is two threads removing from one map for two different
+reasons and one of them holding no element to raise from. **And macOS's simplicity is real and worth
+taking**: every AX callback is the UI thread (Finding 4), every publish is the UI thread and the
+notification drain is the UI thread by AppKit's own rule, so a plain `HashMap` and an assertion beat
+a concurrent map written out of symmetry.
+
+**No bridge's registry is ever touched by a widget, and no widget is ever reachable from one**, for
+§1.2's reason: an element a client holds for minutes would otherwise pin a detached subtree.
+
+### 3.5 What all three share
+
+- The tree is read from a snapshot, never from live widgets, on every platform.
+- Every mutation enters through `Host#perform` and becomes a `Ui.post` that resolves its node and
+  re-checks its preconditions on arrival, and that wakes the loop it may be standing inside (§1.9).
+  No bridge holds the id-to-widget map, on any platform, because no bridge may read it.
+- Every event is **handed over** on the UI thread immediately after the snapshot it refers to, and
+  raised from a bounded queue — never raised inline, on any platform (§1.10).
+- No bridge ever calls a `Widget`, `Scene` or `NativeWindow` getter from a foreign thread. The toolkit
+  will not catch the mistake: thread confinement is enforced on property setters, tree mutation, focus
+  moves and overlay pushes, and **not** on getters, `layoutBox`, `measure`, `invalidate`,
+  `revealInView`, `requestRender` or the observer registrars. A bridge that reads live state
+  off-thread gets a silent data race, not an exception, so the discipline has to be the bridge's own
+  and §13 keeps it on the risk list.
+
+---
+
+## 4. Where a neutral abstraction would force a bridge to lie
+
+Each item is a place where a tidier model would compile, ship, and be misread by a screen reader.
+
+1. **Checked-ness has three homes** — a UIA pattern, an AT-SPI2 state bit plus an action row, an
+   AppKit value. *Answer: `ToggleFacet` is the source; all three views are derived from it.*
+2. **A value can have two forms and both are wanted at once.** A spinner in time mode holds 450 and
+   displays `07:30`; UI Automation wants `IRangeValueProvider::get_Value` to say 450 *and*
+   `IValueProvider::get_Value` to say `07:30`, from the same element. *Answer: `ValueFacet` carries the
+   number, the range, the step and the formatted text, the last resolved under the node's locale.*
+3. **A name without provenance is a coin flip on macOS** (Finding 5). *Answer: `nameFrom`, and the
+   bridge picks the attribute — never both.*
+4. **Text offsets have no universal unit** (Finding 10). *Answer: the facet is UTF-16, matching both
+   `TextEditModel` and `NSString` exactly, and the AT-SPI bridge converts at that one boundary, with a
+   test over astral-plane text.*
+5. **A caret is not an index.** `TextEditModel#caret()` is a `(charIndex, Affinity)` pair because an
+   index on a direction boundary is two points on the line. *Answer: `TextFacet` carries the affinity,
+   and each bridge drops it only where the platform has nowhere to put it.*
+6. **Screen bounds have three frames** — physical pixels top-left, points bottom-left, pixels top-left
+   or window-relative on request. *Answer: publish scene points plus the window stamp, and convert once
+   per bridge (§1.8) — which on macOS turns out to mean converting into the content view's space and
+   letting AppKit finish, because it demonstrably does.*
+7. **Sibling navigation is a first-class operation on Windows.** *Answer: the snapshot stores links
+   (§1.4).*
+8. **Identity is the platform's, not ours**, and a widget-keyed model breaks the moment `ListView`
+   recycles a cell — while a *published*-parent-keyed model breaks the moment any ancestor stops
+   being transparent. *Answer: `(owner id, local key)` over the **widget** tree, minted once, stable
+   across frames and across every transparency verdict (§1.3).*
+9. **Linux wants the whole tree in one message**, measured at 46 round trips for two objects without
+   it. A pull-per-property model is not slow, it is unusable. *Answer: an array-backed snapshot the
+   bridge marshals in one pass.*
+10. **Modality is not a window property**, and it is not only an actuation question either.
+    `isModalBlocked()` is false for the host of an in-scene modal by construction, and a background
+    published as enabled invites a user into an interface that will refuse them. *Answer: the modal is
+    a node with `MODAL` state, everything outside `inputRoot()` publishes without `ENABLED` and
+    without `FOCUSABLE` (§1.13), and the action gate is still two tests (§1.9).*
+11. **Popups mount two ways and pretending otherwise breaks Windows**, because GLFW creates popups
+    with no owner HWND. *Answer: §1.11 — separate top-level or subtree, with `POPUP_FOR` and
+    `CONTROLLER_FOR` carrying the logical link in both, and `Navigate(Parent)` answering `NULL`.*
+12. **Actions and setters are different things on Linux**, because `GetActions` is a list of
+    parameterless triples. *Answer: the parameterless verbs are published in `ActionFacet`; a
+    parameterised setter is an `Accessible.Action` constant carrying an `Accessible.Argument`,
+    dispatched through the same `Host#perform` and **not** published in that list. A facet is an
+    immutable record with no widget and no callback in it, so nothing is ever a method on one; what
+    advertises a setter is the facet's presence — a `ValueFacet` is settable, a `TextFacet` without
+    `READ_ONLY` is editable — which is the question `SetValue`, `Value.CurrentValue` and
+    `setAccessibilityValue:` actually ask (§1.9).*
+13. **Announcements have a politeness** and it decides whether a user is interrupted. *Answer:
+    `Politeness`, not a boolean.*
+14. **Language is per node, not per process** — `Accessible.Locale`, `Culture`. *Answer: the node
+    carries its resolved locale, and its name was resolved under it.*
+15. **Offscreen is not invisible.** *Answer: both `VISIBLE` and `SHOWING`, from `isVisible()` and
+    `isShowing()`.*
+16. **Enabled is not read-only.** *Answer: separate bits, never derived from one another.*
+17. **Hit testing must find disabled nodes**, and `Widget#hitTest` refuses a disabled subtree at every
+    level. *Answer: the bridges walk the snapshot's bounds and never delegate to `hitTest`.*
+18. **Reading order is not visual order**, because after layout bounds are physical in both directions.
+    *Answer: tree order, which is paint order, which is `focusTraverse` order — and §12.1 asserts the
+    equality.*
+
+### 4.1 What the neutral model gives up, stated here rather than discovered later
+
+- **UI Automation's `IItemContainerProvider` and `IVirtualizedItemProvider`.** Minting identifiers on
+  demand serves `Navigate` correctly but cannot serve `FindItemByProperty` over unrealized rows, so a
+  client searching a very long list walks it.
+- **AT-SPI2's `Collection` interface**, which Orca uses for bulk queries and will fall back from —
+  correct, and slower.
+- **The `Table` interfaces.** No table widget exists, and defining a facet before there is something to
+  describe would be guessing. A chart's data is what actually wants one (§11).
+- **Two-dimensional values.** The colour picker's saturation-and-value field genuinely has one, and
+  neither this model nor any of the three platforms can carry it; it is a `CANVAS` with a described
+  value.
+
+---
+
+## 5. The backend SPI
+
+### 5.1 `NativeWindow` gains one `default` member
+
+```java
+/** The platform accessibility bridge for this window, or {@link AccessibilityBridge#NONE}. */
+default AccessibilityBridge accessibility() {
+    return AccessibilityBridge.NONE;
+}
+```
+
+`default` here is a decision on the merits, not a compatibility dodge — with no known consumer an
+abstract member would be a mechanical edit to three test doubles and the backend, and no source
+outside this repository would notice either way. It is `default` because
+`NONE` is the *correct* behaviour for a window that has no accessibility: a test double, an embedded
+surface, and any future backend on its first day all want exactly zero cost and no code, and getting
+that by writing nothing is better than getting it by writing a stub in each.
+
+### 5.2 `limn.backend.AccessibilityBridge`
+
+```java
+public interface AccessibilityBridge {
+
+    AccessibilityBridge NONE = new AccessibilityBridge() { };
+
+    /** Whether any assistive technology is listening. Called at most once per frame. */
+    default boolean isListening() { return false; }
+
+    /**
+     * Whether this bridge needs one tree on the scene's first frame even though nothing is
+     * listening yet, because its own listening gate cannot open until it has elements to
+     * offer. True only on macOS (§2.2); false everywhere else, so no other platform pays a
+     * walk for a window an assistive technology never touches.
+     */
+    default boolean needsPrimingPublish() { return false; }
+
+    /**
+     * Hands over a fresh whole-window snapshot. UI thread.
+     *
+     * <p>{@code reentrant} is true when the scene built this tree from inside the platform's
+     * own callback, with the platform on the stack holding elements this bridge vended:
+     * {@code WM_GETOBJECT} on Windows, an AX callback on macOS. A reentrant publish stores the
+     * tree and answers from it, and must <b>not</b> destroy or release a registry entry, must
+     * not re-push the root's children, and must not drain the event queue (§5.3). Everything it
+     * defers is owed by the next ordinary frame, which the scene has already asked for.
+     */
+    default void publish(AccessibleTree tree, boolean reentrant) { }
+
+    /**
+     * One coalesced event, naming a node in the currently published tree. UI thread, and
+     * enqueued rather than raised (§1.10).
+     */
+    default void emit(AccessibleEvent event) { }
+
+    /**
+     * Hands the bridge the scene-side half, replacing any host it already held: a scene
+     * can be bound over a live window, and the outgoing one never learns it was (§5.3).
+     *
+     * <p>This is where the window pair is raised, because the caller cannot raise it: an
+     * implementation empties its element registry and raises {@code WINDOW_CLOSED} for the
+     * host it is replacing, if there was one, then raises {@code WINDOW_OPENED} for the
+     * incoming one. On a first attach only the second is raised.
+     */
+    default void attach(Host host) { }
+
+    /** The window is going away: raises {@code WINDOW_CLOSED}, then empties (§5.3). */
+    default void detach() { }
+
+    /** What the scene gives a bridge: the three ways to ask for a tree, and the one way to act. */
+    interface Host {
+
+        /**
+         * Asks for a fresh tree on the next frame, and buys the frame. Safe from any thread;
+         * for a client attaching while the scene is idle.
+         */
+        void requestRepublish();
+
+        /**
+         * Asks for the published tree to be re-stamped with the window's current origin,
+         * scale and positioning support, and buys the frame. Nothing in the tree changed;
+         * where it is on the screen did. Safe from any thread.
+         */
+        void requestRestamp();
+
+        /**
+         * Rebuilds and publishes now, and returns the tree. UI thread only, and only from
+         * inside the platform's own pump: {@code WM_GETOBJECT} on Windows, an AX callback on
+         * macOS. Walks and describes; never lays out, never renders. Publishes reentrantly, so
+         * the bridge defers every registry obligation to the next frame (§5.3) — and therefore
+         * <b>requests a frame whenever it published anything</b>, whatever the layout was
+         * doing, because a deferred obligation needs a frame that is going to happen. It
+         * requests one for the never-laid-out case below too. The only call that requests
+         * nothing is the one that published nothing because nothing was dirty, and that call
+         * defers nothing either. Returns the currently published tree unchanged — which on a
+         * scene that has never laid out is the empty tree — rather than describing geometry
+         * that does not exist yet.
+         */
+        AccessibleTree republishNow();
+
+        /**
+         * Performs one action on one node. Safe from any thread, and the only path there is
+         * from a platform into toolkit state (§1.9). Returns whether the action was
+         * <b>accepted</b> — the id was in the published tree and a task was posted — never
+         * whether it is done: every real precondition is re-checked on the UI thread when
+         * the task arrives.
+         */
+        boolean perform(long nodeId, Accessible.Action action, Accessible.Argument arg);
+    }
+}
+```
+
+Six members on the bridge and four on the host; every bridge member is a no-op or a constant on
+`NONE`, and none returns anything the toolkit has to interpret. Everything platform-shaped stays
+behind it.
+
+**`perform` is on the host and not on the bridge, and an earlier draft had it the other way round.**
+That was not an infelicity, it was a path that does not exist: `perform` declared on the bridge is
+implemented by the backend, and the backend cannot implement it, because the map from a node id to its
+owning widget is the scene's and may be read only on the UI thread (§1.9) — so nothing in the toolkit
+ever called it and nothing in a bridge could have answered it. Actions are half of what a screen
+reader does with a tree, so the direction is stated once and holds everywhere: **inbound calls go
+platform → bridge → host; outbound calls go scene → bridge.** A bridge still holds exactly one object,
+and it is the host it was handed at `attach`.
+
+`needsPrimingPublish` is the whole of the macOS asymmetry in §5.3's per-frame step: the scene asks
+once at bind and never has to know why the answer differs.
+
+`requestRepublish` and `requestRestamp` are the two pieces of plumbing that have to obey ADR 023 by
+hand: a posted task buys no frame, so each is `Ui.post(() -> { …flag…; scene.scheduleFrame(); })`.
+Written the obvious way either would mark something dirty and then wait for a frame that never comes.
+
+**They are two methods and not one because they set different flags, and the difference is the whole
+saving.** `requestRepublish` sets the node flag, which costs the walk and the diff of §5.3.
+`requestRestamp` sets only the header flag, which costs neither: the node array is republished
+unchanged with a new stamp. A window drag would otherwise re-walk the entire tree on every callback
+the compositor sends, to discover that nothing in it changed — the per-node bounds are scene-local
+(§1.8) and a move does not touch one of them.
+
+**And that saving is why both of them buy their frame through `Scene#scheduleFrame()` rather than
+through `requestRender()`.** This is subtle enough that an earlier draft got it wrong in the one way
+that makes the optimisation dead code: `Scene#requestRender()` is on §5.3's list of node-flag setters
+— deliberately, because it is the public "something changed, repaint everything" call and an
+application that mutates state and reaches for it must not go silent. So a `requestRestamp` written
+as *set the header flag, then `requestRender()`* sets the node flag on its way out, and the walk it
+exists to avoid runs anyway, every time. `scheduleFrame()` is the scene's frame primitive — it runs
+the render requester and dirties nothing — and it is what these two, and `announce` (§1.5), must
+call. The rule generalises: **inside the toolkit, buying a frame and declaring damage are separate
+acts, and accessibility plumbing wants the first without the second.**
+
+`republishNow` is what makes a first client answerable on Windows and a callback exact on macOS
+(§3.1, §3.2). It checks the UI thread, contains crashes under `CrashPhase.ACCESSIBILITY`, returns the
+current tree unchanged when nothing is dirty, and **requests a frame whenever it published
+anything.**
+
+**That last clause is the strong form, and the design needs the strong form rather than the narrower
+one an earlier draft carried.** The narrow reading — a frame only when it published against a layout
+that was already dirty — is the one a reader reaches for, because a stale box is the visible reason
+to want another frame. But the reentrancy rule below depends on the strong one: a reentrant publish
+stores the tree and **defers** the release sweep, the re-push of the root's children and the drain of
+the event queue to the next ordinary frame, and on a window whose layout is perfectly clean — which
+is the normal state while a screen reader reads a quiet interface (§6) — the narrow form leaves those
+three obligations owed to a frame that never comes. So the frame is bought by the act of publishing,
+not by the state of the layout. The never-laid-out call requests one too, because it exists precisely
+to make the real tree arrive. The only call that requests nothing is the one that published nothing
+because nothing was dirty, and it defers nothing that a frame would have to pay.
+
+It is on the host and not on the bridge because only the scene can build a
+tree, and it is a separate method from `requestRepublish` because the two differ in exactly the way
+that matters: one of them is allowed to answer the platform *now*, and the other is the honest answer
+everywhere else.
+
+**It has one further precondition, and it closes a hole an earlier draft shipped: the scene must have
+laid out at least once.** `Scene#bind` wires input, the frame callback and the render requester, and
+it does **not** lay out: `layoutDirty` starts `true`, `width` and `height` start at zero, and
+`layoutPass` runs only from the frame path. So a tree built at bind time is a tree whose every box is
+zero-sized at the origin, and on macOS — where the first build was pushed onto the content view — it
+was also a tree that no later publish replaced (§2.2). A screen reader attaching in that window would
+have found a window whose contents are all a zero-size rectangle in the corner, which is worse than
+finding nothing, because it looks like an answer.
+
+So `republishNow()` asks whether the scene has ever laid out. If it has not, it walks nothing,
+publishes nothing, requests a frame and returns the empty tree — there is no truthful thing to say
+about a window whose widgets have no boxes. If layout has merely gone *dirty* since the last pass, it
+publishes against the last settled boxes and requests a frame, as it already did: stale boxes from a
+real layout are a bounded error that the next frame corrects, and zeros are not an error at all,
+they are a fabrication. On Windows the distinction costs nothing, because a window that a client can
+attach to is a window that has painted, and a window that has painted has laid out. It bites only in
+the interval between `bind` and the first frame, which is exactly where the macOS push used to be.
+
+### 5.3 How the scene feeds it
+
+`Scene#bind(NativeWindow)` reads `window.accessibility()` once and calls `bridge.attach(host)`.
+`Scene#observeWindowClosed` calls `detach()` — that observer list is the right hook because the
+window's own input and frame-callback slots are single-occupancy and `bind` already takes them.
+
+**The window pair is raised inside `attach` and `detach`, and not by their callers.** Every other
+event in this record is handed to the bridge by the scene through `emit`, so putting these two
+somewhere else needs its reason stated: **only the bridge can know whether there was an outgoing
+tree.** A scene bound over a live window never learns it was replaced (below), so the outgoing scene
+cannot raise its own `WINDOW_CLOSED`, and the incoming scene cannot raise it either, because nothing
+tells it that a previous host existed. The one object that holds that fact is the bridge, which is
+also the object whose element registry the replacement invalidates — so the announcement lives beside
+the sweep that makes it true. `attach` therefore raises `WINDOW_CLOSED` for any host it is replacing
+and then `WINDOW_OPENED` for the incoming one; on a first bind there is nothing to close and it
+raises only the second. `detach` raises `WINDOW_CLOSED` and empties. That is what keeps a rebind from
+announcing one window twice, which is exactly what a `bind` that raised the event itself, on top of
+an `attach` that had to, would do. *Raises* here means what §2.4's row means everywhere else — each
+bridge posts its platform's event, or posts nothing where the platform already posts its own, which
+on macOS is both of these (§2.2).
+
+**`bind` can happen twice on one window, and `attach` therefore replaces rather than adds.** A scene
+can be bound over a live window; `Scene`'s own javadoc says so where it explains why the global
+metrics listener is weak — "a scene replaced on a live window (a new scene bound over it) never
+receives `windowClosed`" — and this is not a hypothetical corner. `limn-demo`'s gallery harness does
+it once per shot, binding a freshly built scene over the same window shot after shot, under a
+comment that already names the shape of the hazard: "bind installs a frame callback of its own, and
+a callback set only at start-up is silently replaced by the first bind." That harness is the one
+`AccessibleGalleryTest` is modelled on, so the case is not merely reachable, it is on the path this
+ADR's widest test walks. So the outgoing scene never reaches `observeWindowClosed`, never calls
+`detach()`, and the window's bridge — which is the same object either way — would end up holding two
+hosts and having announced one window twice. `attach(Host)` is therefore specified as *replacing* any
+host the bridge already had: it raises `WINDOW_CLOSED` for the outgoing tree, drops that host, and
+raises `WINDOW_OPENED` for the incoming one. To a screen reader a new tree in the same window is a
+whole-window structure change in any case, so nothing subtler is worth building. This is the second
+half of ADR 040 §6.4 (§9), and it is the half that is a defect rather than a gap.
+
+**`attach` builds and pushes no tree, on any platform.** It takes the host, raises the window pair
+above, empties the registry if it was replacing a live host — and stops there. An earlier draft had
+the macOS bridge build and push its first tree here, and §5.2 explains why that could not work: at
+`bind` the scene has never laid out. So `attach` is uniform — every bridge stores the host, nobody
+has asked yet, and `isListening()` is false until they do — and the macOS push moves to the
+**first frame**,
+where the boxes are real. `bind` asks `bridge.needsPrimingPublish()` once and remembers the answer;
+when it is yes the scene owes a *priming* publish, which the step below runs on its next frame
+whatever the gate says. It is the same single walk the bind-time build was, paid at the same point in
+the window's life, against geometry that exists — and it is asked for by the one bridge that needs
+it rather than imposed on all three.
+
+Per frame, in `renderFrameImpl`, immediately after `layoutPass` and the hover update and before the
+paint passes, the scene runs one step:
+
+0. **Drain the announcement queue** to the bridge, and only then consider returning. This is above
+   the re-present guard and above both flags on purpose (§1.10): an announcement is the application
+   speaking, not a property of a node, and a frame that changes nothing in the tree must still carry
+   it. With nothing listening the drain discards, which is what the queue's bound means.
+1. If this is a **re-present** frame, return. `renderFrameImpl` takes a `rePresent` flag whose whole
+   contract is to redraw the same pixels into the other buffer; `tickAnimations`, the hover update,
+   `updateModalScrim` and `updateTooltipFade` are all already skipped there, and a walk that can only
+   ever conclude "nothing changed" belongs in the same list.
+2. `live = bridge.isListening()`; if false **and no priming publish is owed**, return. One virtual
+   call, and `NONE` returns a constant. A priming publish is owed only on the first frame after a
+   bind and only when `bridge.needsPrimingPublish()` said so at bind — which is macOS and nothing
+   else, so §6's promise that Windows and Linux pay nothing for an untouched window is exact.
+3. If both accessibility flags are clear and nothing is owed, return.
+4. If only the **header** flag is set, take the re-stamp path below and return.
+5. Walk `root()` and the overlay stack into the **reused scratch buffer**, with one reused
+   `Accessibility` builder, comparing each field against the published snapshot as it is written and
+   carrying over a resolved name whose `I18nString`, locale and `I18n.epoch()` all match. The
+   enabled, visible and modal flags are carried down this walk (§1.2, §1.13). The window's origin,
+   scale factor, absolute-positioning flag and the scene's height are captured here, because only
+   this thread may ask for them.
+6. If nothing differed, clear both flags and return: no snapshot, no publish, no events.
+7. Otherwise copy the scratch into an immutable tree — materialising the facet records here, and only
+   here (§1.1) — turn the differences already found into the event list,
+   `bridge.publish(tree, false)`, `bridge.emit(…)` per event, clear both flags and clear the priming
+   debt. This is also where a bridge that keeps platform objects re-pushes the top of its tree and
+   where its drain has a fresh tree to sweep against.
+
+`republishNow()` (§5.2) is steps 5 to 7 with the rest skipped and with `bridge.publish(tree, true)`,
+on a thread the platform gave us inside its own pump, subject to the never-laid-out precondition §5.2
+states and to the reentrancy rule below.
+
+**A bridge that keeps platform objects owes three things beyond storing the tree, and each has a
+thread and a moment.** They are stated here rather than left to each bridge to rediscover, and each
+names its owner from §3.4's table:
+
+- **Release what went away**, on the thread that owns removal: the drain thread on Windows, the UI
+  thread on macOS. Ordinarily the per-node `NODE_DESTROYED` events name exactly what went away and
+  the drain releases each as it raises it. After a collapse they do not, so the drain sweeps instead:
+  every registry entry whose id is absent from the currently published tree is destroyed in the
+  platform's idiom (§1.10). The sweep is not a per-publish cost and does not belong in the frame
+  step, which is where an earlier draft put it — two threads removing from one map, one of them
+  holding no element to raise from.
+- **Re-push the top of the tree when it changed**, on the UI thread, in the frame step, and never
+  from a reentrant publish. On macOS the root's children are pushed onto the content view with
+  `setAccessibilityChildren:`, and that array is *not* self-updating: pushing it
+  once at the first publish and never again freezes the top of the tree at whatever the interface
+  looked like then, while the published root's children genuinely change — an overlay opening is
+  exactly that, and a modal dialog appearing is the case a screen reader user most needs to hear
+  about. So the bridge compares the published root's child list with the one it last pushed and
+  re-pushes when they differ. It is a handful of elements and a reference comparison per publish.
+- **Empty on replacement**, on the UI thread with the drain stopped. `attach(Host)` replacing a
+  live host, and `detach()`, both invalidate every element the bridge holds. Both run the same
+  sweep — destroy and release everything in the registry, then start empty — because a rebind that
+  raised `WINDOW_CLOSED` and left the old elements alive would leak the whole previous tree and leave
+  a client holding elements that resolve against ids the new tree may reuse for something else. On
+  Windows the drain thread is stopped and joined first, so the one thread that also removes is not
+  running while this one empties the map (§3.4).
+
+**None of the three may run from inside a reentrant publish, and that is a correctness rule rather
+than a preference.** `republishNow()` is called from inside the platform's own callback with the
+platform on the stack: `WM_GETOBJECT` on Windows, and on macOS an AX callback that is walking
+elements this bridge vended and that AppKit is holding. A publish there that ran the release sweep
+would destroy and release the very elements the caller is standing on — a message sent to a freed
+`NSAccessibilityElement` after the callback returns, which is the crash §13.20 already names, arrived
+at from inside our own code instead of from a client. A publish there that re-pushed
+`setAccessibilityChildren:` would replace the array AppKit is in the middle of reading. And a publish
+there that drained the queue would post notifications from inside a notification-delivering callback.
+So `publish(tree, reentrant = true)` **stores the tree and answers from it, and does nothing else**:
+new nodes get elements lazily on the very pulls the caller is about to make, and elements for nodes
+that went away stay alive and answer as stale until the next ordinary frame — which is exactly what
+§1.3 already promises a client holding an element that left the tree, and which the scene has already
+asked for, because `republishNow()` requests a frame whenever it published anything. On Windows the
+rule costs nothing at all: the reentrant publish there is the *first* one, and there is nothing to
+sweep, re-push or drain.
+
+**A window move takes the shorter path.** Only the header changed, so the scene re-stamps the previous
+node array with the new origin and factor, publishes that, and emits one window-level
+`BOUNDS_CHANGED`. No walk, no diff, and the node ids are the ones the client is holding.
+
+The **node** flag is set by:
+
+- **`Scene#damageWidget`, `#damageWidgetRegion`, `#damage(Rect)`, `#requestRender()` and
+  `#markContainedLayout`** — the funnels `Widget#invalidate()` goes through, and therefore the funnel
+  behind every value, state, text, caret and selection change in the toolkit (Finding 6).
+  `requestRender()` is in that list because it is the public "something changed, repaint everything"
+  call, and an application that mutates state and reaches for it rather than for `invalidate()` must
+  not go silent. This bullet is the one that matters, and it is coarse on purpose: step 5 is what
+  keeps it honest.
+- **The structural funnels that do not go through those entry points**: `Widget#setSceneRecursively`
+  for attach and detach, `Scene#setFocus`, `Scene#pushOverlay` and `#removeOverlay`,
+  `Scene#markLayoutDirty`, `Scene#onWidgetDetached`.
+- **`Widget#invalidateAccessible()`**, for a change that is neither painted nor structural. **It is
+  the one flag-setter in this list that also has to buy the frame that reads the flag**, because it
+  is the one whose callers reach no other funnel: every entry point above is on the path of something
+  that was already going to produce a frame — a repaint, a layout, a focus move, an overlay push —
+  and this one is defined by not being. It sets the flag unconditionally and calls
+  `Scene#scheduleFrame()` when a bridge is attached and listening (§1.5, §8), which is the same
+  bargain `Scene#announce` and `Host#requestRestamp` strike: flag always, frame only when someone is
+  there to read it. `Widget#setTooltip` gains the call, because today it neither invalidates nor
+  relayouts and a description change would otherwise be silent. **`Widget#setFocusable` gains it
+  too**, and it is the sharper case: the setter writes its field and does nothing else — no
+  invalidate, no layout mark, no structural funnel — so it reaches none of the entry points above,
+  and `FOCUSABLE` is both a published state and the bit that decides §1.6's transparency predicate.
+  Without the call, making a scaffold widget focusable changes the tree's *shape* and raises nothing,
+  and `AccessibleIdentityTest`'s second case cannot pass (§8, §12.1).
+
+The **header** flag is set by `Host#requestRestamp()`, and the one caller that matters is the window
+position callback. `LwjglWindow#windowMovedTo` today updates two fields and moves child popups and
+requests nothing (Finding 13); it gains that call when a bridge is attached and listening, which is
+what makes the shorter path run at all. The content-scale callback beside it already requests a frame
+and sets the node flag instead, because a scale change can move text metrics and therefore boxes.
+
+Hover deserves one sentence, because it is easy to miss: on a content frame with the pointer inside
+and no button down, hover is recomputed from the pointer position, so a hover-derived state can change
+with no pointer event at all. The publish step runs after that recomputation precisely so that it sees
+the settled answer.
+
+### 5.4 Popups and dialogs, per platform
+
+| | Windows | macOS | Linux (X11) | Linux (Wayland) |
+| --- | --- | --- | --- | --- |
+| combo list | own HWND, own tree, own fragment root; `POPUP_FOR` back to the combo | own `NSWindow`, own tree; `POPUP_FOR` | own `frame` under the one application object; `POPUP_FOR` | in-scene overlay: a subtree of the owner's tree |
+| menu cascade | own HWND, focus-stealing, own tree | own window; in-scene under exclusive fullscreen | own `frame` | in-scene overlay |
+| dialog, native | own HWND, `WindowFacet` with `MODAL` | own window, `AXModal` | own `frame`, `STATE_MODAL` | native here too — a window that is genuinely a window is unaffected |
+| dialog, in scene | overlay subtree, `MODAL`, `UIA_IsDialogPropertyId`, **no `WindowFacet`** | same | same | same |
+| tooltip | not published in the first cut (§11) | | | |
+
+In every native mounting the popup's contents are described by the widget that draws them, in the
+popup's own scene, so their bounds are measured against the window they are actually in (§1.11).
+
+---
+
+## 6. What this costs when nothing is listening
+
+The promise is zero: no per-frame allocation and no tree walk until a bridge is attached **and** the
+platform says someone is listening. Here is exactly what runs in each state.
+
+**No bridge at all** — headless tests, `StubWindow`, `RecordingWindow`, any backend whose window
+returns `NONE`. Per frame: one virtual call to `isListening()` on a constant object, returning `false`
+from a `default` method. Nothing else — no walk, no builder, no map, no allocation. Per bind: one
+further call to `needsPrimingPublish()`, which `NONE` also answers from a `default`, and which
+therefore never causes a walk. Per widget: one nullable reference field, never read.
+
+**A bridge attached, nobody listening** — a Windows machine with no assistive technology running, a
+GNOME session with accessibility off, a macOS process no client has queried. Per frame: one
+`isListening()` call that reaches the platform, and then nothing.
+
+- **Windows:** `UiaClientsAreListening()`, one native call per frame per window.
+- **macOS:** a boolean the bridge sets the first time any implementation on its own element class is
+  entered — `accessibilityChildren`, `accessibilityTitle`, `accessibilityRole`, any of them. There is
+  no equivalent of `UiaClientsAreListening` — `AXIsProcessTrusted()` answers whether *we* may act as a
+  client, which is a different question — so "someone has asked" is the honest gate. **This platform
+  alone pays something before the gate opens:** one tree walk on the scene's **first frame**, to have
+  elements to push onto the content view at all (§2.2). Not at bind, where the scene has never laid
+  out and every box would be zero (§5.2). After that walk and until a client touches one of those
+  elements, a frame does nothing here either.
+- **Linux:** `org.a11y.Status.IsEnabled` on the session bus, read once when the first window opens and
+  refreshed on `PropertiesChanged`, **and** a completed `Socket.Embed`. When accessibility is off, no
+  a11y bus connection is opened and no thread is started.
+
+**These are the gates, and the gate is never "a client asked us something recently."** A publish
+conditioned on a recent inbound call inverts the contract on all three platforms: the platform events
+are pushes a client waits on, and Orca in particular registers for `object:state-changed:focused` and
+then calls nothing until it fires. Tab twice quickly with such a gate and the toolkit goes silent —
+the client only asks after an event, and the event only fires after the client asks.
+
+**A bridge attached, a client listening, nothing repainting** — the steady state while a screen
+reader is running and the user is reading. There is no frame at all: the loop is parked in
+`glfwWaitEvents` and no window has asked for one. Zero of everything.
+
+**A bridge attached, a client listening, a frame that repainted and changed nothing accessible** —
+a blinking caret, a hover ripple, a tween of something no facet reports. The flag rides damage
+(§5.3), so this frame *does* reach the publish step: `isListening()`, then one walk into the scratch
+buffer with a comparison per field, then nothing. No snapshot, no events, no allocation — names are
+carried over by source identity rather than re-resolved, and the scratch arrays are the scene's and
+are reused. This state is the price of hanging the flag on the funnel that catches everything, and it
+is the state §12.1's `AccessiblePublishCostTest` has to pin: a repaint that changes no accessible
+fact allocates zero bytes and publishes nothing.
+
+**That last promise has exactly two preconditions, and they are §1.1's rules rather than hopes.** A
+name is an `I18nString` the widget *holds*, compared by reference, locale and epoch, and resolved
+through `I18nString#get()`, which caches its own resolution. And a **derived** string — a formatted
+value, a password field's mask, a text field's contents — is handed over from the widget's own cache
+together with the witness it was cached against, and is never built in the walk. A widget that calls
+`I18nString#format` or `String.format` inside `onAccessibility` breaks this state and only this state:
+everything it publishes stays correct, and the quiet frame starts allocating one string per such node
+per damaged frame. Which is why `AccessiblePublishCostTest`'s scene carries a `Spinner` and a
+`TextField` with a blinking caret rather than a screen of buttons.
+
+**A bridge attached, a client listening, something actually changed** — the copy into the immutable
+tree, sized to the node count, plus the events. This is the only state that allocates, and it happens
+on frames where the interface changed, which is where an allocation is already expected. The sharp
+edge, stated: dragging a slider with a screen reader watching rebuilds the tree once per frame. The
+growth seam is per-node versioning and a partial patch; the first cut does not need it and should not
+pay for it speculatively.
+
+**A continuously-advancing value is the version of that edge nobody is dragging, and it needs a rule
+rather than an exception.** `VideoView`'s position advances every frame of playback: published raw,
+it makes the diff find a change on essentially every frame, and a whole tree copy per frame, for an
+hour, with the user doing nothing at all. Nobody is holding a control — the interface is simply
+playing — so none of the "an allocation is expected where the interface changed" argument applies.
+The rule is: **a value that advances on its own is published at the resolution a user can act on, and
+the widget does the rounding.** `VideoView` writes whole seconds and the `mm:ss` text the transport
+already shows, so playback costs one tree copy a second rather than sixty; `ProgressBar`'s
+determinate value rounds the same way. This needs no new API and no new facet parameter, because the
+decision belongs where the knowledge is — a widget knows what its value means and the diff does not.
+
+What that does **not** buy back is the walk. A playing video damages itself every frame, so the
+publish step runs every frame and compares every node to conclude that one rounded value did not
+move. Only the copy and the events are saved. That is the honest shape of the cost and it is
+acceptable: the walk is bounded by the node count and allocates nothing, which is the state above
+this one.
+
+**The mechanism that keeps the flag honest.** The dirty flag is a plain boolean store from funnels that
+already run, so it costs one store whether or not anything is listening. That is deliberate:
+maintaining it unconditionally means switching a bridge on mid-session needs no audit of what was
+missed, and one store is below the resolution of every allocation and frame test in the suite — a claim
+§12.1 turns into a measurement. The walk it triggers, by contrast, is paid only when something is
+listening, which is why the flag is cheap and the comparison is where the care goes.
+
+**The one unconditional platform cost is the Windows WndProc subclass**, which makes every window
+message cross a Java frame that compares an int and forwards. The spike saw no perceptible latency and
+did not measure it. Before this ships, the existing benchmark harness runs on Windows with and without
+the subclass and the idle and animation keys are compared. If the cost is real, the fallback is to poll
+`UiaClientsAreListening()` and install the subclass only once it has been seen true — with the honest
+caveat that a client touching the window in the same instant the flag flips can miss its first
+`WM_GETOBJECT` and has to retry, so the measurement decides and §13 keeps it open.
+
+**Announcements are the exception to "nothing when nothing listens."** `Scene#announce` allocates a
+queue entry whether or not anyone is listening, because dropping it silently would make the
+application's diagnostics depend on the reader's presence. It is bounded — one entry per call, drained
+each frame at the top of the publish step and discarded there when nothing is listening — and an
+application calling it per frame is a defect the slow-task budget already catches. It buys a frame
+only when a bridge is attached and listening (§1.5), so an application that announces into an
+unobserved process spends no frames at all.
+
+---
+
+## 7. Every widget, and what it becomes — a survey, not a specification
+
+**Read this before the table, because the table has been mistaken for something it is not.** What
+follows was swept from `limn/components`, `limn/components/chart` and `limn/scene/layout`, not from a
+list, and it is written **from the outside**: from each widget's public shape, its documentation and
+what it visibly does, not from a reading of its paint and hit-test code. That is the right way to
+produce a survey of forty widgets and the wrong way to produce a specification for any one of them.
+
+Every adversarial pass over this document has returned row-level corrections, and every one of them
+has been real: a menu column's rows are placed inside a scrolled, clipped viewport and not at their
+nominal offsets; a segmented control has overflow chevrons the row does not mention; a colour
+picker's hue ramp is not the class the row assumes it is; a scroll bar hides itself by returning
+early from `onPaint` rather than by becoming invisible, so the tree would publish a control that is
+not on screen. There is no reason to think the next pass would return fewer. **A table of forty
+widgets written from the outside will keep being wrong in details until each widget's mapping is
+written against its own code**, and a table that keeps being corrected in review is not converging on
+a specification — it is a survey being polished.
+
+So the table is demoted, in its own words:
+
+> **This table is the starting point each component's pipeline step begins from, and corrects. It is
+> not a specification to be implemented literally.** Where a row and the widget's own source
+> disagree, the source wins and the row was wrong. Implementing a row without reading the widget is
+> the failure mode this paragraph exists to prevent.
+
+It is not deleted, because it is how a reader sees the shape and the size of the work — which
+widgets are scaffolding, which carry behaviour, where the hard ones are — and no list of principles
+conveys that. It is kept honest by §7.2, which records the corrections already known, and by §14's
+phase 4, which is a per-component pipeline of **map, then headless test, then adversarial verify**,
+one component at a time. That pipeline is where each row becomes true.
+
+**What must be exact is elsewhere, and is not softened by any of this.** The model (§1.2 to §1.4),
+the threading contract (§3), the identity rule (§1.3) and the per-platform interface mapping (§2) are
+specifications: a mistake in any of them is wrong for every widget at once and cannot be corrected
+one component at a time. A mistake in a row here is wrong for one widget and is caught by that
+widget's own pipeline step. The two kinds of statement are held to different standards on purpose,
+and mixing them up is how a design document becomes untrustworthy in both directions.
+
+"Transparent" means no node and children hoisted; "ignored" means no node and no children.
+
+| Widget | Role | Facets and states | Synthetic children | Note |
+| --- | --- | --- | --- | --- |
+| `Row`, `Column`, `Flex`, `Stack`, `Padding`, `SizedBox`, `Expanded`, `TokenBox`, `TokenColumn`, `TokenPadding`, `TokenRow`, `BackdropPanel` | transparent | | | scaffolding; the tree is the controls, not the boxes |
+| `Label` | `LABEL`, or `HEADING` for the title typographic role | name from `textSource()`, `nameFrom=CONTENT` | — | gains `LABEL_FOR` when an application declares the relation |
+| `Button` | `BUTTON` | `ActionFacet{PRESS}`; `DEFAULT` when it is a dialog's default | — | name from `textSource()`, else the tooltip; the action reaches the private path through the widget's own hook |
+| `Checkbox` box / switch | `CHECK_BOX` / `SWITCH` | `ToggleFacet`, `ActionFacet{TOGGLE}` | — | name from its own label, `nameFrom=CONTENT` — the field is a private `I18nString` with no getter today and §8 adds the `text()`/`textSource()` pair, because a focusable node with no name fails `AccessibleGalleryTest`. `toggle()` has no enabled guard of its own — the guard is the scene's, which never delivers an event to a disabled widget — so the accessibility path re-checks `isEnabled()` (§1.9) and `toggle()` gains the same guard (§8) |
+| `RadioButton` | `RADIO_BUTTON` | `SelectionItemFacet`, `ActionFacet{SELECT}`, `MEMBER_OF` its group with position and size of set | — | name from its own label, `nameFrom=CONTENT`, through the same pair §8 adds. Roving focus means only the holder is `FOCUSABLE`, which is correct and is what the reader should hear |
+| `ButtonGroup` | no node | | | not a widget and has no bounds; it contributes position and size of set to its members |
+| `SegmentedControl` | `RADIO_GROUP` | `SelectionFacet`, `ScrollFacet` when it overflows | one `RADIO_BUTTON` per segment, keyed by index, named by its segment, **plus the two overflow chevrons** | **Corrected:** when the strip overflows it clips to a viewport with a chevron in each gutter, each of which scrolls by most of a viewport and is drawn disabled on the dead side. They are operable controls and may not be dropped (§1.6), and a segment scrolled outside the viewport is not `SHOWING`. Their keys, names and the dead-side disabled state are the pipeline step's. **Not `TAB_LIST`**: its own documentation says it owns no content — it takes labels and hands back an index — so there is no `TAB_PANEL` for a tab to select, and announcing "tab, 1 of 4" would offer page navigation that leads nowhere. Its segments are a `List<String>` and not `I18nString`s, so a segment name cannot follow the subtree locale as §1.7 requires of every other name; §8 gives it the `I18nString` list it should have had |
+| `Slider` | `SLIDER` | `ValueFacet{min,max,step}`, `ActionFacet{INCREMENT,DECREMENT}` | — | the hook reaches the private from-user path, so a set from an assistive technology notifies the application (§9) |
+| `Spinner` | `SPIN_BUTTON` | `ValueFacet` with the display form as its text, `ActionFacet{INCREMENT,DECREMENT}` | the up half and the down half, keyed by their region numbers | the widget's `regionAt` answers exactly three things — value area, up, down — so there are no hour and minute *hit targets* to publish. **Corrected in its reasoning, not in its answer:** that is a fact about pointer input, and it does not by itself settle what a reader should be offered for a `07:30` value, which is a question about the inline edit model this row never read. The pipeline step decides, against that model. No `EDITABLE` state in the first cut for the same reason |
+| `ProgressBar` | `PROGRESS_BAR` | `ValueFacet{0..1}` read-only, rounded to whole percent, or `BUSY` when indeterminate | — | same rounding rule as `VideoView`, for the same reason |
+| `TextField` | `TEXT_FIELD` | `TextFacet`, `EDITABLE`, `INVALID` from `validation()` | the trailing button when one is set | **Corrected:** `setTrailingButton` takes an `Icon` and a `Runnable` and **no label**, so the synthetic child this row promises has nothing to be named from — an operable control that cannot be ignored (§1.6) and cannot be named either. §8 adds an `I18nString` name to the setter; the existing overloads keep working and give an unnamed button, which the gallery test then refuses. Name from the placeholder when nothing else supplies one. The `TextFacet` is also what vends `ValuePattern` on Windows and `accessibilityValue` on macOS, which is the whole of a text control's behaviour there until `TextPattern` lands (§2.1, §11). **Never `READ_ONLY` from disabled** — the widget has no read-only mode today, so the bit stays clear |
+| `PasswordField` | `PASSWORD_FIELD` | `TextFacet` **masked** unless `isRevealed()`, `PASSWORD` | — | one mask character per grapheme cluster, never the secret. The published string is `caretCount() - 1` mask characters long, and **the facet's caret and selection are in the mask's own offsets**: a model offset `i` becomes `display.caretOrdinal(i)`, which is the shaped line's own inverse and needs no second rule for finding cluster boundaries. The model's offsets are the secret's UTF-16 offsets and would run past the end of a mask shorter by an astral character. **The shaped line is read for its caret stops and never for its `text()`, which *is* the secret** — the class marks that line `TRAP` in its own source (Finding 14), and this is the second reader of it |
+| `SearchField` | `SEARCH_FIELD` | as `TextField`, plus `ActionFacet{PRESS}` for submit | the clear button | the clear button is operable and is named, not ignored |
+| `TextArea` | `TEXT_AREA` | `TextFacet` with lines, `MULTI_LINE`, `ScrollFacet` | — | soft-wrap rows are reported as lines |
+| `ComboBox` | `COMBO_BOX` | `ExpandFacet`, `HAS_POPUP`, `ValueFacet` text = the selected item | — | the options are **not** here; see the next row |
+| ↳ `ComboBox.PopupPanel` | `LIST` | `SelectionFacet` with an active descendant | one `LIST_ITEM` per option, keyed by index, `SELECTED` on the chosen one | described in the scene it lives in, so its bounds are right in both mountings (§1.11) |
+| ↳ `ComboBox.ScenePopup` | transparent | | | the overlay wrapper |
+| `ListView` | `LIST` | `SelectionFacet` with an active descendant, `ScrollFacet` | — | rows are real pooled widgets mounted directly (Finding 14); `onAccessibilityChild` gives each mounted row `LIST_ITEM`, `SELECTED`, its data index as position in set, `rowCount()` as size of set, and **its data index as the identity key** (§1.3), which is what keeps a recycled cell from carrying row 3's identifier to row 9. **Corrected:** a row also needs `ActionFacet{PRESS}` mapped onto `ListView#activate()` — Enter activates the selected row and fires `onActivate`, and a row published with `SELECTED` and no verb is a list a screen reader user can move through and cannot use. Unmounted rows are not published (§11) |
+| `TabbedPane` | transparent | | | the pane itself is scaffolding |
+| ↳ `TabStrip` | `TAB_LIST` | `SelectionFacet` | — | |
+| ↳ `TabHeader` | `TAB` | `SelectionItemFacet`, `ActionFacet{SELECT}` | — | name from the tab's own `I18nString` title, `nameFrom=CONTENT`. It is a private inner widget of `TabbedPane`, so it reads that title from inside its own package and needs no new accessor for this ADR — ADR 040 needs one for a different reason (§9) |
+| ↳ selected content | `TAB_PANEL` | `LABELLED_BY` its header | — | an unselected panel's subtree is under a widget whose own `isVisible()` is false, so by §1.2's inherited rule it and everything in it publish without `VISIBLE` and without `SHOWING` — which is also what stops a hidden tab's controls from announcing as focusable |
+| ↳ `StripButton` | `BUTTON` | `ActionFacet{PRESS}` | — | unnamed today; §8 gives it a name |
+| `MenuBar` | `MENU_BAR` | — | one `MENU_ITEM` per title, `HAS_POPUP`, `ActionFacet{SHOW_MENU}`, keyed by index | |
+| `PopupMenu.MenuSurface` | `MENU` for the root column | `SelectionFacet` with the active descendant, `MODAL`, `ScrollFacet` on a column that scrolls | one node per open column and one per row of each, keyed by the `MenuItem`'s minted serial | **bounds come from `Column`, never from the widget box**, which is the whole scene either way (Finding 14). The root column's rectangle is the surface node's; each further column is a `MENU` node under the row that opened it, which is the nesting all three platforms expect. **Corrected:** a row's rectangle is *not* simply its `top[]`/`hgt[]` — a column has a `visibleH` that can be less than its content, a scroll offset, and a clip inset the rows are painted inside, so a long menu's row boxes must be offset by the scroll and rows outside `visibleH` published as not `SHOWING`. Taking `top[]` at face value puts a screen reader's cursor on rows that are scrolled away |
+| `MenuItem` | as above | `ToggleFacet` for check and radio kinds; `ActionFacet{PRESS}` or `{SHOW_MENU}`; key binding from `Accelerator#display()` | — | the action is offered only when the row is selectable **and** is not a submenu with nothing in it, because `hasSubmenu()` is false for an empty submenu while `isSelectable()` stays true |
+| ↳ the highlighted row | | `SELECTED` on the row, active descendant on its column | — | `Column#highlight` is an `int` today and reaches the tree through the column's `SelectionFacet`; moving it raises `ACTIVE_DESCENDANT_CHANGED`, which is how a keyboard walk down a menu is announced at all. Without it a reader can see the rows and never learn which one the user is on |
+| `Dialog` panel or overlay | `DIALOG` | `MODAL`, `ActionFacet{CANCEL}`; `WindowFacet` **only** when it is a real window | — | in scene it is a dialog node inside the owner's tree, with `UIA_IsDialogPropertyId` on Windows |
+| `ScrollView` | `SCROLL_PANE` | `ScrollFacet`; descendants gain `SCROLL_INTO_VIEW` | — | a node, not transparent: the scroll behaviour lives here, and eliding it deletes `ScrollPattern` and `ScrollItemPattern` from a scene that is mostly scrollable |
+| `ScrollBar` | `SCROLL_BAR` | `ValueFacet` from its model, `HORIZONTAL`/`VERTICAL` | — | a node, not decorative; not focusable, which is correct. **Corrected:** under `ON_SCROLL` it hides by returning early from `onPaint` while staying visible and showing, so neither `isVisible()` nor `isShowing()` says it is gone. Publishing it unconditionally offers a control that is not on screen; suppressing it on the fade would make a scroll bar appear and vanish in the tree as the user scrolls. Which of those is right is the pipeline step's call, with the fade state read from the widget rather than guessed at here |
+| `SplitPane` | `SPLIT_PANE` | — | — | |
+| ↳ `Divider` | `SPLITTER` | `ValueFacet{ratio}`, `HORIZONTAL`/`VERTICAL` | — | `FOCUSABLE` only when the application made it so |
+| ↳ `Pane` | transparent | | | |
+| `Separator` | `SEPARATOR` | `HORIZONTAL`/`VERTICAL` | — | orientation from the laid-out box |
+| `ToolBar` | `TOOL_BAR` | — | — | |
+| `ContextMenus.ContextRegion` | transparent | `HAS_POPUP` and `ActionFacet{SHOW_MENU}` are put **on its own child**, through `onAccessibilityChild` | — | the region measures and lays out to exactly its content's box, so the child's node is the rectangle a user would right-click. The action is never lost with the wrapper (§1.6) |
+| `ImageView` | `IMAGE` | name from the application or the tooltip | — | ignored when it has neither, because a nameless image is noise |
+| `VideoView` | `VIDEO` | `ValueFacet{position,duration}`, **position rounded to whole seconds** | — | the rounding is not cosmetic: an unrounded position advances every frame, and the diff would then publish a whole tree copy per frame for the length of the film with the user doing nothing (§6) |
+| `MediaControls` | `TOOL_BAR` | — | — | its icon buttons are real widgets and get `BUTTON`, named by tooltips that already flip with the play state |
+| ↳ position `Label` | `LABEL` | — | — | its text changes about once a second; an application that wants it spoken calls `announce` (§11) |
+| `Viewport3D` | `CANVAS` | — | — | focusable with no key handling today, so the tree faithfully reports a tab stop that does nothing (§13) |
+| `ColorPicker` | `COLOR_CHOOSER` | — | — | |
+| ↳ `Rail`, `ChannelTrack`, `AlphaRail` | `SLIDER` | `ValueFacet`, `ActionFacet{INCREMENT,DECREMENT}` | — | `LABELLED_BY` the sibling label, declared by the picker |
+| ↳ `HueRamp` | pipeline decides | | | **corrected:** it extends `Painted`, not `Rail`, so it has none of the rail machinery a `SLIDER` row assumes, and it is not focusable. It does drag to set the hue, so it is operable and may not simply be ignored (§1.6). Its mapping is its own pipeline step's, not this table's |
+| ↳ `SaturationValueField` | `CANVAS` | — | — | two-dimensional value, which no platform carries (§4.1); its description names both channels |
+| ↳ `Preview` | `IMAGE` | name is the colour in hex | — | |
+| `ColorPickerButton` | `BUTTON` | `HAS_POPUP`, `ActionFacet{PRESS}`; value text is the hex | — | `CONTROLLER_FOR` the dialog once it exists |
+| `Chart`, `CartesianChart`, `BarChart`, `LineChart`, `DonutChart` | `CHART` | name from `titleSource()`, description generated from the axes and series | one `CHART_SERIES` per series, named by `ChartSeries#nameSource()` | marks are not nodes in the first cut (§11) |
+
+### 7.1 Synthetic children, and the derivation rule
+
+A synthetic child is a node whose owner draws it but never instantiated it as a widget: a menu column,
+a menu row, a combo option, a menu-bar title, a segment, a spinner button, a chart series. It is
+created through the `Accessibility` builder the owner is already holding, keyed by a `long` the owner
+chooses, and it supplies its own local bounds because nothing else can. A synthetic child may nest —
+a menu column owns its rows, and a row that opens a submenu owns that column — which is what lets one
+widget describe a cascade.
+
+**The rule, stated once: a node is either a widget or a synthetic child declared by a widget, and there
+is no third kind.** That is the answer to menus being a parallel model. `Menu` and `MenuItem` are not
+widgets and stay that way, because a menu is a model and `MenuSurface` is the widget that renders it;
+what changes is that `MenuSurface` declares one synthetic child per row and reads the model from
+inside its own package (§8).
+
+It is also why `ListView` does **not** get a synthetic row node above its mounted cell, tempting as
+that is: the cell is a widget, a synthetic node cannot have widget children without becoming a third
+kind, and the problem the wrapper was invented to solve — identity across recycling — is solved
+instead by letting the parent choose the child's key (§1.3).
+
+This is not an afterthought. On every one of the three platforms these are the nodes an assistive
+technology spends most of its time in: a menu with no rows is a menu a user cannot operate.
+
+### 7.2 Known corrections the pipeline must apply
+
+These came out of adversarial review of the table above. The cheap ones are already folded into their
+rows and are listed here so that nobody re-derives them; the rest are recorded as work, because
+settling them means reading the widget and the table cannot settle them by being edited again. **This
+list is not exhaustive and is not expected to be** — it is what one pass over forty rows found, and
+its real function is to calibrate how much the table should be trusted.
+
+*Carried into the rows already:*
+
+| Widget | The correction |
+| --- | --- |
+| `PopupMenu` column | rows sit inside a scrolled, clipped viewport with its own `visibleH`; a row's box is not its raw `top[]`, and a scrolled-away row is not `SHOWING` |
+| `SegmentedControl` | overflow chevrons exist, are operable, and have a dead side; an overflowed segment is not `SHOWING` |
+| `ColorPicker.HueRamp` | extends `Painted`, not `Rail` — the `SLIDER` mapping assumed machinery it does not have |
+| `ScrollBar` | hides by returning early from `onPaint`, not by becoming invisible, so visibility does not describe whether it is on screen |
+| `TabbedPane` hidden panel | handled by §1.2's inherited `VISIBLE`, which the table previously stated as a one-off for this row |
+| `TextField` trailing button | the setter takes no label, so the promised node has no name; §8 adds one |
+| `ListView` row | needs `ActionFacet{PRESS}` onto `activate()`; selection without a verb is not usable |
+| `Spinner` time mode | the region test is about pointer hit-testing and does not settle what a reader is offered |
+| `VideoView`, `ProgressBar` | a continuously-advancing value must be published rounded (§6) |
+
+*Left to the pipeline, as work:*
+
+- **Every row's bounds claim.** The menu column was the row that happened to be examined; the same
+  question — does this widget's painted geometry match the box the tree would publish — has not been
+  asked of `ListView`'s mounted cells, the chart's series, the colour picker's rails, or the tab
+  strip under overflow. `AccessibleGalleryTest`'s clipping-ancestor assertion catches the gross
+  version of this and not the subtle one.
+- **Every row's "operable" claim.** §1.6 forbids ignoring a control that can be operated, and the
+  survey found three violations of it in one pass (the chevrons, the hue ramp, the trailing button).
+  There is no reason to think it found all of them.
+- **Every row's name source.** The two free defaults (tooltip, placeholder) were assumed to cover the
+  icon-only controls; the trailing button shows the assumption failing. Each component's step checks
+  its own controls against `AccessibleGalleryTest`'s every-focusable-node-is-named rule rather than
+  against this table's promise that they are.
+- **Every synthetic child's key.** The table names keys casually — "keyed by index", "by its region
+  number" — and §1.3 now requires the key to be stable under everything the owner does to its
+  children. That is a per-owner proof, not a table entry.
+
+**The pipeline that settles them is §14's phase 4**: for each component, in order, *map* it against
+its own source, *test* it headlessly with the invariants of §12.1, then *verify* it adversarially —
+someone reading the produced tree against the widget's code and looking for the row that is still
+wrong. One component at a time, ending green. The table is where each of those starts.
+
+---
+
+## 8. What this changes in the toolkit, and why nothing is worked around
+
+The owner knows of no consumer and a `0.x` line promises no compatibility, so where the current API
+fights the tree the API changes rather than gaining a deprecated twin — the header says what that
+claim rests on and what it does not. Every change below is inside this repository, and the migration
+is `limn.components`, `limn-theme-editor`, `limn-demo` and the tests.
+
+**The tooltip gains its `I18nString`, and changing it says so.** `Widget#tooltipSource()` is added,
+matching the `text()`/`textSource()` and `label()`/`labelSource()` pairs `Label`, `Button` and
+`MenuItem` already set. ADR 006 §5 pre-decided that accessibility text is an `I18nString`, and the
+tooltip is the natural description and the natural free name for an icon-only control; without the
+getter, that text cannot be re-resolved when a locale epoch moves. `setTooltip` also gains a call to
+`invalidateAccessible()`, because today it neither invalidates nor relayouts and a description change
+would be silent.
+
+**Three widgets get the label accessor `Button` and `Label` already have, and one of them gets a
+different type for its labels.** `Checkbox` and `RadioButton` each hold their caption in a private
+`I18nString text` with a setter and no getter — the same shape `tooltip` had before the paragraph
+above — so `text()` and `textSource()` are added to both, matching the pair `Button` exposes. Strictly
+this ADR could do without them, because `onAccessibility` is overridden *inside* each class and can
+read its own field; they are added anyway for two reasons. A caption is the thing a name is derived
+from, and ADR 006 §5's rule that accessibility text is an `I18nString` is unenforceable through a
+field nothing can read. And ADR 040 §6.3 names these accessors as this record's to design, because a
+watcher cannot announce a `NAME` for an aspect no public getter answers (§9).
+
+`SegmentedControl` is the harder one and the change is bigger: its segments are a `List<String>`,
+taken as literals in the constructor, so a segment's name cannot follow the subtree locale the way
+every other name in this design does (§1.7). It gains an `I18nString` list — a second constructor and
+a `segmentSource(int)` accessor — and the `List<String>` overload keeps working by wrapping each entry
+in `I18nString.literal`, which is what `Checkbox`, `Button` and `Label` already do for their `String`
+constructors. `TabbedPane` already takes `I18nString` titles and its tab header reads them from
+inside its own package, so it needs nothing for this ADR; it gains `tabTitleSource(int)` for ADR
+040's, which cannot announce an aspect no public accessor answers (§9.2).
+
+**The inheritance host becomes readable.** `Widget#inheritanceHost()` is added. The link is written by
+every popup, menu and dialog today and read by nothing, and it is the only path from a popup root back
+to its opener — which is what `POPUP_FOR` and `CONTROLLER_FOR` are built on.
+
+**The menu model gains a radio kind and a guarded activation.** `MenuItem.Kind` gains `RADIO`, because
+the tabbed pane's overflow list is a single-selection group built out of check items today, and a tree
+derived from `Kind` alone would report independent checkboxes. `MenuItem#activate()` becomes reachable
+from `MenuSurface` under the guard §7 states. Neither `Menu` nor `MenuItem` becomes a `Widget`: the
+derivation rule in §7.1 is the answer, not a type change.
+
+**The list adapter gains a name.** `ListView.Adapter` gains
+`default I18nString rowName(int index) { return null; }`, so a selected row that is not currently
+mounted still has a name to announce, and so the later virtualization work has something to build on.
+
+**The headless doubles gain a screen.** `StubWindow` and `RecordingWindow` answer a zero origin and a
+unit factor today, so no headless test can assert a real screen rectangle. Both gain a settable screen
+origin and logical-to-screen factor; `StubWindow` already takes a `canPosition` flag for
+`supportsAbsolutePositioning()`, and `RecordingWindow` gains that too. This is test infrastructure, and
+it is what makes §12.1's scale and mirroring assertions possible at all.
+
+**Three widgets gain a name they never had, and one setter gains a parameter.** The tabbed pane's
+overflow strip buttons and the search field's clear button have no text and no tooltip, so they would
+be unnamed nodes; they gain localized tooltips from `ComponentStrings`, which names them for a
+sighted user at the same time. `TextField#setTrailingButton` is the third and is different in kind:
+it takes an `Icon` and a `Runnable` and there is **nowhere to put a name**, so no tooltip can be
+supplied for it and the application cannot name it either. It gains an overload taking an
+`I18nString` name. The existing overloads stay and produce an unnamed button, which
+`AccessibleGalleryTest` then refuses for any scene that uses one — which is the right pressure, since
+the demo is where they are used.
+
+**`TextEditModel` gains a revision counter.** A `long` bumped by every mutating operation, with a
+`revision()` accessor. It exists for §1.1's compare-before-publish rule: `text()` is
+`buffer.toString()`, so deciding that a text node is unchanged would allocate a fresh `String` per
+text widget per damaged frame, which contradicts §6's zero-allocation promise for a repaint that
+changed nothing and would fail `AccessiblePublishCostTest`. The counter is also the cheapest possible
+answer to half of Finding 10's complaint that the model carries no change record — it does not give
+the insert and delete offsets, which are still computed by comparison, but it does give "unchanged",
+which is what the quiet frame needs.
+
+**Every widget that formats a string for the screen gains the counter its cache already deserved.**
+`I18nString#format` is documented as never cached, and `Spinner#format(double)` runs `String.format`
+through `I18n.localizeDigits`, so a formatted name or value text has no witness the walk can compare
+without building it (§1.1). `Spinner` already keeps the cache — `formattedFrom`, `formattedEpoch`,
+`formattedLocale`, `formattedText`, kept so `onMeasure` cannot drift from `paintValue` — and what it
+gains is a `long` bumped when that cache refills, plus the package-visible accessor that hands the
+tree the cached string and the counter together. The same shape goes on every widget whose node
+carries a derived string, which phase 4 settles one component at a time; the rule for whoever adds the
+next one is §1.1's, and `AccessiblePublishCostTest` is what refuses a widget that formats in the walk.
+
+**`Widget#setFocusable` gains `invalidateAccessible()`, and it is the sharper of the two entry points
+in this list that reach nothing today** — `setTooltip` is the other, and this one is sharper for the
+reason the rest of this paragraph gives. The setter checks the UI thread, writes its field and
+returns — no
+`invalidate()`, no `markNeedsLayout()`, no structural funnel — unlike `setEnabled`, which invalidates,
+and `setVisible`, which re-lays-out. So none of §5.3's flag-setting entry points sees it, while
+`FOCUSABLE` is both a published state and the bit §1.6's transparency predicate reads: making a
+scaffold widget focusable changes what the tree *contains*, and today it would do so silently, on the
+next unrelated repaint. One line, and `AccessibleIdentityTest`'s second case is what fails without
+it.
+
+**`Scene#scheduleFrame()` becomes the accessibility plumbing's frame primitive.** It does not become
+public; it widens from private to package-private, so `Widget#invalidateAccessible` can reach it the
+way every other `Widget`-to-`Scene` funnel does. What changes is that `Host#requestRepublish`, `Host#requestRestamp`, `Scene#announce`
+and `Widget#invalidateAccessible` call it rather than `requestRender()`, because `requestRender()`
+sets the accessibility node flag by design and would make the re-stamp path and the announcement path
+pay for the walk they exist to avoid (§5.2). `invalidateAccessible` is in that list for the other
+half of the same rule: it has a flag to set and no frame of its own, and a flag set with no frame
+coming is not read (§1.5). Three of the four buy the frame only while a bridge is attached and
+listening; `requestRepublish` is the exception, because its caller is a bridge that has just been
+asked for a tree.
+
+**The damage funnels learn to set one more flag.** `Scene#damageWidget`, `#damageWidgetRegion`,
+`#damage(Rect)`, `#requestRender()` and `#markContainedLayout` each gain a store of the accessibility
+node flag. They are package-private or `public` on `Scene` and their contracts do not change; what
+changes is that the funnel every repaint goes through is now also the funnel every accessibility event
+comes from (Finding 6, §5.3). This is the single most important edit in the ADR and it is five lines.
+`Scene` also gains a second, separately-cleared header flag, which is what makes a window drag cost a
+re-stamp instead of a walk (§5.2).
+
+**A post from the UI thread wakes the loop while — and only while — the loop is parked.**
+`UiRuntime#post` and `#postDelayed` wake only from a foreign thread today, and a macOS AX callback is
+the UI thread with the loop asleep inside the pump (Finding 13). The obvious repair is to wake
+unconditionally, and the first draft of this ADR took it on the strength of a call-site count that
+turns out to be wrong: there are 22, not 14, and the caret blink in `TextField` and `TextArea`, the
+auto-repeat in `Spinner` and `ScrollBar`, the media position ticks and `Scene`'s tooltip dwell are all
+*self-rescheduling timers* whose whole point — `TextField`'s javadoc says so — is to let the loop sleep
+between them. Waking unconditionally makes each of those write a native event from inside a drain the
+loop is demonstrably already awake for.
+
+So both paths take the same narrow mechanism instead, and it is **two edits, one in each module**,
+because the toolkit must not learn what a pump is.
+
+*In `limn-toolkit`:* `UiRuntime#post` and `#postDelayed` drop the `if (!isUiThread())` around
+`waker.wake()` and call the waker every time. That is a contract change, not a refactor —
+`UiRuntimeTest.postFromBackgroundThreadWakesTheLoopButUiThreadPostDoesNot` asserts
+`assertEquals(0, wakeUps.get(), "UI-thread post must not need a wake-up")` today, and its name says
+what it believes. The test is rewritten with the belief: a UI-thread post now always reaches the
+`Waker`, and *the `Waker` decides*. That is the right place for the decision, because the runtime
+cannot tell a re-entrant caller inside a native pump from an ordinary one inside a drain, and the
+backend can.
+
+*In `limn-backend-lwjgl`:* `LwjglBackend` keeps a `volatile boolean` set around
+`glfwWaitEvents`/`glfwWaitEventsTimeout`, and `wakeLoop()` posts an empty event when the caller is a
+foreign thread — unconditionally, because that is where the race is real — or when that flag is set.
+`LwjglWindow#requestFrame` gains the same call, because today it is UI-thread-checked and does
+nothing but set `frameRequested`, so a frame asked for from inside a describe pass would also wait
+for unrelated input.
+
+For a UI-thread caller the flag cannot race: if it reads `true` the caller is re-entrant inside the
+pump and the wake is exactly what is needed, and if it reads `false` the loop has not yet re-checked
+`nanosUntilNextDeadline()` — which returns `0` while immediate work is queued — and will see the
+work. The cost is a virtual call and a volatile read on the post path and nothing else.
+
+**`CrashPhase` gains `ACCESSIBILITY`.** A describe pass runs application code — any widget subclass
+can override `onAccessibility` — and on macOS it runs inside a libffi closure called by AppKit,
+where an escaping Java exception unwinds into Objective-C. Every other place application code runs is
+already contained and named — `FRAME`, `INPUT`, `TASK`, `TICKER`, `DECODE`, `EVENT_POLL`,
+`WINDOW_CLOSE` — and this one becomes the eighth (§3.2).
+
+**`Checkbox#toggle()` gains the enabled guard it never had.** Finding 7 called it a trap and it is:
+the only reason a disabled checkbox does not toggle today is that the scene never delivers it an
+event. The accessibility path re-checks `isEnabled()` on arrival regardless (§1.9), so this is
+defence in depth rather than the mechanism — but a public method that flips a disabled control and
+fires the application's handler is a defect with or without a screen reader.
+
+**`MenuItem` gains a minted `long`.** A package-private serial from one counter, assigned at
+construction, so a menu row has a key of the width identity is (§1.3). Nothing in the toolkit hashes
+a `MenuItem` today; the serial exists because the obvious substitute — and the one an earlier draft of
+this ADR reached for — is `System.identityHashCode`, which is 32 bits, and a collision here is two
+menu rows becoming one element on all three platforms rather than a slow map.
+
+**`LwjglWindow#windowMovedTo` tells somebody.** It updates two fields and moves child popups today and
+requests nothing (Finding 13). It gains a `Host#requestRestamp()`, which is what makes the re-stamp
+path in §5.3 run at all; without it every screen rectangle this design publishes is wrong from the
+first window drag until something else happens to repaint. On macOS it is a no-op by construction,
+because that bridge publishes parent-space boxes and AppKit re-derives the screen rectangle itself
+(§1.8) — which is one more thing that platform does not have to be told.
+
+**Nothing gains a public `click()`, and no accessor is widened for the bridge's sake.** Because the
+hooks are `protected` on `Widget`, every private inner widget — the tab header, the menu surface, the
+combo panel, the dialog panel, the divider, the media icon buttons, the scroll bar, the colour rails —
+describes itself from inside its own package and reaches its own private geometry helpers. The long
+list of accessors a bridge reading components from outside would have needed does not have to become
+public API, and the enabled guards and from-user paths stay where they are.
+
+**The single-slot listeners and the silent setters change, and ADR 040 decides how** (§9). Nothing
+here depends on that outcome: the events are diffs, so this bridge subscribes to no component
+callback, and the actions run through the widget's own hook, so nothing needs a public mutator that
+notifies. What ADR 040 changes is the *argument*, not the design, and §1.10 and §9.3 say so rather
+than leaving a spent reason in place.
+
+---
+
+## 9. ADR 040, its companion in this commit, and which of us owes what
+
+**This section was written when ADR 040 was still being drafted and is now a reconciliation.** ADR
+040, *A handler answers the user, and a watcher hears everything*, is in `docs/adr/` as Proposed,
+2026-09-03, with its own row in the ADR index. **The two records land in one commit**, each carrying
+a companion bullet that describes the other as it is at that moment: an earlier draft of this section
+owed ADR 040 a correction, because its status block still called this record a draft outside the
+repository, and that correction is made rather than owed — nothing about either record's description
+of the other is deferred to a later chore, and there is no bullet left over to fix. ADR 040 keeps the
+fluent `onX` slot and narrows it to mean one thing — the application's single response to the user
+operating this widget — and adds a second channel, `Scene.observeChanges`, that any number of parties
+may watch and that carries **every** change to a widget whatever moved it, tagged with an `Origin` of
+`USER`, `CODE` or `ADJUSTMENT`. It addresses five open items to this record — its §6.1 to §6.4 and
+§6.16 — and names it throughout. §9.2 answers the first four in design; §6.16 is the one this record
+answers by not needing it, which §9.2's last paragraph says. Neither record waits on the other; what
+follows is what each answered.
+
+### 9.1 The four things this ADR required, and how ADR 040 answered them
+
+1. **One user-equivalent mutation path per value-bearing widget, reachable from inside its own
+   class.** Answered, and generalised: ADR 040 §1.5 makes it one private funnel per widget taking an
+   `Origin`, entered by every public and every input path, and §1.11 makes it the first of four
+   obligations on a component author, checked by a table-driven test. This ADR was never blocked on
+   it — `Slider.apply(v, true)`, `Checkbox.toggle()` and the text widgets' `insertText` all exist
+   today, which is why §1.5 can say the widget performs its own action — and after ADR 040 they are
+   one shape rather than three spellings.
+2. **The convention must converge.** Answered by ADR 040 §1.2's single rule and §3.1's
+   component-by-component migration.
+3. **Registration must admit more than one subscriber.** Answered by the watcher channel, and see
+   §9.3: this ADR still does not subscribe, but the reason is no longer that it cannot.
+4. **A change that is not painted must still be announceable.** Answered as a rule rather than a
+   list: ADR 040's channel is not damage-derived at all, so a change that paints nothing announces
+   exactly like one that does. This ADR's own flag *is* damage-derived (§1.1), so the hand fix in §8
+   — `setTooltip` calling `invalidateAccessible()` — stays needed here whatever ADR 040 does; what
+   it gains is that it is no longer the only mechanism in the repository for that case.
+
+### 9.2 The five items ADR 040 addressed to this record
+
+- **§6.1, the five public types that are not `Widget`s.** `ButtonGroup` ADR 040 answers itself.
+  `Menu`, `MenuItem`, `PopupMenu` and `Dialog` are this record's, and §7.1 is the answer: a node is
+  either a widget or a synthetic child declared by a widget, `MenuSurface` declares one per column
+  and one per row and reads the model from inside its own package, and none of the four becomes a
+  `Widget`. What ADR 040 could not carry — a menu's highlighted row, a check item's state — this ADR
+  publishes as `SELECTED` on the row and an active descendant on its column (§7), diffed like
+  everything else. The hole ADR 040 names is a hole in *its* channel and not in the tree.
+- **§6.2, an assistive technology cannot set a value as the user.** Answered by §1.9: the action set
+  is `ActionFacet`'s twelve parameterless verbs plus the parameterised constants `SET_VALUE`,
+  `SET_TEXT`, `SET_CARET` and `SET_SELECTION`, every one of them dispatched through the one
+  `Host#perform` call, and §1.5's rule that the widget performs its own action means each of them
+  enters the widget's own from-user funnel. In ADR 040's vocabulary they are `USER`, and they reach the
+  application's handler with no further decision, which is what its §6.2 asked for.
+- **§6.3, four widgets that cannot announce a `NAME`.** Answered in §8: `Checkbox` and `RadioButton`
+  gain `text()`/`textSource()`, `SegmentedControl` gains an `I18nString` segment list with
+  `segmentSource(int)`, and `TabbedPane` — whose titles are already `I18nString`s — gains
+  `tabTitleSource(int)` for ADR 040's sake, since this record's tab header reads the title from
+  inside its own package and needs no accessor.
+- **§6.4, something must enumerate scenes for a bridge, and say when one is replaced.** Half of it
+  does not arise here and half of it was a defect this record had too. **The enumeration does not
+  arise**: this bridge is not registered per scene by a third party, it is handed to a scene by its
+  own window — `Scene#bind` reads `window.accessibility()` — so a combo popup, a menu surface and a
+  modal dialog each reach their bridge through the window they were given, and no registry is
+  needed. **The replacement is real**, and §5.3 now fixes it: `attach(Host)` replaces any host the
+  bridge held, raising `WINDOW_CLOSED` for the outgoing tree and `WINDOW_OPENED` for the incoming
+  one, because a scene bound over a live window never reaches `observeWindowClosed`.
+
+**And §6.16, the fifth, is answered by not arising.** ADR 040 records that `Widget#setLocale` moves
+the language every descendant's names resolve in while its channel emits only a single coarse
+`LAYOUT`, so a watcher's cached names go stale with nothing to say so, and it says the gap costs this
+bridge nothing. That is right, and here is the mechanism rather than the assurance: a published name
+is compared by *source* — the `I18nString` reference, **the node's own resolved locale** and
+`I18n.epoch()` — and a name is carried over only when all three match (§1.1, §1.7). A subtree locale
+move changes the second for every node under it, so the next publish re-resolves exactly those names
+and diffs a `NAME_CHANGED` for each, with no subscription and no new marker. What ADR 040 names is a
+hole in its channel and not in this tree, and its consumers are the ones who pay for it.
+
+One further item is worth answering the other way round. ADR 040 §6.6 asks whether
+notifications emitted from inside a layout pass — `ListView` mounting cells in `onLayout`, `TabbedPane` calling `setVisible` on
+its overflow buttons there — should be held to the end of the pass. **For this bridge the question
+does not arise**: the publish step runs after `layoutPass` (§5.3), so the tree it walks is the
+settled one and a mid-pass mutation is invisible to it by construction. That is not an argument
+about ADR 040's channel, whose watchers include inspectors and bindings that have no frame to hide
+behind; it is one consumer reporting that it is unaffected.
+
+### 9.3 Where the two records describe the same bridge differently, and which governs
+
+ADR 040 §1.10 sets out how a screen-reader bridge uses its channel: one registration per scene,
+receiving `(source, change)` on the UI thread and updating "the one node of its own immutable
+snapshot that the change names". **That is not the bridge this record builds, and this record is the
+one that owns it.** The snapshot here is rebuilt by a walk inside the frame and the events are the
+diff between two of them (§1.10), for three reasons ADR 040's channel does not remove: it carries no
+per-widget geometry by design, only one coarse `LAYOUT` per pass, while every platform wants a
+rectangle per node; the whole tree has to be assembled anyway for `Cache.GetItems` and for readers on
+threads that may not touch a widget; and §1.6's transparency predicate decides a node's *existence*
+from facts about its subtree, so a single named change cannot be patched into a published tree
+without re-deciding whether its subject is in that tree at all. ADR 040 §1.10 should be read as
+illustrative of what its channel makes possible, not as a description of this bridge.
+
+What this record gives up by not subscribing is small, bounded and stated in §11: a press the user
+performed with the mouse raises no `INVOKED`, because it leaves no difference between two snapshots.
+The two other stateless aspects ADR 040 names, `COMMITTED` and `SUBMITTED`, cost nothing at all —
+none of the three platforms has an event to map them onto, and §2.4's rule is that nothing is
+invented to fill a cell. If one of them ever gains one, the channel is already there and the change
+is a subscription rather than a redesign.
+
+---
+
+## 10. Dependencies
+
+**None is taken.** All three bridges are built from what is already on the backend's classpath.
+
+Windows and macOS need `org.lwjgl.system` and nothing else: `APIUtil.apiCreateLibrary` and
+`SharedLibrary#getFunctionAddress` to resolve `UIAutomationCore.dll`, `OleAut32.dll`, AppKit and
+libobjc; `JNI.invoke*` and `JNI.call*` to call by address; `Callback` and `Callback.Descriptor` with
+`APIUtil.apiCreateCIF` to build the libffi closures that become COM vtable slots and Objective-C method
+implementations; `User32.WindowProc` and `SetWindowLongPtr` to subclass the GLFW window procedure —
+noting that LWJGL binds the wide entry points, so subclassing does not demote the window from Unicode,
+and that `SetWindowLongPtr`'s first parameter is a last-error out-pointer rather than the HWND;
+`ObjCRuntime.objc_allocateClassPair`, `class_addMethod` and `objc_registerClassPair` to define a class
+at runtime. All of it is in modules already declared, and the backend already ships two precedents for
+the idiom: `LwjglWindow#setAboveSystemChrome` sends an Objective-C message this way, and `IoSurfaces`
+calls a nine-argument C function through libffi for exactly the reason `SafeArrayCreateVector` will
+need it.
+
+Linux needs nothing at all: `java.nio.channels.SocketChannel`, `java.net.UnixDomainSocketAddress` and a
+hand-written D-Bus marshaller. The spike compiled with no classpath whatsoever.
+
+### 10.1 The evaluated alternative, with its numbers
+
+`com.github.hypfvieh:dbus-java` 5.2.0 on the `transport-native-unixsocket` module — the Java 16+
+`SocketChannel` transport, which is the same mechanism the spike uses — is 468,798 bytes across four
+jars: `dbus-java-core` at 385,860, the transport at 8,048, `slf4j-api` at 69,908 and a binding at
+4,982. SLF4J is not optional: `dbus-java-core`'s `module-info` requires it, so a toolkit that ships no
+logging facade today would acquire one. Its own recommended transport, `junixsocket`, is worse again:
+it ships a native library per platform, to pass file descriptors AT-SPI2 never uses.
+
+For it: a maintained, tested marshaller, introspection-driven proxies, signal handling and match rules,
+and roughly seven hundred lines we would not write.
+
+Against it: 458 KB and a mandatory logging dependency for one connection, one object table, about
+twenty methods and no descriptor passing — against 719 lines and 65 KB of class files with an empty
+classpath, already validated by 104 offline assertions including seven golden messages captured off the
+wire. It models everything through reflection and generated interface proxies, which is a poor fit for
+serving a tree that changes as the interface changes, and it is on a bugfix-only support footing into
+winter 2026.
+
+**Recommendation: keep the hand-rolled client.** This repository's habit is to add nothing, and the one
+dependency it added recently — LWJGL's own modules — it added to avoid writing native code, which is
+the opposite trade.
+
+### 10.2 No native shim, on any of the three
+
+All three spikes concluded the same way, and the strongest case is Linux's: there is no C API to call.
+Windows' case is that the awkward parts — a hand-maintained `VARIANT` layout, IID bytes, one call site
+where the ABI leaks because `JNI.invoke*` has no matching overload — are answered better by a small
+typed layer in Java than by a new binary. macOS's case is that a type-encoding mistake is now detectable
+at runtime: `class_getInstanceMethod` plus `method_getTypeEncoding` let a test assert every encoding
+against the AppKit actually running, which is stronger than a compile-time check against whatever SDK a
+shim was built with.
+
+The honest case *for* a shim, from the same spikes: each `objc_msgSend` shape needs its `JNI.invoke*`
+letters chosen by hand and a wrong choice is a silent ABI mismatch rather than a compile error, and a
+bad type encoding surfaces as a crash inside AppKit with no Java frames. The runtime-encoding
+assertion above largely answers both. What it does not answer is architecture: the macOS spike is
+arm64, where `objc_msgSend_stret` is never needed and would be on x86_64 (§13.15). If Limn must ship
+an x86_64 macOS backend, that is the one part of this decision the evidence does not cover.
+
+Against all of that, ADR 037 prices the alternative exactly, and ADR 028 §4 already calls a JNI payload
+in `limn-backend-lwjgl` "the first native payload" there.
+
+---
+
+## 11. What this deliberately is not
+
+Each item says what a blind user loses, because a deferral without that sentence is not a decision.
+
+- **Not range-to-rectangle geometry, on any platform.** The text facet carries the string, the caret
+  offset with its affinity, the selection range and the caret rectangle — which is free, because
+  `caretRect` already exists for the IME. It does not answer `accessibilityFrameForRange:`,
+  AT-SPI2's `Text.GetRangeExtents` or UI Automation's `ITextRangeProvider::GetBoundingRectangles`.
+  *Cost:* NVDA reads a field on focus and echoes typing, but review by character and braille cursor
+  routing are degraded, and VoiceOver cannot draw its cursor around a range. The seam it needs is real
+  and is named: a package-visible geometry accessor in `TextField` and `TextArea` that answers the boxes
+  of an offset range from the shaped line it already holds — and it must hand out the shaped line, not a
+  row index, because the row origin is computed from the line's measured width. That is phase-two work
+  with its own tests; promising the answer without the seam would be the worse decision.
+- **Not a UI Automation `TextPattern` in the first cut.** Windows text controls expose `ValuePattern`
+  only — vended from the `TextFacet`, not from a `ValueFacet` a text widget does not have (§2.1), so
+  "no `TextPattern`" means reduced, not absent. *Cost:* the same character-review gap, on the platform
+  where it is felt most: NVDA reads and sets the whole value and reports read-only, and cannot review
+  by character or route braille.
+- **Not editable text from the assistive technology beyond a whole-value set.** A set on a text field
+  works; insert-at-range does not. `TextEditModel` sanitizes a single-line value — every newline becomes
+  a space — so a bridge echoing a set must re-read the text rather than assume the round trip.
+- **Not list virtualization.** A list reports its true row count and publishes only realized rows.
+  *Cost:* arrow-key navigation works, because moving the selection scrolls and realizes; jumping to an
+  arbitrary row through the reader's own list navigation does not. Publishing every index instead would
+  hand the reader thousands of anonymous items with no name and no bounds, and rebuild them all on every
+  dirty frame; that is worse for the user, not better.
+- **Not tables, and therefore not chart data.** A chart publishes itself and its series. Per-mark
+  geometry is private, per-series buffers hold one series at a time and are overwritten on the next
+  call, so a bridge caching them would be caching an alias. *Cost:* the numbers are unreachable; an
+  application can put a data table beside the chart or set a description today, and the public data model
+  already supports generating one.
+- **Not automatic naming from nearby labels.** A `LABELLED_BY` relation is declared, never inferred from
+  geometry. *Cost:* a label placed before a text field does not become that field's name unless the
+  application says so — softened by the placeholder and tooltip defaults, which cover the common form.
+  Guessing here is how a screen reader ends up reading the wrong caption confidently.
+- **Not a live-region model.** `Scene#announce` exists; nothing is announced automatically. *Cost:* a
+  status label that updates silently stays silent until the application adds one call.
+- **Not `Invoke_Invoked` for a press the user made.** The action dispatcher raises `INVOKED` for a
+  press an assistive technology performed (§1.10); a mouse click on the same button raises nothing,
+  because a press that changes no state leaves no difference between two snapshots. *Cost:* on
+  Windows a client that watches `Invoke_Invoked` to confirm an activation hears it only for its own
+  invocations — the state changes a press causes are all still reported, so this is a missing
+  acknowledgement rather than a missing fact, and the other two platforms have no such event at all.
+  ADR 040's channel carries it (§9.3), and buying it back is a subscription rather than a redesign.
+- **Not MSAA.** `IAccessible` is refused with `E_NOINTERFACE`, as the spike did and as UI Automation
+  accepted. *Cost:* a very old assistive technology, and some automation tools, see nothing.
+- **Not tooltips as nodes.** The scene paints its own tooltip and its state is private. The tooltip's
+  *text* is already the node's name or description, and a tooltip node appearing and disappearing on
+  hover is noise for a user who is not using a pointer.
+- **Not screen coordinates on Wayland.** They are absent from the protocol by design and GTK cannot
+  produce them either. Window-relative extents are reported truthfully rather than zeros dressed as a
+  position.
+- **Not the system accessibility settings axis.** High contrast, reduced motion, a system text scale and
+  a screen-reader-is-running flag are a different decision with a different shape, and putting them here
+  would tangle a tree with a theme.
+- **Not a second backend.** The SPI admits one; nothing but `limn-backend-lwjgl` implements it.
+- **Not a change to the hit-target floor, the keyboard, or focus order.** Reading order is *defined* to
+  equal the existing Tab order (§12.1). If the two ever disagree, the tree is wrong, not the keyboard.
+
+---
+
+## 12. Verification
+
+### 12.1 Provable headlessly, and therefore in CI
+
+Everything in `limn-toolkit`, with `SceneTestBase` and `ComponentTestBase`, `StubWindow`,
+`RecordingWindow` and one new `RecordingAccessibilityBridge` whose `isListening()` a test controls and
+which collects published trees and emitted events — the shape `RecordingWindow`'s IME fields already
+have.
+
+| Test | What it pins |
+| --- | --- |
+| `AccessibleCoverageTest` | reads the component source directories as declared Gradle inputs, finds every **transitive** `Widget` subclass — not the literal text `extends Widget` — and fails until each appears in §7's table with an expected role. A new widget cannot be added without saying what it is |
+| `AccessibleGalleryTest` | over every gallery entry, already rendered in both palettes: no node has role `UNKNOWN`, every focusable node has a non-empty name, no two nodes share an id, every node's bounds lie inside its nearest clipping ancestor's |
+| `AccessibleFocusOrderTest` | the invariant that keeps the tree honest: the published nodes carrying `FOCUSABLE`, in tree order, equal the sequence produced by repeated `focusTraverse` from nothing. Stated on that bit and not on `ENABLED`, which is a strictly larger set — every `Label`, `ScrollBar` and `Separator` is enabled and is not a tab stop (§1.13). Roving focus passes because only the holder is focusable, which is the same fact the tree reports |
+| `AccessibleMirroringTest` | in RTL, tree order is unchanged and bounds decrease in x. The tree is not sorted by geometry |
+| `AccessibleLocaleTest` | a subtree with a declared locale publishes its name in that language while the process locale is another, and a locale move re-resolves every name exactly once |
+| `AccessibleScaleTest` | under a content-scale override and a non-zero window origin, a known widget box converts to a known screen rectangle — which is what the doubles' new screen fields (§8) exist for |
+| `AccessibleEventTest` | two snapshots in, an expected event list out: one focus event per publish, one bounds event per scrolled frame, property changes collapsed per property, a text change carrying the right insert offset over astral-plane text, an announcement never dropped. **This test cannot fail for the defect that will actually happen**, because it constructs both snapshots itself — the next test is the one that guards the mechanism |
+| `AccessibleLiveMutationTest` | the regression gate for §5.3, and the test whose absence let the first draft of this ADR ship a design in which a checkbox toggle raised nothing. For each state-bearing component — `Checkbox`, `Slider`, `Spinner`, `ProgressBar`, `TextField`, `TextArea`, `SearchField`, `ComboBox`, `ListView`, `TabbedPane`, `SegmentedControl`, `ScrollView` — it drives the **public setter** on a bound scene with a listening bridge, renders one frame, and asserts the expected event arrives with the expected node and value. Nothing in it constructs a snapshot. A funnel that stops setting the dirty flag fails it |
+| `AccessibleQuietFrameTest` | the other half: a frame that damages a widget without changing any accessible fact — a caret blink, a hover ripple — publishes nothing and emits nothing; and a re-present frame does not even walk |
+| `AccessibleModalTest` | with an overlay pushed, every node outside `inputRoot()` publishes without `ENABLED` and without `FOCUSABLE` while staying `VISIBLE` and `SHOWING`, the overlay's own node carries `MODAL`, and the set of nodes published `FOCUSABLE` equals the set `focusTraverse` can reach (§1.13) |
+| `AccessibleMenuTest` | an open cascade publishes one `MENU` per open column with the column's rectangle and not the surface's, one row node per item with its own rectangle, the highlighted row as the column's active descendant, and an `ACTIVE_DESCENDANT_CHANGED` for each arrow key |
+| `AccessibleRecyclingTest` | scrolling a `ListView` past its pool size and back leaves row 3's identifier on row 3, and never on the cell that visited row 9 |
+| `AccessibleIdentityTest` | **the §1.3 regression gate.** Giving a transparent ancestor a name mid-run changes the tree's shape and **no identifier below it**; the events are structural, not a wave of `NODE_DESTROYED`. The same for making a scaffold widget focusable — which also fails outright until `setFocusable` invalidates (§8) — and for pushing an overlay above a subtree. A key derived from the published parent fails every case |
+| `AccessibleInheritedStateTest` | disabling a container publishes every descendant without `ENABLED` and without `FOCUSABLE`, hiding one publishes every descendant without `VISIBLE`, and in both cases the `FOCUSABLE` set still equals what `focusTraverse` can reach — never the enabled set, which the scene under test makes larger on purpose by holding a `Label` and a `Separator`. And the transparency verdict does not move: a disabled form grows no `GROUP` nodes (§1.6) |
+| `AccessibleFirstFrameTest` | a scene bound to a window publishes nothing at `bind` — where it has never laid out — and publishes a tree with real boxes on its **first frame**, with `republishNow()` called between the two returning the empty tree rather than a tree of zero-size rectangles (§5.2). And the priming publish is paid only by a bridge that asked for it: a double answering `needsPrimingPublish() == false` and never listening receives nothing, ever |
+| `AccessibleAnnounceTest` | `announce` on an idle scene with a listening bridge reaches the bridge without any other frame being scheduled by anything else — the frame `announce` itself bought; and an announcement is delivered on a frame where the tree did not change, and on a re-present frame |
+| `AccessibleRegistryTest` | over `RecordingAccessibilityBridge`'s own id-keeping double: an event-queue collapse hands the bridge enough to release every node that went away, and a second scene bound over the same window leaves the double holding zero elements (§1.10, §5.3) |
+| `AccessibleWindowMoveTest` | moving the window re-stamps the tree, keeps every node id, emits one window-level `BOUNDS_CHANGED`, and **walks no nodes** — the assertion that separates `requestRestamp` from `requestRepublish`, counted the way the measure-count tests count measures |
+| `AccessibleWindowEventTest` | a bound scene raises `WINDOW_OPENED` and a closed one raises `WINDOW_CLOSED` — from inside `attach` and `detach`, which is asserted rather than assumed: the double records neither through `emit`, because neither arrives that way (§5.3) — and neither is derivable from a diff; and **a second scene bound over the same window** raises `WINDOW_CLOSED` for the first and `WINDOW_OPENED` for the second, leaving the bridge holding exactly one host — the case the outgoing scene never learns about |
+| `AccessibleActionTest` | every case drives `Host#perform` from a **non-UI thread**, which is the path a bridge actually takes (§1.9), and asserts that the double never resolves a node itself: an action on a disabled, hidden, detached or modal-shadowed node does nothing and says so; an id absent from the published tree is refused synchronously; a toggle fires the application's handler exactly once and never on a disabled checkbox; a `SET_VALUE` on a slider notifies, which the public setter does not; nothing anywhere replaces an application's listener |
+| `AccessibleSecretTest` | a password field that is not revealed never puts its text in a node — asserted over the *whole published tree*, name and description included, not just the facet, because the shaped line the offsets come from carries the secret as its `text()`; and its caret and selection offsets lie inside its published mask, over a secret containing an astral character, where the model's own offsets would not |
+| `AccessibleIdleCostTest` | with no bridge: zero describe calls, zero frame requests, zero bytes per frame under an `AllocationProbe` copy in `limn.scene` — including across a `setTooltip`, a `setFocusable` and a direct `invalidateAccessible()`, each of which sets the flag and buys nothing. With a live bridge and a clean tree: the same |
+| `AccessibleInvalidateTest` | on an **idle** scene with a listening bridge — no frame pending, nothing repainting — a single `invalidateAccessible()` buys exactly one frame and that frame publishes the change, and so do `setTooltip` and `setFocusable` through it. The frame is bought through `scheduleFrame()` and not `requestRender()`, asserted the way `AccessibleWindowMoveTest` separates the two paths: nothing is damaged (§1.5, §5.2, §8) |
+| `AccessiblePublishCostTest` | a publish of an N-node tree allocates a bounded amount and walks each node once, counted the way the existing measure-count tests count measures; and a damaged-but-unchanged frame allocates zero (§6). The second half is the one that will catch a regression, and it has two known ways to break: the first facet built inside `onAccessibility` rather than written into the scratch columns (§1.1), and the first field whose *comparison* allocates — so the scene under test carries a `TextField` with text in it and a blinking caret, which fails the moment someone compares `text()` instead of `revision()`, **and a `Spinner`, which fails the moment someone formats a value text in the walk instead of taking the widget's cached one with its witness** (§1.1, §6) |
+| `AccessibleTickingValueTest` | a `VideoView` playing for a simulated minute publishes about sixty trees, not about three thousand six hundred: a value that advances on its own is published rounded, and the diff sees one change per second (§6) |
+| `AccessibleEventBudgetTest` | a diff wider than the queue's capacity emits the collapse event and never more than the capacity, and the queue never grows |
+| `AccessibleReentrancyTest` | a describe pass mutates nothing and lays out nothing; and a `republishNow()` standing in for a platform callback publishes with the reentrant flag, so the double **destroys no element, re-pushes no root child list and drains no event** while the caller is on the stack, requests the frame that pays those debts, and the next ordinary frame pays them (§3.2, §5.3) |
+
+Four of those matter in five years. `AccessibleCoverageTest`, because it makes the build refuse a
+widget nobody described. `AccessibleFocusOrderTest`, because it makes the build refuse a tree that
+disagrees with the keyboard. `AccessibleLiveMutationTest`, because it is the only one that would have
+caught this ADR's own worst mistake: a test that diffs two snapshots it constructed itself stays
+green while nothing in the toolkit ever produces the second one. And `AccessibleIdentityTest`,
+because identity churn is invisible from inside the toolkit — every tree it publishes is correct,
+every event is correct, and the only symptom is a screen reader whose cursor keeps jumping back to
+the top of the window for reasons its user cannot see.
+
+Also provable headlessly, in `limn-backend-lwjgl`: the D-Bus marshaller. Signature parsing, alignment,
+the two rules a naive implementation gets wrong — an array's length excludes the padding before its
+first element, and a signature has a one-byte length and no alignment — round trips over every
+implemented type, and the seven golden messages captured off the wire from the reference implementation.
+Those catch a wrong-but-self-consistent reading of the specification, which is the failure mode a
+hand-written marshaller actually has, and they need no bus.
+
+### 12.2 Needs a real platform client, and therefore a lab
+
+None of the three bridges can be exercised by the configured build: one Ubuntu runner under `xvfb-run`,
+no session bus, no AT-SPI registry, no macOS or Windows runner anywhere. The bridges are verified by a
+scripted lab suite run by hand against the guests.
+
+**The suite lands in this repository; the transcripts do not** (§0). One directory per platform —
+`scripts/a11y/windows/`, `scripts/a11y/macos/`, `scripts/a11y/linux/` — each brought in by that
+platform's own phase (§14) and each carrying a README naming the guest it was last run against and
+the day. The spikes' clients are what those directories start from, because they exist and they work.
+The reason to commit the client rather than its output is that only a run against the *changed*
+bridge is worth anything: a saved log from a probe that no longer exists says nothing about the code
+that shipped, while a script anyone can re-run says everything.
+
+| Platform | Client | Assertion |
+| --- | --- | --- |
+| Windows 11 ARM64 guest | `scripts/a11y/windows/client.ps1`, the spike's PowerShell `UIAutomationClient` walk, run into session 1, plus NVDA 2025.1 portable | find by name, control type, bounding rectangle, `InvokePattern.Invoke`, `SetFocus`, `ElementFromPoint`, and a focus event observed by NVDA |
+| macOS guest | `scripts/a11y/macos/verify.sh`, which refuses to run while the console is locked, plus `notify.sh`, `threading.sh` and `unprivileged.sh` beside it and the Swift clients they drive — **and VoiceOver, which is the part no script covers** | the four scripts already pass against the spike's one-element provider; against the real bridge they must pass against a *tree*: find by name through `AXTitle` **or** `AXDescription`, `AXPress` arriving back in Java on the main thread, hit test through several nested levels, notifications to a real `AXObserver` (with focus observed only at application level), and the loop-mode sweep. Three assertions are new and are the ones this round's fixes created: **an overlay opening while a client is attached is visible to it**, which is the re-push of §2.2; a destroyed element is released and a stale message to it fails rather than crashing; and a scene rebound over the same window leaves no element alive. `unprivileged.sh` runs every one of them as an ordinary user, because root is accessibility-trusted and the lab's `sudo` would otherwise be doing the work. What only VoiceOver can settle is the attributes a purpose-built client never asks for |
+| Ubuntu GNOME, X11 and Wayland | `scripts/a11y/linux/axwalk.py` through `libatspi`'s typelib, `orca --list-apps`, and a talking Orca | tree walk, find by name, `DoAction`, `Cache.GetItems` in one round trip, extents in both coordinate types, one application object with one child per window |
+| Fedora KDE, X11 and Wayland | the same | that AT-SPI2 under Qt's implementation and KDE's registry behaves the same; the two things to re-check are the bus addresses and Orca's Qt behaviour |
+
+**One of these can plausibly move into CI, and it is worth trying.** The Linux bridge is pure Java and
+pure D-Bus, and the Ubuntu runner can install `at-spi2-core` and run the whole probe under
+`dbus-run-session`. If that works, one of the three platforms gains a real gate. It is listed as work,
+not assumed.
+
+### 12.3 The constants rule
+
+Every platform constant used by a bridge is read off the machine under test and asserted in a test,
+never recalled into source. The three recipes exist: AT-SPI2 roles, states and coordinate types from
+`Atspi-2.0.typelib` and object paths from `strings` over `libatspi.so.0`, both of which produced every
+constant the Linux spike shipped; AppKit selectors, role constants and type encodings from the running
+AppKit, which is a test the bridge can run on any future macOS; and UI Automation ids from
+`uiautomationcore.h` or the interop assembly on the guest. A constant that appears in a bridge without a
+test that read it off the platform is a defect that compiles.
+
+---
+
+## 13. Risks and open edges
+
+1. **~~The macOS end-to-end path is not re-verified.~~ Closed 2026-09-03/04**, by a re-run on an
+   unlocked guest and then by an independent verifier with its own client: found by name under the
+   window AppKit vends, pressed, the press logged inside Java on the main thread after `READY`,
+   hit-tested through both the application and system-wide elements, and — the confound that would
+   have voided all of it — **reproduced by an ordinary `uid=501` client with no `sudo`**, since the
+   lab's `launchctl asuser` runs as root and root is accessibility-trusted whatever TCC says. What
+   replaces this item is narrower and is items 20 to 23 below: the spike proved one static element,
+   and this design publishes a mutating tree.
+2. **~~The macOS pump hypothesis is unproven.~~ Closed, and it is now a constraint** rather than a
+   risk: Finding 4's table. Two things about it stay open or restricted. Item 24 is *why* a
+   two-second pump interval usually serves nothing rather than serving slowly. And the latencies in
+   that table are **the client's, not the bridge's** — two clients against one provider disagreed —
+   so they may not be quoted as a cost of this design, in §6, in a benchmark, or anywhere else.
+3. **Abstract D-Bus sockets.** `java.net.UnixDomainSocketAddress` is filesystem-path only. Both guests
+   answer `unix:path=`, and any systemd user session does, but a session started by `dbus-launch` yields
+   an abstract socket, and older bus launchers used one when the runtime directory was unset. The parser
+   throws a named error for that case rather than failing obscurely. If it appears in the field the fix is
+   `junixsocket` or a relay — not a Limn-authored shim — and it should be measured on Fedora KDE before
+   anyone writes code for it. The Ubuntu bus address also carries a `,guid=` suffix the parser must split
+   off; Fedora's did not.
+4. **A wrong call interface is a silent ABI bug on Windows.** Every vtable slot's signature is asserted
+   twice, in the call interface and in the argument decoding, and nothing checks either against the real
+   IDL. There is no runtime type-encoding oracle on Windows as there is on macOS. The mitigation is a
+   small typed layer pairing each interface's call interface with its decode in one place, plus the golden
+   client transcripts — and it stays a risk.
+5. **`UiaClientsAreListening()` per frame is unmeasured, and so is the WndProc subclass.** §6 names the
+   fallback for each and the race the subclass fallback carries. The measurements decide, and they happen
+   before this ships.
+6. **Two of three platforms have no CI coverage and will not get any.** Stated plainly rather than
+   mitigated. The gate covers the toolkit half — the model, the tree, the events, the costs — which is
+   where regressions will actually come from, because the bridges change rarely and the widgets change
+   weekly.
+7. **The per-widget and per-frame costs are asserted but not yet measured.** One reference field and one
+   boolean store are below the resolution of every existing test, and "below the resolution" is a claim.
+   Two tests make it a measurement.
+8. **Node identity churn.** The structural cause is fixed — §1.3 keys over the widget tree, so no
+   ancestor's transparency verdict can re-key a subtree — and `AccessibleIdentityTest` guards it.
+   What is left is the honest residue: an application that rebuilds its widget tree every frame mints
+   identifiers forever, because every widget is a new object and rule 3 is keyed by the object. They
+   are `long`s, so exhaustion is not the concern; the intern table growing is. Its bound is a policy,
+   not a proof, and it wants measuring against a real screen reader on a real large list. A WARNING
+   when a scene's table grows past a threshold between publishes is the cheap diagnostic.
+9. **Per-node platform object lifetime.** A live LWJGL `Callback` pins its Java object until `free()`; a
+   COM element survives until its refcount drops; an `NSAccessibilityElement` survives until AppKit
+   releases it. There are four ways an element goes away — a per-node `NODE_DESTROYED`, the sweep
+   after a queue collapse, a scene rebound over the same window, and `detach` — the first two on the
+   thread that drains and the last two on the UI thread with the drain stopped (§3.4), and **none of
+   them from inside a reentrant publish** (§5.3). Each is a different code path in each bridge. `AccessibleRegistryTest` covers the two that a headless double
+   can reach; item 20 is the half no headless test can, and the collapse sweep is the one most likely
+   to be written and never exercised, because reaching it requires a diff wider than the queue.
+10. **A snapshot is up to one frame stale on Windows and Linux**, and arbitrarily stale while the UI
+    thread is parked. That is the deliberate trade against a bounded wait that has no bound, and it is the
+    decision a reader is most likely to want to undo.
+11. **Bridges get no help from the toolkit if they read live state off-thread.** `Widget#invalidate()`
+    and `Scene#requestRender()` are not thread-checked, so the mistake is a silent data race rather than
+    an exception. Only discipline and review catch it.
+12. **`Viewport3D` is focusable and handles no keys.** The tree will faithfully report a tab stop that
+    does nothing. That is a pre-existing defect this work surfaces rather than fixes, and shipping the
+    tree without saying so would be worse than saying it.
+13. **A radio group has no container node.** `ButtonGroup` is not a widget and has no bounds, so the
+    grouping is a relation plus position and size of set. UI Automation and AppKit would both prefer a
+    container, and synthesising one from the union of member rectangles was rejected as too clever when the
+    members need not be siblings. `SegmentedControl`, which *is* a widget, gets the container role.
+14. **The list adapter's index must be stable.** An adapter that reorders rows without changing its
+    count renames elements. Documented on the adapter, and unfixable from this side.
+15. **Every ABI fact is proven on exactly one architecture, and they are not the same one.** The
+    Windows spike ran an x64 JDK under emulation, so its facts hold for Win64 x64. The macOS spike is
+    arm64 only, and the spike names the gap precisely: `objc_msgSend_stret` was never needed there and
+    *would* be on x86_64, so the "one call path" claim in §10.2 is arm64's. Fedora KDE and Wayland are
+    untested; the Linux spike ran on GNOME 46 on X11.
+16. **~~Adding methods to GLFW's content view class is designed and not proven.~~ Withdrawn**, by
+    deleting the design that needed it. The re-run measured that `setAccessibilityChildren:` on the
+    content view is sufficient on its own and that `accessibilityHitTest:` was never needed, so §2.2
+    now installs nothing on a class GLFW owns. `class_addMethod` is used only on our own runtime
+    subclass of `NSAccessibilityElement`, which the spike proved twice.
+17. **~~That the window's `AXWindow` comes from AppKit for a GLFW window is assumed, not observed.~~
+    Closed:** the walk dumped it — `AXWindow/AXStandardWindow`, the window's title, `AXRaise`, the
+    close, full-screen and minimize buttons, and an `AXStaticText` for the title. The elision in §2.2
+    is now made against what this AppKit actually offers.
+18. **Whether `WM_GETOBJECT` reaches us during a Win32 common dialog is unmeasured.** `TinyFdDialogs`'
+    javadoc says the Windows chooser pumps its own message loop on this thread, and a thread that
+    pumps delivers sent messages; that is an inference from two documented facts and this ADR asserts
+    nothing more (§3.1). The experiment is small and the guest is already scripted: open the probe's
+    file chooser, start a fresh client while the panel is up, and see whether it attaches. If it does
+    not, the honest consequence is that a client attaching during a file dialog waits, which is what
+    happens on the other two platforms anyway.
+19. **The event queue's capacity and the macOS per-frame notification budget are policies with no
+    measurement behind them.** §1.10 bounds both and collapses on overflow, which is correct in shape
+    at any number, but the numbers should come from two counts on the guests: how many events a real
+    diff produces while scrolling a list and dragging a slider with NVDA and VoiceOver attached, and
+    what one `UiaRaiseAutomationEvent` and one `NSAccessibilityPostNotification` cost. Until then the
+    initial capacity is set so that a full queue's drain fits inside the 8 ms budget at a
+    pessimistic per-raise cost, and the WARNING that budget already logs is the signal that it was
+    set wrong.
+
+Items 20 to 24 replace the two macOS items this round closed. They are narrower, and each is a thing
+the spike's own "still unproven" section names — the spike published **one element, under one window,
+in a tree that never changed**, and this design publishes a tree that changes every frame. Items 25
+and 26 are not from the spike and are not about macOS; they are kept here because they are the same
+kind of thing, a check that cannot fail for the defect it is aimed at. Item 27 is macOS's again and
+comes from the last review pass, which found the one case where §1.11's relation rule and §2.2's
+elision meet.
+
+20. **A macOS element has never been destroyed while a client held it.** The spike retained
+    everything and released nothing, and calls this the obvious crash vector. §1.3's lifetime rule —
+    post `UIElementDestroyed`, then release — is the design's answer and is untested. The experiment
+    is the existing notification harness with an element removed from `accessibilityChildren` mid-run
+    while the notification client holds a reference, asserting that the observer sees the destruction
+    and that a later message to the stale element fails rather than crashing. The same run answers the
+    reentrancy rule from the other side: with the client holding an element, drive a change that makes
+    `republishNow()` run inside an AX callback and confirm that nothing is released under the caller
+    and that the deferred release arrives on the next frame (§3.2).
+21. **A macOS tree has never been mutated, nor been more than one element deep.** Adding and removing
+    children is the operation a screen reader's world is made of, and the spike's `AXChildren` array
+    was set once and never touched. Two things ride on this. §5.3's per-frame publish is verified on
+    the other two platforms only. And §2.2 declines to implement `accessibilityHitTest:` because
+    AppKit hit-tested the spike's *one* element from its frame — whether it does the same through
+    several levels of nested elements is the same probe run's second question, and implementing the
+    selector is the fallback if it does not.
+22. **`accessibilityFocusedUIElement` has no proven home on macOS.** Our elements are not responders,
+    so it is not obvious that AppKit will ask us at all, and the spike never moved focus. Posting
+    `AXFocusedUIElementChanged` at application level *is* proven to be delivered; being able to answer
+    "where am I" afterwards is not. The experiment is one probe run: move focus between two elements,
+    read `AXFocusedUIElement` off the application element, and see whether it needs an implementation
+    on the content view's class after all — which would reopen item 16 for exactly one selector.
+23. **No non-ASCII string has crossed the macOS boundary.** The guest runs a pt-BR system and every
+    name in the spike was ASCII. This ADR's entire naming model is `I18nString`s resolved under a
+    subtree locale, so a bridge that mangles UTF-8 into `NSString` breaks the feature rather than a
+    corner of it. The check is free and belongs in the first probe run: publish a name with an
+    astral character and a right-to-left one, and read both back from the client.
+24. **The mechanism behind the 2 s cliff is not established.** The observation reproduces; the cause —
+    whether the AX server stops forwarding to a process it has marked unresponsive, or the requests
+    never reach the run-loop mode `glfwPollEvents` services — was not determined, and the failure
+    latencies do not match the messaging timeout that was set. **It is also not a clean cliff:** the
+    verifier's sweeps found one traversal completing at a 2 s interval, in 17.6 s, against a
+    consistent ~19 s failure otherwise, which is a badly-behaved boundary rather than a threshold. It
+    changes no decision here, because the rule either way is "do not block the UI thread". It is
+    recorded so that nobody later builds a recovery strategy on a guess about which one it is, and
+    so that nobody re-derives the categorical version of the claim the verifier already falsified.
+25. **§7's table is a survey and will still be wrong in places when phase 4 starts.** This is stated
+    as a risk rather than hidden as a caveat, because the failure mode is specific: someone
+    implements a row literally, the headless invariants pass — a node exists, it has a name, its role
+    is not `UNKNOWN` — and the widget is described incorrectly in a way no invariant can name. §7.2
+    lists nine such rows found in a single review pass, which is the evidence for how many remain.
+    The mitigation is phase 4's third step, adversarial verification per component, and it is
+    labour rather than an assertion. Anyone tempted to skip it should read §7.2's list and ask which
+    of those an invariant would have caught.
+26. **`AccessibleGalleryTest` runs against eighty scenes and has no reference answer.** It asserts
+    invariants — no `UNKNOWN` role, every focusable node named, unique ids, bounds inside the
+    clipping ancestor — and invariants are all it can assert, because nobody has said what the demo
+    *should* sound like. It will pass on a tree that is uniformly wrong in a way no invariant names.
+    A recorded walk of two or three scenes, reviewed once by someone reading it aloud, is the cheap
+    complement, and it is work rather than an assertion.
+27. **Whether a cross-window relation can name AppKit's own window object.** §2.2 elides the window
+    root on macOS because AppKit already vends the window, and §1.11 drops any relation that resolves
+    to a window root in the in-scene mounting — which leaves exactly one case: a *native* popup or
+    dialog whose `POPUP_FOR` names the owner window's root. The design answers it with the object
+    AppKit vends for that window, reached from the content view the bridge holds, and that is
+    reasoning rather than measurement: no relation of any kind has crossed this boundary yet. The
+    probe is one line in the existing walk — read `AXWindow` off the owner, hand it back as a relation
+    target, and see whether a client resolves it — and the fallback is already specified and costs
+    nothing this record promises: drop the relation and do not emit the mirror.
+
+---
+
+## 14. The work, phase by phase
+
+Each phase ends green with `./gradlew check` and names what it must prove before the next begins.
+
+**Phase 1 — the model.** `limn.accessibility`: `Accessible` with its nested `Role`, `State`, `Action`,
+`Politeness`, `NameFrom` and `Relation` enums; the facet records; `AccessibleNode`, `AccessibleTree`,
+`AccessibleEvent`; and `Accessibility`, the reusable builder. No walker, no bridge, no widget changes.
+*Proves:* the enums are closed and every constant has a row in all three tables of §2.
+
+**Phase 2 — the toolkit seams.** The four `Widget` hooks, the four public setters, one nullable field,
+`invalidateAccessible()` **and `Scene#announce`, each buying its own frame through
+`scheduleFrame()`**; **the
+node flag on the damage funnels and the structural funnels both, and the header flag beside it**;
+`tooltipSource()`, `inheritanceHost()`, the `text()`/`textSource()` pairs on `Checkbox` and
+`RadioButton`, `SegmentedControl`'s `I18nString` segments, `TabbedPane#tabTitleSource` and
+`TextField#setTrailingButton`'s named overload; `TextEditModel#revision()`; the cache counter and
+accessor on every widget that formats a string for the screen, `Spinner` first (§8); `setTooltip`'s
+invalidation **and `setFocusable`'s**, which is the one entry point that reaches nothing at all
+today; the screen fields on the two headless doubles; and the small corrections that are
+defects on their own terms — the parked-loop wake for a UI-thread post and for a frame request, with
+`UiRuntimeTest`'s UI-thread-post assertion rewritten to the new contract (§8),
+`CrashPhase.ACCESSIBILITY`, `Checkbox#toggle()`'s enabled guard and `MenuItem`'s minted key. No tree
+yet, and **not** `windowMovedTo`'s notification, which needs the `Host` phase 3 defines. *Proves:*
+`AccessibleIdleCostTest` — with nothing listening, a frame is byte for byte what it was — and that a
+post from the UI thread inside the pump runs without waiting for input.
+
+**Phase 3 — the tree, the diff and the SPI.** The walk over root and overlays into the reused scratch
+buffer, transparency and hoisting with its warning **evaluated on own-declared facts**, the modal
+marking from `inputRoot()` and the inherited enabled/visible/focusable flags carried on the same
+traversal, **identity minted over the widget tree** with owner-chosen keys and the intern table, the
+compare-as-you-walk over the scratch buffer's columns with names and text compared by source, the
+raised window events, the publish step in `renderFrameImpl` with its announcement drain above the
+re-present guard and its first-frame priming publish, `republishNow()`'s never-laid-out precondition,
+the re-stamp path and `windowMovedTo`'s call into it, the bounded event queue whose events carry
+their own values and whose collapse is a reconciliation, **the action dispatcher — the id-to-owner map
+the scene owns, read only on the UI thread, reached only through `Host#perform`** — the
+`NativeWindow` default member, `AccessibilityBridge` with its four-member `Host`, its
+reentrancy-flagged `publish` and its host-replacing `attach`, and `RecordingAccessibilityBridge`. *Proves:* the focus-order, identity, inherited-state, first-frame,
+announce, registry, mirroring, locale, scale, event, live-mutation, quiet-frame, modal, recycling,
+ticking-value, window-move, window-event, action, reentrancy, event-budget and publish-cost tests.
+
+**Phase 4 — every component describes itself, one component at a time.** This is not "implement §7's
+table"; §7 says in its own words that it is a survey. It is a **pipeline, run per component**, and
+the component is not done until all three steps are:
+
+1. **Map.** Read the widget's own source — its paint, its hit-test, its geometry, its state — and
+   write its `onAccessibility` and `onAccessibilityChild` against that, correcting §7's row wherever
+   the two disagree. The row is the starting point and the source is the authority.
+2. **Test, headlessly.** The invariants of §12.1 applied to this component: every focusable node
+   named, no `UNKNOWN` role, bounds inside the clipping ancestor, ids stable across the mutations
+   this component performs on its own children, and a `AccessibleLiveMutationTest` case for each of
+   its public setters.
+3. **Verify, adversarially.** Someone reads the produced tree against the widget's code looking for
+   the row that is still wrong — the operable control with no node, the box that is not where it is
+   painted, the name that resolves to nothing. §7.2 is the standing list of what that step has found
+   so far and is expected to grow.
+
+Together with the three names and the menu-model changes §8 lists. *Proves:* `AccessibleCoverageTest`
+and `AccessibleGalleryTest` — no `UNKNOWN` role anywhere, every focusable node named — and, per
+component, that its row is now true rather than plausible.
+
+**Phase 5 — the Linux bridge**, and `scripts/a11y/linux/` with it. The D-Bus client with the spike's
+golden vectors, **the reader and writer threads with the rule that neither performs the other's
+blocking operation** (§3.3), the process-wide application object with one `frame` per window and
+§3.4's owner for every process-wide structure it implies, `Cache.GetItems` from the pre-marshalled
+snapshot, the event signals with replies exempt from the queue's bound, and the enabled gate. It is
+first because it needs no native code, it is the only one that might reach CI, and it exercises the
+whole model against a real screen reader. *Proves:* Orca reads the demo on Ubuntu GNOME and Fedora
+KDE, X11 and Wayland; and, if `dbus-run-session` works on the runner, a CI gate.
+
+**Phase 6 — the Windows bridge**, and `scripts/a11y/windows/` with it. The WndProc subclass with the
+synchronous build inside `WM_GETOBJECT` and its reentrant publish, the four proven interfaces plus the pattern providers the facets need — including
+`IValueProvider` over a `TextFacet` — the runtime ids, `IsControlElement` and `IsContentElement`,
+**the concurrent element registry with `computeIfAbsent` minting, removal on the drain thread, and
+the two whole-registry empties on the UI thread with the drain stopped** (§3.4), the event raises off
+that thread, the listening gate, and the typed layer that pairs
+each call interface with its decode. *Proves:* a client attaching to an idle window gets a tree, NVDA
+reads the demo, the golden client transcript matches, and the subclass benchmark is recorded.
+
+**Phase 7 — the macOS bridge**, and `scripts/a11y/macos/` with it. First the probe run §13.20 to
+§13.23 and §13.27 name — a mutating tree, a destroyed element, focus moving, a non-ASCII name, and a
+relation naming AppKit's own window object — because the spike proved one static element
+and four of this phase's decisions are only as good as that generalises. Then the runtime
+`NSAccessibilityElement` subclass; the attribute and action implementations on it; the **first-frame**
+walk and the `setAccessibilityChildren:` push, which are the attach and the gate together, **with the
+re-push whenever the root's children change** (§2.2); lazy element allocation in a UI-thread-confined
+registry, and release on `UIElementDestroyed`, on a collapse's reconciliation and on `attach`/`detach`
+(§3.4, §5.3); **the reentrancy rule, which on this platform is the one that crashes if it is missed —
+a publish from inside an AX callback releases nothing, re-pushes nothing and drains nothing** (§3.2);
+the notifications under their per-frame budget, focus posted at application level because that is the
+only registration it reaches; parent-space frames rather than a screen flip; and the encoding
+assertions read from the running AppKit. *Proves:* VoiceOver reads the demo — which is
+the one thing every client in the spike is not.
+
+**Phase 8 — the documentation.** `docs/design/accessibility.md` with the contributor's background and
+the traps; the `docs/adr/README.md` row moved to its implemented status — the row itself lands with
+this record, not here; the "what you get" paragraph in `README.md`; and the "no screen reader bridge"
+bullet, which has to be rewritten in ten README files, in their own languages.
+
+---
+
+## 15. What is not decided here
+
+Three real questions this ADR reached and did not answer, recorded so they are not silently decided by
+whoever implements first.
+
+- **Whether a live region is worth a second mechanism** beside `Scene#announce`. The demo's status
+  labels and the media position label are the only evidence, and two call sites are not enough to design
+  against.
+- **How a chart is best read.** Series nodes are the first cut and a data table is the obvious second,
+  but the right answer probably depends on what a user of a screen reader actually does with a chart, and
+  nobody here has asked one.
+- **Whether the window title should follow the scene.** Every demo scene opens a window with the same
+  title, so a verification harness that finds a window by title finds the same name for all eighty. The
+  setter exists and the caller holds the scene name; only a decision is missing, and it belongs with
+  whoever writes the lab suite.
