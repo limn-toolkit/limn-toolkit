@@ -329,6 +329,22 @@ public abstract class Widget {
         return scene;
     }
 
+    /**
+     * The nanosecond clock this widget's scene animates on, or the wall clock while it belongs to
+     * no scene.
+     *
+     * <p>For a widget that keeps a timer of its own -- a hold before a fade, a delay before a
+     * reveal -- and would otherwise read {@code System.nanoTime()} directly. A scene's clock is
+     * injectable precisely so a test can move time by decree instead of waiting for it, and a
+     * timer read off the wall clock is the one part of such a widget that injection would not
+     * reach: it expires on its own schedule, in the middle of whatever a test was measuring.
+     *
+     * @return nanoseconds on the scene's clock, comparable only with other readings of it
+     */
+    protected final long sceneNanos() {
+        return scene != null ? scene.nanoTime() : System.nanoTime();
+    }
+
     // ---------------------------------------------------------------- bounds
 
     /** @return x in parent coordinates */

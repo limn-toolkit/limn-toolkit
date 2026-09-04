@@ -98,8 +98,13 @@ public class ScrollBar extends Widget {
     /** Wall-clock stamps of the last scroll and the last pointer activity; -1 means never. */
     private long lastScrollNanos = -1;
     private long lastActivityNanos = -1;
-    /** The clock the hold is measured on; injectable so a test can let a hold expire at will. */
-    private java.util.function.LongSupplier clock = System::nanoTime;
+    /**
+     * A clock a test injected for the hold, or {@code null} for the scene's own (which is the wall
+     * clock unless the scene was built with another). Never the wall clock directly: a hold that
+     * expired on its own schedule, mid-measurement, is what a test cannot settle by counting
+     * frames.
+     */
+    private java.util.function.LongSupplier clock;
     /** Whether a delayed check for the hold's end is already posted; at most one is. */
     private boolean holdArmed;
     /** Last answer of {@link #hasOverflow}, so the first time it turns true can announce itself. */
@@ -164,7 +169,7 @@ public class ScrollBar extends Widget {
 
     /** The host scrolled: reveal the bar (ON_SCROLL / AUTO). */
     public void onScrolled() {
-        lastScrollNanos = clock.getAsLong();
+        lastScrollNanos = now();
         settle();
     }
 
@@ -175,7 +180,7 @@ public class ScrollBar extends Widget {
      */
     public void onHostActivity() {
         if (policy == Policy.AUTO) {
-            lastActivityNanos = clock.getAsLong();
+            lastActivityNanos = now();
             settle();
         }
     }
@@ -193,7 +198,7 @@ public class ScrollBar extends Widget {
     public void refresh() {
         boolean overflow = hasOverflow();
         if (overflow && !overflowed) {
-            lastScrollNanos = clock.getAsLong();
+            lastScrollNanos = now();
         }
         overflowed = overflow;
         settle();
@@ -203,6 +208,11 @@ public class ScrollBar extends Widget {
     /** Lets a test decide when a hold has expired. Package-private. */
     void clock(java.util.function.LongSupplier nanos) {
         clock = Objects.requireNonNull(nanos, "nanos");
+    }
+
+    /** The hold's clock: the injected one, else the scene's. */
+    private long now() {
+        return clock != null ? clock.getAsLong() : sceneNanos();
     }
 
     /**
@@ -243,7 +253,7 @@ public class ScrollBar extends Widget {
         if (stamp < 0) {
             return 0;
         }
-        return Math.max(0, HOLD_SECONDS - (clock.getAsLong() - stamp) / 1e9);
+        return Math.max(0, HOLD_SECONDS - (now() - stamp) / 1e9);
     }
 
     /**

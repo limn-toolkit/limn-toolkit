@@ -207,6 +207,14 @@ public final class Scene implements WindowInput {
     }
 
     /**
+     * The clock this scene's animations tick on, in nanoseconds: the injected one, or the wall
+     * clock by default. Package-private; a widget reaches it through {@link Widget#sceneNanos()}.
+     */
+    long nanoTime() {
+        return clock.getAsLong();
+    }
+
+    /**
      * Injectable clock (slow-handler instrumentation and animation ticks),
      * public so component tests can drive animations deterministically.
      */
