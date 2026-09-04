@@ -96,7 +96,6 @@ class AccessibleCoverageTest {
             "limn.components.TextField",
             "limn.components.TokenBox",
             "limn.components.TokenColumn",
-            "limn.components.TokenPadding",
             "limn.components.TokenRow",
             "limn.components.ToolBar",
             "limn.components.VideoView",
@@ -177,6 +176,17 @@ class AccessibleCoverageTest {
             // collapsed pane's controls publish visible and not showing for free. Pinned by
             // limn.components.SplitPaneAccessibilityTest.
             "limn.components.SplitPane$Pane",
+            // Declares nothing, is never focusable and carries no tooltip, and it paints nothing,
+            // so §1.6's predicate deletes it and the paints-and-says-nothing warning stays silent.
+            // It holds no clip either, so the deletion leaves exactly one thing behind: the child's
+            // origin, derived from the resolved spacing token inside the measure pass rather than
+            // held as a literal, which is why a size step reaches a reader as a move and never as a
+            // rebuild. Public and non-final, so naming an instance is the supported way to get a
+            // GROUP over the padded region. The entry stands on Padding above it staying hookless:
+            // the transparency check walks the ancestry, so a describe hook on Padding would fail
+            // this name too, and would leave TokenPadding needing a verdict of its own. Pinned by
+            // limn.components.TokenPaddingAccessibilityTest.
+            "limn.components.TokenPadding",
             // Declares no role, name, action or state of its own and no onPaint, so §1.6's
             // predicate deletes it in silence and hoists its child. The insets outlive the node as
             // the child's origin, and under a right-to-left subtree that origin is insets.right().
