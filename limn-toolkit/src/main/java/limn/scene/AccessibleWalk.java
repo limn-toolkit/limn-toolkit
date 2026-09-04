@@ -48,8 +48,21 @@ final class AccessibleWalk {
     private boolean[] synthetic = new boolean[64];
     private int count;
 
-    /** Classes already warned about, so a window painted every frame is named once and not sixty times. */
-    private static final java.util.Set<String> WARNED =
+    /**
+     * Classes already warned about, one set per warning, so a window painted every frame is named
+     * once and not sixty times.
+     *
+     * <p>Two sets and not one keyed by a class name plus a suffix, because that key is built on
+     * every frame <em>after</em> the first: both guards sit on paths a widget takes on every
+     * damaged frame for as long as it is on screen, so the concatenation was a per-frame
+     * allocation whose only purpose was to conclude that the warning had already been logged.
+     * A class name is cached by the class itself, so keying on it directly costs nothing.
+     */
+    private static final java.util.Set<String> PAINT_WARNED =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** The same, for a focusable widget that declared no role. */
+    private static final java.util.Set<String> ROLE_WARNED =
             java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /** The identifier of the node holding the focus, for the tree's header. */
@@ -230,7 +243,7 @@ final class AccessibleWalk {
      * publishing a nameless box.
      */
     private static void warnIfItPaints(Widget widget) {
-        if (!widget.paintsItself() || !WARNED.add(widget.getClass().getName() + "#paints")) {
+        if (!widget.paintsItself() || !PAINT_WARNED.add(widget.getClass().getName())) {
             return;
         }
         LOG.log(Level.WARNING,
@@ -246,7 +259,7 @@ final class AccessibleWalk {
             return;
         }
         builder.role(Accessible.Role.UNKNOWN);
-        if (WARNED.add(widget.getClass().getName() + "#role")) {
+        if (ROLE_WARNED.add(widget.getClass().getName())) {
             LOG.log(Level.WARNING,
                     "{0} is focusable and declares no accessible role, so it is published as "
                             + "UNKNOWN. Give it a role in onAccessibility, or call "
