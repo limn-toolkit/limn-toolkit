@@ -1,10 +1,6 @@
 package limn.scene;
 
-import limn.backend.Backend;
-import limn.backend.Clipboard;
-import limn.backend.FrameCallback;
 import limn.backend.NativeWindow;
-import limn.backend.WindowInput;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.TimeUnit;

@@ -20,7 +20,6 @@ import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
-import limn.scene.layout.SizedBox;
 
 import java.util.ArrayList;
 import java.util.List;

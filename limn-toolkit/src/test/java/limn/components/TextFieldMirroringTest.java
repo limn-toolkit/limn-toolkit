@@ -1,7 +1,5 @@
 package limn.components;
 
-import limn.graphics.Canvas;
-import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Icon;
 import limn.graphics.Paint;

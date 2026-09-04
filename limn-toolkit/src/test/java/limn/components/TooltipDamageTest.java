@@ -1,11 +1,5 @@
 package limn.components;
 
-import limn.backend.Backend;
-import limn.backend.Clipboard;
-import limn.backend.Cursor;
-import limn.backend.FrameCallback;
-import limn.backend.NativeWindow;
-import limn.backend.WindowInput;
 import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.graphics.TextMetrics;

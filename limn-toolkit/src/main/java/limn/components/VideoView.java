@@ -7,7 +7,6 @@ import limn.graphics.Font;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.scene.Constraints;
-import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;

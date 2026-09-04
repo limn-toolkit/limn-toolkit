@@ -19,7 +19,6 @@ import limn.render3d.Graphics3D;
 import limn.render3d.RenderPass;
 import limn.render3d.RenderTarget;
 import limn.scene.Constraints;
-import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
