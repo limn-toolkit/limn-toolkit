@@ -651,11 +651,17 @@ public final class SplitPane extends Widget {
             // is the only thing that can name it; the provenance is the control's own name rather
             // than a description of it, which is the slot a tooltip would take.
             a.name(ComponentStrings.SPLIT_DIVIDER, Accessible.NameFrom.CONTENT);
-            // The inverse of the split's own orientation, and the first paragraph of this class
-            // is why: the orientation names the axis the panes are arranged along, not the
-            // divider. Panes side by side are divided by a vertical line, which is exactly what
-            // onPaint draws for them.
-            a.state(horizontal() ? Accessible.State.VERTICAL : Accessible.State.HORIZONTAL);
+            // The split's own orientation and not its inverse, because Accessible.State defines
+            // the pair by the axis the node's VALUE runs along and not by the axis of any line
+            // that gets drawn. The value published below is the first pane's extent along the
+            // divided axis, so panes arranged side by side have a value that runs left to right
+            // however vertical the line between them is painted. Every other node that could
+            // carry the pair -- a slider, a scroll bar -- has its track and its value on one
+            // axis and so cannot settle the question; the divider is the one place the two come
+            // apart, and it follows the definition rather than the picture. A platform that
+            // calls a side-by-side splitter vertical, as both ARIA and AX do, is describing the
+            // line, and inverting the bit for it is that bridge's mapping to make.
+            a.state(horizontal() ? Accessible.State.HORIZONTAL : Accessible.State.VERTICAL);
             // The first pane's extent in points, not the ratio. The ratio is the share that was
             // *asked for*, before any minimum applies, so wherever a floor binds it names a
             // position the divider is not at; and a ratio has no honest step, because KEY_STEP is

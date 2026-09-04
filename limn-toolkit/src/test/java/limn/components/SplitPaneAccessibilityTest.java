@@ -188,20 +188,24 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     @Test
-    void theSplittersOrientationIsItsOwnAxis() {
+    void theSplittersOrientationIsTheAxisItsValueRunsAlong() {
         bindSplit();
 
-        assertTrue(splitter().has(Accessible.State.VERTICAL),
-                "panes side by side are divided by a vertical line, which is what onPaint draws"
+        assertTrue(splitter().has(Accessible.State.HORIZONTAL),
+                "Accessible.State names the axis a node's value runs along, and this splitter's "
+                        + "value is the first pane's width, which runs left to right"
                         + describe(tree()));
-        assertFalse(splitter().has(Accessible.State.HORIZONTAL),
-                "the orientation names the axis the panes are arranged along, not the divider; "
-                        + "passing it through publishes it backwards" + describe(tree()));
+        assertFalse(splitter().has(Accessible.State.VERTICAL),
+                "the vertical line onPaint draws between side-by-side panes is the picture and "
+                        + "not the meaning; a platform that names the line inverts this in its "
+                        + "own bridge" + describe(tree()));
 
         bind(SplitPane.vertical(new Box("top", 80, 40), new Box("bottom", 80, 40)));
 
-        assertTrue(splitter().has(Accessible.State.HORIZONTAL), describe(tree()));
-        assertFalse(splitter().has(Accessible.State.VERTICAL), describe(tree()));
+        assertTrue(splitter().has(Accessible.State.VERTICAL),
+                "stacked panes put the first pane's height on the value, and a height runs up "
+                        + "and down" + describe(tree()));
+        assertFalse(splitter().has(Accessible.State.HORIZONTAL), describe(tree()));
     }
 
     @Test
