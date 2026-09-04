@@ -2146,6 +2146,14 @@ The **node** flag is set by:
 - **The structural funnels that do not go through those entry points**: `Widget#setSceneRecursively`
   for attach and detach, `Scene#setFocus`, `Scene#pushOverlay` and `#removeOverlay`,
   `Scene#markLayoutDirty`, `Scene#onWidgetDetached`.
+- **`Scene#layoutPass` itself, on the branch that runs a full pass.** **Corrected while
+  implementing:** a window resize reaches neither list above — its input arm marks the layout dirty
+  and schedules a frame without declaring damage, since a layout frame damages everything
+  structurally — and a headless embedder calling `layoutPass` with a new size reaches nothing at all.
+  Both moved every box a reader was holding and published none of them until an unrelated repaint
+  set the flag. A resize is a walk and a diff, not a move's re-stamp: the boxes are scene-local and
+  every one of them changed, so it arrives as `BOUNDS_CHANGED` — per node under the budget, one
+  window-level event past it — with no `STRUCTURE_CHANGED` and no `NODE_DESTROYED`.
 - **`Widget#invalidateAccessible()`**, for a change that is neither painted nor structural. **It is
   the one flag-setter in this list that also has to buy the frame that reads the flag**, because it
   is the one whose callers reach no other funnel: every entry point above is on the path of something

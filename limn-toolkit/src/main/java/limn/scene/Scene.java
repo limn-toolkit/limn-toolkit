@@ -1986,7 +1986,8 @@ public final class Scene implements WindowInput {
             // itself (hover transitions, press states, text edits), so partial
             // rendering repaints just those regions. A full-window request here
             // would turn every hover change and keystroke into a full frame.
-            // (Resize is safe: a layout frame forces full damage structurally.)
+            // (Resize is safe: a layout frame forces full damage structurally, and the pass
+            // sets the accessible node flag itself, so the moved boxes are republished.)
             scheduleFrame();
         }
     }
@@ -3076,6 +3077,13 @@ public final class Scene implements WindowInput {
             // rather than leaving the caller with a layout that is neither.
         }
         containedLayouts.clear(); // a full pass covers every contained request outstanding
+        // A full pass moves boxes, and a box is what the accessible tree publishes, so the pass
+        // itself owes the node flag. Every other path here reaches it through a funnel that set
+        // the flag already; the two that do not are a window resize -- whose arm marks the layout
+        // dirty and schedules a frame without declaring damage, because a layout frame damages
+        // everything structurally -- and this method called directly by a headless embedder with
+        // a new size. Both moved every node a reader was holding and published nothing.
+        accessibleNodesDirty = true;
         width = newWidth;
         height = newHeight;
         root.measure(Constraints.tight(newWidth, newHeight));

@@ -122,6 +122,71 @@ class AccessibleGeometryTest extends AccessibleTestBase {
     }
 
     /**
+     * Resizing the window is the opposite of moving it: every box is scene-local and every one of
+     * them changed, so it is a walk and a diff, arriving as a bounds difference on the nodes a reader
+     * already holds -- not a structure change, and not a node destroyed.
+     *
+     * <p>Until the layout pass owned the flag, this published nothing. The headless path is the one
+     * an embedder takes and the one that first showed it: a frame rendered into a canvas of another
+     * size relays out the whole tree through {@code layoutPass}, which reaches no damage funnel.
+     */
+    @Test
+    void aResizeRepublishesEveryBoxAsABoundsDifference() {
+        Strip root = new Strip();
+        root.add(new Probe(Accessible.Role.BUTTON, "first"));
+        root.add(new Probe(Accessible.Role.BUTTON, "second"));
+        bind(root);
+        // Mirrored, so that a wider window moves the children and not only the window's own box.
+        scene.setLayoutDirection(LayoutDirection.RTL);
+        frame();
+        long first = node("first").id();
+        float firstX = node("first").x();
+        bridge.events.clear();
+        int published = bridge.published.size();
+
+        canvas = new NoopCanvas(320, 200);
+        frame();
+
+        assertEquals(published + 1, bridge.published.size(), "one tree, walked and published");
+        assertEquals(first, node("first").id(), "no identifier moved");
+        assertEquals(firstX + 120, node("first").x(), "and the box did: " + describe(tree()));
+        assertEquals(320, tree().sceneWidth());
+        assertEquals(3, bridge.countOf(AccessibleEvent.Type.BOUNDS_CHANGED),
+                "the window's box and both children's, each its own event under the budget: "
+                        + bridge.events);
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.STRUCTURE_CHANGED),
+                "nothing was rebuilt: " + bridge.events);
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.NODE_DESTROYED),
+                "and nothing left: " + bridge.events);
+    }
+
+    /**
+     * The same through the window's own path: the framebuffer callback queues a resize whose arm
+     * marks the layout dirty and schedules a frame without declaring damage, because a layout frame
+     * damages everything structurally. That was true of damage and not of the accessible tree.
+     */
+    @Test
+    void aResizeDragArrivesTheSameWay() {
+        Strip root = new Strip();
+        root.add(new Probe(Accessible.Role.BUTTON, "first"));
+        bind(root);
+        scene.setLayoutDirection(LayoutDirection.RTL);
+        frame();
+        float firstX = node("first").x();
+        bridge.events.clear();
+
+        scene.windowResized(320, 200);
+        scene.inputBatchEnded();
+        canvas = new NoopCanvas(320, 200);
+        frame();
+
+        assertEquals(firstX + 120, node("first").x(), describe(tree()));
+        assertTrue(bridge.countOf(AccessibleEvent.Type.BOUNDS_CHANGED) > 0, "" + bridge.events);
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.STRUCTURE_CHANGED), "" + bridge.events);
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.NODE_DESTROYED), "" + bridge.events);
+    }
+
+    /**
      * Moving the window re-stamps the tree and walks nothing: every box in it is scene-local, and a
      * move has not touched one of them. This is the assertion that separates the two requests a
      * bridge can make.
