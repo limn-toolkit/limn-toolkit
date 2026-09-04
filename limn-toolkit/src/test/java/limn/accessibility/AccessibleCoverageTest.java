@@ -93,7 +93,6 @@ class AccessibleCoverageTest {
             "limn.components.TabbedPane$TabStrip",
             "limn.components.TextArea",
             "limn.components.TextField",
-            "limn.components.TokenBox",
             "limn.components.TokenColumn",
             "limn.components.TokenRow",
             "limn.components.ToolBar",
@@ -301,7 +300,30 @@ class AccessibleCoverageTest {
             // wrapped in one: ColorPicker's and MediaControls' own steps have to plan on the
             // wrapped control describing itself rather than on the owner annotating or keying it.
             // Pinned by limn.scene.ExpandedAccessibilityTest.
-            "limn.scene.layout.Expanded"
+            "limn.scene.layout.Expanded",
+            // Declares no role, name, description, action or state and no onPaint, is never
+            // focusable of its own accord and carries no tooltip, so §1.6's predicate deletes it in
+            // silence and hoists its one child. What the deletion leaves behind is an extent and no
+            // offset: onLayout hands the child the whole box at the origin, so the child's
+            // published rectangle is identical to the box the deleted node would have had. That
+            // makes this the one member of §7's scaffolding row whose deletion is geometrically a
+            // no-op, and the one for which "the tree is the controls, not the boxes" is exactly
+            // backwards — nothing is offset as in Padding, nothing distributed as in a row, nothing
+            // overlapping as in Stack, and the box a reader is given for a colour picker's rail is
+            // the wrapper's own. The extent is resolved inside onMeasure against the row the
+            // resolved step names rather than captured at construction, which is the size-axis trap
+            // the class exists for, so a step change reaches a reader as the child having resized
+            // and never as a rebuild; but the Extent is an application-supplied function, so that
+            // is a guarantee about when the token is read and not about the number being a token at
+            // all. The token is also a request rather than a size: the incoming constraints clamp
+            // it, and a tight parent — the scene root's — discards it entirely. Unlike its three
+            // siblings, which extend Row, Column and Padding, its whole ancestry is Widget, so this
+            // entry stands on no other class staying hookless and no hook anywhere can reach it. It
+            // is final, so the per-instance naming hatch is the only hatch — and unlike Padding's,
+            // the GROUP it materialises is co-extensive with its child rather than larger, so
+            // naming one buys a name and no geometry. Pinned by
+            // limn.components.TokenBoxAccessibilityTest.
+            "limn.components.TokenBox"
     ));
 
     @Test
