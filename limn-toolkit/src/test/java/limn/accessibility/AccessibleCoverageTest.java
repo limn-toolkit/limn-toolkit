@@ -101,8 +101,7 @@ class AccessibleCoverageTest {
             "limn.components.Viewport3D",
             "limn.components.chart.BarChart",
             "limn.components.chart.DonutChart",
-            "limn.components.chart.LineChart",
-            "limn.scene.layout.Expanded"
+            "limn.components.chart.LineChart"
     ));
 
     /**
@@ -279,7 +278,30 @@ class AccessibleCoverageTest {
             // materialises here is co-extensive with its child rather than a larger enclosing
             // region, which is the one way this hatch differs from Padding's. Pinned by
             // limn.scene.SizedBoxAccessibilityTest.
-            "limn.scene.layout.SizedBox"
+            "limn.scene.layout.SizedBox",
+            // Declares no role, name, description, action or state, declares no onPaint so the
+            // paints-and-says-nothing warning stays silent, is never focusable of its own accord,
+            // and holds at most one child, so §1.6's predicate deletes it and hoists that child
+            // into the row's place. The deletion is uniquely lossless: onLayout hands the child
+            // (0, 0, width(), height()), so the control's box is the wrapper's box on both axes and
+            // in every cross-alignment mode, where Padding leaves an inset behind and a row leaves
+            // a gap and an alignment. What outlives it instead is the number a reader is told for
+            // the control's width -- the share is a tight constraint, so a control that measured
+            // itself at a hundred and sixteen points and was granted thirty-five publishes
+            // thirty-five, and atLeast is the only reason it ever publishes otherwise: the floored
+            // control keeps its chrome and an unfloored sibling gives up the points. Floors that do
+            // not fit over-subscribe the row, whose children then publish boxes outside the
+            // container and still SHOWING, because a Flex does not clip. spacer() holds no child
+            // and publishes nothing at all, so flexible whitespace is simply absent rather than an
+            // empty group between every pair of toolbar controls. It is final, so the naming hatch
+            // is per instance only and no subclass can inherit a hook; the trap beside that hatch
+            // is setAccessibleIgnored, which on a wrapper takes the control being wrapped out of
+            // the tree with it and is harmless only on a spacer. And because the walk asks the
+            // widget parent to add what only it knows, onAccessibilityChild never reaches a control
+            // wrapped in one: ColorPicker's and MediaControls' own steps have to plan on the
+            // wrapped control describing itself rather than on the owner annotating or keying it.
+            // Pinned by limn.scene.ExpandedAccessibilityTest.
+            "limn.scene.layout.Expanded"
     ));
 
     @Test
