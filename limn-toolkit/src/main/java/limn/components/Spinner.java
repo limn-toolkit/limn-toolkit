@@ -301,6 +301,7 @@ public class Spinner extends Widget {
             formattedEpoch = I18n.epoch();
             formattedLocale = locale;
             formattedText = format(value);
+            formattedRevision++;
             if (mode == Mode.TIME) {
                 // The two fields are measured and drawn separately (each is independently
                 // highlighted while focused), so the split is memoized with the whole.
@@ -310,6 +311,28 @@ public class Spinner extends Widget {
             }
         }
         return formattedText;
+    }
+
+    /**
+     * Bumped every time the cache above refills, and by nothing else.
+     *
+     * <p>It exists so that the accessible tree can decide that this spinner's displayed value is
+     * unchanged without producing it. The display form goes through a format call, which is
+     * documented as never cached, so a walk that built the string in order to compare it would
+     * allocate one string per damaged frame to conclude that nothing had moved — the exact defect
+     * a zero-allocation quiet frame is a promise against. Compared as two {@code long}s instead.
+     */
+    private long formattedRevision;
+
+    /**
+     * The displayed value and the counter it was cached against, for whoever has to compare it
+     * cheaply. Package-private because the tree reads it and an application reads {@link #text()}.
+     *
+     * @return the counter behind {@link #text()}; meaningless except compared with itself
+     */
+    long formattedRevision() {
+        formatted();
+        return formattedRevision;
     }
 
     /** {@code NaN} until the first render, and never equal to a value, so the first call builds. */

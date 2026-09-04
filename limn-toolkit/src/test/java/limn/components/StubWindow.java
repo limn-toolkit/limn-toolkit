@@ -29,6 +29,17 @@ class StubWindow implements NativeWindow {
 
     private final boolean canPosition;
 
+    /**
+     * Where this window claims to be, and how many native units one logical point is.
+     *
+     * <p>Both answered a fixed zero and a fixed one until the accessible tree needed them: a tree
+     * publishes scene-local boxes plus the window's own origin and scale, and no headless test
+     * could assert a real screen rectangle against two constants. Settable, so one can.
+     */
+    int screenX;
+    int screenY;
+    float logicalToScreenFactor = 1;
+
     /** A window on a platform that places windows where it is told, which is most of them. */
     StubWindow() {
         this(true);
@@ -93,12 +104,12 @@ class StubWindow implements NativeWindow {
     @Override public void registerChildPopup(NativeWindow child, PopupKind kind) { }
     @Override public void unregisterChildPopup(NativeWindow child) { }
     @Override public Clipboard clipboard() { return null; }
-    // What a Wayland window reports: GLFW leaves the caller's buffer untouched, so the answer is
-    // whatever it held. Zero here, and a test that asserts on it is asserting on nothing.
-    @Override public int screenX() { return 0; }
-    @Override public int screenY() { return 0; }
-    @Override public void setScreenPosition(int x, int y) { }
-    @Override public float logicalToScreenFactor() { return 1; }
+    // Zero and one by default, which is what a Wayland window reports and what every test that
+    // does not care about the screen wants. A test that does care sets the three fields.
+    @Override public int screenX() { return screenX; }
+    @Override public int screenY() { return screenY; }
+    @Override public void setScreenPosition(int x, int y) { screenX = x; screenY = y; }
+    @Override public float logicalToScreenFactor() { return logicalToScreenFactor; }
     @Override public void captureNextFrame(java.util.function.Consumer<limn.graphics.Image> sink) { }
     @Override public void setContentScaleListener(ContentScaleListener listener) { }
 }

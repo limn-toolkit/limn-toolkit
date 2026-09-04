@@ -73,6 +73,22 @@ public class ListView extends Widget implements Scrollable {
         /** The list scrolled {@code widget} out of view; pool it for reuse if you like. */
         default void recycle(Widget widget) {
         }
+
+        /**
+         * What to call row {@code index} when its own widget is not mounted.
+         *
+         * <p>A list publishes its true row count to an assistive technology and describes only the
+         * rows it has actually realized, because handing a screen reader thousands of anonymous
+         * items would be worse for its user rather than better. The gap that leaves is a selected
+         * row scrolled out of view, which still has to be announced: this is what answers it, and
+         * it is what the later virtualization work builds on.
+         *
+         * @param index a row in {@code [0, rowCount)}
+         * @return the row's name, or {@code null} when the adapter has none to give
+         */
+        default limn.i18n.I18nString rowName(int index) {
+            return null;
+        }
     }
 
     /**

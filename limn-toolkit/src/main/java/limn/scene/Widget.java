@@ -522,10 +522,21 @@ public abstract class Widget {
     /**
      * Declares whether this widget can take keyboard focus. Does not move focus away
      * if it currently holds it. UI thread only.
+     *
+     * <p>It neither repaints nor re-lays-out, because being focusable changes nothing on screen
+     * until the focus actually arrives. It does {@linkplain #invalidateAccessible() tell the
+     * accessible tree}, and this is the sharper of the two entry points that reach nothing else:
+     * being focusable is both a published state and the thing that keeps a widget in the tree at
+     * all, so making a scaffold widget focusable changes what the tree <em>contains</em> — and
+     * would otherwise do so silently, on the next unrelated repaint.
      */
     public final void setFocusable(boolean focusable) {
         Ui.checkUiThread();
+        if (this.focusable == focusable) {
+            return;
+        }
         this.focusable = focusable;
+        invalidateAccessible();
     }
 
     /**
@@ -599,15 +610,34 @@ public abstract class Widget {
         }
     }
 
+    /**
+     * @return the localizable string behind {@link #tooltip()}, or {@code null} for none. The
+     *         "is it set here" reader, matching the {@code text()}/{@code textSource()} pairs the
+     *         components expose: a tooltip is the natural description of an icon-only control and
+     *         the natural name when it has no other, and neither can be re-resolved when the
+     *         translation epoch moves unless the string itself is reachable.
+     */
+    public limn.i18n.I18nString tooltipSource() {
+        return tooltip;
+    }
+
     /** Sets the hover tooltip text ({@code null} clears it). UI thread only. */
     public void setTooltip(String text) {
         setTooltip(text == null ? null : limn.i18n.I18nString.literal(text));
     }
 
-    /** Sets a tooltip that follows the UI language ({@code null} clears it). UI thread only. */
+    /**
+     * Sets a tooltip that follows the UI language ({@code null} clears it). UI thread only.
+     *
+     * <p>It repaints nothing, because a tooltip is painted only while it is showing and the
+     * scene re-reads it then. It does {@linkplain #invalidateAccessible() tell the accessible
+     * tree}, because a tooltip is a description there and often a name, and a change that paints
+     * nothing would otherwise reach a screen reader on the next unrelated repaint, or never.
+     */
     public void setTooltip(limn.i18n.I18nString text) {
         Ui.checkUiThread();
         this.tooltip = text;
+        invalidateAccessible();
     }
 
     /** Whether this widget currently holds its scene's keyboard focus. */
@@ -716,6 +746,18 @@ public abstract class Widget {
     }
 
     /**
+     * @return the widget this one's inherited axes resolve through when the tree cannot say, or
+     *         {@code null} when there is none. Every popup, menu and dialog root writes this
+     *         link, and it is the only path from such a root back to the control that opened it:
+     *         the accessible tree publishes that link as a relation in both directions, so a
+     *         client walking either way finds the other.
+     * @see #setInheritanceHost(Widget)
+     */
+    public final Widget inheritanceHost() {
+        return inheritanceHost;
+    }
+
+    /**
      * Links this widget's <b>inherited axes</b> — its {@link ControlSize}, its
      * {@link LayoutDirection} and its {@linkplain #locale() locale} alike — to {@code host},
      * for the case the tree cannot express: a widget that is the root of its own {@link Scene}
@@ -742,6 +784,7 @@ public abstract class Widget {
      * the new value on its next pass, but nothing marks that scene dirty when the owner's axis
      * changes, so a component holding an open popup has to ask for the pass itself.
      *
+     * @param host the widget to resolve through, or {@code null} to unlink
      * @throws IllegalArgumentException if {@code host} resolves through this widget
      */
     public final void setInheritanceHost(Widget host) {
@@ -1342,9 +1385,18 @@ public abstract class Widget {
         return false;
     }
 
-    /** Children pass; override to clip (e.g. scroll views). */
+    /**
+     * Children pass; override to clip (e.g. scroll views).
+     *
+     * <p>Indexed rather than an enhanced {@code for}, for the reason {@code Scene}'s own overlay
+     * loop already carries: an iterator here is an allocation per widget per frame, and an idle
+     * window is the one place in this toolkit that is not allowed to allocate at all. A subtree of
+     * two hundred widgets was paying two hundred short-lived objects a frame to walk a list it can
+     * index.
+     */
     protected void paintChildren(Canvas canvas) {
-        for (Widget child : children) {
+        for (int i = 0; i < children.size(); i++) {
+            Widget child = children.get(i);
             canvas.save();
             try {
                 canvas.translate(child.x, child.y);
@@ -1449,6 +1501,223 @@ public abstract class Widget {
     protected void onFileDrop(FileDropEvent event) {
     }
 
+    // --------------------------------------------------------- accessibility
+
+    /**
+     * Says what this widget is, for an assistive technology.
+     *
+     * <p>Called on the UI thread inside the publish step, with this widget's own locale in scope,
+     * and never from a paint. A widget that overrides nothing still gets a node with its bounds,
+     * its enabled, focusable, visible and showing states, its language, its children in tree
+     * order, the focus and scroll-into-view verbs when it is focusable, and its tooltip as a name
+     * when nothing else supplied one. What it does <em>not</em> get is a role: a widget that
+     * declares no role, no name, no description, no state, no verb and no facet is scaffolding,
+     * and the tree removes it and hoists its children in its place, so that a screen reader hears
+     * the controls rather than the boxes.
+     *
+     * <p><b>Nothing here may allocate.</b> The builder's setters take a facet's fields rather than
+     * a facet, and a name is handed over as the localizable string this widget holds rather than
+     * as a resolved one, so that a frame which damaged this widget and changed nothing about it
+     * costs a comparison and no memory at all. {@link limn.accessibility.Accessibility} states
+     * the two rules and what
+     * breaks when they are ignored.
+     *
+     * @param a the node being described; write into it, and never keep it
+     */
+    protected void onAccessibility(limn.accessibility.Accessibility a) {
+    }
+
+    /**
+     * Adds what only this widget knows about one of its children: the role a mounted list cell
+     * takes, its position in the data, and above all the {@linkplain
+     * limn.accessibility.Accessibility#key(long) identity key} a container that pools its children
+     * owns and nothing else can.
+     *
+     * <p>Called on the UI thread with the <em>child's</em> node current and this widget's locale
+     * in scope, after the child has described itself, so what is written here wins.
+     *
+     * @param child the child being described
+     * @param a     the child's node
+     */
+    protected void onAccessibilityChild(Widget child, limn.accessibility.Accessibility a) {
+    }
+
+    /**
+     * Performs an action an assistive technology asked of this widget, as the user.
+     *
+     * <p>Called on the UI thread from a posted task, after the scene has re-checked that this
+     * widget is still attached, still enabled with every ancestor, still showing and still
+     * reachable. <b>The widget performs its own action</b>: it reaches its own private
+     * from-the-user path with its own guards, so an assistive technology's toggle notifies the
+     * application exactly as a click does and no component has to grow a public method that
+     * re-derives a guard it already has.
+     *
+     * @param action what was asked; one of the sixteen, including the four that carry an argument
+     * @param arg    the argument, or {@link limn.accessibility.Accessible.Argument#NONE}
+     * @return whether this widget did it. {@code false} is the honest answer for a verb it does
+     *         not offer, and the platform is told the action failed.
+     */
+    protected boolean onAccessibilityAction(limn.accessibility.Accessible.Action action,
+                                            limn.accessibility.Accessible.Argument arg) {
+        return false;
+    }
+
+    /**
+     * Performs an action addressed to one of this widget's synthetic children: a menu row, a combo
+     * option, a chart series — something this widget draws and never instantiated as a widget.
+     *
+     * <p>Separate from {@link #onAccessibilityAction} deliberately, and not distinguished by a
+     * sentinel key: a model index of zero is a legitimate key, so the two cannot share one hook
+     * without the widget having to guess which of them it is in.
+     *
+     * @param key    the key this widget gave that child when it declared it
+     * @param action what was asked
+     * @param arg    the argument, or {@link limn.accessibility.Accessible.Argument#NONE}
+     * @return whether this widget did it
+     */
+    protected boolean onSyntheticAction(long key, limn.accessibility.Accessible.Action action,
+                                        limn.accessibility.Accessible.Argument arg) {
+        return false;
+    }
+
+    /**
+     * What an application declared about this widget for an assistive technology. {@code null}
+     * until it declares something, which is the whole per-widget memory cost of the accessible
+     * tree: one reference, never read on a widget nobody named.
+     */
+    private AccessibleOverrides accessibleOverrides;
+
+    /** The four application-set overrides, in one object so an unnamed widget carries one field. */
+    private static final class AccessibleOverrides {
+        limn.i18n.I18nString name;
+        limn.i18n.I18nString description;
+        limn.accessibility.Accessible.Role role;
+        boolean ignored;
+    }
+
+    private AccessibleOverrides overrides() {
+        if (accessibleOverrides == null) {
+            accessibleOverrides = new AccessibleOverrides();
+        }
+        return accessibleOverrides;
+    }
+
+    /**
+     * Names this widget for an assistive technology, overriding whatever it would have derived for
+     * itself. UI thread only.
+     *
+     * <p>An application-set name always wins, so renaming a component never requires subclassing
+     * it. It is resolved under this widget's own locale, like every other name in the tree.
+     *
+     * @param name the name, or {@code null} to let the widget name itself again
+     */
+    public final void setAccessibleName(limn.i18n.I18nString name) {
+        Ui.checkUiThread();
+        overrides().name = name;
+        invalidateAccessible();
+    }
+
+    /**
+     * Names this widget with a fixed string. UI thread only.
+     *
+     * @param name the name, or {@code null} to let the widget name itself again
+     */
+    public final void setAccessibleName(String name) {
+        setAccessibleName(name == null ? null : limn.i18n.I18nString.literal(name));
+    }
+
+    /**
+     * Describes this widget at more length than its name does, for an assistive technology.
+     * UI thread only.
+     *
+     * @param text the description, or {@code null} to let the widget describe itself again
+     */
+    public final void setAccessibleDescription(limn.i18n.I18nString text) {
+        Ui.checkUiThread();
+        overrides().description = text;
+        invalidateAccessible();
+    }
+
+    /**
+     * Describes this widget with a fixed string. UI thread only.
+     *
+     * @param text the description, or {@code null} to let the widget describe itself again
+     */
+    public final void setAccessibleDescription(String text) {
+        setAccessibleDescription(text == null ? null : limn.i18n.I18nString.literal(text));
+    }
+
+    /**
+     * Says what this widget is, overriding whatever role it would have declared. UI thread only.
+     *
+     * <p>This is also how a custom widget that paints its own content joins the tree at all: a
+     * widget that declares no role is scaffolding and is removed, and the toolkit warns once per
+     * class when the class it removes paints something.
+     *
+     * @param role the role, or {@code null} to let the widget declare its own
+     */
+    public final void setAccessibleRole(limn.accessibility.Accessible.Role role) {
+        Ui.checkUiThread();
+        overrides().role = role;
+        invalidateAccessible();
+    }
+
+    /**
+     * Removes this widget and its subtree from the accessible tree: a spacer, a decorative rule,
+     * an image that repeats what the text beside it already says. UI thread only.
+     *
+     * <p>Not for a control that can be operated. Marking one of those decorative is not a
+     * deferral, it is hiding it from the one user who cannot see it.
+     *
+     * @param ignored whether to leave this widget out of the tree entirely
+     */
+    public final void setAccessibleIgnored(boolean ignored) {
+        Ui.checkUiThread();
+        overrides().ignored = ignored;
+        invalidateAccessible();
+    }
+
+    /**
+     * Says that something about this widget an assistive technology would care about has changed,
+     * when nothing repainted and nothing moved.
+     *
+     * <p>Almost nothing needs this. The accessible tree is rebuilt from the funnel every repaint
+     * goes through, so a value, a state, a caret and a selection all reach it already. What does
+     * not is a change that paints nothing at all — an application writing a field behind a
+     * setter's back, or setting one of the four accessibility overrides above, all of which call
+     * this themselves.
+     *
+     * <p>It sets the flag whether or not anything is listening, so switching a bridge on
+     * mid-session needs no audit of what was missed, and that costs one store. It buys the frame
+     * that reads the flag only while something <em>is</em> listening, because a flag set with no
+     * frame coming is a no-op with a comforting name.
+     */
+    public final void invalidateAccessible() {
+        if (scene != null) {
+            scene.invalidateAccessible();
+        }
+    }
+
+    /** The application's name override, or {@code null}. Read by the publish step. */
+    final limn.i18n.I18nString accessibleName() {
+        return accessibleOverrides == null ? null : accessibleOverrides.name;
+    }
+
+    /** The application's description override, or {@code null}. Read by the publish step. */
+    final limn.i18n.I18nString accessibleDescription() {
+        return accessibleOverrides == null ? null : accessibleOverrides.description;
+    }
+
+    /** The application's role override, or {@code null}. Read by the publish step. */
+    final limn.accessibility.Accessible.Role accessibleRole() {
+        return accessibleOverrides == null ? null : accessibleOverrides.role;
+    }
+
+    /** Whether the application struck this widget out of the tree. Read by the publish step. */
+    final boolean isAccessibleIgnored() {
+        return accessibleOverrides != null && accessibleOverrides.ignored;
+    }
+
     /** Called when this widget takes keyboard focus. Default: nothing. */
     protected void onFocusGained() {
     }
@@ -1535,6 +1804,75 @@ public abstract class Widget {
             I18n.popScope(enclosing);
         }
     }
+
+    // The accessibility hooks reach application code exactly as the input ones do, with this
+    // widget's locale in scope: a name resolved here answers in this subtree's language, and the
+    // publish step runs outside any pass that would have put it there.
+    final void describeAccessible(limn.accessibility.Accessibility a) {
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            onAccessibility(a);
+        } finally {
+            I18n.popScope(enclosing);
+        }
+    }
+
+    final void describeAccessibleChild(Widget child, limn.accessibility.Accessibility a) {
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            onAccessibilityChild(child, a);
+        } finally {
+            I18n.popScope(enclosing);
+        }
+    }
+
+    final boolean performAccessibleAction(limn.accessibility.Accessible.Action action,
+                                          limn.accessibility.Accessible.Argument arg) {
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            return onAccessibilityAction(action, arg);
+        } finally {
+            I18n.popScope(enclosing);
+        }
+    }
+
+    final boolean performSyntheticAction(long key, limn.accessibility.Accessible.Action action,
+                                         limn.accessibility.Accessible.Argument arg) {
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            return onSyntheticAction(key, action, arg);
+        } finally {
+            I18n.popScope(enclosing);
+        }
+    }
+
+    /** Whether this class or any between it and {@link Widget} declares {@link #onPaint}. */
+    final boolean paintsItself() {
+        return PAINTS.get(getClass());
+    }
+
+    /**
+     * Whether a class draws its own content, computed once per class.
+     *
+     * <p>Only the transparency verdict asks, and only on the path where it is about to delete a
+     * node. A widget that paints something and declares nothing is a picture with nothing said
+     * about it, which is worth a warning and is not worth a node: only the application has a name
+     * for it.
+     */
+    private static final ClassValue<Boolean> PAINTS = new ClassValue<>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            for (Class<?> at = type; at != null && at != Widget.class; at = at.getSuperclass()) {
+                try {
+                    at.getDeclaredMethod("onPaint", Canvas.class);
+                    return Boolean.TRUE;
+                } catch (NoSuchMethodException absent) {
+                    // Not this class's; keep walking up to Widget, which declares the empty one.
+                }
+            }
+            return Boolean.FALSE;
+        }
+    };
 
     final void notifyFocus(boolean gained) {
         Locale enclosing = I18n.pushScope(locale());

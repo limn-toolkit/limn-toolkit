@@ -248,9 +248,39 @@ public final class LwjglBackend implements Backend {
         return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac");
     }
 
-    /** Wakes the sleeping event loop. Safe from any thread. */
+    /**
+     * Whether the loop is parked inside GLFW's own event wait right now.
+     *
+     * <p>Written by the loop around its three pump calls and read by {@link #wakeLoop()}. It
+     * exists for one caller shape and there is exactly one in the process: code running on the UI
+     * thread, from inside a platform callback the pump itself is dispatching, which is not a GLFW
+     * event and therefore produces nothing for the pump to return on. A screen reader's request is
+     * that shape on macOS, and without this flag every action it performs waits for the user to
+     * move the mouse.
+     */
+    private volatile boolean parkedInPump;
+
+    /**
+     * Wakes the sleeping event loop. Safe from any thread.
+     *
+     * <p>Unconditionally from a foreign thread, because that is where the race is real: the loop
+     * may decide to sleep between the post and this call. From the UI thread only while the loop
+     * is parked, and that read cannot race — if it says parked, the caller is re-entrant inside
+     * the pump and the wake is exactly what is needed; if it says otherwise, the loop has not yet
+     * re-read {@link limn.concurrent.UiRuntime#nanosUntilNextDeadline()}, which answers zero while
+     * immediate work is queued, and it will see the work.
+     *
+     * <p>Waking on every UI-thread post regardless would make each of the toolkit's
+     * self-rescheduling timers — the caret blink, the auto-repeat of a spinner and a scroll bar,
+     * the media position tick, the tooltip dwell — write a native event from inside a drain the
+     * loop is demonstrably already awake for, and each of those exists precisely to let the loop
+     * sleep between its own beats.
+     */
     void wakeLoop() {
-        if (!terminated) {
+        if (terminated) {
+            return;
+        }
+        if (parkedInPump || !uiRuntime.isUiThread()) {
             glfwPostEmptyEvent();
         }
     }
@@ -406,12 +436,18 @@ public final class LwjglBackend implements Backend {
                 }
                 long sleepBudgetNanos = uiRuntime.nanosUntilNextDeadline();
                 try {
-                    if (framePending || sleepBudgetNanos == 0) {
-                        glfwPollEvents();
-                    } else if (sleepBudgetNanos < 0) {
-                        glfwWaitEvents();
-                    } else {
-                        glfwWaitEventsTimeout(Math.min(sleepBudgetNanos / 1_000_000_000.0, MAX_WAIT_SECONDS));
+                    parkedInPump = true;
+                    try {
+                        if (framePending || sleepBudgetNanos == 0) {
+                            glfwPollEvents();
+                        } else if (sleepBudgetNanos < 0) {
+                            glfwWaitEvents();
+                        } else {
+                            glfwWaitEventsTimeout(
+                                    Math.min(sleepBudgetNanos / 1_000_000_000.0, MAX_WAIT_SECONDS));
+                        }
+                    } finally {
+                        parkedInPump = false;
                     }
                 } catch (Crashes.ShutdownRequested shutdown) {
                     throw shutdown;

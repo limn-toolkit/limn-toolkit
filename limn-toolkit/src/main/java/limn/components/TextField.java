@@ -72,6 +72,7 @@ public class TextField extends Widget {
     // Optional in-field adornments (icons rasterize/select lazily at paint).
     private Icon leadingIcon;
     private Icon trailingIcon;
+    private I18nString trailingName;
     /** Whether each icon turns around in a right-to-left subtree; the application's word. */
     private Icon.Mirroring leadingMirroring = Icon.Mirroring.NEVER;
     private Icon.Mirroring trailingMirroring = Icon.Mirroring.NEVER;
@@ -210,6 +211,10 @@ public class TextField extends Widget {
     /**
      * A trailing coupled button (icon + action) inside the field, the caret/arrow
      * region idiom of {@link ComboBox}. {@code icon == null} removes it.
+     *
+     * <p>The button it makes has <b>no name</b>. It is an operable control, so the accessible tree
+     * cannot leave it out, and an icon and a callback carry nothing to announce it by; use
+     * {@link #setTrailingButton(Icon, I18nString, Runnable)} for a button a screen reader can name.
      */
     public TextField setTrailingButton(Icon icon, Runnable action) {
         return setTrailingButton(icon, action, Icon.Mirroring.NEVER);
@@ -218,15 +223,58 @@ public class TextField extends Widget {
     /**
      * A trailing coupled button whose icon says whether it turns around when the interface does;
      * see {@link #setLeadingIcon(Icon, Icon.Mirroring)} for why the toolkit does not decide that.
+     *
+     * <p>The button it makes has no name; see {@link #setTrailingButton(Icon, Runnable)}.
      */
     public TextField setTrailingButton(Icon icon, Runnable action, Icon.Mirroring mirroring) {
+        return setTrailingButton(icon, null, action, mirroring);
+    }
+
+    /**
+     * A trailing coupled button with a name: what it does, said in words, for whoever cannot see
+     * the icon.
+     *
+     * <p>The other two overloads take an icon and a callback and have nowhere to put one, so the
+     * button they make is an operable control the tree publishes unnamed — which the gallery check
+     * refuses for any scene that uses it, and rightly.
+     *
+     * @param icon   the glyph, or {@code null} to remove the button
+     * @param name   what the button does, following the UI language; {@code null} leaves it unnamed
+     * @param action what to run when it is pressed; {@code null} for nothing
+     * @return this field
+     */
+    public TextField setTrailingButton(Icon icon, I18nString name, Runnable action) {
+        return setTrailingButton(icon, name, action, Icon.Mirroring.NEVER);
+    }
+
+    /**
+     * A named trailing button whose icon says whether it turns around when the interface does.
+     *
+     * @param icon      the glyph, or {@code null} to remove the button
+     * @param name      what the button does; {@code null} leaves it unnamed
+     * @param action    what to run when it is pressed; {@code null} for nothing
+     * @param mirroring whether the icon turns around in a right-to-left interface
+     * @return this field
+     * @throws NullPointerException if {@code mirroring} is {@code null}
+     */
+    public TextField setTrailingButton(Icon icon, I18nString name, Runnable action,
+                                       Icon.Mirroring mirroring) {
         Ui.checkUiThread();
         this.trailingIcon = icon;
+        this.trailingName = name;
         this.trailingMirroring = Objects.requireNonNull(mirroring, "mirroring");
         this.onTrailing = action != null ? action : () -> {
         };
         markNeedsLayout();
         return this;
+    }
+
+    /**
+     * @return what the trailing button does, said in words, or {@code null} when it has no name or
+     *         there is no trailing button
+     */
+    public I18nString trailingButtonName() {
+        return trailingIcon == null ? null : trailingName;
     }
 
     /** Sets the validation state; colors the border danger/warning/success. */

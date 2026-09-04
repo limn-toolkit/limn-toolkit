@@ -22,9 +22,9 @@ import java.util.function.Supplier;
  *
  * <p>The owning backend binds the UI thread ({@link #bindToCurrentThread()}),
  * drains the queue once per frame ({@link #drain()}) and sleeps in the native
- * event wait between frames, never busy-waiting. Posting from any other
- * thread triggers the {@link Waker}, which the LWJGL backend maps to
- * {@code glfwPostEmptyEvent()} so the sleeping loop wakes up.
+ * event wait between frames, never busy-waiting. Posting triggers the
+ * {@link Waker}, which the LWJGL backend maps to {@code glfwPostEmptyEvent()}
+ * so the sleeping loop wakes up.
  *
  * <p>Drain semantics: {@link #drain()} runs only the tasks that were queued
  * when it started (a snapshot). Tasks posted while draining run on the next
@@ -38,9 +38,22 @@ import java.util.function.Supplier;
  */
 public final class UiRuntime implements AutoCloseable {
 
-    /** Wakes the native event loop when work is posted from another thread. */
+    /**
+     * Wakes the native event loop when work is posted.
+     *
+     * <p>Called for <b>every</b> post, from the UI thread as well as from any other, and the
+     * decision about whether a wake is actually needed is the waker's rather than this class's.
+     * That is where the decision belongs, because the runtime cannot tell a caller that is
+     * re-entrant inside a native pump from an ordinary one inside a drain, and the backend can:
+     * a UI-thread post from inside a drain needs nothing, because the loop re-reads
+     * {@link #nanosUntilNextDeadline()} before it sleeps again, while a UI-thread post from
+     * inside a platform callback made <em>while the loop is parked</em> waits for unrelated
+     * input unless somebody wakes it. An accessibility callback is that second shape, and on one
+     * platform it is the only one in the process.
+     */
     @FunctionalInterface
     public interface Waker {
+        /** Wakes the loop, or does nothing when the caller cannot be waiting on it. */
         void wake();
     }
 
@@ -150,13 +163,14 @@ public final class UiRuntime implements AutoCloseable {
      * something else asks for one. Every widget setter and every tree change
      * invalidates already; a task that writes a field behind a setter's back,
      * or that changes what a custom {@code onPaint} reads, does not.
+     *
+     * <p>The {@link Waker} is called on every post, this thread's included; see there for why
+     * the runtime does not decide whether the wake is needed.
      */
     public void post(Runnable action) {
         Objects.requireNonNull(action, "action");
         enqueue(action);
-        if (!isUiThread()) {
-            waker.wake();
-        }
+        waker.wake();
     }
 
     /** The one way a task joins {@link #immediate}, so {@link #pending} cannot drift from it. */
@@ -191,9 +205,7 @@ public final class UiRuntime implements AutoCloseable {
         synchronized (delayedLock) {
             delayed.add(new DelayedTask(deadline, delayedSequence.getAndIncrement(), action));
         }
-        if (!isUiThread()) {
-            waker.wake();
-        }
+        waker.wake();
     }
 
     /**

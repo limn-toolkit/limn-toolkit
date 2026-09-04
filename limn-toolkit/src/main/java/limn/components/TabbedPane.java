@@ -230,6 +230,26 @@ public class TabbedPane extends Widget {
     }
 
     /**
+     * @param index a tab in {@code [0, tabCount)}
+     * @return that tab's caption, resolved in this pane's own language
+     * @throws IndexOutOfBoundsException if {@code index} is not a tab
+     */
+    public String tabTitle(int index) {
+        return headers.get(index).title.get();
+    }
+
+    /**
+     * @param index a tab in {@code [0, tabCount)}
+     * @return the localizable string behind {@link #tabTitle(int)}. A tab's caption was already an
+     *         {@link I18nString} and was reachable only from inside this package; anything that has
+     *         to announce a caption that changed needs it from outside.
+     * @throws IndexOutOfBoundsException if {@code index} is not a tab
+     */
+    public I18nString tabTitleSource(int index) {
+        return headers.get(index).title;
+    }
+
+    /**
      * Selects a tab, scrolls it into view and fires {@link #onSelect}; code and a click take the
      * same path, so a listener sees every change either way. Re-selecting the current tab still
      * scrolls it back into view (a caller asking for a tab is asking to be shown it) but changes

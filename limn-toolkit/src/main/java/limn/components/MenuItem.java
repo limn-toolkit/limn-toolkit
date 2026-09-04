@@ -34,9 +34,28 @@ public final class MenuItem {
     /** The access letter, uppercased; {@code 0} when none is declared. */
     private char mnemonic;
 
+    /**
+     * A key of the width identity is, minted once per item and never reused.
+     *
+     * <p>A menu is a model rather than a widget tree, so a menu row reaches the accessible tree as
+     * a synthetic child of the surface that draws it, keyed by its owner. The obvious substitute
+     * for this counter, {@link System#identityHashCode}, is thirty-two bits wide, and a collision
+     * there is not a slow lookup: an identifier is the whole of identity on every platform, so two
+     * rows would become one element on all three at once.
+     */
+    private static long serials;
+
+    private final long serial;
+
     private MenuItem(Kind kind, I18nString label) {
         this.kind = kind;
         this.label = label;
+        this.serial = ++serials;
+    }
+
+    /** This item's stable key, for whoever has to name it to something outside the process. */
+    long serial() {
+        return serial;
     }
 
     private static I18nString wrap(String label) {

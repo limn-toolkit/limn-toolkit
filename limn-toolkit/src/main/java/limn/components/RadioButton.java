@@ -90,10 +90,37 @@ public class RadioButton extends Widget {
         return this;
     }
 
+    /**
+     * @return the caption beside the indicator, resolved in this widget's own language. The
+     *         accessible tree takes this as the control's name.
+     */
+    public String text() {
+        return text.get();
+    }
+
+    /**
+     * @return the localizable string behind {@link #text()}. The "is it set here" reader, matching
+     *         the pair {@link Button} and {@link Label} expose.
+     */
+    public I18nString textSource() {
+        return text;
+    }
+
     /** Replaces the label with a fixed string. UI thread only. */
     public RadioButton setText(String newText) {
+        return setText(I18nString.literal(Objects.requireNonNull(newText, "newText")));
+    }
+
+    /**
+     * Replaces the label with one that follows the UI language. UI thread only.
+     *
+     * @param newText the new caption
+     * @return this radio button
+     * @throws NullPointerException if {@code newText} is {@code null}
+     */
+    public RadioButton setText(I18nString newText) {
         Ui.checkUiThread();
-        this.text = I18nString.literal(Objects.requireNonNull(newText, "newText"));
+        this.text = Objects.requireNonNull(newText, "newText");
         markNeedsLayout();
         return this;
     }

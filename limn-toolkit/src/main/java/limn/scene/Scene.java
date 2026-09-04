@@ -631,8 +631,112 @@ public final class Scene implements WindowInput {
     /** Schedules a frame and marks the whole scene damaged. */
     public void requestRender() {
         fullDamagePending = true;
+        accessibleNodesDirty = true;
         renderRequester.run();
     }
+
+    // ------------------------------------------------------- accessibility flags
+    //
+    // Two flags, cleared separately, and the separation is the whole saving. The NODE flag says
+    // something in the tree may have moved and costs a walk and a comparison; the HEADER flag says
+    // only where the window is has moved and costs four numbers. A window drag would otherwise
+    // re-walk the entire tree on every callback the compositor sends, to discover that every
+    // per-node box — which is scene-local — is exactly where it was.
+    //
+    // The node flag rides the funnel every repaint goes through, not the structural funnels alone.
+    // That is the correction the first draft of ADR 039 needed: a checkbox toggle, a slider move
+    // and a keystroke are repaints and nothing else, so a flag hung on attach, focus and layout
+    // would raise nothing for three quarters of what a screen reader exists to report.
+
+    /** Something a node publishes may have changed: the next frame walks and compares. */
+    private boolean accessibleNodesDirty = true;
+
+    /** Only the window stamp moved: the next frame re-stamps the published tree and walks nothing. */
+    private boolean accessibleHeaderDirty;
+
+    /**
+     * {@link Widget#invalidateAccessible()}: sets the node flag whatever is listening, and buys
+     * the frame that reads it only when something is.
+     */
+    void invalidateAccessible() {
+        accessibleNodesDirty = true;
+        if (accessibilityLive()) {
+            scheduleFrame();
+        }
+    }
+
+    /**
+     * Whether a bridge is attached and an assistive technology is listening to it.
+     *
+     * <p>Always false until the tree lands: with no bridge there is nothing to spend a frame on,
+     * and the flags above are still maintained so that switching one on mid-session needs no audit
+     * of what was missed.
+     */
+    private boolean accessibilityLive() {
+        return false;
+    }
+
+    /**
+     * Says something out loud to whoever is using an assistive technology: a status that changed
+     * where nothing on screen says so, a background task that finished, an error that has no
+     * control to attach itself to.
+     *
+     * <p>It is on the scene and not on a widget because it is a message to the user rather than a
+     * property of a box. Nothing is announced automatically: a status label that updates silently
+     * stays silent until an application adds this call.
+     *
+     * <p><b>It buys the frame that delivers it</b>, and only while something is listening. The
+     * steady state while a screen reader is reading a quiet interface is a loop parked with no
+     * frame pending, and an announcement enqueued into that state would never be spoken — the
+     * application's one way of saying something out loud going silent exactly when the interface
+     * is quiet, which is when it is most likely to be used. With nothing listening the entry is
+     * still queued and still bounded, so an application's diagnostics do not depend on a reader
+     * being present, and no frame is spent on speech nobody will hear.
+     *
+     * <p>UI thread only.
+     *
+     * @param text       what to say; resolved under this scene's own language when it is drained
+     * @param politeness whether it waits for the assistive technology to finish, or interrupts it.
+     *                   Not a boolean, because all three platforms carry the distinction and it
+     *                   decides whether a user is cut off mid-sentence.
+     * @throws NullPointerException if either argument is {@code null}
+     */
+    public void announce(limn.i18n.I18nString text,
+                         limn.accessibility.Accessible.Politeness politeness) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(text, "text");
+        Objects.requireNonNull(politeness, "politeness");
+        if (announcements.size() >= MAX_ANNOUNCEMENTS) {
+            // An application announcing once per frame is a defect the slow-task budget already
+            // catches; dropping the oldest keeps this bounded without hiding the newest.
+            announcements.remove(0);
+        }
+        announcements.add(new Announcement(text, politeness));
+        if (accessibilityLive()) {
+            scheduleFrame();
+        }
+    }
+
+    /**
+     * Says something out loud with a fixed string. UI thread only.
+     *
+     * @param text       what to say
+     * @param politeness whether it waits, or interrupts
+     * @throws NullPointerException if either argument is {@code null}
+     */
+    public void announce(String text, limn.accessibility.Accessible.Politeness politeness) {
+        announce(limn.i18n.I18nString.literal(Objects.requireNonNull(text, "text")), politeness);
+    }
+
+    /** One queued announcement, resolved when it is drained rather than when it is made. */
+    private record Announcement(limn.i18n.I18nString text,
+                                limn.accessibility.Accessible.Politeness politeness) {
+    }
+
+    /** Queued announcements past which the oldest is dropped. */
+    private static final int MAX_ANNOUNCEMENTS = 32;
+
+    private final List<Announcement> announcements = new ArrayList<>();
 
     /**
      * Draws over the finished frame: after the root, after every overlay, after the modal scrim
@@ -668,8 +772,16 @@ public final class Scene implements WindowInput {
         return frontPainter;
     }
 
-    /** Schedules a frame without adding damage (animation keep-alive, disposals). */
-    private void scheduleFrame() {
+    /**
+     * Schedules a frame without adding damage (animation keep-alive, disposals).
+     *
+     * <p>Package-private rather than private because the accessibility plumbing needs exactly
+     * this and must not have {@link #requestRender()}: buying a frame and declaring damage are
+     * two acts, and a re-stamp, an announcement and an accessibility invalidation want the first
+     * without the second. Reaching for {@code requestRender()} there would mark the accessible
+     * node flag on the way out and make the walk those paths exist to avoid run anyway.
+     */
+    void scheduleFrame() {
         renderRequester.run();
     }
 
@@ -680,6 +792,7 @@ public final class Scene implements WindowInput {
      */
     public void damage(Rect region) {
         addDamage(region.x(), region.y(), region.width(), region.height());
+        accessibleNodesDirty = true;
         scheduleFrame();
     }
 
@@ -688,6 +801,7 @@ public final class Scene implements WindowInput {
         if (partialRendering || damageDebug) {
             addClippedDamage(widget, x - 1, y - 1, w + 2, h + 2);
         }
+        accessibleNodesDirty = true;
         scheduleFrame();
     }
 
@@ -701,6 +815,7 @@ public final class Scene implements WindowInput {
             addClippedDamage(widget, -outset, -outset,
                     widget.width() + 2 * outset, widget.height() + 2 * outset);
         }
+        accessibleNodesDirty = true;
         scheduleFrame();
     }
 
@@ -889,6 +1004,7 @@ public final class Scene implements WindowInput {
         if (!containedLayouts.contains(widget)) {
             containedLayouts.add(widget);
         }
+        accessibleNodesDirty = true;
         // scheduleFrame, NOT requestRender: the latter declares the whole scene damaged, which
         // is exactly the frame this request exists to avoid. The damage is the widget's, and the
         // pass adds it once the layout is known to have stayed inside the box.

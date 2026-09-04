@@ -1398,10 +1398,19 @@ final class LwjglWindow implements NativeWindow {
         this.contentScaleListener = listener;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>It wakes the loop when the loop is parked, for the reason a UI-thread post does: this
+     * sets a flag the loop reads on its way round, and a caller standing inside a platform
+     * callback that the parked pump is dispatching produces no event for that pump to return on.
+     * A frame asked for from inside a describe pass would otherwise wait for unrelated input.
+     */
     @Override
     public void requestFrame() {
         backend.uiRuntime().checkUiThread();
         frameRequested = true;
+        backend.wakeLoop();
     }
 
     @Override

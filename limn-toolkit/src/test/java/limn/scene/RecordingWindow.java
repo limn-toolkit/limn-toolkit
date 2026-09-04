@@ -82,6 +82,22 @@ final class RecordingWindow implements NativeWindow {
 
     int frameRequests;
 
+    /**
+     * Where this window claims to be, how many native units one logical point is, and whether it
+     * can know its own position at all.
+     *
+     * <p>The first two answered a fixed zero and a fixed one until the accessible tree needed
+     * them: a tree publishes scene-local boxes plus the window's own origin and scale, so a test
+     * that wanted to assert a screen rectangle had two constants to assert against. The third
+     * reproduces Wayland, where a window is placed by the desktop and never learns where it went.
+     */
+    int screenX;
+    int screenY;
+    float logicalToScreenFactor = 1;
+    boolean canPosition = true;
+
+    @Override public boolean supportsAbsolutePositioning() { return canPosition; }
+
     @Override public void requestFrame() { frameRequests++; }
     @Override public void setFrameCallback(FrameCallback callback) { }
     @Override public void setInput(WindowInput input) { }
@@ -106,10 +122,10 @@ final class RecordingWindow implements NativeWindow {
     @Override public void unregisterChildPopup(NativeWindow child) { }
     @Override public Backend backend() { return null; }
     @Override public Clipboard clipboard() { return null; }
-    @Override public int screenX() { return 0; }
-    @Override public int screenY() { return 0; }
-    @Override public void setScreenPosition(int x, int y) { }
-    @Override public float logicalToScreenFactor() { return 1; }
+    @Override public int screenX() { return screenX; }
+    @Override public int screenY() { return screenY; }
+    @Override public void setScreenPosition(int x, int y) { screenX = x; screenY = y; }
+    @Override public float logicalToScreenFactor() { return logicalToScreenFactor; }
     @Override public void captureNextFrame(java.util.function.Consumer<limn.graphics.Image> sink) { }
     @Override public void setContentScaleListener(ContentScaleListener listener) { }
 }

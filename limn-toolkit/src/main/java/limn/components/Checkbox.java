@@ -100,6 +100,25 @@ public class Checkbox extends Widget {
         return this;
     }
 
+    /**
+     * @return the caption beside the indicator, resolved in this widget's own language. The
+     *         accessible tree takes this as the control's name, so a caption that is not
+     *         reachable is a control a screen reader cannot announce.
+     */
+    public String text() {
+        return text.get();
+    }
+
+    /**
+     * @return the localizable string behind {@link #text()}. The "is it set here" reader, matching
+     *         the pair {@link Button} and {@link Label} expose: a name has to be re-resolvable when
+     *         the translation epoch or the subtree's language moves, and a private field with no
+     *         getter cannot be.
+     */
+    public I18nString textSource() {
+        return text;
+    }
+
     /** The current state. */
     public boolean isChecked() {
         return checked;
@@ -117,8 +136,20 @@ public class Checkbox extends Widget {
         return this;
     }
 
-    /** Flips the state and fires {@link #onChange}, as a click does. UI thread only. */
+    /**
+     * Flips the state and fires {@link #onChange}, as a click does. Does nothing on a disabled
+     * checkbox. UI thread only.
+     *
+     * <p>The guard is new and it is defence in depth rather than the mechanism: the reason a
+     * disabled checkbox did not toggle was that the scene never delivers it an event, which is
+     * true of a click and not of a public method. A method that flips a disabled control and fires
+     * the application's handler is a defect with or without an assistive technology asking it to.
+     */
     public void toggle() {
+        Ui.checkUiThread();
+        if (!isEnabled()) {
+            return;
+        }
         setChecked(!checked);
         onChange.accept(checked);
     }

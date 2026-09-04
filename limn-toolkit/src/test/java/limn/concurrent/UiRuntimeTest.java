@@ -136,15 +136,29 @@ class UiRuntimeTest {
         }
     }
 
+    /**
+     * Every post reaches the waker, and the waker decides.
+     *
+     * <p>This test believed the opposite until the accessibility work found the shape it left
+     * unserved: code running on the UI thread <em>while the loop is parked inside the platform's
+     * own pump</em>, which is not itself a platform event. A screen reader's action arrives that
+     * way, and under the old contract it sat in the queue until the user happened to move the
+     * mouse — indistinguishable, to that user, from a press that was ignored. The runtime cannot
+     * tell that caller from an ordinary one inside a drain; the backend can, so the decision moved
+     * there and this test moved with it.
+     */
     @Test
-    void postFromBackgroundThreadWakesTheLoopButUiThreadPostDoesNot() throws Exception {
+    void everyPostReachesTheWakerAndTheWakerDecides() throws Exception {
         runtime.post(() -> { });
-        assertEquals(0, wakeUps.get(), "UI-thread post must not need a wake-up");
+        assertEquals(1, wakeUps.get(), "a UI-thread post must reach the waker");
 
         Thread background = new Thread(() -> runtime.post(() -> { }), "background-poster");
         background.start();
         background.join(TimeUnit.SECONDS.toMillis(10));
-        assertTrue(wakeUps.get() >= 1, "background post must wake the native loop");
+        assertEquals(2, wakeUps.get(), "a background post must reach it too");
+
+        runtime.postDelayed(() -> { }, 0);
+        assertEquals(3, wakeUps.get(), "a delayed post must reach it as well");
     }
 
     @Test

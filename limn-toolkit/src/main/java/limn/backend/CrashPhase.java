@@ -24,5 +24,12 @@ public enum CrashPhase {
      */
     EVENT_POLL,
     /** Window teardown callbacks (focus-lost handlers, close observers). */
-    WINDOW_CLOSE
+    WINDOW_CLOSE,
+    /**
+     * A describe pass for the accessible tree. Application code the moment a widget subclass
+     * overrides its describe hook, and on one platform it runs inside a native callback the
+     * window system made, where an escaping exception unwinds into code with no Java frame to
+     * report it and the symptom is a process that dies saying nothing.
+     */
+    ACCESSIBILITY
 }

@@ -6,6 +6,7 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.i18n.I18nString;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
@@ -65,7 +66,7 @@ import java.util.function.Consumer;
  */
 public class SegmentedControl extends Widget {
 
-    private final List<String> segments;
+    private final List<I18nString> segments;
     private int selected;
     private int hoverIndex = -1;
     private Consumer<Integer> onSelect = index -> {
@@ -104,14 +105,68 @@ public class SegmentedControl extends Widget {
     private int revealPending = -1; // segment to scroll into view on the next layout
     private int chevronHover; // -1 previous, +1 next, 0 neither
 
-    /** A control over the given segment labels; the first is selected. Needs at least one. */
+    /**
+     * A control over the given fixed segment labels; the first is selected. Needs at least one.
+     *
+     * <p>Each label is wrapped as a literal, exactly as the {@code String} constructors of
+     * {@link Button}, {@link Label} and {@link Checkbox} do. A literal cannot follow the
+     * interface's language, so a control whose captions should is built from the
+     * {@linkplain #SegmentedControl(I18nString...) localizable} constructor instead.
+     *
+     * @param segments the captions; at least one
+     * @throws IllegalArgumentException if the list is empty
+     */
     public SegmentedControl(List<String> segments) {
-        if (segments.isEmpty()) {
+        this(segments.stream().map(I18nString::literal).toArray(I18nString[]::new));
+    }
+
+    /**
+     * A control whose segment captions follow the UI language; the first is selected.
+     *
+     * <p>Every other name in the accessible tree is resolved under the subtree's own language, and
+     * a caption held as a bare string is the one that cannot be: it is fixed at construction, so a
+     * screen reader reads it in whatever language the caller happened to build it in.
+     *
+     * @param segments the captions; at least one
+     * @throws IllegalArgumentException if none is given
+     * @throws NullPointerException     if any of them is {@code null}
+     */
+    public SegmentedControl(I18nString... segments) {
+        if (segments.length == 0) {
             throw new IllegalArgumentException("SegmentedControl needs at least one segment");
         }
-        this.segments = List.copyOf(segments);
+        List<I18nString> copy = new java.util.ArrayList<>(segments.length);
+        for (I18nString segment : segments) {
+            copy.add(Objects.requireNonNull(segment, "segment"));
+        }
+        this.segments = List.copyOf(copy);
         setFocusable(true);
         setCursor(Cursor.POINTER);
+    }
+
+    /**
+     * @return how many segments this control has; always at least one
+     */
+    public int segmentCount() {
+        return segments.size();
+    }
+
+    /**
+     * @param index a segment in {@code [0, segmentCount)}
+     * @return that segment's caption, resolved in this widget's own language
+     * @throws IndexOutOfBoundsException if {@code index} is not a segment
+     */
+    public String segment(int index) {
+        return segments.get(index).get();
+    }
+
+    /**
+     * @param index a segment in {@code [0, segmentCount)}
+     * @return the localizable string behind {@link #segment(int)}
+     * @throws IndexOutOfBoundsException if {@code index} is not a segment
+     */
+    public I18nString segmentSource(int index) {
+        return segments.get(index);
     }
 
     /**
@@ -184,7 +239,7 @@ public class SegmentedControl extends Widget {
             // reads left to right, and the fallback changes anything only for a label with no
             // strong character to decide with. The paint shapes the same string the same way, so
             // the width a segment is sized from is the width its label is centred by.
-            String text = segments.get(i);
+            String text = segments.get(i).get();
             float label = ruler.shape(text, font, ShapedText.Direction.of(text, neutral))
                     .metrics().width();
             // The one width-axis accessibility clamp on this control: a one-glyph segment at
@@ -430,7 +485,7 @@ public class SegmentedControl extends Widget {
             if (cellLeft + cellWidth < viewLeft || cellLeft > viewLeft + viewWidth) {
                 continue; // wholly outside the viewport: the clip would drop it anyway
             }
-            String label = segments.get(i);
+            String label = segments.get(i).get();
             // The same shaping the segment was sized from, so the label is centred by its own
             // width and not by a second opinion about it. A label is centred INSIDE its cell,
             // which is symmetric and so is the same offset in both directions; only the cell moves.

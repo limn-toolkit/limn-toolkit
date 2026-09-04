@@ -54,6 +54,38 @@ class CheckboxTest extends ComponentTestBase {
         assertEquals(Boolean.FALSE, seen.get());
     }
 
+    /**
+     * A public method that flips a disabled control and fires the application's handler is a
+     * defect with or without an assistive technology asking it to. The only reason a disabled
+     * checkbox did not toggle was that the scene never delivers it an event, which is a fact about
+     * clicks and not about this method.
+     */
+    @Test
+    void toggleRefusesADisabledCheckbox() {
+        build(Checkbox.Variant.BOX);
+        AtomicReference<Boolean> seen = new AtomicReference<>();
+        checkbox.onChange(seen::set);
+        checkbox.setEnabled(false);
+
+        checkbox.toggle();
+
+        assertFalse(checkbox.isChecked());
+        assertEquals(null, seen.get(), "a disabled control must not reach the handler");
+
+        checkbox.setEnabled(true);
+        checkbox.toggle();
+        assertTrue(checkbox.isChecked());
+        assertEquals(Boolean.TRUE, seen.get());
+    }
+
+    /** The caption a screen reader announces, reachable at last. */
+    @Test
+    void theCaptionIsReadableAsAStringAndAsItsSource() {
+        build(Checkbox.Variant.BOX);
+        assertEquals("option", checkbox.text());
+        assertEquals("option", checkbox.textSource().get());
+    }
+
     @Test
     void spaceTogglesWhenFocused() {
         build(Checkbox.Variant.SWITCH);
