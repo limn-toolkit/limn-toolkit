@@ -104,7 +104,6 @@ class AccessibleCoverageTest {
             "limn.components.chart.LineChart",
             "limn.scene.layout.Column",
             "limn.scene.layout.Expanded",
-            "limn.scene.layout.Row",
             "limn.scene.layout.SizedBox",
             "limn.scene.layout.Stack"
     ));
@@ -210,7 +209,25 @@ class AccessibleCoverageTest {
             // escape hatch rather than a leak. Focusing alone is not a fourth verb -- it supplies
             // nothing to publish, so the node survives as UNKNOWN and unnamed, which is a defect
             // the walk warns about and not a hatch. Pinned by limn.scene.PaddingAccessibilityTest.
-            "limn.scene.layout.Padding"
+            "limn.scene.layout.Padding",
+            // Ten lines around Flex, and neither declares a role, a name, an action or a state,
+            // neither overrides onPaint, neither clips, and neither is ever focusable of its own
+            // accord — so §1.6's predicate deletes a row and hoists its children into its parent's
+            // place. What the deletion leaves behind is the whole of the finding: a row publishes
+            // no node and a row is the boxes. The main-axis reflection, the split between the
+            // physical and the logical alignment vocabularies, the resolved flex share and the
+            // baseline sweep are the published x and width of every control underneath, and the
+            // tree is their second reader after paint — so §7's "the tree is the controls, not the
+            // boxes" is right in its verdict and misleading in its framing. Public and non-final,
+            // so naming, tooltipping or roling an instance materialises a node over the row's own
+            // rectangle: transparency is per instance, and that node is how an application asks
+            // for a TOOL_BAR over a button strip rather than a leak. The entry stands on the
+            // abstract Flex above it staying hookless — abstract classes take no entry of their
+            // own here — because a hook there would be inherited by Column and by TokenRow and
+            // would turn two pending verdicts into deferrals. Column stays undescribed until its
+            // own step: it is the same class body seen along the other axis, and none of this
+            // widget's geometry transfers to it. Pinned by limn.scene.RowAccessibilityTest.
+            "limn.scene.layout.Row"
     ));
 
     @Test
