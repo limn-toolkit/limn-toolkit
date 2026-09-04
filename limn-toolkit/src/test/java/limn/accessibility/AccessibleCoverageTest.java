@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -92,7 +93,6 @@ class AccessibleCoverageTest {
             "limn.components.Spinner",
             "limn.components.SplitPane",
             "limn.components.SplitPane$Divider",
-            "limn.components.SplitPane$Pane",
             "limn.components.TabbedPane",
             "limn.components.TabbedPane$StripButton",
             "limn.components.TabbedPane$TabHeader",
@@ -156,6 +156,35 @@ class AccessibleCoverageTest {
             // Nothing yet. A rail family or a chart family is where the first entries belong.
     ));
 
+    /**
+     * Widgets whose pipeline step settled that they describe nothing, on purpose.
+     *
+     * <p>The list above cannot express this, and that is why this one exists. ADR 039 §1.6 makes
+     * transparency a predicate rather than an opt-in: a widget that declares no role, no name, no
+     * action and no state of its own is deleted from the tree and its children hoisted into its
+     * place. A widget settled that way declares no describe hook <em>by definition</em>, so it
+     * could only ever be struck off the undescribed list by gaining an empty one &mdash; which
+     * would be a lie in the source and indistinguishable, to the check above, from a widget
+     * somebody described. Phase 4 would then be unable to end with that list empty.
+     *
+     * <p>So a name moves here instead, and is asserted in the inverse direction: nothing in this
+     * list may describe itself or inherit a description. That is the same guard the two lists
+     * above carry, pointed the other way, so this cannot quietly become a hiding place for a
+     * widget somebody later gave a hook to.
+     *
+     * <p>Every transparent widget still on the undescribed list belongs here eventually; each
+     * arrives in its own step, once that step has proved the deletion against the predicate and
+     * pinned what the deletion does <em>not</em> delete.
+     */
+    private static final Set<String> TRANSPARENT_BY_THE_PREDICATE = new TreeSet<>(Set.of(
+            // Clips its children, declares nothing, is never focusable and can never acquire a
+            // tooltip, so §1.6's predicate deletes it and hoists its content into the split's own
+            // place. The clip outlives the node: isShowing() walks widgets rather than nodes, so a
+            // collapsed pane's controls publish visible and not showing for free. Pinned by
+            // limn.components.SplitPaneAccessibilityTest.
+            "limn.components.SplitPane$Pane"
+    ));
+
     @Test
     void everyWidgetIsEitherDescribedOrOnTheListOfWhatIsLeft() {
         Set<String> undescribed = new TreeSet<>();
@@ -166,6 +195,9 @@ class AccessibleCoverageTest {
                         widget.getName() + " defers to an ancestor and no ancestor describes it");
                 continue;
             }
+            if (TRANSPARENT_BY_THE_PREDICATE.contains(widget.getName())) {
+                continue; // settled, deliberately, with no code; asserted in the test below
+            }
             if (!declaresItsOwn(widget)) {
                 undescribed.add(widget.getName());
             }
@@ -175,6 +207,23 @@ class AccessibleCoverageTest {
                         + "not in the field above is a widget nobody has said anything about; a "
                         + "name in the field and not here is a widget that was described and whose "
                         + "entry was left behind.");
+    }
+
+    @Test
+    void everyWidgetSettledAsTransparentStillSaysNothingAboutItself() {
+        Set<String> known = new TreeSet<>();
+        for (Class<?> widget : widgets()) {
+            known.add(widget.getName());
+        }
+        for (String name : TRANSPARENT_BY_THE_PREDICATE) {
+            assertTrue(known.contains(name),
+                    name + " is settled as transparent and is no longer a concrete widget; the "
+                            + "entry is stale");
+            assertFalse(describedAnywhereInItsAncestry(load(name)),
+                    name + " was settled as transparent and now describes itself. Either the "
+                            + "description is the mistake, or the entry is: a widget with a hook "
+                            + "belongs on the undescribed list until it is struck off for real.");
+        }
     }
 
     @Test

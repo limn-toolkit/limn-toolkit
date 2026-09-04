@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.backend.AccessibilityBridge;
 import limn.backend.Backend;
 import limn.backend.Clipboard;
 import limn.backend.Cursor;
@@ -39,6 +40,13 @@ class StubWindow implements NativeWindow {
     int screenX;
     int screenY;
     float logicalToScreenFactor = 1;
+
+    /**
+     * The bridge this window hands its scene. {@link AccessibilityBridge#NONE} unless a test sets
+     * one, which is the answer that keeps every other component test free of the accessible walk:
+     * with no bridge the scene never runs it.
+     */
+    AccessibilityBridge accessibility = AccessibilityBridge.NONE;
 
     /** A window on a platform that places windows where it is told, which is most of them. */
     StubWindow() {
@@ -112,4 +120,5 @@ class StubWindow implements NativeWindow {
     @Override public float logicalToScreenFactor() { return logicalToScreenFactor; }
     @Override public void captureNextFrame(java.util.function.Consumer<limn.graphics.Image> sink) { }
     @Override public void setContentScaleListener(ContentScaleListener listener) { }
+    @Override public AccessibilityBridge accessibility() { return accessibility; }
 }
