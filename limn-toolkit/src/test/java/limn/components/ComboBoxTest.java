@@ -205,6 +205,46 @@ class ComboBoxTest extends ComponentTestBase {
         assertFalse(combo.isOpen(), "outside press must dismiss the popup");
     }
 
+    /**
+     * The in-scene list is laid out by the overlay from the <em>field's</em> tokens and painted
+     * and hit by the panel from its own resolution, so the two have to land on one step or the
+     * rows a user aims at are not the rows that were drawn.
+     *
+     * <p>They did not. The overlay is parentless, so it resolves the owner scene's default and
+     * then the process default, and the panel is its child and follows it there: a field at
+     * XLARGE opened a 146-point list of 42-point rows whose hit test divided by 30. The click
+     * below lands in the middle of the second row and used to commit the third; the numbers are
+     * the field's own tokens rather than literals, so the case survives a re-tabled ramp.
+     */
+    @Test
+    void anInSceneListIsHitAtTheFieldsStepAndNotTheSceneDefault() {
+        limn.scene.layout.Column root = new limn.scene.layout.Column();
+        combo = new ComboBox(List.of("one", "two", "three"));
+        combo.onSelect(selected::set);
+        combo.setDisplayMode(DisplayMode.IN_SCENE);
+        combo.setControlSize(ControlSize.XLARGE); // the process default here is MEDIUM
+        root.add(combo);
+        scene = new Scene(root);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(300, 300);
+        scene.requestFocus(combo);
+
+        combo.open();
+        scene.layoutPass(300, 300); // the pass that places the overlay under the field
+        assertTrue(combo.isInSceneForTest(), "the fallback is what this is about");
+
+        SizeTokens t = Theme.current().tokensFor(combo);
+        float rowCentre = combo.height() + t.popupGap()          // the list's top edge
+                + t.popupPadV() + 1.5f * t.popupItemHeight();    // the middle of row 1
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, rowCentre);
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, rowCentre);
+        scene.inputBatchEnded();
+
+        assertEquals(1, combo.selectedIndex(),
+                "the row under the pointer is the row that was drawn there");
+        assertEquals(1, selected.get());
+    }
+
     // ------------------------------------------------------------- the ramp
 
     /** A combo alone in a scene under the font-faithful ruler, measured unbounded. */

@@ -53,6 +53,9 @@ import java.util.function.Consumer;
  * of its own window-bound {@link Scene}, so it inherits through
  * {@link Widget#setInheritanceHost} rather than through the tree. A dropdown at a different
  * density from the field that opened it is simply a bug, so there is no setter on the panel.
+ * The in-scene presentation carries the same link on the overlay layer, which is the parentless
+ * widget there — the panel's own would be ignored, because a host link on a widget that has a
+ * parent loses to the tree.
  *
  * <p>The {@link LayoutDirection} arrives by that same link and for that same reason: a list
  * whose rows read the other way from the field that opened them is a bug rather than a
@@ -427,6 +430,22 @@ public class ComboBox extends Widget {
         // or in one direction, inside a box measured at another.
         popupPanel.setInheritanceHost(this);
         scenePopup = new ScenePopup(popupPanel);
+        // The link goes on the OVERLAY as well, and it is the overlay's that does the work: the
+        // panel's own is ignored here, because a host link on a widget that has a parent loses to
+        // the tree, and in this presentation the panel's parent is the overlay. Without this the
+        // whole in-scene subtree resolves the owner scene's default and then the process default,
+        // so a field at a declared step opens a list whose box is measured at the field's step
+        // (this class reads the field's tokens for that) and whose rows are painted and hit at
+        // another, and a list opened by a field in its own language resolves its rows in a
+        // different one. Before the push, for the reason the panel's own goes on before it:
+        // pushOverlay measures, and a link installed afterwards sizes at the wrong step first.
+        //
+        // It reaches as far as the link is defined to reach and no further: a host is consulted
+        // after the widget's own scene default, so an owner scene that declares a step or a
+        // language still wins over the field here, where a popup in a window of its own falls
+        // through to the field because its scene declares nothing. That is the axis rule rather
+        // than this component's, and the case this fixes is the one the class promises.
+        scenePopup.setInheritanceHost(this);
         // Assigned before pushOverlay, which moves focus off the field: onFocusLost reads this
         // field to tell "the user clicked elsewhere" from "our own overlay took the keyboard",
         // and the second one must not close the popup it is opening.
