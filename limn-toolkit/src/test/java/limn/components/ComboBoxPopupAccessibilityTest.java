@@ -481,6 +481,12 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
                 "the hook carries its own enabled guard, which is the only one there is in a "
                         + "window of its own: the scene's gate walks the panel's ancestors, and "
                         + "there the panel has none");
+        assertFalse(options().get(2).has(Accessible.State.ENABLED),
+                "and the row says so. The list is a parentless overlay, so the enabled axis "
+                        + "reaches it through the inheritance host rather than through a parent; "
+                        + "while it did not, the row advertised SELECT and PRESS on a control "
+                        + "that refuses both, which is a node lying about what it will do"
+                        + describe(tree()));
     }
 
     @Test

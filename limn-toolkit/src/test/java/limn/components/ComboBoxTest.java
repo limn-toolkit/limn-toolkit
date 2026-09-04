@@ -245,6 +245,44 @@ class ComboBoxTest extends ComponentTestBase {
         assertEquals(1, selected.get());
     }
 
+    /**
+     * A combo disabled while its list is already open refuses a row click.
+     *
+     * <p>The list is a parentless overlay, so nothing between the row and the field stops an
+     * event: the scene's own gate walks the panel's ancestors and finds none. Until the guard
+     * moved onto the commit itself, the accessible hook refused a pick while a click on the very
+     * same row went through, which is the inverse of the rule the whole of this work rests on.
+     */
+    @Test
+    void aComboDisabledWhileOpenRefusesARowClick() {
+        limn.scene.layout.Column root = new limn.scene.layout.Column();
+        combo = new ComboBox(List.of("one", "two", "three"));
+        combo.onSelect(selected::set);
+        combo.setDisplayMode(DisplayMode.IN_SCENE);
+        combo.setControlSize(ControlSize.XLARGE);
+        root.add(combo);
+        scene = new Scene(root);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(300, 300);
+        scene.requestFocus(combo);
+
+        combo.open();
+        scene.layoutPass(300, 300);
+        combo.setEnabled(false);
+        scene.layoutPass(300, 300);
+
+        SizeTokens t = Theme.current().tokensFor(combo);
+        float rowCentre = combo.height() + t.popupGap()
+                + t.popupPadV() + 1.5f * t.popupItemHeight();
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, rowCentre);
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, rowCentre);
+        scene.inputBatchEnded();
+
+        assertEquals(0, combo.selectedIndex(),
+                "the same row a click commits when the combo is enabled");
+        assertEquals(-1, selected.get(), "and no callback either");
+    }
+
     // ------------------------------------------------------------- the ramp
 
     /** A combo alone in a scene under the font-faithful ruler, measured unbounded. */

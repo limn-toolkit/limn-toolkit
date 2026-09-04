@@ -202,7 +202,11 @@ class ComboBoxScenePopupAccessibilityTest extends AccessibleComponentTestBase {
                 "focus stays on this node while the highlight moves, so this is the only node "
                         + "whose active descendant a reader will read" + describe(tree()));
         assertFalse(selection.multiSelectable(), "one row at a time");
-        assertFalse(selection.required());
+        assertTrue(selection.required(),
+                "a combo refuses an empty item list, so there is always exactly one selection and "
+                        + "nothing to clear to; the panel's facet says the same over these very "
+                        + "members, and this is the node a bridge reads because it is the focused "
+                        + "one" + describe(tree()));
         // The facet declares the container; which of its descendants the cursor is on is the
         // first node in its subtree published ACTIVE, and the panel's own step is what marks
         // that row. It is the HIGHLIGHTED option and not the selected one, which in a combo are

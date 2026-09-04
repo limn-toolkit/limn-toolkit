@@ -531,6 +531,15 @@ public class ComboBox extends Widget {
         if (!open) {
             return; // the popup is already closing (e.g. a click during its fade-out)
         }
+        if (!isEnabled()) {
+            // The one choke point every commit goes through: the row a click landed in, the
+            // keyboard's highlight, and an assistive technology's SELECT. A combo disabled while
+            // its list is open kept committing on a click, because the list is a parentless
+            // overlay and the scene's ancestor gate never reaches the field -- so the guard on
+            // the synthetic hook was refusing the one caller that was doing it politely while
+            // the pointer went through. Refusing here is what makes the two agree.
+            return;
+        }
         // Clamped rather than range-checked: both callers are the popup's own bookkeeping (the
         // row a click landed in, and the keyboard highlight), and neither is an application
         // naming an index, which is the only thing setSelectedIndex refuses.
@@ -1137,8 +1146,12 @@ public class ComboBox extends Widget {
             // descendants the cursor is on is the first one published ACTIVE, filled in by the
             // publish step, so this is inert until the panel marks its highlighted row. In this
             // list the cursor and the selection are two things: the highlight moves under the
-            // arrows and the selection moves only on commit.
-            a.selection(false, false);
+            // arrows and the selection moves only on commit -- which is about the ACTIVE
+            // descendant and not about whether a selection exists. Required is true for the
+            // combo's own documented reason, the same one the panel's facet gives over these
+            // very members: it refuses an empty item list, so there is always exactly one
+            // selection and nothing to clear to.
+            a.selection(false, true);
             // The single-argument form, never the variable-argument one, which allocates an
             // array per call. CANCEL and nothing else: Esc dismisses the list, a press on this
             // layer is the click-outside dismissal that CANCEL already names, and offering both
