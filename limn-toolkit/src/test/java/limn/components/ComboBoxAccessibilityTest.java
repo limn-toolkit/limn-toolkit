@@ -205,18 +205,17 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
     // ---------------------------------------------------------------------------------- the name
 
     @Test
-    void theFieldDoesNotNameItselfFromTheItemItIsShowing() {
+    void theFieldNamesItselfFromTheItemItIsShowing() {
         bindCombo();
 
-        assertEquals("", field().name(),
-                "a combo has no caption of its own: its items are values and not a label. Naming "
-                        + "it from the item would move the name on every pick, and on the one "
-                        + "platform that maps a name and a value to different attributes a reader "
-                        + "would hear the same word twice for every combo in the interface. The "
-                        + "name is the application's to set, and this pins that it is not "
-                        + "invented here" + describe(tree()));
+        assertEquals("One", field().name(),
+                "a combo has no caption of its own, and a focusable node with no name at all is "
+                        + "what §12.1's gallery test refuses. Naming it from the item costs a "
+                        + "reader the same word twice where a platform maps name and value to "
+                        + "different attributes; that is the accepted price of a default no "
+                        + "application has to remember" + describe(tree()));
         assertEquals("One", field().value().text(),
-                "and the item is still published, as the value it is");
+                "and the item is still published as the value it also is");
     }
 
     @Test
@@ -225,9 +224,12 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
 
         combo.setTooltip("Theme");
         frame();
-        assertEquals("Theme", field().name(), describe(tree()));
-        assertEquals(Accessible.NameFrom.TOOLTIP, field().nameFrom(),
-                "the free default, and the provenance says which default it was");
+        assertEquals("One", field().name(), describe(tree()));
+        assertEquals(Accessible.NameFrom.CONTENT, field().nameFrom(),
+                "the field already named itself from its item, so the tooltip does not take the "
+                        + "name slot the way it does on a widget that supplied none");
+        assertEquals("Theme", field().description(),
+                "it becomes the description instead, which is the walk's own rule");
 
         combo.setAccessibleName("Colour theme");
         frame();

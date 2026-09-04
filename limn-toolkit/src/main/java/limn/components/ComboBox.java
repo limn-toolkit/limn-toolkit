@@ -891,6 +891,16 @@ public class ComboBox extends Widget {
     @Override
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.COMBO_BOX);
+        // The item it is showing, because a focusable node with no name at all is the one thing
+        // §12.1's gallery test refuses, and a combo has no caption of its own to offer instead.
+        // The item is the value as well, so a reader does hear the word twice where a platform
+        // maps name and value to different attributes -- that is the accepted cost of a default
+        // that needs no application to remember anything. An application that wants better says
+        // so, and both ways of saying it win over this: setAccessibleName replaces it outright,
+        // and a Label bound to this field names it through LABELLED_BY. The source form, never
+        // the cached one: the item is an I18nString this widget holds, compared by reference, so
+        // a hover or focus fade walks this hook without allocating.
+        a.name(items.get(selectedIndex), Accessible.NameFrom.CONTENT);
         // Always, and not only while the list is down: a combo that could not be opened would not
         // be a combo, and this is the bit a reader uses to say so before anything has happened.
         a.state(Accessible.State.HAS_POPUP);
