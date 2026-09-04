@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.backend.NativeWindow;
@@ -869,6 +871,13 @@ public class ComboBox extends Widget {
      * <p>The list is clamped to the scene rather than to the display, so a combo near the bottom
      * of a window has less room than the same combo would on a platform that can put its list in
      * a window. That is the visible cost of the fallback, and it is why it is a fallback.
+     *
+     * <p><b>It is a node in the accessible tree, and holding the keyboard is why.</b> A layer
+     * that paints nothing would ordinarily be deleted as scaffolding, but this one is the
+     * scene's focused widget and its only tab stop for as long as the list is open, so deleting
+     * it would put the tree and the keyboard into disagreement. It says what it is, names itself
+     * because nothing else can, and carries the active descendant a reader follows the arrows
+     * by; the options themselves are the panel's, which is where they are drawn.
      */
     private final class ScenePopup extends Widget {
 
@@ -941,6 +950,68 @@ public class ComboBox extends Widget {
                 close();
                 event.consume();
             }
+        }
+
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            // This layer is not scaffolding, whatever a survey of it from the outside says. The
+            // constructor makes it focusable and pushOverlay's focus traverse finds nothing
+            // focusable beneath it, so for the whole life of an in-scene list it is the scene's
+            // focused widget and its only tab stop. Deleting it would leave the published
+            // focusable set empty while the keyboard reaches one widget, which is the equality
+            // the modal rule states, and would leave the focused identifier naming a node the
+            // tree does not contain. Every parentless top overlay is also declared modal by the
+            // walk before the transparency predicate runs, so none of them can be deleted.
+            //
+            // The role is declared rather than left to the reset default, because a declared
+            // role is what stops a focusable node being published as UNKNOWN with a warning
+            // logged once and read by nobody. GROUP and not LIST: the panel below is the list,
+            // it has the list's own rectangle, and two nested lists is a shape every bridge has
+            // to invent its way out of. Not WINDOW, which the tree's own root already is; not
+            // DIALOG, which this is not and which a Windows client acts on.
+            a.role(Accessible.Role.GROUP);
+            // A constant this class holds, never a string built here: an open list runs a fade
+            // and damages this layer on every frame of it, and anything allocated in this hook
+            // is allocated per frame to conclude that nothing moved. Nothing else can name it --
+            // it paints nothing, has no tooltip, and is private to this file -- and the field's
+            // own name is not reachable from this package. The relation below is what carries
+            // the link to the field instead. The provenance is the control's own name and not a
+            // description of it, which is the slot a tooltip would take.
+            a.name(ComponentStrings.COMBO_POPUP, Accessible.NameFrom.CONTENT);
+            // The whole reason for describing this node well. Focus never moves while the list
+            // is open, so the only way a reader can follow Up, Down, Home, End, the page keys or
+            // type-ahead is an active descendant on the node that holds the focus -- which is
+            // this one, and not the list. The facet declares the container; which of its
+            // descendants the cursor is on is the first one published ACTIVE, filled in by the
+            // publish step, so this is inert until the panel marks its highlighted row. In this
+            // list the cursor and the selection are two things: the highlight moves under the
+            // arrows and the selection moves only on commit.
+            a.selection(false, false);
+            // The single-argument form, never the variable-argument one, which allocates an
+            // array per call. CANCEL and nothing else: Esc dismisses the list, a press on this
+            // layer is the click-outside dismissal that CANCEL already names, and offering both
+            // would be two verbs for one behaviour. FOCUS and SCROLL_INTO_VIEW arrive free
+            // because the widget is focusable, and MODAL arrives free from the walk, so neither
+            // is written here.
+            a.action(Accessible.Action.CANCEL);
+            // No bounds call. The node's box is this overlay's own, which is the whole scene --
+            // the layer that genuinely captures every press, the same shape as a dialog's scrim
+            // -- so a platform hit test outside the list resolves to this node, and that is
+            // true: a press there closes the popup. The list's rectangle is the panel's node.
+        }
+
+        @Override
+        protected boolean onAccessibilityAction(Accessible.Action action,
+                                                Accessible.Argument arg) {
+            if (action != Accessible.Action.CANCEL) {
+                return false;
+            }
+            // The path Esc takes, with its own guards: close() checks the thread and returns on
+            // a popup that is already closing, and the posted action has already re-checked
+            // attachment, the enabled chain, showing and reachability. Nothing here gains an
+            // entry point the keyboard does not already use.
+            ComboBox.this.close();
+            return true;
         }
     }
 

@@ -56,6 +56,14 @@ final class ComponentStrings {
     static final I18nString SPLIT_DIVIDER =
             new I18nString("limn.splitPane.divider", "Divider");
 
+    // What a screen reader calls the layer an in-scene dropdown list is drawn on, and the
+    // toolkit has to supply it for the divider's reason and one more: that layer paints nothing
+    // at all, holds no text, can never acquire a tooltip, and is a private inner class no
+    // application can reach to name. It holds the keyboard for the whole life of the list, so
+    // without this it is a focusable control with an empty name.
+    static final I18nString COMBO_POPUP =
+            new I18nString("limn.comboBox.popup", "Options");
+
     // The dialog a ColorPickerButton raises. Here rather than in ColorPickerStrings
     // because two of the three are the words every dialog in every application uses,
     // and this is the first place the toolkit itself has had to supply them: a Dialog
