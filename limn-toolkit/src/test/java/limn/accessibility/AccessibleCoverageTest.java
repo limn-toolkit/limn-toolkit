@@ -91,8 +91,6 @@ class AccessibleCoverageTest {
             "limn.components.Separator",
             "limn.components.Slider",
             "limn.components.Spinner",
-            "limn.components.SplitPane",
-            "limn.components.SplitPane$Divider",
             "limn.components.TabbedPane",
             "limn.components.TabbedPane$StripButton",
             "limn.components.TabbedPane$TabHeader",

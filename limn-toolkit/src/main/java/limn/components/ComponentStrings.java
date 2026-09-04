@@ -49,6 +49,13 @@ final class ComponentStrings {
     static final I18nString TEXT_MENU_SELECT_ALL =
             new I18nString("limn.textMenu.selectAll", "Select All");
 
+    // What a screen reader calls the bar between a split's two panes. The toolkit has to supply
+    // it: the divider paints a line and no text, it has no tooltip, and an application cannot
+    // reach it to name it, so without this a split whose divider was made a tab stop publishes a
+    // focusable control with an empty name.
+    static final I18nString SPLIT_DIVIDER =
+            new I18nString("limn.splitPane.divider", "Divider");
+
     // The dialog a ColorPickerButton raises. Here rather than in ColorPickerStrings
     // because two of the three are the words every dialog in every application uses,
     // and this is the first place the toolkit itself has had to supply them: a Dialog

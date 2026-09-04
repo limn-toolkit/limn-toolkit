@@ -11,6 +11,10 @@ import limn.scene.Widget;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * A component bound to a scene whose window hands out a bridge that keeps what it is given: the
@@ -60,9 +64,28 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
         /** Every event handed over, in order. */
         final List<AccessibleEvent> events = new ArrayList<>();
 
+        /**
+         * The scene-side object a real bridge calls to perform an action, kept so that a test can
+         * stand where a bridge stands. It is the only way in: a component test may not call a
+         * widget's hook itself, because half of what the path guarantees — the identifier
+         * resolving, the ancestor chain being enabled, the post landing on the thread that owns
+         * the tree — happens on the way there.
+         */
+        Host host;
+
         @Override
         public boolean isListening() {
             return listening;
+        }
+
+        @Override
+        public void attach(Host attached) {
+            host = attached;
+        }
+
+        @Override
+        public void detach() {
+            host = null;
         }
 
         @Override
@@ -143,6 +166,50 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
             found.add(tree.node(at));
         }
         return found;
+    }
+
+    /**
+     * @param role the role to look for
+     * @return the one node carrying it
+     * @throws AssertionError when no node does, or when more than one does
+     */
+    protected AccessibleNode node(Accessible.Role role) {
+        AccessibleTree tree = tree();
+        AccessibleNode found = null;
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            if (tree.node(i).role() == role) {
+                if (found != null) {
+                    throw new AssertionError("more than one " + role + " in " + describe(tree));
+                }
+                found = tree.node(i);
+            }
+        }
+        if (found == null) {
+            throw new AssertionError("no " + role + " in " + describe(tree));
+        }
+        return found;
+    }
+
+    /**
+     * Asks the scene to perform an action <em>from another thread</em>, as a bridge does on two of
+     * the three platforms, and drains the queue the call posts into.
+     *
+     * @param nodeId the node to act on
+     * @param action what to ask of it
+     * @param arg    the argument, or {@link Accessible.Argument#NONE}
+     * @return whether the scene accepted it, which is not the same as done
+     * @throws InterruptedException if the wait for the calling thread is interrupted
+     */
+    protected boolean perform(long nodeId, Accessible.Action action, Accessible.Argument arg)
+            throws InterruptedException {
+        AtomicBoolean accepted = new AtomicBoolean();
+        Thread caller = new Thread(
+                () -> accepted.set(bridge.host.perform(nodeId, action, arg)), "platform-thread");
+        caller.start();
+        caller.join(TimeUnit.SECONDS.toMillis(10));
+        assertFalse(caller.isAlive(), "the host must never block its caller");
+        runtime.drain();
+        return accepted.get();
     }
 
     /**

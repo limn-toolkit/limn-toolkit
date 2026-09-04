@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -360,6 +362,21 @@ public final class SplitPane extends Widget {
         widget.layoutBox(x, y, w, h);
     }
 
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        // The role and nothing else, and the role is the whole of the reason: a split declares no
+        // paint of its own, so a node saying nothing would be deleted as scaffolding with no
+        // warning logged anywhere, and the tree would hold a splitter among two panes' hoisted
+        // contents with nothing saying what it divides.
+        //
+        // No orientation bit here deliberately. The three platforms disagree about what a split
+        // *group*'s orientation names -- one takes the panes' axis, another the divider's -- so a
+        // bit on this node would force a bridge to invert it or to lie. The splitter carries an
+        // unambiguous one, and a bridge that wants the container's reads it from there. The value
+        // is on the splitter for the same reason it carries the verbs: one source, not two copies.
+        a.role(Accessible.Role.SPLIT_PANE);
+    }
+
     // ------------------------------------------------------------- the parts
 
     /**
@@ -622,6 +639,74 @@ public final class SplitPane extends Widget {
         @Override
         protected void onFocusLost() {
             focusFade.to(0);
+        }
+
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.SPLITTER);
+            // A constant this class holds and never a string built here: a hover runs a fade, so
+            // the divider is damaged on every frame one lasts, and anything allocated in this
+            // hook is allocated sixty times a second to conclude that nothing moved. The divider
+            // has no text, no tooltip and no accessor an application could reach, so the toolkit
+            // is the only thing that can name it; the provenance is the control's own name rather
+            // than a description of it, which is the slot a tooltip would take.
+            a.name(ComponentStrings.SPLIT_DIVIDER, Accessible.NameFrom.CONTENT);
+            // The inverse of the split's own orientation, and the first paragraph of this class
+            // is why: the orientation names the axis the panes are arranged along, not the
+            // divider. Panes side by side are divided by a vertical line, which is exactly what
+            // onPaint draws for them.
+            a.state(horizontal() ? Accessible.State.VERTICAL : Accessible.State.HORIZONTAL);
+            // The first pane's extent in points, not the ratio. The ratio is the share that was
+            // *asked for*, before any minimum applies, so wherever a floor binds it names a
+            // position the divider is not at; and a ratio has no honest step, because KEY_STEP is
+            // ten points and ten points is a different fraction after every resize. These are the
+            // numbers firstExtent produced for this frame, read back off the boxes it laid out:
+            // the publish step runs after layout, and resolving the step a second time inside one
+            // component is what this file refuses everywhere else.
+            float first = horizontal() ? firstPane.width() : firstPane.height();
+            float second = horizontal() ? secondPane.width() : secondPane.height();
+            float total = first + second;
+            float low = Math.min(firstMin, total);
+            float high = Math.max(low, total - secondMin);
+            a.value(first, low, high, KEY_STEP);
+            // The pair and never the variable-argument form, which allocates an array per call.
+            // SET_VALUE is not offered here: a settable value is advertised by the facet.
+            a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+        }
+
+        @Override
+        protected boolean onAccessibilityAction(Accessible.Action action,
+                                                Accessible.Argument arg) {
+            // The widget keeps its own guard, as the pointer and the keyboard arms do: the
+            // scene's gate has already checked the ancestor chain, and dragTo has no guard of its
+            // own to fall back on.
+            if (!isEnabled()) {
+                return false;
+            }
+            SizeTokens t = Theme.current().tokensFor(this);
+            // firstExtent rather than the laid-out box: an action can arrive between a ratio
+            // change and the next layout, where the boxes are a frame stale and this is current.
+            float here = firstExtent(shareable(t));
+            switch (action) {
+                case SET_VALUE -> {
+                    if (!(arg instanceof Accessible.Argument.OfValue set)) {
+                        return false;
+                    }
+                    dragTo(t, (float) set.value());
+                    return true;
+                }
+                // INCREMENT does not mirror, and the arrows do. The arrows are screen directions,
+                // so the whole arm flips in a right-to-left layout; these are defined on the
+                // published value, which is the first pane's extent and is a magnitude, so
+                // INCREMENT grows the first pane whichever way the layout reads -- the same
+                // reasoning Home and End already take in this file.
+                case INCREMENT -> dragTo(t, here + KEY_STEP);
+                case DECREMENT -> dragTo(t, here - KEY_STEP);
+                default -> {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }
