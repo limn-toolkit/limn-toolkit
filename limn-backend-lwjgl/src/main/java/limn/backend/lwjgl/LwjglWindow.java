@@ -25,6 +25,7 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.Objects;
 
+import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MAJOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MINOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CURSOR;
@@ -37,6 +38,8 @@ import static org.lwjgl.glfw.GLFW.GLFW_DONT_CARE;
 import static org.lwjgl.glfw.GLFW.GLFW_FALSE;
 import static org.lwjgl.glfw.GLFW.GLFW_FLOATING;
 import static org.lwjgl.glfw.GLFW.GLFW_FOCUS_ON_SHOW;
+import static org.lwjgl.glfw.GLFW.GLFW_FORMAT_UNAVAILABLE;
+import static org.lwjgl.glfw.GLFW.GLFW_NO_API;
 import static org.lwjgl.glfw.GLFW.GLFW_IME;
 import static org.lwjgl.glfw.GLFW.GLFW_RAW_MOUSE_MOTION;
 import static org.lwjgl.glfw.GLFW.GLFW_PRESS;
@@ -116,8 +119,17 @@ final class LwjglWindow implements NativeWindow {
 
     private static final System.Logger LOG = System.getLogger(LwjglWindow.class.getName());
 
+    // Whether this machine has already answered the accelerated-context question
+    // with "no" (see the constructor). UI thread only, like every window.
+    private static boolean macSoftwareGl;
+
     private final LwjglBackend backend;
     private final long handle;
+    // The hand-built macOS software-renderer context, or NULL on every normal
+    // window (which is every window on every other platform, and nearly all of
+    // them on macOS). Non-NULL means GLFW owns no context for this window, so
+    // make-current, swap and swap-interval go through the ObjC object instead.
+    private final long nsglContext;
     private final GLCapabilities glCapabilities;
     private final GlRenderer renderer;
     private final limn.backend.Clipboard clipboard;
@@ -188,19 +200,57 @@ final class LwjglWindow implements NativeWindow {
         // window by the monitor scale so WindowConfig stays in logical points.
         glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
 
-        handle = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+        // Ask for the accelerated context first, on every platform macOS included:
+        // this is the path every real machine takes, and it is unchanged. Only
+        // once this machine has been SEEN to refuse (or the property asks) do we
+        // stop asking: a menu that reopens a hundred times must not spend a
+        // hundred failed context creations, nor print a hundred GLFW errors.
+        boolean softwareGl = MACOS && (macSoftwareGl || MacSoftwareGl.forced());
+        long created = softwareGl ? NULL
+                : glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+        GraphicsProbe.Failure failure = created == NULL && !softwareGl
+                ? GraphicsProbe.lastFailure() : null;
+        if (created == NULL && (softwareGl || (MACOS && failure.code() == GLFW_FORMAT_UNAVAILABLE))) {
+            // A macOS box whose only renderer is the software one: NSGL matches no
+            // pixel format because GLFW asks every one of them for acceleration.
+            // Retry for the window alone and build the context ourselves; see
+            // MacSoftwareGl for what is different about it and why.
+            softwareGl = true;
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+            created = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+            failure = created == NULL ? GraphicsProbe.lastFailure() : null;
+        }
+        handle = created;
         if (handle == NULL) {
             // GLFW's own description instead of a guess: the reason is usually
             // specific ("WGL: Failed to create OpenGL context"), and naming the
             // windowing platform matters because it is picked at run time: the
             // same binary reaches X11 or Wayland depending on the session.
             throw new IllegalStateException("glfwCreateWindow failed on the "
-                    + GraphicsProbe.platformName() + " platform: " + GraphicsProbe.lastError()
+                    + GraphicsProbe.platformName() + " platform: " + failure
                     + "; Limn needs an OpenGL 3.3 core context");
         }
-        glfwMakeContextCurrent(handle);
+        long softwareContext = NULL;
+        if (softwareGl) {
+            softwareContext = MacSoftwareGl.createContext(handle, config.transparent());
+            if (softwareContext == NULL) {
+                glfwDestroyWindow(handle);
+                throw new IllegalStateException("this Mac offers no OpenGL 3.2 core pixel format "
+                        + "even without NSOpenGLPFAAccelerated; Limn needs an OpenGL 3.3 core context");
+            }
+            if (!macSoftwareGl) {
+                LOG.log(Level.INFO, "OpenGL context: macOS software fallback ({0}); built as an "
+                        + "NSOpenGLContext without NSOpenGLPFAAccelerated, and taken by every "
+                        + "window from here on; force it anywhere with -D{1}=true",
+                        MacSoftwareGl.forced() ? "requested" : "GLFW found no accelerated pixel format",
+                        MacSoftwareGl.PROPERTY);
+                macSoftwareGl = true;
+            }
+        }
+        nsglContext = softwareContext;
+        makeContextCurrent();
         glCapabilities = GL.createCapabilities();
-        glfwSwapInterval(1); // vsync
+        setSwapInterval(1); // vsync
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer width = stack.mallocInt(1);
@@ -218,6 +268,10 @@ final class LwjglWindow implements NativeWindow {
         glfwSetFramebufferSizeCallback(handle, (win, width, height) -> {
             framebufferWidth = width;
             framebufferHeight = height;
+            if (nsglContext != NULL) {
+                // GLFW resizes the drawables it owns; this one is ours to tell.
+                MacSoftwareGl.update(nsglContext);
+            }
             updatePixelsPerScreenCoord();
             if (input != null) {
                 input.windowResized(logicalWidth(), logicalHeight());
@@ -388,6 +442,34 @@ final class LwjglWindow implements NativeWindow {
         return handle;
     }
 
+    // The three context calls GLFW cannot make for a window created with no client
+    // API. Everywhere but the macOS software fallback these ARE the GLFW calls, and
+    // nsglContext is NULL, so the branch is a field test against a constant.
+
+    private void makeContextCurrent() {
+        if (nsglContext == NULL) {
+            glfwMakeContextCurrent(handle);
+        } else {
+            MacSoftwareGl.makeCurrent(nsglContext);
+        }
+    }
+
+    private void setSwapInterval(int interval) {
+        if (nsglContext == NULL) {
+            glfwSwapInterval(interval);
+        } else {
+            MacSoftwareGl.setSwapInterval(nsglContext, interval);
+        }
+    }
+
+    private void swapBuffers() {
+        if (nsglContext == NULL) {
+            glfwSwapBuffers(handle);
+        } else {
+            MacSoftwareGl.swapBuffers(nsglContext);
+        }
+    }
+
     /** @return this window's resident texture stats (glyph atlas + image cache). */
     limn.backend.RenderStats renderStats() {
         return renderer.stats();
@@ -398,7 +480,7 @@ final class LwjglWindow implements NativeWindow {
      *         current, so call it between frames and not inside one.
      */
     limn.backend.GraphicsInfo readGraphicsInfo() {
-        glfwMakeContextCurrent(handle);
+        makeContextCurrent();
         GL.setCapabilities(glCapabilities);
         return GraphicsProbe.read(handle, glCapabilities);
     }
@@ -542,13 +624,13 @@ final class LwjglWindow implements NativeWindow {
         }
         rendering = true;
         try {
-            glfwMakeContextCurrent(handle);
+            makeContextCurrent();
             // LWJGL caps are thread-local per context: re-bind when hopping windows.
             GL.setCapabilities(glCapabilities);
             // One window per loop iteration paces on vblank; the others swap
             // free into the same one (see renderNow). The interval is
             // per-context state, so re-assert it every frame.
-            glfwSwapInterval(vsync ? 1 : 0);
+            setSwapInterval(vsync ? 1 : 0);
             glViewport(0, 0, framebufferWidth, framebufferHeight);
             frameRequested = false; // callback may re-request for the next frame
             float scale = effectiveScale();
@@ -560,11 +642,11 @@ final class LwjglWindow implements NativeWindow {
             } finally {
                 // User code may have switched GL contexts (posting is the
                 // sanctioned path for window creation, but stay safe).
-                glfwMakeContextCurrent(handle);
+                makeContextCurrent();
                 GL.setCapabilities(glCapabilities);
                 renderer.endFrame();
             }
-            glfwSwapBuffers(handle);
+            swapBuffers();
         } finally {
             rendering = false;
         }
@@ -643,9 +725,13 @@ final class LwjglWindow implements NativeWindow {
         // a floating (always-on-top) popup can't be orphaned on screen.
         childPopups.closeAll();
         // GL resources (VBO/shader) must die on their own context.
-        glfwMakeContextCurrent(handle);
+        makeContextCurrent();
         GL.setCapabilities(glCapabilities);
         renderer.dispose();
+        if (nsglContext != NULL) {
+            // Ours to release, and it must let go of the view before the window goes.
+            MacSoftwareGl.dispose(nsglContext);
+        }
         // glfwFreeCallbacks predates the preedit patch and does not free this
         // callback; its native upcall stub pins this window (and its scene)
         // through a JNI global ref unless freed explicitly.
@@ -806,6 +892,10 @@ final class LwjglWindow implements NativeWindow {
     public void show() {
         backend.uiRuntime().checkUiThread();
         glfwShowWindow(handle);
+        if (nsglContext != NULL) {
+            // A window built hidden (every popup) gets its drawable here.
+            MacSoftwareGl.update(nsglContext);
+        }
     }
 
     @Override

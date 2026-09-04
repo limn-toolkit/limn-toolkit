@@ -95,15 +95,35 @@ final class GraphicsProbe {
      *         Reading it clears it, so call this once, at the failure.
      */
     static String lastError() {
+        return lastFailure().toString();
+    }
+
+    /**
+     * The same reading as {@link #lastError()}, with the code still a number: a caller that has to
+     * <em>act</em> on one specific failure cannot be asked to match on prose.
+     *
+     * @return GLFW's last error on this thread, never null. Reading it clears it, so take either
+     *         this or {@link #lastError()}, once, at the failure.
+     */
+    static Failure lastFailure() {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             PointerBuffer description = stack.mallocPointer(1);
             int code = glfwGetError(description);
             if (code == GLFW_NO_ERROR) {
-                return "no error reported";
+                return new Failure(GLFW_NO_ERROR, "no error reported");
             }
             long text = description.get(0);
-            return (text == NULL ? "unnamed error" : MemoryUtil.memUTF8(text))
-                    + " (0x" + Integer.toHexString(code) + ")";
+            return new Failure(code, text == NULL ? "unnamed error" : MemoryUtil.memUTF8(text));
+        }
+    }
+
+    /** A GLFW error code and the description GLFW gave with it. */
+    record Failure(int code, String description) {
+        @Override
+        public String toString() {
+            return code == GLFW_NO_ERROR
+                    ? description
+                    : description + " (0x" + Integer.toHexString(code) + ")";
         }
     }
 
@@ -118,6 +138,12 @@ final class GraphicsProbe {
     }
 
     private static String apiName(long window) {
+        if (foreignContext(window)) {
+            // Every context attribute GLFW holds for this window is zero, and
+            // "none 0.0" would read as "no OpenGL here" on a machine that is
+            // plainly running some. What it is running is on the version line.
+            return "OpenGL, from a context GLFW did not create";
+        }
         String api = switch (glfwGetWindowAttrib(window, GLFW_CLIENT_API)) {
             case GLFW_OPENGL_API -> "OpenGL";
             case GLFW_OPENGL_ES_API -> "OpenGL ES";
@@ -133,7 +159,19 @@ final class GraphicsProbe {
                 + "." + glfwGetWindowAttrib(window, GLFW_CONTEXT_VERSION_MINOR) + profile;
     }
 
+    /**
+     * @return whether the context these figures were read from is not GLFW's. Only a window asked
+     *         for with {@code GLFW_NO_API} can be in that state, and reading a live GL version off
+     *         one means somebody supplied a context for it — on macOS, {@link MacSoftwareGl}.
+     */
+    private static boolean foreignContext(long window) {
+        return glfwGetWindowAttrib(window, GLFW_CLIENT_API) == GLFW_NO_API;
+    }
+
     private static String contextApiName(long window) {
+        if (foreignContext(window)) {
+            return "the application's own";
+        }
         return switch (glfwGetWindowAttrib(window, GLFW_CONTEXT_CREATION_API)) {
             case GLFW_NATIVE_CONTEXT_API -> "native";
             case GLFW_EGL_CONTEXT_API -> "EGL";
