@@ -259,6 +259,21 @@ final class AccessibleWalk {
         if (role != null) {
             builder.role(role);
         }
+        // Before the explicit name and after the widget's own, which is the whole of the
+        // precedence: a caption the application bound wins over what the widget derived, and a
+        // name the application wrote wins over the caption. The text is read here rather than
+        // copied when the link was made, so a label that changes its string renames what it
+        // labels with nothing to keep in step. The relation stands even when the label offers no
+        // text: it is still the truth about the tree, and a client that resolves the label's own
+        // node does not need the copy.
+        Widget label = widget.accessibleLabelledBy();
+        if (label != null) {
+            limn.i18n.I18nString caption = label.accessibleLabelText();
+            if (caption != null) {
+                builder.name(caption, Accessible.NameFrom.LABEL);
+            }
+            builder.relation(Accessible.Relation.LABELLED_BY, label);
+        }
         limn.i18n.I18nString name = widget.accessibleName();
         if (name != null) {
             builder.name(name, Accessible.NameFrom.EXPLICIT);

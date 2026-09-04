@@ -1592,6 +1592,7 @@ public abstract class Widget {
 
     /** The four application-set overrides, in one object so an unnamed widget carries one field. */
     private static final class AccessibleOverrides {
+        Widget labelledBy;
         limn.i18n.I18nString name;
         limn.i18n.I18nString description;
         limn.accessibility.Accessible.Role role;
@@ -1603,6 +1604,52 @@ public abstract class Widget {
             accessibleOverrides = new AccessibleOverrides();
         }
         return accessibleOverrides;
+    }
+
+    /**
+     * Names this widget from another widget's text, the way a form's caption names the field it
+     * sits beside. UI thread only.
+     *
+     * <p><b>One at a time, and declared rather than inferred.</b> A caption that merely sits near
+     * a field does not name it: proximity is a layout accident, and a tree built from it says
+     * confident wrong things. So the link is written, it replaces any previous one, and passing
+     * {@code null} removes it. The named node carries a {@link
+     * limn.accessibility.Accessible.Relation#LABELLED_BY} relation to the label, so a client that
+     * would rather read the label's own node than a copied string can walk to it.
+     *
+     * <p>The text is read from the label on every publish rather than copied here, so a caption
+     * that changes its string, or is re-resolved into another language, renames what it labels
+     * with nothing to keep in step. A widget that has no text to offer names nothing, and the
+     * relation still stands.
+     *
+     * <p>An explicit {@link #setAccessibleName(limn.i18n.I18nString)} still wins over this, and
+     * this wins over whatever the widget would have derived for itself.
+     *
+     * @param label the widget whose text names this one, or {@code null} to remove the link
+     * @see limn.components.Label#setLabelFor(Widget)
+     */
+    public final void setAccessibleLabelledBy(Widget label) {
+        Ui.checkUiThread();
+        overrides().labelledBy = label;
+        invalidateAccessible();
+    }
+
+    /**
+     * The text this widget offers when it is named as another's label, or {@code null} when it is
+     * not the kind of widget that captions anything.
+     *
+     * <p>Overridden by the widgets that are captions in their own right; everything else declines,
+     * which is why a link to one names nothing rather than inventing a string from its children.
+     *
+     * @return the caption text, or {@code null}
+     */
+    protected limn.i18n.I18nString accessibleLabelText() {
+        return null;
+    }
+
+    /** The widget whose text names this one, or {@code null}. Read by the publish step. */
+    final Widget accessibleLabelledBy() {
+        return accessibleOverrides == null ? null : accessibleOverrides.labelledBy;
     }
 
     /**

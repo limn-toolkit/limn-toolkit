@@ -149,6 +149,9 @@ public class Label extends Widget {
         this(I18nString.literal(Objects.requireNonNull(text, "text")));
     }
 
+    /** The widget this label names, or {@code null}; see {@link #setLabelFor(Widget)}. */
+    private Widget labelFor;
+
     /** A label whose text follows the UI language; see {@link I18nString}. */
     public Label(I18nString text) {
         this.text = Objects.requireNonNull(text, "text");
@@ -161,6 +164,47 @@ public class Label extends Widget {
 
     /** The localizable value this label holds, which a language change re-resolves. */
     public I18nString textSource() {
+        return text;
+    }
+
+    /**
+     * Makes this label the accessible name of another widget, the way a form's caption names the
+     * field it sits beside. UI thread only.
+     *
+     * <p>Nothing is inferred from where the two sit: a caption beside a field names it only when
+     * this is called, because proximity is a layout accident and a tree built from it says
+     * confident wrong things. One widget at a time; calling it again moves the link, and passing
+     * {@code null} removes it.
+     *
+     * <p>The named widget takes this label's text as its name and carries a {@code LABELLED_BY}
+     * relation back to it, so a client may read either. Changing this label's text renames what it
+     * labels, because the text is read at publish rather than copied here.
+     *
+     * @param target the widget this label names, or {@code null} to remove the link
+     * @return this label, for chaining
+     */
+    public Label setLabelFor(Widget target) {
+        Ui.checkUiThread();
+        if (labelFor == target) {
+            return this;
+        }
+        if (labelFor != null) {
+            labelFor.setAccessibleLabelledBy(null);
+        }
+        labelFor = target;
+        if (target != null) {
+            target.setAccessibleLabelledBy(this);
+        }
+        return this;
+    }
+
+    /** The widget this label names, or {@code null}; see {@link #setLabelFor(Widget)}. */
+    public Widget labelFor() {
+        return labelFor;
+    }
+
+    @Override
+    protected I18nString accessibleLabelText() {
         return text;
     }
 
