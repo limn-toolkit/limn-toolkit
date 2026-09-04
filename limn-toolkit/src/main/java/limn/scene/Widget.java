@@ -636,6 +636,9 @@ public abstract class Widget {
      */
     public void setTooltip(limn.i18n.I18nString text) {
         Ui.checkUiThread();
+        if (Objects.equals(this.tooltip, text)) {
+            return;
+        }
         this.tooltip = text;
         invalidateAccessible();
     }

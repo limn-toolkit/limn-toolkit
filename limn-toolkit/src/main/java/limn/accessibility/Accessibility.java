@@ -1390,7 +1390,7 @@ public final class Accessibility {
             add(AccessibleEvent.of(AccessibleEvent.Type.BOUNDS_CHANGED, 0));
         }
         for (int i = 0; i < previousCount; i++) {
-            if (currentOf(previous[i].id) == null) {
+            if (currentOf(previous[i].id, i) == null) {
                 add(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, previous[i].id));
             }
         }
@@ -1488,7 +1488,11 @@ public final class Accessibility {
         return null;
     }
 
-    private Slot currentOf(long id) {
+    /** The slot for an identifier in the walk just finished, found by index hint first. */
+    private Slot currentOf(long id, int hint) {
+        if (hint >= 0 && hint < count && slots[hint].id == id) {
+            return slots[hint];
+        }
         for (int i = 0; i < count; i++) {
             if (slots[i].id == id) {
                 return slots[i];
