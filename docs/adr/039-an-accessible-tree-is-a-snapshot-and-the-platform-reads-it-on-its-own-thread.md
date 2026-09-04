@@ -1,6 +1,6 @@
 # ADR 039. An accessible tree is a snapshot, and the platform reads it on its own thread
 
-- **Status:** Proposed, 2026-09-04. Nothing here is implemented. Closes the "No screen reader
+- **Status:** Proposed, 2026-09-04; §14's phases 1 to 3 implemented 2026-09-04. Closes the "No screen reader
   bridge" bullet the README carries in ten languages, and delivers ADR 006 §5's promise that
   accessibility labels are `I18nString`s. The work is a new `limn.accessibility` package, four
   hooks on `Widget`, one `default` member on `NativeWindow`, three bridges in `limn-backend-lwjgl`,
@@ -10,6 +10,26 @@
   `docs/adr/039-an-accessible-tree-is-a-snapshot-and-the-platform-reads-it-on-its-own-thread.md`,
   with its `docs/adr/README.md` row landing beside it, and every section below is written to be read
   from there rather than from a draft.
+- **What implementing phases 1 to 3 found, and where this record is wrong about the code.** Every
+  one of these was settled the way the record asks for: the code won, and the sentence it
+  contradicts is named rather than quietly edited around. Nothing here changes a decision.
+  **Finding 10 is wrong on both halves.** `TextEditModel` already carries the change counter §8
+  asks it to gain — `textVersion()`, a `long` bumped by every buffer mutation and by nothing else —
+  and a damage record beside it, `lineDamage()`. No counter was added; the tree compares
+  `textVersion()`. **§5.3's structural funnels are already covered by the damage ones.**
+  `setSceneRecursively` reaches `markNeedsLayout`, and that, `setFocus`, `pushOverlay` and
+  `removeOverlay` all end in `requestRender()`, so the node flag is set in one place plus the four
+  funnels that deliberately buy a frame without declaring damage. **`MenuItem#activate()` is
+  already reachable from `MenuSurface`**: both are in `limn.components`, and package-private was
+  never the obstacle §8 describes. **§14's phase 1 cannot prove what it promises**, because §2
+  carries per-interface tables and no per-role ones and §1.12 puts the role tables in the bridges;
+  the enum is pinned against §1.12's own list instead. **§14's phase 3 names tests phase 4 owns** —
+  live mutation over twelve components, `ListView` recycling, a playing `VideoView` — so those
+  properties are pinned against purpose-built widgets driving the same hooks, and each becomes a
+  component case in its own pipeline step. And **§6's zero-allocation promise was not true of the
+  frame it was written against**: `Widget#paintChildren` walked its list with an enhanced `for`,
+  an iterator per widget per frame, which is the cost `Scene#paintFramePass`'s own overlay loop
+  already carries a comment about avoiding. It is indexed now, and the promise is measured.
 - **Date:** 2026-09-04
 - **Companion, and it lands in this commit.** ADR 040, *A handler answers the user, and a watcher
   hears everything*, is in `docs/adr/` as Proposed, 2026-09-03, with its own row in the index, and it
