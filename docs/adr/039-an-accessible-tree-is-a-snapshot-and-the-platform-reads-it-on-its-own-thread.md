@@ -2430,6 +2430,7 @@ its real function is to calibrate how much the table should be trusted.
 | `Spinner` time mode | the region test is about pointer hit-testing and does not settle what a reader is offered |
 | `VideoView`, `ProgressBar` | a continuously-advancing value must be published rounded (§6) |
 | `BackdropPanel` | it paints, alone among the twelve classes the scaffolding row lumped it with, so §1.6's paint warning fires on it: a toolkit class named in an application's log, recommending a flag that would delete the controls under the glass. §1.6 gained the decoration seam; the row gained one of its own |
+| `Stack` | its children overlap by construction, alone among the twelve, and its own documentation calls it the base for overlays and modal dialogs. The verdict is right and the deletion costs nothing; what the scaffolding row hides is that every layer is then published as a reachable sibling of every other, so a scrim and a panel built by hand inside one leave the whole background operable to a screen reader and §1.9's gate accepts the invocation, because the control really is enabled and really is inside `inputRoot()`. §1.13's subtraction is computed from the scene's overlay stack and cannot see this. Occlusion is deliberately not modelled: §11 gained a bullet saying so and what to use instead, and the class documentation points at it |
 
 *Left to the pipeline, as work:*
 
@@ -2846,6 +2847,14 @@ Each item says what a blind user loses, because a deferral without that sentence
   call, so a bridge caching them would be caching an alias. *Cost:* the numbers are unreachable; an
   application can put a data table beside the chart or set a description today, and the public data model
   already supports generating one.
+- **Not an occlusion model.** A widget covered by an opaque sibling is published `ENABLED`,
+  `FOCUSABLE` and `SHOWING`, because nothing in a published rectangle says whether what is drawn over
+  it is opaque, and deducing it from geometry is the same guess §1.11's `LABELLED_BY` rule refuses.
+  *Cost:* a scrim and a panel hand-rolled inside a `Stack` are not modal to a reader — the background
+  is offered as operable and the invocation is accepted — where the same panel raised through
+  `Scene#pushOverlay`, or mounted in the scene by `Dialog`, carries `MODAL` and takes `ENABLED` and
+  `FOCUSABLE` from everything behind it (§1.13). Anything meant to block uses those; `Stack` is a
+  placement rule and says nothing about input.
 - **Not automatic naming from nearby labels.** A `LABELLED_BY` relation is declared, never inferred from
   geometry. *Cost:* a label placed before a text field does not become that field's name unless the
   application says so — softened by the placeholder and tooltip defaults, which cover the common form.

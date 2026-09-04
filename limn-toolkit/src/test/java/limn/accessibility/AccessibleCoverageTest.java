@@ -103,8 +103,7 @@ class AccessibleCoverageTest {
             "limn.components.chart.DonutChart",
             "limn.components.chart.LineChart",
             "limn.scene.layout.Expanded",
-            "limn.scene.layout.SizedBox",
-            "limn.scene.layout.Stack"
+            "limn.scene.layout.SizedBox"
     ));
 
     /**
@@ -209,6 +208,20 @@ class AccessibleCoverageTest {
             // nothing to publish, so the node survives as UNKNOWN and unnamed, which is a defect
             // the walk warns about and not a hatch. Pinned by limn.scene.PaddingAccessibilityTest.
             "limn.scene.layout.Padding",
+            // Declares no role, name, action or state and no onPaint, so §1.6's predicate deletes
+            // it in silence and hoists every layer into its place. The alignment outlives the node
+            // as each child's origin, resolved against layoutDirection() inside the layout pass
+            // rather than held as a coordinate, which is why a mirror flip reaches a reader as a
+            // move and never as a rebuild. Public and non-final, so naming, tooltipping or roling
+            // one materialises a GROUP over the stack's own box: transparency is per instance here
+            // too. What is Stack's alone is what the deletion leaves behind third: the layers stay
+            // SIBLINGS in tree order with overlapping boxes and no occlusion subtraction, so a
+            // covering layer takes no ENABLED, no FOCUSABLE and no SHOWING away from what it
+            // covers. That is §1.13's defect reached from inside the widget tree, on the class
+            // whose own documentation calls it the base for overlays and modal dialogs, and the
+            // answer is Scene.pushOverlay or Dialog's in-scene mounting rather than geometry
+            // guessed at in the walk. Pinned by limn.scene.StackAccessibilityTest.
+            "limn.scene.layout.Stack",
             // Ten lines around Flex, and neither declares a role, a name, an action or a state,
             // neither overrides onPaint, neither clips, and neither is ever focusable of its own
             // accord — so §1.6's predicate deletes a row and hoists its children into its parent's

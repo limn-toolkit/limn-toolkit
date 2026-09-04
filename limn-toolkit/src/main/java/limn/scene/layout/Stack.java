@@ -8,6 +8,13 @@ import limn.scene.Widget;
  * Overlays children on top of each other (later children on top; the base
  * for overlays and modal dialogs). Sizes to the biggest child; each child is
  * placed by this stack's {@link Alignment}.
+ *
+ * <p><b>A layer stacked over another does not block it.</b> The layers are siblings, and covering
+ * one with an opaque panel changes nothing about it: it keeps taking the keyboard, and an assistive
+ * technology is still offered every control underneath the glass, because nothing here says which
+ * rectangle hides which. A panel meant to be modal goes through {@link limn.scene.Scene#pushOverlay}
+ * or is mounted in the scene by {@code Dialog}, both of which confine input and publish the fact to
+ * a screen reader.
  */
 public class Stack extends Widget {
 
