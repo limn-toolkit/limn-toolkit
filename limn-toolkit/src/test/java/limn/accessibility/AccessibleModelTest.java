@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.ToLongFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -29,6 +30,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * notice.
  */
 class AccessibleModelTest {
+
+    /**
+     * Resolves the relations and then publishes, which is the order the scene's own walk uses and
+     * the order the comparison requires: a relation is declared as a target, and the identifier it
+     * resolves to is what a difference reads.
+     *
+     * @param a       the builder holding a finished walk
+     * @param resolve what turns a target into a node identifier
+     * @return the tree
+     */
+    private static AccessibleTree publish(Accessibility a, ToLongFunction<Object> resolve) {
+        a.resolveRelations(resolve);
+        return a.publish(0, 0, 0, 1, true);
+    }
 
     @Test
     void theRoleListIsTheOneTheRecordDecided() throws IOException {
@@ -132,7 +147,7 @@ class AccessibleModelTest {
         assertTrue(a.declaresNothing(), "a state a facet owns is not a declaration of its own");
         a.toggle(ToggleFacet.State.ON);
         assertFalse(a.declaresNothing());
-        AccessibleTree tree = a.publish(0, 0, 0, 1, true, target -> 0);
+        AccessibleTree tree = publish(a, target -> 0);
         assertTrue(tree.root().has(Accessible.State.CHECKED), "CHECKED derives from the facet");
         assertFalse(tree.root().has(Accessible.State.ENABLED),
                 "ENABLED is the publish step's, never a widget's");
@@ -153,7 +168,7 @@ class AccessibleModelTest {
         a.end();
         a.end();
 
-        AccessibleTree tree = a.publish(0, 0, 0, 1, true, target -> 0);
+        AccessibleTree tree = publish(a, target -> 0);
         assertEquals(3, tree.nodeCount());
         assertEquals(AccessibleNode.NONE, tree.root().parent());
         assertEquals(1, tree.root().firstChild());
@@ -177,7 +192,7 @@ class AccessibleModelTest {
         a.role(Accessible.Role.BUTTON);
         a.name(source);
         a.end();
-        AccessibleTree first = a.publish(0, 0, 0, 1, true, target -> 0);
+        AccessibleTree first = publish(a, target -> 0);
         assertEquals("Save", first.root().name());
 
         a.beginWalk(10, 10, Locale.ENGLISH);
@@ -186,7 +201,7 @@ class AccessibleModelTest {
         a.name(source);
         a.end();
         assertFalse(a.changed(), "nothing moved, so nothing differs");
-        AccessibleTree second = a.publish(0, 0, 0, 1, true, target -> 0);
+        AccessibleTree second = publish(a, target -> 0);
         assertSame(first.root().name(), second.root().name(),
                 "the resolved string is carried over, not resolved again");
     }
@@ -213,7 +228,7 @@ class AccessibleModelTest {
         a.state(Accessible.State.ACTIVE);
         a.endChild();
         a.end();
-        AccessibleTree tree = a.publish(0, 0, 0, 1, true, target -> 0);
+        AccessibleTree tree = publish(a, target -> 0);
         assertEquals(2, tree.nodeCount());
         AccessibleNode row = tree.node(1);
         assertEquals(Accessible.Role.MENU_ITEM, row.role());
@@ -232,7 +247,7 @@ class AccessibleModelTest {
         a.role(Accessible.Role.MENU);
         a.relation(Accessible.Relation.POPUP_FOR, opener);
         a.end();
-        AccessibleTree dropped = a.publish(0, 0, 0, 1, true, target -> 0);
+        AccessibleTree dropped = publish(a, target -> 0);
         assertTrue(dropped.root().relations().isEmpty());
 
         a.beginWalk(10, 10, Locale.ENGLISH);
@@ -240,7 +255,7 @@ class AccessibleModelTest {
         a.role(Accessible.Role.MENU);
         a.relation(Accessible.Relation.POPUP_FOR, opener);
         a.end();
-        AccessibleTree kept = a.publish(0, 0, 0, 1, true, target -> 42);
+        AccessibleTree kept = publish(a, target -> 42);
         assertEquals(1, kept.root().relations().size());
         assertEquals(42, kept.root().relations().get(0).target());
     }

@@ -850,6 +850,158 @@ public class ComboBox extends Widget {
         close();
     }
 
+    // -------------------------------------------------------- accessibility
+
+    /**
+     * The field, which is a combo box that is open or shut and is showing one of its items. The
+     * options are not here: they are drawn by the panel and described by it, in whichever scene
+     * that panel is mounted in, which is what keeps their rectangles right in both presentations.
+     *
+     * <p><b>The selected item is the value and never the name.</b> A combo has no caption of its
+     * own — its items are values and not a label — so the name is left for an application's
+     * {@code setAccessibleName} or for the tooltip default to supply, and a combo with neither is
+     * published unnamed. Naming it from the item it shows would be worse than that: the name would
+     * change on every pick, and on the one platform that maps a name and a value to different
+     * attributes a reader would hear the same word twice for every combo in the interface.
+     *
+     * <p><b>The number is what carries the text.</b> The publish step builds a value facet only
+     * for a node that declared a number, so the selected item's text alone would be dropped in
+     * silence; and the difference raises its value event off the number and never off the text, so
+     * a constant standing in for one would make every pick silent on the channel a reader listens
+     * to. The index is the honest number — nothing else about the selection is ordered — and
+     * declaring it is also what advertises {@code SET_VALUE}, which is how an assistive technology
+     * picks an item without opening the list at all.
+     *
+     * <p><b>Nothing here is formatted.</b> The item's text comes from the {@link I18nString} the
+     * combo already holds, through that string's own per-language memo, so a hover fade or a focus
+     * fade — each of which damages this widget on every frame it lasts — walks this hook without
+     * allocating anything to conclude that nothing moved.
+     *
+     * @param a the builder for this node
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.COMBO_BOX);
+        // Always, and not only while the list is down: a combo that could not be opened would not
+        // be a combo, and this is the bit a reader uses to say so before anything has happened.
+        a.state(Accessible.State.HAS_POPUP);
+        // The facet, never state(EXPANDED, ...), which the builder ignores by design: the bit is
+        // derived from the facet so that the two cannot disagree.
+        a.expand(open);
+        a.value(selectedIndex, 0, items.size() - 1, 1);
+        // The witness is the pair the item's text is a function of: which item is selected, and
+        // the epoch every translation moves on. There is no cache to guard here -- the string is
+        // the model's own, resolved through its memo -- and the witness says so rather than
+        // pretending a counter exists.
+        a.valueText(selectedItem(), I18n.epoch() ^ ((long) selectedIndex << 32));
+        // The single-argument form; the variable-argument one allocates an array per call. One
+        // verb and not both, because the other one is what the widget is already doing. PRESS is
+        // neither offered nor accepted: what a press on a combo means is exactly the ambiguity
+        // these two verbs remove, and a platform whose only activation verb is a press has the
+        // expand facet to route it through, which is one decision in one bridge rather than a
+        // third meaning here.
+        a.action(open ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
+        // No CONTROLLER_FOR. In the scene presentation the overlay is the popup's parentless root
+        // and carries the field as its inheritance host, so the walk publishes POPUP_FOR there and
+        // this mirror here; declaring it again would put two of the same relation on this node. In
+        // a window of its own the list is in another tree, where neither end can resolve the
+        // other, and a relation naming a node this tree does not contain is worse than none.
+    }
+
+    /**
+     * Opens the list, closes it, or picks an item, each through the path the user's own gesture
+     * takes.
+     *
+     * <p>No enabled check of its own, unlike the panel's: the node acted on here is this widget,
+     * so the scene's own gate has already walked this field and every ancestor for
+     * {@code isEnabled()}, checked that it is showing, that the window is not modal-blocked and
+     * that it is inside the layer that owns input. That last test is why a
+     * {@link Accessible.Action#COLLAPSE} on an open in-scene list does nothing: the list's own
+     * overlay is that layer, the field is behind it, and the dismissal that lands there is the
+     * overlay's {@code CANCEL} — the same asymmetry the keyboard has, where Esc is delivered to
+     * the overlay and handed back here.
+     *
+     * @param action what is being asked
+     * @param arg    the item to select for {@code SET_VALUE}, by number or by text
+     * @return whether this widget did it
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        switch (action) {
+            case EXPAND -> {
+                if (open) {
+                    return false; // already down: nothing was done, and saying otherwise is a lie
+                }
+                open();
+                return true;
+            }
+            case COLLAPSE -> {
+                if (!open) {
+                    return false;
+                }
+                close();
+                return true;
+            }
+            case SET_VALUE -> {
+                return selectFromArgument(arg);
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Selects the item an argument names, by index or by its text.
+     *
+     * <p>Both funnels are the widget's own: an open list commits, which is the path a click on a
+     * row takes and which closes the list and reports a change only when there was one; a shut one
+     * goes through the public setter, which is the same funnel an application uses. So a pick from
+     * an assistive technology reaches the application exactly as a pick from the pointer does.
+     */
+    private boolean selectFromArgument(Accessible.Argument arg) {
+        int index;
+        if (arg instanceof Accessible.Argument.OfValue value) {
+            double raw = value.value();
+            if (!Double.isFinite(raw)) {
+                return false; // rounding a NaN would land on item zero
+            }
+            long rounded = Math.round(raw);
+            index = rounded < 0 || rounded >= items.size() ? -1 : (int) rounded;
+        } else if (arg instanceof Accessible.Argument.OfText text) {
+            index = indexOfItem(text.text());
+        } else {
+            return false;
+        }
+        if (index < 0 || index >= items.size()) {
+            return false; // an index nothing answers to is refused, never clamped to a neighbour
+        }
+        if (open) {
+            commit(index);
+        } else {
+            setSelectedIndex(index);
+        }
+        return true;
+    }
+
+    /**
+     * The item that reads exactly as {@code wanted}, or {@code -1}.
+     *
+     * <p>Exact equality, and deliberately not the type-ahead's rule: that one matches a prefix
+     * case-insensitively, which is what a user typing into an open list wants and is the wrong
+     * answer for a client that was handed a value and is asking for it back. "Tw" would set the
+     * selection to "Two" there, and a client would have no way to tell that from a combo that
+     * genuinely holds "Tw".
+     */
+    private int indexOfItem(String wanted) {
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).get().equals(wanted)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     // ---------------------------------------------------------- scene popup
 
     /**

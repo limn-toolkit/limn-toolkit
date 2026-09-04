@@ -102,6 +102,41 @@ class AccessibleRelationTest extends AccessibleTestBase {
         assertTrue(node("File").relations().isEmpty(), describe(tree()));
     }
 
+    /**
+     * A relation is declared as a target and published as an identifier, and the walk is what turns
+     * one into the other. Doing that inside the publish — which only runs once a difference has
+     * been found — leaves the comparison reading an identifier this walk never filled in: the frame
+     * after a link first resolves then reports a difference nobody made, and a link whose target
+     * moved to another node while nothing else changed reports none at all and keeps naming a node
+     * that is gone. Both are the same mistake, and the cheap half of it is what this pins.
+     */
+    @Test
+    void aLinkThatResolvedIsNotADifferenceOnTheNextFrame() {
+        Group root = new Group();
+        Probe opener = new Probe(Accessible.Role.BUTTON, "Open");
+        root.add(opener);
+        bind(root);
+        Group menu = new Group();
+        menu.setAccessibleRole(Accessible.Role.MENU);
+        menu.setAccessibleName("File");
+        menu.setInheritanceHost(opener);
+        scene.pushOverlay(menu);
+        frame();
+        assertEquals(node("Open").id(),
+                relationOf(node("File"), Accessible.Relation.POPUP_FOR).target());
+        int published = bridge.published.size();
+
+        opener.invalidate();
+        frame();
+        opener.invalidate();
+        frame();
+
+        assertEquals(published, bridge.published.size(),
+                "a damaged frame over a tree nobody touched publishes nothing, and a link that "
+                        + "resolved on the frame before is not something somebody touched"
+                        + describe(tree()));
+    }
+
     @Test
     void aWindowTakingAndLosingTheDesktopsFocusIsRaisedRatherThanDiffed() {
         Group root = new Group();

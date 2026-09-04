@@ -41,6 +41,13 @@ final class AccessibleWalk {
 
     private final Accessibility builder = new Accessibility();
 
+    /**
+     * Held rather than written as a method reference at the call site: the resolution runs at the
+     * end of every walk, and a method reference to an instance method is an object per evaluation,
+     * so writing it inline would allocate once per damaged frame to conclude that nothing moved.
+     */
+    private final java.util.function.ToLongFunction<Object> resolver = this::resolve;
+
     /** Per published node: the widget that owns it. Grown once, reused. */
     private Widget[] owners = new Widget[64];
     private long[] ids = new long[64];
@@ -135,6 +142,10 @@ final class AccessibleWalk {
                         owners[popupNodes[i]]);
             }
         }
+        // Last, because a target's identifier is only knowable once every node it could name has
+        // been walked, and before anything compares this walk with the last one: the comparison
+        // reads what this fills in.
+        builder.resolveRelations(resolver);
     }
 
     /**
@@ -322,8 +333,8 @@ final class AccessibleWalk {
     }
 
     /**
-     * Turns the walk into a tree, resolving each relation to the nearest node actually published
-     * and dropping it when there is none.
+     * Turns the walk into a tree. The relations were resolved when the walk ended, so that the
+     * difference could see them.
      *
      * @param screenX     the window's content origin in native screen coordinates
      * @param screenY     the same, vertically
@@ -332,7 +343,7 @@ final class AccessibleWalk {
      * @return the tree
      */
     AccessibleTree publish(int screenX, int screenY, float factor, boolean positioning) {
-        return builder.publish(focusedId, screenX, screenY, factor, positioning, this::resolve);
+        return builder.publish(focusedId, screenX, screenY, factor, positioning);
     }
 
     /**

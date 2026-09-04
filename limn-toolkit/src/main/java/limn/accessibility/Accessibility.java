@@ -1229,6 +1229,32 @@ public final class Accessibility {
     }
 
     /**
+     * Turns every relation's target into the identifier of a node this walk published.
+     *
+     * <p><b>Between the walk and {@link #changed()}, and never after it.</b> A relation is declared
+     * as a target rather than an identifier, because the node it names may not have been walked
+     * yet; the identifier is only knowable once the walk is over. The comparison reads the
+     * resolved identifier, so resolving it after the comparison would compare a target this walk
+     * never filled in against one an earlier walk did — which reports a difference the first time
+     * a relation starts resolving, and, worse, misses the one that matters: a relation whose target
+     * moves to another node while nothing else about either end changes would keep publishing the
+     * identifier of a node that is gone.
+     *
+     * @param resolve what turns a target into a node identifier, answering {@code 0} when this walk
+     *                published none; never {@code null}
+     * @throws NullPointerException if {@code resolve} is {@code null}
+     */
+    public void resolveRelations(ToLongFunction<Object> resolve) {
+        Objects.requireNonNull(resolve, "resolve");
+        for (int i = 0; i < count; i++) {
+            Slot s = slots[i];
+            for (int r = 0; r < s.relationCount; r++) {
+                s.relationResolved[r] = resolve.applyAsLong(s.relationTargets[r]);
+            }
+        }
+    }
+
+    /**
      * Turns the walk into an immutable tree, and the difference from the last one into events.
      *
      * <p>This is the only step that allocates: the facet records are built here, and only for nodes
@@ -1239,20 +1265,10 @@ public final class Accessibility {
      * @param screenY     the same, vertically
      * @param factor      the multiplier from logical points to native screen coordinates
      * @param positioning whether the platform lets this window know where it is
-     * @param resolve     what turns a relation's target into a node identifier, answering {@code 0}
-     *                    when it published none; never {@code null}
      * @return the tree, ready to publish
-     * @throws NullPointerException if {@code resolve} is {@code null}
      */
     public AccessibleTree publish(long focusedId, int screenX, int screenY, float factor,
-                                  boolean positioning, ToLongFunction<Object> resolve) {
-        Objects.requireNonNull(resolve, "resolve");
-        for (int i = 0; i < count; i++) {
-            Slot s = slots[i];
-            for (int r = 0; r < s.relationCount; r++) {
-                s.relationResolved[r] = resolve.applyAsLong(s.relationTargets[r]);
-            }
-        }
+                                  boolean positioning) {
         events.clear();
         diff();
         AccessibleNode[] nodes = new AccessibleNode[count];
