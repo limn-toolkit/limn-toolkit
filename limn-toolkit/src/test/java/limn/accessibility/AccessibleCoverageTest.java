@@ -281,10 +281,11 @@ class AccessibleCoverageTest {
             // Declares no role, name, description, action or state, declares no onPaint so the
             // paints-and-says-nothing warning stays silent, is never focusable of its own accord,
             // and holds at most one child, so §1.6's predicate deletes it and hoists that child
-            // into the row's place. The deletion is uniquely lossless: onLayout hands the child
+            // into the row's place. The deletion is lossless: onLayout hands the child
             // (0, 0, width(), height()), so the control's box is the wrapper's box on both axes and
             // in every cross-alignment mode, where Padding leaves an inset behind and a row leaves
-            // a gap and an alignment. What outlives it instead is the number a reader is told for
+            // a gap and an alignment. SizedBox and TokenBox hand their child the same rectangle,
+            // so the three share the property and none of them is the only one. What outlives it instead is the number a reader is told for
             // the control's width -- the share is a tight constraint, so a control that measured
             // itself at a hundred and sixteen points and was granted thirty-five publishes
             // thirty-five, and atLeast is the only reason it ever publishes otherwise: the floored
@@ -306,9 +307,9 @@ class AccessibleCoverageTest {
             // silence and hoists its one child. What the deletion leaves behind is an extent and no
             // offset: onLayout hands the child the whole box at the origin, so the child's
             // published rectangle is identical to the box the deleted node would have had. That
-            // makes this the one member of §7's scaffolding row whose deletion is geometrically a
-            // no-op, and the one for which "the tree is the controls, not the boxes" is exactly
-            // backwards — nothing is offset as in Padding, nothing distributed as in a row, nothing
+            // makes its deletion geometrically a no-op, as SizedBox's and Expanded's are for the
+            // same one-line reason, and one of the three for which "the tree is the controls, not
+            // the boxes" is exactly backwards — nothing is offset as in Padding, nothing distributed as in a row, nothing
             // overlapping as in Stack, and the box a reader is given for a colour picker's rail is
             // the wrapper's own. The extent is resolved inside onMeasure against the row the
             // resolved step names rather than captured at construction, which is the size-axis trap

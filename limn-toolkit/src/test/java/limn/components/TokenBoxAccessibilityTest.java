@@ -27,8 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * focusable of its own accord; and it does not clip. So ADR 039 §1.6's predicate deletes it and
  * hoists its one child into the box's own place, with no accessibility code in the class.
  *
- * <p><b>The deletion is geometrically a no-op, which is true of no other member of §7's scaffolding
- * row.</b> {@code onLayout} hands the child {@code (0, 0, width(), height())}, so the surviving
+ * <p><b>The deletion is geometrically a no-op, as it is for {@code SizedBox} and {@code Expanded},
+ * the two other wrappers in §7's scaffolding row that hand their child the whole box.</b> {@code onLayout} hands the child {@code (0, 0, width(), height())}, so the surviving
  * node's rectangle is byte-identical to the rectangle the deleted node would have published:
  * nothing is offset as in {@code Padding}, nothing is distributed as in {@code Row} and
  * {@code Column}, nothing overlaps as in {@code Stack}. The row's "the tree is the controls, not the
@@ -151,8 +151,10 @@ class TokenBoxAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * The finding, and the test no other member of the scaffolding row can have: the child's
-     * published rectangle is the deleted box's rectangle, exactly.
+     * The finding: the child's published rectangle is the deleted box's rectangle, exactly. It is
+     * the same assertion {@code SizedBoxAccessibilityTest} and {@code ExpandedAccessibilityTest}
+     * make, and each of the three still owes it, because what differs is where the number comes
+     * from -- a fixed one, a flex share, a resolved token -- and not the placement it is used in.
      *
      * <p>Any offset, inset, alignment or centring introduced into {@code onLayout} would silently
      * move every colour-picker rail's published rectangle away from where it is painted, with every

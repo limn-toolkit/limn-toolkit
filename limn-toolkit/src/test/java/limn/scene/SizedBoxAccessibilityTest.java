@@ -48,9 +48,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * decorative rule" is already unnecessary for the toolkit's own spacer.
  *
  * <p><b>Nothing about it mirrors.</b> The class never reads {@code layoutDirection()}, and the child
- * sits at the box's origin in both directions. It is the one member of the scaffolding family whose
- * deletion leaves no mirroring expression behind, where {@code Padding} leaves its leading inset and
- * {@code Column} leaves Flex's cross-axis reflection. The absence is pinned below so that a later
+ * sits at the box's origin in both directions, so its deletion leaves no mirroring expression
+ * behind, where {@code Padding} leaves its leading inset and {@code Column} leaves Flex's cross-axis
+ * reflection. It shares that with {@code Expanded} and {@code TokenBox}, the two other wrappers that
+ * hand their child the whole box at the origin; what differs between the three is where the box's
+ * number came from, not how the child is placed inside it. The absence is pinned below so that a later
  * right-to-left sweep cannot mirror an origin that has to stay at zero.
  *
  * <p><b>Transparency is per instance, and the escape hatch is co-extensive with the child.</b>
