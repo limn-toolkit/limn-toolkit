@@ -242,4 +242,30 @@ class AccessibleLiveMutationTest extends AccessibleTestBase {
         frame();
         assertNotNull(bridge.first(AccessibleEvent.Type.NAME_CHANGED));
     }
+
+    /**
+     * And the frame it buys is bought through the scene's frame primitive rather than through the
+     * public repaint call, which is subtle enough to be worth an assertion: the repaint call marks
+     * the accessibility node flag by design, so a re-stamp or an announcement written in terms of
+     * it would pay for the walk it exists to avoid, and an accessibility invalidation written in
+     * terms of it would repaint a window in which nothing changed.
+     */
+    @Test
+    void anAccessibilityInvalidationBuysAFrameAndDamagesNothing() {
+        bindProbe();
+        scene.setPartialRendering(true);
+        frame();
+        frame();
+        long painted = scene.metrics().totalFrames();
+        window.frameRequests = 0;
+
+        probe.setAccessibleName("Renamed");
+        frame();
+
+        assertEquals(1, window.frameRequests);
+        assertEquals(painted, scene.metrics().totalFrames(),
+                "the frame painted nothing, because nothing on screen changed");
+        assertNotNull(bridge.first(AccessibleEvent.Type.NAME_CHANGED),
+                "and it carried the change anyway: " + bridge.events);
+    }
 }

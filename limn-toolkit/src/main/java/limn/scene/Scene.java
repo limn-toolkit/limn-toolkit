@@ -853,7 +853,7 @@ public final class Scene implements WindowInput {
         if (window != null && window.isModalBlocked()) {
             return;
         }
-        if (!isInSubtree(owner, inputRoot()) && !isOverlayRoot(owner)) {
+        if (!isInSubtree(owner, inputRoot())) {
             return;
         }
         boolean done = accessibleWalk.isSynthetic(nodeId)
@@ -863,10 +863,6 @@ public final class Scene implements WindowInput {
             bridge.emit(limn.accessibility.AccessibleEvent.of(
                     limn.accessibility.AccessibleEvent.Type.INVOKED, nodeId));
         }
-    }
-
-    private boolean isOverlayRoot(Widget widget) {
-        return overlays.contains(widget);
     }
 
     /** The overlay stack, for the walk: overlays are a second root set and not part of the tree. */

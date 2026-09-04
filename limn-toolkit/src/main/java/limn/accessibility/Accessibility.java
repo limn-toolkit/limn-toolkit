@@ -435,8 +435,10 @@ public final class Accessibility {
      *
      * <p>The five states a facet expresses — checked, mixed, expanded, selected, read-only — are
      * derived from that facet and setting them here is ignored, so one fact keeps one home. The
-     * three inherited states — enabled, visible and showing — are the publish step's, because a
-     * widget's own flag answers only for itself and the tree has to agree with the keyboard.
+     * five the publish step owns — enabled, visible, showing, focusable and focused — are ignored
+     * for a different reason: a widget's own flag answers only for itself, while the tree has to
+     * agree with a keyboard whose traversal stops at the first ancestor that is hidden or
+     * disabled.
      *
      * @param state what to set; never {@code null}
      * @param on    whether it holds

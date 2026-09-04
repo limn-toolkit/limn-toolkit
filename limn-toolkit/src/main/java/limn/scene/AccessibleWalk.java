@@ -333,11 +333,8 @@ final class AccessibleWalk {
         for (Widget at = widget; at != null;
                 at = at.parent() != null ? at.parent() : at.inheritanceHost()) {
             int index = indexOfWidget(at);
-            if (index > 0) {
+            if (index >= 0) {
                 return ids[index];
-            }
-            if (index == 0) {
-                return 0;
             }
         }
         return 0;
