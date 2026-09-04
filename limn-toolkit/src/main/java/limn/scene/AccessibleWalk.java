@@ -192,15 +192,21 @@ final class AccessibleWalk {
         }
 
         record(widget, id, slot, false);
+        boolean showing = widget.isShowing();
         for (int i = slot + 1; i < builder.nodeCount(); i++) {
             record(widget, builder.idAt(i), i, builder.isSyntheticAt(i));
             keys[i] = builder.syntheticKeyAt(i);
+            // The owner's bits, on every node the owner drew. They cannot ride on the call below:
+            // that one writes to the node the walk has open, and these were closed the moment the
+            // describe hook finished with them. Focusable and focused are not passed on, because a
+            // thing a widget paints is not a tab stop and never holds the keyboard.
+            builder.inheritedAt(i, ownEnabled, ownVisible, showing);
         }
         boolean focused = scene.focusedWidget() == widget;
         if (focused) {
             focusedId = id;
         }
-        builder.inherited(ownEnabled, ownVisible, widget.isShowing(), focusable, focused);
+        builder.inherited(ownEnabled, ownVisible, showing, focusable, focused);
         if (focusable) {
             builder.action(Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW);
         }

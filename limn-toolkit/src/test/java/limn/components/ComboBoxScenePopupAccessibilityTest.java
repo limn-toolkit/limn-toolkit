@@ -203,13 +203,38 @@ class ComboBoxScenePopupAccessibilityTest extends AccessibleComponentTestBase {
                         + "whose active descendant a reader will read" + describe(tree()));
         assertFalse(selection.multiSelectable(), "one row at a time");
         assertFalse(selection.required());
-        // Deliberately asserting the inert state. The facet declares the container; the publish
-        // step fills in the first descendant published ACTIVE, and nothing below is described
-        // yet -- PopupPanel's own pipeline step is what marks the HIGHLIGHTED row active, which
-        // in a combo is not the selected one: the highlight moves under the arrows and the
-        // selection moves only on commit. This assertion is what that step changes.
-        assertEquals(0, selection.activeDescendant(),
-                "inert until the panel marks a row active" + describe(tree()));
+        // The facet declares the container; which of its descendants the cursor is on is the
+        // first node in its subtree published ACTIVE, and the panel's own step is what marks
+        // that row. It is the HIGHLIGHTED option and not the selected one, which in a combo are
+        // separate fields moved by separate paths: the highlight moves under the arrows and the
+        // selection moves only on commit. open() sets the highlight to the selection, so on this
+        // first frame they name the same row and the assertion below is written as the highlight
+        // deliberately. What the highlight does when it moves is
+        // limn.components.ComboBoxPopupAccessibilityTest's, at the node that carries it.
+        assertEquals(optionAt(combo.highlightedIndex()).id(), selection.activeDescendant(),
+                "the layer that holds the keyboard is where a reader reads the cursor from"
+                        + describe(tree()));
+    }
+
+    /**
+     * @return the node the tree's header names as holding the focus, which while a list is open is
+     *         the overlay: it is the scene's focused widget and its only tab stop
+     */
+    private AccessibleNode focusedNode() {
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            if (tree().node(i).id() == tree().focused()) {
+                return tree().node(i);
+            }
+        }
+        throw new AssertionError("the tree names no focused node" + describe(tree()));
+    }
+
+    /**
+     * @param index the option's model index
+     * @return the node the panel published for it
+     */
+    private AccessibleNode optionAt(int index) {
+        return childrenOf(node(Accessible.Role.LIST)).get(index);
     }
 
     // ----------------------------------------------------------------------------- the actions
@@ -278,7 +303,9 @@ class ComboBoxScenePopupAccessibilityTest extends AccessibleComponentTestBase {
         combo.setLocale(hebrew);
         openList();
 
-        AccessibleNode node = tree().node(tree().nodeCount() - 1);
+        // The focused node, and not the last one published: the panel's own step put the options
+        // after this one, and an index into the tree is not an identity.
+        AccessibleNode node = focusedNode();
         assertEquals(hebrew, node.locale(),
                 "the overlay is parentless and reaches the field through its host link; without "
                         + "that link every name under an in-scene list resolves in the process "

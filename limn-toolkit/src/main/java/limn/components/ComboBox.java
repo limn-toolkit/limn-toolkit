@@ -1328,5 +1328,139 @@ public class ComboBox extends Widget {
                 }
             }
         }
+
+        /**
+         * The list itself, and one node per option.
+         *
+         * <p><b>Why it is described at all.</b> The panel is not focusable, has no tooltip and
+         * declares nothing free, so without this hook the transparency predicate deletes it — and
+         * because it paints, the deletion is a warning logged once per class and read by nobody,
+         * while the options themselves, which are painted rows and not widgets, would simply not
+         * exist. It is the widget that draws the options, so it is the widget that describes them.
+         *
+         * <p><b>No name.</b> The panel is not focusable, so the every-focusable-node-is-named rule
+         * does not reach it, and the layer above already carries the list's name and the link to
+         * the field. A second invented string would be one more thing to translate and one more
+         * thing a reader has to hear before the options.
+         *
+         * <p><b>No relation either, and that is a correction.</b> In the in-scene presentation the
+         * overlay is the popup's root and the walk gives it {@code POPUP_FOR} the field and the
+         * field the mirror, so a second link declared here would have two nodes in one tree
+         * claiming to be the field's popup. In a window of its own the panel is parentless with a
+         * host link, which is exactly the shape the walk's own popup gate answers, so the relation
+         * is registered there too without a line here. Both mountings are covered by the walk.
+         *
+         * <p><b>Nothing is formatted here.</b> Every option's name is an {@link I18nString} the
+         * combo already holds, handed over as a source to be compared by reference; the rest is
+         * primitives. An open list is damaged on every frame of its fade and on every hover move,
+         * so a string built in this hook would be built once a frame to conclude that nothing
+         * moved.
+         *
+         * @param a the builder for this node
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            // Once for the pass, as rowTop, rowAt and damageRow already require: two resolutions
+            // inside one description could place a row against one step and size it against
+            // another.
+            SizeTokens t = tokens();
+            float itemH = t.popupItemHeight();
+            float inset = t.popupRowInsetX();
+            float viewport = height();
+            float contentH = contentHeight(t);
+            float maxScroll = Math.max(0, contentH - viewport);
+
+            a.role(Accessible.Role.LIST);
+            // Single-selection and always-selected, which are the combo's own documented
+            // invariant: it refuses an empty item list, so there is exactly one selection and
+            // nothing to clear to. The active descendant is not declared and cannot be: it is
+            // resolved in the copy from the first node in this subtree published ACTIVE, which is
+            // the highlighted option below.
+            a.selection(false, true);
+            // The survey's row omits this and the panel scrolls: the wheel, a real ScrollBar child
+            // with a real model, Scrollable#revealRect and the keyboard's auto-reveal all move it,
+            // and a list clamped to the work area or to the owner scene is the ordinary case
+            // rather than the long one. Computed from the same expressions clampScroll uses, so
+            // the facet and the clamp cannot drift apart.
+            a.scroll(0, maxScroll > 0 ? scroll / maxScroll : 0,
+                    1, contentH > 0 ? Math.min(1, viewport / contentH) : 1,
+                    false, maxScroll > 0);
+            // No MODAL. In scene the walk already stamps it on the parentless top overlay, which
+            // is the layer this panel is a child of; in a window of its own the modality is the
+            // popup window's. Declaring it here would publish it twice in one tree.
+
+            for (int i = 0; i < items.size(); i++) {
+                float top = rowTop(i, t);
+                a.child(i);
+                // From the row formula the paint, the damage, the reveal and the hit test all
+                // share, and never from an index times a nominal height: rowTop subtracts the
+                // scroll, and a clamped list scrolls. The full row height and not the painted
+                // highlight's inset band, because the gutter is a cosmetic gap and rowAt hits the
+                // whole row: the box published has to be the box a click lands in.
+                a.bounds(inset, top, width() - 2 * inset, itemH);
+                a.role(Accessible.Role.LIST_ITEM);
+                // The string the combo holds, not the string it reads as: reference, locale and
+                // translation epoch are what the difference compares, and get() would allocate one
+                // per option per frame.
+                a.name(items.get(i), Accessible.NameFrom.CONTENT);
+                a.selectionItem(i == selectedIndex, i + 1, items.size());
+                // The cursor, which in this widget is not the selection: the highlight moves under
+                // the arrows and type-ahead while the selection moves only on commit, and a reader
+                // that heard only the selection could enumerate the options and never learn which
+                // one the user is on. Not the hover, which is a pointer affordance and would
+                // republish the tree on every mouse move.
+                if (i == highlightedIndex) {
+                    a.state(Accessible.State.ACTIVE);
+                }
+                // The negation of the paint loop's own skip test, so the tree and the pixels agree
+                // by construction rather than by two people remembering the same rule. Every
+                // option is still published, because the count and each option's position in it
+                // are what a reader is told and they do not change with the scroll.
+                if (top + itemH < 0 || top > viewport) {
+                    a.offScreen();
+                }
+                // The two-argument form; the variable-argument one allocates an array per call.
+                // Both verbs, because choosing an option in a combo is one gesture.
+                a.action(Accessible.Action.SELECT, Accessible.Action.PRESS);
+                a.endChild();
+            }
+        }
+
+        /**
+         * Chooses an option, through the same private path a click on it takes.
+         *
+         * <p>{@code commit} keeps its own guard against a click landing during the fade-out,
+         * clamps the index, closes the list and notifies the application only when the selection
+         * actually moved — so re-picking what is already selected says nothing here either, which
+         * is the rule the pointer already obeys. Nothing gains a public entry point for this.
+         *
+         * <p>The enabled check is this hook's own and is load-bearing in a window of its own:
+         * the scene's gate walks the owner's ancestors, and there the panel's chain is the panel
+         * alone, with the combo in another scene entirely. A list opened through the public
+         * {@code open()} on a disabled combo would otherwise accept a commit.
+         *
+         * @param key    the option's index, which is its key
+         * @param action what is being asked
+         * @param arg    unused; both verbs here are parameterless
+         * @return whether the option was chosen
+         */
+        @Override
+        protected boolean onSyntheticAction(long key, Accessible.Action action,
+                                            Accessible.Argument arg) {
+            if (!ComboBox.this.isEnabled()) {
+                return false;
+            }
+            int index = (int) key;
+            if (index < 0 || index >= items.size()) {
+                return false;
+            }
+            return switch (action) {
+                case SELECT, PRESS -> {
+                    commit(index);
+                    yield true;
+                }
+                default -> false;
+            };
+        }
     }
 }

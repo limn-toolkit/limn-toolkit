@@ -66,7 +66,6 @@ class AccessibleCoverageTest {
             "limn.components.ColorPicker$SaturationValueField",
             "limn.components.ColorPickerButton",
             "limn.components.ComboBox",
-            "limn.components.ComboBox$PopupPanel",
             "limn.components.ContextMenus$ContextRegion",
             "limn.components.Dialog$ActionRow",
             "limn.components.Dialog$CardColumn",

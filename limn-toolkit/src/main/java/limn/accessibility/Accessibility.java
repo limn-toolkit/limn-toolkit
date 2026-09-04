@@ -104,6 +104,7 @@ public final class Accessibility {
         boolean synthetic;
         long syntheticKey;
         boolean roleDeclared;
+        boolean offScreen;
 
         int toggle;                     // -1 none, else a ToggleFacet.State ordinal
         boolean hasValue;
@@ -180,6 +181,7 @@ public final class Accessibility {
             synthetic = false;
             syntheticKey = 0;
             roleDeclared = false;
+            offScreen = false;
             toggle = -1;
             hasValue = false;
             value = 0;
@@ -776,6 +778,31 @@ public final class Accessibility {
     }
 
     /**
+     * Says that the synthetic child being described is scrolled out of its owner's viewport, so
+     * that it publishes without {@code SHOWING} while its owner still shows.
+     *
+     * <p>A widget cannot set that state itself — {@link #state(Accessible.State, boolean)} refuses
+     * the five the publish step owns, because a widget's own flag answers only for itself — and
+     * the publish step cannot work it out either, since a row clipped away inside a scrolled list
+     * is a fact only the owner's own row formula knows. So this is the one bit of the inherited
+     * set a widget contributes to, and it contributes it the way it can be checked: by handing
+     * over the answer its paint loop already computes, rather than by naming a rectangle twice.
+     *
+     * <p>Clear by default and cleared for every child, so a scrolled-away row does not leave the
+     * next one marked. It says nothing about a widget's own node, which takes its showing bit from
+     * the widget tree.
+     *
+     * @throws IllegalStateException if no synthetic child is open
+     */
+    public void offScreen() {
+        Slot s = slot();
+        if (!s.synthetic) {
+            throw new IllegalStateException("offScreen outside a synthetic child");
+        }
+        s.offScreen = true;
+    }
+
+    /**
      * Gives this node the identity key its parent chose for it, from inside that parent's
      * describe-a-child hook.
      *
@@ -1000,6 +1027,35 @@ public final class Accessibility {
         s.states = set(s.states, Accessible.State.SHOWING, showing);
         s.states = set(s.states, Accessible.State.FOCUSABLE, focusable);
         s.states = set(s.states, Accessible.State.FOCUSED, focused);
+    }
+
+    /**
+     * Applies the inherited bits to a synthetic child, which {@link #inherited} cannot reach.
+     *
+     * <p>{@link #inherited} writes to the node the walk currently has open, and by the time the
+     * walk has one, every synthetic child the widget declared has already been closed. Without
+     * this a combo option, a menu row or a chart series would publish with enabled, visible and
+     * showing all clear — a disabled, invisible, off-screen element on all three platforms — and
+     * no widget could correct it, because those states are refused on the widget-facing surface by
+     * design.
+     *
+     * <p>Focusable and focused are deliberately not parameters. A synthetic child is drawn by its
+     * owner and is not a tab stop: the keyboard reaches the owner, and a set published focusable
+     * that is larger than the set the keyboard reaches is the disagreement the modal rule states.
+     *
+     * @param index   the node's index in this walk, which the publish step already holds
+     * @param enabled whether the owner and every ancestor of it are enabled
+     * @param visible whether the owner and every ancestor of it are visible
+     * @param showing whether the owner has pixels on screen; a child that called
+     *                {@link #offScreen()} publishes without it either way
+     * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
+     */
+    public void inheritedAt(int index, boolean enabled, boolean visible, boolean showing) {
+        Objects.checkIndex(index, count);
+        Slot s = slots[index];
+        s.states = set(s.states, Accessible.State.ENABLED, enabled);
+        s.states = set(s.states, Accessible.State.VISIBLE, visible);
+        s.states = set(s.states, Accessible.State.SHOWING, showing && !s.offScreen);
     }
 
     private static long set(long states, Accessible.State state, boolean on) {
