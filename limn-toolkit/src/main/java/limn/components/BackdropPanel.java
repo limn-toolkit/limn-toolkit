@@ -26,6 +26,17 @@ import java.util.Objects;
  * <p>Degrades to a flat panel in the effect's {@link BackdropEffect#tint() tint} where the renderer
  * has no backdrop support, with the same size, position and corner radius.
  *
+ * <p><b>A redaction painted here is a picture, and not a fact.</b> The effect covers whatever the
+ * frame has already drawn — siblings this panel holds no reference to and knows nothing about — so
+ * a screen reader still reads the covered widget's text, verbatim, from the covered widget's own
+ * node. Blurring a card number hides it from the person looking at the screen and from nobody
+ * else. An application that means to redact something hides or ignores the widget that holds it,
+ * and uses the panel for what the eye is shown.
+ *
+ * <p>The panel itself is never in the accessible tree: it declares no role, no name, no state and
+ * no action, so it is scaffolding, and a reader hears the controls inside it with the glass
+ * nowhere in the telling. It says its painting is decoration, so it is removed in silence.
+ *
  * <p><b>Size axis:</b> the corner radius follows the resolved {@link limn.scene.ControlSize} row
  * like every other component's chrome, unless {@link #setCornerRadius} pins it. The effect's own
  * dimensions (a rim width, a cell size) are authored in points and do not scale with the step:
@@ -100,6 +111,24 @@ public class BackdropPanel extends Padding {
         this.cornerRadius = radius;
         invalidate();
         return this;
+    }
+
+    /**
+     * The glass is material and carries no information, so the tree removes this panel without
+     * saying anything about it.
+     *
+     * <p>Every other member of the scaffolding family — the rows, the columns, the paddings —
+     * paints nothing at all and is removed in silence for free. This one paints, and the guard
+     * that catches a custom gauge nobody named cannot tell a gauge from a wash: it would name a
+     * toolkit class in an application's log, for a picture that is background over content this
+     * panel does not own, and recommend marking it ignored — which would take the whole child
+     * subtree with it and delete the very controls the glass sits behind.
+     *
+     * @return {@code true}, always
+     */
+    @Override
+    protected boolean paintsDecoration() {
+        return true;
     }
 
     @Override

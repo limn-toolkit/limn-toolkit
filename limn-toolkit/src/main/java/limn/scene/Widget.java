@@ -1584,6 +1584,34 @@ public abstract class Widget {
     }
 
     /**
+     * Whether what {@link #onPaint} draws is material rather than meaning: a wash, a blur, a
+     * shadow, a rule. Default {@code false}.
+     *
+     * <p>A widget that draws its own content and declares nothing is removed from the accessible
+     * tree by the transparency rule, and the toolkit says so once per class — because the usual
+     * cause is a gauge or a sparkline nobody named, and the interface it drew is then simply
+     * absent with nothing said. That guard asks "does this class draw?", which reflection can
+     * answer; it cannot ask whether the drawing means anything, and this widget is the only thing
+     * that can. Overriding this to {@code true} is that answer, and the removal then happens in
+     * silence.
+     *
+     * <p><b>It is not {@link #setAccessibleIgnored}, and the difference is the subtree.</b> Ignored
+     * takes this widget's children out of the tree with it, which on a panel whose whole purpose
+     * is to sit behind controls hides every control it wraps. Saying the painting is decoration
+     * changes nothing about the tree at all: the node is removed exactly as it would have been,
+     * the children hoist into its place, and only the warning goes away.
+     *
+     * <p>Answer it {@code true} only for a class whose drawing a reader loses nothing by never
+     * hearing about. A widget that paints information is named or given a role instead; there is
+     * no third answer that leaves the picture out and keeps the user informed.
+     *
+     * @return whether this widget's own drawing carries no information
+     */
+    protected boolean paintsDecoration() {
+        return false;
+    }
+
+    /**
      * What an application declared about this widget for an assistive technology. {@code null}
      * until it declares something, which is the whole per-widget memory cost of the accessible
      * tree: one reference, never read on a widget nobody named.

@@ -55,7 +55,6 @@ class AccessibleCoverageTest {
      * the pipeline takes them in whatever order makes each one's own step cheapest to verify.
      */
     private static final Set<String> UNDESCRIBED = new TreeSet<>(Set.of(
-            "limn.components.BackdropPanel",
             "limn.components.Button",
             "limn.components.Checkbox",
             "limn.components.ColorPicker",
@@ -170,6 +169,21 @@ class AccessibleCoverageTest {
      * pinned what the deletion does <em>not</em> delete.
      */
     private static final Set<String> TRANSPARENT_BY_THE_PREDICATE = new TreeSet<>(Set.of(
+            // Declares no role, name, description, action or state, is never focusable of its own
+            // accord, and holds exactly one child, so §1.6's predicate deletes it and hoists that
+            // child into the panel's place. Everything it draws is background over siblings it
+            // holds no reference to, and everything a user can operate is inside the child, which
+            // publishes unchanged with its own identity and its own box — so the deletion is
+            // right and there is nothing to describe. It is the one member of §7's scaffolding row
+            // that paints, which is what had to be fixed: the paints-and-says-nothing warning
+            // named a toolkit class in an application's log and advised the ignore flag, which
+            // would have taken the child subtree with it. The panel declares its painting
+            // decoration instead. The precedent below escapes the same warning for no reason at
+            // all — SplitPane$Pane clips through paintChildren rather than overriding onPaint,
+            // which is an accident of which method it happened to need and not a decision. Pinned
+            // by limn.components.BackdropPanelAccessibilityTest, and the seam it stands on by
+            // limn.scene.AccessiblePaintWarningTest.
+            "limn.components.BackdropPanel",
             // Clips its children, declares nothing, is never focusable and can never acquire a
             // tooltip, so §1.6's predicate deletes it and hoists its content into the split's own
             // place. The clip outlives the node: isShowing() walks widgets rather than nodes, so a

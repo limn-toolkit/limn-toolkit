@@ -844,6 +844,20 @@ fixes — `setAccessibleName`, `setAccessibleRole`, or `setAccessibleIgnored(tru
 is decorative and mean it. It stays a warning rather than a node, because a name is the only thing
 that would make such a node useful and only the application has one.
 
+**Unless the class says the drawing is decoration.** `Widget#paintsDecoration()` is a protected
+`boolean`, false by default, in the shape of `clipsChildren()`: the `ClassValue` answers *does this
+class draw*, which is all reflection can see, and the widget answers *is what it draws information*,
+which nothing else can. `BackdropPanel` is the case the paragraph above did not consider, and the
+one class in its own list of deletions that overrides `onPaint` — a wash or a blur over siblings it
+holds no reference to. Without the seam it names a *toolkit* class in an application's log, for a
+picture that means nothing, and recommends `setAccessibleIgnored(true)`, which would take the whole
+child subtree with it and delete the controls the glass sits behind: this section's own rule against
+ignoring an operable control, violated by this section's own advice. The seam is deliberately not
+that flag. Declaring the painting decoration changes nothing about the tree — the node is removed
+exactly as it would have been and the children hoist into its place — and only the warning goes
+away. It is not an escape hatch for a widget that paints information: that widget is named or given
+a role, and there is no third answer that leaves the picture out and keeps the user informed.
+
 Ignored is what an application reaches for on a spacer image or a decorative rule, and what a
 component reaches for on a mark it draws that carries no information. **A control that can be
 operated is never ignored, and an operation is never deleted with the box that carried it.** A text
@@ -2321,7 +2335,8 @@ and mixing them up is how a design document becomes untrustworthy in both direct
 
 | Widget | Role | Facets and states | Synthetic children | Note |
 | --- | --- | --- | --- | --- |
-| `Row`, `Column`, `Flex`, `Stack`, `Padding`, `SizedBox`, `Expanded`, `TokenBox`, `TokenColumn`, `TokenPadding`, `TokenRow`, `BackdropPanel` | transparent | | | scaffolding; the tree is the controls, not the boxes |
+| `Row`, `Column`, `Flex`, `Stack`, `Padding`, `SizedBox`, `Expanded`, `TokenBox`, `TokenColumn`, `TokenPadding`, `TokenRow` | transparent | | | scaffolding; the tree is the controls, not the boxes |
+| `BackdropPanel` | transparent | | | **Corrected in its framing, not in its verdict.** It sat in the row above and is not inert like the rest of it: it is the only one of the twelve that overrides `onPaint`, so §1.6's paints-and-deleted clause catches it and "scaffolding" hid that. It declares its painting decoration and is removed in silence, holding no state, no handler and no operation to lose. The tree costs nothing here; the log did, and the fix was a toolkit change rather than an application's. Worth an application knowing: the effect covers siblings the panel holds no reference to, so a redaction it paints hides nothing at all from a screen reader |
 | `Label` | `LABEL`, or `HEADING` for the title typographic role | name from `textSource()`, `nameFrom=CONTENT` | — | gains `LABEL_FOR` when an application declares the relation |
 | `Button` | `BUTTON` | `ActionFacet{PRESS}`; `DEFAULT` when it is a dialog's default | — | name from `textSource()`, else the tooltip; the action reaches the private path through the widget's own hook |
 | `Checkbox` box / switch | `CHECK_BOX` / `SWITCH` | `ToggleFacet`, `ActionFacet{TOGGLE}` | — | name from its own label, `nameFrom=CONTENT` — the field is a private `I18nString` with no getter today and §8 adds the `text()`/`textSource()` pair, because a focusable node with no name fails `AccessibleGalleryTest`. `toggle()` has no enabled guard of its own — the guard is the scene's, which never delivers an event to a disabled widget — so the accessibility path re-checks `isEnabled()` (§1.9) and `toggle()` gains the same guard (§8) |
@@ -2414,6 +2429,7 @@ its real function is to calibrate how much the table should be trusted.
 | `ListView` row | needs `ActionFacet{PRESS}` onto `activate()`; selection without a verb is not usable |
 | `Spinner` time mode | the region test is about pointer hit-testing and does not settle what a reader is offered |
 | `VideoView`, `ProgressBar` | a continuously-advancing value must be published rounded (§6) |
+| `BackdropPanel` | it paints, alone among the twelve classes the scaffolding row lumped it with, so §1.6's paint warning fires on it: a toolkit class named in an application's log, recommending a flag that would delete the controls under the glass. §1.6 gained the decoration seam; the row gained one of its own |
 
 *Left to the pipeline, as work:*
 

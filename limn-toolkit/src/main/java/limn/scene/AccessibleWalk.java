@@ -289,9 +289,18 @@ final class AccessibleWalk {
      * interface it drew would simply be absent from the tree with nothing said. Only the
      * application has a name for such a thing, so this says so once per class rather than
      * publishing a nameless box.
+     *
+     * <p>Unless the class says the drawing is decoration, which is the one answer reflection
+     * cannot supply: {@code paintsItself} asks which method a class overrode, and a wash painted
+     * behind somebody else's controls overrides the same one a gauge does. The widget is asked
+     * before the set is touched, so a decorative class never takes a slot in it and the warning it
+     * is exempt from stays available to the class that needs it.
      */
     private static void warnIfItPaints(Widget widget) {
-        if (!widget.paintsItself() || !PAINT_WARNED.add(widget.getClass().getName())) {
+        if (!widget.paintsItself() || widget.paintsDecoration()) {
+            return;
+        }
+        if (!PAINT_WARNED.add(widget.getClass().getName())) {
             return;
         }
         LOG.log(Level.WARNING,
