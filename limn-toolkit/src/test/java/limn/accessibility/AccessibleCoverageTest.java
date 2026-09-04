@@ -102,7 +102,6 @@ class AccessibleCoverageTest {
             "limn.components.chart.BarChart",
             "limn.components.chart.DonutChart",
             "limn.components.chart.LineChart",
-            "limn.scene.layout.Column",
             "limn.scene.layout.Expanded",
             "limn.scene.layout.SizedBox",
             "limn.scene.layout.Stack"
@@ -224,10 +223,30 @@ class AccessibleCoverageTest {
             // for a TOOL_BAR over a button strip rather than a leak. The entry stands on the
             // abstract Flex above it staying hookless — abstract classes take no entry of their
             // own here — because a hook there would be inherited by Column and by TokenRow and
-            // would turn two pending verdicts into deferrals. Column stays undescribed until its
-            // own step: it is the same class body seen along the other axis, and none of this
-            // widget's geometry transfers to it. Pinned by limn.scene.RowAccessibilityTest.
-            "limn.scene.layout.Row"
+            // would turn two pending verdicts into deferrals. Column is the same class body seen
+            // along the other axis and none of this widget's geometry transfers to it, so it took
+            // a step and an entry of its own. Pinned by limn.scene.RowAccessibilityTest.
+            "limn.scene.layout.Row",
+            // Declares no role, name, description, action or state, declares no onPaint — so the
+            // paints-and-says-nothing warning stays silent and this is not the BackdropPanel case
+            // — and is never focusable of its own accord, so §1.6's predicate deletes it and
+            // hoists its children into the column's own parent, in children() order. The deletion
+            // leaves the geometry behind as the children's origins: the gap as the distance
+            // between consecutive sibling boxes, the main alignment as the first child's origin,
+            // and the cross alignment as each child's horizontal origin and, under STRETCH, its
+            // width. That cross axis is what a row's is not — a column is the only exerciser of
+            // Flex's cross-axis reflection, so in a mirrored subtree every child's x turns around
+            // while tree order stays visual top to bottom. It does not clip, so an over-subscribed
+            // column publishes boxes outside its own rectangle and still SHOWING, which is §7.2's
+            // bounds claim answered here and the opposite of PopupMenu's private inner Column, a
+            // scrolled and clipped viewport the survey gives the same bare name. Public and
+            // non-final, so naming, tooltipping or roling an instance materialises a GROUP over
+            // the column's own rectangle: transparency is per instance. The entry stands on the
+            // abstract Flex above it staying hookless, because the transparency check walks the
+            // ancestry — a describe hook on Flex would fail this name and would silently describe
+            // Row, TokenColumn and TokenRow at once. Pinned by
+            // limn.scene.ColumnAccessibilityTest.
+            "limn.scene.layout.Column"
     ));
 
     @Test
