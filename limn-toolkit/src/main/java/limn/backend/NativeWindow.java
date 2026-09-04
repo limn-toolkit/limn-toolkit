@@ -390,6 +390,19 @@ public interface NativeWindow extends AutoCloseable {
                 image, limn.graphics.ImageFormat.PNG, pngFile));
     }
 
+    /**
+     * @return the platform accessibility bridge for this window, or
+     *         {@link AccessibilityBridge#NONE} when it has none.
+     *
+     *         <p>{@code default} on the merits rather than as a compatibility dodge: none is the
+     *         <em>correct</em> behaviour for a window with no accessibility — a test double, an
+     *         embedded surface, any future backend on its first day — and getting exactly zero cost
+     *         by writing nothing is better than getting it by writing the same stub in each.
+     */
+    default AccessibilityBridge accessibility() {
+        return AccessibilityBridge.NONE;
+    }
+
     /** Registers a listener for runtime monitor/content-scale changes. */
     void setContentScaleListener(ContentScaleListener listener);
 

@@ -276,6 +276,15 @@ public final class Scene implements WindowInput {
     /** Wires this scene into a window: input, frame rendering, invalidation, clipboard. */
     public void bind(NativeWindow window) {
         this.window = window;
+        limn.backend.AccessibilityBridge attached = window.accessibility();
+        this.bridge = attached != null ? attached : limn.backend.AccessibilityBridge.NONE;
+        // Asked once, remembered, and never asked again: only the scene needs to know that it owes
+        // a first tree to a bridge whose own gate cannot open until it has one.
+        this.primingPublishOwed = this.bridge.needsPrimingPublish();
+        this.accessibleNodesDirty = true;
+        // attach() and not a tree: at this instant the scene has never laid out, so every box in
+        // it would be a zero-size rectangle at the origin. The first frame is where the boxes are.
+        this.bridge.attach(accessibilityHost());
         window.setInput(this);
         this.renderRequester = window::requestFrame;
         window.setFrameCallback((renderer, frame) ->
@@ -668,12 +677,12 @@ public final class Scene implements WindowInput {
     /**
      * Whether a bridge is attached and an assistive technology is listening to it.
      *
-     * <p>Always false until the tree lands: with no bridge there is nothing to spend a frame on,
-     * and the flags above are still maintained so that switching one on mid-session needs no audit
-     * of what was missed.
+     * <p>The gate the whole cost argument rests on. With nothing listening the flags above are
+     * still maintained, so switching a bridge on mid-session needs no audit of what was missed;
+     * what is not spent is the frame.
      */
     private boolean accessibilityLive() {
-        return false;
+        return bridge != limn.backend.AccessibilityBridge.NONE && bridge.isListening();
     }
 
     /**
@@ -726,6 +735,269 @@ public final class Scene implements WindowInput {
      */
     public void announce(String text, limn.accessibility.Accessible.Politeness politeness) {
         announce(limn.i18n.I18nString.literal(Objects.requireNonNull(text, "text")), politeness);
+    }
+
+    // ------------------------------------------------------- the accessible tree
+
+    private limn.backend.AccessibilityBridge bridge = limn.backend.AccessibilityBridge.NONE;
+    private limn.backend.AccessibilityBridge.Host accessibilityHost;
+    private AccessibleWalk accessibleWalk;
+
+    /**
+     * The tree a reader on any thread answers from.
+     *
+     * <p>{@code volatile}, written by the user-interface thread with a fully constructed immutable
+     * object and read from wherever a platform gave a bridge its thread. That single write is the
+     * whole of the synchronisation between the two sides, and it is enough because everything on
+     * the other end of it is a value.
+     */
+    private volatile limn.accessibility.AccessibleTree publishedTree =
+            limn.accessibility.AccessibleTree.EMPTY;
+
+    /** Whether the one bridge that needs a tree before its gate can open is still owed one. */
+    private boolean primingPublishOwed;
+
+    /** Whether a layout pass has ever run, which is what makes the boxes real rather than zero. */
+    private boolean hasLaidOut;
+
+    private limn.backend.AccessibilityBridge.Host accessibilityHost() {
+        if (accessibilityHost == null) {
+            accessibilityHost = new Host();
+        }
+        return accessibilityHost;
+    }
+
+    /** The scene-side half a bridge holds, and the only way a platform reaches toolkit state. */
+    private final class Host implements limn.backend.AccessibilityBridge.Host {
+
+        @Override
+        public void requestRepublish() {
+            Ui.post(() -> {
+                accessibleNodesDirty = true;
+                // Unconditionally, unlike every other accessibility path that buys a frame: the
+                // caller is a bridge that has just been asked for a tree.
+                scheduleFrame();
+            });
+        }
+
+        @Override
+        public void requestRestamp() {
+            Ui.post(() -> {
+                accessibleHeaderDirty = true;
+                scheduleFrame();
+            });
+        }
+
+        @Override
+        public limn.accessibility.AccessibleTree republishNow() {
+            Ui.checkUiThread();
+            if (!hasLaidOut) {
+                // Nothing truthful can be said about a window whose widgets have no boxes. A tree
+                // of zero-size rectangles in the corner is worse than an empty one, because it
+                // looks like an answer.
+                scheduleFrame();
+                return publishedTree;
+            }
+            if (!accessibleNodesDirty && !accessibleHeaderDirty) {
+                return publishedTree;
+            }
+            if (!accessibleNodesDirty) {
+                restampAccessibleTree();
+                scheduleFrame();
+                return publishedTree;
+            }
+            publishAccessibleTree(true);
+            scheduleFrame();
+            return publishedTree;
+        }
+
+        @Override
+        public boolean perform(long nodeId, limn.accessibility.Accessible.Action action,
+                               limn.accessibility.Accessible.Argument arg) {
+            Objects.requireNonNull(action, "action");
+            limn.accessibility.Accessible.Argument argument =
+                    arg != null ? arg : limn.accessibility.Accessible.Argument.NONE;
+            // The one refusal that can honestly be immediate: an immutable read, safe from any
+            // thread. Every other precondition is a fact about live widgets and is re-checked on
+            // the thread that owns them, when the task arrives.
+            if (publishedTree.indexOf(nodeId) == limn.accessibility.AccessibleNode.NONE) {
+                return false;
+            }
+            Ui.post(() -> performAccessibleAction(nodeId, action, argument));
+            return true;
+        }
+    }
+
+    /**
+     * Runs one action on the thread that owns the widget tree, having re-checked everything the
+     * snapshot could not promise.
+     */
+    private void performAccessibleAction(long nodeId, limn.accessibility.Accessible.Action action,
+                                         limn.accessibility.Accessible.Argument arg) {
+        if (accessibleWalk == null) {
+            return;
+        }
+        Widget owner = accessibleWalk.ownerOf(nodeId);
+        if (owner == null || owner.scene() != this || !owner.isShowing()) {
+            return;
+        }
+        for (Widget at = owner; at != null; at = at.parent()) {
+            if (!at.isEnabled()) {
+                return; // a control inside a disabled container is one the keyboard refuses too
+            }
+        }
+        // Two tests and not one. A window's own modal flag answers false for the host of an
+        // in-scene modal by construction, so gating on it alone would invoke a button underneath
+        // an open dialog; and a snapshot can predate the modal, so the layer that owns input has
+        // to be re-checked here whatever the tree said.
+        if (window != null && window.isModalBlocked()) {
+            return;
+        }
+        if (!isInSubtree(owner, inputRoot()) && !isOverlayRoot(owner)) {
+            return;
+        }
+        boolean done = accessibleWalk.isSynthetic(nodeId)
+                ? owner.performSyntheticAction(accessibleWalk.keyOf(nodeId), action, arg)
+                : owner.performAccessibleAction(action, arg);
+        if (done && action == limn.accessibility.Accessible.Action.PRESS && accessibilityLive()) {
+            bridge.emit(limn.accessibility.AccessibleEvent.of(
+                    limn.accessibility.AccessibleEvent.Type.INVOKED, nodeId));
+        }
+    }
+
+    private boolean isOverlayRoot(Widget widget) {
+        return overlays.contains(widget);
+    }
+
+    /** The overlay stack, for the walk: overlays are a second root set and not part of the tree. */
+    List<Widget> overlays() {
+        return overlays;
+    }
+
+    /** Whether {@code widget} is the layer that currently owns input. */
+    boolean isTopOverlay(Widget widget) {
+        return topOverlay() == widget;
+    }
+
+    /**
+     * The step that turns a frame into an accessible tree, run after layout and the hover update
+     * and before the paint passes: bounds are settled there and hover has already moved whatever
+     * it moves, and every change that matters to an assistive technology already schedules a frame,
+     * so the frame is the flush point and no new scheduling is invented.
+     */
+    private void accessibilityStep(boolean rePresent) {
+        boolean live = accessibilityLive();
+        drainAnnouncements(live);
+        if (rePresent) {
+            // The whole contract of a re-present is to redraw the same pixels into the other
+            // buffer. A walk that can only ever conclude "nothing changed" belongs in the list of
+            // things it already skips.
+            return;
+        }
+        if (!live && !primingPublishOwed) {
+            return;
+        }
+        if (!accessibleNodesDirty && !accessibleHeaderDirty && !primingPublishOwed) {
+            return;
+        }
+        if (!accessibleNodesDirty && !primingPublishOwed) {
+            restampAccessibleTree();
+            return;
+        }
+        publishAccessibleTree(false);
+    }
+
+    /**
+     * Above the re-present guard and above both flags, because an announcement is the application
+     * speaking rather than a property of a node: a frame that changes nothing in the tree still
+     * carries whatever was queued since the last one.
+     */
+    private void drainAnnouncements(boolean live) {
+        if (announcements.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < announcements.size(); i++) {
+            Announcement queued = announcements.get(i);
+            if (!live) {
+                continue; // still drained, so the queue stays bounded; simply not spoken
+            }
+            java.util.Locale enclosing = limn.i18n.I18n.pushScope(
+                    locale() != null ? locale() : limn.i18n.I18n.processLocale());
+            String said;
+            try {
+                said = queued.text().get();
+            } finally {
+                limn.i18n.I18n.popScope(enclosing);
+            }
+            bridge.emit(limn.accessibility.AccessibleEvent.announcement(said,
+                    queued.politeness()));
+        }
+        announcements.clear();
+    }
+
+    /** A window that moved changed no box in the tree; only where the tree is. */
+    private void restampAccessibleTree() {
+        accessibleHeaderDirty = false;
+        limn.accessibility.AccessibleTree before = publishedTree;
+        limn.accessibility.AccessibleTree after = before.restamp(
+                window != null ? window.screenX() : 0,
+                window != null ? window.screenY() : 0,
+                window != null ? window.logicalToScreenFactor() : 1,
+                window == null || window.supportsAbsolutePositioning());
+        if (after == before) {
+            return;
+        }
+        publishedTree = after;
+        bridge.publish(after, false);
+        bridge.emit(limn.accessibility.AccessibleEvent.of(
+                limn.accessibility.AccessibleEvent.Type.BOUNDS_CHANGED, 0));
+    }
+
+    /**
+     * Walks, compares, and publishes only a difference.
+     *
+     * <p>Damage is a coarse trigger — a caret blink, a hover ripple and a tween all damage
+     * something and change no accessible fact — so the walk writes into a buffer this scene owns
+     * and reuses, comparing as it goes. Only a difference costs the immutable copy a reader may
+     * hold.
+     *
+     * @param reentrant whether the platform is on the stack, holding what this bridge vended
+     */
+    private void publishAccessibleTree(boolean reentrant) {
+        if (accessibleWalk == null) {
+            accessibleWalk = new AccessibleWalk();
+        }
+        try {
+            accessibleWalk.walk(this, width, height);
+        } catch (limn.backend.Crashes.ShutdownRequested shutdown) {
+            throw shutdown;
+        } catch (Throwable error) {
+            // A describe pass runs application code the moment a widget subclass overrides its
+            // hook, and on one platform it runs inside a native callback where an escaping
+            // exception unwinds into code with no Java frame to report it. A crashed pass leaves
+            // the previous tree published and answers from that.
+            if (!limn.backend.Crashes.dispatch(limn.backend.CrashPhase.ACCESSIBILITY, error)) {
+                throw limn.backend.Crashes.shutdownRequested(error);
+            }
+            return;
+        }
+        accessibleNodesDirty = false;
+        accessibleHeaderDirty = false;
+        primingPublishOwed = false;
+        if (!accessibleWalk.builder().changed()) {
+            return; // no snapshot, no publish, no events
+        }
+        limn.accessibility.AccessibleTree tree = accessibleWalk.publish(
+                window != null ? window.screenX() : 0,
+                window != null ? window.screenY() : 0,
+                window != null ? window.logicalToScreenFactor() : 1,
+                window == null || window.supportsAbsolutePositioning());
+        publishedTree = tree;
+        bridge.publish(tree, reentrant);
+        List<limn.accessibility.AccessibleEvent> events = accessibleWalk.builder().events();
+        for (int i = 0; i < events.size(); i++) {
+            bridge.emit(events.get(i));
+        }
     }
 
     /** One queued announcement, resolved when it is drained rather than when it is made. */
@@ -1676,6 +1948,13 @@ public final class Scene implements WindowInput {
                     }
                 } else if (raw instanceof RawFocus focus) {
                     windowFocused = focus.focused;
+                    if (accessibilityLive()) {
+                        // Raised rather than diffed: each window is its own scene with its own
+                        // tree, so no comparison within one window could ever produce it.
+                        bridge.emit(limn.accessibility.AccessibleEvent.of(focus.focused
+                                ? limn.accessibility.AccessibleEvent.Type.WINDOW_ACTIVATED
+                                : limn.accessibility.AccessibleEvent.Type.WINDOW_DEACTIVATED, 0));
+                    }
                     if (!focus.focused) {
                         // The RELEASE happens in another app and never reaches us:
                         // without this, the next MOVE would still be a DRAG (pointer), and every
@@ -2071,6 +2350,7 @@ public final class Scene implements WindowInput {
             // scrolled-away widget with stale ENTER state and the wrong cursor.
             updateHover(hitAt(mouseX, mouseY));
         }
+        accessibilityStep(rePresent);
         List<Rect> repaint; // rects to repaint; null = the whole frame, empty = nothing
         if (rePresent) {
             // Identical frame into the other buffer: repaint exactly what the
@@ -2717,6 +2997,18 @@ public final class Scene implements WindowInput {
             LOG.log(Level.ERROR, "focus-lost handler threw during window close; teardown continues", error);
             limn.backend.Crashes.report(limn.backend.CrashPhase.WINDOW_CLOSE, error);
         }
+        try {
+            // The window pair is the bridge's to raise, because a scene bound over a live window
+            // never learns it was replaced and so cannot raise its own close. Here there is a
+            // window genuinely going away, and this is the one caller that knows it.
+            bridge.detach();
+        } catch (Throwable error) {
+            LOG.log(Level.ERROR, "accessibility bridge threw during window close; teardown continues",
+                    error);
+            limn.backend.Crashes.report(limn.backend.CrashPhase.WINDOW_CLOSE, error);
+        }
+        bridge = limn.backend.AccessibilityBridge.NONE;
+        publishedTree = limn.accessibility.AccessibleTree.EMPTY;
         limn.graphics.Fonts.removeChangeListener(metricsListener);
         ControlSize.removeChangeListener(metricsListener);
         LayoutDirection.removeChangeListener(metricsListener);
@@ -2789,6 +3081,9 @@ public final class Scene implements WindowInput {
             overlay.layoutBox(0, 0, newWidth, newHeight);
         }
         layoutDirty = false;
+        // A pass has run, so the boxes are real. Until it has, there is nothing truthful to say
+        // about this window's geometry and the accessible tree says nothing rather than zeros.
+        hasLaidOut = true;
         if (pendingReveal != null) {
             Widget reveal = pendingReveal;
             pendingReveal = null;

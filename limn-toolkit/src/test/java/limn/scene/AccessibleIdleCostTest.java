@@ -124,4 +124,29 @@ class AccessibleIdleCostTest {
 
         assertEquals(0, least, "a frame nobody is listening to must cost no memory");
     }
+
+    /**
+     * And with a bridge attached and something listening, a frame over a tree that did not move
+     * costs the same nothing.
+     *
+     * <p>That is the state the flag riding the damage funnel pays for: damage is a coarse trigger,
+     * so a repaint that changed no accessible fact does reach the publish step. What it must not do
+     * is produce anything.
+     */
+    @Test
+    void aFrameWithALiveBridgeAndACleanTreeAllocatesNothingEither() {
+        Assumptions.assumeTrue(AllocationProbe.isSupported(),
+                "this virtual machine does not count per-thread allocation");
+        RecordingAccessibilityBridge listening = new RecordingAccessibilityBridge();
+        listening.listening = true;
+        window.accessibility = listening;
+        scene.bind(window);
+        NoopCanvas surface = new NoopCanvas(200, 200);
+        scene.renderFrame(surface);
+        scene.renderFrame(surface);
+
+        long least = AllocationProbe.leastAllocatedBy(() -> scene.renderFrame(surface), 60);
+
+        assertEquals(0, least, "a settled tree costs nothing to confirm as settled");
+    }
 }

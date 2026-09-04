@@ -1,0 +1,242 @@
+package limn.scene;
+
+import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleEvent;
+import limn.accessibility.AccessibleTree;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * When a tree exists, when a window opens and closes, and what a bridge is left holding.
+ *
+ * <p>The first frame is the interesting moment. Binding a scene wires the input, the frame callback
+ * and the invalidation, and it does not lay out: every box is zero and every widget is at the
+ * origin. A tree built there would describe a window whose entire contents are a zero-size
+ * rectangle in the corner, which is worse than describing nothing at all, because it looks like an
+ * answer.
+ */
+class AccessibleLifecycleTest extends AccessibleTestBase {
+
+    private Group sceneWithAButton() {
+        Group root = new Group();
+        root.add(new Probe(Accessible.Role.BUTTON, "Save"));
+        return root;
+    }
+
+    @Test
+    void bindingPublishesNothingAndTheFirstFramePublishesRealBoxes() {
+        Group root = sceneWithAButton();
+        bridge = new RecordingAccessibilityBridge();
+        bridge.listening = true;
+        window = new RecordingWindow();
+        window.accessibility = bridge;
+        scene = new Scene(root, nanos::get);
+        scene.bind(window);
+
+        assertTrue(bridge.published.isEmpty(), "at bind there are no boxes to describe");
+        assertSame(AccessibleTree.EMPTY, bridge.host.republishNow(),
+                "and asking for one on the spot answers with nothing rather than with zeros");
+
+        frame();
+
+        assertEquals(1, bridge.published.size());
+        assertEquals(20f, node("Save").height(), "and the boxes are real: " + describe(tree()));
+    }
+
+    @Test
+    void aBridgeThatAsksForAPrimingTreeGetsOneAndOneThatDoesNotGetsNothing() {
+        Group root = sceneWithAButton();
+        bridge = new RecordingAccessibilityBridge();
+        bridge.listening = false;
+        bridge.needsPriming = true;
+        window = new RecordingWindow();
+        window.accessibility = bridge;
+        scene = new Scene(root, nanos::get);
+        scene.bind(window);
+        frame();
+
+        assertEquals(1, bridge.published.size(),
+                "the one bridge whose own gate cannot open until it has elements to offer");
+        frame();
+        assertEquals(1, bridge.published.size(), "and it is owed exactly one, not one per frame");
+
+        Group other = sceneWithAButton();
+        bind(other, false);
+        frame();
+        assertTrue(bridge.published.isEmpty(),
+                "a bridge that did not ask pays no walk for a window nobody ever touches");
+    }
+
+    @Test
+    void bindingRaisesAWindowOpenedAndClosingRaisesAWindowClosed() {
+        Group root = sceneWithAButton();
+        bridge = new RecordingAccessibilityBridge();
+        bridge.listening = true;
+        window = new RecordingWindow();
+        window.accessibility = bridge;
+        scene = new Scene(root, nanos::get);
+        scene.bind(window);
+
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.WINDOW_OPENED));
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.WINDOW_CLOSED));
+
+        scene.windowClosed();
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.WINDOW_CLOSED));
+        assertTrue(bridge.elements.isEmpty(), "and it is left holding nothing");
+    }
+
+    /**
+     * A scene bound over a live window never learns it was replaced, so the outgoing one cannot
+     * raise its own close and the incoming one does not know there was anything to close. The
+     * bridge is the one object that holds that fact, which is why the window pair is raised there
+     * and beside the sweep that makes it true.
+     */
+    @Test
+    void asecondSceneBoundOverTheSameWindowClosesTheFirstAndLeavesOneHost() {
+        bind(sceneWithAButton());
+        frame();
+        assertFalse(bridge.elements.isEmpty());
+        bridge.events.clear();
+
+        Scene replacement = new Scene(sceneWithAButton(), nanos::get);
+        replacement.bind(window);
+
+        assertEquals(List.of(AccessibleEvent.Type.WINDOW_CLOSED, AccessibleEvent.Type.WINDOW_OPENED),
+                bridge.events.stream().map(AccessibleEvent::type).toList());
+        assertEquals(2, bridge.attachments);
+        assertTrue(bridge.elements.isEmpty(),
+                "a rebind invalidates every element at once; leaving them alive would leak the "
+                        + "whole previous tree and let a client resolve against identifiers the "
+                        + "new tree may reuse");
+    }
+
+    /**
+     * An announcement buys the frame that delivers it, and only while something is listening. The
+     * steady state while a screen reader reads a quiet interface is a loop parked with no frame
+     * pending: an announcement queued into that state would never be spoken, which is the
+     * application's one way of saying something out loud going silent exactly when it is most
+     * likely to be used.
+     */
+    @Test
+    void anAnnouncementBuysItsOwnFrameAndArrivesOnAFrameThatChangedNothing() {
+        bind(sceneWithAButton());
+        frame();
+        window.frameRequests = 0;
+        bridge.events.clear();
+        int published = bridge.published.size();
+
+        scene.announce("Export finished", Accessible.Politeness.POLITE);
+        assertEquals(1, window.frameRequests, "it bought the frame that drains it");
+
+        frame();
+
+        AccessibleEvent spoken = bridge.first(AccessibleEvent.Type.ANNOUNCEMENT);
+        assertNotNull(spoken, "" + bridge.events);
+        assertEquals("Export finished", spoken.newValue());
+        assertEquals(Accessible.Politeness.POLITE, spoken.politeness());
+        assertEquals(published, bridge.published.size(),
+                "nothing in the tree moved, and the announcement arrived anyway");
+    }
+
+    @Test
+    void anAnnouncementArrivesOnARePresentFrameToo() {
+        bind(sceneWithAButton());
+        frame();
+        bridge.events.clear();
+
+        scene.announce("Half way", Accessible.Politeness.POLITE);
+        rePresentFrame();
+
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.ANNOUNCEMENT),
+                "an announcement is the application speaking, not a property of a node");
+    }
+
+    /**
+     * A publish from inside the platform's own callback stores the tree and does nothing else: the
+     * platform is standing on the elements a sweep would release, on the array a re-push would
+     * replace, and inside the callback a drain would post from.
+     */
+    @Test
+    void aReentrantPublishDefersEverythingAndBuysTheFrameThatPaysIt() {
+        Group root = sceneWithAButton();
+        bind(root);
+        frame();
+        long id = node("Save").id();
+        window.frameRequests = 0;
+
+        // What a platform callback does: something changed, and it cannot wait for a frame.
+        root.children().get(0).setAccessibleName("Save the document");
+        AccessibleTree fresh = bridge.host.republishNow();
+
+        assertEquals("Save the document", fresh.find(id).name(), "the answer is exact");
+        assertTrue(bridge.reentrant.get(bridge.reentrant.size() - 1),
+                "and it was handed over with the platform on the stack");
+        assertTrue(window.frameRequests >= 1,
+                "a deferred obligation needs a frame that is going to happen");
+    }
+
+    @Test
+    void aReentrantPublishThatFindsNothingDirtyPublishesNothingAndBuysNoFrame() {
+        bind(sceneWithAButton());
+        frame();
+        int published = bridge.published.size();
+        window.frameRequests = 0;
+
+        AccessibleTree same = bridge.host.republishNow();
+
+        assertEquals(published, bridge.published.size());
+        assertEquals(0, window.frameRequests,
+                "the one call that asks for nothing is the one that defers nothing");
+        assertSame(tree(), same);
+    }
+
+    @Test
+    void aDescribePassNeitherLaysOutNorMutatesTheTree() {
+        Group root = sceneWithAButton();
+        bind(root);
+        frame();
+        int childrenBefore = root.children().size();
+        float boxBefore = root.children().get(0).height();
+
+        root.children().get(0).setAccessibleName("Renamed");
+        bridge.host.republishNow();
+
+        assertEquals(childrenBefore, root.children().size());
+        assertEquals(boxBefore, root.children().get(0).height());
+    }
+
+    /**
+     * A difference wider than the budget stops being a list of events and becomes "everything
+     * changed", which a bridge answers by sweeping what it holds against the tree it was handed.
+     * That is stronger than replaying what was dropped, and it is the operation a rebind needs
+     * anyway — which is why there is one of it per bridge and not three.
+     */
+    @Test
+    void adifferenceWiderThanTheBudgetCollapsesAndTheBridgeCanStillReleaseWhatWentAway() {
+        Group root = new Group();
+        for (int i = 0; i < 400; i++) {
+            root.add(new Probe(Accessible.Role.BUTTON, "button " + i));
+        }
+        bind(root);
+        frame();
+        assertEquals(401, bridge.elements.size(), "a window and four hundred buttons");
+        bridge.events.clear();
+
+        for (int i = 0; i < 400; i++) {
+            root.remove(root.children().get(root.children().size() - 1));
+        }
+        frame();
+
+        assertEquals(1, bridge.events.size(), "one event, not four hundred: " + bridge.events);
+        assertEquals(AccessibleEvent.Type.INVALIDATED, bridge.events.get(0).type());
+        assertEquals(1, bridge.elements.size(),
+                "and the sweep released every element that went away");
+    }
+}

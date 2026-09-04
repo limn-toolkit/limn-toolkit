@@ -101,6 +101,9 @@ public final class Accessibility {
         boolean ignored;
         long childKey;
         boolean hasChildKey;
+        boolean synthetic;
+        long syntheticKey;
+        boolean roleDeclared;
 
         int toggle;                     // -1 none, else a ToggleFacet.State ordinal
         boolean hasValue;
@@ -174,6 +177,9 @@ public final class Accessibility {
             ignored = false;
             childKey = 0;
             hasChildKey = false;
+            synthetic = false;
+            syntheticKey = 0;
+            roleDeclared = false;
             toggle = -1;
             hasValue = false;
             value = 0;
@@ -287,7 +293,21 @@ public final class Accessibility {
      * @throws NullPointerException if {@code role} is {@code null}
      */
     public void role(Accessible.Role role) {
-        slot().role = Objects.requireNonNull(role, "role");
+        Slot s = slot();
+        s.role = Objects.requireNonNull(role, "role");
+        s.roleDeclared = true;
+    }
+
+    /**
+     * Whether anything has said what the node being described is.
+     *
+     * <p>The publish step asks, because a widget the keyboard can land on and nobody named is a
+     * defect it has to report rather than a group box it can quietly publish.
+     *
+     * @return whether {@link #role(Accessible.Role)} was called on this node
+     */
+    public boolean hasRole() {
+        return slot().roleDeclared;
     }
 
     /**
@@ -656,11 +676,45 @@ public final class Accessibility {
     }
 
     /**
-     * Offers a verb on this node. Called once per verb, or once with several.
+     * Offers a verb on this node.
      *
      * <p>Only the {@linkplain Accessible.Action#isParameterless() parameterless} verbs are
      * publishable. A parameterised setter is advertised by the presence of the facet it sets, and
      * offering it here would make one platform's action list unanswerable.
+     *
+     * @param action the verb to offer
+     * @throws NullPointerException     if {@code action} is {@code null}
+     * @throws IllegalArgumentException if it takes an argument
+     */
+    public void action(Accessible.Action action) {
+        Objects.requireNonNull(action, "action");
+        if (!action.isParameterless()) {
+            throw new IllegalArgumentException(
+                    action + " takes an argument and is never published in an action list");
+        }
+        slot().verbs |= 1 << action.ordinal();
+    }
+
+    /**
+     * Offers two verbs on this node.
+     *
+     * <p>A pair rather than the variable-argument form below, because that one allocates an array
+     * per call and the publish step offers the same two on every focusable widget in the window,
+     * on every frame that walks. The general form is for a widget describing itself, where a
+     * handful of arrays a frame is not the same kind of cost.
+     *
+     * @param first  one verb
+     * @param second the other
+     * @throws NullPointerException     if either is {@code null}
+     * @throws IllegalArgumentException if either takes an argument
+     */
+    public void action(Accessible.Action first, Accessible.Action second) {
+        action(first);
+        action(second);
+    }
+
+    /**
+     * Offers several verbs on this node.
      *
      * @param actions the verbs to offer
      * @throws NullPointerException     if {@code actions} or any of them is {@code null}
@@ -754,6 +808,8 @@ public final class Accessibility {
                 owner.x, owner.y, owner.width, owner.height);
         slots[slot].originX = owner.originX;
         slots[slot].originY = owner.originY;
+        slots[slot].synthetic = true;
+        slots[slot].syntheticKey = key;
     }
 
     /**
@@ -952,6 +1008,77 @@ public final class Accessibility {
     /** @return how many nodes the walk has produced so far */
     public int nodeCount() {
         return count;
+    }
+
+    /**
+     * Whether the node being described has a name yet, so that the publish step knows whether one
+     * of its free defaults still has somewhere to go.
+     *
+     * @return whether anything named this node
+     */
+    public boolean hasName() {
+        return !slot().nameText.isEmpty();
+    }
+
+    /**
+     * Whether the node being described has a description yet.
+     *
+     * @return whether anything described this node
+     */
+    public boolean hasDescription() {
+        return !slot().descriptionText.isEmpty();
+    }
+
+    /**
+     * Whether the node at an index of the walk in progress is a synthetic child rather than a
+     * widget's own node. The publish step asks, so that it can send an action to the right hook.
+     *
+     * @param index the node's index
+     * @return whether it was declared with {@link #child(long)}
+     */
+    public boolean isSyntheticAt(int index) {
+        return slots[index].synthetic;
+    }
+
+    /**
+     * The key a synthetic child's owner gave it.
+     *
+     * @param index the node's index
+     * @return the key, or {@code 0} when that node is a widget's own
+     */
+    public long syntheticKeyAt(int index) {
+        return slots[index].syntheticKey;
+    }
+
+    /**
+     * Links a node the walk has already finished to another one: the mirror half of a relation,
+     * which by definition belongs to a node other than the one that declared it.
+     *
+     * @param index  the node's index
+     * @param kind   what the link means; never {@code null}
+     * @param target the widget at the other end, resolved at publish time
+     * @throws NullPointerException if {@code kind} is {@code null}
+     */
+    public void relationAt(int index, Accessible.Relation kind, Object target) {
+        Objects.requireNonNull(kind, "kind");
+        if (target != null) {
+            slots[index].addRelation(kind, target);
+        }
+    }
+
+    /**
+     * The identifier for one (owner, key) pair, minted on first use and handed back every time
+     * that pair is asked for again.
+     *
+     * <p>The publish step uses it for a child whose parent claimed the right to key it — a pooled
+     * list cell, whose identity is its data index and not the widget it is currently mounted in.
+     *
+     * @param owner the identifier of the node that owns the key's namespace
+     * @param key   the key, unique within that namespace
+     * @return the identifier that pair keeps
+     */
+    public long identify(long owner, long key) {
+        return intern(owner, key);
     }
 
     /**

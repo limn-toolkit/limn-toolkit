@@ -98,6 +98,11 @@ final class RecordingWindow implements NativeWindow {
 
     @Override public boolean supportsAbsolutePositioning() { return canPosition; }
 
+    /** What {@link #accessibility()} hands the scene; none unless a test installs one. */
+    limn.backend.AccessibilityBridge accessibility = limn.backend.AccessibilityBridge.NONE;
+
+    @Override public limn.backend.AccessibilityBridge accessibility() { return accessibility; }
+
     @Override public void requestFrame() { frameRequests++; }
     @Override public void setFrameCallback(FrameCallback callback) { }
     @Override public void setInput(WindowInput input) { }
