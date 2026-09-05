@@ -5,6 +5,7 @@ import limn.graphics.Color;
 import limn.i18n.I18nString;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * One named run of values: a bar series, a line, or (in a {@link DonutChart}) the ring
@@ -28,6 +29,16 @@ import java.util.Objects;
  * }</pre>
  */
 public final class ChartSeries {
+
+    /** Hands every series its {@link #serial}; thread-safe because {@link #of} is unchecked. */
+    private static final AtomicLong SERIALS = new AtomicLong();
+
+    /**
+     * This series' identity for as long as the object lives: the key a chart publishes its node
+     * under, which its position in the chart cannot be, because removing the series before it
+     * would hand a reader the identifier of a series that is gone.
+     */
+    private final long serial = SERIALS.getAndIncrement();
 
     private I18nString name;
     private double[] values;
@@ -236,6 +247,15 @@ public final class ChartSeries {
     }
 
     // ------------------------------------------------------------------ internal
+
+    /**
+     * The key a chart publishes this series' accessible node under: unique among every series
+     * ever made and fixed for the life of the object, so it survives being renamed, re-valued,
+     * hidden, moved past a removed neighbour, and removed from one chart and added to another.
+     */
+    long serial() {
+        return serial;
+    }
 
     /**
      * The value this series should be drawn at for {@code index}, part-way through the

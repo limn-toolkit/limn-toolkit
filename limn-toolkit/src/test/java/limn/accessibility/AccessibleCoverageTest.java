@@ -80,7 +80,6 @@ class AccessibleCoverageTest {
             "limn.components.ToolBar",
             "limn.components.VideoView",
             "limn.components.Viewport3D",
-            "limn.components.chart.BarChart",
             "limn.components.chart.LineChart"
     ));
 
