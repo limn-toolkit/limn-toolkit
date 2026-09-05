@@ -1,5 +1,6 @@
 package limn.components.chart;
 
+import limn.accessibility.Accessibility;
 import limn.animation.Easing;
 import limn.animation.Transition;
 import limn.backend.Cursor;
@@ -455,6 +456,9 @@ public abstract class Chart extends Widget {
     public Chart setLegendInteractive(boolean value) {
         Ui.checkUiThread();
         this.legendInteractive = value;
+        // Paints nothing: the legend looks the same either way and only the cursor differs. The
+        // verb a reader is offered on each entry follows this flag, so the tree is told directly.
+        invalidateAccessible();
         return this;
     }
 
@@ -691,6 +695,44 @@ public abstract class Chart extends Widget {
     }
 
     /**
+     * How many legend entries are drawn right now, with their boxes brought up to date first:
+     * {@code 0} whenever the legend is not drawn, which folds in {@link LegendPosition#NONE},
+     * {@link LegendPosition#AUTO} with fewer than two entries and a chart with nothing to name.
+     *
+     * <p>For the describe hook, which runs after the layout pass and before the paint. The boxes
+     * are written by the region pass, and that pass runs before every paint and every pointer
+     * test but not before the tree is published, so a hook that read them as they stood would
+     * publish the previous frame's rectangles &mdash; or none at all on the first frame. The pass
+     * is re-run here only when the legend's own cache says its entries changed since the last
+     * one, or the UI language moved, because under a ruler that does not memoize its shaping the
+     * pass allocates, and a quiet damaged frame must not.
+     */
+    protected final int legendEntryCount() {
+        // Before legend() below refills the cache, or the refill would hide that the boxes were
+        // sized against the entries it replaced.
+        if (legendCache == null || legendEpoch != I18n.epoch()) {
+            updateRegions();
+        }
+        return legend().size();
+    }
+
+    /**
+     * Places the node being described at legend entry {@code index}'s box, in this chart's own
+     * coordinates: the same rectangle a click on the legend is tested against, so the published
+     * box and the operable box are one array.
+     *
+     * @param index an entry below {@link #legendEntryCount()}, which must have been asked first
+     *              in the same pass so that the boxes are current
+     * @param a     the builder with the entry's synthetic child open
+     * @throws IndexOutOfBoundsException if there is no such entry
+     */
+    protected final void legendEntryBounds(int index, Accessibility a) {
+        Objects.checkIndex(index, legend().size());
+        a.bounds(legendBoxes[index * 4], legendBoxes[index * 4 + 1],
+                legendBoxes[index * 4 + 2], legendBoxes[index * 4 + 3]);
+    }
+
+    /**
      * The value a series grows out of when it first appears, and collapses to when it is
      * hidden: where the axis crosses the plot, which is zero on any scale that contains
      * it and the nearer end otherwise.
@@ -861,6 +903,16 @@ public abstract class Chart extends Widget {
         return constraints.constrain(
                 preferredWidth >= 0 ? preferredWidth : DEFAULT_WIDTH,
                 preferredHeight >= 0 ? preferredHeight : DEFAULT_HEIGHT);
+    }
+
+    /**
+     * Recomputes the regions whenever the box is laid out, so that the legend's boxes are current
+     * for the tree published between this pass and the paint. A subclass that lays out a child
+     * of its own calls this first.
+     */
+    @Override
+    protected void onLayout() {
+        updateRegions();
     }
 
     @Override

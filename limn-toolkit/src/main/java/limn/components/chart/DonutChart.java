@@ -1,11 +1,15 @@
 package limn.components.chart;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
+import limn.accessibility.ToggleFacet;
 import limn.animation.Transition;
 import limn.components.Theme;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Path2D;
+import limn.i18n.I18nString;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -242,10 +246,10 @@ public class DonutChart extends Chart {
 
     @Override
     protected void onLayout() {
+        super.onLayout(); // the regions, whether or not the hole holds anything
         if (center == null) {
             return;
         }
-        updateRegions();
         layoutRing();
         // The largest square inside the hole: a widget measured against the hole's diameter
         // would have its corners outside the ring.
@@ -414,6 +418,70 @@ public class DonutChart extends Chart {
             hoverPop.snap(0); // the new slice starts flush, whatever the old one had reached
             hoverPop.to(1);
         }
+    }
+
+    // ---------------------------------------------------------- accessibility
+
+    /**
+     * One chart node, named by the title and described by the ring's series name, or named by
+     * the series when there is no title, with one toggleable series node per legend entry.
+     *
+     * <p>What is published is what is drawn. The ring is the first visible series and any other
+     * is undrawn on purpose, so there is no node per series; the things the legend names and a
+     * click operates are the slices, one per category, and those are the children &mdash; only
+     * while the legend is drawn, because without it no slice has a box or an operation of its
+     * own, and the arcs are not nodes in this cut. Each child's box is the legend box a click is
+     * tested against and never the arc, which moves on every frame of an animation and on the
+     * hover pop. Its toggle state is the hidden-slice bit and never the eased weight, for the
+     * same reason. Every string is handed over by reference, so a damaged frame that changes
+     * nothing a reader hears allocates nothing.
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.CHART);
+        int ring = ringIndex();
+        I18nString heading = titleSource();
+        if (heading != null) {
+            a.name(heading, Accessible.NameFrom.CONTENT);
+            if (ring >= 0) {
+                a.description(series(ring).nameSource());
+            }
+        } else if (ring >= 0) {
+            a.name(series(ring).nameSource(), Accessible.NameFrom.CONTENT);
+        }
+        // Zero when the legend is not drawn, and otherwise one per category: the donut's legend
+        // is the slice list, so the entry index is the category index and the child's key.
+        int entries = legendEntryCount();
+        boolean operable = isLegendInteractive();
+        for (int i = 0; i < entries; i++) {
+            a.child(i);
+            legendEntryBounds(i, a);
+            a.role(Accessible.Role.CHART_SERIES);
+            a.name(labelSource(i), Accessible.NameFrom.CONTENT);
+            a.toggle(isSliceVisible(i) ? ToggleFacet.State.ON : ToggleFacet.State.OFF);
+            if (operable) {
+                a.action(Accessible.Action.TOGGLE);
+            }
+            a.endChild();
+        }
+    }
+
+    /**
+     * A toggle on a slice node reaches the same path a click on its legend entry reaches, so
+     * a reader's toggle and a pointer's are one and the same to the chart; refused when the
+     * legend is not interactive, not drawn, or the key names no category.
+     */
+    @Override
+    protected boolean onSyntheticAction(long key, Accessible.Action action,
+                                        Accessible.Argument arg) {
+        if (action != Accessible.Action.TOGGLE || !isLegendInteractive() || !isEnabled()) {
+            return false;
+        }
+        if (key < 0 || key >= categoryCount() || legendEntryCount() == 0) {
+            return false;
+        }
+        toggleLegendEntry((int) key);
+        return true;
     }
 
     // ---------------------------------------------------------- text & legend
