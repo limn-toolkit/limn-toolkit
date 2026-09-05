@@ -163,6 +163,12 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
     private void bindNative(Dialog under) {
         dialog = under;
         bind(dialog.contentRoot());
+        // A dialog's own native window is registered as a modal before its first frame; the
+        // headless host claims the same, so the window node beside the card says what it would.
+        window.modal = true;
+        scene.requestRender();
+        frame();
+        bridge.events.clear();
     }
 
     /**
@@ -306,6 +312,9 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
                 "modality is the window's fact as a native window, and the layer's in scene");
         assertNull(card.window(), "the card is never a window in either mounting");
         assertNotNull(windowNode.window(), "the window node beside it carries the facet");
+        assertTrue(windowNode.window().modal(),
+                "and says the dialog's window blocks what it owns, which is the bit a client asks "
+                        + "a window for; the owner it froze carries no such bit" + describe(tree()));
     }
 
     /**

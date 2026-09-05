@@ -184,6 +184,16 @@ public interface NativeWindow extends AutoCloseable {
     boolean isModalBlocked();
 
     /**
+     * @return whether this window is itself an active modal: one the backend registered through
+     *         {@link Backend#pushModal}, blocking the window it was opened over, or every other
+     *         window when it was opened over none. The other end of {@link #isModalBlocked()}:
+     *         that is the owner's bit and this is the dialog's, and it is this one an accessible
+     *         tree publishes on the window's own node, because a client asks a window whether it
+     *         blocks what it owns and never whether something else blocks it
+     */
+    boolean isModal();
+
+    /**
      * What a registered child window <em>is</em>, which decides whether a modal over the owner
      * leaves it usable.
      *

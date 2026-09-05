@@ -1004,6 +1004,7 @@ class DialogTest extends ComponentTestBase {
             this.height = height;
         }
 
+        @Override public boolean isModal() { return false; }
         @Override public boolean isModalBlocked() {
             return blocked;
         }

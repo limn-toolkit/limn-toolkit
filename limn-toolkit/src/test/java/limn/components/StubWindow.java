@@ -108,7 +108,11 @@ class StubWindow implements NativeWindow {
     @Override public void enterFullscreen(int width, int height, int refreshRate) { }
     @Override public void exitFullscreen() { }
     @Override public boolean isFullscreen() { return false; }
+    /** Whether this window claims to be an active modal, as a dialog's own native window is. */
+    boolean modal;
+
     @Override public boolean isModalBlocked() { return false; }
+    @Override public boolean isModal() { return modal; }
     @Override public void registerChildPopup(NativeWindow child, PopupKind kind) { }
     @Override public void unregisterChildPopup(NativeWindow child) { }
     @Override public Clipboard clipboard() { return null; }

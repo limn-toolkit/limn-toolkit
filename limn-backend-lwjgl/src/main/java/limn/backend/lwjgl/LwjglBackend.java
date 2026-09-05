@@ -661,6 +661,11 @@ public final class LwjglBackend implements Backend {
         }
     }
 
+    /** @return whether {@code window} is one of the active modals */
+    boolean isModal(LwjglWindow window) {
+        return modalStack.isModal(window);
+    }
+
     /** @return whether {@code window}'s input is currently blocked by a modal */
     boolean isInputBlocked(LwjglWindow window) {
         if (modalStack.isEmpty()) {

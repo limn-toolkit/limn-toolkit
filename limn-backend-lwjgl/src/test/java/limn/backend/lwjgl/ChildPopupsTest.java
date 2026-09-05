@@ -73,6 +73,7 @@ class ChildPopupsTest {
         @Override public void exitFullscreen() { }
         @Override public boolean isFullscreen() { return false; }
         @Override public boolean isModalBlocked() { return false; }
+        @Override public boolean isModal() { return false; }
         @Override public void registerChildPopup(NativeWindow child, PopupKind kind) { }
         @Override public void unregisterChildPopup(NativeWindow child) { }
         @Override public Backend backend() { return null; }

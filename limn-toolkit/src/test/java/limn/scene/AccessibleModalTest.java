@@ -93,4 +93,31 @@ class AccessibleModalTest extends AccessibleTestBase {
         assertTrue(node("behind").has(Accessible.State.ENABLED),
                 "closing the layer gives the background back");
     }
+
+    /**
+     * A native window that is modal says so on its own node, and the window it blocks does not.
+     * The facet's bit is "blocks what it owns", which is the dialog's fact; {@code isModalBlocked()}
+     * is the owner's. The walk filled the one from the other, so a native dialog published itself
+     * non-modal and its frozen owner as the modal one, and nothing read the field to notice.
+     */
+    @Test
+    void aModalNativeWindowSaysSoOnItsOwnNodeAndTheWindowItBlocksDoesNot() {
+        Group root = new Group();
+        root.add(stop("ok"));
+        bind(root);
+        assertFalse(tree().node(0).window().modal(), "a plain window blocks nothing");
+
+        window.modal = true;
+        scene.requestRender();
+        frame();
+        assertTrue(tree().node(0).window().modal(),
+                "the dialog's own window: " + describe(tree()));
+
+        window.modal = false;
+        window.modalBlocked = true;
+        scene.requestRender();
+        frame();
+        assertFalse(tree().node(0).window().modal(),
+                "the owner is the one blocked, and it blocks nothing: " + describe(tree()));
+    }
 }

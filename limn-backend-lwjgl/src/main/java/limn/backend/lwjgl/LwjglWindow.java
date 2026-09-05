@@ -1215,6 +1215,11 @@ final class LwjglWindow implements NativeWindow {
     }
 
     @Override
+    public boolean isModal() {
+        return !destroyed && backend.isModal(this);
+    }
+
+    @Override
     public void registerChildPopup(NativeWindow child, PopupKind kind) {
         backend.uiRuntime().checkUiThread();
         childPopups.add(child, kind);

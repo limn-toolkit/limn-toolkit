@@ -119,7 +119,10 @@ final class AccessibleWalk {
         limn.backend.NativeWindow window = scene.window();
         if (window != null) {
             builder.name(window.title(), 0, Accessible.NameFrom.EXPLICIT);
-            builder.window(window.isModalBlocked(), true, true,
+            // The window's own bit -- whether it blocks what it owns -- and not isModalBlocked(),
+            // which is its owner's. Filled from the latter, a native dialog published itself
+            // non-modal and the window it had frozen as the modal one.
+            builder.window(window.isModal(), true, true,
                     limn.accessibility.WindowFacet.State.NORMAL);
         }
         builder.inherited(true, true, true, false, false);

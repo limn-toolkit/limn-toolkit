@@ -1233,7 +1233,11 @@ none of them has a separate "blocked" property to carry it better. The result is
 with the keyboard, which is the invariant §12.1 already enforces for reading order, applied to a
 second axis. Modality on a *native* window is unchanged and is still `NativeWindow#isModalBlocked()`;
 §1.9's action gate keeps both tests, because it also has to defend against a snapshot that predates
-the modal.
+the modal. **Corrected while implementing:** that predicate is the *owner's* bit, and the window
+node's `WindowFacet.modal` is the dialog's — whether the window blocks what it owns — so the walk
+filling the facet from `isModalBlocked()` published a native dialog as non-modal and the window it
+had frozen as the modal one. `NativeWindow#isModal()`, answered from the backend's modal stack, is
+what the facet reads; the DialogPanel step's verification is what caught it.
 
 ---
 
