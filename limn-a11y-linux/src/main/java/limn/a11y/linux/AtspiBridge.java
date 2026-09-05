@@ -42,11 +42,14 @@ public final class AtspiBridge implements AccessibilityBridge {
 
     private volatile AccessibleTree published = AccessibleTree.EMPTY;
     private volatile Host host;
-    private volatile boolean enabled;
+    private final boolean enabled;
     private volatile boolean embedded;
+    private volatile DBus.Conn connection;
+    private final AtspiTree objects;
 
-    private AtspiBridge(boolean enabled) {
+    private AtspiBridge(boolean enabled, String applicationName) {
         this.enabled = enabled;
+        this.objects = new AtspiTree(() -> published, () -> host, applicationName);
     }
 
     /**
@@ -60,12 +63,55 @@ public final class AtspiBridge implements AccessibilityBridge {
      * @return a bridge, or {@link AccessibilityBridge#NONE} when accessibility is switched off or
      *         the session bus cannot be asked
      */
-    public static AccessibilityBridge openIfEnabled() {
+    public static AccessibilityBridge openIfEnabled(String applicationName) {
         Boolean on = readStatusFlag("IsEnabled");
         if (on == null || !on) {
             return AccessibilityBridge.NONE;
         }
-        return new AtspiBridge(true);
+        AtspiBridge bridge = new AtspiBridge(true, applicationName);
+        return bridge.connect() ? bridge : AccessibilityBridge.NONE;
+    }
+
+    /**
+     * Joins the accessibility bus and hands the registry this window's plug.
+     *
+     * <p>The sequence the spike proved on the guest, and its order is not free: the address of the
+     * accessibility bus comes from the session bus, our own name on it comes from {@code Hello},
+     * and the handler has to be exported <em>before</em> {@code Embed}, because the registry may
+     * call back the moment it has the plug. A failure at any step leaves this window with no
+     * accessibility rather than a half-joined connection, which is why it answers a boolean and
+     * the caller falls back to {@link AccessibilityBridge#NONE}.
+     *
+     * @return whether this process is now an AT-SPI2 application
+     */
+    private boolean connect() {
+        String session = System.getenv("DBUS_SESSION_BUS_ADDRESS");
+        if (session == null) {
+            return false;
+        }
+        try (DBus.Conn bus = DBus.Conn.open(session)) {
+            Object[] address = bus.callArgs("org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus",
+                    "GetAddress", null);
+            if (address.length == 0 || !(address[0] instanceof String where)) {
+                return false;
+            }
+            DBus.Conn a11y = DBus.Conn.open(where);
+            objects.busName(a11y.hello());
+            // Before Embed, and on every path rather than one: the registry and the reader walk
+            // from the root by introspection, and a path with no handler answers UnknownMethod,
+            // which a client reads as a broken application rather than as an absent node.
+            a11y.exportFallback(objects::handle);
+            Object[] socket = a11y.callArgs(Atspi.REGISTRY, Atspi.PATH_ROOT, Atspi.I_SOCKET,
+                    "Embed", "(so)", (Object) objects.rootRef().toStruct());
+            if (socket.length > 0) {
+                objects.desktop(DBus.Ref.of(socket[0]));
+            }
+            this.connection = a11y;
+            this.embedded = true;
+            return true;
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
     }
 
     /**
@@ -115,6 +161,14 @@ public final class AtspiBridge implements AccessibilityBridge {
     public void detach() {
         this.host = null;
         this.published = AccessibleTree.EMPTY;
+        DBus.Conn open = connection;
+        connection = null;
+        embedded = false;
+        if (open != null) {
+            // close() on this connection throws nothing: the window is going away, a socket that
+            // will not shut politely is not its problem, and both threads on it are daemons.
+            open.close();
+        }
     }
 
     @Override
