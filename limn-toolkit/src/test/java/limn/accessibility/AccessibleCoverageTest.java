@@ -73,7 +73,6 @@ class AccessibleCoverageTest {
             "limn.components.Spinner",
             "limn.components.TabbedPane",
             "limn.components.TabbedPane$StripButton",
-            "limn.components.TabbedPane$TabHeader",
             "limn.components.TabbedPane$TabStrip",
             "limn.components.TextArea",
             "limn.components.TextField",

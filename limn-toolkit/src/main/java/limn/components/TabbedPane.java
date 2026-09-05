@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -959,6 +961,101 @@ public class TabbedPane extends Widget {
                 canvas.drawRoundRect(gap, gap, width() - 2 * gap, height() - 2 * gap,
                         t.radiusSmall(), Strokes.FOCUS_RING_THIN,
                         theme.focusRing.withAlpha(focus));
+            }
+        }
+
+        // --------------------------------------------------------- accessibility
+
+        /**
+         * What one tab is to an assistive technology: a tab node named by the caption it holds,
+         * a member of the strip's selection with its one-based position and the number of tabs,
+         * offering the two verbs the pointer and the keyboard already have.
+         *
+         * <p>The role is declared on every header and not only the selected one. Roving focus
+         * leaves an unselected header unfocusable, and an unfocusable widget that declares nothing
+         * is scaffolding the tree deletes — so without this the whole strip would publish as one
+         * nameless node, and the deletion would warn besides, because a header paints.
+         *
+         * <p>The name is the held caption handed over by reference and never resolved here, the
+         * way {@link #onMeasure} and {@link #onPaint} resolve it: a tab is damaged on every frame
+         * of its hover and its focus fade, and a string built in this hook would be one allocation
+         * per header per damaged frame spent concluding that nothing moved. It is handed over even
+         * when the caption is empty, which {@link TabbedPane#addTab} accepts: the walk then names
+         * the node from a tooltip, and a header has none, so such a tab publishes an empty name —
+         * the application's to fix and not this widget's to invent.
+         *
+         * <p>The two numbers are the pane's own tab order and tab count, which are also the
+         * tree's, because every tab has a header and every header is published. The selected state
+         * is derived from the facet and is never written as a state of its own.
+         *
+         * <p><b>The selected header is deliberately not marked active</b>, though the strip's
+         * selection and its keyboard cursor are the same thing. Only the selected header is
+         * focusable, so whenever the strip holds the keyboard that header is already the focused
+         * node and the bit would say it twice; and it is not free to add, because a container
+         * takes the first active node anywhere in its subtree as its active descendant, so a pane
+         * nested inside a list cell would hand the list one of these tabs as its own cursor.
+         *
+         * <p><b>And deliberately no relation.</b> The strip is this header's accessible parent, so
+         * a membership relation would only restate the tree; and one naming the panel this tab
+         * controls resolves to the nearest <em>published</em> ancestor of the content, which is
+         * usually a padding or a column the tree deletes — so the relation would climb past the
+         * content and land on some unrelated container, which is worse than no relation at all.
+         * That pair belongs to the step that gives a panel a role of its own.
+         *
+         * @param a the node being described
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.TAB);
+            a.name(title, Accessible.NameFrom.CONTENT);
+            a.selectionItem(index == selected, index + 1, headers.size());
+            a.action(Accessible.Action.SELECT, Accessible.Action.PRESS);
+        }
+
+        /**
+         * Performs one of the two selections a user can already make, through the pane's own
+         * private path, so that a reader's tab change tells the application exactly what a click
+         * tells it and scrolls the tab into view exactly as one does.
+         *
+         * <p>They are two gestures and not one duplicated. A select is what
+         * {@link TabbedPane#setSelectedIndex} does: it changes the tab and leaves the keyboard
+         * where it was, except that focus follows the selection out of a strip that held it, which
+         * is what stops the cursor being stranded on a header that has just stopped being a tab
+         * stop. A press is what a left click and Enter do: it changes the tab and then dives into
+         * the panel, landing on its first focusable descendant, or back on the header when the
+         * panel has none. A reader asking to select a tab is not asking to be moved into it, and a
+         * reader pressing one is.
+         *
+         * <p>Both answer true, including on the tab that is already selected, where the pane's own
+         * early return changes nothing and tells nobody but still scrolls the tab back into view:
+         * the same answer the pointer gets there. There is no deselect, because a pane that holds
+         * tabs always has one selected and there is no route back to none.
+         *
+         * <p>There is no enabled guard here and none is needed: the scene walks this widget and
+         * every parent for the enabled flag before it calls the hook, and refuses anything whose
+         * owner is not on screen — which, in an overflowing strip, is every header scrolled out of
+         * the viewport. Selecting a visible neighbour scrolls the run, and the strip's list
+         * chevron opens a menu of every tab; those are the two routes to a tab a reader cannot
+         * operate where it stands.
+         *
+         * @param action what was asked
+         * @param arg    ignored; neither verb carries one
+         * @return whether it ran
+         */
+        @Override
+        protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+            switch (action) {
+                case SELECT -> {
+                    selectTab(index, Focus.NONE);
+                    return true;
+                }
+                case PRESS -> {
+                    selectTab(index, Focus.CONTENT);
+                    return true;
+                }
+                default -> {
+                    return false;
+                }
             }
         }
 
