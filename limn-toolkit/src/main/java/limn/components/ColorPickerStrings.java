@@ -48,6 +48,21 @@ final class ColorPickerStrings {
     static final I18nString HEX = new I18nString("limn.colorPicker.hex", "Hex");
 
     /**
+     * What the hue ramp is called when it is read out rather than looked at.
+     *
+     * <p>Another string here that names nothing on screen, and the one control in this widget
+     * that nothing outside it could ever name: the ramp has no caption beside it, no tooltip, and
+     * no accessor an application can reach, so a word the toolkit holds is the only name it can
+     * have. Deliberately the channel's whole word and not its letter &mdash; the letter is the
+     * HSV rail's name, and the ramp and that rail are on screen together.
+     *
+     * <p>A key like the rest, because a channel's name is not the same word in every language,
+     * and this bundle is where that question is already answered: French renames the notation to
+     * TSV after this very word.
+     */
+    static final I18nString HUE = new I18nString("limn.colorPicker.hue", "Hue");
+
+    /**
      * What the before/after swatch says: the colour showing now, and the one the picker opened on.
      *
      * <p>The second string here that names nothing on screen, and the first parameterized key in

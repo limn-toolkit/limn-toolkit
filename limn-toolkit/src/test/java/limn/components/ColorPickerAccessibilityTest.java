@@ -57,12 +57,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * field have no role of their own yet, so they publish {@code UNKNOWN} while they are focusable and
  * {@code GROUP} while they are not &mdash; the rails are the ones that have taken their step, and
  * publish {@code SLIDER} &mdash;
- * and the saturation/value field and the hue ramp declare nothing and are deleted by the
- * predicate. Each takes its own step. The third painted part, the before/after swatch, has taken
- * its: it is the {@code IMAGE} at the head of the chooser's children, and what it says is pinned
- * by {@code limn.components.ColorPickerPreviewAccessibilityTest} rather than here. Nothing
- * asserted below depends on which role those nodes end up with; they are found by the names this
- * widget gives them.
+ * and the saturation/value field declares nothing and is deleted by the predicate, pending its
+ * own step. The other two painted parts have taken theirs: the hue ramp is the {@code SLIDER}
+ * named "Hue" at the head of the chooser's children and the before/after swatch is the
+ * {@code IMAGE} after it, and what each says is pinned by
+ * {@code limn.components.ColorPickerHueRampAccessibilityTest} and
+ * {@code limn.components.ColorPickerPreviewAccessibilityTest} rather than here. Nothing asserted
+ * below depends on which role those nodes end up with; they are found by the names this widget
+ * gives them.
  *
  * <p>Every case drives the picker's public API, and {@code Widget}'s, on a bound scene, or calls
  * the scene from where a bridge stands. Nothing constructs a node.
@@ -287,6 +289,7 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
             shape.add(child.role() + " \"" + child.name() + "\"");
         }
         assertEquals(List.of(
+                        "SLIDER \"Hue\"",
                         "IMAGE \"Colour #FFFFFF, was #FFFFFF\"",
                         "LABEL \"#\"",
                         "UNKNOWN \"Hex\"",
@@ -299,13 +302,16 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         "UNKNOWN \"A\""),
                 shape,
                 "the rows, columns, paddings, token boxes and expanded shares between the picker "
-                        + "and its controls are all deleted, and two of the three parts it draws — "
-                        + "the saturation/value field and the hue ramp — declare nothing and are "
-                        + "deleted with them, each pending its own step. The third has taken its: "
-                        + "the swatch is the IMAGE at the head of this list, because it is the "
-                        + "first thing in the identity row, and what it says is pinned by "
+                        + "and its controls are all deleted, and one of the three parts it draws — "
+                        + "the saturation/value field — declares nothing and is deleted with them, "
+                        + "pending its own step. The other two have taken theirs: the hue ramp is "
+                        + "the SLIDER at the head of this list, because the ramps row is the first "
+                        + "thing in the column and the field beside it is gone, and the swatch is "
+                        + "the IMAGE after it, because it is the first thing in the identity row. "
+                        + "What each says is pinned by "
+                        + "limn.components.ColorPickerHueRampAccessibilityTest and "
                         + "limn.components.ColorPickerPreviewAccessibilityTest. The hex field's "
-                        + "UNKNOWN is transitional in the way the two deletions are"
+                        + "UNKNOWN is transitional in the way the one deletion is"
                         + describe(tree()));
 
         for (int i = 0; i < tree().nodeCount(); i++) {

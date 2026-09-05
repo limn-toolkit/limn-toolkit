@@ -154,9 +154,9 @@ class ColorPickerChannelTrackAccessibilityTest extends AccessibleComponentTestBa
     /**
      * The rail of one channel of the notation currently showing.
      *
-     * <p>Scoped three ways, and none of them is fussiness. The role alone finds eleven sliders,
-     * because every notation's rails are published at once and the alpha rail is one too. The name
-     * alone finds the caption beside the rail first, which holds the same letter. And the two
+     * <p>Scoped three ways, and none of them is fussiness. The role alone finds every rail of
+     * every notation at once, the alpha rail under them and the hue ramp beside the plane. The
+     * name alone finds the caption beside the rail first, which holds the same letter. And the two
      * together are still ambiguous in French, where {@code channel.g} is V for Vert and
      * {@code channel.v} is V for Valeur: only the notation on screen tells those two apart.
      *
@@ -182,14 +182,18 @@ class ColorPickerChannelTrackAccessibilityTest extends AccessibleComponentTestBa
     }
 
     /**
-     * @return every channel rail in the tree, showing or not, in tree order; the alpha rail is not
-     *         one of them, and is left out by its own letter
+     * @return every channel rail in the tree, showing or not, in tree order; the two sliders that
+     *         are not channels are left out — the alpha rail by its own letter, and the hue ramp
+     *         by its provenance, since a channel is named by the caption on its line and the ramp
+     *         is the one control here that carries a name of its own
      */
     private List<AccessibleNode> everyChannelRail() {
         List<AccessibleNode> found = new ArrayList<>();
         for (int i = 0; i < tree().nodeCount(); i++) {
             AccessibleNode node = tree().node(i);
-            if (node.role() == Accessible.Role.SLIDER && !node.name().equals("A")) {
+            if (node.role() == Accessible.Role.SLIDER
+                    && node.nameFrom() == Accessible.NameFrom.LABEL
+                    && !node.name().equals("A")) {
                 found.add(node);
             }
         }

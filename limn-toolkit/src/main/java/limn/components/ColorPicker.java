@@ -1640,10 +1640,161 @@ public final class ColorPicker extends Widget {
 
         @Override
         protected void onMouseEvent(MouseEvent event) {
-            dragging = trackVertical(this, event, dragging, t -> {
-                hue = t * 360f;
-                changed();
-            });
+            dragging = trackVertical(this, event, dragging, t -> moveToHue(t * 360f));
+        }
+
+        /**
+         * Puts the hue at {@code degrees} and tells the picker: the one mutator the pointer and
+         * an assistive technology both reach, so that neither has a path of its own to keep in
+         * step with the other. {@link ColorPicker#changed} is what re-notates the three rows,
+         * repaints the parts and fires {@link ColorPicker#onChange}, which is why nothing here
+         * writes the field and stops.
+         *
+         * <p>The clamp is the drag loop's, hoisted: {@code trackVertical} hands over a position
+         * already inside {@code [0,1]}, so a gesture never reaches the two ends from outside, and
+         * a request that arrives as a number can.
+         */
+        private void moveToHue(float degrees) {
+            hue = Math.max(0f, Math.min(360f, degrees));
+            changed();
+        }
+
+        /**
+         * What the hue ramp is to an assistive technology: one
+         * {@link Accessible.Role#SLIDER} node named "Hue", vertical, carrying a writable value
+         * facet <b>in whole degrees</b> and offering {@link Accessible.Action#INCREMENT} and
+         * {@link Accessible.Action#DECREMENT}.
+         *
+         * <p><b>It is a slider and not a canvas, and it may not be deleted.</b> The class extends
+         * {@link Painted} rather than {@link Rail}, so it has none of a rail's machinery, but that
+         * is a missing implementation and not a missing fact: this control has one scalar, one
+         * range, one axis and one drag, which is the whole of what the role means. Its neighbour
+         * the saturation/value plane is the one with two axes and no honest scalar. Without this
+         * hook the widget declares nothing and is not focusable, so the transparency predicate
+         * drops it and the walk names a toolkit class in an application's log for a picture that
+         * is the picker's whole hue axis &mdash; and the three one-line fixes that warning
+         * recommends are all out of reach, since this class is private and nothing the picker
+         * exposes hands an application the instance. It is also operable, and an operable control
+         * is never deleted with the box that carried it.
+         *
+         * <p><b>The degrees come from the picker's own hue and never from the H stepper</b>, which
+         * is the opposite of what a channel rail does and is not an inconsistency:
+         * {@code syncFields} refreshes only the group whose notation is selected, so the HSV
+         * stepper holds whatever its last synchronisation left while RGB or CMYK is showing, and
+         * this ramp is on screen under all three. A number read from it would be a hue the picker
+         * has abandoned. The maximum is 360 rather than 359 because a drag to the bottom edge
+         * genuinely produces it &mdash; and it is the same 360 the H stepper is constructed with,
+         * so the two nodes that publish a hue agree on the range without either reading the other.
+         * The value is rounded to agree digit for digit with that stepper, which is filled with
+         * the same rounding; a drag is the only path that can leave a fraction behind, and it is
+         * finer than the marker can be drawn.
+         *
+         * <p>No value text, and therefore no cache and no witness. The number is the whole of it,
+         * nothing on screen shows a unit, and a string built here would have no source to compare
+         * against and would cost one allocation per damaged frame spent concluding that nothing
+         * moved. The facet is writable, so {@link Accessible.Action#SET_VALUE} is advertised by
+         * its presence and never appears in the action list.
+         *
+         * <p><b>The name is the toolkit's, because nothing else can supply one.</b> Unlike every
+         * other unnamed control in this picker there is no caption beside the ramp to point at it,
+         * no tooltip, and no public accessor an application could call {@code setAccessibleName}
+         * on; {@code onAccessibilityChild} cannot reach it either, since the walk offers a child
+         * to its direct parent and that parent is a token box. So the widget hands over a string
+         * it holds, by reference and under the subtree's language, which is what keeps a quiet
+         * frame free. The provenance is {@link Accessible.NameFrom#CONTENT} for the split pane
+         * divider's reason: the name is the control's own rather than an application's or a
+         * label's, even though what it draws is not text. It is deliberately not "H": that letter
+         * is the HSV rail's name, and both controls are on screen together.
+         *
+         * <p><b>Vertical, and nothing in here reads the layout direction.</b> The pair names the
+         * axis the node's value runs along, and hue runs top to bottom of this box. The ramp does
+         * change sides when the picker reads right to left, which is the row placing it and is
+         * already said by the published x. The drag flag is not published either: a state that
+         * moved during a drag would be a second reason to republish and says nothing a reader
+         * wants.
+         *
+         * <p>It stays out of the Tab order, which this step may not change: reading order is
+         * defined to equal Tab order, so the node publishes without {@code FOCUSABLE} and the walk
+         * offers it neither focus nor scroll-into-view. A reader reaches it by walking the tree,
+         * and the HSV notation's H line is the keyboard's way to the same number.
+         *
+         * <p>No synthetic children: the marker is a mark on the value rather than a control, and
+         * it is clamped inside the box, so it has no geometry of its own to publish. The box, the
+         * language and the enabled, visible and showing bits are the walk's and need no help &mdash;
+         * the token box hands this widget its whole rectangle at the origin, and that rectangle is
+         * exactly the span the press divides by, with no travel inset of the kind that holds a
+         * rail's thumb off its ends.
+         *
+         * @param a the node being described
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.SLIDER);
+            a.name(ColorPickerStrings.HUE, Accessible.NameFrom.CONTENT);
+            a.state(Accessible.State.VERTICAL);
+            a.value(Math.round(hue), 0, 360, 1);
+            // The pair and never the variable-argument form, which allocates an array per call.
+            a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+        }
+
+        /**
+         * Performs a change an assistive technology asked for through {@link #moveToHue}, the one
+         * mutator a drag also reaches, so a reader's edit tells the application exactly what a
+         * drag tells it &mdash; through the same {@code changed()}, which re-notates all three
+         * rows before {@link ColorPicker#onChange} fires. Never through
+         * {@link ColorPicker#setColor}, which is the silent path and would leave the application
+         * never told that the user chose.
+         *
+         * <p>The verbs arrive and are applied <b>in the domain that was published</b>: the two
+         * steps move one whole degree from the rounded number a reader was given, and a set is
+         * rounded on the way in, so a request for 173.6 writes 174 and reads back 174 and a step
+         * after a drag that left 173.42 behind lands on 174 exactly as the H stepper does. The
+         * node and the model cannot drift apart. A value that is not a finite number is refused
+         * before any of that, because the clamp is a {@code Math.max}/{@code Math.min} pair and
+         * both propagate {@code NaN}.
+         *
+         * <p>The commit fires after every handled verb, moved or not, as {@code Slider}'s hook
+         * does and for the same reason: a request from a reader is a whole gesture with no release
+         * to follow, and a step at an end of the range is a user choosing the value already held.
+         * It is deliberately more than a pointer does here, where only the release commits. The
+         * change fires there too, and unlike the two rails below it that is not a decision of this
+         * hook's: {@link #moveToHue} notifies whether or not the number moved, exactly as it has
+         * always done for every event of a drag, and giving the verbs a guarded copy of it would
+         * be a second path for this widget to keep in step with.
+         *
+         * <p>Every verb is refused while this widget is disabled. The scene has already re-checked
+         * the ancestor chain, the showing bit and modality before the call arrives; this guard is
+         * the one the pointer path does not keep, since that path relies on a disabled widget
+         * failing the hit test and {@link #moveToHue} has nothing to fall back on.
+         *
+         * @param action what was asked
+         * @param arg    the hue in degrees for {@code SET_VALUE}; ignored by the two steps
+         * @return whether the request ran, which at an end of the range can be a commit of the
+         *         value already held
+         */
+        @Override
+        protected boolean onAccessibilityAction(Accessible.Action action,
+                                                Accessible.Argument arg) {
+            if (!isEnabled()) {
+                return false;
+            }
+            int degrees = Math.round(hue);
+            switch (action) {
+                case INCREMENT -> moveToHue(degrees + 1);
+                case DECREMENT -> moveToHue(degrees - 1);
+                case SET_VALUE -> {
+                    if (!(arg instanceof Accessible.Argument.OfValue of)
+                            || !Double.isFinite(of.value())) {
+                        return false;
+                    }
+                    moveToHue(Math.round(of.value()));
+                }
+                default -> {
+                    return false;
+                }
+            }
+            onCommit.accept(color());
+            return true;
         }
     }
 
