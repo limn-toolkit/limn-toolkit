@@ -58,11 +58,17 @@ import java.util.Objects;
  *
  * <p><b>To an assistive technology</b> this is one tool bar holding the transport, and nothing
  * more: the play and mute buttons are real widgets that describe themselves as buttons named by
- * the tooltips that already flip with their state, the two sliders and the clock describe
+ * the tooltips this bar keeps in step with their state, the two sliders and the clock describe
  * themselves, and the row and the boxes between them are scaffolding the tree deletes. The bar
  * cannot say anything about a control on the buttons' behalf &mdash; its only child is the row
  * &mdash; and so it does not try to. A press from a screen reader reaches the same activation a
  * click and a Space release reach.
+ *
+ * <p>The tooltips are written where the state they name changes, and not on the heartbeat. The
+ * tree is published before the paint of the same frame, so a tooltip written from the paint
+ * reaches a reader one frame after the change it names; the mute button's name in particular
+ * follows {@code muted}, which the setters and the volume slider all write, so each of those
+ * writes the tooltip as it goes.
  */
 public class MediaControls extends Widget {
 
@@ -125,7 +131,6 @@ public class MediaControls extends Widget {
     private float level = 1f;
     private Playback appliedHandle;
     private float appliedGain = Float.NaN;
-    private Boolean showingMuted;
     private boolean polling;
     private boolean dragging;
     private long lastScrubNanos = Long.MIN_VALUE;
@@ -152,6 +157,7 @@ public class MediaControls extends Widget {
         volume.onChange(value -> {
             level = value / 100f;
             muted = level <= 0;
+            syncMuteTooltip();
             applyGain();
             mute.invalidate();
         });
@@ -256,6 +262,7 @@ public class MediaControls extends Widget {
     public MediaControls setVolume(float newLevel) {
         level = Math.max(0f, Math.min(1f, newLevel));
         muted = level <= 0;
+        syncMuteTooltip();
         syncVolume();
         applyGain();
         mute.invalidate();
@@ -276,6 +283,7 @@ public class MediaControls extends Widget {
         if (!muted && level <= 0) {
             level = 0.7f; // unmuting a slider dragged to zero has to go somewhere
         }
+        syncMuteTooltip();
         syncVolume();
         applyGain();
         mute.invalidate();
@@ -307,6 +315,17 @@ public class MediaControls extends Widget {
         if (wanted != volume.value()) {
             volume.setValue(wanted);
         }
+    }
+
+    /**
+     * Keeps the mute button's tooltip, which is its accessible name, saying what {@code muted}
+     * says. Called wherever {@code muted} is written and from the heartbeat, because the tree is
+     * published before the paint and a name written only from the paint is heard a frame late.
+     * {@code setTooltip} compares against what it holds, so a call that changes nothing costs a
+     * comparison and tells the tree nothing.
+     */
+    private void syncMuteTooltip() {
+        mute.setTooltip(muted ? UNMUTE : MUTE);
     }
 
     /**
@@ -438,11 +457,9 @@ public class MediaControls extends Widget {
         }
         updateSoundCluster();
         // Named whether or not the cluster is offered: the button is in the accessible tree either
-        // way, and showing it later must not be the moment it first acquires a name.
-        if (showingMuted == null || showingMuted != muted) {
-            showingMuted = muted;
-            mute.setTooltip(muted ? UNMUTE : MUTE);
-        }
+        // way, and showing it later must not be the moment it first acquires a name. The setters
+        // keep it exact between heartbeats; this is what names it at birth.
+        syncMuteTooltip();
         if (soundShown) {
             syncVolume();
             applyGain();

@@ -78,6 +78,48 @@ class AccessibleLocaleTest extends AccessibleTestBase {
                 "and the node says which language it is in, for the reader's pronunciation");
     }
 
+    /**
+     * The walk names some nodes itself, after the widget's hook has returned: from the tooltip
+     * when nothing else named it, and from the application's override. Those are resolved under
+     * the subtree's language too, or an icon-only button in a pane declaring another language
+     * would record that language on its node and speak the process's.
+     */
+    @Test
+    void aNameTheWalkSuppliesItselfFollowsTheSubtreesLanguageAsWell() {
+        install();
+        Group root = new Group();
+        Group pane = new Group();
+        Probe byTooltip = new Probe();
+        byTooltip.role = Accessible.Role.BUTTON;
+        byTooltip.setTooltip(GREETING);
+        Probe byOverride = new Probe();
+        byOverride.role = Accessible.Role.BUTTON;
+        byOverride.setAccessibleName(GREETING);
+        pane.add(byTooltip);
+        pane.add(byOverride);
+        pane.setLocale(BRAZILIAN);
+        pane.setAccessibleName("pane");
+        root.add(pane);
+        bind(root);
+        frame();
+
+        assertEquals("Olá", tree().node(2).name(),
+                "the tooltip default is resolved under the widget's language" + describe(tree()));
+        assertEquals(Accessible.NameFrom.TOOLTIP, tree().node(2).nameFrom(), describe(tree()));
+        assertEquals("Olá", tree().node(3).name(),
+                "and so is the application's override" + describe(tree()));
+        assertEquals(BRAZILIAN, tree().node(2).locale(), describe(tree()));
+
+        bridge.events.clear();
+        pane.setLocale(null);
+        frame();
+
+        assertEquals("Hello", tree().node(2).name(),
+                "and moving the subtree's language re-resolves it" + describe(tree()));
+        assertEquals("Hello", tree().node(3).name(), describe(tree()));
+        assertEquals(2, bridge.countOf(AccessibleEvent.Type.NAME_CHANGED), bridge.events.toString());
+    }
+
     @Test
     void aLanguageMoveReResolvesEveryNameUnderItExactlyOnce() {
         install();

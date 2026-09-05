@@ -133,7 +133,9 @@ class AccessibleCoverageTest {
             // neither of those is an accessible fact — the name is the tooltip the bar keeps in
             // step with the state, which the walk supplies by reference. The abstract class is
             // not a concrete widget, so it takes no entry of its own; this is what the ancestry
-            // walk exists for. Pinned by limn.components.MediaControlsAccessibilityTest.
+            // walk exists for. Pinned by limn.components.MediaControlsAccessibilityTest, and the
+            // mute button's own name, which follows the bar's muted state and not the view's play
+            // state, by limn.components.MediaControlsMuteButtonAccessibilityTest.
             "limn.components.MediaControls$MuteButton",
             "limn.components.MediaControls$PlayPause"
     ));

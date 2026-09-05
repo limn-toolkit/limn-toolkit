@@ -750,10 +750,16 @@ actions when it is focusable, because `requestFocus()` and `revealInView()` exis
 and a name from `tooltipSource()` when nothing else supplied one.
 
 **Two free-name defaults carry most of the demo without an application change.** A node with no name
-takes its tooltip, which names every icon-only control in the toolkit — the media transport buttons
-whose tooltips already flip with the play state, the tool-bar buttons, the tabbed pane's strip
-buttons. A `TextField` with no name takes its placeholder. Both sources already exist and both
-already resolve under the widget's own locale.
+takes its tooltip, which names every icon-only control in the toolkit — the media transport buttons,
+the tool-bar buttons, the tabbed pane's strip buttons. A `TextField` with no name takes its
+placeholder. Both sources already exist and both resolve under the widget's own locale, which the
+walk has to open for itself around the default: the hooks run inside that scope and the default runs
+after them, and the first tooltip-named control tested under a subtree language recorded that
+language on its node and spoke the process's. A default is also only as current as the tooltip is,
+and a tooltip is not a standing fact of a widget: the transport's were written on its paint
+heartbeat, which runs after the tree of the same frame is published, so the name of the mute button
+reached a reader one frame after the change it named until the bar wrote the tooltip where the
+state changes (§7.2).
 
 **The application's controls**, all on `Widget`, all public and final:
 
@@ -2390,7 +2396,7 @@ and mixing them up is how a design document becomes untrustworthy in both direct
 | `ContextMenus.ContextRegion` | transparent | `HAS_POPUP` and `ActionFacet{SHOW_MENU}` are put **on its own child**, through `onAccessibilityChild` | — | the region measures and lays out to exactly its content's box, so the child's node is the rectangle a user would right-click. The action is never lost with the wrapper (§1.6) |
 | `ImageView` | `IMAGE` | name from the application or the tooltip | — | ignored when it has neither, because a nameless image is noise |
 | `VideoView` | `VIDEO` | `ValueFacet{position,duration}`, **position rounded to whole seconds** | — | the rounding is not cosmetic: an unrounded position advances every frame, and the diff would then publish a whole tree copy per frame for the length of the film with the user doing nothing (§6) |
-| `MediaControls` | `TOOL_BAR` | — | — | its icon buttons are real widgets and get `BUTTON`, named by tooltips that already flip with the play state |
+| `MediaControls` | `TOOL_BAR` | — | — | its icon buttons are real widgets and get `BUTTON`, described once on their shared private base and named by their tooltips; the mute's name follows the bar's muted state and not the play state, and is written where that state changes (§7.2) |
 | ↳ position `Label` | `LABEL` | — | — | its text changes about once a second; an application that wants it spoken calls `announce` (§11) |
 | `Viewport3D` | `CANVAS` | — | — | focusable with no key handling today, so the tree faithfully reports a tab stop that does nothing (§13) |
 | `ColorPicker` | `COLOR_CHOOSER` | — | — | |
@@ -2447,6 +2453,7 @@ its real function is to calibrate how much the table should be trusted.
 | `VideoView`, `ProgressBar` | a continuously-advancing value must be published rounded (§6) |
 | `BackdropPanel` | it paints, alone among the twelve classes the scaffolding row lumped it with, so §1.6's paint warning fires on it: a toolkit class named in an application's log, recommending a flag that would delete the controls under the glass. §1.6 gained the decoration seam; the row gained one of its own |
 | `Stack` | its children overlap by construction, alone among the twelve, and its own documentation calls it the base for overlays and modal dialogs. The verdict is right and the deletion costs nothing; what the scaffolding row hides is that every layer is then published as a reachable sibling of every other, so a scrim and a panel built by hand inside one leave the whole background operable to a screen reader and §1.9's gate accepts the invocation, because the control really is enabled and really is inside `inputRoot()`. §1.13's subtraction is computed from the scene's overlay stack and cannot see this. Occlusion is deliberately not modelled: §11 gained a bullet saying so and what to use instead, and the class documentation points at it |
+| `MediaControls` mute button | the row said its icon buttons are "named by tooltips that already flip with the play state". The mute's name follows `muted`, which three paths write — the setter, `setVolume` reaching zero, and the volume slider's own change — and only a press on the button is one of them; a drag to zero renames it with nothing pressed. And "already flip" was true one frame late: the tooltip was written only inside the bar's `refresh()`, from the paint and the poll, and the tree of a frame is published before its paint, so the frame that reflected a change carried the old name and the new one arrived a frame later with its event. The bar writes the tooltip wherever `muted` moves now, and `Widget.setTooltip`'s own equality guard is what keeps that free. The row also does not decide `BUTTON` against `TOGGLE_BUTTON` for a two-state control; the source settles `BUTTON`, because the label is a flipping verb and a pressed bit beside "Unmute" would be heard twice. What the step found outside the widget: the walk's tooltip default and the application's name override were resolved outside the widget's locale scope the hooks run in, so a tooltip-named control in a subtree declaring another language recorded that language and spoke the process's; the walk opens the scope around its own naming now |
 | `TokenBox` | it is not a `SizedBox` subclass and shares no code with one: its whole ancestry is `Widget`, and it only documents that `null` means unset as `SizedBox.UNSET` does, so it can be settled independently of `SizedBox` and of its three `Token*` siblings, which really do extend `Row`, `Column` and `Padding`. The verdict is right and the deletion is geometrically a no-op: `onLayout` hands the child the whole box at the origin, so the surviving node's rectangle is the deleted node's rectangle exactly, and "the tree is the controls, not the boxes" is backwards for it. **Corrected:** that is not unique to it. `SizedBox` and `Expanded` carry the identical `child.layoutBox(0, 0, width(), height())` and are named in the same row, so three of the twelve share the property; what separates them is where the box's number comes from — a fixed one, a flex share, a resolved token — and each therefore still owes its own step — the box a reader is given for a colour picker's rail *is* the wrapper's. And what it guarantees is *when* the extent is read — inside `onMeasure`, against the resolved step, with a parent in place — not what the extent returns: unlike `TokenPadding`'s closed `Tokens.Role`, the `Extent` is an application-supplied function that need not read its argument at all, so a row promising the published box follows the density ramp overclaims. The extent is a request besides, clamped by the incoming constraints and discarded outright by the tight root |
 
 *Left to the pipeline, as work:*

@@ -197,16 +197,26 @@ final class AccessibleWalk {
             id = builder.identify(identify(parent), builder.childKey());
             builder.reidentify(id);
         }
-        applyOverrides(widget);
+        // Under the widget's own language, as the two hooks above were: the node records that
+        // language and the model re-resolves a name when it moves, so a string the walk hands
+        // over on the widget's behalf -- the application's override, a bound label's caption,
+        // the tooltip default -- has to be resolved under it too, or a tooltip-named icon button
+        // in a subtree declaring another language records that language and speaks the process's.
+        Locale enclosing = limn.i18n.I18n.pushScope(widget.locale());
+        try {
+            applyOverrides(widget);
+            if (!builder.hasName() && widget.tooltipSource() != null) {
+                builder.name(widget.tooltipSource(), Accessible.NameFrom.TOOLTIP);
+            } else if (!builder.hasDescription() && widget.tooltipSource() != null) {
+                builder.description(widget.tooltipSource());
+            }
+        } finally {
+            limn.i18n.I18n.popScope(enclosing);
+        }
         if (widget.parent() == null && scene.isTopOverlay(widget)) {
             // The layer that owns input carries the fact, so that a reader hears "dialog" rather
             // than discovering it by having everything underneath refuse to be operated.
             builder.state(Accessible.State.MODAL);
-        }
-        if (!builder.hasName() && widget.tooltipSource() != null) {
-            builder.name(widget.tooltipSource(), Accessible.NameFrom.TOOLTIP);
-        } else if (!builder.hasDescription() && widget.tooltipSource() != null) {
-            builder.description(widget.tooltipSource());
         }
 
         if (builder.isIgnored()) {

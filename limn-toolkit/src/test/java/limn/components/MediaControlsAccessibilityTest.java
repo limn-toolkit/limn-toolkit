@@ -46,7 +46,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code refresh()}, which runs from the paint and the poll, and the publish step runs before the
  * paint, so the first tree carried a focusable play button with no name and a mute button that
  * was nameless until the sound cluster appeared. The names are seeded in the constructor now and
- * the first published tree is what is asserted. The row also reads as if the owner handed its
+ * the first published tree is what is asserted; the mute button's name, which is the bar's own
+ * state rather than the view's, is also written wherever that state changes, and
+ * {@link MediaControlsMuteButtonAccessibilityTest} pins that it is exact in the frame that
+ * publishes the change. The row also reads as if the owner handed its
  * buttons their role; it cannot, because its only child is the row and the walk asks the direct
  * parent, so the buttons describe themselves through their shared private base. And the row
  * omits the two sliders and the slots entirely; the slots are pinned here, and the sliders are
@@ -618,19 +621,22 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
 
         assertTrue(controls.isMuted(), "the hook reaches setMuted(!muted), as the click does");
         assertEquals(1, bridge.countOf(AccessibleEvent.Type.INVOKED), bridge.events.toString());
-        heartbeat();
+        // One frame and not the heartbeat: the mute is the bar's own state and the setter writes
+        // the tooltip, so the tree does not wait for a paint to learn the name. The play button
+        // above needs the heartbeat because its state is the view's.
+        frame();
         assertEquals("Unmute", byId(tree(), id).name(), describe(tree()));
         assertEquals(1, eventsOf(AccessibleEvent.Type.NAME_CHANGED, id).size(),
                 bridge.events.toString());
 
         perform(id, Accessible.Action.PRESS, Accessible.Argument.NONE);
-        heartbeat();
+        frame();
 
         assertFalse(controls.isMuted());
         assertEquals("Mute", byId(tree(), id).name(), describe(tree()));
 
         controls.setMuted(true);
-        heartbeat();
+        frame();
 
         assertEquals("Unmute", byId(tree(), id).name(),
                 "the public setter and the press are one path, so they publish one name"
