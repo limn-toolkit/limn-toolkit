@@ -157,10 +157,16 @@ class BarChartAccessibilityTest extends AccessibleComponentTestBase {
     void theChartIsNeverNamedInAnApplicationsLog() {
         walkLogger.removeHandler(capture);
         for (LogRecord record : logged) {
-            assertFalse(String.valueOf(record.getMessage()).contains("limn.components.chart"),
+                        // The PARAMETER and not the message: the walk logs a parameterised record, so
+            // getMessage() answers the unformatted "{0} paints its own content..." pattern and the
+            // class name is in getParameters()[0]. Read the message here and the assertion passes
+            // whatever the walk does, which is what it did until a verification read both sides.
+            Object[] named = record.getParameters();
+            String subject = named == null || named.length == 0 ? "" : String.valueOf(named[0]);
+            assertFalse(subject.contains("limn.components.chart"),
                     "the chart paints, and it declares a role, so the walk must never say it "
                             + "paints and is deleted; a warning here names a toolkit class an "
-                            + "application cannot correct: " + record.getMessage());
+                            + "application cannot correct: " + subject + " " + record.getMessage());
         }
     }
 

@@ -86,10 +86,16 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
     void theBarIsNeverNamedInAnApplicationsLog() {
         walkLogger.removeHandler(capture);
         for (LogRecord record : logged) {
-            assertFalse(String.valueOf(record.getMessage()).contains("limn.components.ProgressBar"),
+                        // The PARAMETER and not the message: the walk logs a parameterised record, so
+            // getMessage() answers the unformatted "{0} paints its own content..." pattern and the
+            // class name is in getParameters()[0]. Read the message here and the assertion passes
+            // whatever the walk does, which is what it did until a verification read both sides.
+            Object[] named = record.getParameters();
+            String subject = named == null || named.length == 0 ? "" : String.valueOf(named[0]);
+            assertFalse(subject.contains("limn.components.ProgressBar"),
                     "the bar paints, and it declares a role, so the walk must never say it paints "
                             + "and is deleted; a warning here names a toolkit class an application "
-                            + "cannot correct: " + record.getMessage());
+                            + "cannot correct: " + subject + " " + record.getMessage());
         }
     }
 
