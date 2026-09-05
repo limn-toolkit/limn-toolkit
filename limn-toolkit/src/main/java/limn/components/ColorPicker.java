@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -175,6 +177,10 @@ public final class ColorPicker extends Widget {
         identityRow.add(new TokenBox(t -> 2 * t.controlHeight(), SizeTokens::controlHeight,
                 preview));
         identityRow.add(new Label("#").setMuted(true));
+        // Named here and not from the "#" beside it, which is the one caption in this widget that
+        // is a mark rather than a word: bound as a label it would name the field "number sign".
+        // A held string handed over once, so a reader hears "Hex" and the frame costs nothing.
+        hexField.setAccessibleName(ColorPickerStrings.HEX);
         hexField.onChange(this::hexTyped);
         identityRow.add(Expanded.of(hexField, 1));
         root.add(identityRow);
@@ -215,8 +221,12 @@ public final class ColorPicker extends Widget {
         // no model: the three tabs re-notate the colour, and none of them
         // re-notates its alpha.
         alphaRow.crossAlignment(Flex.CrossAlignment.CENTER);
-        alphaRow.add(new TokenBox(SizeTokens::fieldIcon, null,
-                new Label(ColorPickerStrings.CHANNEL_ALPHA).setMuted(true)));
+        // The letter names both controls on the line, the same wiring every channel line gets
+        // below and for the same reason; see there.
+        Label alphaLetter = new Label(ColorPickerStrings.CHANNEL_ALPHA).setMuted(true);
+        alphaLetter.setLabelFor(alphaRail);
+        alphaField.setAccessibleLabelledBy(alphaLetter);
+        alphaRow.add(new TokenBox(SizeTokens::fieldIcon, null, alphaLetter));
         alphaRow.add(Expanded.of(alphaRail, 1));
         alphaRow.add(alphaField);
         root.add(alphaRow);
@@ -543,6 +553,49 @@ public final class ColorPicker extends Widget {
         return v < 0 ? 0 : Math.min(1f, v);
     }
 
+    // --- accessibility -------------------------------------------------------
+
+    /**
+     * What the picker is to an assistive technology: one {@link Accessible.Role#COLOR_CHOOSER}
+     * node, and nothing else on it. Everything a reader can read or operate is a real widget
+     * under it with a node of its own &mdash; the hex field, the notation tabs, each channel's
+     * rail and number, the alpha line &mdash; so the chooser is the container those are read
+     * inside and not a second copy of what they say.
+     *
+     * <p><b>The role is not optional here, and that is the whole reason this hook exists.</b> The
+     * picker is focusable from its constructor, because the arrow keys walk the saturation/value
+     * plane, and a focusable widget survives the transparency predicate whatever it declares. One
+     * that declares no role is published as an unknown control and names this class in an
+     * application's log, which is a defect a toolkit class may not ship.
+     *
+     * <p>No name is declared. The widget holds no title, no placeholder and no tooltip, so it has
+     * nothing to hand over: an application names it with {@code setAccessibleName}, and a picker
+     * put in a dialog is named by the dialog around it.
+     *
+     * <p><b>And no value text holding the hex</b>, which is the obvious thing to publish and is
+     * wrong twice over. A text with no number beside it is dropped by the builder, and a value
+     * change is raised only when a number moves, so such a text would cost a formatted string on
+     * every drag step and reach nobody; and a colour has no honest scalar to pair it with. The
+     * colour is readable where it is shown, in the hex field's own text and in the channel
+     * numbers, each of which is a node in its own right.
+     *
+     * <p>No step verbs either. This widget's arrows move two axes &mdash; saturation across,
+     * value up &mdash; and one pair of verbs cannot say which; the plane they walk is the
+     * saturation/value field's box rather than this one, so a verb for it belongs on the node
+     * carrying that box.
+     *
+     * <p>The box, the language, the children in tree order, the enabled, visible, showing,
+     * focusable and focused bits, and the focus and scroll-into-view verbs are all the walk's,
+     * and are correct without help: the root column is laid out over the whole of this widget, so
+     * every descendant's rectangle is inside the chooser's.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.COLOR_CHOOSER);
+    }
+
     // --- the numeric channels ------------------------------------------------
 
     /**
@@ -597,8 +650,19 @@ public final class ColorPicker extends Widget {
                 Row line = new Row();
                 line.crossAlignment(Flex.CrossAlignment.CENTER);
                 lineRows.add(line);
-                line.add(new TokenBox(SizeTokens::fieldIcon, null,
-                        new Label(labels[i]).setMuted(true)));
+                // The letter is the only place this channel's name exists, and both controls on
+                // the line need it: a rail and a stepper that publish nameless are four anonymous
+                // sliders and four anonymous numbers to a reader. Neither can be reached by a
+                // describe hook, because the walk offers a child only to its DIRECT parent and
+                // every one of these is two to five wrappers deep, so the wiring is the
+                // constructor's. A label carries one target, so the rail takes the two-way link
+                // and the stepper is pointed at the same caption: both are named by it, by
+                // reference and under the subtree's language, which is what makes the French
+                // bundle's R/V/B reach a reader and what keeps a quiet frame free.
+                Label letter = new Label(labels[i]).setMuted(true);
+                letter.setLabelFor(track);
+                spinner.setAccessibleLabelledBy(letter);
+                line.add(new TokenBox(SizeTokens::fieldIcon, null, letter));
                 line.add(Expanded.of(track, 1));
                 line.add(spinner);
                 lines.add(line);

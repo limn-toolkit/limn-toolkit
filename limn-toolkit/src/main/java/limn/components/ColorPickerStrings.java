@@ -35,6 +35,18 @@ final class ColorPickerStrings {
     static final I18nString CHANNEL_K = new I18nString("limn.colorPicker.channel.k", "K");
     static final I18nString CHANNEL_ALPHA = new I18nString("limn.colorPicker.channel.alpha", "A");
 
+    /**
+     * What the hex field is called when it is read out rather than looked at.
+     *
+     * <p>The one string here that names nothing on screen. Every channel has a letter beside it
+     * that an assistive technology can be pointed at, and the hex field has a "#" beside it, which
+     * is a typographic mark rather than a word: a reader speaks it "number sign", which names the
+     * field after its punctuation. So the field carries this instead, and the "#" stays what it
+     * is. It is a key like the rest because a notation's name is not automatically the same word
+     * in every language, and this bundle is where that question is already answered.
+     */
+    static final I18nString HEX = new I18nString("limn.colorPicker.hex", "Hex");
+
     /** The tab caption for a notation; {@code Format.name()} is API, not display text. */
     static I18nString format(ColorPicker.Format format) {
         return switch (format) {
