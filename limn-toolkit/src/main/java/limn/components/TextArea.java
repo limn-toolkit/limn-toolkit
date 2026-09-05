@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.text.TextEditModel;
@@ -142,6 +144,16 @@ public class TextArea extends Widget {
      * model clears its column.
      */
     private float goalX = Float.NaN;
+    /** The caret box in widget-local coordinates and the scratch it is compared through. */
+    private Rect caretBox;
+    private final float[] caretScratch = new float[4];
+    /** The string the accessible tree publishes and its key; see {@link #accessibleText}. */
+    private String accessibleText = "";
+    private long accessibleTextRevision;
+    private long accessibleTextVersion = -1; // model.textVersion(); -1 forces the first build
+    private boolean accessibleTextComposing;
+    private int accessibleTextCursor = -1;
+    private String accessibleTextPreedit = "";
 
     /** An empty editor. */
     public TextArea() {
@@ -713,14 +725,40 @@ public class TextArea extends Widget {
      */
     private static ShapedText.Position lineLocal(ShapedText.Position caret, int lineStart,
                                                  ShapedText line) {
-        int local = Math.max(0, Math.min(caret.charIndex() - lineStart, line.text().length()));
-        return new ShapedText.Position(local, caret.affinity());
+        return new ShapedText.Position(rowLocal(caret.charIndex(), lineStart, line),
+                caret.affinity());
+    }
+
+    /**
+     * {@link #lineLocal}'s clamp with no {@code Position} at either end: a buffer index rebased
+     * onto one row, for the callers that hold the index and the side as two values.
+     *
+     * <p>It exists for the same reason {@link ShapedText#caretX(int, ShapedText.Affinity)} does.
+     * The accessible tree reads the caret's x once per damaged frame, the blink guarantees a
+     * damaged frame twice a second, and a pair minted only to be destructured on the next line is
+     * a per-frame cost for a value read once and dropped.
+     *
+     * @param index    a buffer index, or a line-local one where the row's start is line-local too
+     * @param rowStart where {@code row} begins in whatever space {@code index} is counted in
+     * @param row      the row it is being rebased onto
+     * @return the index inside {@code row}, clamped into it
+     */
+    private static int rowLocal(int index, int rowStart, ShapedText row) {
+        return Math.max(0, Math.min(index - rowStart, row.text().length()));
     }
 
     /**
      * X of the caret within its row, including any in-progress composition up to the preedit
      * caret. The one expression the scroll clamp, the candidate window and the painted caret all
      * read, so those three cannot disagree about where the caret is.
+     *
+     * <p><b>Nothing is minted along the way</b>, and that is a cost contract rather than a style.
+     * The caret rectangle the accessible tree publishes is built from this on every damaged frame,
+     * and the widget whose caret blinks damages a frame twice a second whether or not anything
+     * moved. Every branch therefore asks {@link ShapedText#caretX(int, ShapedText.Affinity)} with
+     * an index and a side rather than building a {@link ShapedText.Position} to ask with, and takes
+     * the side from {@link TextEditModel#caretAffinity()} rather than from
+     * {@link TextEditModel#caret()}, which mints the pair.
      */
     private float caretContentX(SizeTokens t) {
         int line = model.lineOf(model.cursor());
@@ -728,23 +766,25 @@ public class TextArea extends Widget {
             // The composed line, not the committed one plus a measured preedit: Arabic and Indic
             // join across the seam the caret sits on, so three measurements are three wrong
             // numbers.
+            int composedLocal = composedCaretInLine(line);
             if (softWrap) {
                 syncRowMap(t);
                 int[] starts = rowStartsByLine[line];
-                ShapedText.Position caret = composedCaret(cursorInLine(line));
-                int r = rowInLine(starts, caret.charIndex(), caret.affinity());
+                int r = rowInLine(starts, composedLocal, ShapedText.Affinity.UPSTREAM);
                 ShapedText rowShaped = composedRowAt(r, t);
                 return rowOriginX(rowShaped, t)
-                        + rowShaped.caretX(lineLocal(caret, starts[r], rowShaped));
+                        + rowShaped.caretX(rowLocal(composedLocal, starts[r], rowShaped),
+                                ShapedText.Affinity.UPSTREAM);
             }
             ShapedText composedForLine = composedLine(t);
             return rowOriginX(composedForLine, t)
-                    + composedForLine.caretX(composedCaret(cursorInLine(line)));
+                    + composedForLine.caretX(composedLocal, ShapedText.Affinity.UPSTREAM);
         }
         int row = caretRow(t);
         ShapedText shaped = shapedRow(row, t);
-        return rowOriginX(shaped, t) + shaped.caretX(lineLocal(model.caret(),
-                model.lineStartOfLine(line) + rowStartInLine(row, line), shaped));
+        int rowStart = model.lineStartOfLine(line) + rowStartInLine(row, line);
+        return rowOriginX(shaped, t)
+                + shaped.caretX(rowLocal(model.cursor(), rowStart, shaped), model.caretAffinity());
     }
 
     /**
@@ -760,8 +800,38 @@ public class TextArea extends Widget {
     private ShapedText.Position composedCaret(int cursorAt) {
         // UPSTREAM is not arbitrary: the preedit caret TRAILS the text just typed, so the next
         // character of the same script appears where the caret is drawn.
-        return new ShapedText.Position(cursorAt + Math.min(preeditCaret, preedit.length()),
-                ShapedText.Affinity.UPSTREAM);
+        return new ShapedText.Position(composedCaretAt(cursorAt), ShapedText.Affinity.UPSTREAM);
+    }
+
+    /**
+     * The same index without the pair, for the callers that already know the side is
+     * {@link ShapedText.Affinity#UPSTREAM}: the caret x the accessible tree reads per damaged
+     * frame, and the row the caret is on.
+     *
+     * @param cursorAt where the preedit begins, in whatever space the answer is wanted in
+     * @return that offset advanced by the preedit's own caret
+     */
+    private int composedCaretAt(int cursorAt) {
+        return cursorAt + Math.min(preeditCaret, preedit.length());
+    }
+
+    /** The composed caret's offset within {@code line}'s own composed text. */
+    private int composedCaretInLine(int line) {
+        return composedCaretAt(cursorInLine(line));
+    }
+
+    /**
+     * The composed caret's offset into the <b>composed document</b>: the whole buffer with the
+     * preedit spliced in at the cursor, which is the string {@link #accessibleText} publishes.
+     *
+     * <p>The cursor is clamped for the same reason {@link #cursorInLine} clamps: this is read on
+     * the describe path, which runs on frames the widget did not ask for, and an offset past the
+     * buffer is a number a client would hold rather than an exception the walk would throw.
+     *
+     * @return where a reader is told the caret is while a composition is open
+     */
+    private int composedCaretIndex() {
+        return composedCaretAt(Math.min(model.cursor(), model.length()));
     }
 
     /**
@@ -1255,12 +1325,11 @@ public class TextArea extends Widget {
         int local;
         ShapedText.Affinity affinity;
         if (!preedit.isEmpty()) {
-            ShapedText.Position caret = composedCaret(cursorInLine(line));
-            local = caret.charIndex();
-            affinity = caret.affinity();
+            local = composedCaretInLine(line);
+            affinity = ShapedText.Affinity.UPSTREAM;
         } else {
             local = Math.max(0, model.cursor() - model.lineStartOfLine(line));
-            affinity = model.caret().affinity();
+            affinity = model.caretAffinity();
         }
         return rowOffsets[line] + rowInLine(starts, local, affinity);
     }
@@ -2114,15 +2183,24 @@ public class TextArea extends Widget {
         return cpIndex >= total ? text.length() : text.offsetByCodePoints(0, cpIndex);
     }
 
-    @Override
-    protected Rect caretRect() {
+    /**
+     * The caret's box in this widget's <b>own</b> coordinates, written into {@code out} as x, y,
+     * width and height.
+     *
+     * <p>Split out of {@link #caretRect()} because the accessible tree asks for the same rectangle
+     * on every damaged frame of the one widget whose blink guarantees a damaged frame twice a
+     * second, and the whole-{@code Rect} form cannot be asked that often: it produces a box. This
+     * writes into a buffer instead, so the caller can compare four floats against the four it is
+     * holding and produce nothing when the caret has not moved.
+     *
+     * @param out four floats to write x, y, width and height into
+     * @param t   the step's metrics, resolved once by whoever is asking
+     * @return whether there is a caret box at all; {@code false} before the first layout
+     */
+    private boolean caretBoxLocal(float[] out, SizeTokens t) {
         if (width() <= 0) {
-            return null; // not laid out yet
+            return false; // not laid out yet
         }
-        // Its own resolve: the scene also calls this from the async blink chain, where there
-        // is no enclosing measure/paint pass to thread tokens down from.
-        SizeTokens t = tokens();
-        float padX = t.fieldPadH();
         float padY = t.areaPad();
         float lh = lineHeight(t);
         float cxContent = caretContentX(t);
@@ -2131,9 +2209,47 @@ public class TextArea extends Widget {
         // the candidate window stays anchored inside the visible padded viewport. The clamp
         // is per axis for the same reason the translate is.
         float left = columnLeft(t);
-        float localX = Math.max(left, Math.min(contentOriginX(t) + cxContent, left + viewWidth(t)));
-        float localY = Math.max(padY, Math.min(padY - scrollY + cyContent, height() - padY));
-        return new Rect(localToSceneX() + localX, localToSceneY() + localY, Strokes.CARET, lh);
+        out[0] = Math.max(left, Math.min(contentOriginX(t) + cxContent, left + viewWidth(t)));
+        out[1] = Math.max(padY, Math.min(padY - scrollY + cyContent, height() - padY));
+        out[2] = Strokes.CARET;
+        out[3] = lh;
+        return true;
+    }
+
+    /**
+     * The held caret box, in this widget's own coordinates: the one value the IME's rectangle and
+     * the accessible tree's are both built from, refreshed only when one of its four floats moves.
+     *
+     * <p>That the two come from here rather than from two expressions is the invariant worth
+     * pinning. An assistive technology draws its cursor around the box this hands over and the
+     * platform places a candidate window under the box {@link #caretRect()} hands over, and an
+     * area whose two answers drifted would put them in different places on the same row.
+     *
+     * @param t the step's metrics, resolved once by whoever is asking
+     * @return the box, or {@code null} before the first layout
+     */
+    private Rect heldCaretBox(SizeTokens t) {
+        if (!caretBoxLocal(caretScratch, t)) {
+            caretBox = null;
+            return null;
+        }
+        if (caretBox == null || caretBox.x() != caretScratch[0] || caretBox.y() != caretScratch[1]
+                || caretBox.width() != caretScratch[2]
+                || caretBox.height() != caretScratch[3]) {
+            caretBox = new Rect(caretScratch[0], caretScratch[1],
+                    caretScratch[2], caretScratch[3]);
+        }
+        return caretBox;
+    }
+
+    @Override
+    protected Rect caretRect() {
+        // Its own resolve: the scene also calls this from the async blink chain, where there
+        // is no enclosing measure/paint pass to thread tokens down from.
+        Rect local = heldCaretBox(tokens());
+        return local == null ? null
+                : new Rect(localToSceneX() + local.x(), localToSceneY() + local.y(),
+                        local.width(), local.height());
     }
 
     private void fireChange() {
@@ -2187,6 +2303,315 @@ public class TextArea extends Widget {
         if (model.textVersion() != before) {
             fireChange();
         }
+    }
+
+    // -------------------------------------------------------- accessibility
+
+    /**
+     * The string the accessible tree publishes, and the counter that says when it moved.
+     *
+     * <p><b>{@link TextEditModel#textVersion()} alone is the wrong witness</b>, exactly as it is
+     * for {@link TextField}: a preedit does not touch the model, so an area keyed on the model's
+     * counter would publish the string it had before the composition opened and go on publishing
+     * it for the whole composition, with a caret offset pointing inside text the tree does not
+     * carry. So the widget holds its own string and its own counter, and the counter moves when
+     * <em>this</em> string does.
+     *
+     * <p><b>Where this differs from a text field is what "the composed view" means.</b> A field's
+     * composed line <em>is</em> its whole document, so it publishes {@link #composedLine}'s own
+     * {@link ShapedText#text()} whole. This widget's composed line is only the caret's <b>hard
+     * line</b> with the preedit spliced into it, so publishing that would hand a reader one line
+     * of a document under offsets counted through the whole of it. The composed document is built
+     * instead — the buffer before the caret's line, that line as the very shaping the pixels came
+     * from, and the buffer after it — so the tree and the screen cannot describe different text
+     * and the offsets stay the document's. The two slices go through
+     * {@link TextEditModel#textRange}, which exists so a hot path can take a substring without
+     * copying the buffer.
+     *
+     * <p>The preedit is compared by identity, as {@link #composedLine} compares it and for the
+     * same reason: this widget is the only writer of that field and writes the {@code String} the
+     * event carried, so the comparison can only rebuild more often than strictly necessary, which
+     * is the cheap direction to be wrong in. The cursor joins the key only while composing, and it
+     * has to: the preedit is spliced in <em>at</em> the cursor, so moving the caret through a
+     * composition moves the same characters to another place in the same string.
+     *
+     * <p><b>The counter moves when the string does and not when the rebuild does.</b>
+     * {@link TextEditModel#setText} bumps the model's counter for a value equal to the one already
+     * there, which an application bound to a formatted value writes back on every change of it,
+     * and a bump per such write would publish a whole snapshot while reporting no event.
+     *
+     * @param t the step's metrics, resolved once by whoever is asking
+     * @return the text as a reader is told it, held across frames
+     */
+    private String accessibleText(SizeTokens t) {
+        boolean composing = !preedit.isEmpty();
+        long version = model.textVersion();
+        int cursor = model.cursor();
+        if (accessibleTextVersion != version || accessibleTextComposing != composing
+                || (composing && (accessibleTextPreedit != preedit
+                        || accessibleTextCursor != cursor))) {
+            String rebuilt;
+            if (composing) {
+                int line = model.lineOf(cursor);
+                int lineStart = model.lineStartOfLine(line);
+                int lineEnd = model.lineEnd(lineStart);
+                rebuilt = model.textRange(0, lineStart) + composedLine(t).text()
+                        + model.textRange(lineEnd, model.length());
+            } else {
+                rebuilt = model.text();
+            }
+            accessibleTextVersion = version;
+            accessibleTextComposing = composing;
+            accessibleTextCursor = cursor;
+            accessibleTextPreedit = preedit;
+            if (!rebuilt.equals(accessibleText)) {
+                accessibleText = rebuilt;
+                accessibleTextRevision++;
+            }
+        }
+        return accessibleText;
+    }
+
+    /**
+     * One multi-line editor: what it is, what is in it, where the caret and the selection are, how
+     * far its two axes have scrolled, and that it raises a menu.
+     *
+     * <p><b>No name of its own, and that is a fact about the widget rather than an omission
+     * here.</b> This class holds no {@link limn.i18n.I18nString} of any kind — there is no
+     * placeholder to fall back on the way a {@link TextField} has one — so the only names an area
+     * can have are the walk's tooltip default and an application's {@code setAccessibleName}. A
+     * focusable node with neither is a real gap, and it is the widget's, not the tree's.
+     *
+     * <p>No description either: what {@link #setValidation} holds is a colour, and the message
+     * beside an area is a {@code Label} the application owns.
+     *
+     * <p><b>{@code MULTI_LINE} is unconditional and is not about wrapping.</b> It is a fact about
+     * the model this widget holds — {@code new TextEditModel(false)}, whose sanitize keeps every
+     * newline — and about Enter inserting one. Soft wrap decides how a line is drawn and says
+     * nothing about how many lines there are.
+     *
+     * <p>The two {@link ScrollBar} children are real widgets and publish themselves through the
+     * ordinary walk, so nothing is declared about them here. Each ignores itself while its axis
+     * fits, which is why an area whose text fits is a childless leaf and one that overflows grows
+     * one or two {@code SCROLL_BAR} children.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        // One resolve, threaded through everything below: the two facets and the caret box all ask
+        // the step for metrics, and two resolutions inside one pass are what tokens() forbids.
+        SizeTokens t = tokens();
+        a.role(Accessible.Role.TEXT_AREA);
+        // Always editable, and never read-only: this class has no read-only mode, and a disabled
+        // area is still an editable control that happens to be disabled. Conflating the two tells
+        // a reader the text can never be typed into, which is a different and false fact.
+        a.state(Accessible.State.EDITABLE);
+        a.state(Accessible.State.MULTI_LINE);
+        // ERROR alone, and not "validation() != NONE": SUCCESS is the valid-input state, and
+        // publishing INVALID there would announce an area that just passed as failing. WARNING and
+        // INFO carry no bit either -- the platform flag is a boolean, so folding this widget's
+        // five-way vocabulary into it loses the distinction the vocabulary exists to draw.
+        a.state(Accessible.State.INVALID, validation == TextField.Validation.ERROR);
+        // The area raises the Cut/Copy/Paste/Select All menu from the pointer and from the
+        // keyboard, so the node owes both halves of that fact. Without them a reader has no route
+        // to any of those four operations at all.
+        a.state(Accessible.State.HAS_POPUP);
+        // The single-argument form; the variable-argument one allocates an array per call. FOCUS
+        // and SCROLL_INTO_VIEW arrive free from the walk, and the two paging verbs belong to the
+        // ScrollBar children, which declare them on their own nodes.
+        a.action(Accessible.Action.SHOW_MENU);
+        publishText(a, t);
+        publishScroll(a, t);
+    }
+
+    /**
+     * The text facet: the contents, the caret with its side, the selection, the line count and the
+     * caret's box.
+     *
+     * <p><b>The line count is the model's hard lines and never the visual rows</b>, which is where
+     * ADR&nbsp;039&nbsp;&sect;7's row for this widget is wrong. Four reasons, any one of them
+     * enough. A count of rows is a number no client could reconcile with the string handed over in
+     * the same facet, whose line structure is {@code \n} and whose offsets — caret and selection —
+     * are indices into it. Rows are derived from the column width, so a resize, a
+     * {@link limn.scene.ControlSize} step change or a reserved bar appearing would each publish a
+     * text-facet change with the document untouched. Rows are broken under the <em>process</em>
+     * locale, because the wrap walk reads {@code I18n.locale()} and not {@link #locale()}, so the
+     * one fact in this node would be resolved under a language the node does not claim. And rows
+     * move under a composition that has changed no text at all, because the row map holds the
+     * composed rows for the caret's line while a preedit is up.
+     *
+     * <p>While composing, the model's own text and caret describe a different string from the one
+     * on the screen, so the composed view is published: the spliced document, the caret at
+     * {@link #composedCaretIndex()} with the upstream side {@link #paintComposingRow} draws it on,
+     * and a collapsed selection, because a composition paints no selection band.
+     *
+     * <p>The selection is the model's and not the paint's. The band is drawn only while focused,
+     * but every operation on a selection reads the model and {@link #onFocusLost} clears it
+     * anyway, so the two can differ only for a programmatic {@code model().selectAll()} on an area
+     * nobody is in.
+     *
+     * <p>The caret box only while focused: an unfocused area draws no caret, and the facet
+     * documents {@code null} as "no caret to draw". Never read-only, for the reason
+     * {@link #onAccessibility} gives.
+     */
+    private void publishText(Accessibility a, SizeTokens t) {
+        boolean composing = !preedit.isEmpty();
+        int caret = composing ? composedCaretIndex() : model.cursor();
+        ShapedText.Affinity affinity = composing
+                ? ShapedText.Affinity.UPSTREAM : model.caretAffinity();
+        int selectionStart = composing ? caret : model.selectionStart();
+        int selectionEnd = composing ? caret : model.selectionEnd();
+        a.text(accessibleText(t), accessibleTextRevision, caret, affinity,
+                selectionStart, selectionEnd, model.lineCount(),
+                isFocused() ? heldCaretBox(t) : null, false);
+    }
+
+    /**
+     * The scroll facet, derived from the same four numbers the wheel and the two bars read, so
+     * that what a reader is told can scroll is what a wheel notch would move.
+     *
+     * <p><b>A view size is keyed on whether the axis scrolls at all, not on whether the content
+     * has a width.</b> {@link limn.accessibility.ScrollFacet} says in its own words that an axis
+     * that does not scroll reports a percentage of {@code 0} and a view size of {@code 1}, "which
+     * is what every platform reads as all of it, nowhere to go" — and an area two lines deep in a
+     * box ten lines tall shows more than its content, so the ratio there is greater than one and
+     * publishing it would be a fraction over 100%. Where the axis does scroll the content is
+     * wider (or taller) than the viewport by definition, so the divisor cannot be zero and the
+     * ratio cannot leave {@code (0, 1)}.
+     *
+     * <p>Those guards are not defensive in the other direction either: the tree's difference
+     * compares these fields with {@code !=}, and an area described before its first layout would
+     * otherwise publish a {@code NaN}, which differs from itself on every damaged frame and copies
+     * the whole tree each time.
+     *
+     * <p>{@link #scrollXOffset() scrollX} is published <b>unflipped</b> reading right to left. It
+     * is already a distance travelled from the leading edge rather than a coordinate, which is the
+     * facet's own "zero at the start" and the same convention {@code ScrollView} publishes. Under
+     * {@linkplain #setSoftWrap soft wrap} the content is exactly the column by construction, so
+     * the horizontal axis reports zero, one and not-scrollable with no branch of its own.
+     */
+    private void publishScroll(Accessibility a, SizeTokens t) {
+        float maxX = maxScrollX(t);
+        float maxY = maxScrollY(t);
+        a.scroll(maxX > 0 ? scrollX / maxX : 0,
+                maxY > 0 ? scrollY / maxY : 0,
+                maxX > 0 ? viewWidth(t) / contentWidth(t) : 1,
+                maxY > 0 ? viewHeight(t) / contentHeight(t) : 1,
+                maxX > 0, maxY > 0);
+    }
+
+    /**
+     * Raises the context menu, replaces the contents, moves the caret or sets the selection, each
+     * through the path the user's own gesture takes.
+     *
+     * <p>No enabled check of its own: the node acted on is this widget, so the scene's gate has
+     * already walked this area and every ancestor for enabled, checked that it is showing, that
+     * the window is not modal-blocked and that it is inside the layer that owns input.
+     *
+     * @param action what is being asked
+     * @param arg    the text for {@code SET_TEXT} and the range for the other two
+     * @return whether this widget did it
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        switch (action) {
+            case SHOW_MENU -> {
+                if (width() <= 0) {
+                    return false; // no caret to raise it at until the first layout
+                }
+                // Focus first, exactly as the right-press branch does and for the reason it gives:
+                // the menu's Cut and Paste act on this area.
+                requestFocus();
+                // Never the pointer's showContextMenu(x, y): all three of this toolkit's pointer
+                // call sites hand ContextMenus.showAt a MouseEvent's SCENE coordinates for a
+                // parameter it documents and implements as anchor-local, so the menu opens offset
+                // by the widget's scene origin. This route converts, and fixing the other one
+                // changes pointer behaviour across three widgets and owes a test of its own.
+                showContextMenuForFocus();
+                return true;
+            }
+            case SET_TEXT -> {
+                if (!(arg instanceof Accessible.Argument.OfText replacement)) {
+                    return false;
+                }
+                // NEVER setText(String): that one is silent, so a reader replacing the value would
+                // change the text and tell the application nothing, and it clears the undo
+                // history. Select-all-then-insert is what a user does, and it handles the empty
+                // case correctly -- an insert of "" with a selection deletes it. This model is the
+                // multi-line one, so a string carrying a newline round-trips: the single-line
+                // sanitize ADR 039 warns a bridge about is a text FIELD's rule.
+                fireIfChanged(() -> {
+                    model.selectAll();
+                    model.insert(replacement.text());
+                });
+                goalX = Float.NaN;
+                ensureCursorVisible();
+                resetBlink();
+                invalidate();
+                return true;
+            }
+            case SET_CARET -> {
+                if (!(arg instanceof Accessible.Argument.OfRange range)
+                        || range.start() != range.end()) {
+                    return false; // a caret is a collapsed range; anything else is not this verb
+                }
+                return placeCaret(range.start(), range.start());
+            }
+            case SET_SELECTION -> {
+                if (!(arg instanceof Accessible.Argument.OfRange range)) {
+                    return false;
+                }
+                return placeCaret(range.start(), range.end());
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Puts the caret at {@code end}, with a selection back to {@code start} when the two differ:
+     * the click-then-shift-click gesture, which is the widget's own path to both.
+     *
+     * <p>An offset outside the text is <b>refused</b> and never clamped to a neighbour, because a
+     * client that asked for character forty of a ten-character document has misunderstood
+     * something and a caret quietly placed at ten hides that. An offset that lands exactly on a
+     * newline is not outside anything: it is a legal caret position in a multi-line buffer. Both
+     * offsets are aligned to a grapheme boundary first, because a bridge counting UTF-16 units can
+     * name a point inside a cluster.
+     *
+     * <p><b>The sticky goal x goes, and it is the line a copy of {@link TextField} would not
+     * have.</b> {@link #goalX} is the column a wrapped Up/Down run travels on, and every one of
+     * this widget's own non-vertical paths clears it — the click, the drag, an edit, and every
+     * key that is not a vertical step. A caret placed by an assistive technology is exactly a
+     * click; left unset, the next Down after one travels to the column the user's last arrow run
+     * was on, which under soft wrap is a caret that visibly jumps sideways.
+     */
+    private boolean placeCaret(int start, int end) {
+        if (!preedit.isEmpty()) {
+            // Refused outright while an IME composition is open, because the offsets a client is
+            // holding are not offsets into the string this widget would place them in. The facet
+            // publishes the COMPOSED document -- the buffer with the preedit spliced in at the
+            // cursor -- and the model counts the committed buffer alone; the two agree up to the
+            // splice and diverge after it. Placed anyway, a caret asked for one position past the
+            // preedit lands short by its length, silently, because the shorter buffer's own bounds
+            // check passes; and since the composed line is keyed on the cursor, the same call
+            // re-splices the preedit at the new position and the text under composition visibly
+            // jumps. A refusal a client can see beats either.
+            return false;
+        }
+        int length = model.length();
+        if (start < 0 || start > length || end < 0 || end > length) {
+            return false;
+        }
+        model.setCursor(model.alignToGrapheme(start), false);
+        model.setCursor(model.alignToGrapheme(end), true);
+        goalX = Float.NaN;
+        ensureCursorVisible();
+        resetBlink();
+        invalidate();
+        return true;
     }
 
     // Cursor blink via self-rescheduling Ui.postDelayed (see TextField): a
