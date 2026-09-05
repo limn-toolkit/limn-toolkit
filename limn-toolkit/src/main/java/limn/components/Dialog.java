@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.backend.Backend;
 import limn.backend.Display;
 import limn.backend.NativeWindow;
@@ -254,9 +256,12 @@ public final class Dialog {
         if (primary && !hasDefaultButton) {
             // The first primary button is the default one, and its filled style is the whole
             // affordance: every platform draws the button Return activates differently from the
-            // rest, and this card already does.
+            // rest, and this card already does. The row is told which button that is in the
+            // same branch, so what a screen reader hears as the default is never a different
+            // button from the one Return answers with.
             hasDefaultButton = true;
             defaultResult = resultValue;
+            buttonRow.defaultButton = button;
         }
         return this;
     }
@@ -819,8 +824,41 @@ public final class Dialog {
      * ways below it, where 3pt between two adjacent activatable rects would defeat the
      * WCAG 2.2 SC 2.5.8 <em>Spacing</em> exception the dense steps lean on. No {@code Token*}
      * container carries that token, so the push lives here.
+     *
+     * <p>To an assistive technology it is nothing: it declares no role, name, action or state of
+     * its own, is never focusable and paints nothing, so the tree deletes it and hoists the
+     * buttons into the card's place, and a reader hears the buttons rather than a box between
+     * them. It still carries one hook, because the walk asks a widget's <em>direct</em> parent
+     * to add what only the parent knows about a child, whether or not that parent survives as a
+     * node &mdash; and the one fact about a dialog button that the button itself refuses to
+     * declare is whether it is the default one.
      */
     private static final class ActionRow extends Row {
+
+        /**
+         * The button Return answers with when nothing focused wanted the key, or {@code null}
+         * while the card has none. Written by {@link Dialog#addButton} in the branch that
+         * records the default result, so the two can never disagree, and never rewritten,
+         * because a dialog is single-use and its first primary button stays its default.
+         */
+        private Button defaultButton;
+
+        /**
+         * Marks the default button as such on its node. The state is the dialog's fact and not
+         * the button's, which holds no such notion, and this is the only parent whose hook
+         * reaches the button's node. A reference comparison and a single bit: nothing here
+         * allocates, and the bit never churns, so a quiet frame stays free.
+         *
+         * @param child one of this row's buttons
+         * @param a     that button's node
+         */
+        @Override
+        protected void onAccessibilityChild(Widget child, Accessibility a) {
+            if (child == defaultButton) {
+                a.state(Accessible.State.DEFAULT);
+            }
+        }
+
         @Override
         protected Size onMeasure(Constraints constraints) {
             // Silent form: we are already inside the pass that consumes the gap, and a

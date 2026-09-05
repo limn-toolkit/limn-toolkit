@@ -63,7 +63,6 @@ class AccessibleCoverageTest {
             "limn.components.ColorPicker$SaturationValueField",
             "limn.components.ColorPickerButton",
             "limn.components.ContextMenus$ContextRegion",
-            "limn.components.Dialog$ActionRow",
             "limn.components.Dialog$CardColumn",
             "limn.components.Dialog$DialogPanel",
             "limn.components.Dialog$SceneOverlay",
@@ -172,6 +171,27 @@ class AccessibleCoverageTest {
             // by limn.components.BackdropPanelAccessibilityTest, and the seam it stands on by
             // limn.scene.AccessiblePaintWarningTest.
             "limn.components.BackdropPanel",
+            // A Row with one onMeasure that pushes the gapButtonRow token, and nothing in the
+            // chain declares a role, name, action or state, overrides onPaint, clips, or is
+            // focusable of its own accord, so §1.6's predicate deletes it in silence and hoists
+            // the dialog's buttons into the card's place: a reader hears "Cancel, button; OK,
+            // button, default" and no box between them. §1.6 names it among the scaffolding
+            // deleted "without a line of accessibility code", and that half is wrong for this
+            // one: §7's Button row promises DEFAULT "when it is a dialog's default", Button's own
+            // hook refuses it as the dialog's fact, and the walk lets only a widget's DIRECT
+            // parent write onto a child's node, whether or not that parent survives — so the
+            // deleted row is the one place the default button can be marked. It carries an
+            // onAccessibilityChild that sets the bit on the button the dialog recorded, from a
+            // field the dialog writes in the same branch as its default result, so what is
+            // announced as default is by construction what Return answers with. That hook says
+            // nothing about the row itself, which is what the inverse check below asks, and the
+            // row stays deleted with it. What the deletion leaves behind is every dialog button's
+            // published x: END alignment packs them to the trailing edge, the gutter is
+            // gapButtonRow and not spacingSmall (they part ways below MEDIUM), a right-to-left
+            // subtree reflects the boxes while reading order stays addButton order, and a Flex
+            // does not clip, so an over-wide set overflows the card and still publishes SHOWING.
+            // Pinned by limn.components.DialogActionRowAccessibilityTest.
+            "limn.components.Dialog$ActionRow",
             // Clips its children, declares nothing, is never focusable and can never acquire a
             // tooltip, so §1.6's predicate deletes it and hoists its content into the split's own
             // place. The clip outlives the node: isShowing() walks widgets rather than nodes, so a
