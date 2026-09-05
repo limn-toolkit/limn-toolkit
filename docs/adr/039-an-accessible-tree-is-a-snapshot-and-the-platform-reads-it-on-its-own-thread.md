@@ -3,8 +3,11 @@
 - **Status:** Proposed, 2026-09-04; §14's phases 1 to 3 implemented 2026-09-04. Closes the "No screen reader
   bridge" bullet the README carries in ten languages, and delivers ADR 006 §5's promise that
   accessibility labels are `I18nString`s. The work is a new `limn.accessibility` package, four
-  hooks on `Widget`, one `default` member on `NativeWindow`, three bridges in `limn-backend-lwjgl`,
-  and a short list of corrections to seams that were never observed before and turn out not to fire
+  hooks on `Widget`, one `default` member on `NativeWindow`, three bridges — **one module each,
+  and not in `limn-backend-lwjgl` as this line first said**: the bridges are per-platform
+  artifacts so that an application pays for the one it ships on, which is a decision taken after
+  this record was drafted and which `limn-a11y-linux` already lives by, with no native code at all
+  —, and a short list of corrections to seams that were never observed before and turn out not to fire
   (§8). §11 is what the first cut deliberately does not do; §14 is the order the work lands in. It
   lands as
   `docs/adr/039-an-accessible-tree-is-a-snapshot-and-the-platform-reads-it-on-its-own-thread.md`,

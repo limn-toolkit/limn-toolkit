@@ -202,7 +202,7 @@ subprojects {
         // was looked at, which is all a passing check has to say.
         val marker = layout.buildDirectory.file("reports/architecture/ok.txt")
         val checkArchitecture = tasks.register("checkArchitecture") {
-            description = "Fails if forbidden imports are found (AWT/Swing/SWT anywhere; LWJGL outside the backend)."
+            description = "Fails if forbidden imports are found (AWT/Swing/SWT anywhere; LWJGL outside the backend and the Windows accessibility bridge)."
             group = "verification"
             // Relative, so a cache entry written on one machine is a hit on another: the
             // verdict depends on what the files say, not on where the checkout sits.
@@ -213,7 +213,18 @@ subprojects {
             outputs.cacheIf { true }
             doLast {
                 val forbiddenEverywhere = listOf("java.awt.", "javax.swing.", "org.eclipse.swt.")
+                // LWJGL is the backend's, and one exception, which is narrower than it looks.
+                // limn-a11y-windows reaches UI Automation, a COM API, and ADR 039 §10.2 settled
+                // that it does so through LWJGL's JNI trampoline rather than through a shim of
+                // its own -- so the alternative to this line is a second native payload in the
+                // build. It cannot live in the backend instead: the platform bridges are their
+                // own artifacts, one per platform, so that an application pays for the one it
+                // ships on and no other, and its Linux sibling already lives that way with no
+                // native anything. What the exception does not permit is the rest of LWJGL: this
+                // module opens no window, holds no context and imports nothing but
+                // org.lwjgl.system, which is the trampoline, the library loader and the stack.
                 val lwjglAllowed = moduleName == "limn-backend-lwjgl"
+                        || moduleName == "limn-a11y-windows"
                 val importPattern = Regex("""^\s*import\s+(?:static\s+)?([A-Za-z_][A-Za-z0-9_.]*)""")
                 val violations = mutableListOf<String>()
                 javaSources.forEach { file ->

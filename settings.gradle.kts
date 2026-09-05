@@ -49,5 +49,6 @@ include(
     "limn-fonts-all",
     "limn-backend-lwjgl",
     "limn-a11y-linux",
+    "limn-a11y-windows",
     "limn-demo",
 )
