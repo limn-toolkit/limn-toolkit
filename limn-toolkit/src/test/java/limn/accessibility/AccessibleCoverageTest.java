@@ -63,7 +63,6 @@ class AccessibleCoverageTest {
             "limn.components.ColorPicker$SaturationValueField",
             "limn.components.ColorPickerButton",
             "limn.components.ContextMenus$ContextRegion",
-            "limn.components.Dialog$CardColumn",
             "limn.components.Dialog$DialogPanel",
             "limn.components.Dialog$SceneOverlay",
             "limn.components.ImageView",
@@ -192,6 +191,26 @@ class AccessibleCoverageTest {
             // does not clip, so an over-wide set overflows the card and still publishes SHOWING.
             // Pinned by limn.components.DialogActionRowAccessibilityTest.
             "limn.components.Dialog$ActionRow",
+            // A Widget that overrides onMeasure and onLayout and nothing else: no role, name,
+            // action or state, never focusable, no tooltip it could ever be given, no clip and
+            // no onPaint, so §1.6's predicate deletes it in silence and hoists the body's scroll
+            // view and then the action row into the card's place, in that order. Transparency is
+            // per class in effect and not per instance, unlike the public wrappers: the class is
+            // private and final, the dialog builds its one instance in its own constructor, and
+            // nothing the dialog exposes reaches it, so the naming hatch does not exist. §1.6 has
+            // the verdict and the line count right, and its scaffolding framing hides what this
+            // one does: it is the widget that decides which of the dialog's controls are on
+            // screen. It alone holds both the body's wanted height and the card's budget, so it
+            // alone computes the cap that turns the body's ScrollView into a viewport — measuring
+            // the body itself, because a scroll view offered a bounded height answers with it —
+            // and it alone keeps the footer outside that viewport. What the deletion leaves
+            // behind is read through the surviving children's boxes: the clip edge that decides
+            // SHOWING for every body node, the spacingMedium gutter between the viewport and the
+            // footer, re-derived in onLayout at the resolved step, and the footer's origin inside
+            // the card, which is why the buttons publish SHOWING however tall the body is. Both
+            // children are laid out at the column's full width from its origin, so it leaves no
+            // mirroring behind. Pinned by limn.components.DialogCardColumnAccessibilityTest.
+            "limn.components.Dialog$CardColumn",
             // Clips its children, declares nothing, is never focusable and can never acquire a
             // tooltip, so §1.6's predicate deletes it and hoists its content into the split's own
             // place. The clip outlives the node: isShowing() walks widgets rather than nodes, so a
