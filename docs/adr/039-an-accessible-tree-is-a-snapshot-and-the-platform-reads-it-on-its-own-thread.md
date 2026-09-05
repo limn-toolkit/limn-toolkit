@@ -754,6 +754,18 @@ node's language; children from `children()` in tree order; the `FOCUS` and `SCRO
 actions when it is focusable, because `requestFocus()` and `revealInView()` exist for every widget;
 and a name from `tooltipSource()` when nothing else supplied one.
 
+**Free means the scene performs them, not that some widget will.** Both were advertised on every
+focusable node from the first walk and performed nowhere: the action hook's default refuses, no
+component wrote the two lines, and so a reader's request for focus was accepted and dropped
+everywhere in the toolkit, and every `ScrollIntoView` failed. They are the walk's verbs, so the
+answer is the scene's, taken instead of the widget's hook rather than after it — a widget that
+answered for an action it never declared would silently swallow a verb the tree had promised, and
+both routes are the scene's own in any case, since `requestFocus()` and `revealInView()` are final.
+The gate in §1.9 needs one exception for them, and only one: a node is refused when it is not
+showing, and `SCROLL_INTO_VIEW` is asked for precisely because the node is scrolled out of view. So
+the two are gated on visibility instead — the same walk without the clip, which still refuses a
+widget inside a hidden container, exactly as Tab does.
+
 **Two free-name defaults carry most of the demo without an application change.** A node with no name
 takes its tooltip, which names every icon-only control in the toolkit — the media transport buttons,
 the tool-bar buttons, the tabbed pane's strip buttons. A `TextField` with no name takes its

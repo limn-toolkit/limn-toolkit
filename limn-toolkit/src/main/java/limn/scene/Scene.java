@@ -846,7 +846,17 @@ public final class Scene implements WindowInput {
             return;
         }
         Widget owner = accessibleWalk.ownerOf(nodeId);
-        if (owner == null || owner.scene() != this || !owner.isShowing()) {
+        if (owner == null || owner.scene() != this) {
+            return;
+        }
+        boolean synthetic = accessibleWalk.isSynthetic(nodeId);
+        boolean free = !synthetic && owner.isFocusable() && isFreeVerb(action);
+        // The showing test is what stops a platform invoking a control that is not on the glass.
+        // The two free verbs are the exception, and have to be: a reader asks for SCROLL_INTO_VIEW
+        // precisely because the node is scrolled out of view, and Tab already reaches a widget
+        // below the fold and reveals it on arrival. They are gated on visibility instead, which is
+        // the same walk without the clip -- a widget inside an unselected tab is still refused.
+        if (free ? !isVisibleThroughAncestry(owner) : !owner.isShowing()) {
             return;
         }
         for (Widget at = owner; at != null; at = at.parent()) {
@@ -864,12 +874,81 @@ public final class Scene implements WindowInput {
         if (!isInSubtree(owner, inputRoot())) {
             return;
         }
-        boolean done = accessibleWalk.isSynthetic(nodeId)
-                ? owner.performSyntheticAction(accessibleWalk.keyOf(nodeId), action, arg)
-                : owner.performAccessibleAction(action, arg);
+        boolean done;
+        if (free) {
+            done = performFreeVerb(owner, action);
+        } else if (synthetic) {
+            done = owner.performSyntheticAction(accessibleWalk.keyOf(nodeId), action, arg);
+        } else {
+            done = owner.performAccessibleAction(action, arg);
+        }
         if (done && action == limn.accessibility.Accessible.Action.PRESS && accessibilityLive()) {
             bridge.emit(limn.accessibility.AccessibleEvent.of(
                     limn.accessibility.AccessibleEvent.Type.INVOKED, nodeId));
+        }
+    }
+
+    /**
+     * @param widget a widget attached to this scene
+     * @return whether it is visible by its own flag and every ancestor's, whether or not it is
+     *         clipped out of a scroll viewport
+     */
+    private static boolean isVisibleThroughAncestry(Widget widget) {
+        for (Widget at = widget; at != null; at = at.parent()) {
+            if (!at.isVisible()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @return whether the walk hands {@code action} to every focusable node of its own accord */
+    private static boolean isFreeVerb(limn.accessibility.Accessible.Action action) {
+        return action == limn.accessibility.Accessible.Action.FOCUS
+                || action == limn.accessibility.Accessible.Action.SCROLL_INTO_VIEW;
+    }
+
+    /**
+     * ADR&nbsp;039&nbsp;&sect;1.5's two free verbs, performed here rather than by every widget.
+     *
+     * <p>The record says a focusable widget gets {@code FOCUS} and {@code SCROLL_INTO_VIEW} for
+     * free "because {@code requestFocus()} and {@code revealInView()} exist for every widget", and
+     * the walk duly advertises both on every focusable node and on no other. Nothing performed
+     * them: the hook's default refuses, and no component wrote the two lines &mdash; so on Windows
+     * every element's {@code SetFocus} did nothing and every {@code ScrollIntoView} failed. The
+     * verbs are the walk's, so the answer is the walk's counterpart and not thirty copies of the
+     * same pair, one of which would be forgotten.
+     *
+     * <p><b>Instead of the widget's hook and not after it.</b> The walk advertises these two on
+     * a widget that never declared them, so the widget is not their authority and cannot be asked
+     * to be: a hook that answered {@code true} for an action it never claimed &mdash; a shape a
+     * test double takes and a real one could &mdash; would silently swallow a verb the tree had
+     * promised, and one that answered {@code false} would make the scene's answer depend on
+     * whether it had been asked first. Both routes are the scene's own in any case:
+     * {@code requestFocus()} and {@code revealInView()} are final and go nowhere else.
+     *
+     * <p>Never for a synthetic node, for the reason the walk never advertises them there: a thing
+     * a widget paints is not a tab stop, holds no keyboard and has no box of its own to reveal.
+     *
+     * @param owner  the widget the node belongs to, focusable, and already checked for showing,
+     *               enabled through its ancestry, unblocked and inside the layer that owns input
+     * @param action {@code FOCUS} or {@code SCROLL_INTO_VIEW}
+     * @return whether this performed it
+     */
+    private boolean performFreeVerb(Widget owner,
+                                    limn.accessibility.Accessible.Action action) {
+        switch (action) {
+            case FOCUS -> {
+                owner.requestFocus();
+                return focusedWidget() == owner;
+            }
+            case SCROLL_INTO_VIEW -> {
+                owner.revealInView();
+                return true; // a widget with no scrollable ancestor is already in view
+            }
+            default -> {
+                return false;
+            }
         }
     }
 

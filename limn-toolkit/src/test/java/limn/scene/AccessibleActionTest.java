@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -177,6 +178,123 @@ class AccessibleActionTest extends AccessibleTestBase {
 
         assertEquals(List.of("child 17: PRESS"), menu.performed,
                 "a model index of zero is a legitimate key, so the two hooks cannot share one");
+    }
+
+    // ------------------------------------------------------------------------ the two free verbs
+
+    /**
+     * ADR 039 §1.5 says a focusable widget gets {@code FOCUS} and {@code SCROLL_INTO_VIEW} for
+     * free, and the walk advertises both on every focusable node. Nothing performed them until the
+     * scene did: the hook's default refuses and no component wrote the two lines, so a reader's
+     * request for focus was accepted and dropped everywhere in the toolkit.
+     */
+    @Test
+    void theFocusVerbMovesTheKeyboardAndIsHeard() throws Exception {
+        bindProbe();
+        assertFalse(probe.isFocused(), "the fixture starts with the focus nowhere");
+
+        assertTrue(performOffThread(node("Save").id(), Accessible.Action.FOCUS,
+                Accessible.Argument.NONE));
+
+        assertTrue(probe.isFocused(), "the verb the walk advertised is the verb it performs");
+        frame();
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.FOCUS_CHANGED),
+                "and the move is published like any other: " + bridge.events);
+    }
+
+    /**
+     * The widget is not asked at all, which is the whole point: it never declared either verb, so
+     * a hook that answered for one would be answering for something it does not own. This probe's
+     * hook accepts everything &mdash; a shape a real widget could take, and one that would have
+     * swallowed the request silently if the scene had asked it first.
+     */
+    @Test
+    void theFreeVerbsNeverReachTheWidgetsHook() throws Exception {
+        bindProbe();
+
+        performOffThread(node("Save").id(), Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        performOffThread(node("Save").id(), Accessible.Action.SCROLL_INTO_VIEW,
+                Accessible.Argument.NONE);
+
+        assertEquals(List.of(), probe.performed,
+                "and the hook's contract is unchanged: it answers for what it declared");
+        assertTrue(probe.isFocused(), "while the verbs themselves were performed");
+    }
+
+    /** A widget the walk never offered either verb on is refused both. */
+    @Test
+    void anUnfocusableWidgetIsRefusedBothFreeVerbs() throws Exception {
+        Group root = new Group();
+        probe = new Probe(Accessible.Role.LABEL, "Total");
+        root.add(probe);
+        bind(root);
+        frame();
+        long id = node("Total").id();
+
+        performOffThread(id, Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        performOffThread(id, Accessible.Action.SCROLL_INTO_VIEW, Accessible.Argument.NONE);
+
+        assertFalse(probe.isFocused(),
+                "the walk offers the two to focusable nodes and to no other, so the scene "
+                        + "performs them there and nowhere else");
+        assertNull(bridge.first(AccessibleEvent.Type.FOCUS_CHANGED), bridge.events.toString());
+    }
+
+    @Test
+    void theScrollIntoViewVerbMovesThePaneAndTheNodeBecomesShowing() throws Exception {
+        Group content = new Group();
+        Probe spacer = new Probe();
+        spacer.prefHeight = 400;
+        content.add(spacer);
+        probe = new Probe(Accessible.Role.BUTTON, "Save");
+        probe.setFocusable(true);
+        content.add(probe);
+        limn.components.ScrollView pane = new limn.components.ScrollView(content);
+        Group root = new Group();
+        root.add(pane);
+        bind(root);
+        frame();
+
+        assertEquals(0, pane.offsetY(), 1e-3, "the fixture starts at the top");
+        assertFalse(node("Save").has(Accessible.State.SHOWING),
+                "and the probe is below the fold" + describe(tree()));
+
+        assertTrue(performOffThread(node("Save").id(), Accessible.Action.SCROLL_INTO_VIEW,
+                Accessible.Argument.NONE));
+        frame();
+
+        assertTrue(pane.offsetY() > 0, "the pane scrolled to it");
+        assertTrue(node("Save").has(Accessible.State.SHOWING),
+                "and the node the reader asked about says so" + describe(tree()));
+    }
+
+    /**
+     * The relaxation is the clip and not visibility. A widget the scene refuses to show at all
+     * &mdash; an unselected tab's contents, anything under a hidden container &mdash; is refused
+     * both verbs like every other: revealing it would scroll to a box that paints nothing, and
+     * focusing it would put the keyboard somewhere the user cannot see.
+     */
+    @Test
+    void aWidgetUnderAHiddenAncestorIsRefusedTheFreeVerbsToo() throws Exception {
+        Group root = new Group();
+        Group page = new Group();
+        probe = new Probe(Accessible.Role.BUTTON, "Save");
+        probe.setFocusable(true);
+        page.add(probe);
+        root.add(page);
+        bind(root);
+        frame();
+        long id = node("Save").id();
+        page.setVisible(false);
+        frame();
+        assertNotNull(tree().node(tree().indexOf(id)),
+                "the fixture needs the node still in the tree, or this refuses for want of an "
+                        + "owner and proves nothing" + describe(tree()));
+
+        performOffThread(id, Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        performOffThread(id, Accessible.Action.SCROLL_INTO_VIEW, Accessible.Argument.NONE);
+
+        assertFalse(probe.isFocused(), "hidden is not merely scrolled away");
     }
 
     @Test
