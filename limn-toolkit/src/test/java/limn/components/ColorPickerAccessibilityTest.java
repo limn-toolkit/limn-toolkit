@@ -53,14 +53,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * raised only when a number moves, so it would cost a formatted string per drag step and reach
  * nobody.
  *
- * <p>Two things here are transitional and say so where they are asserted: the steppers and the hex
+ * <p>One thing here is transitional and says so where it is asserted: the steppers and the hex
  * field have no role of their own yet, so they publish {@code UNKNOWN} while they are focusable and
  * {@code GROUP} while they are not &mdash; the rails are the ones that have taken their step, and
- * publish {@code SLIDER} &mdash;
- * and the saturation/value field declares nothing and is deleted by the predicate, pending its
- * own step. The other two painted parts have taken theirs: the hue ramp is the {@code SLIDER}
- * named "Hue" at the head of the chooser's children and the before/after swatch is the
- * {@code IMAGE} after it, and what each says is pinned by
+ * publish {@code SLIDER}. All three painted parts have taken theirs: the saturation/value plane is
+ * the {@code CANVAS} at the head of the chooser's children, over one axis node per channel, the
+ * hue ramp is the {@code SLIDER} named "Hue" beside it and the before/after swatch is the
+ * {@code IMAGE} after them, and what each says is pinned by
+ * {@code limn.components.ColorPickerSaturationValueFieldAccessibilityTest},
  * {@code limn.components.ColorPickerHueRampAccessibilityTest} and
  * {@code limn.components.ColorPickerPreviewAccessibilityTest} rather than here. Nothing asserted
  * below depends on which role those nodes end up with; they are found by the names this widget
@@ -289,6 +289,7 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
             shape.add(child.role() + " \"" + child.name() + "\"");
         }
         assertEquals(List.of(
+                        "CANVAS \"Saturation and value\"",
                         "SLIDER \"Hue\"",
                         "IMAGE \"Colour #FFFFFF, was #FFFFFF\"",
                         "LABEL \"#\"",
@@ -302,17 +303,16 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         "UNKNOWN \"A\""),
                 shape,
                 "the rows, columns, paddings, token boxes and expanded shares between the picker "
-                        + "and its controls are all deleted, and one of the three parts it draws — "
-                        + "the saturation/value field — declares nothing and is deleted with them, "
-                        + "pending its own step. The other two have taken theirs: the hue ramp is "
-                        + "the SLIDER at the head of this list, because the ramps row is the first "
-                        + "thing in the column and the field beside it is gone, and the swatch is "
-                        + "the IMAGE after it, because it is the first thing in the identity row. "
-                        + "What each says is pinned by "
+                        + "and its controls are all deleted, and the three parts it draws have "
+                        + "each taken their own step: the saturation/value plane is the CANVAS at "
+                        + "the head of this list and the hue ramp the SLIDER beside it, because "
+                        + "the ramps row is the first thing in the column and they are the two "
+                        + "things in that row, and the swatch is the IMAGE after them, because it "
+                        + "is the first thing in the identity row. What each says is pinned by "
+                        + "limn.components.ColorPickerSaturationValueFieldAccessibilityTest, "
                         + "limn.components.ColorPickerHueRampAccessibilityTest and "
                         + "limn.components.ColorPickerPreviewAccessibilityTest. The hex field's "
-                        + "UNKNOWN is transitional in the way the one deletion is"
-                        + describe(tree()));
+                        + "UNKNOWN is what is transitional here" + describe(tree()));
 
         for (int i = 0; i < tree().nodeCount(); i++) {
             AccessibleNode node = tree().node(i);

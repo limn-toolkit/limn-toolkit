@@ -63,6 +63,31 @@ final class ColorPickerStrings {
     static final I18nString HUE = new I18nString("limn.colorPicker.hue", "Hue");
 
     /**
+     * What the saturation/value plane is called when it is read out rather than looked at, and
+     * what its two axes are called under it.
+     *
+     * <p>Three more strings that name nothing on screen, for the hue ramp's reason: the plane has
+     * no caption beside it, no tooltip, and no accessor an application could reach, so a word the
+     * toolkit holds is the only name it can have. The two axes are the whole words rather than the
+     * letters for that reason too &mdash; S and V are the HSV rails' names, and the plane and
+     * those rails are on screen together.
+     *
+     * <p>Keys like the rest, because a channel's name is not the same word in every language: the
+     * value axis is one of the two French renames after which that notation is TSV, and saturation
+     * happens to be the same word in French and falls back to the English declared here, as
+     * {@link #HEX} does.
+     */
+    static final I18nString FIELD =
+            new I18nString("limn.colorPicker.field", "Saturation and value");
+
+    /** The plane's horizontal axis, named for a reader; see {@link #FIELD}. */
+    static final I18nString AXIS_SATURATION =
+            new I18nString("limn.colorPicker.axis.saturation", "Saturation");
+
+    /** The plane's vertical axis, named for a reader; see {@link #FIELD}. */
+    static final I18nString AXIS_VALUE = new I18nString("limn.colorPicker.axis.value", "Value");
+
+    /**
      * What the before/after swatch says: the colour showing now, and the one the picker opened on.
      *
      * <p>The second string here that names nothing on screen, and the first parameterized key in

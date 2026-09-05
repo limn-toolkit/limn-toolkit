@@ -113,8 +113,8 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
      * The ramp names itself, so the walk has nothing to say about it: it must never be dropped as
      * a thing that paints and says nothing, and never published {@code UNKNOWN}.
      *
-     * <p>Scoped to this one class rather than to the picker: the saturation/value field is still
-     * waiting for its own step and warns under a name that starts with the picker's. The warning
+     * <p>Scoped to this one class rather than to the picker, because the steppers and the hex
+     * field are still waiting for their own steps and warn under names of their own. The warning
      * is logged once per class for the whole process, so whichever case runs first is the one that
      * would see it, which is why this runs after every one.
      */
@@ -150,16 +150,17 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
     /**
      * The ramp's node.
      *
-     * <p>Found by role <em>and provenance</em> rather than by name: every other slider in this
-     * picker is named by the caption on its line, and the ramp is the one control here that
+     * <p>Found by role <em>and provenance</em> rather than by name: every rail in this picker is
+     * named by the caption on its line, and the ramp is the one slider the chooser holds that
      * carries a name of its own, which is what makes the scoping survive the language case below.
+     * Scoped to the chooser's own children for the one other slider that names itself: the
+     * saturation/value plane's two axes, which are a level further down, under the canvas.
      *
-     * @return the one slider that names itself
+     * @return the one self-named slider the chooser holds directly
      */
     private AccessibleNode ramp() {
         AccessibleNode found = null;
-        for (int i = 0; i < tree().nodeCount(); i++) {
-            AccessibleNode node = tree().node(i);
+        for (AccessibleNode node : childrenOf(chooser())) {
             if (node.role() == Accessible.Role.SLIDER
                     && node.nameFrom() == Accessible.NameFrom.CONTENT) {
                 if (found != null) {
@@ -333,7 +334,7 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     @Test
-    void itIsTheChoosersFirstChildAndTheStripHasNotMoved() {
+    void itFollowsThePlaneAndTheStripHasNotMoved() {
         bindPicker();
 
         List<String> shape = new ArrayList<>();
@@ -341,6 +342,7 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
             shape.add(child.role() + " \"" + child.name() + "\"");
         }
         assertEquals(List.of(
+                        "CANVAS \"Saturation and value\"",
                         "SLIDER \"Hue\"",
                         "IMAGE \"Colour #FFFFFF, was #FFFFFF\"",
                         "LABEL \"#\"",
@@ -353,10 +355,10 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
                         "SLIDER \"A\"",
                         "UNKNOWN \"A\""),
                 shape,
-                "the ramp is the first thing the chooser holds, because the ramps row is the first "
-                        + "thing in the column and the saturation/value field beside it is still "
-                        + "deleted; the token box, the row and the share around it are all gone"
-                        + describe(tree()));
+                "the ramp is the second thing the chooser holds, behind the plane it sits beside: "
+                        + "the ramps row is the first thing in the column and the plane is the "
+                        + "first thing in that row; the token box, the row and the share around "
+                        + "them are all gone" + describe(tree()));
 
         for (int i = 0; i < tree().nodeCount(); i++) {
             AccessibleNode node = tree().node(i);

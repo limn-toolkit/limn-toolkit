@@ -120,8 +120,8 @@ class ColorPickerPreviewAccessibilityTest extends AccessibleComponentTestBase {
      * The swatch declares a name, so it survives the transparency predicate and the walk has
      * nothing to say about it.
      *
-     * <p>Scoped to this one class rather than to the picker: the saturation/value field is still
-     * waiting for its own step and warns under a name that starts with the picker's. The warning
+     * <p>Scoped to this one class rather than to the picker, because the steppers and the hex
+     * field are still waiting for their own steps and warn under names of their own. The warning
      * is logged once per class for the whole process, so whichever case runs first is the one that
      * would see it, which is why this runs after every one.
      */

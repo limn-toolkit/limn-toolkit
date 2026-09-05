@@ -525,6 +525,29 @@ public final class ColorPicker extends Widget {
         }
     }
 
+    /**
+     * Puts the plane's cursor at {@code (s, v)} and tells the picker: the one mutator the
+     * pointer, these arrow keys and an assistive technology all reach, so that no two of them
+     * have paths of their own to keep in step. {@link #changed} is what re-notates the rows,
+     * repaints the parts and fires {@link #onChange}, which is why nothing here writes the two
+     * fields and stops.
+     *
+     * <p>The clamp is every caller's, hoisted. It notifies whether or not either axis moved, as
+     * it always has: a drag against an edge produces the same coordinate frame after frame and
+     * has always said so.
+     *
+     * <p>Deliberately without an {@code isEnabled()} guard. The keyboard above has never carried
+     * one — it is safe because {@code Scene#requestFocus} refuses a disabled widget — and putting
+     * one here would change this widget's keyboard rather than describe it. The guard belongs to
+     * each caller: the pointer's is the hit test, and the plane's accessibility hook keeps its
+     * own.
+     */
+    private void moveField(float s, float v) {
+        saturation = clamp01(s);
+        value = clamp01(v);
+        changed();
+    }
+
     @Override
     protected void onKeyEvent(KeyEvent event) {
         if (!event.isPressed()) {
@@ -539,15 +562,14 @@ public final class ColorPicker extends Widget {
         // opposite way from the gradient and the cursor it walks along.
         float step = (event.modifiers() & Keys.MOD_SHIFT) != 0 ? 10 / 255f : 1 / 255f;
         switch (event.key()) {
-            case Keys.LEFT -> saturation = clamp01(saturation - step);
-            case Keys.RIGHT -> saturation = clamp01(saturation + step);
-            case Keys.UP -> value = clamp01(value + step);
-            case Keys.DOWN -> value = clamp01(value - step);
+            case Keys.LEFT -> moveField(saturation - step, value);
+            case Keys.RIGHT -> moveField(saturation + step, value);
+            case Keys.UP -> moveField(saturation, value + step);
+            case Keys.DOWN -> moveField(saturation, value - step);
             default -> {
                 return;
             }
         }
-        changed();
         event.consume();
     }
 
@@ -1598,10 +1620,189 @@ public final class ColorPicker extends Widget {
         private void pick(MouseEvent event) {
             float w = Math.max(1, width());
             float h = Math.max(1, height());
-            saturation = clamp01(sceneToLocalX(event.x()) / w);
-            value = clamp01(1 - sceneToLocalY(event.y()) / h);
-            changed();
+            moveField(sceneToLocalX(event.x()) / w, 1 - sceneToLocalY(event.y()) / h);
             event.consume();
+        }
+
+        /** The key of the saturation axis's node, stable for the life of the widget. */
+        private static final long SATURATION_AXIS = 0;
+
+        /** The key of the value axis's, which is the other half of the same plane. */
+        private static final long VALUE_AXIS = 1;
+
+        /**
+         * What the plane is to an assistive technology: one {@link Accessible.Role#CANVAS} named
+         * for the two channels it holds, over <b>two synthetic children</b> — a horizontal
+         * {@link Accessible.Role#SLIDER} for saturation and a vertical one for value, each
+         * carrying a writable value facet in whole percent and offering
+         * {@link Accessible.Action#INCREMENT} and {@link Accessible.Action#DECREMENT}.
+         *
+         * <p><b>Without this hook the plane is not in the tree at all.</b> The class is never
+         * focusable and declared nothing, so the transparency predicate dropped it, and because it
+         * paints its own content the walk named a toolkit class in an application's log — for the
+         * one picture in this widget that is the colour space itself. The three fixes that warning
+         * recommends are all out of reach, since the class is private and nothing the picker
+         * exposes hands an application the instance, so the widget describes itself or nobody can.
+         * {@code paintsDecoration()} is not the answer either: the gradient is the information,
+         * and this is the only place a pointer sets two channels at once.
+         *
+         * <p><b>Two children, because one node carries one pair of steps.</b>
+         * {@link ColorPicker#onAccessibility} says why the picker's own node has no verbs — its
+         * arrows move saturation across and value up, and one pair cannot say which — and leaves
+         * them to the node carrying the plane's box. That is this one, and it has the same
+         * problem: a single {@code INCREMENT} here would have to pick an axis and would be a lie
+         * about the other. So each axis is a node, which is also the only shape in which the two
+         * numbers can be published at all — the canvas itself gets no
+         * {@code value} for the same reason, and no {@code valueText} either, since a display
+         * string handed over without a number is dropped by the builder without a word.
+         *
+         * <p><b>Whole percent, which is the one real choice here.</b> The model holds both axes as
+         * floats and a drag sets them continuously, but the number a sighted user reads is the
+         * HSV notation's, and the picker fills those two steppers with exactly this rounding — so
+         * the two nodes that publish a saturation agree digit for digit by construction rather
+         * than by two people remembering the same rule. The keyboard's own 1/255 nudge is
+         * deliberately not carried across: it is the RGB row's grid rather than this plane's, and
+         * a step of it would usually leave the number a reader had just been told standing still.
+         * The rounding is also what keeps a drag cheap, since the raw float moves on every pixel
+         * and would copy the whole tree with it.
+         *
+         * <p><b>And they are the only nodes that carry these two numbers under two notations out
+         * of three.</b> The picker synchronises only the group whose notation is selected, and
+         * §1.9's gate refuses every verb on a node that is not showing, so with RGB or CMYK up
+         * these children are the whole of what a reader can read or move here.
+         *
+         * <p>No description. The name already says which two channels this is, the children name
+         * them again as nodes, and a third copy would be one fact published three times; a
+         * description carrying the <em>numbers</em> would have no source to compare against and
+         * would cost one string per damaged frame spent concluding that nothing moved. There is no
+         * value text on either child for the same reason, and therefore no cache and no witness
+         * anywhere in this hook. Both facets are writable, so
+         * {@link Accessible.Action#SET_VALUE} is advertised by their presence and never appears in
+         * an action list.
+         *
+         * <p><b>The name is the toolkit's, because nothing else can supply one.</b> There is no
+         * painted text here, no tooltip, no caption pointed at it and no accessor an application
+         * could name it through. So the widget hands over strings it holds, by reference and under
+         * the subtree's language, which is what keeps a quiet frame free. The provenance is
+         * {@link Accessible.NameFrom#CONTENT} for the split pane divider's reason: these are the
+         * control's own names rather than an application's or a label's, even though what it draws
+         * is not text.
+         *
+         * <p><b>Nothing in here reads the layout direction</b>, in the one widget whose
+         * documentation is mostly about mirroring. Saturation runs left to right in every language
+         * because this is a colour space and not a reading axis, so the horizontal state is a fact
+         * about the plane rather than about the page, and an increment raises the channel in both
+         * directions. The drag flag is not published either: a state that moved during a drag would
+         * be a second reason to republish and says nothing a reader wants.
+         *
+         * <p>Both children take the widget's whole box, which is the rectangle {@link #pick}
+         * inverts, with no inset and no seam: both axes are operated over the whole plane, and a
+         * strip or a band for one of them would be a box no gesture respects. The box, the
+         * language and the enabled, visible and showing bits are the walk's — the last three
+         * copied onto both children — and it withholds {@code FOCUSABLE}, which is right: a thing
+         * a widget paints is not a tab stop, and the arrows that walk this plane belong to the
+         * picker's own node.
+         *
+         * @param a the node being described
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.CANVAS);
+            a.name(ColorPickerStrings.FIELD, Accessible.NameFrom.CONTENT);
+
+            a.child(SATURATION_AXIS);
+            a.bounds(0, 0, width(), height());
+            a.role(Accessible.Role.SLIDER);
+            a.name(ColorPickerStrings.AXIS_SATURATION, Accessible.NameFrom.CONTENT);
+            a.state(Accessible.State.HORIZONTAL);
+            a.value(Math.round(saturation * 100), 0, 100, 1);
+            // The pair and never the variable-argument form, which allocates an array per call.
+            a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+            a.endChild();
+
+            a.child(VALUE_AXIS);
+            a.bounds(0, 0, width(), height());
+            a.role(Accessible.Role.SLIDER);
+            a.name(ColorPickerStrings.AXIS_VALUE, Accessible.NameFrom.CONTENT);
+            a.state(Accessible.State.VERTICAL);
+            a.value(Math.round(value * 100), 0, 100, 1);
+            a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+            a.endChild();
+        }
+
+        /**
+         * Moves one axis of the plane for an assistive technology, through
+         * {@link ColorPicker#moveField} — the one mutator a drag and the picker's own arrows also
+         * reach, so a reader's edit tells the application exactly what a drag tells it, through
+         * the same {@code changed()} that re-notates all three rows before
+         * {@link ColorPicker#onChange} fires. Never through {@link ColorPicker#setColor}, which is
+         * the silent path and would leave the application never told that the user chose.
+         *
+         * <p>The other axis is passed through untouched, so a step on one of them cannot round the
+         * fraction a drag left on the other.
+         *
+         * <p>Everything arrives and is applied <b>in the domain that was published</b>: a step
+         * moves one whole percent from the rounded number a reader was given, so a step after a
+         * drag lands on the percent the reader heard plus one and the node and the model cannot
+         * drift apart, and a set is divided by a hundred on the way in. A value that is not a
+         * finite number is refused before any of that, because {@link ColorPicker#clamp01} passes
+         * {@code NaN} straight through and {@code Math.round(Float.NaN)} is zero: an unguarded one
+         * would snap the plane into a corner and report it as a change the user made.
+         *
+         * <p>The commit fires after every handled verb, moved or not, as the two rails' hooks do
+         * and for the same reason: a request from a reader is a whole gesture with no release to
+         * follow, and a step at the end of the range is a user choosing the value already held. It
+         * is deliberately more than the pointer does here, where the drag changes and only the
+         * release commits.
+         *
+         * <p><b>The guard is the picker's enabled flag and not this widget's</b>, which is the one
+         * trap waiting for whoever gave this plane a verb. {@code Widget#isEnabled()}
+         * answers a widget's own flag and {@code setEnabled} propagates to nothing, so a guard
+         * written on this private inner class would read like the rails' and hold nothing back:
+         * what a caller disables is the picker, and that is also what stops the pointer, by
+         * failing the hit test before it reaches this box. The scene has already walked the
+         * ancestor chain, the showing bit and modality before the call arrives; this is the guard
+         * the widget keeps for itself.
+         *
+         * @param key    which axis, and any other key is refused
+         * @param action what was asked
+         * @param arg    the percent for {@code SET_VALUE}; ignored by the two steps
+         * @return whether the request ran, which at an end of the range can be a commit of the
+         *         value already held
+         */
+        @Override
+        protected boolean onSyntheticAction(long key, Accessible.Action action,
+                                            Accessible.Argument arg) {
+            if (!ColorPicker.this.isEnabled()) {
+                return false;
+            }
+            boolean saturationAxis = key == SATURATION_AXIS;
+            if (!saturationAxis && key != VALUE_AXIS) {
+                return false;
+            }
+            int percent = Math.round((saturationAxis ? saturation : value) * 100);
+            float next;
+            switch (action) {
+                case INCREMENT -> next = (percent + 1) / 100f;
+                case DECREMENT -> next = (percent - 1) / 100f;
+                case SET_VALUE -> {
+                    if (!(arg instanceof Accessible.Argument.OfValue of)
+                            || !Double.isFinite(of.value())) {
+                        return false;
+                    }
+                    next = (float) (of.value() / 100.0);
+                }
+                default -> {
+                    return false;
+                }
+            }
+            if (saturationAxis) {
+                moveField(next, value);
+            } else {
+                moveField(saturation, next);
+            }
+            onCommit.accept(color());
+            return true;
         }
     }
 
