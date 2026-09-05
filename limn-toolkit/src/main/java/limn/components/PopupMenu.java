@@ -1,5 +1,8 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
+import limn.accessibility.ToggleFacet;
 import limn.backend.NativeWindow;
 import limn.backend.ScreenRect;
 import limn.backend.WindowConfig;
@@ -11,6 +14,7 @@ import limn.graphics.Path2D;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
+import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
@@ -75,6 +79,20 @@ public final class PopupMenu {
      * agree. A threshold, not a length: it does not move with the step.
      */
     private static final float SCROLL_EPSILON = 0.5f;
+
+    /**
+     * The synthetic key every column carries in the accessible tree, root and submenu alike.
+     *
+     * <p>One constant for all of them because a synthetic identifier is minted from the owner's
+     * identifier and the key together: the root column's owner is the surface, a submenu column's
+     * owner is the row that opened it, so the same key under two owners is two identities. What
+     * the value has to be is <em>neither a {@link MenuItem} serial nor a scroll-band key</em>, and
+     * this one is both — serials are minted from one and count up, bands are the small negatives —
+     * so {@link MenuSurface#onSyntheticAction} can tell the three apart from the key alone, which
+     * is all it is given. It is also the one {@code long} whose negation is itself, which is why
+     * the band decoding below tests for it first rather than after.
+     */
+    private static final long COLUMN_KEY = Long.MIN_VALUE;
 
     /** @see #setDefaultDisplayMode */
     private static volatile DisplayMode defaultDisplayMode = DisplayMode.NATIVE_WINDOW;
@@ -1459,6 +1477,397 @@ public final class PopupMenu {
             col.reveal(col.highlight = next >= 0 ? next : first);
             changed();
             return true;
+        }
+
+        // ----------------------------------------------------------- accessibility
+
+        /**
+         * The capture layer, and the whole open cascade hanging under it as synthetic children.
+         *
+         * <p><b>This node is not the menu, and its box is never a menu's box.</b> In scene the
+         * surface is an overlay and the scene lays every overlay out at the scene's own origin
+         * and size, so its rectangle is the whole window; in a window of its own the window is
+         * sized to {@link #boundingBox}, the union of every open column, so its rectangle equals
+         * the root column only until a submenu opens. What the rectangle honestly is, in both
+         * presentations, is the region a press dismisses the menu from — {@link #pressAt} closes
+         * on any point that misses every column — which is why the role is {@code GROUP}, why
+         * {@code CANCEL} is the verb, and why no {@link Accessibility#bounds} call appears here.
+         * The columns beneath carry the menus' role and the menus' rectangles.
+         *
+         * <p><b>It cannot be transparent and it owes a name.</b> The constructor makes it
+         * focusable and both mountings give it the focus — a native popup scene's focus traverse,
+         * {@code pushOverlay} in scene — so it is the focused widget for the whole life of the
+         * cascade. A focusable node with no declared role is published {@code UNKNOWN} with a
+         * warning, and one with no name at all is what the gallery rule refuses; the class holds
+         * no string of its own and no application can reach a private inner class to name it, so
+         * the toolkit supplies one.
+         *
+         * <p><b>The hover is published here, unlike everywhere else in this toolkit.</b>
+         * {@link #hoverItem} writes {@code col.highlight}, which is the very field
+         * {@link #handleKey} moves and {@link #paintColumn} highlights: in a menu the pointer's
+         * hover and the keyboard's cursor are one thing, so publishing it is publishing the
+         * cursor rather than announcing a row to a user whose keyboard is elsewhere.
+         *
+         * <p><b>Neither modality nor the link to the opener is declared.</b> The walk stamps
+         * {@code MODAL} on a parentless top overlay before the transparency predicate runs, and
+         * in a window of its own the modality is the popup window's own
+         * ({@code NativeWindow#isModal}, set by {@code Backend#pushModal}); declaring it here
+         * would publish it twice in one mounting and lie about a non-modal menu in the other. The
+         * surface is parentless with an inheritance host in both mountings, which is exactly the
+         * gate the walk turns into {@code POPUP_FOR} and the opener's {@code CONTROLLER_FOR}.
+         *
+         * <p><b>Nothing here formats.</b> Every name is an {@link I18nString} the model holds,
+         * every key binding is the string the {@link Column} resolved when it was built, and
+         * everything else is a primitive out of a column's arrays. No counter is owed and no
+         * damaged frame allocates, which matters more here than in most widgets: the in-scene
+         * overlay damages itself on every frame of its fade, and a hover damages two rows.
+         *
+         * @param a the builder for this node
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.GROUP);
+            a.name(ComponentStrings.MENU_POPUP, Accessible.NameFrom.CONTENT);
+            // Not required: a column of nothing but disabled rows has no highlight at all, and
+            // there is then honestly no current row. Not multi-selectable: one row is current.
+            // The facet is what turns a moved cursor into an active-descendant event, and focus
+            // never leaves this node, so without it every arrow key in a menu is silent.
+            a.selection(false, false);
+            // The single-argument form; the variable-argument one allocates an array per call.
+            a.action(Accessible.Action.CANCEL);
+            if (!cols.isEmpty()) {
+                describeColumn(a, 0);
+            }
+        }
+
+        /**
+         * Publishes column {@code c}, its rows, and — nested under the row that opened it — the
+         * column below it, which is the nesting all three platforms expect of a cascade.
+         *
+         * <p>Every box is the paint's own conversion of the coordinates the column already holds:
+         * {@code col.x - offsetX}, {@code col.y - offsetY}, and {@link Column#visibleH} rather
+         * than {@link Column#h}, because the clamped on-screen height is what the column occupies
+         * and what {@link #hit} tests against. Nothing is re-derived from the layout direction
+         * here: the columns were placed with the direction the cascade was opened at and hold the
+         * result, so a second resolution could only disagree with the first.
+         *
+         * <p>The row loop is clamped the way {@link #paintColumn}'s is, because a live-mutated
+         * {@link Menu} leaves the geometry snapshot lagging for one frame. The rebuild that fixes
+         * it is already posted from the paint, and is deliberately not triggered from here: a
+         * describe hook that repaired the model would be a second authority on when it happens.
+         *
+         * @param a the builder
+         * @param c the column's index in {@link #cols}
+         */
+        private void describeColumn(Accessibility a, int c) {
+            Column col = cols.get(c);
+            a.child(COLUMN_KEY);
+            a.bounds(col.x - offsetX, col.y - offsetY, col.w, col.visibleH);
+            a.role(Accessible.Role.MENU);
+            a.state(Accessible.State.VERTICAL); // the mirror of the bar's HORIZONTAL
+            if (c > 0) {
+                // A submenu is titled by the row that opened it, which is what all three
+                // platforms show. The root column is left unnamed: nothing names it, and the
+                // layer above already carries a name.
+                a.name(openerOf(c), Accessible.NameFrom.CONTENT);
+            }
+            a.selection(false, false);
+            // Published on every column on every frame, and from the same expressions the clamp
+            // uses, so that reaching the clamp moves two numbers instead of making a facet appear
+            // and disappear. The horizontal pair is the axis's nothing-to-scroll answer even
+            // though Column.fit clamps the WIDTH as well: a width-clamped column clips its labels
+            // with no scroll route at all, and that costs a reader nothing, because the name
+            // comes from the model and not from the pixels.
+            float max = col.maxScroll();
+            a.scroll(0, max > 0 ? col.scroll / max : 0,
+                    1, col.h > 0 ? Math.min(1, col.visibleH / col.h) : 1,
+                    false, max > 0);
+            if (max > 0) {
+                describeBand(a, c, col, true);
+            }
+            List<MenuItem> items = col.menu.items();
+            int rows = Math.min(items.size(), col.top.length);
+            int size = 0;
+            for (int i = 0; i < rows; i++) {
+                if (!items.get(i).isSeparator()) {
+                    size++;
+                }
+            }
+            boolean deepest = c == cols.size() - 1;
+            int position = 0;
+            for (int i = 0; i < rows; i++) {
+                MenuItem item = items.get(i);
+                // The counter MenuItem mints once per item and never reuses, never the index:
+                // rebuildStaleColumns replaces a Column in place, and an index-keyed row would
+                // hand row three's identifier to row nine after an insert.
+                a.child(item.serial());
+                // The paint's row formula with the scroll subtracted, at the column's full width
+                // and the row's full height -- never the highlight's inset band, because hit()
+                // maps the whole row, and never clamped to the visible band, because clamping
+                // would republish a row's box on every scrolled pixel.
+                a.bounds(col.x - offsetX, col.y - offsetY + col.top[i] - col.scroll,
+                        col.w, col.hgt[i]);
+                if (col.top[i] - col.scroll + col.hgt[i] < 0
+                        || col.top[i] - col.scroll > col.visibleH) {
+                    // The paint's skip test, negated, in column-local terms. Every row is still
+                    // published: its position in the set does not change with the scroll, and
+                    // offScreen is the only route to "visible but not showing".
+                    a.offScreen();
+                }
+                if (item.isSeparator()) {
+                    // A real hit region that does nothing: no name, no verb, no place in the set.
+                    a.role(Accessible.Role.SEPARATOR);
+                    a.endChild();
+                    continue;
+                }
+                a.role(item.kind() == MenuItem.Kind.CHECK
+                        ? Accessible.Role.CHECK_MENU_ITEM : Accessible.Role.MENU_ITEM);
+                // The I18nString the model holds, never label(), which resolves and allocates per
+                // row per frame, and never mnemonicIndex(), which calls label() to find its own.
+                a.name(item.labelSource(), Accessible.NameFrom.CONTENT);
+                boolean current = i == col.highlight && item.isSelectable();
+                a.selectionItem(current, ++position, size);
+                if (item.kind() == MenuItem.Kind.CHECK) {
+                    a.toggle(item.isChecked() ? ToggleFacet.State.ON : ToggleFacet.State.OFF);
+                }
+                if (current && deepest) {
+                    // ACTIVE in the deepest column and nowhere else. The surface holds the focus
+                    // and its active descendant is the FIRST node published active in document
+                    // order, while the cursor keys act on the deepest column: marking every
+                    // column's highlight would resolve the focused node to a root-column row and
+                    // make the whole cascade silent. A parent column's own facet then resolves
+                    // into its open submenu, which is truthful -- that is where the cursor is.
+                    a.state(Accessible.State.ACTIVE);
+                }
+                if (item.hasSubmenu()) {
+                    a.state(Accessible.State.HAS_POPUP);
+                    boolean expanded = c + 1 < cols.size() && cols.get(c + 1).parentItem == i;
+                    a.expand(expanded);
+                    // One verb, the menu bar's rule: EXPAND, COLLAPSE and PRESS are accepted
+                    // below without being advertised, because one platform derives its
+                    // expand/collapse pattern from the facet and needs somewhere to route it
+                    // while another reads this list aloud.
+                    a.action(Accessible.Action.SHOW_MENU);
+                    if (expanded) {
+                        describeColumn(a, c + 1);
+                    }
+                } else if (item.isSelectable() && item.kind() != MenuItem.Kind.SUBMENU) {
+                    // TOGGLE is accepted below and not advertised either: choosing a check row in
+                    // a menu is one gesture, and it is the gesture the pointer makes. A submenu
+                    // row with nothing in it gets no verb at all -- hasSubmenu() is false there
+                    // while isSelectable() stays true and activate() is a no-op.
+                    a.action(Accessible.Action.PRESS);
+                    if (col.accel[i] != null) {
+                        // The string the column resolved when it was built, which is also what
+                        // its width was measured against; accelerator().display() would build one
+                        // per row per frame and be a second authority on the spelling.
+                        a.keyBinding(col.accel[i]);
+                    }
+                }
+                a.endChild();
+            }
+            if (max > 0) {
+                describeBand(a, c, col, false);
+            }
+            a.endChild();
+        }
+
+        /**
+         * @param c a submenu column's index
+         * @return the label of the row that opened it, or {@code null} when the parent column's
+         *         {@link Menu} has been mutated out from under the snapshot and that row is gone
+         */
+        private I18nString openerOf(int c) {
+            List<MenuItem> items = cols.get(c - 1).menu.items();
+            int i = cols.get(c).parentItem;
+            return i >= 0 && i < items.size() ? items.get(i).labelSource() : null;
+        }
+
+        /**
+         * Publishes one scroll-hint band as the region a click on it lands in.
+         *
+         * <p>These are controls rather than veneer, and the tree has to say so:
+         * {@link #clickAt} gives {@link #hintBandDirection} priority over the row painted beneath
+         * the band, so a platform hit test that resolved such a point to a row would tell a user
+         * that pressing there chooses "Save" when it scrolls.
+         *
+         * <p><b>The box is the hit region and not the painted one.</b> {@link #paintScrollHint}
+         * insets by {@link Strokes#ROW_CLIP} on both sides and starts the top band a point below
+         * the column's edge, while {@code hintBandDirection} measures from {@code col.y} across
+         * the column's whole width. What is published is the box a click lands in.
+         *
+         * <p><b>A dead side carries no verb</b>, and is not published disabled: a widget cannot
+         * say that of a synthetic child by any route, because the builder refuses the states the
+         * publish step owns and the walk overwrites a synthetic node's enabled bit with its
+         * owner's. The verb's condition is {@code hintBandDirection}'s own, so the tree, the paint
+         * and the hit test agree by construction.
+         *
+         * @param a   the builder
+         * @param c   the column's index, encoded into the key because
+         *            {@link #onSyntheticAction} is given the key alone and could not otherwise
+         *            tell two columns' bands apart
+         * @param col that column
+         * @param up  whether this is the band that scrolls back toward the first item
+         */
+        private void describeBand(Accessibility a, int c, Column col, boolean up) {
+            a.child(up ? -(2L * c + 1) : -(2L * c + 2));
+            a.bounds(col.x - offsetX,
+                    col.y - offsetY + (up ? 0 : col.visibleH - Strokes.MENU_SCROLL_HINT_H),
+                    col.w, Strokes.MENU_SCROLL_HINT_H);
+            a.role(Accessible.Role.BUTTON);
+            a.name(up ? ComponentStrings.MENU_SCROLL_PREVIOUS : ComponentStrings.MENU_SCROLL_NEXT,
+                    Accessible.NameFrom.CONTENT);
+            if (up ? col.scroll > SCROLL_EPSILON
+                    : col.scroll < col.maxScroll() - SCROLL_EPSILON) {
+                a.action(Accessible.Action.PRESS);
+            }
+            a.endChild();
+        }
+
+        /**
+         * Dismisses the whole cascade, through the path a press on this layer already takes.
+         *
+         * <p>{@code CANCEL} and nothing else, and it reaches {@link PopupMenu#close} rather than
+         * {@code handleKey(ESCAPE)} because the verb has to mean what the box means: Escape at
+         * depth closes one column, while a press on the capture layer closes the cascade, and
+         * this node's box is the capture layer.
+         *
+         * @param action what is being asked
+         * @param arg    unused; the one verb here is parameterless
+         * @return whether this surface did it
+         */
+        @Override
+        protected boolean onAccessibilityAction(Accessible.Action action,
+                                                Accessible.Argument arg) {
+            if (action != Accessible.Action.CANCEL) {
+                return false;
+            }
+            PopupMenu.this.close();
+            return true;
+        }
+
+        /**
+         * Chooses a row, opens or closes a submenu, or steps a column's scroll, through the same
+         * private paths the pointer uses.
+         *
+         * <p>The three kinds of key are told apart by their value alone, which is all this hook is
+         * given: {@link PopupMenu#COLUMN_KEY} is a column, which does nothing; a negative key is a
+         * scroll band with its column's index encoded in it; a positive one is a
+         * {@link MenuItem#serial()}. A serial is searched for rather than indexed, and the
+         * outermost occurrence wins — two are possible only for a self-referential {@link Menu},
+         * where a click would choose the same one.
+         *
+         * <p>Every route lands in {@link #chooseItem}, {@link #truncateTo} or
+         * {@link #scrollColumn}, which are literally the branches {@link #clickAt} calls, so an
+         * assistive technology's press runs the application's {@code Runnable} or flips the check
+         * and reports it exactly as a click does, and its open builds the same column with the
+         * same identifiers. Nothing gains a public entry point for it.
+         *
+         * <p>The refusals are facts rather than guards against a caller. A submenu already open is
+         * refused rather than reopened, because reopening truncates the cascade and builds another
+         * one with new identifiers, which the pointer never does. A collapse addressed to a row
+         * whose submenu is not open closes nothing. A disabled row, a separator and a submenu row
+         * with nothing in it are refused because none of them can be chosen — {@code chooseItem}
+         * refuses the first two silently and {@code activate()} is a no-op on the third, and a
+         * hook that answered true there would report an action that did nothing. A band press is
+         * answered by whether the scroll actually moved.
+         *
+         * @param key    a column key, a band key, or a row's serial
+         * @param action what is being asked
+         * @param arg    unused; every verb here is parameterless
+         * @return whether this surface did it
+         */
+        @Override
+        protected boolean onSyntheticAction(long key, Accessible.Action action,
+                                            Accessible.Argument arg) {
+            if (key == COLUMN_KEY) {
+                return false;
+            }
+            if (key < 0) {
+                return pressBand(key, action);
+            }
+            for (int c = 0; c < cols.size(); c++) {
+                Column col = cols.get(c);
+                List<MenuItem> items = col.menu.items();
+                int rows = Math.min(items.size(), col.top.length);
+                for (int i = 0; i < rows; i++) {
+                    if (items.get(i).serial() == key) {
+                        return chooseRow(c, i, items.get(i), action);
+                    }
+                }
+            }
+            return false;
+        }
+
+        /**
+         * @param c      the column the row is in
+         * @param i      its index there
+         * @param item   the row
+         * @param action what is being asked
+         * @return whether it was done
+         */
+        private boolean chooseRow(int c, int i, MenuItem item, Accessible.Action action) {
+            boolean open = c + 1 < cols.size() && cols.get(c + 1).parentItem == i;
+            if (item.hasSubmenu()) {
+                switch (action) {
+                    case SHOW_MENU, EXPAND, PRESS -> {
+                        if (open) {
+                            return false;
+                        }
+                        chooseItem(c, i); // truncates, moves the highlight, opens: the click branch
+                        return true;
+                    }
+                    case COLLAPSE -> {
+                        if (!open) {
+                            return false;
+                        }
+                        truncateTo(c);
+                        changed();
+                        return true;
+                    }
+                    default -> {
+                        return false;
+                    }
+                }
+            }
+            if (action != Accessible.Action.PRESS && action != Accessible.Action.TOGGLE) {
+                return false;
+            }
+            if (!item.isSelectable() || item.kind() == MenuItem.Kind.SUBMENU) {
+                return false;
+            }
+            chooseItem(c, i); // activate() then close(), which is what a click on the row does
+            return true;
+        }
+
+        /**
+         * @param key    a band key, which encodes its column's index and its side
+         * @param action what is being asked
+         * @return whether the column's scroll moved
+         */
+        private boolean pressBand(long key, Accessible.Action action) {
+            if (action != Accessible.Action.PRESS) {
+                return false;
+            }
+            long encoded = -key;
+            int c = (int) ((encoded - 1) / 2);
+            boolean up = encoded % 2 == 1;
+            if (c < 0 || c >= cols.size()) {
+                return false; // a key from a tree this cascade no longer has
+            }
+            Column col = cols.get(c);
+            if (col.maxScroll() <= 0) {
+                return false;
+            }
+            // hintBandDirection's own conditions, so a side that is parked at its clamp is
+            // refused here exactly where it is left without a verb above.
+            if (up ? col.scroll <= SCROLL_EPSILON
+                    : col.scroll >= col.maxScroll() - SCROLL_EPSILON) {
+                return false;
+            }
+            float before = col.scroll;
+            scrollColumn(col, (up ? -1 : 1) * Strokes.WHEEL_STEP); // the expression clickAt uses
+            return col.scroll != before;
         }
     }
 

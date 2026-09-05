@@ -50,13 +50,14 @@ class AccessibleCoverageTest {
      * Widgets that have not yet been given a description, and the whole of phase 4's remaining
      * work.
      *
-     * <p>Strike a name off in the same commit that describes it. The order is the order the
-     * classes were discovered in, which is alphabetical by source file, and is not a running order:
-     * the pipeline takes them in whatever order makes each one's own step cheapest to verify.
+     * <p><b>Empty, which is what phase 4 was for.</b> Every widget the toolkit ships now either
+     * declares its own description, defers to an ancestor that does, or was settled as transparent
+     * — and each of those three is a list below with an assertion pointed at it. The field stays,
+     * because it is the ratchet: a widget added from here on with no hook lands in this test's
+     * computed set, disagrees with this empty one, and fails the build. Strike a name off in the
+     * same commit that describes it.
      */
-    private static final Set<String> UNDESCRIBED = new TreeSet<>(Set.of(
-            "limn.components.PopupMenu$MenuSurface"
-    ));
+    private static final Set<String> UNDESCRIBED = new TreeSet<>(Set.<String>of());
 
     /**
      * Widgets the survey in ADR 039 §7 does not name, with the reason each is absent.

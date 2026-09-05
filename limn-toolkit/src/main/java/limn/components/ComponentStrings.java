@@ -125,6 +125,30 @@ final class ComponentStrings {
     static final I18nString MENU_BAR =
             new I18nString("limn.menuBar.name", "Menu bar");
 
+    // What a screen reader calls the layer a whole open menu cascade is drawn on, for the
+    // dropdown layer's reason in the same words: it paints nothing itself, holds no text, can
+    // never acquire a tooltip, and is a private inner class no application can reach to name. It
+    // is focusable from its constructor and takes the focus in both presentations, so for the
+    // whole life of the cascade it is the focused widget and the every-focusable-node-is-named
+    // rule always covers it. The columns beneath it are the menus and carry the menus' names.
+    static final I18nString MENU_POPUP =
+            new I18nString("limn.popupMenu.name", "Menu");
+
+    // A menu column's two scroll-hint bands, for the segmented control's chevrons' reason: they
+    // are painted glyphs with no text and no tooltip, and they are SYNTHETIC children, so none of
+    // the three routes that name a widget -- setAccessibleName, a bound caption, a tooltip -- can
+    // reach them at all.
+    //
+    // They name a position in the ITEM order and never a screen side. A menu column scrolls
+    // vertically and never mirrors, so "up" and "down" would be true here; they are still refused,
+    // because a user who cannot see the column is told where the rows are in the list and not
+    // where the ink is on the glass, and because these two must read like the four above them.
+    static final I18nString MENU_SCROLL_PREVIOUS =
+            new I18nString("limn.popupMenu.previousItems", "Previous items");
+
+    static final I18nString MENU_SCROLL_NEXT =
+            new I18nString("limn.popupMenu.moreItems", "More items");
+
     // The dialog a ColorPickerButton raises. Here rather than in ColorPickerStrings
     // because two of the three are the words every dialog in every application uses,
     // and this is the first place the toolkit itself has had to supply them: a Dialog
