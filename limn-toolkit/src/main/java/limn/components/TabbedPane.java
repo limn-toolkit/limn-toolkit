@@ -387,7 +387,9 @@ public class TabbedPane extends Widget {
         Menu menu = new Menu();
         for (int i = 0; i < headers.size(); i++) {
             int index = i;
-            menu.addCheck(headers.get(i).title.get(), i == selected,
+            // The caption's source and not a string resolved here: the menu outlives this call,
+            // and a row holding a literal cannot re-resolve when the language moves under it.
+            menu.addCheck(headers.get(i).title, i == selected,
                     on -> selectTab(index, Focus.NONE));
         }
         // Anchored on listButton, NOT on scene(): the Widget overload hosts the cascade on a
@@ -608,6 +610,94 @@ public class TabbedPane extends Widget {
         } finally {
             canvas.restore();
         }
+    }
+
+    /**
+     * The line under the strip is a rule, and a rule is material rather than meaning.
+     *
+     * <p>This pane is no node: it declares no role, no name, no verb and no state of its own, it
+     * is never focusable of its own accord, and it declares no children beyond the widgets it
+     * holds, so the accessible tree deletes it as scaffolding and hoists the strip, the three
+     * overflow controls and every panel into its place. That is the right shape, and it is what
+     * {@link #onAccessibilityChild} is written against.
+     *
+     * <p>What is not free is the log. The tree warns once per class about a widget that paints its
+     * own content and says nothing about itself, because the usual cause is a gauge nobody named;
+     * it can see that this class overrides {@link #onPaint} and it cannot see what the drawing is.
+     * The advice that warning gives is {@code setAccessibleIgnored(true)}, which here would take
+     * the tab list, the chevrons and every panel out of the tree — so the warning would name a
+     * toolkit class in an application's log and recommend deleting the interface. The separator is
+     * a hairline between the strip and the panel below it, and there is nothing in it for a reader
+     * to lose, so this is the honest answer and the deletion happens in silence.
+     *
+     * @return {@code true}; the only thing this widget draws is that line
+     */
+    @Override
+    protected boolean paintsDecoration() {
+        return true;
+    }
+
+    // -------------------------------------------------------- accessibility
+
+    /**
+     * Says of a panel what only this pane knows: that it is the one a tab selects, which tab
+     * names it, and that the two are linked.
+     *
+     * <p>A panel cannot say any of that itself. It is whatever an application handed
+     * {@link #addTab} — a column, a scroll view, a label — and it knows nothing about tabs; the
+     * pairing between a panel and a header exists only here. The header cannot say it either: its
+     * own parent is the strip. So this is the hook, and the pane being deleted does not stop it,
+     * because the slot open while it runs is the <em>child's</em> node and not this pane's. The
+     * pane declares nothing here, so it stays scaffolding.
+     *
+     * <p><b>The role and the name are conditional, and that is the whole of the correctness.</b>
+     * This hook runs after the child's own describe hook and before an application's overrides. A
+     * panel that already said what it is keeps it: one wrapped in a scroll view is a scroll pane,
+     * and eliding that role would take the scrolling with it. A panel that already has a name of
+     * its own keeps that too. Only a panel that said nothing takes the tab's caption, and an
+     * application's {@link #setAccessibleName} still wins over both, because the overrides run
+     * last.
+     *
+     * <p>The link is unconditional, because it is true whatever the panel turned out to be. Its
+     * mirror is on the tab, which says which panel it controls.
+     *
+     * <p>Only a panel is touched. The strip and the three overflow controls are children of this
+     * pane as well and arrive here too; none of them is a tab's panel, and this hook leaves them
+     * alone. Nothing is derived either: the caption is the string the header already holds, handed
+     * over by reference, so a frame damaged by the indicator's slide walks this hook without
+     * allocating.
+     *
+     * <p>Geometry needs nothing. The selected panel is laid out under the strip at the pane's full
+     * width, and an unselected one is never laid out at all — but it is also not visible, so it
+     * and everything inside it publish without VISIBLE and without SHOWING, which is what keeps a
+     * hidden tab's controls from announcing as focusable and makes its stale box harmless.
+     *
+     * @param child the child being described; a panel only when it is one of the pages
+     * @param a     the node being described, which is the child's and never this pane's
+     */
+    @Override
+    protected void onAccessibilityChild(Widget child, Accessibility a) {
+        // By identity and not by List#indexOf, which asks equals(): a panel is an application's
+        // widget, and two that answered equal to each other would name one of them after the
+        // other one's tab.
+        int index = -1;
+        for (int i = 0; i < contents.size(); i++) {
+            if (contents.get(i) == child) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) {
+            return; // the strip, the two chevrons and the all-tabs button
+        }
+        TabHeader header = headers.get(index);
+        if (!a.hasRole()) {
+            a.role(Accessible.Role.TAB_PANEL);
+        }
+        if (!a.hasName()) {
+            a.name(header.title, Accessible.NameFrom.LABEL);
+        }
+        a.relation(Accessible.Relation.LABELLED_BY, header);
     }
 
     /**
@@ -1076,12 +1166,13 @@ public class TabbedPane extends Widget {
          * takes the first active node anywhere in its subtree as its active descendant, so a pane
          * nested inside a list cell would hand the list one of these tabs as its own cursor.
          *
-         * <p><b>And deliberately no relation.</b> The strip is this header's accessible parent, so
-         * a membership relation would only restate the tree; and one naming the panel this tab
-         * controls resolves to the nearest <em>published</em> ancestor of the content, which is
-         * usually a padding or a column the tree deletes — so the relation would climb past the
-         * content and land on some unrelated container, which is worse than no relation at all.
-         * That pair belongs to the step that gives a panel a role of its own.
+         * <p><b>One relation and not two.</b> No membership relation: the strip is this header's
+         * accessible parent and the tree says so already. The panel this tab controls is the other
+         * one, and it was refused before this pane gave a panel a role of its own — a link to a
+         * content widget the tree had deleted resolved to whatever container it hoisted into,
+         * which is a confidently wrong relation rather than none. A panel now declares what it is
+         * whatever an application handed over, so it is a node and the link lands on it. The tab
+         * says what it controls and the panel says what names it, the two ends of one edge.
          *
          * @param a the node being described
          */
@@ -1091,6 +1182,7 @@ public class TabbedPane extends Widget {
             a.name(title, Accessible.NameFrom.CONTENT);
             a.selectionItem(index == selected, index + 1, headers.size());
             a.action(Accessible.Action.SELECT, Accessible.Action.PRESS);
+            a.relation(Accessible.Relation.CONTROLLER_FOR, contents.get(index));
         }
 
         /**

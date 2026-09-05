@@ -71,7 +71,6 @@ class AccessibleCoverageTest {
             "limn.components.SearchField",
             "limn.components.SegmentedControl",
             "limn.components.Spinner",
-            "limn.components.TabbedPane",
             "limn.components.TabbedPane$StripButton",
             "limn.components.TextArea",
             "limn.components.TextField",
@@ -231,6 +230,29 @@ class AccessibleCoverageTest {
             // the row never says it is a node at all. Pinned by
             // limn.components.DialogSceneOverlayAccessibilityTest.
             "limn.components.Dialog$SceneOverlay",
+            // Declares no role, name, description, action or state of its own, is never focusable
+            // of its own accord and has no synthetic children, so §1.6's predicate deletes it and
+            // hoists the strip, the three overflow controls and every panel into its place, in
+            // that order. §7's row calls it scaffolding and stops there, and that framing is wrong
+            // twice. It paints — a hairline rule under the strip — so the paints-and-says-nothing
+            // warning named a toolkit class in an application's log and recommended the ignore
+            // flag, which here deletes the tab list, the chevrons and every panel at once; the
+            // pane declares its rule decoration instead, the BackdropPanel and Dialog$SceneOverlay
+            // case for the third time. And it is the only object that knows which panel belongs to
+            // which tab — a panel is an application's widget and knows nothing about tabs, and a
+            // header's own parent is the strip — so like Dialog$ActionRow it is deleted and still
+            // carries an onAccessibilityChild: a panel takes TAB_PANEL and the tab's caption only
+            // where it declared neither itself, so one wrapped in a ScrollView keeps its scroll
+            // pane and one that is a Label keeps its caption, while the link to its tab is
+            // unconditional. That hook says nothing about the pane itself, which is what the
+            // inverse check below asks. What the deletion leaves behind is the panel's box, which
+            // is the pane's width under the strip for the selected one and stale or zero for the
+            // rest — harmless, because an unselected panel is not visible and publishes without
+            // VISIBLE and without SHOWING, which is also what stops a hidden tab's controls
+            // announcing as focusable. Public and non-final, so naming an instance materialises a
+            // GROUP over the whole pane: transparency is per instance here too. Pinned by
+            // limn.components.TabbedPaneAccessibilityTest.
+            "limn.components.TabbedPane",
             // Clips its children, declares nothing, is never focusable and can never acquire a
             // tooltip, so §1.6's predicate deletes it and hoists its content into the split's own
             // place. The clip outlives the node: isShowing() walks widgets rather than nodes, so a

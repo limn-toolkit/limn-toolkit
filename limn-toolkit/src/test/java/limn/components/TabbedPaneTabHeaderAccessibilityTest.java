@@ -49,8 +49,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the first active node in its subtree, so a pane inside a list cell would hijack the list's
  * cursor.
  *
- * <p>Nothing here asserts that the tab nodes hang under a tab list. The strip declares nothing
- * yet, so the tree deletes it and the tabs hoist; that assertion belongs to the strip's own step.
+ * <p>Nothing here asserts that the tab nodes hang under a tab list, or what a page is: both are
+ * facts other widgets in the same file declare, and each is pinned where it is declared &mdash; the
+ * container in {@code TabStripAccessibilityTest}, the page in {@code TabbedPaneAccessibilityTest}.
+ * What this file added when the page gained a role is the one relation below, which had no node to
+ * land on until then.
  *
  * <p>Every case drives the pane's public setters on a bound scene, or calls the scene from where
  * a bridge stands, and reads what the scene published; nothing here builds a tree.
@@ -209,10 +212,19 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
         assertNull(alpha.expand(), describe(tree()));
         assertEquals("", alpha.description(), "nothing describes a tab but its caption"
                 + describe(tree()));
-        assertEquals(List.of(), alpha.relations(),
+        assertEquals(1, alpha.relations().size(),
                 "no membership relation, because the strip is this node's parent and the tree "
-                        + "already says so; and no controller-for, because a panel wrapped in a "
-                        + "padding has no node for one to resolve to" + describe(tree()));
+                        + "already says so; one controller-for, because the pane now gives a page "
+                        + "a role of its own and there is finally a node for it to land on"
+                        + describe(tree()));
+        assertEquals(Accessible.Relation.CONTROLLER_FOR, alpha.relations().get(0).kind(),
+                describe(tree()));
+        AccessibleNode page = tree().node(tree().indexOf(alpha.relations().get(0).target()));
+        assertEquals(Accessible.Role.TAB_PANEL, page.role(),
+                "and it lands on a page rather than climbing past a deleted wrapper onto some "
+                        + "container above the pane" + describe(tree()));
+        assertEquals("Alpha", page.name(), "this tab's page and not a neighbour's"
+                + describe(tree()));
         assertEquals(List.of(), childrenOf(alpha),
                 "the icon and the caption are one control" + describe(tree()));
     }
@@ -252,9 +264,12 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(id, translated.id(), "the same tab, spoken in another language"
                 + describe(tree()));
         assertEquals(BRAZILIAN, translated.locale(), describe(tree()));
-        assertEquals(1, bridge.countOf(AccessibleEvent.Type.NAME_CHANGED),
+        assertEquals(2, bridge.countOf(AccessibleEvent.Type.NAME_CHANGED),
                 "the name is the held caption re-resolved under the subtree's language, which a "
-                        + "string the hook resolved and cached could not be: " + bridge.events);
+                        + "string the hook resolved and cached could not be — and twice, because "
+                        + "the tab's page is named from the same caption and by reference too, so "
+                        + "the page a reader is standing in is renamed with the tab it belongs to: "
+                        + bridge.events);
     }
 
     @Test
