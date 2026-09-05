@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.input.Keys;
@@ -326,6 +328,57 @@ public class ScrollView extends Widget implements Scrollable {
     /** The vertical bar, or null when this view does not scroll vertically (tests). */
     ScrollBar verticalBar() {
         return vBar;
+    }
+
+    /**
+     * One scroll pane, whether or not anything overflows today, carrying where the viewport sits
+     * in the content and how much of it shows on each axis.
+     *
+     * <p>The role is unconditional. The pane is the viewport whose clip decides what inside it is
+     * on screen at all, and a node that appeared when the content grew and vanished when it
+     * shrank would raise a structure change and a destroyed node on every resize; "nothing to
+     * scroll" is carried by the facet's two booleans instead. Without the role the pane declares
+     * nothing, is never focusable and paints nothing of its own, so the walk deletes it and hoists
+     * its content into whatever sits above it, which takes the scroll pattern out of a scene that
+     * is mostly scrollable.
+     *
+     * <p>The facet is six primitives read from this widget's own numbers, so describing it
+     * allocates nothing and needs no witness. The percent is {@code offset / maxOffset} with the
+     * offset as this widget publishes it: zero at the <b>leading</b> edge in both directions, the
+     * range a positive magnitude either way, which is the facet's own "zero at the start" and is
+     * published unflipped under a right-to-left layout by decision, not omission; the mirroring
+     * lives in where the content is placed and never in the offset. The view size divides the
+     * viewport by the <em>child</em> and not by the content's measured size, because the layout
+     * gives the child the larger of the two on a scrolling axis and exactly the viewport on a
+     * fixed one, so the fraction never exceeds one and is exactly one on an axis that does not
+     * scroll, with no case for it. The zero guards are not defensive: the difference between two
+     * trees compares these fields with {@code !=}, and a pane laid out at nothing, or described
+     * before its first layout, would otherwise publish a not-a-number that differs from itself on
+     * every damaged frame and copy the whole tree each time. Scrollable is {@code maxOffset > 0},
+     * the predicate the wheel and the Page keys use, and not the bar's half-point slop: what a
+     * reader is told can scroll is what a wheel notch would move.
+     *
+     * <p>No name, no state and no action are declared here. The pane holds no string; the axis
+     * bits name the one axis of a single value and the pane has two; and the vocabulary has no
+     * scroll verb with an axis in it, so nothing is advertised that the pane cannot perform. A
+     * scroll republishes the tree through the same damage the repaint rides, so nothing here
+     * marks the node dirty by hand.
+     *
+     * @param a the builder for this widget's node
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.SCROLL_PANE);
+        float maxX = maxOffsetX();
+        float maxY = maxOffsetY();
+        float childWidth = child.width();
+        float childHeight = child.height();
+        a.scroll(maxX > 0 ? offsetX / maxX : 0,
+                maxY > 0 ? offsetY / maxY : 0,
+                childWidth > 0 ? viewportWidth() / childWidth : 1,
+                childHeight > 0 ? viewportHeight() / childHeight : 1,
+                maxX > 0,
+                maxY > 0);
     }
 
     @Override
