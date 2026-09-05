@@ -1,5 +1,8 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
+import limn.accessibility.ToggleFacet;
 import limn.animation.Easing;
 import limn.animation.Transition;
 import limn.backend.Cursor;
@@ -350,6 +353,61 @@ public class Checkbox extends Widget {
         // and brightens to onPrimary as it slides onto the accent track.
         Color thumb = isEnabled() ? theme.textMuted.lerp(theme.onPrimary, p) : theme.disabledText;
         canvas.fillCircle(thumbX, top + trackH / 2, thumbRadius, thumb);
+    }
+
+    /**
+     * What this toggle is to an assistive technology: one {@link Accessible.Role#CHECK_BOX} or
+     * {@link Accessible.Role#SWITCH}, by variant, named by the caption it holds, carrying a
+     * two-state toggle facet and offering {@link Accessible.Action#TOGGLE}, and nothing else.
+     *
+     * <p>The name is the held {@link I18nString} handed over by reference, never {@link #text()}:
+     * the walk compares the reference, the locale and the translation epoch, so a hover or focus
+     * fade that damages this row on every frame concludes that nothing moved without allocating.
+     * It is handed over even when the caption is empty, because the walk names a nameless node
+     * from its tooltip and describes a named one with it; a caption-less toggle with no tooltip
+     * publishes an empty name, which is the application's to fix and not this widget's to invent.
+     *
+     * <p>The toggle facet reads the {@code checked} field and never the eased visual: the model
+     * flips and the handler fires before the animation starts, so a reader asking mid-slide is
+     * told what the application already knows. There is no third state, so the facet is on or off
+     * and the checked bit follows it. The caption is not a child node: the indicator and its label
+     * are one control, and a label node beside it would be announced twice. The box, the focus and
+     * scroll-into-view verbs and the enabled, visible, showing, focusable and focused states are
+     * the walk's; Space and Enter are the platform's own convention for a toggle, not an
+     * accelerator, so no key binding is declared.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(variant == Variant.BOX ? Accessible.Role.CHECK_BOX : Accessible.Role.SWITCH);
+        a.name(text, Accessible.NameFrom.CONTENT);
+        a.toggle(checked ? ToggleFacet.State.ON : ToggleFacet.State.OFF);
+        a.action(Accessible.Action.TOGGLE);
+    }
+
+    /**
+     * Performs a toggle an assistive technology asked for, exactly as a click or a Space press
+     * does: through {@link #toggle()}, so the application's {@link #onChange} handler is notified
+     * the same way, and never through {@link #setChecked}, which is the silent path. Any other
+     * verb is refused, and so is a toggle while this widget is disabled; {@code toggle()} refuses
+     * that case too but returns nothing, and the answer here has to be truthful.
+     *
+     * <p>The state change that results is what a reader hears: the flip invalidates, the next
+     * frame republishes, and the difference raises the checked-state event on this node. No
+     * invocation event is raised for a toggle, on any platform.
+     *
+     * @param action what was asked
+     * @param arg    ignored; a toggle carries none
+     * @return whether the toggle ran
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        if (action != Accessible.Action.TOGGLE || !isEnabled()) {
+            return false;
+        }
+        toggle();
+        return true;
     }
 
     @Override
