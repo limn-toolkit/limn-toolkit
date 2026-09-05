@@ -9,6 +9,7 @@ import limn.scene.event.KeyEvent;
 import limn.scene.layout.Column;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -298,5 +299,26 @@ class ScrollViewTest extends ComponentTestBase {
 
         assertTrue(scroll.offsetY() > 0, "no Shift, no axis swap");
         assertEquals(0, scroll.offsetX(), EPS);
+    }
+
+    /**
+     * A pane can be laid out at a box thinner than a scroll bar, and a two-axis pane subtracts a
+     * bar's thickness from each side to leave the corner square clear. Both lengths need a floor:
+     * a collapsed {@code SplitPane} pane and a {@code SizedBox(0, 0)} both produce that box
+     * legitimately, and {@code Constraints} refuses a negative extent, so the throw comes out of
+     * the layout pass, where the scene's guard abandons the whole frame &mdash; no paint, and no
+     * accessible tree, for every other widget in the window too.
+     */
+    @Test
+    void aPaneThinnerThanItsOwnBarsLaysOutInsteadOfAbandoningTheFrame() {
+        float t = ScrollBar.thickness();
+        for (float side : new float[] {0, t / 2, t - 0.5f}) {
+            ScrollView scroll = new ScrollView(new Box(0, 0), true, true);
+            scroll.measure(Constraints.tight(side, side));
+            assertDoesNotThrow(() -> scroll.layoutBox(0, 0, side, side),
+                    "laid out at " + side + ", with a bar thickness of " + t);
+            assertEquals(0, scroll.maxOffsetX(), EPS, "and the offsets still answer");
+            assertEquals(0, scroll.maxOffsetY(), EPS);
+        }
     }
 }

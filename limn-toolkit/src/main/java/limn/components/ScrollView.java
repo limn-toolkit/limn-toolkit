@@ -272,8 +272,13 @@ public class ScrollView extends Widget implements Scrollable {
         // actually overflows; an unused axis costs nothing there.
         boolean both = vBar != null && hBar != null;
         boolean reserved = gutters.layout() == ScrollGutters.Layout.RESERVED;
-        float vLen = reserved ? viewH : (both ? height() - t : height());
-        float hLen = reserved ? viewW : (both ? width() - t : width());
+        // Floored, because a pane can legitimately be laid out at a box thinner than a bar -- a
+        // collapsed SplitPane pane, a SizedBox(0, 0) -- and both branches subtract from a side
+        // that may already be smaller than what they take. Constraints refuses a negative extent,
+        // and this is the layout pass: the throw would abandon the whole frame, so nothing in the
+        // window paints and no accessible tree is published, over a pane nobody can see anyway.
+        float vLen = Math.max(0, reserved ? viewH : (both ? height() - t : height()));
+        float hLen = Math.max(0, reserved ? viewW : (both ? width() - t : width()));
         // The vertical bar sits on the side reading ends on, and the horizontal one starts
         // after whatever strip that leaves, so the clear corner square is on the bar's own side
         // in both directions rather than always on the right.

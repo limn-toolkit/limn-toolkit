@@ -182,6 +182,18 @@ class ScrollViewAccessibilityTest extends AccessibleComponentTestBase {
                 "and the bar ignores itself, which is its own decision" + describe(tree()));
     }
 
+    @Test
+    void aChildSmallerThanTheViewportOnBothAxesStillReportsWholeViews() {
+        bindIn(400, 400, new ScrollView(new Box(40, 40), true, true));
+
+        assertFacet(new ScrollFacet(0, 0, 1, 1, false, false), paneNode().scroll(),
+                "the view size is the viewport over the CHILD, and the layout lays the child out "
+                        + "at Math.max(content, viewport) on each enabled axis, so a 40-point box "
+                        + "in a 400-point pane is laid out at 400 and the ratio cannot leave "
+                        + "(0, 1]. ScrollFacet's own javadoc requires exactly 1 here, and every "
+                        + "platform reads the number as a percentage: 10.0 would be 1000%");
+    }
+
     // ------------------------------------------------------------------------------- the scroll
 
     @Test
