@@ -175,7 +175,7 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
     // -------------------------------------------------------------------------------- the shape
 
     @Test
-    void aFreshSpinnerIsOneSpinButtonOverTwoNamelessArrowButtons() {
+    void aFreshSpinnerIsOneSpinButtonOverTwoNamedArrowButtons() {
         bindSpinner(new Spinner(0, 99, 1));
 
         assertEquals(4, tree().nodeCount(),
@@ -214,11 +214,10 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         assertNull(node.text(), "no text facet in the first cut" + describe(tree()));
         assertNull(node.toggle(), describe(tree()));
 
+        List<String> arrowNames = new ArrayList<>();
         for (AccessibleNode arrow : arrows()) {
             assertEquals(Accessible.Role.BUTTON, arrow.role(), describe(tree()));
-            assertEquals("", arrow.name(),
-                    "nothing names either half, and an operable box publishes nameless rather "
-                            + "than not at all" + describe(tree()));
+            arrowNames.add(arrow.name());
             assertTrue(arrow.actions().has(Accessible.Action.PRESS), describe(tree()));
             assertFalse(arrow.has(Accessible.State.FOCUSABLE),
                     "a thing a widget paints is not a tab stop; Tab reaches the spinner and the "
@@ -228,6 +227,12 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
             assertTrue(arrow.has(Accessible.State.SHOWING), describe(tree()));
             assertNull(arrow.value(), "the number is on the spinner, once" + describe(tree()));
         }
+        assertEquals(List.of("Increase", "Decrease"), arrowNames,
+                "named by the toolkit, because nothing else can reach them: a synthetic child is "
+                        + "not a widget, so setAccessibleName, a bound caption and the tooltip "
+                        + "default all land on the spinner's own node. Nameless, a reader hears "
+                        + "\"button, button\" beside every number -- twenty-two times in a colour "
+                        + "picker -- and no application has a fix" + describe(tree()));
         assertEquals(List.of(spinnerNode().id()),
                 nodesWith(Accessible.State.FOCUSABLE).stream().map(AccessibleNode::id).toList(),
                 "the spinner is the only tab stop in the tree, once" + describe(tree()));

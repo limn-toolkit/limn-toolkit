@@ -1471,11 +1471,17 @@ public class Spinner extends Widget {
         a.child(UP_BUTTON);
         a.bounds(columnX, 0, columnW, mid);
         a.role(Accessible.Role.BUTTON);
+        // Named by the toolkit, because nothing else can: a synthetic child is not a widget, so
+        // setAccessibleName, a bound caption and the tooltip default all land on the spinner's own
+        // node and none of them reaches these two. Constants the class holds and never strings
+        // built here, so a spinner damaged by its own repeat allocates nothing to say what it is.
+        a.name(ComponentStrings.SPINNER_INCREMENT, Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
         a.endChild();
         a.child(DOWN_BUTTON);
         a.bounds(columnX, mid, columnW, height() - mid);
         a.role(Accessible.Role.BUTTON);
+        a.name(ComponentStrings.SPINNER_DECREMENT, Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
         a.endChild();
     }

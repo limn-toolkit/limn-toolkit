@@ -63,6 +63,17 @@ final class ComponentStrings {
     static final I18nString SPLIT_DIVIDER =
             new I18nString("limn.splitPane.divider", "Divider");
 
+    // What a screen reader calls the two halves of a spinner's stepper column. Same situation as
+    // the divider above, and the same answer: the arrows are painted glyphs with no text and no
+    // tooltip, and they are SYNTHETIC children, so none of the three routes that name a widget --
+    // setAccessibleName, a bound caption, a tooltip -- reaches them at all. Without a word here a
+    // reader hears "button, button" beside every number, twenty-two times in a colour picker, and
+    // no application can correct it.
+    static final I18nString SPINNER_INCREMENT =
+            new I18nString("limn.spinner.increment", "Increase");
+    static final I18nString SPINNER_DECREMENT =
+            new I18nString("limn.spinner.decrement", "Decrease");
+
     // What a screen reader calls the layer an in-scene dropdown list is drawn on, and the
     // toolkit has to supply it for the divider's reason and one more: that layer paints nothing
     // at all, holds no text, can never acquire a tooltip, and is a private inner class no

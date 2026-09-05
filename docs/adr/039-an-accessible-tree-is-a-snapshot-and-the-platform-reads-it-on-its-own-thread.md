@@ -730,9 +730,12 @@ They follow `onPaint`, `onMeasure` and `onKeyEvent` exactly, and each runs on th
 `onAccessibility` fills in this widget's node and declares its synthetic children.
 `onAccessibilityChild` lets a container add what only it knows about a child — `ListView` gives a
 mounted row cell the role `LIST_ITEM`, its selected state, its position in the set **and its identity
-key** (§1.3); `TabbedPane` numbers its headers; `ContextMenus.ContextRegion` puts `HAS_POPUP` and
-`ActionFacet{SHOW_MENU}` on the one child it wraps, which is how a right-click menu reaches the node
-that has the bounds instead of costing a node of its own. The `Accessibility` builder is allocated
+key** (§1.3); `TabbedPane` numbers its headers; `ContextMenus.ContextRegion` declares its own node
+and writes nothing onto its child. **Corrected while implementing:** the wrapper was to have put
+`HAS_POPUP` and `ActionFacet{SHOW_MENU}` on the child it wraps, and that is undispatchable — the
+walk records a node's owner as the widget it came from and the scene dispatches strictly to that
+owner, so the verb would reach an arbitrary application widget whose hook answers false. Every
+`onAccessibilityChild` in the toolkit writes facts; none writes a verb, and §7.2 records why. The `Accessibility` builder is allocated
 once per publish and reused down the walk, and its setters write primitives into the scratch buffer's
 columns rather than taking constructed records (§1.1), so describing a node allocates nothing at all.
 
@@ -876,10 +879,13 @@ operated is never ignored, and an operation is never deleted with the box that c
 field's trailing button and a search field's clear button are operable — the setter takes an icon and
 a `Runnable`, and the search field wires it to `clear()` — so they are real nodes with real names.
 Marking an interactive control decorative is not a deferral, it is hiding it. The one wrapper that
-carries an operation without carrying any geometry of its own, `ContextMenus.ContextRegion`, is
-transparent *and* keeps its action, because it moves the action onto the child it wraps (§1.5)
-rather than onto "some ancestor": the region measures and lays out to exactly its content's box, so
-the child's node is the box a user would right-click.
+carried an operation without carrying geometry of its own, `ContextMenus.ContextRegion`, was
+offered here as this rule's worked example and **is no longer one**. Moving the action onto the
+wrapped child publishes an operation the scene dispatches to a widget that refuses it, which is
+worse than an absent verb: the platform reports a failure rather than an absence. The region keeps
+a node of its own instead — which is what this rule asks for — and its rectangle is the child's
+anyway, because it measures and lays out to exactly its content's box. §7.2 records the whole of
+it.
 
 ### 1.7 Names are `I18nString`s resolved under the subtree's locale, and they carry their provenance
 

@@ -511,11 +511,16 @@ public class Viewport3D extends Widget {
      * <p><b>The missing backend is a description and not a name.</b> On the branch that has no
      * provider the widget fills its whole box and centres one line of text, and that line is the
      * only thing a sighted user has; without this a reader is told "canvas" and nothing more. It
-     * cannot be a name: this hook runs before an application's name, before a bound caption and
-     * before the tooltip default, so a name written here would not be a fallback, it would take
-     * the slot away from all three. As a description it sits beside whichever of them names the
-     * node, which is also the right precedence &mdash; a failure outranks a hint, and the tooltip
-     * of a viewport that cannot render is demoted to a description behind it.
+     * cannot be a name, and not because it would win one: the walk runs this hook first and
+     * applies an application's name and a bound caption <em>after</em> it, both unconditionally,
+     * so a name written here is a fallback beneath either. It is the third route that would
+     * suffer &mdash; the tooltip default is the one thing gated on nothing else having named the
+     * node. A failure is a status and not an identity, so it goes where a status goes: as the
+     * description it stands beside whichever of the three names the node, and where nothing else
+     * names it the tooltip is promoted into the name and the two are read together. The one real
+     * cost is a viewport that has both a tooltip and an application name: the description slot is
+     * already taken by the failure, so the tooltip is dropped from the tree, which is the one
+     * thing a sighted user still gets on hover and a reader does not.
      *
      * <p>The branch is read here rather than remembered by the paint. The publish step runs before
      * the paint passes of the same frame, so a flag written in {@code onPaint} would describe the

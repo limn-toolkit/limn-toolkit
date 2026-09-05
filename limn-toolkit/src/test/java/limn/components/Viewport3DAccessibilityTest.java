@@ -262,11 +262,13 @@ class Viewport3DAccessibilityTest extends AccessibleComponentTestBase {
      * <p>This is the branch every headless build takes and the one §7's row does not consider:
      * {@code onPaint} opens by filling the box and centring one line of {@code
      * VIEWPORT3D_NO_BACKEND}, and that line is the whole of what a sighted user has. Description
-     * and not name, three times over: the hook runs before the application's name, the bound
-     * caption and the tooltip default, so a name here could only take the slot away from all
-     * three; a failure is a status and the same control would be named differently on two
-     * machines; and in the description slot it survives beside whichever of them names the node,
-     * which is the right precedence — a failure outranks a hint.
+     * and not name, and not because a name here would win: the walk applies an application's name
+     * and a bound caption after this hook and unconditionally, so a name written here is a
+     * fallback beneath either, and only the tooltip default — the one route gated on nothing else
+     * having named the node — would be displaced. The reasons that do stand are the other two: a
+     * failure is a status rather than an identity, and the same control would be named
+     * differently on two machines; and in the description slot it stands beside whichever of them
+     * names the node, which is the right precedence, a failure outranking a hint.
      */
     @Test
     void theMissingBackendIsPublishedAsTheDescription() {
