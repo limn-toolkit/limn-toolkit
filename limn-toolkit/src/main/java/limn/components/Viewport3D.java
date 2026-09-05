@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -485,5 +487,66 @@ public class Viewport3D extends Widget {
         surface = null;
         ticking = false;
         tickGeneration++; // the old registration dies on its next call
+    }
+
+    // --- accessibility -------------------------------------------------------
+
+    /**
+     * What a viewport is to an assistive technology: one {@link Accessible.Role#CANVAS} node over
+     * the box the layout gave it, described by the "no GPU backend" message on the frames that
+     * paint one and by nothing at all on the frames that render.
+     *
+     * <p><b>The role is the whole reason this hook exists, and it closes two opposite defects.</b>
+     * The constructor makes this widget focusable, so the transparency predicate never deletes it
+     * whatever it declares, and a focusable node with no role is published as an unknown control
+     * and names this class in an application's log. The other path is the one that is easier to
+     * miss: {@link #setFocusable(boolean) setFocusable(false)} is public and final, and a viewport
+     * used as the display-only render surface {@link #setAnimated setAnimated(false)} is documented
+     * for would then declare nothing, hold no children, be deleted by the predicate, and &mdash;
+     * because it paints &mdash; be reported as a toolkit class that draws and says nothing, with
+     * the recommendation to strike out the one thing on the screen. Declaring the picture is a
+     * picture answers both, and {@code paintsDecoration()} answers neither: a render is
+     * information, not a wash.
+     *
+     * <p><b>The missing backend is a description and not a name.</b> On the branch that has no
+     * provider the widget fills its whole box and centres one line of text, and that line is the
+     * only thing a sighted user has; without this a reader is told "canvas" and nothing more. It
+     * cannot be a name: this hook runs before an application's name, before a bound caption and
+     * before the tooltip default, so a name written here would not be a fallback, it would take
+     * the slot away from all three. As a description it sits beside whichever of them names the
+     * node, which is also the right precedence &mdash; a failure outranks a hint, and the tooltip
+     * of a viewport that cannot render is demoted to a description behind it.
+     *
+     * <p>The branch is read here rather than remembered by the paint. The publish step runs before
+     * the paint passes of the same frame, so a flag written in {@code onPaint} would describe the
+     * previous frame. {@link Graphics3D#isAvailable()} is a volatile read of a static the backend
+     * installs before any window exists and clears after the last one is destroyed, so it cannot
+     * move underneath a tree being published and needs no invalidation seam of its own.
+     *
+     * <p>Nothing here formats anything, and on this widget more than any other that is the point:
+     * an animated viewport invalidates from its ticker on every frame, so one string built in this
+     * hook would be sixty allocations a second for the life of the window, spent to conclude that
+     * nothing had moved.
+     *
+     * <p><b>No name, no state and no verb, each a decision.</b> The class holds no string that
+     * names it, so naming it is the application's, the caption's or the tooltip's, as it is for
+     * every other content surface the toolkit cannot describe. The camera's orientation, the
+     * animated flag and the render scale are not facts about an element and publishing them would
+     * republish the tree on a setter no reader can perceive. And the three pointer gestures &mdash;
+     * orbit, zoom and pick &mdash; have no honest parameterless form: a camera controller declares
+     * two void deltas with no readable value and no bounds, so a step verb could carry no value
+     * facet to report back, and the picking click carries the pointer's own coordinates, so a
+     * press verb would have to invent a pixel and tell the application the user clicked somewhere
+     * they did not. The node keeps its bounds and every gesture keeps working; what a reader
+     * cannot reach is said plainly here rather than papered over with a verb that lies.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.CANVAS);
+        if (!Graphics3D.isAvailable()) {
+            a.description(ComponentStrings.VIEWPORT3D_NO_BACKEND);
+        }
     }
 }

@@ -62,8 +62,7 @@ class AccessibleCoverageTest {
             "limn.components.SegmentedControl",
             "limn.components.Spinner",
             "limn.components.TextArea",
-            "limn.components.VideoView",
-            "limn.components.Viewport3D"
+            "limn.components.VideoView"
     ));
 
     /**
