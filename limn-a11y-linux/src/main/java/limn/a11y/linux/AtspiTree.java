@@ -267,27 +267,11 @@ final class AtspiTree {
     }
 
     private static String roleNameOf(AccessibleNode node) {
-        return AtspiRoles.of(node.role()) == null ? "unknown" : AtspiRoles.nameOf(node.role());
+        return AtspiRoles.nameOf(node.role());
     }
 
     private static long statesOf(AccessibleNode node) {
-        long s = 0;
-        if (node.has(Accessible.State.ENABLED)) {
-            s |= Atspi.state(Atspi.STATE_ENABLED, Atspi.STATE_SENSITIVE);
-        }
-        if (node.has(Accessible.State.FOCUSABLE)) {
-            s |= Atspi.state(Atspi.STATE_FOCUSABLE);
-        }
-        if (node.has(Accessible.State.VISIBLE)) {
-            s |= Atspi.state(Atspi.STATE_VISIBLE);
-        }
-        if (node.has(Accessible.State.SHOWING)) {
-            s |= Atspi.state(Atspi.STATE_SHOWING);
-        }
-        if (node.has(Accessible.State.ACTIVE)) {
-            s |= Atspi.state(Atspi.STATE_ACTIVE);
-        }
-        return s;
+        return AtspiStates.setOf(node::has);
     }
 
     private static List<Object> interfacesOf(boolean root, AccessibleNode node) {

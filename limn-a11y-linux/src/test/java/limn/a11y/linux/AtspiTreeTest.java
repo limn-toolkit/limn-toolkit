@@ -181,14 +181,23 @@ class AtspiTreeTest {
     }
 
     @Test
-    void aRoleWithNoNumberReadOffTheMachineIsPublishedAsUnknownAndNeverGuessed() {
+    void aNodeIsPublishedUnderTheNumberAndTheNameTheMachineGave() {
         publishAWindowWithAButton();
 
         DBus.Msg role = call("/org/a11y/atspi/accessible/1001", Atspi.I_ACCESSIBLE, "GetRole", null);
-        assertEquals(43, role.body[0], "BUTTON was read off the guest's typelib");
+        assertEquals(43, role.body[0], "Atspi.Role.PUSH_BUTTON, off the guest's typelib");
 
         DBus.Msg windowRole = call("/org/a11y/atspi/accessible/1000", Atspi.I_ACCESSIBLE,
                 "GetRoleName", null);
         assertEquals("frame", windowRole.body[0]);
+
+        DBus.Msg states = call("/org/a11y/atspi/accessible/1001", Atspi.I_ACCESSIBLE,
+                "GetState", null);
+        List<?> words = (List<?>) states.body[0];
+        long set = (((Number) words.get(1)).longValue() << 32)
+                | (((Number) words.get(0)).longValue() & 0xffffffffL);
+        assertTrue((set & (1L << 11)) != 0, "focusable, which the button is: " + set);
+        assertTrue((set & (1L << 8)) != 0, "enabled");
+        assertTrue((set & (1L << AtspiStates.SENSITIVE)) != 0, "and sensitive with it");
     }
 }
