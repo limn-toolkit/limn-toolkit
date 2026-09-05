@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.scene.Constraints;
@@ -33,6 +35,14 @@ import java.util.List;
  * disagree with itself about how tall those buttons are, depending only on the bar's own step.
  * Items added through {@link #addItem} are children, so they inherit the bar's step: that
  * propagation is the whole point of setting a step on a toolbar.
+ *
+ * <p><b>To an assistive technology</b> this is one horizontal tool bar and nothing more. Every
+ * item is a widget that describes itself, in the order it was added in either direction, and the
+ * dividers {@link #addSeparator()} builds are real {@link Separator}s publishing their own rules.
+ * The bar says nothing on any item's behalf: it holds no notion of a selected one, carries no
+ * string that names itself, and takes no input at all, so it offers no verb either. An application
+ * that wants the strip named calls {@code setAccessibleName} or gives it a tooltip, and one that
+ * calls {@code setAccessibleIgnored(true)} on it takes every control inside it out of the tree.
  */
 public class ToolBar extends Widget {
 
@@ -168,5 +178,42 @@ public class ToolBar extends Widget {
         float inset = Strokes.HALF_PIXEL_INSET; // lands the 1pt stroke on one device pixel
         canvas.drawRoundRect(inset, inset, width() - 2 * inset, height() - 2 * inset,
                 t.radiusMedium(), Strokes.BORDER, theme.outline);
+    }
+
+    /**
+     * Describes this strip as one horizontal tool bar, and says nothing about what is in it.
+     *
+     * <p>The role is unconditional — not gated on holding items, on the step, or on the direction
+     * — and it is the whole reason there is a node here at all. The class declares no name, is
+     * never focusable and owns no synthetic child, so a bar that said nothing would be deleted as
+     * scaffolding and its items hoisted into whatever holds it; and because the class paints its
+     * own surface and border, that deletion would name a toolkit class in an application's log and
+     * recommend striking it out, which on this widget takes every control in the bar with it.
+     * Declaring the painting decorative is the wrong answer for the same reason: the filled surface
+     * and the outline around it are the "these commands are one bar" fact, and that fact is exactly
+     * what the role carries.
+     *
+     * <p>The orientation is fixed by the class and never read from the laid-out box. Layout only
+     * ever advances along x and only ever centres on y, and there is no vertical mode to ask for;
+     * the box, by contrast, is whatever the parent granted, so a bar squeezed into a tall, narrow
+     * constraint would announce itself vertical to anyone who inferred the axis from it. Mirroring
+     * does not reach it either: the bit names the axis the run of items lies along, and right to
+     * left that is the same axis walked the other way.
+     *
+     * <p>No name is declared. The bar holds no string that names it, and one built here would have
+     * no source to compare against, so it would allocate on every damaged frame to conclude that
+     * nothing had moved. A tooltip names the node through the walk's free default, and an
+     * application's own name wins over that and demotes the tooltip to the description. Nothing is
+     * declared about an item either: a tool bar is not a selection container, so there is no
+     * position in a set to hand down, and an item wrapped in a stretchy box would not be a direct
+     * child for a hook to reach in any case. Two primitive writes and no string, so a damaged frame
+     * that changed nothing costs no memory.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.TOOL_BAR);
+        a.state(Accessible.State.HORIZONTAL);
     }
 }

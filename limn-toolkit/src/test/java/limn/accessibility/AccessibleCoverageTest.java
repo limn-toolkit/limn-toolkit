@@ -68,7 +68,6 @@ class AccessibleCoverageTest {
             "limn.components.TabbedPane$StripButton",
             "limn.components.TextArea",
             "limn.components.TextField",
-            "limn.components.ToolBar",
             "limn.components.VideoView",
             "limn.components.Viewport3D"
     ));
