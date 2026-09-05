@@ -576,7 +576,11 @@ platforms carry as a flag: `ENABLED`, `FOCUSABLE`, `FOCUSED`, `VISIBLE`, `SHOWIN
 `SELECTED`, `CHECKED`, `MIXED`, `PRESSED`, `EXPANDED`, `HAS_POPUP`, `READ_ONLY`, `EDITABLE`,
 `MULTI_LINE`, `PASSWORD`, `INVALID`, `REQUIRED`, `BUSY`, `MODAL`, `ACTIVE`, `DEFAULT`, `HORIZONTAL`,
 `VERTICAL` — with `CHECKED`, `MIXED`, `EXPANDED`, `SELECTED` and `READ_ONLY` derived from their
-facets.
+facets. **Corrected while implementing:** `READ_ONLY` derives from the text facet *or* the value
+facet, and `ValueFacet` carries a `readOnly` field for it. It had none, so a progress bar's range
+was indistinguishable from a slider's: the facet's presence is what advertises a set on every
+platform, `state(READ_ONLY)` was dropped as derived, and a bridge built from §2's rows would have
+vended a writable `RangeValue` whose set landed in the inherited hook, refused in silence.
 
 `ENABLED` and `READ_ONLY` are separate bits and are never conflated. Every platform separates them —
 UIA has `IsEnabled` against `ValuePattern.IsReadOnly`, AT-SPI2 has `SENSITIVE`/`ENABLED` against
@@ -1261,7 +1265,7 @@ on the guest.** A recalled constant is a defect that compiles.
 | `IRawElementProviderSimple::get_ProviderOptions` | `ProviderOptions_ServerSideProvider` | proven |
 | `…::GetPropertyValue(id)` | role, name, description, states, bounds, locale, id, `IsDialog` | `VT_EMPTY` for anything unanswered is accepted; the spike saw UIA ask for ids we do not answer and not complain |
 | `…::GetPropertyValue(IsControlElement)`, `…(IsContentElement)` | `true` for every published node | the spike had to answer both, and did, for both its elements. They are how UIA builds its control and content views, and a provider that leaves them `VT_EMPTY` is asking every client to guess which of its elements are worth showing |
-| `…::GetPatternProvider(id)` | **the facet set** | Invoke ← `ActionFacet.PRESS`; Toggle ← `ToggleFacet`; RangeValue ← `ValueFacet`; **Value ← `ValueFacet` or `TextFacet`**; Selection ← `SelectionFacet`; SelectionItem ← `SelectionItemFacet`; ExpandCollapse ← `ExpandFacet`; Scroll ← `ScrollFacet`; ScrollItem ← a scrollable ancestor; Window and Transform ← `WindowFacet`; Text ← `TextFacet` (phase 2, §11) |
+| `…::GetPatternProvider(id)` | **the facet set** | Invoke ← `ActionFacet.PRESS`; Toggle ← `ToggleFacet`; RangeValue ← `ValueFacet` (its `IsReadOnly` from `ValueFacet.readOnly`); **Value ← `ValueFacet` or `TextFacet`**; Selection ← `SelectionFacet`; SelectionItem ← `SelectionItemFacet`; ExpandCollapse ← `ExpandFacet`; Scroll ← `ScrollFacet`; ScrollItem ← a scrollable ancestor; Window and Transform ← `WindowFacet`; Text ← `TextFacet` (phase 2, §11) |
 | `…::get_HostRawElementProvider` | `UiaHostProviderFromHwnd` on the root, `NULL` on every child | proven |
 | `IRawElementProviderFragment::Navigate` | the stored links (§1.4) | Parent, FirstChild, LastChild proven. A popup fragment root answers `NULL` for Parent (§1.11) |
 | `…::GetRuntimeId` | `SAFEARRAY(VT_I4){UiaAppendRuntimeId, hi, lo}` | proven: UIA replaced the leading marker with the HWND's own runtime id, which is the contract |

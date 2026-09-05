@@ -220,4 +220,32 @@ class AccessibleTreeTest extends AccessibleTestBase {
         assertFalse(node.actions().has(Accessible.Action.TOGGLE));
         assertNull(node.toggle());
     }
+
+    /**
+     * Read-only is derived from the value facet and never declared: the facet's presence is what
+     * advertises a set on every platform, so the facet is the only place the refusal can live, and
+     * a declared bit with no facet behind it is dropped exactly as {@code CHECKED} would be.
+     */
+    @Test
+    void aReadOnlyValueDerivesTheBitAndADeclaredOneIsStillDropped() {
+        Group root = new Group();
+        Probe settable = new Probe(Accessible.Role.SLIDER, "volume");
+        settable.value = 40.0;
+        Probe fixed = new Probe(Accessible.Role.PROGRESS_BAR, "loading");
+        fixed.value = 40.0;
+        fixed.valueReadOnly = true;
+        Probe declared = new Probe(Accessible.Role.BUTTON, "declared");
+        root.add(settable);
+        root.add(fixed);
+        root.add(declared);
+        bind(root);
+
+        assertFalse(node("volume").has(Accessible.State.READ_ONLY), describe(tree()));
+        assertFalse(node("volume").value().readOnly());
+        assertTrue(node("loading").has(Accessible.State.READ_ONLY),
+                "derived from the facet" + describe(tree()));
+        assertTrue(node("loading").value().readOnly());
+        assertFalse(node("declared").has(Accessible.State.READ_ONLY),
+                "nothing to derive it from, so nothing is published" + describe(tree()));
+    }
 }

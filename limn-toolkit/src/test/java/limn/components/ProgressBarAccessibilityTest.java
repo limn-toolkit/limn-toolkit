@@ -37,8 +37,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * at most once for the life of the virtual machine, and whichever test runs first is the one that
  * would catch a hook that stopped declaring the role.
  *
- * <p>Three of the cases exist to pin where the survey was wrong. §7's row asks for a read-only
- * bit the builder drops on the floor; read-only is the role plus the refused {@code SET_VALUE}.
+ * <p>Three of the cases exist to pin where the survey was wrong or the model was short. §7's row
+ * asks for a read-only bit, and the builder dropped a declared one on the floor while the facet
+ * had no way to carry it, so a bridge built from the record would have vended a writable range;
+ * the facet carries it now, and the bit is derived from it.
  * It says the value is rounded "for the same reason" as a playing video's, and it is not: the
  * published value is the {@code progress} field, which moves only when the application sets it,
  * while what advances on its own here is the eased fill and the sweep, and neither is published.
@@ -172,7 +174,10 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node.actions() == null || node.actions().actions().isEmpty(),
                 "no verb of its own, and no focus verbs because it is not focusable"
                         + describe(tree()));
-        assertEquals(new ValueFacet(0, 0, 100, 0, null), node.value(),
+        assertTrue(node.has(Accessible.State.READ_ONLY),
+                "the facet's presence advertises a set on every platform, and this is the one "
+                        + "thing that takes it back" + describe(tree()));
+        assertEquals(new ValueFacet(0, 0, 100, 0, null, true), node.value(),
                 "whole percent, nothing to step by, and no text: the number is the whole of it"
                         + describe(tree()));
         assertNull(node.toggle(), describe(tree()));
@@ -222,7 +227,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         bar.setProgress(0.3f);
         frame();
 
-        assertEquals(new ValueFacet(30, 0, 100, 0, null), progressNode().value(),
+        assertEquals(new ValueFacet(30, 0, 100, 0, null, true), progressNode().value(),
                 "one frame in, the fill is still easing; the model is already there"
                         + describe(tree()));
         List<AccessibleEvent> changes = eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
@@ -329,7 +334,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode settled = progressNode();
         assertFalse(settled.has(Accessible.State.BUSY), describe(tree()));
-        assertEquals(new ValueFacet(40, 0, 100, 0, null), settled.value(),
+        assertEquals(new ValueFacet(40, 0, 100, 0, null, true), settled.value(),
                 "the facet returns carrying the progress the bar kept" + describe(tree()));
         assertEquals(1, busyEvents().size(), bridge.events.toString());
         assertEquals(Boolean.FALSE, busyEvents().get(0).newValue());
@@ -353,7 +358,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode node = progressNode();
         assertFalse(node.has(Accessible.State.BUSY),
                 "the bar is determinate now and the tree must say so" + describe(tree()));
-        assertEquals(new ValueFacet(0, 0, 100, 0, null), node.value(), describe(tree()));
+        assertEquals(new ValueFacet(0, 0, 100, 0, null, true), node.value(), describe(tree()));
         assertEquals(1, busyEvents().size(), bridge.events.toString());
         assertEquals(Boolean.FALSE, busyEvents().get(0).newValue());
     }
@@ -373,7 +378,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(published + 1, bridge.published.size(), "one publish carries both facts");
         AccessibleNode node = progressNode();
         assertFalse(node.has(Accessible.State.BUSY), describe(tree()));
-        assertEquals(new ValueFacet(50, 0, 100, 0, null), node.value(), describe(tree()));
+        assertEquals(new ValueFacet(50, 0, 100, 0, null, true), node.value(), describe(tree()));
         assertEquals(1, busyEvents().size(), bridge.events.toString());
         assertEquals(Boolean.FALSE, busyEvents().get(0).newValue());
         assertTrue(eventsOf(AccessibleEvent.Type.VALUE_CHANGED).isEmpty(),
@@ -404,7 +409,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(id, disabled.id());
         assertFalse(disabled.has(Accessible.State.ENABLED),
                 "the walk's inherited bit, and nothing of the hook's" + describe(tree()));
-        assertEquals(new ValueFacet(60, 0, 100, 0, null), disabled.value(), describe(tree()));
+        assertEquals(new ValueFacet(60, 0, 100, 0, null, true), disabled.value(), describe(tree()));
         bar.setEnabled(true);
         frame();
         assertTrue(progressNode().has(Accessible.State.ENABLED), describe(tree()));
@@ -415,7 +420,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(id, hidden.id());
         assertFalse(hidden.has(Accessible.State.VISIBLE), describe(tree()));
         assertFalse(hidden.has(Accessible.State.SHOWING), describe(tree()));
-        assertEquals(new ValueFacet(60, 0, 100, 0, null), hidden.value(),
+        assertEquals(new ValueFacet(60, 0, 100, 0, null, true), hidden.value(),
                 "hidden is a state, not a different node" + describe(tree()));
         bar.setVisible(true);
         frame();
@@ -462,7 +467,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
 
         assertEquals(0.25f, bar.progress(),
                 "the facet advertises a setter, and the widget's honest answer is no");
-        assertEquals(new ValueFacet(25, 0, 100, 0, null), progressNode().value(), describe(tree()));
+        assertEquals(new ValueFacet(25, 0, 100, 0, null, true), progressNode().value(), describe(tree()));
         assertTrue(eventsOf(AccessibleEvent.Type.VALUE_CHANGED).isEmpty(), bridge.events.toString());
         assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED), bridge.events.toString());
     }

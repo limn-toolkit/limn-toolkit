@@ -113,6 +113,7 @@ public final class Accessibility {
         double valueMax;
         double valueStep;
         String valueText;
+        boolean valueReadOnly;
         long valueWitness;
         boolean hasSelection;
         boolean multiSelectable;
@@ -184,6 +185,7 @@ public final class Accessibility {
             offScreen = false;
             toggle = -1;
             hasValue = false;
+            valueReadOnly = false;
             value = 0;
             valueMin = 0;
             valueMax = 0;
@@ -510,12 +512,35 @@ public final class Accessibility {
      * @param step  one increment, or {@code 0} for none
      */
     public void value(double value, double min, double max, double step) {
+        value(value, min, max, step, false);
+    }
+
+    /**
+     * {@link #value(double, double, double, double)}, for a value the user may read and not set.
+     *
+     * <p>The facet's presence is what advertises a set on every platform, so a widget that
+     * publishes a range it refuses -- a progress bar -- has to say so here and nowhere else:
+     * {@link Accessible.State#READ_ONLY} is derived from this and {@link #state} drops it when
+     * declared, for the same reason it drops {@code CHECKED}: a fact the facet carries is never
+     * stored twice.
+     *
+     * @param value    the current value
+     * @param min      the smallest the node accepts
+     * @param max      the largest
+     * @param step     one increment, or {@code 0} for none
+     * @param readOnly whether the value may be read and not set
+     */
+    public void value(double value, double min, double max, double step, boolean readOnly) {
         Slot s = slot();
         s.hasValue = true;
         s.value = value;
         s.valueMin = min;
         s.valueMax = max;
         s.valueStep = step;
+        s.valueReadOnly = readOnly;
+        if (readOnly) {
+            s.states |= 1L << Accessible.State.READ_ONLY.ordinal();
+        }
     }
 
     /**
@@ -1183,7 +1208,8 @@ public final class Accessibility {
                 || a.toggle != b.toggle
                 || a.expand != b.expand
                 || a.hasValue != b.hasValue
-                || (a.hasValue && (a.value != b.value || a.valueMin != b.valueMin
+                || (a.hasValue && (a.value != b.value || a.valueReadOnly != b.valueReadOnly
+                        || a.valueMin != b.valueMin
                         || a.valueMax != b.valueMax || a.valueStep != b.valueStep
                         || !Objects.equals(a.valueText, b.valueText)))
                 || a.hasSelection != b.hasSelection
@@ -1336,7 +1362,7 @@ public final class Accessibility {
                 s.locale, s.states, s.x, s.y, s.width, s.height, relations,
                 s.toggle < 0 ? null : new ToggleFacet(ToggleFacet.State.values()[s.toggle]),
                 s.hasValue ? new ValueFacet(s.value, s.valueMin, s.valueMax, s.valueStep,
-                        s.valueText) : null,
+                        s.valueText, s.valueReadOnly) : null,
                 selection,
                 s.hasSelectionItem ? new SelectionItemFacet(s.selected, s.positionInSet,
                         s.sizeOfSet) : null,

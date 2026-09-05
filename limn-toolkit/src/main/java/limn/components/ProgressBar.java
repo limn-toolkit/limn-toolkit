@@ -208,7 +208,10 @@ public class ProgressBar extends Widget {
         if (indeterminate) {
             a.state(Accessible.State.BUSY);
         } else {
-            a.value(Math.round(progress * 100f), 0, 100, 0);
+            // Read-only said on the facet, because the facet's presence is what advertises a set
+            // on every platform and the role alone takes nothing back: without it a bridge reports
+            // a writable range whose set lands in the inherited hook, refused in silence.
+            a.value(Math.round(progress * 100f), 0, 100, 0, true);
         }
     }
 

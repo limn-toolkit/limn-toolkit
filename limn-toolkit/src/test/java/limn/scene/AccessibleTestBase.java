@@ -36,6 +36,7 @@ abstract class AccessibleTestBase {
         I18nString description;
         ToggleFacet.State toggle;
         Double value;
+        boolean valueReadOnly;
         String valueText;
         long valueWitness;
         String text;
@@ -81,7 +82,7 @@ abstract class AccessibleTestBase {
                 a.toggle(toggle);
             }
             if (value != null) {
-                a.value(value, 0, 100, 1);
+                a.value(value, 0, 100, 1, valueReadOnly);
                 a.valueText(valueText, valueWitness);
             }
             if (text != null) {

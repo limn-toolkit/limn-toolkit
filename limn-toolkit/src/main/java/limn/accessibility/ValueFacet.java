@@ -14,12 +14,19 @@ package limn.accessibility;
  * tree compares what it is given, so an unrounded position would make the comparison find a change
  * on every frame of playback and copy the whole tree for an hour with nobody touching anything.
  *
+ * <p>A value a user may read and not set &mdash; a progress bar &mdash; says so here, because the
+ * facet's presence is what advertises a set on every platform and nothing else could take it back:
+ * {@link Accessible.State#READ_ONLY} is derived from this field, never declared, so a widget that
+ * publishes a range it refuses to accept is a range a bridge reports writable.
+ *
  * @param value the current value
  * @param min   the smallest value the node accepts
  * @param max   the largest value the node accepts
  * @param step  one increment, or {@code 0} when the node has no step
  * @param text  the value as the node displays it, or {@code null} when the number is the whole
  *              of it
+ * @param readOnly whether the value may be read and not set
  */
-public record ValueFacet(double value, double min, double max, double step, String text) {
+public record ValueFacet(double value, double min, double max, double step, String text,
+                         boolean readOnly) {
 }
