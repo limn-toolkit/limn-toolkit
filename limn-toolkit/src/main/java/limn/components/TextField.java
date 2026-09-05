@@ -418,8 +418,22 @@ public class TextField extends Widget {
         return display;
     }
 
-    /** Entry-point form: resolves the step once for callers that have no tokens in hand. */
-    private ShapedText displayLine() {
+    /**
+     * Entry-point form: resolves the step once for callers that have no tokens in hand.
+     *
+     * <p>Package-private rather than private because a subclass that substitutes marks has to read
+     * this line to describe itself: the caret stop table is where the number of marks and the
+     * mapping between a model offset and a mark offset both come from, and there is no second
+     * expression of either. One reader and not three narrow ones — a count, a forward map, an
+     * inverse map — because each of those would resolve the step again, and a describe hook needs
+     * all three answers off the same line.
+     *
+     * <p><b>TRAP: the value carries the CONTENT as its {@link ShapedText#text()}</b>, because the
+     * model's indices have to be its indices, so on a masked field this line <em>is</em> the
+     * secret. It is read for its caret stops and never for its text, exactly as
+     * {@link #paintDisplayText} is the one call that may hand it to a canvas.
+     */
+    ShapedText displayLine() {
         return displayLine(Theme.current().tokensFor(this));
     }
 
@@ -1195,9 +1209,14 @@ public class TextField extends Widget {
      * platform places a candidate window under the box {@link #caretRect()} hands over, and a field
      * whose two answers drifted would put them in different places on the same line.
      *
+     * <p>Package-private for the same reason it is held: a subclass that publishes the text facet
+     * itself hands over this rectangle as one of that facet's arguments, and a second caller
+     * strengthens the invariant rather than weakening it. What it answers on a masked field is
+     * already mask geometry, because it is measured from the display line the mask replaced.
+     *
      * @return the box, or {@code null} before the first layout
      */
-    private Rect heldCaretBox() {
+    Rect heldCaretBox() {
         if (!caretBoxLocal(caretScratch)) {
             caretBox = null;
             return null;
@@ -1343,9 +1362,15 @@ public class TextField extends Widget {
      * reports one. A neighbouring widget's own promise that a damaged frame says nothing is what
      * found it.
      *
+     * <p>Package-private, so a subclass that publishes the facet itself takes <em>this</em>
+     * reference rather than calling {@link TextEditModel#text()} again: that call builds a fresh
+     * {@code String} every time, and on a masked field a second copy of the value is a second copy
+     * of the secret. {@link #accessibleTextRevision()} is the counter that goes with it, and this
+     * call is what refreshes both.
+     *
      * @return the text as a reader is told it, held across frames
      */
-    private String accessibleText() {
+    String accessibleText() {
         boolean composing = !preedit.isEmpty();
         long version = model.textVersion();
         int cursor = model.cursor();
@@ -1368,6 +1393,20 @@ public class TextField extends Widget {
             }
         }
         return accessibleText;
+    }
+
+    /**
+     * The counter {@link #accessibleText()} was last rebuilt against: the witness that string is
+     * handed to the tree with.
+     *
+     * <p><b>Ask {@link #accessibleText()} first</b>, because that call is what refreshes both. Read
+     * on its own this answers the counter of the string the last call produced, which is the
+     * previous one whenever the text has moved since.
+     *
+     * @return the witness, moving only when the string does
+     */
+    long accessibleTextRevision() {
+        return accessibleTextRevision;
     }
 
     /**
@@ -1440,10 +1479,11 @@ public class TextField extends Widget {
      * {@link #allowClipboardCopy()} is already the widget's own answer to that question — a
      * password field says no until it is revealed — and a subclass inherits this hook the moment it
      * exists, so without the gate the first masked field to be bound would publish its secret as
-     * plain text under the role of a plain field. That is the interim, and it is deliberately the
-     * conservative one: a masked field's own step will publish its <em>mask</em> here, which is
-     * what {@code TextFacet} asks of it, and until then a reader is told nothing rather than
-     * something it must not be told. The display line is never the source of this string under any
+     * plain text under the role of a plain field. {@link PasswordField} now answers that question
+     * for itself — it publishes its <em>mask</em> and the mask's own offsets over whatever this
+     * writes — so the gate is no longer an interim; it is the floor under the next subclass to
+     * refuse the clipboard, which is told nothing rather than something it must not be told until
+     * its own hook says otherwise. The display line is never the source of this string under any
      * circumstances: for a masked field that value <em>is</em> the secret, because its index space
      * has to be the model's.
      *

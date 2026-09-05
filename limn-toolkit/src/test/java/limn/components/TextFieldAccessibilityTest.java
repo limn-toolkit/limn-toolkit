@@ -6,13 +6,10 @@ import limn.accessibility.AccessibleNode;
 import limn.accessibility.TextFacet;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
-import limn.graphics.Font;
 import limn.graphics.Icon;
 import limn.graphics.Image;
 import limn.graphics.Rect;
 import limn.graphics.ShapedText;
-import limn.graphics.TextMetrics;
-import limn.graphics.TextRuler;
 import limn.i18n.I18nString;
 import limn.scene.LayoutDirection;
 import limn.scene.layout.Column;
@@ -56,10 +53,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * produced a box, a caret position and a text measurement per call, on the one widget whose blink
  * guarantees a damaged frame twice a second.
  *
- * <p>One case here belongs to a class this step does not describe. {@link PasswordField} inherits
- * this hook the moment it exists, so the assertion that a masked field publishes its text nowhere
- * is what makes the interim safe, and it lives here because this is the commit that creates the
- * hazard.
+ * <p>One case here belongs to a subclass. The hook refuses to publish anything at all when
+ * {@link TextField#allowClipboardCopy()} says the content may not leave the widget, and that gate
+ * is the floor under a masked field: {@link PasswordField} publishes its own mask over the top of
+ * it now, and what is pinned here is that a subclass which refuses the clipboard and describes
+ * nothing of its own is told nothing rather than something it must not be told. What a
+ * {@code PasswordField} actually becomes belongs to
+ * {@link PasswordFieldAccessibilityTest}.
  *
  * <p>Every case drives the field's public API on a bound scene, or calls the scene from where a
  * bridge stands, and reads back what the scene published. Nothing constructs a node.
@@ -71,33 +71,6 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         @Override
         public Rect caretRect() {
             return super.caretRect();
-        }
-    }
-
-    /**
-     * {@link ComponentTestBase#RULER} with the memo the shipped ruler has.
-     *
-     * <p>Only the allocation case installs it, and the reason is worth stating rather than
-     * hiding. The backend's ruler answers {@code measure} out of the memo it keeps for
-     * {@code shape}, so the vertical band the caret rectangle is built from costs nothing there;
-     * the fake is a lambda that builds a {@link TextMetrics} per call, so under it <em>any</em>
-     * widget that measures inside its describe hook allocates, whatever the widget does. Measuring
-     * the walk against a ruler that allocates by construction would be measuring the fake. The
-     * answers are {@link ComponentTestBase#RULER}'s own, so nothing else about the fixture moves.
-     */
-    private static final class MemoizingRuler implements TextRuler {
-        private String lastText;
-        private Font lastFont;
-        private TextMetrics last;
-
-        @Override
-        public TextMetrics measure(String text, Font font) {
-            if (last == null || !text.equals(lastText) || !font.equals(lastFont)) {
-                last = RULER.measure(text, font);
-                lastText = text;
-                lastFont = font;
-            }
-            return last;
         }
     }
 
@@ -863,21 +836,33 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(0, presses.get(), "the pointer refuses it too, in the same one guard");
     }
 
-    // ------------------------------------------------------- the class this step does not describe
+    // ------------------------------------------- the gate under a subclass that hides its content
+
+    /**
+     * A field whose content may not leave it and which says nothing of its own about itself: what
+     * {@link PasswordField} was before its own step, and what the next such subclass will be
+     * before its.
+     */
+    private static final class SealedField extends TextField {
+        @Override
+        protected boolean allowClipboardCopy() {
+            return false;
+        }
+    }
 
     @Test
-    void aPasswordFieldPublishesItsTextNowhereAtAll() {
-        PasswordField password = new PasswordField();
-        bindField(password);
-        password.setText("hunter2");
-        scene.requestFocus(password);
+    void aSubclassThatRefusesTheClipboardPublishesItsTextNowhereAtAll() {
+        SealedField sealed = new SealedField();
+        bindField(sealed);
+        sealed.setText("hunter2");
+        scene.requestFocus(sealed);
         frame();
 
         AccessibleNode node = fieldNode();
         assertNull(node.text(),
-                "a masked field inherits this hook until its own step lands, and publishing the "
-                        + "secret under the role of a plain field is the failure that step's "
-                        + "absence must not cause" + describe(tree()));
+                "a subclass inherits this hook the moment it exists, and publishing content it "
+                        + "says may not leave the widget, under the role of a plain field, is the "
+                        + "failure the gate is here to stop" + describe(tree()));
         for (int i = 0; i < tree().nodeCount(); i++) {
             AccessibleNode any = tree().node(i);
             assertFalse(any.name().contains("hunter2"), describe(tree()));
@@ -885,10 +870,10 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
             assertNull(any.text(), describe(tree()));
         }
 
-        password.setRevealed(true);
+        sealed.setAccessibleName("Sealed");
         frame();
-        assertEquals("hunter2", fieldNode().text().text(),
-                "revealed, the content is on the screen and allowClipboardCopy says it may leave, "
-                        + "which is the one predicate the gate reads" + describe(tree()));
+        assertNull(fieldNode().text(),
+                "and it stays refused for as long as the predicate says so: nothing but that one "
+                        + "answer opens the gate" + describe(tree()));
     }
 }
