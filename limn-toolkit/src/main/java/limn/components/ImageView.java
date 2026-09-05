@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -127,5 +129,44 @@ public class ImageView extends Widget {
         if (clip) {
             canvas.restore();
         }
+    }
+
+    /**
+     * Publishes this view as one {@link Accessible.Role#IMAGE} node, always, and declares nothing
+     * else about it.
+     *
+     * <p>The role is the whole announcement, and it is what makes the widget describe itself at
+     * all. A picture is information by construction — it is the application's, not the toolkit's,
+     * and nothing else in the tree carries it — so the class may not answer the paints-and-says-
+     * nothing warning with {@code paintsDecoration()}, which is the seam for a wash or a rule and
+     * would delete every picture in silence. It also fixes a quieter fault: a view an application
+     * had already named, or one carrying a tooltip, survived the transparency predicate on the
+     * strength of that name and published under the builder's default role, so the very case a
+     * picture is named for reached a reader as a group box wearing the picture's name.
+     *
+     * <p>No name is declared, on purpose. The widget holds no {@link limn.i18n.I18nString} and an
+     * {@link Image} carries only its size and its pixels, so there is nothing here to derive one
+     * from, and a caption sitting beside a picture is never read as its name. All three ways a
+     * picture does get one stay the application's and cost this class nothing: a tooltip through
+     * the walk's free default, a bound caption, or {@code setAccessibleName}. Nothing is formatted,
+     * so a damaged frame that changed nothing allocates no memory to say so.
+     *
+     * <p>Striking a picture out is likewise the application's call through
+     * {@code setAccessibleIgnored(true)} and never this class's, including when it holds no image
+     * yet. A class-level ignore is consulted after the application's own name, caption and role
+     * have been written, so it would silently overrule all three with no way to appeal — and on a
+     * photograph that has not loaded it would make the node appear and vanish as pictures arrive,
+     * throwing away the alt text a reader was given and churning structure for a fact nobody asked
+     * about.
+     *
+     * <p>The published box is the widget's own and never the ink. {@link Fit} centres the drawing
+     * and lets it letterbox or overflow, so the two genuinely differ; but the box is what
+     * {@code hitTest} claims, and a node cut down to the drawing would put a magnifier's cursor
+     * somewhere the pointer does not agree with, at the price of running the fit arithmetic again
+     * on every publish.
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.IMAGE);
     }
 }

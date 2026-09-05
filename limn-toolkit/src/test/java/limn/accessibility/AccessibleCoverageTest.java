@@ -56,7 +56,6 @@ class AccessibleCoverageTest {
      */
     private static final Set<String> UNDESCRIBED = new TreeSet<>(Set.of(
             "limn.components.ContextMenus$ContextRegion",
-            "limn.components.ImageView",
             "limn.components.ListView",
             "limn.components.MenuBar",
             "limn.components.PasswordField",
