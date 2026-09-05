@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Easing;
 import limn.animation.Transition;
 import limn.backend.Cursor;
@@ -272,6 +274,78 @@ public class RadioButton extends Widget {
     @Override
     protected float paintOutset() {
         return Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN / 2;
+    }
+
+    // ---------------------------------------------------------- accessibility
+
+    /**
+     * What this radio is to an assistive technology: one {@link Accessible.Role#RADIO_BUTTON},
+     * named by the caption it holds, a member of its group's selection with its one-based position
+     * and the group's size, offering {@link Accessible.Action#SELECT}, and nothing else.
+     *
+     * <p>The name is the held {@link I18nString} handed over by reference, never {@link #text()}:
+     * the walk compares the reference, the locale and the translation epoch, so a hover or focus
+     * fade that damages this row on every frame concludes that nothing moved without allocating.
+     * It is handed over even when the caption is empty, because the walk names a nameless node
+     * from its tooltip and describes a named one with it; a caption-less radio with no tooltip
+     * publishes an empty name, which is the application's to fix and not this widget's to invent.
+     *
+     * <p>The selection facet reads the {@code selected} field and never the eased dot, and its two
+     * numbers come from the group through readers that touch its list and allocate nothing; the
+     * public {@link ButtonGroup#members()} is a copy per call and would cost one per damaged
+     * frame. A standalone radio has no set and says so with zeros. There is no group node for
+     * the numbers to hang under, because a {@link ButtonGroup} is not a widget and has no box, and
+     * there is no relation to it for the same reason: a relation's target has to be a published
+     * node. The radio is deliberately not marked {@link Accessible.State#ACTIVE}: the publish
+     * step takes the first active node in a container's subtree as that container's active
+     * descendant, and a radio inside a list cell would hijack the list's.
+     *
+     * <p>Only select is offered. A radio never toggles off, so there is no deselect, and the only
+     * route to no selection is {@link ButtonGroup#clearSelection()} from code. The box, the focus
+     * and scroll-into-view verbs on the group's one tab stop, and the enabled, visible, showing,
+     * focusable and focused states are the walk's; roving focus is already expressed through
+     * the focusable flag, whose setter invalidates the tree itself.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.RADIO_BUTTON);
+        a.name(text, Accessible.NameFrom.CONTENT);
+        if (group != null) {
+            a.selectionItem(selected, group.indexOf(this) + 1, group.size());
+        } else {
+            a.selectionItem(selected, 0, 0);
+        }
+        a.action(Accessible.Action.SELECT);
+    }
+
+    /**
+     * Performs a select an assistive technology asked for, exactly as a click or a Space press
+     * does: through {@link #select()}, so a group deselects the previous member, both radios'
+     * {@link #onChange} handlers and the group's own listener are notified the same way, and the
+     * tab stop moves with the selection. Selecting the member that is already selected is
+     * accepted and does nothing, because the state asked for holds. Any other verb is refused,
+     * including a press, which this node does not offer, and so is a select while this widget is
+     * disabled: {@code select()} carries no such guard of its own, because it is also the path
+     * {@link ButtonGroup#setSelectedIndex} takes to restore a disabled form's state, and the
+     * answer here has to be truthful.
+     *
+     * <p>The state change that results is what a reader hears: the group's swap invalidates both
+     * members, the next frame republishes, and the difference raises the selected-state event on
+     * each. No invocation event is raised for a select, on any platform.
+     *
+     * @param action what was asked
+     * @param arg    ignored; a select carries none
+     * @return whether the select ran, or already held
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        if (action != Accessible.Action.SELECT || !isEnabled()) {
+            return false;
+        }
+        select();
+        return true;
     }
 
     // ----------------------------------------------------------------- input

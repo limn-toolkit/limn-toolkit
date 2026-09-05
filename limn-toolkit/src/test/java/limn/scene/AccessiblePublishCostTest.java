@@ -1,6 +1,9 @@
 package limn.scene;
 
 import limn.accessibility.Accessible;
+import limn.components.ButtonGroup;
+import limn.components.RadioButton;
+import limn.graphics.Canvas;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -39,6 +42,24 @@ class AccessiblePublishCostTest extends AccessibleTestBase {
         }
         root.add(caretHolder);
         root.add(spinner);
+        // A real radio group, because its members read their position and set size from the
+        // group on every frame that damages them: the first hook to reach for the public
+        // members() copy, or to resolve the caption instead of handing the source over, fails the
+        // allocation case below. Their paint is stubbed out, and only their paint: a headless
+        // frame repaints every widget, a real ring costs a blended colour and a shaped label per
+        // paint, and that is the widget's drawing cost and not the walk's, which the widget's own
+        // test measures by difference. The describe hook underneath is the shipped one.
+        ButtonGroup group = new ButtonGroup();
+        for (String choice : new String[] {"Small", "Medium", "Large"}) {
+            RadioButton radio = new RadioButton(choice) {
+                @Override
+                protected void onPaint(Canvas canvas) {
+                }
+            };
+            root.add(radio);
+            group.add(radio);
+        }
+        group.setSelectedIndex(1);
         bind(root);
         frame();
     }
@@ -110,7 +131,8 @@ class AccessiblePublishCostTest extends AccessibleTestBase {
     @Test
     void aPublishWalksEachNodeOnceAndProducesOneNodePerDescription() {
         bindCostlyScene();
-        assertEquals(23, tree().nodeCount(),
-                "a window, twenty buttons, a text field and a spinner: " + describe(tree()));
+        assertEquals(26, tree().nodeCount(),
+                "a window, twenty buttons, a text field, a spinner and three radios: "
+                        + describe(tree()));
     }
 }

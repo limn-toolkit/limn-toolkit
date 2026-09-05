@@ -27,7 +27,15 @@ public final class ButtonGroup {
     };
     private RadioButton current;
 
-    /** Adds a radio to the group. If it is already selected, it becomes the group's selection. */
+    /**
+     * Adds a radio to the group. If it is already selected, it becomes the group's selection.
+     *
+     * <p>Membership is what a screen reader speaks as "2 of 4", and adding a member changes that
+     * number for every member while painting nothing: the roving-focus pass only invalidates the
+     * tree when a focusable flag actually flips, and the first member's does not flip at all. So
+     * every member tells the tree itself, which costs nothing for a member not yet in a scene and
+     * is not per-frame work.
+     */
     public ButtonGroup add(RadioButton radio) {
         Ui.checkUiThread();
         Objects.requireNonNull(radio, "radio");
@@ -41,6 +49,9 @@ public final class ButtonGroup {
             current = radio;
         }
         applyRovingFocus();
+        for (RadioButton member : members) {
+            member.invalidateAccessible();
+        }
         return this;
     }
 
@@ -113,6 +124,23 @@ public final class ButtonGroup {
         applyRovingFocus();
         onSelect.accept(-1);
         return this;
+    }
+
+    /**
+     * A member's position, for the accessible tree: {@link #members()} answers the same question
+     * with a copy per call, and a radio describes itself on every frame that damages it.
+     *
+     * @param radio a member
+     * @return its zero-based index in the order the members were added, or {@code -1} when it is
+     *         not a member
+     */
+    int indexOf(RadioButton radio) {
+        return members.indexOf(radio);
+    }
+
+    /** @return how many members the group holds; the size of the set a radio reports itself in */
+    int size() {
+        return members.size();
     }
 
     // Called by RadioButton.select(): swap the selection and notify.
