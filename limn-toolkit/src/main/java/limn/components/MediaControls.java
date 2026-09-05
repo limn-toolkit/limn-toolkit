@@ -498,16 +498,28 @@ public class MediaControls extends Widget {
                 : VideoStreamSource.SeekMode.KEYFRAME);
     }
 
+    /**
+     * The view's own answer rather than a second derivation of it, so that the gate on this bar's
+     * scrub and the maximum the view publishes to an assistive technology cannot become two numbers
+     * that disagree. It also answers where this one used to throw: a player holding no stream.
+     */
     private long durationMicros() {
-        if (view.player() != null) {
-            return view.player().video().durationMicros();
-        }
-        VideoStreamSource source = view.source();
-        return source == null ? VideoStreamSource.DURATION_UNKNOWN : source.durationMicros();
+        return view.durationMicros();
     }
 
-    /** {@code m:ss}, which is what a transport says and a duration in microseconds is not. */
-    private static String clock(long micros) {
+    /**
+     * {@code m:ss}, which is what a transport says and a duration in microseconds is not.
+     *
+     * <p>Package-visible rather than private because {@link VideoView} publishes the same time to an
+     * assistive technology from a memo of its own, and a second copy of this arithmetic is how the
+     * tree and the bar come to disagree about what time it is. There is no hours field, so a film
+     * over an hour reads {@code 125:30} &mdash; in the tree exactly as on the screen, which is the
+     * point; changing that is this bar's decision to make, in both places at once.
+     *
+     * @param micros the position or length to render
+     * @return the clock text, with the digits of the locale in scope
+     */
+    static String clock(long micros) {
         long seconds = Math.max(0, micros) / 1_000_000L;
         return limn.i18n.I18n.localizeDigits(
                 seconds / 60 + ":" + (seconds % 60 < 10 ? "0" : "") + seconds % 60);

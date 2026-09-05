@@ -37,6 +37,11 @@ final class TestVideoStream implements VideoStreamSource {
     RuntimeException failOnRead;
 
     boolean seekable = true;
+    /**
+     * What {@link #durationMicros()} reports. Unknown by default, as a pipe's and a live input's
+     * are, which is the state in which nothing may publish a range.
+     */
+    long durationMicros = DURATION_UNKNOWN;
     /** What {@link #rotationDegrees()} reports: how far the picture is turned for display. */
     int rotation;
 
@@ -174,6 +179,11 @@ final class TestVideoStream implements VideoStreamSource {
     @Override
     public boolean canReset() {
         return rewindable;
+    }
+
+    @Override
+    public long durationMicros() {
+        return durationMicros;
     }
 
     @Override

@@ -295,9 +295,10 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
 
         assertEquals(List.of(), toolbar().relations(),
                 "the bar declares CONTROLLER_FOR its view, and the walk resolves a target to the "
-                        + "node it published or drops the relation; the view publishes none yet, "
-                        + "and a relation onto the window node would say nothing. When VideoView's "
-                        + "step lands this becomes one CONTROLLER_FOR onto the VIDEO node"
+                        + "node it published or drops the relation; the view is not in this tree "
+                        + "at all, and a relation onto the window node would say nothing. Where "
+                        + "the bar is the view's own child it does resolve, onto the VIDEO node, "
+                        + "which limn.components.VideoViewAccessibilityTest pins"
                         + describe(tree()));
     }
 
@@ -789,8 +790,9 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
                 "over the lower edge, standing the margin off it" + describe(tree()));
         assertEquals(400f - 16f, bar.width(), 0.01f, describe(tree()));
         assertEquals(h, bar.height(), 0.01f, describe(tree()));
-        assertEquals(0, bar.parent(),
-                "the view publishes no node yet, so the bar hoists to the window" + describe(tree()));
+        assertEquals(node(Accessible.Role.VIDEO).id(), tree().node(bar.parent()).id(),
+                "and it hangs under the view's own node, which the view now publishes whatever it "
+                        + "is holding" + describe(tree()));
     }
 
     /** A do-nothing video source: enough to give the play button something to play. */

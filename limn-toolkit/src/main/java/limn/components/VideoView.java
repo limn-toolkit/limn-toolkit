@@ -1,11 +1,14 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
+import limn.i18n.I18n;
 import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Size;
@@ -17,6 +20,7 @@ import limn.video.VideoStreamSource;
 import limn.video.VideoSurface;
 import limn.video.VideoSurfaces;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -116,6 +120,13 @@ import java.util.Objects;
  * changes what a video looks like. The one thing that <em>is</em> chrome (the "no GPU backend" and
  * "cannot be played" notices) reads the row resolved on this widget like every other component, so
  * a view dropped into an XSMALL panel does not report failure in MEDIUM body type.
+ *
+ * <p><b>To an assistive technology</b> this is one video element over the box the layout gave it,
+ * named by the application or by its tooltip and never by this class, described by whichever notice
+ * it would draw, and carrying its position in whole seconds whenever the stream has a length; a set
+ * on that position reaches the same {@link #seek(long, VideoStreamSource.SeekMode)} a scrub reaches.
+ * Playing and pausing are the transport's there as they are on screen. {@link #onAccessibility} has
+ * the whole of it.
  *
  * <p>UI thread throughout, like every widget.
  */
@@ -470,6 +481,22 @@ public class VideoView extends Widget {
     }
 
     /**
+     * The length of what is being shown, which nothing on this widget's public surface answers and
+     * which two things now need: the transport's gate on its own scrub bar, and the maximum of the
+     * position this view publishes to an assistive technology. Package-visible rather than private
+     * so that {@link MediaControls} takes the same answer instead of deriving a second one, because
+     * two derivations of one number are two numbers that can disagree.
+     *
+     * @return the length in microseconds, or {@link VideoStreamSource#DURATION_UNKNOWN} when there
+     *         is no stream or the stream cannot say &mdash; a pipe, a live input, a container
+     *         carrying no duration
+     */
+    long durationMicros() {
+        VideoStreamSource measured = stream();
+        return measured == null ? VideoStreamSource.DURATION_UNKNOWN : measured.durationMicros();
+    }
+
+    /**
      * Freezes the picture where it is, or lets it run again: the player's pause when one drives
      * this view, so the sound freezes with the picture, and this view's own pacing otherwise.
      * Position is kept either way: resuming continues rather than restarting.
@@ -566,6 +593,200 @@ public class VideoView extends Widget {
         }
         clock = Objects.requireNonNull(newClock, "newClock");
         return this;
+    }
+
+    // ---------------------------------------------------------- accessibility
+
+    /**
+     * What a video is to an assistive technology: one {@link Accessible.Role#VIDEO} node over the
+     * box the layout gave it, carrying the position in whole seconds whenever the stream has a
+     * length to measure it against, and described by whichever notice the paint would draw.
+     *
+     * <p><b>The role is unconditional, and both halves of that are decisions.</b> This class
+     * declares no role otherwise, holds no synthetic children and is never focusable, so the
+     * transparency rule deletes it and hoists its children &mdash; and because it overrides
+     * {@link #onPaint} it would be named in an application's log as a toolkit class that draws and
+     * says nothing, with the recommendation to strike it out, which would take the transport with
+     * it. A picture is information rather than a wash, so {@code paintsDecoration()} is no more the
+     * answer here than it is for an image or a render surface. Nor is the node conditional on
+     * holding a stream: a content node that appeared and vanished with {@link #setSource} would
+     * throw away an application's {@code setAccessibleName} and its bound caption each time it went,
+     * and churn the shape of the tree for a fact nobody asked about. A view with no stream measures
+     * {@code 0 × 0} and publishes a {@code 0 × 0} video node, which is what the layout gave it.
+     *
+     * <p><b>No name is declared, ever.</b> This class holds no string that names it &mdash; the two
+     * it draws are statuses and not identities &mdash; so all three naming routes stay the
+     * application's: {@code setAccessibleName}, a bound caption, and the tooltip the walk promotes
+     * into the name when nothing else has supplied one.
+     *
+     * <p><b>The notice is a description, and it is read in the paint's own order.</b>
+     * {@link #onPaint} tests for a backend and returns before it ever reads {@link #failure()}, so
+     * this reads the two the same way round; describing a failure the paint would not draw would be
+     * telling a reader about something nobody can see. It is a description rather than a name for
+     * the reason a viewport's is: the walk applies an application's name and a bound caption after
+     * this hook and unconditionally, so a name written here is only a fallback beneath either, while
+     * a status belongs beside whichever of them names the node. The stated cost is a view carrying
+     * both a tooltip and an application name, where the description slot is taken by the notice and
+     * the tooltip is dropped from the tree until the notice goes. Both branches are read live rather
+     * than remembered from the paint, because the tree of a frame is published before that frame's
+     * paint; {@link VideoSurfaces#isAvailable()} is a volatile read of a static the backend installs
+     * before any window exists, so it cannot move underneath a tree being published.
+     *
+     * <p><b>The position is published in whole seconds, and this widget is why that rule exists.</b>
+     * A playing view invalidates on every picture it presents, so the walk runs at the display's
+     * rate; an unrounded position would differ on essentially every frame and copy the whole tree,
+     * for the length of the film, with nobody touching anything. Rounded, it moves once a second.
+     * The display form is the transport's own {@code m:ss} and comes from this widget's own memo,
+     * not from the bar's clock: that is a different widget, written from a paint and a poll, and the
+     * tree of a frame is published before that paint, so quoting it would be a frame stale. What is
+     * published is the position alone and never "at / length", because the length is the facet's own
+     * maximum and every platform reads that separately &mdash; repeating it has it spoken twice.
+     *
+     * <p><b>There is no facet at all without a length</b>, which is the same gate the transport puts
+     * on its scrub bar: {@link VideoStreamSource#durationMicros()} answers
+     * {@link VideoStreamSource#DURATION_UNKNOWN} for a pipe, a live input and a container carrying
+     * no duration, and a range with no maximum is not a range. The write bit is {@link #canSeek()},
+     * said on the facet because the facet's presence is what advertises a set on every platform:
+     * {@link #seek(long, VideoStreamSource.SeekMode)} throws on a stream that cannot be seeked, so a
+     * range published without it offers a reader a position it cannot set and throws out of the
+     * posted task when the verb arrives anyway.
+     *
+     * <p><b>No orientation, no busy bit and no play state, each for its own reason.</b> Horizontal
+     * and vertical say that a node's value runs along a screen axis, and this value runs in time.
+     * {@code BUSY} has nothing honest behind it: this widget has no buffering model, and
+     * {@code uploaded == false} covers both a decoder that is working and a player nobody has
+     * started, which are opposite facts. And the state enum carries no bit for playing because no
+     * platform does; that fact reaches a reader where it reaches everyone else, at the transport's
+     * play button, whose name flips in the frame of the change.
+     *
+     * <p><b>Nothing is declared about the built-in bar.</b> {@link #controls()} adds a real
+     * {@link MediaControls} child that declares its own role, its own orientation and this view as
+     * what it controls, and there is nothing the view knows about the bar that the bar does not.
+     * Worth saying once: a view showing a transport therefore publishes two settable positions, this
+     * node in seconds and the scrub bar in its own thousandths. That is two controls for one thing
+     * rather than a contradiction, and it is what a sighted user is given too.
+     *
+     * <p>The box is the walk's, from this widget's own {@code x}, {@code y}, {@code width} and
+     * {@code height}, and never the picture's: the fitted quad is zero-sized until the first upload
+     * and moves under a mid-stream resolution change with no layout behind it, while the box is what
+     * the hit test claims, what the layout reserved and what the letterbox is painted over.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.VIDEO);
+        if (!VideoSurfaces.isAvailable()) {
+            a.description(ComponentStrings.VIDEO_NO_BACKEND);
+        } else if (failure() != null) {
+            a.description(ComponentStrings.VIDEO_DECODE_FAILED);
+        }
+        long length = durationMicros();
+        if (length <= 0) {
+            return;
+        }
+        long max = length / 1_000_000L;
+        // Clamped into the range as well as rounded, so that no bridge is ever handed a value
+        // outside the bounds it was handed beside it: a clock running a shade past the declared
+        // length is ordinary, and a stream that reports one is not a reason to publish nonsense.
+        long seconds = Math.min(Math.max(0, positionMicros()) / 1_000_000L, max);
+        a.value(seconds, 0, max, 0, !canSeek());
+        // From the memo, and NEVER built here: a playing view is damaged on every picture it
+        // presents, so a string made in this hook is one allocation per frame of the film spent
+        // deciding that nothing had moved.
+        String shown = positionText(seconds);
+        a.valueText(shown, positionRevision);
+    }
+
+    /**
+     * Moves the playhead where an assistive technology asked for it, through the same public
+     * {@link #seek(long, VideoStreamSource.SeekMode)} the transport's scrub bar reaches when a drag
+     * settles: the pictures being held are given back, the player or the stream is repositioned,
+     * this view's own pacing is re-anchored, and the ended and failed flags are cleared. Exactly,
+     * and not by keyframe, because a reader's set is a settled position rather than a drag.
+     *
+     * <p>Each of the three refusals is a way this would otherwise throw or lie. A value that is not
+     * a number survives every clamp, so it is turned away before one. A stream with no length was
+     * never published as a range, and one that cannot be seeked throws
+     * {@link UnsupportedOperationException}, so both are re-checked here against exactly what the
+     * facet advertised. The clamp is what keeps a negative away from {@code seek}, which refuses
+     * one. There is no enabled check of its own: the scene has already re-checked this widget, its
+     * whole ancestor chain, that it is showing and that it is reachable, and this widget keeps no
+     * input path with a guard for one here to mirror.
+     *
+     * <p>A set beyond the end lands on the end rather than being refused, and the end is the
+     * stream's true length rather than the whole second the facet publishes as its maximum, so the
+     * last fraction of a second of a film is reachable; what is published back is still the whole
+     * second below it, which is inside the range this node advertised.
+     *
+     * <p><b>There is no play or pause verb, and that is a finding rather than a deferral.</b> This
+     * class overrides neither the mouse hook nor the key hook and is never focusable, so clicking a
+     * video does nothing at all: a toggle here would be an operation a screen-reader user has and
+     * nobody else does, and it would reach {@link #setPaused setPaused(false)} and start a
+     * soundtrack the application deliberately did not, which is the whole point of
+     * {@link #setAutoplay}. It would also carry no toggle facet, a video being nothing that is
+     * checked, so it would publish a verb with nothing saying which way it goes. Play and pause are
+     * the transport's here exactly as they are on screen. Nor is there an increment or a decrement:
+     * this class defines no skip interval and no key that steps, so a step verb would publish a grid
+     * no gesture on this widget produces, and a reader still positions absolutely through this one.
+     *
+     * @param action what was asked
+     * @param arg    the position in seconds, for a set
+     * @return whether the playhead moved
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        if (action != Accessible.Action.SET_VALUE
+                || !(arg instanceof Accessible.Argument.OfValue of)
+                || !Double.isFinite(of.value())) {
+            return false;
+        }
+        long length = durationMicros();
+        if (length <= 0 || !canSeek()) {
+            return false;
+        }
+        double seconds = Math.max(0, Math.min(of.value(), length / 1_000_000d));
+        seek((long) (seconds * 1_000_000d), VideoStreamSource.SeekMode.EXACT);
+        return true;
+    }
+
+    /** The display form last built, and the whole second, epoch and locale it was built for. */
+    private String positionText;
+    /** Never a real second, so the first ask builds. */
+    private long positionTextSeconds = -1;
+    private long positionTextEpoch;
+    private Locale positionTextLocale;
+    private long positionRevision;
+
+    /**
+     * The transport's own {@code m:ss} for a whole second, memoized.
+     *
+     * <p>It exists for the reason a spinner's does: this string is derived rather than held, so it
+     * has no source to compare against and the tree can only conclude that it has not moved by being
+     * handed the counter it was built against. Building it inside the describe hook would stay
+     * correct and cost one string per damaged frame, which for a playing view is sixty a second for
+     * the length of the film, spent to decide that nothing changed.
+     *
+     * <p>The locale and the translation epoch are in the key beside the second because the digits
+     * follow the numbering system of the locale in scope, and this widget's subtree can declare one
+     * of its own; a memo blind to either would publish yesterday's digits after a language move.
+     *
+     * @param seconds the whole second to render
+     * @return the same string until one of the three parts of that key moves
+     */
+    private String positionText(long seconds) {
+        Locale locale = I18n.locale();
+        if (positionText == null || seconds != positionTextSeconds
+                || I18n.epoch() != positionTextEpoch || !locale.equals(positionTextLocale)) {
+            positionTextSeconds = seconds;
+            positionTextEpoch = I18n.epoch();
+            positionTextLocale = locale;
+            // The transport's own formatter and not a second copy of it, so that the tree and the
+            // bar cannot drift into two renderings of one time.
+            positionText = MediaControls.clock(seconds * 1_000_000L);
+            positionRevision++;
+        }
+        return positionText;
     }
 
     // --------------------------------------------------------------- controls
@@ -695,6 +916,14 @@ public class VideoView extends Widget {
             uploaded = true;
         } catch (RuntimeException error) {
             failure = error;
+            // The paint running now goes on to draw the notice, and nothing else about this view
+            // changes: no damage is declared, the ticker stops at the next tick because a failed
+            // view is not runnable, and the tree of this frame was published before this paint. So
+            // without this the pixels say the video cannot be played and the tree says nothing at
+            // all, until some unrelated repaint elsewhere in the window happens along, or forever.
+            // Never invalidate(), which would declare damage this change does not have; the paint
+            // that discovered it is already drawing it.
+            invalidateAccessible();
         } finally {
             // Exactly once, immediately: the upload reads the samples and retains nothing, and a
             // picture never handed back costs the producer a pooled slot for good.

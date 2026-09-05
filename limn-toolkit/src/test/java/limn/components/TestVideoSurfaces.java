@@ -56,6 +56,11 @@ final class TestVideoSurfaces implements VideoSurfaces.Provider {
         long lastPtsMicros = -1;
         int disposals;
         boolean disposed;
+        /**
+         * Thrown by this upload and every one after it: a device lost mid-playback, which is the
+         * one way a video fails <em>inside</em> a paint rather than inside a decode.
+         */
+        RuntimeException failOnUpload;
         private int width;
         private int height;
 
@@ -65,6 +70,9 @@ final class TestVideoSurfaces implements VideoSurfaces.Provider {
             // frame's planes belong to its producer again and this throws, which is the whole
             // release-after-upload ordering, checked rather than described.
             frame.plane(0);
+            if (failOnUpload != null) {
+                throw failOnUpload;
+            }
             uploads++;
             lastPtsMicros = frame.ptsMicros();
             width = frame.width();
