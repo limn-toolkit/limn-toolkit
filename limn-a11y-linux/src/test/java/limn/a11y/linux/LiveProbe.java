@@ -60,6 +60,10 @@ public final class LiveProbe {
         window.accessibility = bridge;
         Scene scene = new Scene(root);
         scene.bind(window);
+        // The window has the user's focus, which a real backend reports and a stub must say for
+        // itself: without it the tree is published by a window no client considers active.
+        scene.windowFocusChanged(true);
+        scene.inputBatchEnded();
 
         Canvas nothing = new NoCanvas();
         long end = System.nanoTime() + seconds * 1_000_000_000L;

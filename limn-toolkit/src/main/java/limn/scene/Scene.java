@@ -1956,6 +1956,13 @@ public final class Scene implements WindowInput {
                     }
                 } else if (raw instanceof RawFocus focus) {
                     windowFocused = focus.focused;
+                    // The window's own ACTIVE state moved, and nothing else on this path would
+                    // say so: the branch below invalidates only when focus is LOST, for the
+                    // pointer and key state it has to cancel. Without this the state changes and
+                    // no walk runs, so a client is told the window became active by an event and
+                    // finds a tree that still says it is not -- and a screen reader believes the
+                    // tree.
+                    invalidateAccessible();
                     if (accessibilityLive()) {
                         // Raised rather than diffed: each window is its own scene with its own
                         // tree, so no comparison within one window could ever produce it.

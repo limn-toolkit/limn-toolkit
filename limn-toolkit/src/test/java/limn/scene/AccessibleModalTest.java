@@ -120,4 +120,43 @@ class AccessibleModalTest extends AccessibleTestBase {
         assertFalse(tree().node(0).window().modal(),
                 "the owner is the one blocked, and it blocks nothing: " + describe(tree()));
     }
+
+    /**
+     * A window the user is in says so, because a client that cannot find an active window reads
+     * nothing at all.
+     *
+     * <p>The state is the answer to "which window is the user in" on every platform, and its
+     * absence is not a degradation: a screen reader given a perfect tree, correct names and a
+     * stream of focus events still announces nothing, because it resolves the event against an
+     * active window first and finds none. That is exactly what Orca did against this toolkit --
+     * "[frame] lacks active state", then "unable to find active window" -- and nothing headless
+     * could have shown it, which is why it is pinned here now.
+     */
+    @Test
+    void aWindowTheUserIsInPublishesActiveAndOneThatIsNotDoesNot() {
+        Group root = new Group();
+        root.add(stop("ok"));
+        bind(root);
+        frame();
+
+        assertFalse(tree().node(0).has(Accessible.State.ACTIVE),
+                "nothing has said the window has the focus yet" + describe(tree()));
+
+        scene.windowFocusChanged(true);
+        scene.inputBatchEnded();
+        frame();
+
+        assertTrue(tree().node(0).has(Accessible.State.ACTIVE),
+                "the window node, and not the control inside it" + describe(tree()));
+        assertFalse(node("ok").has(Accessible.State.ACTIVE),
+                "ACTIVE on a control means the container's active descendant, which is a "
+                        + "different fact and must not be confused with this one" + describe(tree()));
+
+        scene.windowFocusChanged(false);
+        scene.inputBatchEnded();
+        frame();
+
+        assertFalse(tree().node(0).has(Accessible.State.ACTIVE),
+                "and it goes when the window does" + describe(tree()));
+    }
 }

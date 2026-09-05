@@ -125,6 +125,15 @@ final class AccessibleWalk {
             builder.window(window.isModal(), true, true,
                     limn.accessibility.WindowFacet.State.NORMAL);
         }
+        if (scene.isWindowFocused()) {
+            // ACTIVE on the window is how every platform answers "which window is the user in",
+            // and without it a client that finds a perfect tree still has nothing to read from:
+            // Orca says so in as many words -- "[frame] lacks active state", then "unable to find
+            // active window" -- and then suppresses every announcement for the application,
+            // events and all. The tree was right and the reader was silent, which is the failure
+            // this record exists to prevent and the one nothing headless can see.
+            builder.state(Accessible.State.ACTIVE);
+        }
         builder.inherited(true, true, true, false, false);
 
         Widget top = scene.topOverlay();
