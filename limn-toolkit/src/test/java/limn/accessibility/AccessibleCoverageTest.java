@@ -55,7 +55,6 @@ class AccessibleCoverageTest {
      * the pipeline takes them in whatever order makes each one's own step cheapest to verify.
      */
     private static final Set<String> UNDESCRIBED = new TreeSet<>(Set.of(
-            "limn.components.ContextMenus$ContextRegion",
             "limn.components.ListView",
             "limn.components.MenuBar",
             "limn.components.PasswordField",

@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
@@ -157,6 +159,21 @@ public final class ContextMenus {
      * gestures. It is not focusable: giving it focus would put a Tab stop around content
      * that may already have several, and the keyboard route works from the content's own
      * focus by bubbling.
+     *
+     * <p><b>It is a node, and the child it wraps is not annotated.</b> ADR 039 §7's row asks for
+     * the opposite — the wrapper deleted as scaffolding, with the state and the verb written onto
+     * the child through {@code onAccessibilityChild} — and that is unimplementable rather than
+     * merely different. The walk records the <em>owner</em> of every node as the widget the node
+     * came from, and the scene dispatches an action strictly to that owner with no fallback to a
+     * parent, so a verb the region wrote onto its child would be dispatched to the child: an
+     * arbitrary application widget whose action hook is {@code Widget}'s and answers false. That
+     * publishes a context menu refused on all three platforms rather than one absent, which is
+     * worse than saying nothing. Nor would the row save a node: writing a state and a verb onto a
+     * {@code Column} or a {@code Padding} makes that scaffold survive §1.6's predicate, so the
+     * node appears anyway, one level deeper, carrying a verb nothing can perform. The row's own
+     * true sentence — that the region lays out to exactly its content's box — is the argument for
+     * this shape: the two rectangles are the same rectangle, and only one of the two nodes can
+     * open the menu.
      */
     private static final class ContextRegion extends Widget {
 
@@ -193,6 +210,90 @@ public final class ContextMenus {
                 event.consume();
                 showForFocus(this, source.get());
             }
+        }
+
+        /**
+         * One group over the content's rectangle, saying that asking here may open a menu, and
+         * offering the ask.
+         *
+         * <p>No role of its own: {@code GROUP} is what the builder resets to, and what keeps this
+         * node out of §1.6's deletion is the state and the verb rather than a role, so declaring
+         * one would say nothing the default does not. No name either, and that is a decision. The
+         * region holds no {@code I18nString}, derives nothing, and must not borrow the content's,
+         * which already names its own node. Three things still name it, all of them after this
+         * hook and all of them free: {@code setAccessibleName} on the widget {@link #attach}
+         * returned, a caption bound to it with {@code setAccessibleLabelledBy}, and a tooltip on
+         * that same widget, which the walk takes as a name when nothing else supplied one. The
+         * wrapper is what {@code attach} hands back, so that hatch is public and per instance, and
+         * it is the answer to a reader landing on an unnamed group.
+         *
+         * <p><b>{@link Accessible.State#HAS_POPUP} unconditionally, and never "if the supplier
+         * would answer a menu".</b> The supplier is an application callback that <em>builds</em> a
+         * {@code Menu}, and this class's whole contract is that it is asked at the moment of the
+         * gesture; asking it from here would run application code inside the publish step and
+         * allocate a menu on every damaged frame, to conclude that nothing had moved. It is the
+         * same answer {@code ColorPickerButton} gives for the same state. The honest reading of
+         * the unconditional bit is "asking at this rectangle may open a menu", which is exactly
+         * what the pointer route already promises: a right-click where the supplier answers
+         * {@code null} opens nothing.
+         *
+         * <p>Nothing published here can change — both facts are constants of the class, and the
+         * box moves only through a layout that republishes anyway — so the region invalidates
+         * nothing, caches no string and needs no revision counter, and a quiet frame over an
+         * attached region compares two primitives.
+         *
+         * @param a the node being described
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.state(Accessible.State.HAS_POPUP);
+            // The single-argument form; the variable-argument one allocates an array per call.
+            // Nothing else: FOCUS and SCROLL_INTO_VIEW are the walk's, and only for a focusable
+            // widget, which this deliberately is not.
+            a.action(Accessible.Action.SHOW_MENU);
+        }
+
+        /**
+         * Raises the region's own menu, from the region's own lower leading corner.
+         *
+         * <p>The supplier is asked exactly once and the menu it answered is the one handed over,
+         * so a request from an assistive technology costs the application the same single call a
+         * right-click costs it. An empty or absent menu is the documented "not here", and the
+         * boolean says so rather than reporting an operation that opened nothing.
+         *
+         * <p><b>Not {@code showForFocus}.</b> The keyboard route may anchor on whatever holds
+         * focus because a {@code KeyEvent} reaches this region only by bubbling out of a focusable
+         * widget inside it. A verb carries no such guarantee: it is addressed to <em>this</em>
+         * node, and taking the focused widget instead would drop the menu at a corner of something
+         * unrelated and — worse — hand {@code PopupMenu} that widget as its host, which is what
+         * the walk turns into the popup's {@code POPUP_FOR} and the opener's
+         * {@code CONTROLLER_FOR}. Anchoring on this widget puts that pair on the very node that
+         * declared {@link Accessible.State#HAS_POPUP}, so a reader can get from the group to the
+         * menu it just opened. The corner is {@code showForFocus}'s own rule applied to this node:
+         * the bottom left reading left to right, the bottom right reading right to left, in this
+         * widget's own coordinates, which is what {@link #showAt} documents its point to be.
+         *
+         * <p>No enabled check of its own. The node acted on is this widget, so the scene's gate
+         * has already walked it and every ancestor for enabled, checked that it is showing, that
+         * the window is not modal-blocked and that it is inside the layer that owns input.
+         *
+         * @param action what is being asked
+         * @param arg    unread; this verb takes none
+         * @return whether a menu was opened
+         */
+        @Override
+        protected boolean onAccessibilityAction(Accessible.Action action,
+                                                Accessible.Argument arg) {
+            if (action != Accessible.Action.SHOW_MENU) {
+                return false;
+            }
+            Menu menu = source.get();
+            if (menu == null || menu.items().isEmpty()) {
+                return false;
+            }
+            boolean rtl = layoutDirection() == LayoutDirection.RTL;
+            showAt(this, menu, rtl ? width() : 0, height());
+            return true;
         }
     }
 }
