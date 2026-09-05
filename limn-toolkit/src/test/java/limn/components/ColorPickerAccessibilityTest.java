@@ -53,10 +53,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * raised only when a number moves, so it would cost a formatted string per drag step and reach
  * nobody.
  *
- * <p>Two things here are transitional and say so where they are asserted: the channel rails, the
- * steppers and the hex field have no role of their own yet, so they publish {@code UNKNOWN} while
- * they are focusable and {@code GROUP} while they are not &mdash; the alpha rail is the one that
- * has taken its step, and publishes {@code SLIDER} &mdash;
+ * <p>Two things here are transitional and say so where they are asserted: the steppers and the hex
+ * field have no role of their own yet, so they publish {@code UNKNOWN} while they are focusable and
+ * {@code GROUP} while they are not &mdash; the rails are the ones that have taken their step, and
+ * publish {@code SLIDER} &mdash;
  * and the saturation/value field, the hue ramp and
  * the swatch declare nothing and are deleted by the predicate. Each takes its own step. Nothing
  * asserted below depends on which role those nodes end up with; they are found by the names this

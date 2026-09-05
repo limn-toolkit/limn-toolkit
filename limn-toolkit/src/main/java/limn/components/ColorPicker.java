@@ -782,6 +782,132 @@ public final class ColorPicker extends Widget {
                             channel == 3 ? t : (float) (fields.get(3).value() / 100.0), 1f);
                 };
             }
+
+            /**
+             * What a channel rail is to an assistive technology: one
+             * {@link Accessible.Role#SLIDER} node, horizontal because the class has one axis,
+             * carrying a writable value facet <b>in the units of the stepper beside it</b> and
+             * offering {@link Accessible.Action#INCREMENT} and
+             * {@link Accessible.Action#DECREMENT}.
+             *
+             * <p><b>The numbers are the spinner's and not the rail's, and that is the whole of
+             * the choice here.</b> {@link #fraction} is a paint coordinate in {@code [0,1]}:
+             * publishing it would tell a reader "0.2 of 0 to 1" while the number next to it on
+             * screen says 51, and would report a resolution no gesture on this rail can produce.
+             * The minimum and the maximum are read off the spinner rather than re-derived from
+             * the format, so the facet and the object that actually clamps a set cannot drift:
+             * they are 0 to 255 in RGB, 0 to 360 for hue and 0 to 100 for everything else, and
+             * they move under the reader when the notation tab does. The step is one because
+             * {@link #moveTo} rounds every gesture, a drag included, onto the whole numbers the
+             * stepper counts in &mdash; and it is that rounding rather than the spinner's own step
+             * field, which this widget turns off with {@code setSnapToStep(false)} so that the
+             * model can own the value.
+             *
+             * <p>No value text, and therefore no cache and no witness. The number is the whole of
+             * what this control says: the stepper shows a bare integer with no unit, and the
+             * differing units of the channels &mdash; degrees, percent, one of 255 &mdash; are
+             * carried by the maximum, which is what a platform computing a percentage reads. A
+             * {@code "210°"} built here would have no source to compare against and would cost one
+             * string per damaged frame spent concluding that nothing moved. The facet is writable,
+             * so {@link Accessible.Action#SET_VALUE} is advertised by its presence and never
+             * appears in the action list.
+             *
+             * <p>No name either, for {@link AlphaRail}'s reason: the letter beside the rail is the
+             * only place this channel is named and it is not a string this widget holds, so the
+             * constructor points that caption at this rail with {@code Label#setLabelFor} and the
+             * walk writes both the {@link Accessible.NameFrom#LABEL} name and the relation, by
+             * reference and under the subtree's language. A name declared here would be overwritten
+             * by that link in any case, since the overrides are applied after this hook.
+             *
+             * <p><b>All ten of these nodes are published at every moment, and seven of them are
+             * not on screen.</b> The pane keeps every panel and lays out only the selected one, so
+             * the tree carries R, G, B, H, S, V, C, M, Y and K together and the walk withholds
+             * {@code VISIBLE}, {@code SHOWING} and {@code FOCUSABLE} from the ones whose notation
+             * is not selected. Describing a rail only while its tab is selected would destroy and
+             * rebuild seven nodes on every tab click; leaving them in place costs a reader nothing,
+             * because a hidden group's numbers are refreshed the moment its tab is chosen and
+             * §1.9's gate refuses every verb on a node that is not showing. Neither the focus fade,
+             * the drag flag nor the layout direction is read here: the fade damages this widget on
+             * every frame it runs for, and a hook that published any of them would make the
+             * difference find a change on each of those frames.
+             *
+             * @param a the node being described
+             */
+            @Override
+            protected void onAccessibility(Accessibility a) {
+                Spinner spinner = fields.get(channel);
+                a.role(Accessible.Role.SLIDER);
+                a.state(Accessible.State.HORIZONTAL);
+                a.value(spinner.value(), spinner.min(), spinner.max(), 1);
+                a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+            }
+
+            /**
+             * Performs a change an assistive technology asked for through {@link #moveTo}, which
+             * is the one mutator the pointer and the keyboard also reach: it rounds onto the
+             * stepper's own grid and calls {@code write()}, which adopts the row under each
+             * model's rules &mdash; HSV keeping its three numbers, CMYK its whole separation
+             * &mdash; and fires {@link ColorPicker#onChange}. So no notation is special-cased
+             * here, and a reader's edit tells the application exactly what a drag tells it. Never
+             * through the spinner's own setter, which is silent and would leave the application
+             * never told that the user chose.
+             *
+             * <p>The two steps move by {@link #unitFraction}, one of whatever the number beside the
+             * rail counts in, which is what the Up and Down arms of the key handler move by
+             * &mdash; the two that do <em>not</em> mirror. This rail reflects its sweep, its thumb,
+             * its press inversion and its Left and Right arms when the layout reads right to left;
+             * an increment is a direction of the value and not a side of the rail, so it raises the
+             * channel in both.
+             *
+             * <p>{@code SET_VALUE} arrives <b>in the domain that was published</b> and is turned
+             * back into a fraction of the spinner's own range before the clamp, so it lands on the
+             * integer grid a drag lands on and the rail and the number beside it cannot end up
+             * disagreeing. A value that is not a finite number is refused before any of that,
+             * because {@link #clamp01} passes {@code NaN} straight through.
+             *
+             * <p>The commit fires after every handled verb, moved or not, as {@code Slider}'s hook
+             * does and for the same reason: a request from a reader is a whole gesture with no
+             * release to follow, and a step at the end of the range is a user choosing the value
+             * already held. It is deliberately more than this widget's own keyboard does &mdash;
+             * only a pointer release commits here &mdash; because that gap is a pre-existing
+             * question about the rail's arrows rather than one for the tree.
+             *
+             * <p>Every verb is refused while this widget is disabled; the scene has already
+             * re-checked the ancestors, the showing bit and modality before the call arrives, and
+             * this guard is the one {@link Rail#onKeyEvent} keeps for itself.
+             *
+             * @param action what was asked
+             * @param arg    the channel's own number for {@code SET_VALUE}; ignored by the two
+             *               steps
+             * @return whether the request ran, which at the ends of the range can be a commit of
+             *         the value already held
+             */
+            @Override
+            protected boolean onAccessibilityAction(Accessible.Action action,
+                                                    Accessible.Argument arg) {
+                if (!isEnabled()) {
+                    return false;
+                }
+                switch (action) {
+                    case INCREMENT -> moveTo(clamp01(fraction() + unitFraction()));
+                    case DECREMENT -> moveTo(clamp01(fraction() - unitFraction()));
+                    case SET_VALUE -> {
+                        if (!(arg instanceof Accessible.Argument.OfValue of)
+                                || !Double.isFinite(of.value())) {
+                            return false;
+                        }
+                        Spinner spinner = fields.get(channel);
+                        double span = spinner.max() - spinner.min();
+                        moveTo(span <= 0 ? 0
+                                : clamp01((float) ((of.value() - spinner.min()) / span)));
+                    }
+                    default -> {
+                        return false;
+                    }
+                }
+                onCommit.accept(color());
+                return true;
+            }
         }
 
         /** Shows {@code color} in this model. */
