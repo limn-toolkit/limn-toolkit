@@ -100,9 +100,8 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
      * pass whatever the pane said about itself. Checked after each, whichever case runs first is
      * the one that catches a lost {@code paintsDecoration}.
      *
-     * <p>It looks for this class and not for any record at all, because the pane's three overflow
-     * controls paint chevrons, declare nothing and are still undescribed, so they warn today and
-     * their own step is where that ends.
+     * <p>It looks for this class and not for any record at all, because a case here may bind a
+     * widget of somebody else's whose own warning is that widget's business.
      */
     @AfterEach
     void theToolkitsPaneIsNeverNamedInAnApplicationsLog() {
@@ -241,11 +240,11 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
             assertTrue(node.role() != Accessible.Role.GROUP || !node.name().isEmpty(),
                     "a nameless group survived the predicate" + describe(tree));
         }
-        assertEquals(9, tree.nodeCount(),
-                "the window, the container, the tab list, three tabs and three panels. The pane is "
-                        + "not among them, and neither are its three overflow controls, which "
-                        + "declare nothing and are not visible while everything fits"
-                        + describe(tree));
+        assertEquals(12, tree.nodeCount(),
+                "the window, the container, the tab list, three tabs, three overflow controls and "
+                        + "three panels. The pane is not among them; its three controls are, and "
+                        + "they publish while everything fits as three buttons that are not "
+                        + "visible" + describe(tree));
 
         int container = tree.indexOf(node("Settings").id());
         assertEquals(container, nodeOf(Accessible.Role.TAB_LIST, "").parent(),
@@ -400,8 +399,8 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
      * that answered equal to each other would be named after one another's tabs.
      *
      * <p>Six tabs in a four-hundred-point pane, so the three overflow controls are laid out and
-     * visible rather than being skipped as invisible; they still publish nothing, because they
-     * declare nothing of their own and this hook declines to speak for them.
+     * visible rather than being skipped as invisible. They publish the buttons their own step
+     * gave them and nothing this hook said: it declines to speak for anything that is not a page.
      */
     @Test
     void theStripAndItsControlsAreNotPanels() {
@@ -416,11 +415,11 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of(), nodeOf(Accessible.Role.TAB_LIST, "").relations(),
                 "the strip is not a tab's panel and takes neither the role nor the link"
                         + describe(tree()));
-        assertEquals(15, tree().nodeCount(),
-                "the window, the container, the tab list, six tabs and six panels. The two "
-                        + "chevrons and the all-tabs button are laid out and on screen here and "
-                        + "are still not nodes, which is their own step's to change"
-                        + describe(tree()));
+        assertEquals(18, tree().nodeCount(),
+                "the window, the container, the tab list, six tabs, three overflow controls and "
+                        + "six panels. The two chevrons and the all-tabs button are nodes of their "
+                        + "own now, and they take neither the panel role nor the panel link from "
+                        + "this hook" + describe(tree()));
     }
 
     // ------------------------------------------------------------------------------ the edge

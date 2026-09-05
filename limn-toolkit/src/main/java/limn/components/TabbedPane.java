@@ -940,6 +940,16 @@ public class TabbedPane extends Widget {
         StripButton(Kind kind) {
             this.kind = kind;
             setCursor(Cursor.POINTER);
+            // The one string that is both the hover tooltip and, through the walk's free default,
+            // the accessible name: a control that paints a chevron and no text has nothing else to
+            // be called, and no application can reach a private inner class to name it. Safe here
+            // for the reason setCursor above is safe -- the same UI-thread check, and the
+            // invalidation it ends with does nothing while this widget has no scene.
+            setTooltip(switch (kind) {
+                case PREV -> ComponentStrings.TAB_PREVIOUS;
+                case NEXT -> ComponentStrings.TAB_NEXT;
+                case LIST -> ComponentStrings.TAB_LIST_ALL;
+            });
         }
 
         /** Whether this control reads right to left. Resolve it once per pass. */
@@ -991,6 +1001,111 @@ public class TabbedPane extends Widget {
                 case LIST -> {
                     canvas.drawLine(cx - s, cy - s / 2, cx, cy + s / 2, pen, ink);
                     canvas.drawLine(cx, cy + s / 2, cx + s, cy - s / 2, pen, ink);
+                }
+            }
+        }
+
+        /**
+         * One button, whichever of the three this is, named by the tooltip it now holds and
+         * offering the press its own click already performs.
+         *
+         * <p><b>Why it is a node at all</b>, which is the only hard question here and has three
+         * answers, each sufficient on its own. It paints: two lines and a hover pill, drawn from
+         * {@link #onPaint}, so the transparency predicate would delete a control that declared
+         * nothing and warn about it once per class — naming a toolkit class in an application's
+         * log and recommending the one flag that hides an operable control, which is the case the
+         * pane itself answers with {@code paintsDecoration} and this one cannot, because a chevron
+         * is not a rule. It is operable: a left click reaches {@code activate()}, and an operation
+         * is never deleted with the box that carried it. And the all-tabs button is where the
+         * menu it opens points back to: the popup names its opener through the inheritance host,
+         * and the walk writes that relation onto the first node it published at or above the host,
+         * so with this widget deleted the menu would announce as the popup of whatever container
+         * the deleted pane hoisted into.
+         *
+         * <p>No name is declared. The walk takes the tooltip when nothing else named the node,
+         * which is what the constructor's string is for, so declaring it again here would leave
+         * the walk to add the same string a second time as the description. No description
+         * either, for the same reason: the tooltip is spent on the name.
+         *
+         * <p>Only the all-tabs button says it has a popup, and it says so with a verb as well as
+         * a state. Both verbs reach the same {@code activate()}: one platform vends its invoke
+         * pattern from the press alone, and a node offering nothing but the menu verb would be
+         * unactuable there, while the other two carry a show-menu action of their own and the
+         * more precise word is worth publishing where it can be routed. This is not the pair a
+         * combo box refused — those were expand and collapse against a facet that already carried
+         * the activation, and there is no expanded bit here to carry: the menu is built, opened
+         * and forgotten in one call, so this widget could not answer whether it is still up. The
+         * fact a reader needs arrives anyway, as the surface's own node pointing back at this one.
+         *
+         * <p>Nothing is conditional on overflow, though all three controls are laid out and made
+         * visible only while the strip overflows. A pane that fits publishes three buttons that
+         * are neither visible nor showing — free, from the inherited bits — and a stale box, which
+         * is harmless for the same reason an unselected panel's is. Making the role and the verb
+         * appear with the overflow instead would raise a structure change and three destroyed
+         * nodes every time a resize crossed the fitting point, for a change that is not
+         * structural.
+         *
+         * <p>Nor is the box: the walk's free rectangle is the one the pane laid out, which is a
+         * square of {@code min(stripHeight, width/6)} and <em>not</em> the {@code stripHeight}
+         * square {@link #onMeasure} answers — the two disagree on every pane narrower than six
+         * strip heights, which is exactly the pane these controls were shrunk for. The pane
+         * mirrors those boxes itself, so nothing here reads a layout direction.
+         *
+         * <p>No relation, and no state beyond the popup bit. The opener pair is the walk's, written
+         * from the host link the popup already sets, and declaring the mirror here would put two
+         * of the same relation on this node.
+         *
+         * @param a the node being described
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.BUTTON);
+            if (kind == Kind.LIST) {
+                a.state(Accessible.State.HAS_POPUP);
+                a.action(Accessible.Action.PRESS, Accessible.Action.SHOW_MENU);
+            } else {
+                a.action(Accessible.Action.PRESS);
+            }
+        }
+
+        /**
+         * Runs the click this control already has, through the same private path the left button
+         * reaches, so that a reader's press scrolls the strip by the same three quarters of a
+         * viewport, or opens the same menu anchored on this button rather than on the scene.
+         *
+         * <p>The menu verb is the all-tabs button's alone and is refused on the two chevrons,
+         * which is what the two are doing in one hook: only one of the three has a menu, and a
+         * platform that routes its show-menu action to a chevron has asked for something that
+         * control does not have.
+         *
+         * <p>There is no enabled guard, and none is needed. The scene walks this widget and every
+         * ancestor for the enabled flag and refuses an owner that is not showing before the hook
+         * is called, which is the sibling tab header's reason unchanged; a chevron at the end of
+         * its travel is published disabled by the layout that put it there, and the gate then
+         * refuses its press. Below even that, scrolling declines a strip that does not overflow
+         * and a clamp that yields no movement, and the tab list declines a pane with no scene and
+         * no tabs, so a press that somehow arrived late is inert rather than wrong.
+         *
+         * @param action what was asked
+         * @param arg    ignored; neither verb carries one
+         * @return whether it ran
+         */
+        @Override
+        protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+            switch (action) {
+                case PRESS -> {
+                    activate();
+                    return true;
+                }
+                case SHOW_MENU -> {
+                    if (kind != Kind.LIST) {
+                        return false;
+                    }
+                    activate();
+                    return true;
+                }
+                default -> {
+                    return false;
                 }
             }
         }

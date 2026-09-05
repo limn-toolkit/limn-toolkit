@@ -65,7 +65,6 @@ class AccessibleCoverageTest {
             "limn.components.SearchField",
             "limn.components.SegmentedControl",
             "limn.components.Spinner",
-            "limn.components.TabbedPane$StripButton",
             "limn.components.TextArea",
             "limn.components.TextField",
             "limn.components.VideoView",

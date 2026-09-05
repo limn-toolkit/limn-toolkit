@@ -264,11 +264,13 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(id, translated.id(), "the same tab, spoken in another language"
                 + describe(tree()));
         assertEquals(BRAZILIAN, translated.locale(), describe(tree()));
-        assertEquals(2, bridge.countOf(AccessibleEvent.Type.NAME_CHANGED),
+        assertEquals(5, bridge.countOf(AccessibleEvent.Type.NAME_CHANGED),
                 "the name is the held caption re-resolved under the subtree's language, which a "
-                        + "string the hook resolved and cached could not be — and twice, because "
-                        + "the tab's page is named from the same caption and by reference too, so "
-                        + "the page a reader is standing in is renamed with the tab it belongs to: "
+                        + "string the hook resolved and cached could not be — twice for the "
+                        + "caption, because the tab's page is named from the same string and by "
+                        + "reference too, so the page a reader is standing in is renamed with the "
+                        + "tab it belongs to, and once for each of the three overflow controls, "
+                        + "whose names are toolkit strings that follow a language the same way: "
                         + bridge.events);
     }
 

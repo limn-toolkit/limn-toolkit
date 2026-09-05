@@ -64,6 +64,23 @@ final class ComponentStrings {
     static final I18nString COMBO_POPUP =
             new I18nString("limn.comboBox.popup", "Options");
 
+    // The tabbed pane's three overflow controls, for the divider's reason: each paints a chevron
+    // and no text, none has a tooltip of its own, and all three are instances of a private inner
+    // class no application can reach to name. They are the tooltip a sighted user hovers and the
+    // name a screen reader reads, from one string.
+    //
+    // They name a position in the TAB ORDER and never a screen side. The chevrons are turned
+    // around right to left and the pane puts the previous-tabs control on the edge reading starts
+    // from, so "scroll left" would be true where it was written and false in half the world.
+    static final I18nString TAB_PREVIOUS =
+            new I18nString("limn.tabbedPane.previousTabs", "Previous tabs");
+
+    static final I18nString TAB_NEXT =
+            new I18nString("limn.tabbedPane.nextTabs", "Next tabs");
+
+    static final I18nString TAB_LIST_ALL =
+            new I18nString("limn.tabbedPane.allTabs", "All tabs");
+
     // The dialog a ColorPickerButton raises. Here rather than in ColorPickerStrings
     // because two of the three are the words every dialog in every application uses,
     // and this is the first place the toolkit itself has had to supply them: a Dialog

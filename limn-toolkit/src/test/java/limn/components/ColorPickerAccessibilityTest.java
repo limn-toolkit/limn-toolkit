@@ -295,6 +295,9 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         "LABEL \"#\"",
                         "UNKNOWN \"Hex\"",
                         "TAB_LIST \"\"",
+                        "BUTTON \"Previous tabs\"",
+                        "BUTTON \"Next tabs\"",
+                        "BUTTON \"All tabs\"",
                         "TAB_PANEL \"RGB\"",
                         "TAB_PANEL \"HSV\"",
                         "TAB_PANEL \"CMYK\"",
@@ -311,8 +314,10 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         + "is the first thing in the identity row. What each says is pinned by "
                         + "limn.components.ColorPickerSaturationValueFieldAccessibilityTest, "
                         + "limn.components.ColorPickerHueRampAccessibilityTest and "
-                        + "limn.components.ColorPickerPreviewAccessibilityTest. The hex field's "
-                        + "UNKNOWN is what is transitional here" + describe(tree()));
+                        + "limn.components.ColorPickerPreviewAccessibilityTest. The notation tabs "
+                        + "bring their pane's three overflow controls with them, which publish "
+                        + "whether or not the strip overflows and are not on screen while it fits. "
+                        + "The hex field's UNKNOWN is what is transitional here" + describe(tree()));
 
         for (int i = 0; i < tree().nodeCount(); i++) {
             AccessibleNode node = tree().node(i);
