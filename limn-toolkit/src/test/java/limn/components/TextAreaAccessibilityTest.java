@@ -1030,4 +1030,43 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
                         + "user's own arrow run was on -- and under soft wrap that is a caret "
                         + "that jumps sideways for no reason the user can see" + describe(tree()));
     }
+
+    /**
+     * A standing scroll offset is re-clamped when the content shrinks under it, so the published
+     * percentage stays inside the nought-to-one the facet promises.
+     *
+     * <p>{@code clampScroll} is reached from a wheel, a drag, a reveal and the two bar models, and
+     * from none of them when a LAYOUT shrinks the extent. Turning soft wrap off on an area scrolled
+     * to the bottom is the shipped case — the demo's own switch does exactly this — and it left an
+     * offset larger than the new maximum: the facet published a vertical percentage above one, to a
+     * client whose platform specifies nought to a hundred, and the scroll bar painted its thumb
+     * past the end of its own track.
+     */
+    @Test
+    void anOffsetLeftOverFromATallerDocumentIsClampedRatherThanPublishedPastTheEnd() {
+        TextArea wrapped = new TextArea();
+        StringBuilder document = new StringBuilder();
+        for (int line = 0; line < 12; line++) {
+            document.append("a line long enough to wrap several times when the column is narrow ")
+                    .append(line).append('\n');
+        }
+        wrapped.setText(document.toString());
+        wrapped.setSoftWrap(true);
+        bindArea(wrapped);
+        area.scrollBy(0, 100000);
+        frame();
+
+        ScrollFacet before = areaNode().scroll();
+        assertTrue(before.verticalPercent() <= 1.0 + 1e-6,
+                "the fixture must start inside the range: " + before + describe(tree()));
+
+        area.setSoftWrap(false);
+        frame();
+
+        ScrollFacet after = areaNode().scroll();
+        assertTrue(after.verticalPercent() >= 0 && after.verticalPercent() <= 1.0 + 1e-6,
+                "unwrapped the document is shorter, so the offset it was holding is past the new "
+                        + "end; the facet documents nought to one and a bridge hands it to a "
+                        + "pattern specified nought to a hundred: " + after + describe(tree()));
+    }
 }

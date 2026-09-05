@@ -128,7 +128,16 @@ public final class MenuBar extends Widget {
         entries.add(new Entry(Objects.requireNonNull(title, "title"),
                 Objects.requireNonNull(menu, "menu"),
                 letter,
-                letter == 0 ? null : new Accelerator(letter, Keys.MOD_ALT).display()));
+                // Only where the chord can be SAID. addMenu takes "a letter or a digit" through
+                // Character.isLetterOrDigit, which admits every script, and Accelerator names a
+                // code outside printable ASCII as "Key<code>": a Cyrillic mnemonic published
+                // Alt+Key1060 to a reader, which is unreadable and also a chord that can never
+                // fire, since nothing produces that code and both key routes compare against
+                // Keys constants. A binding withheld is an absence; one like that is a lie with
+                // a keystroke attached. The underline the ink draws promises the same dead chord
+                // and is addMenu's own bug, older than this and not fixed here.
+                letter > 32 && letter < 127
+                        ? new Accelerator(letter, Keys.MOD_ALT).display() : null));
         markNeedsLayout();
         return this;
     }

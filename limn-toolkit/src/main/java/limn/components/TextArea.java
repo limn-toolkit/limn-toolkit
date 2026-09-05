@@ -693,6 +693,15 @@ public class TextArea extends Widget {
         vBar.layoutBox(rtl ? 0 : width() - t, 0, t, vLen);
         hBar.measure(Constraints.tight(hLen, t));
         hBar.layoutBox(rtl ? width() - hLen : 0, height() - t, hLen, t);
+        // Last, because the extent is only known once the strips are settled, and because nothing
+        // else on a layout does it: clampScroll is reached from a wheel, a drag, a reveal and the
+        // two bar models, and from none of them when the CONTENT shrinks under a standing offset.
+        // Turning soft wrap off on an area scrolled to the bottom is the shipped case -- the
+        // demo's own switch does it -- and it leaves an offset larger than the new maximum, which
+        // paints a thumb past the end of its track and publishes a scroll percentage above one to
+        // a client that is promised nought to one. setSoftWrap's own javadoc already claimed this
+        // re-clamp happened.
+        clampScroll(tokens);
     }
 
     // ---------------------------------------------------- cursor geometry

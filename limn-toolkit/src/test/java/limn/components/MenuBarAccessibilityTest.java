@@ -542,4 +542,35 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
                 .map(AccessibleNode::name)
                 .toList();
     }
+
+    /**
+     * A mnemonic this toolkit cannot spell publishes no key binding at all.
+     *
+     * <p>{@code addMenu} takes "a letter or a digit" through {@code Character.isLetterOrDigit},
+     * which admits every script, and {@code Accelerator} names a code outside printable ASCII as
+     * {@code "Key<code>"}. So a Cyrillic access letter published {@code Alt+Key1060} — unreadable,
+     * and a chord that can never fire either, because both key routes compare against
+     * {@code Keys} constants and nothing produces that code. A binding withheld is an absence a
+     * reader can live with; one like that is a lie with a keystroke attached.
+     */
+    @Test
+    void aMnemonicThisToolkitCannotSpellPublishesNoBindingRatherThanAWrongOne() {
+        bindBar(new MenuBar()
+                .setDisplayMode(DisplayMode.IN_SCENE)
+                .addMenu("File", 'F', new Menu().addItem("New", () -> { }))
+                .addMenu("Файл", 'ф', new Menu().addItem("Создать", () -> { })), new StubWindow());
+
+        List<AccessibleNode> titles = titles();
+        assertEquals(2, titles.size(), describe(tree()));
+        String ascii = titles.get(0).actions().keyBinding();
+        assertNotNull(ascii, "printable ASCII is nameable, and that one is published"
+                + describe(tree()));
+        // The modifier's spelling is the host platform's -- Alt+F on Windows and Linux, the option
+        // glyph on macOS -- so what is asserted is the letter and the fact that it was published,
+        // not a rendering this test would then only prove on the machine it ran on.
+        assertTrue(ascii.endsWith("F"), ascii + describe(tree()));
+        assertNull(titles.get(1).actions().keyBinding(),
+                "and the one that would have read Alt+Key1060 says nothing instead"
+                        + describe(tree()));
+    }
 }
