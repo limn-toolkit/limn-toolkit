@@ -328,6 +328,50 @@ class ScrollViewAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(2, countOf(tree(), Accessible.Role.SCROLL_BAR), describe(tree()));
     }
 
+    /**
+     * A descendant lying wholly inside a reserved gutter is never painted -- the content is clipped
+     * to the viewport and the bars to the box -- so it is not on screen, however inside the pane's
+     * box it is. The showing test clips against each ancestor's box unless the ancestor says
+     * otherwise, and until the pane said so, such a child was published SHOWING in the very
+     * rectangle its own scroll bar occupies.
+     */
+    @Test
+    void aDescendantInsideAReservedGutterIsNotShowing() {
+        float t = ScrollBar.thickness();
+        Box before = new Box(100 - t + 1, 20);
+        before.setAccessibleName("Before");
+        Box inStrip = new Box(t - 2, 20);
+        inStrip.setAccessibleName("In the strip");
+        limn.scene.layout.Row row = new limn.scene.layout.Row();
+        row.add(before);
+        row.add(inStrip);
+        Column content = new Column();
+        content.add(row);
+        content.add(new Box(200, 400));
+        ScrollView pane = new ScrollView(content, true, true)
+                .setBarLayout(ScrollGutters.Layout.RESERVED);
+        bindIn(100, 100, pane);
+
+        AccessibleNode strip = node("In the strip");
+        assertTrue(strip.x() >= pane.localToSceneX() + 100 - t
+                        && strip.x() + strip.width() <= pane.localToSceneX() + 100,
+                "the fixture put it wholly in the vertical bar's strip" + describe(tree()));
+        assertTrue(strip.has(Accessible.State.VISIBLE), "nothing hid it" + describe(tree()));
+        assertFalse(strip.has(Accessible.State.SHOWING),
+                "behind the bar's strip and never painted" + describe(tree()));
+        assertTrue(node("Before").has(Accessible.State.SHOWING),
+                "its neighbour, inside the viewport, is" + describe(tree()));
+        int bars = 0;
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            if (tree().node(i).role() == Accessible.Role.SCROLL_BAR) {
+                bars++;
+                assertTrue(tree().node(i).has(Accessible.State.SHOWING),
+                        "the bars are clipped to the box, not the viewport" + describe(tree()));
+            }
+        }
+        assertEquals(2, bars, describe(tree()));
+    }
+
     // --------------------------------------------------------------------------------- the clip
 
     @Test

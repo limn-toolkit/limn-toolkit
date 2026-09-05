@@ -470,17 +470,21 @@ public abstract class Widget {
         if (scene == null) {
             return false;
         }
-        // Clip walk: intersect these bounds with every clipping ancestor's box.
+        // Clip walk: intersect these bounds with every clipping ancestor's clip rectangle, which
+        // is its box unless it says otherwise for the child the walk came up through.
         float x0 = 0;
         float y0 = 0;
         float x1 = width;
         float y1 = height;
-        for (Widget node = this; node != null; node = node.parent) {
+        Widget below = null;
+        for (Widget node = this; node != null; below = node, node = node.parent) {
             if (node != this && node.clipsChildren()) {
-                x0 = Math.max(x0, 0);
-                y0 = Math.max(y0, 0);
-                x1 = Math.min(x1, node.width);
-                y1 = Math.min(y1, node.height);
+                float cx = node.clipX(below);
+                float cy = node.clipY(below);
+                x0 = Math.max(x0, cx);
+                y0 = Math.max(y0, cy);
+                x1 = Math.min(x1, cx + node.clipWidth(below));
+                y1 = Math.min(y1, cy + node.clipHeight(below));
                 if (x1 <= x0 || y1 <= y0) {
                     return false; // fully clipped away
                 }
@@ -1398,10 +1402,60 @@ public abstract class Widget {
      * bounds (scroll views, list viewports, tab strips). Partial rendering
      * uses it to clamp a descendant's {@link #invalidate()} damage to the
      * visible region; a widget scrolled out of view damages nothing. Any
-     * override that clips in {@code paintChildren} should also override this.
+     * override that clips in {@code paintChildren} should also override this, and one whose clip
+     * is smaller than its box for some child should override the four clip accessors below too.
      */
     protected boolean clipsChildren() {
         return false;
+    }
+
+    /**
+     * The left edge, in this widget's own coordinates, of the rectangle {@link #clipsChildren()}
+     * clips {@code child} to.
+     *
+     * <p>The whole box by default. A widget that paints one child inside an inset -- a scroll pane
+     * whose reserved gutters hold its bars, clipping the content to the viewport and the bars to
+     * the box -- answers per child, so that {@link #isShowing()} and the damage clamp agree with
+     * what it paints: until it did, a descendant lying wholly inside the gutter was published on
+     * screen in the very rectangle the bar occupies. Consulted only while {@code clipsChildren()}
+     * is true, and it must not allocate, because the showing test runs for every node of every
+     * accessible walk.
+     *
+     * @param child the direct child the clipped descendant is under
+     * @return the clip rectangle's left edge
+     */
+    protected float clipX(Widget child) {
+        return 0;
+    }
+
+    /**
+     * The top edge of the rectangle this widget clips {@code child} to; see {@link #clipX(Widget)}.
+     *
+     * @param child the direct child the clipped descendant is under
+     * @return the clip rectangle's top edge
+     */
+    protected float clipY(Widget child) {
+        return 0;
+    }
+
+    /**
+     * The width of the rectangle this widget clips {@code child} to; see {@link #clipX(Widget)}.
+     *
+     * @param child the direct child the clipped descendant is under
+     * @return the clip rectangle's width
+     */
+    protected float clipWidth(Widget child) {
+        return width;
+    }
+
+    /**
+     * The height of the rectangle this widget clips {@code child} to; see {@link #clipX(Widget)}.
+     *
+     * @param child the direct child the clipped descendant is under
+     * @return the clip rectangle's height
+     */
+    protected float clipHeight(Widget child) {
+        return height;
     }
 
     /**

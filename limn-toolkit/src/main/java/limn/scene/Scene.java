@@ -1107,16 +1107,20 @@ public final class Scene implements WindowInput {
         float y0 = y;
         float x1 = x + w;
         float y1 = y + h;
-        for (Widget node = widget; node != null; node = node.parent()) {
+        Widget below = null;
+        for (Widget node = widget; node != null; below = node, node = node.parent()) {
             if (!node.isVisible()) {
                 return; // hidden branch: it paints nothing, so no pixel changed
             }
             if (node != widget && node.clipsChildren()) {
-                // +1: the clip boundary itself antialiases within a pixel.
-                x0 = Math.max(x0, -1);
-                y0 = Math.max(y0, -1);
-                x1 = Math.min(x1, node.width() + 1);
-                y1 = Math.min(y1, node.height() + 1);
+                // The ancestor's clip for the child we came up through, which is its box unless it
+                // says otherwise. +1: the clip boundary itself antialiases within a pixel.
+                float cx = node.clipX(below);
+                float cy = node.clipY(below);
+                x0 = Math.max(x0, cx - 1);
+                y0 = Math.max(y0, cy - 1);
+                x1 = Math.min(x1, cx + node.clipWidth(below) + 1);
+                y1 = Math.min(y1, cy + node.clipHeight(below) + 1);
                 if (x1 <= x0 || y1 <= y0) {
                     return; // fully clipped away (scrolled out of view)
                 }

@@ -386,6 +386,25 @@ public class ScrollView extends Widget implements Scrollable {
         return true; // partial rendering: scrolled-out damage clamps to the viewport
     }
 
+    // The content is clipped to the viewport and the bars to the box, exactly as paintChildren
+    // does it, so that the showing test and the damage clamp agree with the paint. Under RESERVED
+    // the two rectangles differ by the gutter, and a descendant whose whole box lies in that strip
+    // is never painted; answering the box for it published it on screen under its own bar.
+    @Override
+    protected float clipX(Widget forChild) {
+        return forChild == child ? viewportLeft() : 0;
+    }
+
+    @Override
+    protected float clipWidth(Widget forChild) {
+        return forChild == child ? viewportWidth() : width();
+    }
+
+    @Override
+    protected float clipHeight(Widget forChild) {
+        return forChild == child ? viewportHeight() : height();
+    }
+
     @Override
     protected void paintChildren(Canvas canvas) {
         // The content is clipped to the viewport and the bars to the box: under
