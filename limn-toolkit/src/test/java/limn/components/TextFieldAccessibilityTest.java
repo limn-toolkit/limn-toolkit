@@ -608,6 +608,63 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
                 "a caret is a collapsed range; a real one is SET_SELECTION's verb");
     }
 
+    /**
+     * Both offset-carrying verbs are refused while an input method is composing, because the
+     * offsets a client is holding are not offsets into the string this widget would place them in.
+     *
+     * <p>The facet publishes the composed line -- the committed text with the preedit spliced in at
+     * the cursor -- and the model counts the committed buffer alone. The two agree up to the splice
+     * and diverge after it, and the shorter buffer's own bounds check passes for offsets the
+     * client meant differently: with "abcd", the cursor at 2 and "XY" composing, the client is
+     * handed "abXYcd" and a caret asked for 4 would land after "d" rather than before "c". Since
+     * the composed line is keyed on the cursor, the same call would then re-splice the preedit at
+     * the new position and the text under composition would visibly jump to the end.
+     */
+    @Test
+    void bothOffsetVerbsAreRefusedWhileAnInputMethodIsComposing() throws InterruptedException {
+        bindField();
+        field.setText("abcd");
+        scene.requestFocus(field);
+        field.model().setCursor(2, false);
+        frame();
+        scene.preeditChanged("XY", new int[] {2}, 0, 2);
+        scene.inputBatchEnded();
+        frame();
+
+        assertEquals("abXYcd", fieldNode().text().text(),
+                "the composed line is what a client is holding" + describe(tree()));
+
+        // The identifier resolves, so the action is accepted and posted; what it does is the
+        // widget's answer, and the widget's answer is no. Asserted as the neighbouring refusal
+        // case asserts it: by the effect, because that is where a wrong one would show.
+        perform(fieldNode().id(), Accessible.Action.SET_CARET,
+                new Accessible.Argument.OfRange(4, 4));
+        perform(fieldNode().id(), Accessible.Action.SET_SELECTION,
+                new Accessible.Argument.OfRange(0, 4));
+        frame();
+
+        assertEquals(2, field.model().cursor(),
+                "nothing moved: the committed buffer's own bounds check would have passed the "
+                        + "caret and placed it two characters from where it was asked for"
+                        + describe(tree()));
+        assertEquals(2, field.model().selectionStart(), describe(tree()));
+        assertEquals(2, field.model().selectionEnd(), describe(tree()));
+        assertEquals("abXYcd", fieldNode().text().text(),
+                "and the text under composition did not jump" + describe(tree()));
+
+        // Committed, the same verb is answered: the refusal is the composition's and not the
+        // widget's, and it lasts exactly as long as the composition does.
+        "XY".codePoints().forEach(scene::charTyped);
+        scene.inputBatchEnded();
+        frame();
+        perform(fieldNode().id(), Accessible.Action.SET_CARET,
+                new Accessible.Argument.OfRange(4, 4));
+        frame();
+        assertEquals(4, field.model().cursor(),
+                "the refusal is the composition's and not the widget's, and it lasted exactly as "
+                        + "long as the composition did" + describe(tree()));
+    }
+
     @Test
     void setSelectionSetsBothEndsAndRefusesOneOutOfRange() throws InterruptedException {
         bindField();

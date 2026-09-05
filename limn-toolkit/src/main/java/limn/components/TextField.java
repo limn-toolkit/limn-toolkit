@@ -1554,6 +1554,19 @@ public class TextField extends Widget {
      * bridge counting UTF-16 units can name a point inside a cluster.
      */
     private boolean placeCaret(int start, int end) {
+        if (!preedit.isEmpty()) {
+            // Refused outright while an IME composition is open, because the offsets a client is
+            // holding are not offsets into the string this widget would place them in. The facet
+            // publishes the COMPOSED line -- the committed text with the preedit spliced in at the
+            // cursor -- and the model counts the committed buffer alone; the two agree up to the
+            // splice and diverge after it. Placed anyway, a caret asked for one position past the
+            // preedit lands short by its length, silently, because the shorter buffer's own bounds
+            // check passes; and since the composed line is keyed on the cursor, the same call
+            // re-splices the preedit at the new position and the text under composition visibly
+            // jumps. A refusal a client can see beats either. The composition owns the caret until
+            // it commits, which is what every platform's input method contract already says.
+            return false;
+        }
         int length = model.length();
         if (start < 0 || start > length || end < 0 || end > length) {
             return false;
