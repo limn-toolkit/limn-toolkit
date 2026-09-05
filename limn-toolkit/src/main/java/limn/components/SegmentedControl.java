@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -94,6 +96,15 @@ public class SegmentedControl extends Widget {
 
     /** Fraction of the viewport scrolled per chevron click. */
     private static final float SCROLL_STEP_FRACTION = 0.75f;
+
+    /**
+     * The accessible key of the arrow that scrolls back, and of the one that scrolls on. Negative
+     * because the chevrons share one key space with the segments, whose keys are their indices;
+     * the magnitudes are the two arrows' own <b>logical</b> identities, offset off zero because a
+     * segment already owns it.
+     */
+    private static final long CHEVRON_BACK = -1;
+    private static final long CHEVRON_FORWARD = -2;
 
     private boolean overflowing;
     private float scrollOffset;
@@ -576,6 +587,202 @@ public class SegmentedControl extends Widget {
         float tail = cx - pointing * s / 2;
         canvas.drawLine(tail, cy - s, tip, cy, Strokes.ARROW_PEN, ink);
         canvas.drawLine(tip, cy, tail, cy + s, Strokes.ARROW_PEN, ink);
+    }
+
+    // ------------------------------------------------------------------- accessibility
+
+    /**
+     * What this strip is to an assistive technology: one horizontal
+     * {@link Accessible.Role#RADIO_GROUP} holding one {@link Accessible.Role#RADIO_BUTTON} per
+     * segment, plus the two scroll arrows while it overflows.
+     *
+     * <p>A radio group and not a tab list, for the reason this class's own documentation gives:
+     * it owns no content, it takes labels and hands back an index, so there is no page for a tab
+     * to select and "tab, 1 of 4" would offer navigation that leads nowhere. The selection facet
+     * is single and always satisfied, which is this control's documented invariant on both
+     * halves — the constructor refuses an empty segment list, and the selected index is never
+     * negative because there is nothing to clear to. The active descendant is not declared here
+     * and could not be: the publish step resolves it from the first node in this subtree that
+     * says it is active, which is the selected segment below.
+     *
+     * <p>The scroll facet is published on every frame rather than only while the strip overflows,
+     * so that resizing past the fitting point moves two numbers instead of making a whole facet
+     * appear and disappear. Every value is read from the fields the layout settled and from this
+     * widget's own maximum, so the facet cannot drift from the clamp that produced it, and it is
+     * derived from {@code overflowing} rather than from the arithmetic alone: that predicate
+     * carries the half-point slop below which every path here declines to scroll at all. The
+     * offset is a distance from the leading edge in both directions, so the percentage is
+     * published unflipped; the vertical pair is the axis's nothing-to-scroll answer.
+     *
+     * <p><b>Where the segment boxes come from, which is the whole difficulty of this widget.</b>
+     * A segment's box is neither the widget's box divided by the count nor a raw edge out of
+     * {@link #bounds}: the track takes only what the segments need and centres itself in whatever
+     * a stretching parent handed over, the viewport is inset by the two chevron gutters, the
+     * scroll offset is subtracted, and reading right to left a span is placed by its end.
+     * {@link #cellLeft(boolean, float, float)} folds all four together and is called here rather
+     * than re-derived, so the box a reader is given is the box a click lands in. Tree order stays
+     * the reading order in both directions; only the coordinates mirror.
+     *
+     * <p>The geometry is guarded and the children are not, because {@code bounds} is null until
+     * the first layout and that state reaches a published tree: a strip inside an invisible
+     * subtree is skipped by the layout and still walked, so an unguarded index would throw inside
+     * the publish step. What a reader is told there — how many segments there are and which one
+     * is selected — does not depend on a layout having run, and gaining the children on the first
+     * one would be a structure change for nothing.
+     *
+     * <p>The hover index is deliberately not published. It is a pointer affordance, and a fact
+     * derived from it would republish the whole tree on every mouse move; so are the indicator's
+     * slide, the focus fade and the segment it is resting on. Nothing here formats a string:
+     * every name is an {@link I18nString} this widget holds, handed over by reference, so a frame
+     * damaged by any of those compares equal and allocates nothing.
+     *
+     * <p>The group names itself with nothing. A radio group's name is the question it asks, which
+     * only the application has, and this is a public class an application reaches with
+     * {@code setAccessibleName}, a bound caption or a tooltip. Every segment carries a real name,
+     * so an unnamed group still announces its selection.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.RADIO_GROUP);
+        a.state(Accessible.State.HORIZONTAL);
+        a.selection(false, true);
+        // One resolution for the whole hook, beside the paint's and the hit test's and for the
+        // same reason they give: two resolutions that disagreed inside one pass would describe a
+        // segment at its neighbour's rectangle.
+        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        float content = bounds == null ? 0 : bounds[segments.size()];
+        float max = maxScrollOffset();
+        boolean scrollable = overflowing && max > 0;
+        a.scroll(scrollable ? scrollOffset / max : 0, 0,
+                scrollable && content > 0 ? Math.min(1, viewWidth / content) : 1, 1,
+                scrollable, false);
+
+        // Reading order: the arrow that scrolls back, the segments, the arrow that scrolls on.
+        if (overflowing) {
+            describeChevron(a, CHEVRON_BACK, rtl, scrollOffset > 0.5f);
+        }
+        for (int i = 0; i < segments.size(); i++) {
+            a.child(i);
+            if (bounds != null) {
+                float left = cellLeft(rtl, bounds[i], bounds[i + 1]);
+                float cellWidth = bounds[i + 1] - bounds[i];
+                a.bounds(left, 0, cellWidth, height());
+                if (left + cellWidth < viewLeft || left > viewLeft + viewWidth) {
+                    // The paint loop's own skip test, negated: a segment the clip drops is
+                    // visible and not on screen, and this is the only route to that pair.
+                    a.offScreen();
+                }
+            }
+            a.role(Accessible.Role.RADIO_BUTTON);
+            // The string this control holds and never the string it reads as: the difference
+            // compares a reference, a language and a translation epoch, and get() would allocate
+            // one string per segment per damaged frame.
+            a.name(segments.get(i), Accessible.NameFrom.CONTENT);
+            a.selectionItem(i == selected, i + 1, segments.size());
+            if (i == selected) {
+                // Selection and cursor are one thing here: the arrows call choose(), which moves
+                // the selection itself, and there is no separate highlight. Without this bit the
+                // group's selection facet resolves no active descendant and walking the strip
+                // with Left and Right tells a reader nothing about where the user is.
+                a.state(Accessible.State.ACTIVE);
+            }
+            // Select and no press, as RadioButton answers: the two radio surfaces must answer
+            // alike or a bridge's table has to special-case one of them. The single-argument
+            // form; the variable-argument one allocates.
+            a.action(Accessible.Action.SELECT);
+            a.endChild();
+        }
+        if (overflowing) {
+            describeChevron(a, CHEVRON_FORWARD, rtl, scrollOffset < maxScrollOffset() - 0.5f);
+        }
+    }
+
+    /**
+     * Publishes one scroll arrow as the gutter a click on it lands in, which is the zone
+     * {@link #chevronAt(float, boolean)} maps and not the smaller glyph drawn inside it.
+     *
+     * <p>The arrow's identity is logical and which gutter holds it is not: the back arrow sits in
+     * the gutter reading starts from, so the two swap ends right to left while the tree order
+     * above does not move.
+     *
+     * <p><b>A dead side carries no verb</b>, and is not published disabled. A widget cannot say
+     * that of a synthetic child by any route — the builder refuses the five states the publish
+     * step owns, and the walk overwrites the enabled bit of every synthetic node with the owner's
+     * — so the absent verb is the whole of it, and {@link #onSyntheticAction} refuses the press
+     * as well. The tabbed pane's chevrons can be published disabled only because they are real
+     * widgets its layout disables.
+     *
+     * @param a    the node being described
+     * @param key  {@link #CHEVRON_BACK} or {@link #CHEVRON_FORWARD}
+     * @param rtl  the direction resolved once for the pass that is calling
+     * @param live whether there is anything left to scroll that way
+     */
+    private void describeChevron(Accessibility a, long key, boolean rtl, boolean live) {
+        boolean back = key == CHEVRON_BACK;
+        float trailingX = viewLeft + viewWidth;
+        // Computed rather than assumed equal to the leading one: they are equal by construction
+        // today, and a rounding that made them differ belongs in the box and not in a comment.
+        float trailingWidth = trackLeft + trackWidth - trailingX;
+        boolean trailing = back == rtl;
+        a.child(key);
+        a.bounds(trailing ? trailingX : trackLeft, 0,
+                trailing ? trailingWidth : viewLeft - trackLeft, height());
+        a.role(Accessible.Role.BUTTON);
+        a.name(back ? ComponentStrings.SEGMENT_PREVIOUS : ComponentStrings.SEGMENT_NEXT,
+                Accessible.NameFrom.CONTENT);
+        if (live) {
+            a.action(Accessible.Action.PRESS);
+        }
+        a.endChild();
+    }
+
+    /**
+     * Selects a segment or scrolls the strip, through the same private paths a click takes.
+     *
+     * <p>A select reaches {@link #choose}, which is literally what the click branch calls, so an
+     * assistive technology's select clamps the same way, reveals the same way and fires
+     * {@link #onSelect} through {@link #setSelectedIndex} exactly as a click does — including the
+     * early return that changes nothing and fires nothing when the segment was already selected.
+     * Re-selecting the current segment is still accepted, because it still reveals, which is the
+     * answer the pointer gets there.
+     *
+     * <p>A press on an arrow scrolls by the same expression the click branch uses, where the sign
+     * is the arrow's logical identity and the offset is logical too, so it needs no mirroring.
+     * The answer is whether the offset moved: a dead arrow carries no verb above and its scroll
+     * clamps to nothing here, so a press that somehow arrived is refused rather than reported
+     * done.
+     *
+     * <p>No enabled guard of its own, and none is owed. The scene's dispatcher already walks this
+     * widget and every ancestor for the enabled flag, refuses an owner that is not showing,
+     * refuses a modal-blocked window and refuses anything outside the layer that owns input, all
+     * before this runs. It runs on the UI thread inside the posted task, which is what
+     * {@link #setSelectedIndex}'s own thread check asks for.
+     *
+     * @param key    a segment's index, or one of the two chevron keys
+     * @param action what is being asked
+     * @param arg    unused; every verb here is parameterless
+     * @return whether this control did it
+     */
+    @Override
+    protected boolean onSyntheticAction(long key, Accessible.Action action,
+                                        Accessible.Argument arg) {
+        if (key >= 0) {
+            if (key >= segments.size() || action != Accessible.Action.SELECT) {
+                return false;
+            }
+            choose((int) key);
+            return true;
+        }
+        if (key != CHEVRON_BACK && key != CHEVRON_FORWARD
+                || action != Accessible.Action.PRESS) {
+            return false;
+        }
+        int chevron = key == CHEVRON_BACK ? -1 : 1;
+        float before = scrollOffset;
+        scrollBy(chevron * SCROLL_STEP_FRACTION * viewWidth);
+        return scrollOffset != before;
     }
 
     @Override

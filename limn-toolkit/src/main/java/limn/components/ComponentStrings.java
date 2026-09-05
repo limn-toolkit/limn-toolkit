@@ -99,6 +99,21 @@ final class ComponentStrings {
     static final I18nString TAB_LIST_ALL =
             new I18nString("limn.tabbedPane.allTabs", "All tabs");
 
+    // The segmented control's two overflow chevrons, for the spinner arrows' reason: they are
+    // painted glyphs with no text and no tooltip, and they are SYNTHETIC children, so none of the
+    // three routes that name a widget -- setAccessibleName, a bound caption, a tooltip -- can
+    // reach them at all, and no application can correct a reader that says "button, button".
+    //
+    // They name a position in the segment ORDER and never a screen side, for the reason the two
+    // above carry: the chevrons are turned around right to left and the back arrow sits in the
+    // gutter reading starts from, so "scroll left" would be true where it was written and false
+    // in half the world.
+    static final I18nString SEGMENT_PREVIOUS =
+            new I18nString("limn.segmentedControl.previousSegments", "Previous segments");
+
+    static final I18nString SEGMENT_NEXT =
+            new I18nString("limn.segmentedControl.nextSegments", "Next segments");
+
     // What a screen reader calls the strip of top-level menu titles. The bar is focusable from
     // its constructor, so it is a permanent tab stop and the every-focusable-node-is-named rule
     // always covers it, and the class holds no string of its own: its titles name the menus, not

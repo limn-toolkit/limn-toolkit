@@ -56,8 +56,7 @@ class AccessibleCoverageTest {
      */
     private static final Set<String> UNDESCRIBED = new TreeSet<>(Set.of(
             "limn.components.ListView",
-            "limn.components.PopupMenu$MenuSurface",
-            "limn.components.SegmentedControl"
+            "limn.components.PopupMenu$MenuSurface"
     ));
 
     /**
