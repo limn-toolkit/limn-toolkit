@@ -53,9 +53,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * raised only when a number moves, so it would cost a formatted string per drag step and reach
  * nobody.
  *
- * <p>Two things here are transitional and say so where they are asserted: the rails, the steppers
- * and the hex field have no role of their own yet, so they publish {@code UNKNOWN} while they are
- * focusable and {@code GROUP} while they are not, and the saturation/value field, the hue ramp and
+ * <p>Two things here are transitional and say so where they are asserted: the channel rails, the
+ * steppers and the hex field have no role of their own yet, so they publish {@code UNKNOWN} while
+ * they are focusable and {@code GROUP} while they are not &mdash; the alpha rail is the one that
+ * has taken its step, and publishes {@code SLIDER} &mdash;
+ * and the saturation/value field, the hue ramp and
  * the swatch declare nothing and are deleted by the predicate. Each takes its own step. Nothing
  * asserted below depends on which role those nodes end up with; they are found by the names this
  * widget gives them.
@@ -290,7 +292,7 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         "TAB_PANEL \"HSV\"",
                         "TAB_PANEL \"CMYK\"",
                         "LABEL \"A\"",
-                        "UNKNOWN \"A\"",
+                        "SLIDER \"A\"",
                         "UNKNOWN \"A\""),
                 shape,
                 "the rows, columns, paddings, token boxes and expanded shares between the picker "
@@ -455,10 +457,20 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
             assertFalse(node.has(Accessible.State.SHOWING), describe(tree()));
             assertFalse(node.has(Accessible.State.FOCUSABLE),
                     "which is what the keyboard says about it too" + describe(tree()));
-            assertNull(node.actions(),
-                    "an operable alpha the pointer and the keyboard both refuse is the one thing "
-                            + "this must not publish" + describe(tree()));
+            assertFalse(node.actions() != null && node.actions().has(Accessible.Action.FOCUS),
+                    "the walk's two verbs go with the tab stop, so nothing here offers to move "
+                            + "the keyboard into a line that is off screen" + describe(tree()));
         }
+        assertNull(line("A").get(2).actions(),
+                "the stepper declares nothing yet and is left with no verb at all"
+                        + describe(tree()));
+        assertTrue(line("A").get(1).actions().has(Accessible.Action.INCREMENT),
+                "the rail keeps its own two, because a verb list says what a control offers and "
+                        + "the missing SHOWING bit is what says it is not on screen; §1.9's gate "
+                        + "re-checks isShowing() on arrival and refuses, which is where the "
+                        + "unreachability is enforced. Pinned, with the refusal itself, by "
+                        + "limn.components.ColorPickerAlphaRailAccessibilityTest"
+                        + describe(tree()));
         assertEquals(1f, picker.color().a(), "and the colour is opaque while it is off");
 
         picker.setAlphaEnabled(true);

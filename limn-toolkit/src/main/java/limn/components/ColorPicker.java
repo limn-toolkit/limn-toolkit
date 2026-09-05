@@ -1141,6 +1141,124 @@ public final class ColorPicker extends Widget {
                             rtl ? solid : solid.withAlpha(0),
                             rtl ? solid.withAlpha(0) : solid));
         }
+
+        /**
+         * What the alpha rail is to an assistive technology: one
+         * {@link Accessible.Role#SLIDER} node, horizontal because the class has one axis,
+         * carrying a writable value facet <b>in whole percent</b> and offering
+         * {@link Accessible.Action#INCREMENT} and {@link Accessible.Action#DECREMENT}.
+         *
+         * <p><b>The percent is the point, and the model's float is not what is published.</b>
+         * {@link #moveTo} snaps to a hundredth and {@link #unitFraction} is a hundredth, so one
+         * percent is the only resolution any gesture on this rail can produce, and the stepper on
+         * the same line is a {@code Spinner(0, 100, 1)} the picker writes {@code
+         * Math.round(alpha * 100)} into. Publishing the raw fraction would report
+         * {@code 0.33333334} for a colour that arrived through an eight-digit hex, and would
+         * advertise a grid the rail refuses to be dragged onto &mdash; a reader and a sighted user
+         * reading two different numbers off one control. The number comes from {@link #fraction},
+         * which is the clamped alpha the thumb actually rides, so what is published is by
+         * construction where the thumb is.
+         *
+         * <p>No value text, and therefore no cache and no witness: the number with a minimum of
+         * zero and a maximum of a hundred is the whole of it, and a {@code "42%"} built here would
+         * be one string per damaged frame spent concluding that nothing moved. The facet is
+         * writable, so {@link Accessible.Action#SET_VALUE} is advertised by its presence and never
+         * appears in the action list.
+         *
+         * <p>No name either. The letter beside the rail is the only place this channel is named,
+         * and it is not a string this widget holds: the picker's constructor points that caption
+         * at this rail with {@code Label#setLabelFor}, so the walk writes the name with
+         * {@link Accessible.NameFrom#LABEL} and the relation both ways, by reference and under the
+         * subtree's language. A name declared here would be either a lie about painted text or a
+         * provenance with no relation behind it.
+         *
+         * <p>Neither the focus fade, the drag flag, the resolved size row nor the layout direction
+         * is read here. The fade damages this widget on every frame it runs for, and a hook that
+         * published any of them would make the difference find a change on each of those frames.
+         * The box, the language, the enabled, visible, showing, focusable and focused bits and the
+         * focus and scroll-into-view verbs are the walk's, and the box is the whole hit target
+         * rather than the painted band: {@link Rail#onMeasure} floors it at the reachable target
+         * and the thumb's travel inset is a paint fact.
+         *
+         * <p>The verbs are published whether or not the alpha line is offered.
+         * {@link ColorPicker#setAlphaEnabled} hides the row, so the node publishes without
+         * {@code VISIBLE}, without {@code SHOWING} and without {@code FOCUSABLE}, and the scene's
+         * own gate re-checks {@code isShowing()} on arrival and refuses &mdash; the same wall the
+         * pointer and the keyboard hit. A hook that withheld the verbs would be answering a
+         * question the scene has already answered, and would say the control cannot be operated
+         * rather than that it is not on screen.
+         *
+         * @param a the node being described
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.SLIDER);
+            a.state(Accessible.State.HORIZONTAL);
+            a.value(Math.round(fraction() * 100), 0, 100, 1);
+            a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+        }
+
+        /**
+         * Performs a change an assistive technology asked for through {@link #moveTo}, which is
+         * the one mutator both the pointer and the keyboard reach: it writes the alpha and calls
+         * the picker's own {@code changed()}, so the numbers on the line follow and
+         * {@link ColorPicker#onChange} fires. Never through {@link ColorPicker#setColor}, which is
+         * the silent path and would leave the application never told that the user chose.
+         *
+         * <p>The two steps move by {@link #unitFraction}, the same expression the Up and Down arms
+         * of the key handler use &mdash; the two that do <em>not</em> mirror. This rail reflects
+         * its sweep, its thumb, its press inversion and its Left and Right arms when the layout
+         * reads right to left; an increment is a direction of the value and not a side of the
+         * rail, so it means more alpha in both. Because the step is exactly one percent and the
+         * published number is the percent, a step always moves what a reader hears by one, even
+         * when the alpha carries a fraction of a percent from a colour set in code.
+         *
+         * <p>{@code SET_VALUE} arrives <b>in the domain that was published</b>, zero to a hundred,
+         * so it is divided by a hundred before it reaches the fraction and the widget's own snap
+         * and clamp then apply. A value that is not a finite number is refused before any of that:
+         * {@code clamp01} passes {@code NaN} straight through and {@code Math.round(Float.NaN)} is
+         * zero, so an unguarded one would snap the colour to fully transparent and report it as a
+         * change the user made.
+         *
+         * <p>The commit fires after every handled verb, moved or not, as {@code Slider}'s hook
+         * does and for the same reason: a request from a reader is a whole gesture with no release
+         * to follow, and a step at the end of the range is a user choosing the value already held.
+         * This is deliberately more than the keyboard does here &mdash; {@link Rail#onKeyEvent}
+         * commits nothing, and only a pointer release does &mdash; because that gap is a
+         * pre-existing question about this widget's keyboard rather than one for the tree.
+         *
+         * <p>Every verb is refused while this widget is disabled; the scene has already re-checked
+         * the ancestors, the showing bit and modality before the call arrives, and this guard is
+         * the one the key path keeps for itself.
+         *
+         * @param action what was asked
+         * @param arg    the percent for {@code SET_VALUE}; ignored by the two steps
+         * @return whether the request ran, which at the ends of the range can be a commit of the
+         *         value already held
+         */
+        @Override
+        protected boolean onAccessibilityAction(Accessible.Action action,
+                                                Accessible.Argument arg) {
+            if (!isEnabled()) {
+                return false;
+            }
+            switch (action) {
+                case INCREMENT -> moveTo(clamp01(fraction() + unitFraction()));
+                case DECREMENT -> moveTo(clamp01(fraction() - unitFraction()));
+                case SET_VALUE -> {
+                    if (!(arg instanceof Accessible.Argument.OfValue of)
+                            || !Double.isFinite(of.value())) {
+                        return false;
+                    }
+                    moveTo(clamp01((float) (of.value() / 100.0)));
+                }
+                default -> {
+                    return false;
+                }
+            }
+            onCommit.accept(color());
+            return true;
+        }
     }
 
     private static double maxOf(Format format, int channel) {
