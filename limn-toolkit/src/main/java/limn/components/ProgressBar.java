@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -55,12 +57,20 @@ public class ProgressBar extends Widget {
     private final Transition fill =
             new Transition(this).duration(Theme.current().animFade).easing(Theme.current().animEasing);
 
-    /** Sets the determinate progress, clamped to {@code [0..1]}; the fill eases to it. */
+    /**
+     * Sets the determinate progress, clamped to {@code [0..1]}; the fill eases to it. A bar that
+     * was indeterminate becomes determinate, and says so: the sweep's ticker stops itself without
+     * damaging anything, and the fill's transition is silent when its target has not moved, so a
+     * value that arrives after a sweep and equals the one the fill was already at &mdash; the
+     * fresh bar that connects and then reports nothing done yet &mdash; would otherwise leave the
+     * last sweep pill on screen and the busy state in the accessible tree until unrelated damage.
+     */
     public ProgressBar setProgress(float value) {
         Ui.checkUiThread();
         this.progress = Math.max(0, Math.min(1, value));
         if (indeterminate) {
             indeterminate = false;
+            invalidate();
         }
         fill.to(progress); // eases from the previous value (or snaps when detached)
         return this;
@@ -158,6 +168,48 @@ public class ProgressBar extends Widget {
     protected void onDetached() {
         sweepGeneration++; // the old scene's ticker is stale now
         animating = false;
+    }
+
+    /**
+     * Describes the bar as one {@code PROGRESS_BAR} node whose value is the model and never the
+     * picture.
+     *
+     * <p>The role is unconditional, and it is the reason the widget describes itself at all: the
+     * bar paints, holds no string and takes no input, which is the shape the walk deletes and then
+     * warns about once per class, and what it draws is information rather than decoration, so the
+     * decoration seam is not the answer. No name is declared, on purpose. The widget holds nothing
+     * to hand over: a tooltip names it through the walk's free default, an application's
+     * {@code setAccessibleName} wins over that and turns the tooltip into the description, and a
+     * caption beside the bar is a relation the application declares rather than one guessed here.
+     *
+     * <p>Determinate, the node carries a value facet in whole percent, {@code 0..100}, with no
+     * step and no text: nothing increments it, the number is the whole of it, and there is no
+     * formatted string anywhere in this class to hand over, so no cache and no witness exist. The
+     * rounding is what keeps an application that drives {@link #setProgress} every frame with
+     * sub-percent deltas from copying the tree every frame; the comparison sees what it is given,
+     * and one percent is the resolution a reader speaks. Indeterminate, the facet is absent and
+     * {@code BUSY} stands in its place, because the number means nothing then and no platform
+     * carries a range on a bar that has none.
+     *
+     * <p>Neither the eased fill nor the sweep phase is read here. The fill eases toward the model
+     * for the length of a fade after every set and the sweep moves on every frame; publishing
+     * either would make the difference find a change on each of those frames. Publishing the
+     * model means those frames walk, bounded and without allocating, and publish nothing.
+     * {@code READ_ONLY} is not written because the builder derives that bit from a text facet and
+     * drops it here; that the value cannot be set is said by the role together with the inherited
+     * refusal of {@code SET_VALUE}. {@code HORIZONTAL} is fixed by the class, since the long axis
+     * has no seam. An enum, four doubles and two bits, and no string, so a damaged frame that
+     * changed nothing costs no memory.
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.PROGRESS_BAR);
+        a.state(Accessible.State.HORIZONTAL);
+        if (indeterminate) {
+            a.state(Accessible.State.BUSY);
+        } else {
+            a.value(Math.round(progress * 100f), 0, 100, 0);
+        }
     }
 
     @Override
