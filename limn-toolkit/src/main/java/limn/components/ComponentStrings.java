@@ -99,6 +99,17 @@ final class ComponentStrings {
     static final I18nString TAB_LIST_ALL =
             new I18nString("limn.tabbedPane.allTabs", "All tabs");
 
+    // What a screen reader calls the strip of top-level menu titles. The bar is focusable from
+    // its constructor, so it is a permanent tab stop and the every-focusable-node-is-named rule
+    // always covers it, and the class holds no string of its own: its titles name the menus, not
+    // the strip. Unlike the four above, MenuBar is a public class an application can reach with
+    // setAccessibleName or a tooltip, and the name is redundant with the role -- which is the
+    // argument against supplying one, and is why the argument is written here. It is supplied
+    // anyway, because the alternative is a tab stop with an empty name in every application that
+    // has not thought about it. An application's own name still wins over this one.
+    static final I18nString MENU_BAR =
+            new I18nString("limn.menuBar.name", "Menu bar");
+
     // The dialog a ColorPickerButton raises. Here rather than in ColorPickerStrings
     // because two of the three are the words every dialog in every application uses,
     // and this is the first place the toolkit itself has had to supply them: a Dialog
