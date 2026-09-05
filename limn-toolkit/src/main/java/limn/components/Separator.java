@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -111,6 +113,39 @@ public final class Separator extends Widget {
             float x = lineCenter(width());
             canvas.drawLine(x, inset, x, height() - inset, Strokes.HAIRLINE, color);
         }
+    }
+
+    /**
+     * Publishes this rule as one {@link Accessible.Role#SEPARATOR} node carrying exactly one
+     * orientation bit and nothing else.
+     *
+     * <p>The role is the whole announcement, and it is the reason the widget describes itself at
+     * all: a rule between groups of items is information a reader needs to hear, and a leaf that
+     * paints, declares nothing and is deleted by the walk is warned about once per class, in every
+     * application that draws one. No name is declared on purpose. The widget holds no string, a
+     * declared name would be spoken on top of the role, and the two ways a rule does get one stay
+     * where they belong: a tooltip through the walk's free default, or the application through
+     * {@code setAccessibleName}. Striking a purely decorative rule out is likewise the
+     * application's call through {@code setAccessibleIgnored(true)}, never this class's.
+     *
+     * <p>The orientation is read from the field the factory fixed at construction and never
+     * inferred from the laid-out box. {@link Accessible.State} defines the pair by the axis a
+     * node's value runs along; a separator has no value, so the bit names the axis the rule runs
+     * along, which is also the picture. The two cannot come apart here the way they do on a
+     * splitter's divider, so no inversion applies and a bridge maps the bit straight onto the
+     * platform's orientation. Inferring it from width against height would tie the fact to layout
+     * and lie whenever a parent squeezes the box: a horizontal rule handed a tight, tall constraint
+     * would announce as vertical.
+     *
+     * <p>The published box is the widget's own, {@code separatorBox} thick on the cross axis, not
+     * the hairline: {@link #setInset} trims ink only and changes nothing a reader is told. Two
+     * primitive writes and no string, so a damaged frame that changed nothing costs no memory.
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.SEPARATOR);
+        a.state(orientation == Orientation.HORIZONTAL
+                ? Accessible.State.HORIZONTAL : Accessible.State.VERTICAL);
     }
 
     /**

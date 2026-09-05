@@ -76,7 +76,6 @@ class AccessibleCoverageTest {
             "limn.components.ScrollView",
             "limn.components.SearchField",
             "limn.components.SegmentedControl",
-            "limn.components.Separator",
             "limn.components.Slider",
             "limn.components.Spinner",
             "limn.components.TabbedPane",
