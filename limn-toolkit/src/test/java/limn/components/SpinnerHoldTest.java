@@ -1,5 +1,8 @@
 package limn.components;
 
+import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleNode;
+import limn.accessibility.AccessibleTree;
 import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.input.Keys;
@@ -14,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Press-and-hold auto-repeat on the Spinner's up/down buttons. Uses a manual
@@ -130,5 +134,60 @@ class SpinnerHoldTest {
         assertEquals(1000.0, spinner.value(), "clamped at max, no overshoot");
         assertEquals(-1, runtime.nanosUntilNextDeadline(),
                 "the repeat chain stopped scheduling once it reached the bound");
+    }
+
+    /**
+     * A press from an assistive technology steps once and arms nothing, which is the one thing the
+     * stepper's accessible children may not copy from {@code onMouseEvent}'s press: a reader's
+     * press has no release to stop an auto-repeat, so an armed one would run the value to a bound
+     * on its own with nothing the user could do about it.
+     *
+     * <p>It lives here rather than beside the rest of the spinner's tree, because
+     * {@code AccessibleComponentTestBase} inherits a runtime on {@code System::nanoTime}: a
+     * delayed post never comes due inside one, so the case would pass there whether or not the
+     * hold was armed. This class's manual clock is what makes the assertion mean anything.
+     */
+    @Test
+    void aReadersPressStepsOnceAndArmsNoAutoRepeat() throws Exception {
+        AccessibleComponentTestBase.RecordingBridge bridge =
+                new AccessibleComponentTestBase.RecordingBridge();
+        StubWindow window = new StubWindow();
+        window.accessibility = bridge;
+        ComponentTestBase.FakeCanvas canvas = new ComponentTestBase.FakeCanvas(BOX_W, BOX_H);
+        scene.bind(window);
+        scene.renderFrame(canvas);
+
+        AccessibleTree tree = bridge.tree();
+        long found = 0;
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            AccessibleNode node = tree.node(i);
+            // The upper half of the stepper column: the only BUTTON in this scene whose box the
+            // press coordinates above land in.
+            if (node.role() == Accessible.Role.BUTTON && node.y() == 0 && node.x() > 0) {
+                found = node.id();
+            }
+        }
+        final long up = found;
+        assertTrue(up != 0, "the spinner published no upper arrow: " + tree.nodeCount());
+
+        // From another thread, as a bridge calls on two of the three platforms, and then drain the
+        // queue the call posts into.
+        Thread caller = new Thread(() -> bridge.host.perform(
+                up, Accessible.Action.PRESS, Accessible.Argument.NONE), "platform-thread");
+        caller.start();
+        caller.join(TimeUnit.SECONDS.toMillis(10));
+        runtime.drain();
+
+        assertEquals(1.0, spinner.value(), "the press steps once, exactly as a click's press does");
+        assertEquals(-1, runtime.nanosUntilNextDeadline(),
+                "and schedules nothing: startHold is what a mouse press adds, and a reader's press "
+                        + "has no release to take it away again");
+
+        advanceMs(400); // past the initial hold delay
+        advanceMs(55);
+        advanceMs(55);
+        advanceMs(55);
+        assertEquals(1.0, spinner.value(),
+                "so the value stands where the one press put it, however long the clock runs");
     }
 }

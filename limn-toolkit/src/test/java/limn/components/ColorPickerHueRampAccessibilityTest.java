@@ -356,7 +356,7 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
                         "TAB_PANEL \"CMYK\"",
                         "LABEL \"A\"",
                         "SLIDER \"A\"",
-                        "UNKNOWN \"A\""),
+                        "SPIN_BUTTON \"A\""),
                 shape,
                 "the ramp is the second thing the chooser holds, behind the plane it sits beside: "
                         + "the ramps row is the first thing in the column and the plane is the "

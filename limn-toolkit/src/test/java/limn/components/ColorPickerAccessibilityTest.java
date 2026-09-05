@@ -53,10 +53,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * raised only when a number moves, so it would cost a formatted string per drag step and reach
  * nobody.
  *
- * <p>One thing here is transitional and says so where it is asserted: the steppers have no role of
- * their own yet, so they publish {@code UNKNOWN} while they are focusable and {@code GROUP} while
- * they are not &mdash; the rails and the hex field are the ones that have taken their step, and
- * publish {@code SLIDER} and {@code TEXT_FIELD}. All three painted parts have taken theirs: the saturation/value plane is
+ * <p>Nothing here is transitional any more. Every control the chooser holds has taken its own step:
+ * the rails publish {@code SLIDER}, the hex field {@code TEXT_FIELD}, and the eleven steppers
+ * {@code SPIN_BUTTON} over two nameless arrow buttons each, which is what
+ * {@code limn.components.SpinnerAccessibilityTest} pins. Those arrows sit a level below the
+ * steppers and are neither nameless groups nor tab stops, so nothing counted here moves because of
+ * them. All three painted parts have taken theirs too: the saturation/value plane is
  * the {@code CANVAS} at the head of the chooser's children, over one axis node per channel, the
  * hue ramp is the {@code SLIDER} named "Hue" beside it and the before/after swatch is the
  * {@code IMAGE} after them, and what each says is pinned by
@@ -303,7 +305,7 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         "TAB_PANEL \"CMYK\"",
                         "LABEL \"A\"",
                         "SLIDER \"A\"",
-                        "UNKNOWN \"A\""),
+                        "SPIN_BUTTON \"A\""),
                 shape,
                 "the rows, columns, paddings, token boxes and expanded shares between the picker "
                         + "and its controls are all deleted, and the three parts it draws have "
@@ -317,8 +319,9 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         + "limn.components.ColorPickerPreviewAccessibilityTest. The notation tabs "
                         + "bring their pane's three overflow controls with them, which publish "
                         + "whether or not the strip overflows and are not on screen while it fits. "
-                        + "The alpha spinner's UNKNOWN is what is transitional here, and the hex "
-                        + "field's TEXT_FIELD is what stopped being" + describe(tree()));
+                        + "Nothing here is transitional any more: the alpha stepper's SPIN_BUTTON "
+                        + "was the last of these to take its own step, and what it says is pinned "
+                        + "by limn.components.SpinnerAccessibilityTest" + describe(tree()));
 
         for (int i = 0; i < tree().nodeCount(); i++) {
             AccessibleNode node = tree().node(i);
@@ -480,8 +483,8 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                     "the walk's two verbs go with the tab stop, so nothing here offers to move "
                             + "the keyboard into a line that is off screen" + describe(tree()));
         }
-        assertNull(line("A").get(2).actions(),
-                "the stepper declares nothing yet and is left with no verb at all"
+        assertTrue(line("A").get(2).actions().has(Accessible.Action.INCREMENT),
+                "and the stepper keeps its own two for the same reason the rail does"
                         + describe(tree()));
         assertTrue(line("A").get(1).actions().has(Accessible.Action.INCREMENT),
                 "the rail keeps its own two, because a verb list says what a control offers and "

@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.text.TextEditModel;
@@ -1363,6 +1365,228 @@ public class Spinner extends Widget {
         // what stops a typed number from being quietly thrown away.
         commitEdit();
         focusFade.to(0);
+    }
+
+    // ---------------------------------------------------------- accessibility
+
+    /**
+     * The keys of the two halves of the stepper column, which are {@link #regionAt}'s own region
+     * numbers rather than numbers of their own: the node an assistive technology presses and the
+     * region a click is classified into are then the same thing named once.
+     */
+    private static final long UP_BUTTON = 1;
+    private static final long DOWN_BUTTON = 2;
+
+    /**
+     * One {@code SPIN_BUTTON} carrying the value, its bounds, what one increment moves it by and
+     * the clock face or the number as it is shown, over the two halves of the stepper column.
+     *
+     * <p><b>No name.</b> This widget holds no {@link limn.i18n.I18nString} at all — no caption, no
+     * placeholder, no title — so there is nothing to hand over by reference, and a string
+     * synthesised here would be built once per damaged frame to conclude that nothing had moved.
+     * The name arrives from outside through the three routes that already exist:
+     * {@code setAccessibleName}, a {@code Label} pointed at it with {@code setLabelFor}, or the
+     * tooltip, which the walk takes when nothing else supplied one. The colour picker's eleven
+     * steppers are named the second way. Focusable and nameless is therefore the intended state of
+     * a bare spinner, and it is legal: the walk warns about a focusable widget with no <em>role</em>
+     * and never about one with no name.
+     *
+     * <p><b>The published step is what one increment moves the value by</b>, which is
+     * {@link #increment()} — the {@code step} field in numeric mode, and 60 in time mode while the
+     * arrows are on the hours. That is a deliberate divergence from {@code Slider}, whose step is
+     * documented as the grid a set snaps onto, and it is not a slip: the two readings differ here,
+     * because time mode snaps onto whole minutes whatever the step and {@link #setSnapToStep} can
+     * turn the grid off while the increment stays {@code step}. It is also the only allocation-free
+     * way the tree carries which of the two fields the arrows are on. What is given up is that a
+     * field switch raises no event — the difference emits a value change only when the value moves
+     * — so a reader that re-reads the node hears the new step and one that only listens does not.
+     * Because nothing published reads {@code snapToStep} or {@code editable}, neither setter owes
+     * an {@code invalidateAccessible()}; a later step that published the snap grid instead would
+     * create that debt.
+     *
+     * <p><b>No {@code EDITABLE} state</b>, which is not a deferral: {@code editable} gates the
+     * inline text editor alone, and the value stays settable through {@code SET_VALUE} and
+     * steppable through both verbs when it is off, so the bit would tell a reader that a value the
+     * same node accepts a set for cannot be edited. No {@code HAS_POPUP} and no {@code SHOW_MENU}
+     * either, unlike {@code TextField}: this widget has no context menu, its clipboard is reached
+     * from Ctrl/Cmd+C, X and V alone, and a reader therefore has no route to copy the value. That
+     * is a stated cost rather than an oversight. And no orientation, which the class fixes for
+     * neither axis.
+     *
+     * <p><b>Nothing here reads the hover region, the held direction or the focus fade.</b> The
+     * fade damages this widget on every frame it runs for and the hover moves on every pointer
+     * crossing, so a hook that published either would re-copy the whole tree for a mouse the reader
+     * is not using. The two arrow nodes cannot say they are dimmed at a bound for the same reason
+     * the rest of this holds: a declared {@code ENABLED} is ignored, and a reader infers the bound
+     * from the value against the bounds it was given.
+     *
+     * <p><b>The tree does not model the inline edit.</b> There is no text facet, so the node always
+     * publishes the committed value and its display form: while the user is typing, what a reader
+     * hears is the last committed number and lags the screen until Enter, Escape or focus loss;
+     * there is no caret, no selection and no way to review the half-typed text; and a reader's
+     * {@code SET_VALUE} cancels the edit outright. Building the facet properly needs the caret box,
+     * the caret offset with its side, the selection and a witness for the editor's text, none of
+     * which this widget exposes today.
+     *
+     * <p>The two arrow boxes are derived from the two expressions {@link #regionAt} is written in
+     * terms of rather than from what {@code paintButtons} draws, so the published rectangle is the
+     * hit region by construction and stays truthful when a parent squeezes this widget narrower
+     * than the column — {@link #onMeasure}'s floor is a request, and a spinner that was never laid
+     * out has width zero. They mirror with the column, which reading right to left is the one at
+     * {@code x = 0}. The lower box takes the remainder of the height rather than a second half, so
+     * the two tile the column exactly and the lower one matches the open-ended half
+     * {@code regionAt} tests. No {@code offScreen}: the column is inside this widget's own rounded
+     * clip whenever the widget is on screen.
+     *
+     * <p>Two nameless buttons per spinner is a real cost, and twenty-two of them in a colour
+     * picker's tree, where a native stepper is one element. They are kept because each is a
+     * separately hit-testable region with its own box, its own hover and its own disabled paint,
+     * and an operable box is not deleted.
+     *
+     * <p>The box, the language, the enabled, visible, showing, focusable and focused bits and the
+     * focus and scroll-into-view verbs are the walk's.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.SPIN_BUTTON);
+        // The raw value, which in time mode is minutes since midnight, and the display form handed
+        // over from the paint's own memo with the counter it was filled against. NEVER format(v)
+        // or text() built here: the format call is documented as never cached, so a string made in
+        // this hook would be one allocation per damaged frame spent deciding nothing had moved.
+        a.value(value, min, max, increment());
+        a.valueText(text(), formattedRevision());
+        // The pair and never the variable-argument form, which allocates an array per call.
+        // SET_VALUE is advertised by the writable facet's presence and is never listed.
+        a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+
+        // Resolved ONCE for the whole hook, the rule this widget already states for its event
+        // handlers: an index into the five cached rows, and not an allocation.
+        SizeTokens t = Theme.current().tokensFor(this);
+        float w = Math.max(0, width());
+        float columnW = Math.min(t.spinnerButtonW(), w);
+        float columnX = isRtl() ? 0 : w - columnW;
+        float mid = height() / 2;
+        a.child(UP_BUTTON);
+        a.bounds(columnX, 0, columnW, mid);
+        a.role(Accessible.Role.BUTTON);
+        a.action(Accessible.Action.PRESS);
+        a.endChild();
+        a.child(DOWN_BUTTON);
+        a.bounds(columnX, mid, columnW, height() - mid);
+        a.role(Accessible.Role.BUTTON);
+        a.action(Accessible.Action.PRESS);
+        a.endChild();
+    }
+
+    /**
+     * The widget's own two steps and a set, each reaching the path the <em>keyboard</em> reaches,
+     * because Up and Down are the keys an assistive technology's increment and decrement stand for.
+     *
+     * <p>So a step mid-edit goes through {@link #stepFromTyped} exactly as Up does: the number on
+     * screen is adopted silently, the step is the one reported change, and the edit stays open with
+     * the editor re-seeded from the committed value, so the published value and the typed text
+     * agree afterwards. The arrow buttons take the other path and end the edit instead; see
+     * {@link #onSyntheticAction}, which is the finding this widget produced — the two gestures are
+     * two different private paths, and each verb reaches the one its own box reaches.
+     *
+     * <p><b>Neither step mirrors.</b> {@code onKeyEvent} turns Left and Right round under a
+     * right-to-left layout and leaves Up and Down alone, and these two are the Up and Down sense:
+     * a direction of the value, not a side of the box. A hook built out of the mirrored horizontal
+     * pair would run backwards in Arabic and Hebrew.
+     *
+     * <p>{@code SET_VALUE} refuses anything that is not a number <em>before</em> the clamp, which
+     * is where the real defect would be: {@code Math.max}/{@code Math.min} pass {@code NaN}
+     * through untouched and {@code Math.rint} keeps it, so an unguarded set would store it and
+     * publish it forever. It then cancels the edit for the reason {@link #setValue}'s own
+     * documentation gives — the half-typed text is no longer about the number now in the field —
+     * and applies through the from-the-user path, never through {@code setValue}, which is the
+     * silent one and would move the value while telling the application nothing.
+     *
+     * <p>The enabled check is the one the key path keeps for itself; the scene has already
+     * re-checked the ancestor chain, showing and modality before the call arrives. What a reader
+     * hears is the value change the next publish's difference produces; no verb here is
+     * acknowledged with an invocation, on any platform.
+     *
+     * @param action what was asked
+     * @param arg    the value for {@code SET_VALUE}; ignored by the two steps
+     * @return whether the request ran
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        if (!isEnabled()) {
+            return false;
+        }
+        switch (action) {
+            case INCREMENT -> stepAsAKeyWould(1);
+            case DECREMENT -> stepAsAKeyWould(-1);
+            case SET_VALUE -> {
+                if (!(arg instanceof Accessible.Argument.OfValue of)
+                        || !Double.isFinite(of.value())) {
+                    return false;
+                }
+                cancelEdit();
+                apply(of.value(), true);
+            }
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * One step in {@code direction}, which is what {@code nudgeFromKey(direction, 0)} is in both
+     * modes: no Shift and no Alt is a plain step, and time mode ignores both anyway.
+     */
+    private void stepAsAKeyWould(int direction) {
+        if (edit != null) {
+            stepFromTyped(() -> nudge(direction, true));
+        } else {
+            nudge(direction, true);
+        }
+    }
+
+    /**
+     * A press on one half of the stepper column, reaching the <em>pointer</em> path, because each
+     * half's published box is the box a click lands in.
+     *
+     * <p>{@link #commitEdit} first, which is verbatim what a press on region 1 or 2 does and for
+     * the reason it gives: reaching for the arrows is leaving the text, so the step lands on the
+     * number the user typed rather than on the one it replaced. That is the whole difference from
+     * the parent node's two verbs, which adopt the typed number silently and leave the edit open.
+     *
+     * <p><b>{@link #startHold} is deliberately not armed.</b> A press from an assistive technology
+     * has no release to stop it, so an armed auto-repeat would step the value every 55&nbsp;ms
+     * until it hit a bound, with nothing the user could do about it.
+     *
+     * <p>The scene raises the invocation for a press that returned true, which is the
+     * acknowledgement a press owes; the value change reaches a reader as the next publish's
+     * difference.
+     *
+     * @param key    which half, and any other key is refused
+     * @param action what was asked, which for these two is a press and nothing else
+     * @param arg    unused: a press carries no argument
+     * @return whether the request ran
+     */
+    @Override
+    protected boolean onSyntheticAction(long key, Accessible.Action action,
+                                        Accessible.Argument arg) {
+        if (!isEnabled() || action != Accessible.Action.PRESS) {
+            return false;
+        }
+        int direction;
+        if (key == UP_BUTTON) {
+            direction = 1;
+        } else if (key == DOWN_BUTTON) {
+            direction = -1;
+        } else {
+            return false;
+        }
+        commitEdit();
+        nudge(direction, true);
+        return true;
     }
 
     /** Decimal places needed to render {@code step} exactly (0–6). */

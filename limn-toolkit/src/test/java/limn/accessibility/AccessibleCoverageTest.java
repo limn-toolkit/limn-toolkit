@@ -60,7 +60,6 @@ class AccessibleCoverageTest {
             "limn.components.PasswordField",
             "limn.components.PopupMenu$MenuSurface",
             "limn.components.SegmentedControl",
-            "limn.components.Spinner",
             "limn.components.TextArea",
             "limn.components.VideoView"
     ));

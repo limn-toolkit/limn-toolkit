@@ -359,7 +359,7 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
                         "TAB_PANEL \"CMYK\"",
                         "LABEL \"A\"",
                         "SLIDER \"A\"",
-                        "UNKNOWN \"A\""),
+                        "SPIN_BUTTON \"A\""),
                 shape,
                 "the plane is the first thing the chooser holds, because the ramps row is the "
                         + "first thing in the column and the plane is the first thing in that row; "
