@@ -684,8 +684,15 @@ public class TextArea extends Widget {
         // Leave the corner square clear so the two bars never overlap and each thumb
         // reaches its own end (shortened by the other bar's thickness). Reserved, the
         // strips already are that square, and only on an axis that overflows.
-        float vLen = reserved ? height() - gutters.horizontalStrip() : height() - t;
-        float hLen = reserved ? width() - gutters.verticalStrip() : width() - t;
+        // Floored: both branches subtract a strip from a side that may be smaller than it. An
+        // area laid out narrower than a bar is a legitimate box -- a collapsed pane, a zero
+        // preferred size -- and Constraints refuses a negative extent, so the throw would come
+        // out of the layout pass, where the scene's guard abandons the whole frame: nothing in
+        // the window paints, and the tree that frame would have published is not published at
+        // all. The widget itself survives a zero-width layout; every read of the caret is
+        // already guarded for it.
+        float vLen = Math.max(0, reserved ? height() - gutters.horizontalStrip() : height() - t);
+        float hLen = Math.max(0, reserved ? width() - gutters.verticalStrip() : width() - t);
         // The vertical bar sits on the side reading ends on, and the horizontal one starts
         // after whatever strip that leaves, so the clear corner square is on the bar's own side.
         boolean rtl = isRtl();
@@ -1587,9 +1594,13 @@ public class TextArea extends Widget {
                 viewWidth(t) + 2 * Strokes.AA_BLEED, viewHeight(t));
         canvas.translate(contentOriginX(t), padY - scrollY);
 
-        int firstRow = Math.max(0, (int) (scrollY / lineHeight));
+        // A line height of zero is what a ruler reports before a real one is installed, and the
+        // division would be infinite: (int) of it saturates at Integer.MAX_VALUE, the +1 wraps to
+        // MIN_VALUE, and the row window below allocates an array of negative length. With no
+        // height there is no row to draw either, so the window is the first row alone.
+        int firstRow = lineHeight > 0 ? Math.max(0, (int) (scrollY / lineHeight)) : 0;
         int lastRow = Math.min(totalRows(t) - 1,
-                (int) ((scrollY + viewHeight(t)) / lineHeight) + 1);
+                lineHeight > 0 ? (int) ((scrollY + viewHeight(t)) / lineHeight) + 1 : 0);
         Color ink = isEnabled() ? theme.text : theme.disabledText;
         int selStart = model.selectionStart();
         int selEnd = model.selectionEnd();

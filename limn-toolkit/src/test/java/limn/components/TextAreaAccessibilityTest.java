@@ -821,19 +821,17 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
     /**
      * The menu verb opens with the same {@code width() <= 0} guard {@link TextField}'s does,
      * because {@code showContextMenuForFocus} dereferences a {@code caretRect()} that is null
-     * until there is a box to put a caret in — and unlike a field, <b>this widget cannot currently
-     * reach that state from a published tree</b>, which is a defect in its layout rather than
-     * anything about the tree. {@code onLayout} hands the horizontal bar
-     * {@code Constraints.tight(width() - ScrollBar.thickness(), ...)} with no floor, so an area
-     * laid out narrower than a scroll bar throws out of the layout pass, and the frame that would
-     * have published it publishes nothing at all.
+     * until there is a box to put a caret in.
      *
-     * <p>This case pins that, so the guard is not struck out as dead code by someone who checked
-     * only the reachable half, and so the refusal is already written for the day the layout grows
-     * its floor. It asserts the defect it depends on, which is why it names it.
+     * <p>This case was written the other way round first, pinning a defect instead of the guard:
+     * {@code onLayout} handed both bars a length with no floor, so an area laid out narrower than
+     * a scroll bar threw out of the layout pass and the frame published nothing at all &mdash;
+     * the guard was unreachable from a tree, and the case asserted the empty tree so nobody would
+     * strike the guard out as dead code. The floor landed, and this is the case it was standing
+     * in for.
      */
     @Test
-    void anAreaNarrowerThanItsOwnScrollBarPublishesNothingAtAll() {
+    void theMenuVerbIsRefusedBeforeTheFirstLayout() throws InterruptedException {
         TextArea unlaid = new TextArea();
         unlaid.setPreferredSize(0, 140);
         area = unlaid;
@@ -849,10 +847,15 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
 
         frame();
 
-        assertEquals(0, tree().nodeCount(),
-                "the layout pass threw before the step that describes anything, so the guard the "
-                        + "menu verb carries cannot be exercised from here until TextArea.onLayout "
-                        + "floors the bar's length" + describe(tree()));
+        assertEquals(0f, areaNode().width(),
+                "the area is published, at no width at all" + describe(tree()));
+        perform(areaNode().id(), Accessible.Action.SHOW_MENU, Accessible.Argument.NONE);
+        frame();
+
+        assertEquals(List.of(), nodesWith(Accessible.State.MODAL),
+                "showContextMenuForFocus dereferences the caret rectangle, which is null until "
+                        + "there is a box to put one in, so the verb refuses rather than throws"
+                        + describe(tree()));
     }
 
     @Test

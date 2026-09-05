@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.backend.CrashHandler;
+import limn.backend.Crashes;
 import limn.graphics.Font;
 import limn.graphics.Paint;
 import limn.graphics.ShapedText;
@@ -19,7 +21,9 @@ import java.util.Deque;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TextAreaTest extends ComponentTestBase {
@@ -1038,5 +1042,61 @@ class TextAreaTest extends ComponentTestBase {
             }
         }
         throw new AssertionError("'" + text + "' was not drawn; saw " + canvas.texts.size());
+    }
+
+    // ------------------------------------------------------------------ degenerate sizes
+
+    /**
+     * An area can be laid out narrower than its own scroll bar &mdash; a collapsed pane, a zero
+     * preferred size &mdash; and both bar lengths are the area's side less a thickness, so both
+     * need a floor. Without one the layout pass throws, and the scene's guard abandons the whole
+     * frame: nothing in the window paints, and nothing publishes an accessible node either, over
+     * an area nobody can see.
+     */
+    @Test
+    void anAreaThinnerThanItsOwnScrollBarLaysOutInsteadOfAbandoningTheFrame() {
+        float t = ScrollBar.thickness();
+        for (float side : new float[] {0, t / 2, t - 0.5f}) {
+            TextArea narrow = new TextArea();
+            Scene s = new Scene(narrow);
+            s.setTextRuler(RULER);
+            assertDoesNotThrow(() -> s.layoutPass(side, side),
+                    "laid out at " + side + ", with a bar thickness of " + t);
+            assertEquals(0, narrow.scrollXOffset(), 1e-3f, "and the offsets still answer");
+            assertEquals(0, narrow.scrollYOffset(), 1e-3f);
+        }
+    }
+
+    /**
+     * A ruler that reports no line height at all is what a scene has before a real one is
+     * installed, which every headless fixture that renders a frame before
+     * {@code Scene#setTextRuler} hits. The row window divides the scroll extent by that height:
+     * infinite, saturating at {@code Integer.MAX_VALUE}, and the {@code + 1} wraps to
+     * {@code MIN_VALUE}, so the window is asked for a negative number of rows and the array
+     * allocation throws. The frame guard contains it and the application lives, which is exactly
+     * why nothing forced anyone to notice.
+     */
+    @Test
+    void anAreaWhoseRulerReportsNoLineHeightPaintsInsteadOfCrashingTheFrame() {
+        List<Throwable> contained = new ArrayList<>();
+        CrashHandler recorder = (phase, error) -> {
+            contained.add(error);
+            return true;
+        };
+        Crashes.install(recorder);
+        try {
+            TextArea flat = new TextArea();
+            flat.setText("one\ntwo\nthree");
+            Scene s = new Scene(flat);
+            s.setTextRuler((text, font) -> new TextMetrics(0, 0, 0, 0));
+            s.layoutPass(200, 100);
+            s.renderFrame(new FakeCanvas(200, 100));
+        } finally {
+            Crashes.uninstall(recorder);
+        }
+
+        assertNull(contained.isEmpty() ? null : contained.get(0),
+                "renderFrame does not rethrow: it contains the crash, reports it and keeps the "
+                        + "loop alive, so the throw shows up here and nowhere else");
     }
 }
