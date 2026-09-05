@@ -94,7 +94,6 @@ class AccessibleCoverageTest {
             "limn.components.TextArea",
             "limn.components.TextField",
             "limn.components.TokenColumn",
-            "limn.components.TokenRow",
             "limn.components.ToolBar",
             "limn.components.VideoView",
             "limn.components.Viewport3D",
@@ -324,7 +323,30 @@ class AccessibleCoverageTest {
             // the GROUP it materialises is co-extensive with its child rather than larger, so
             // naming one buys a name and no geometry. Pinned by
             // limn.components.TokenBoxAccessibilityTest.
-            "limn.components.TokenBox"
+            "limn.components.TokenBox",
+            // One field and one onMeasure over Row, which is a constructor over abstract Flex, and
+            // nothing in that chain declares a role, name, description, action or state, overrides
+            // onPaint, clips, sets a tooltip or is focusable of its own accord — so §1.6's
+            // predicate deletes it in silence and hoists its children into its parent's place, in
+            // children() order. What the deletion leaves behind is the one number the class exists
+            // to contribute: the distance between every pair of sibling boxes, which on this class
+            // is the resolved spacing token and not an application literal. It is pushed through
+            // Flex's silent form from inside onMeasure, so it is in force for the very pass that
+            // lays the children out, and the public gap(float) is overwritten by the next measure
+            // step — the "row.gap(24) moves the second child" that Row's pin makes is false on the
+            // subclass, and a literal costs a layout pass and no snapshot. Unlike TokenBox in the
+            // same cell the deletion is not geometrically a no-op: it leaves a gap and an
+            // alignment, the gap reflects with the boxes under RTL while reading order does not,
+            // and it is counted over visible children only, so hiding a child removes its gutter
+            // as well as its width. Public and non-final, so naming, tooltipping or roling an
+            // instance materialises a GROUP over the row's own rectangle: transparency is per
+            // instance, and a parent's onAccessibilityChild can materialise one from above as
+            // well — the demo's pooled list cell is a TokenRow subclass that will publish as
+            // LIST_ITEM by ListView's own hook. The entry stands on Row and abstract Flex above it
+            // staying hookless: the transparency check walks the ancestry, so a hook on Flex would
+            // fail this name and would silently describe Row, Column, TokenColumn and TokenRow at
+            // once. Pinned by limn.components.TokenRowAccessibilityTest.
+            "limn.components.TokenRow"
     ));
 
     @Test
