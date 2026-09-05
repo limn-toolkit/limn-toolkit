@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessible;
+import limn.accessibility.Accessibility;
 import limn.animation.Easing;
 import limn.animation.Transition;
 import limn.backend.Cursor;
@@ -297,6 +299,20 @@ public class ScrollBar extends Widget {
         return Math.max(0, model.contentLength() - model.viewportLength());
     }
 
+    /**
+     * The one from-the-user path: a track press, a thumb drag and an assistive technology's set
+     * all arrive here, so each of them clamps the same way, tells the host's model the same way
+     * and reveals the bar the same way, through {@link #onScrolled()}. The host clamps again in
+     * its own {@code setOffset}, so the clamp here changes nothing a host sees and only keeps the
+     * model from being handed a number the bar itself would not paint.
+     *
+     * @param offset the offset asked for, in the model's own points
+     */
+    private void scrollTo(float offset) {
+        model.setOffset(Math.max(0, Math.min(maxOffset(), offset)));
+        onScrolled();
+    }
+
     private float trackLength() {
         return (vertical() ? height() : width()) - 2 * MARGIN;
     }
@@ -411,8 +427,7 @@ public class ScrollBar extends Widget {
                     if (mirrored(rtl)) {
                         dir = -dir;
                     }
-                    model.setOffset(model.offset() + dir * model.viewportLength());
-                    onScrolled();
+                    scrollTo(model.offset() + dir * model.viewportLength());
                 }
                 settle();
                 event.consume();
@@ -426,8 +441,7 @@ public class ScrollBar extends Widget {
                     // one and not the other and the thumb slides away from the hand holding it.
                     float along = (pos - dragGrab - MARGIN) / travel;
                     float ratio = mirrored(rtl) ? 1 - along : along;
-                    model.setOffset(Math.max(0, Math.min(1, ratio)) * maxOffset());
-                    onScrolled();
+                    scrollTo(ratio * maxOffset());
                     event.consume();
                 }
             }
@@ -441,5 +455,93 @@ public class ScrollBar extends Widget {
             default -> {
             }
         }
+    }
+
+    // --------------------------------------------------------------------------- accessibility
+
+    /**
+     * Describes the bar as one {@code SCROLL_BAR} node whose value is the host's model in the
+     * model's own points, or as nothing at all when there is nothing to scroll.
+     *
+     * <p>The node exists exactly when the bar is operable by <em>anyone</em>. Under
+     * {@link Policy#HIDDEN} the application asked for no bar, and content that fits its viewport
+     * leaves a range with a maximum of zero; in both the bar refuses the pointer at every opacity
+     * and paints nothing, and both are structural facts that move only on a policy, content or
+     * size change, never on a scroll. The fade is neither: a bar that has faded under
+     * {@link Policy#ON_SCROLL} or {@link Policy#AUTO} is still laid out, still visible and still
+     * showing, and an assistive technology's action does not travel through the hit test the fade
+     * gates. Its set reaches {@link #onScrolled()} and reveals the bar exactly as the wheel does,
+     * so the node stays through the fade rather than appearing and vanishing in a reader's tree a
+     * second after every scroll and every pointer move over the host.
+     *
+     * <p>No name, deliberately: the widget holds no string, every platform speaks the role and the
+     * orientation for a scroll bar, and it is not a tab stop. No value text: the number is the
+     * whole of it. The step is one viewport, the only step the bar has, because a track press
+     * pages and there is no line step and no keyboard. {@code INCREMENT} and {@code DECREMENT} are
+     * the two paging directions defined on the value; {@code SET_VALUE} is advertised by the
+     * facet's presence and is never listed. Nothing here allocates, and nothing here reads the
+     * opacity or the widen level, so the frames of a fade damage the bar and publish nothing.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        // Read once, as every pass over the model does: a host's model may re-derive its content
+        // estimate on every call, and two reads inside one description could disagree.
+        float content = model.contentLength();
+        float viewport = model.viewportLength();
+        float offset = model.offset();
+        float max = Math.max(0, content - viewport);
+        if (policy == Policy.HIDDEN || content - viewport <= 0.5f) {
+            a.ignore();
+            return;
+        }
+        a.role(Accessible.Role.SCROLL_BAR);
+        a.state(vertical() ? Accessible.State.VERTICAL : Accessible.State.HORIZONTAL);
+        // Clamped for publication only: the paint does not clamp and a host may hand back an
+        // unclamped number transiently, and a bridge may refuse a value outside its own range.
+        a.value(Math.min(Math.max(0, offset), max), 0, max, viewport);
+        a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+    }
+
+    /**
+     * Scrolls the host as an assistive technology asked, through the same private path a track
+     * press and a thumb drag take, so the host's model is told the same way, the same clamp runs
+     * and the bar reveals itself as it does for the wheel.
+     *
+     * <p>{@code INCREMENT} and {@code DECREMENT} page by one viewport and grow or shrink the offset
+     * in both layout directions: the verbs are defined on the published value, which is a
+     * magnitude, and the screen-side flip a mirrored horizontal bar applies to a track press
+     * belongs to the pointer alone. {@code SET_VALUE} takes an {@link Accessible.Argument.OfValue}
+     * in the model's own points and refuses anything else, including a value that is not a finite
+     * number, which the clamp would pass through untouched. Every verb is refused while the bar's
+     * own enabled flag is off, and while the node would not be in the tree at all &mdash; the
+     * policy hidden, or the content fitting &mdash; because an identifier can arrive after the
+     * node left, and the scene's gate re-checks the ancestors and not the bar's own two absences.
+     *
+     * @param action what was asked
+     * @param arg    the value for {@code SET_VALUE}; ignored by the two pages
+     * @return whether the request ran
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        if (!isEnabled() || policy == Policy.HIDDEN || !hasOverflow()) {
+            return false;
+        }
+        switch (action) {
+            case INCREMENT -> scrollTo(model.offset() + model.viewportLength());
+            case DECREMENT -> scrollTo(model.offset() - model.viewportLength());
+            case SET_VALUE -> {
+                if (!(arg instanceof Accessible.Argument.OfValue of)
+                        || !Double.isFinite(of.value())) {
+                    return false;
+                }
+                scrollTo((float) of.value());
+            }
+            default -> {
+                return false;
+            }
+        }
+        return true;
     }
 }

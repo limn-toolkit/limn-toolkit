@@ -414,8 +414,10 @@ for a frame, and an AX request serviced by the run loop inside `nextEventMatchin
 is wrong.** The toolkit and the backend hold 22 `Ui.post`/`Ui.postDelayed` call sites between them,
 not 14, and they are not all event-shaped. `TextField` and `TextArea` blink the caret through a
 *self-rescheduling* `postDelayed` whose javadoc says why — "so a focused field lets the event loop
-sleep between blinks instead of pinning it at the frame rate" — and `Spinner`, `ScrollBar`,
-`VideoView`, `MediaControls` and `Scene`'s tooltip dwell all re-arm themselves the same way. An
+sleep between blinks instead of pinning it at the frame rate" — and `Spinner`, `VideoView`,
+`MediaControls` and `Scene`'s tooltip dwell all re-arm themselves the same way (an earlier draft
+counted `ScrollBar` among them; its one delayed post is a hold-expiry check armed at most once, and
+its track press pages once with no repeat — §7.2). An
 unconditional wake makes every one of those posts write a native event from inside the drain the
 loop is already awake for. §8 takes the narrower fix instead.
 
@@ -2387,7 +2389,7 @@ and mixing them up is how a design document becomes untrustworthy in both direct
 | ↳ the highlighted row | | `SELECTED` on the row, active descendant on its column | — | `Column#highlight` is an `int` today and reaches the tree through the column's `SelectionFacet`; moving it raises `ACTIVE_DESCENDANT_CHANGED`, which is how a keyboard walk down a menu is announced at all. Without it a reader can see the rows and never learn which one the user is on |
 | `Dialog` panel or overlay | `DIALOG` | `MODAL`, `ActionFacet{CANCEL}`; `WindowFacet` **only** when it is a real window | — | in scene it is a dialog node inside the owner's tree, with `UIA_IsDialogPropertyId` on Windows |
 | `ScrollView` | `SCROLL_PANE` | `ScrollFacet`; descendants gain `SCROLL_INTO_VIEW` | — | a node, not transparent: the scroll behaviour lives here, and eliding it deletes `ScrollPattern` and `ScrollItemPattern` from a scene that is mostly scrollable |
-| `ScrollBar` | `SCROLL_BAR` | `ValueFacet` from its model, `HORIZONTAL`/`VERTICAL` | — | a node, not decorative; not focusable, which is correct. **Corrected:** under `ON_SCROLL` it hides by returning early from `onPaint` while staying visible and showing, so neither `isVisible()` nor `isShowing()` says it is gone. Publishing it unconditionally offers a control that is not on screen; suppressing it on the fade would make a scroll bar appear and vanish in the tree as the user scrolls. Which of those is right is the pipeline step's call, with the fade state read from the widget rather than guessed at here |
+| `ScrollBar` | `SCROLL_BAR` | `ValueFacet{offset, 0, content − viewport, step = viewport}` in the model's own points, settable; `HORIZONTAL`/`VERTICAL` | `INCREMENT`, `DECREMENT` (a page each); `SET_VALUE` through the facet | a node, not decorative; not focusable, which is correct. **Corrected twice.** The row listed no verb, and the source has two pointer paths, a page toward the pointer and a thumb drag, so the node carries the two pages and accepts a set, all through one private path with the pointer's own clamp and reveal. And the row's first correction — that "under `ON_SCROLL` it hides by returning early from `onPaint`" — lumped three absences into one: the early return is on an opacity that is zero under `HIDDEN` at any time, zero under every policy when the content fits, and the fade value under `ON_SCROLL` and `AUTO`. The first two are structural, move only on a policy, content or size change, and are the two cases the node is ignored; the fade is a paint alpha and a hit-test gate, and the node stays through it, because the action gate (§1.9) never consults opacity and a reader's set reaches `onScrolled()`, which reveals the bar exactly as the wheel does. The "not on screen" dilemma is answered by that path and not by the tree; the fade cannot be read into the tree in any case, since `offScreen()` is for synthetic children and the state setter refuses `SHOWING` |
 | `SplitPane` | `SPLIT_PANE` | — | — | |
 | ↳ `Divider` | `SPLITTER` | `ValueFacet{ratio}`, `HORIZONTAL`/`VERTICAL` | — | `FOCUSABLE` only when the application made it so |
 | ↳ `Pane` | transparent | | | |
@@ -2445,7 +2447,7 @@ its real function is to calibrate how much the table should be trusted.
 | `PopupMenu` column | rows sit inside a scrolled, clipped viewport with its own `visibleH`; a row's box is not its raw `top[]`, and a scrolled-away row is not `SHOWING` |
 | `SegmentedControl` | overflow chevrons exist, are operable, and have a dead side; an overflowed segment is not `SHOWING` |
 | `ColorPicker.HueRamp` | extends `Painted`, not `Rail` — the `SLIDER` mapping assumed machinery it does not have |
-| `ScrollBar` | hides by returning early from `onPaint`, not by becoming invisible, so visibility does not describe whether it is on screen |
+| `ScrollBar` | hides by returning early from `onPaint`, not by becoming invisible, so visibility does not describe whether it is on screen. **Corrected by the step:** that early return covers three different absences and only one of them is the fade. The policy `HIDDEN` and content that fits are structural, leave the bar unoperable by anyone — the hit test refuses at every opacity and nothing paints — and are the two cases the node is ignored; the fade is transient, gates the pointer alone, and the node stays through it, because the scene's action gate never consults opacity and the bar's own from-the-user path reveals it on use. The row's "—" under actions was wrong: a track press pages and a thumb drag sets, so the node carries `INCREMENT` and `DECREMENT` and accepts `SET_VALUE`, and the step is one viewport, the only step the source has. The verbs are defined on the value, a magnitude in both layout directions, and never mirror; the pointer's paging sign on a mirrored horizontal bar is a screen-side mapping that stays with the pointer. Also outside this table: §0's Finding 13 and §8 count "the auto-repeat in `Spinner` and `ScrollBar`" among the self-rescheduling timers, and `ScrollBar` has none — a track press pages once, and its one delayed post is the hold-expiry check, armed at most once and re-armed only when activity extended the hold |
 | `TabbedPane` hidden panel | handled by §1.2's inherited `VISIBLE`, which the table previously stated as a one-off for this row |
 | `TextField` trailing button | the setter takes no label, so the promised node has no name; §8 adds one |
 | `ListView` row | needs `ActionFacet{PRESS}` onto `activate()`; selection without a verb is not usable |
@@ -2600,7 +2602,7 @@ re-stamp instead of a walk (§5.2).
 the UI thread with the loop asleep inside the pump (Finding 13). The obvious repair is to wake
 unconditionally, and the first draft of this ADR took it on the strength of a call-site count that
 turns out to be wrong: there are 22, not 14, and the caret blink in `TextField` and `TextArea`, the
-auto-repeat in `Spinner` and `ScrollBar`, the media position ticks and `Scene`'s tooltip dwell are all
+auto-repeat in `Spinner`, the media position ticks and `Scene`'s tooltip dwell are all
 *self-rescheduling timers* whose whole point — `TextField`'s javadoc says so — is to let the loop sleep
 between them. Waking unconditionally makes each of those write a native event from inside a drain the
 loop is demonstrably already awake for.

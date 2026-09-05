@@ -158,9 +158,30 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         return node(Accessible.Role.LIST);
     }
 
-    /** @return the option nodes, in tree order, which is model order */
+    /**
+     * @return the option nodes, in tree order, which is model order. The list's children are not
+     *         only options: when the panel overflows, its real scroll bar widget is walked after
+     *         the synthetic rows and publishes a node of its own beside them.
+     */
     private List<AccessibleNode> options() {
-        return childrenOf(list());
+        List<AccessibleNode> found = new ArrayList<>();
+        for (AccessibleNode child : childrenOf(list())) {
+            if (child.role() == Accessible.Role.LIST_ITEM) {
+                found.add(child);
+            }
+        }
+        return found;
+    }
+
+    /** @return the scroll-bar nodes among the list's children, in tree order */
+    private List<AccessibleNode> scrollBars() {
+        List<AccessibleNode> found = new ArrayList<>();
+        for (AccessibleNode child : childrenOf(list())) {
+            if (child.role() == Accessible.Role.SCROLL_BAR) {
+                found.add(child);
+            }
+        }
+        return found;
     }
 
     /**
@@ -196,6 +217,10 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of("Item 0", "Item 1", "Item 2"),
                 options.stream().map(AccessibleNode::name).toList(),
                 "in model order, which is the order they are drawn in" + describe(tree()));
+        assertEquals(3, childrenOf(list()).size(),
+                "three options and nothing else: the panel's scroll bar has nothing to scroll "
+                        + "and publishes no node over content that fits" + describe(tree()));
+        assertEquals(List.of(), scrollBars(), describe(tree()));
     }
 
     @Test
@@ -345,8 +370,21 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(scroll.horizontallyScrollable());
         assertTrue(scroll.verticalViewSize() < 1, "it shows less than all of itself");
         assertEquals(0, scroll.verticalPercent(), 1e-6, "and it opens at the top");
+        assertEquals(1, scrollBars().size(),
+                "the panel's real scroll bar is the one child beside the twenty options, walked "
+                        + "after them; it stays through its fade and goes only when the content "
+                        + "fits" + describe(tree()));
+        assertEquals(20, options().size(), describe(tree()));
+        AccessibleNode bar = scrollBars().get(0);
+        assertTrue(bar.has(Accessible.State.VERTICAL), describe(tree()));
+        assertEquals(0.0, bar.value().value(), "the bar's offset is the list's" + describe(tree()));
+        assertTrue(bar.value().max() > 0, describe(tree()));
 
         key(Keys.END);
+
+        assertTrue(scrollBars().get(0).value().value() > 0,
+                "END moved the list, and the bar's own facet followed the same scroll field"
+                        + describe(tree()));
 
         assertTrue(list().scroll().verticalPercent() > 0,
                 "the end of a clamped list is not the top of it" + describe(tree()));
