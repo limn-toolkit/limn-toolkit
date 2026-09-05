@@ -25,6 +25,13 @@ final class ComponentStrings {
     static final I18nString SEARCH_PLACEHOLDER =
             new I18nString("limn.searchField.placeholder", "Search…");
 
+    // What a screen reader calls a search field's trailing button, for the SplitPane divider's
+    // reason: it paints a glyph, holds no text and no tooltip, and no application can reach the
+    // drawn region to name it, so without this the one field in the toolkit that ships a trailing
+    // button out of the box publishes an operable control with an empty name.
+    static final I18nString SEARCH_CLEAR =
+            new I18nString("limn.searchField.clear", "Clear");
+
     static final I18nString VIEWPORT3D_NO_BACKEND =
             new I18nString("limn.viewport3d.noBackend", "3D unavailable (no GPU backend)");
 
