@@ -90,6 +90,7 @@ public final class AtspiBridge implements AccessibilityBridge {
             return false;
         }
         try (DBus.Conn bus = DBus.Conn.open(session)) {
+            bus.hello();
             Object[] address = bus.callArgs("org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus",
                     "GetAddress", null);
             if (address.length == 0 || !(address[0] instanceof String where)) {
@@ -126,6 +127,9 @@ public final class AtspiBridge implements AccessibilityBridge {
             return null;
         }
         try (DBus.Conn session = DBus.Conn.open(address)) {
+            // Hello first, always: the bus routes nothing for a connection that has not asked for
+            // its name, so every later call would sit unanswered until the timeout.
+            session.hello();
             Object[] out = session.callArgs(STATUS_NAME, STATUS_PATH, DBus.I_PROPS_NAME, "Get",
                     "ss", STATUS_IFACE, name);
             Object value = out.length == 0 ? null : out[0];

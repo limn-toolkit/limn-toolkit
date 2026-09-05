@@ -91,6 +91,9 @@ final class AtspiTree {
      */
     DBus.Msg handle(DBus.Conn conn, DBus.Msg m) {
         String iface = m.iface == null ? "" : m.iface;
+        if (Atspi.PATH_CACHE.equals(m.path)) {
+            return cache(m, iface);
+        }
         boolean root = isRoot(m.path);
         AccessibleNode node = root ? null : nodeOf(m.path);
         if (!root && node == null) {
@@ -107,13 +110,89 @@ final class AtspiTree {
         if (Atspi.I_ACCESSIBLE.equals(iface)) {
             return accessible(m, root, node);
         }
-        if (Atspi.I_COMPONENT.equals(iface) && node != null) {
-            return component(m, node);
+        if (Atspi.I_COMPONENT.equals(iface)) {
+            // The application object answers Component too. A client asks the root for its extents
+            // before it walks anything, and an error there stops the walk at the first step rather
+            // than degrading: libatspi reports the failure and abandons the subtree.
+            return node == null ? applicationComponent(m) : component(m, node);
         }
         if (Atspi.I_ACTION.equals(iface) && node != null) {
             return action(m, node);
         }
         return null;
+    }
+
+    /**
+     * The whole tree in one message, which is how a client on this platform starts.
+     *
+     * <p>{@code libatspi} asks for this before it walks anything, and an application that cannot
+     * answer is walked one call per node per property instead -- if it is walked at all. The items
+     * are built from the same snapshot every other answer comes from, so the cache a client holds
+     * and the answers it would get node by node cannot disagree.
+     */
+    private DBus.Msg cache(DBus.Msg m, String iface) {
+        if (Atspi.I_PEER.equals(iface) && "Ping".equals(m.member)) {
+            return DBus.Msg.ret(m, null);
+        }
+        if (!Atspi.I_CACHE.equals(iface) || !"GetItems".equals(m.member)) {
+            return null;
+        }
+        AccessibleTree tree = current.get();
+        List<Object> items = new ArrayList<>();
+        items.add(new Object[] {
+                rootRef().toStruct(), rootRef().toStruct(), desktopOrNull().toStruct(),
+                -1, tree.nodeCount() == 0 ? 0 : 1,
+                new ArrayList<Object>(List.of(Atspi.I_ACCESSIBLE, Atspi.I_APPLICATION,
+                        Atspi.I_COMPONENT)),
+                applicationName, Atspi.ROLE_APPLICATION, "",
+                Atspi.stateWords(AtspiStates.setOf(s -> s == Accessible.State.ENABLED)),
+        });
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            AccessibleNode node = tree.node(i);
+            items.add(new Object[] {
+                    refOf(node.id()).toStruct(), rootRef().toStruct(),
+                    parentRef(tree, node).toStruct(),
+                    indexInParent(tree, node), childrenOf(tree, node).size(),
+                    new ArrayList<>(interfacesOf(false, node)),
+                    node.name(), roleOf(node), node.description(),
+                    Atspi.stateWords(statesOf(node)),
+            });
+        }
+        return DBus.Msg.ret(m, Atspi.CACHE_ITEMS, items);
+    }
+
+    /** The application's own rectangle: the window it holds, or nothing before the first frame. */
+    private DBus.Msg applicationComponent(DBus.Msg m) {
+        AccessibleTree tree = current.get();
+        int[] box = tree.nodeCount() == 0
+                ? new int[] {0, 0, 0, 0}
+                : extentsOf(tree, tree.node(0),
+                        m.body.length > 0 ? coordOf(m.body[0]) : Atspi.COORD_SCREEN);
+        return switch (m.member == null ? "" : m.member) {
+            case "GetExtents" -> DBus.Msg.ret(m, "(iiii)",
+                    (Object) new Object[] {box[0], box[1], box[2], box[3]});
+            case "GetPosition" -> DBus.Msg.ret(m, "(ii)", (Object) new Object[] {box[0], box[1]});
+            case "GetSize" -> DBus.Msg.ret(m, "(ii)", (Object) new Object[] {box[2], box[3]});
+            case "GetLayer" -> DBus.Msg.ret(m, "u", Atspi.LAYER_WINDOW);
+            case "GetMDIZOrder" -> DBus.Msg.ret(m, "n", (short) 0);
+            case "GetAlpha" -> DBus.Msg.ret(m, "d", 1.0d);
+            default -> null;
+        };
+    }
+
+    /** Where {@code node} sits among its siblings, which the cache item carries. */
+    private int indexInParent(AccessibleTree tree, AccessibleNode node) {
+        int parent = node.parent();
+        if (parent < 0) {
+            return 0;
+        }
+        List<AccessibleNode> siblings = childrenOf(tree, tree.node(parent));
+        for (int i = 0; i < siblings.size(); i++) {
+            if (siblings.get(i).id() == node.id()) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     // ------------------------------------------------------------------ org.freedesktop.DBus.Properties
@@ -143,6 +222,13 @@ final class AtspiTree {
 
     private Map<Object, Object> propertiesOf(String which, boolean root, AccessibleNode node) {
         Map<Object, Object> out = new LinkedHashMap<>();
+        if (Atspi.I_ACTION.equals(which) && node != null) {
+            // A property and not only the GetNActions method: libatspi reads the count through
+            // org.freedesktop.DBus.Properties, so a bridge that answers the method alone reports
+            // no verbs to every client while happily performing the ones it says it has not got.
+            out.put("NActions", new DBus.Variant("i", verbsOf(node).size()));
+            return out;
+        }
         if (Atspi.I_APPLICATION.equals(which)) {
             out.put("ToolkitName", new DBus.Variant("s", "Limn"));
             out.put("Version", new DBus.Variant("s", "1"));
