@@ -115,6 +115,13 @@ public final class Dialog {
     private static final float SLIDE_DISTANCE = 14;
 
     private final I18nString title;
+    /**
+     * The message, or {@code null} when the dialog was built without one. Kept beside the label
+     * that paints it because the card's node describes itself from it on every frame that damages
+     * the card, and a string handed over by reference costs that frame nothing, where one resolved
+     * to find out whether it is empty would cost it an allocation.
+     */
+    private final I18nString message;
     private final DialogPanel panel;
     /** Title, message and the application's widget: the part that scrolls when the card is capped. */
     private final TokenColumn body;
@@ -171,6 +178,9 @@ public final class Dialog {
         Objects.requireNonNull(title, "title");
         Objects.requireNonNull(message, "message");
         this.title = title;
+        // Resolved once, here, to decide whether there is a message at all; from then on the
+        // reference is the fact, and nothing else in the dialog resolves it to ask.
+        this.message = message.get().isEmpty() ? null : message;
         // NOTHING here may capture a size: a widget has no parent while it is being built,
         // so a step read now resolves to the process default no matter what the eventual
         // owner declares, and a Dialog is single-use, so there is no re-show that could
@@ -181,8 +191,8 @@ public final class Dialog {
         body = new TokenColumn(Tokens.Role.MEDIUM);
         body.crossAlignment(Flex.CrossAlignment.STRETCH);
         body.add(new Label(title).setRole(Label.Role.TITLE));
-        if (!message.get().isEmpty()) {
-            body.add(new Label(message).setWrap(true).setMuted(true));
+        if (this.message != null) {
+            body.add(new Label(this.message).setWrap(true).setMuted(true));
         }
         buttonRow = new ActionRow();
         buttonRow.mainAlignment(Flex.MainAlignment.END)
@@ -973,6 +983,61 @@ public final class Dialog {
         }
 
         /**
+         * Describes the card as the dialog: a {@code DIALOG} named by the title it holds, with the
+         * message as its description and one verb, the dismissal.
+         *
+         * <p>The name is the dialog's own painted text, handed over by reference, so a frame that
+         * damaged the card and changed nothing about it allocates nothing to say so; its
+         * provenance is {@code CONTENT} because that is what one platform reads as a dialog's
+         * title. The heading below carries the same string and is not declared as a label for
+         * this node, since a relation would say what the name already says. The message goes
+         * over the same way, from the field the constructor kept, and a dialog built without one
+         * publishes no description rather than resolving a string to find out it is empty.
+         *
+         * <p>What is deliberately not declared. Not {@code MODAL}: in scene the walk puts it on
+         * the layer that owns input, one level up, and a second bit here would announce one fact
+         * twice; as a native window, modality is the window's and stays on the window's own node.
+         * No window facet: the card is never a window, in either mounting &mdash; as a scene root
+         * the walk mints the window node beside it, and a second facet would be two windows for
+         * one. No {@code PRESS}: Return is the default button's own verb. No key binding: the
+         * package holds no localized display string for a bare Escape, and one built here would be
+         * an allocation per damaged frame. Bounds, enabled, visible, showing, and the focusable
+         * set are the walk's, and the card is never focusable of its own accord.
+         *
+         * @param a the node under construction
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.DIALOG);
+            a.name(title, Accessible.NameFrom.CONTENT);
+            if (message != null) {
+                a.description(message);
+            }
+            a.action(Accessible.Action.CANCEL);
+        }
+
+        /**
+         * Dismisses the dialog when an assistive technology asks, exactly as Escape does: the
+         * same private resolution with the cancel result, so the stage completes the same way and
+         * the application cannot tell the two apart. Any other verb is refused, and so is a
+         * dismissal once an answer is already on its way out, which is the guard the key path
+         * keeps and the reason a second cancel during the fade is a truthful {@code false} rather
+         * than a silently swallowed call.
+         *
+         * @param verb what was asked
+         * @param arg  ignored; a dismissal carries none
+         * @return whether the dialog began closing
+         */
+        @Override
+        protected boolean onAccessibilityAction(Accessible.Action verb, Accessible.Argument arg) {
+            if (verb != Accessible.Action.CANCEL || closing) {
+                return false;
+            }
+            resolve(cancelResult);
+            return true;
+        }
+
+        /**
          * Grows or shrinks the modal window when its content stops wanting the size the
          * window was created for: a tab switch that adds a row, say.
          *
@@ -1194,7 +1259,17 @@ public final class Dialog {
 
         @Override
         protected void paintChildren(Canvas canvas) {
+            float wasX = card.x();
+            float wasY = card.y();
             onLayout(); // re-place the card for the current fade slide
+            if (card.x() != wasX || card.y() != wasY) {
+                // A placement the layout pass never saw. The accessible tree reads every box
+                // before the paint passes, so on a frame that slid or dragged the card the tree
+                // carries the box the previous paint left, and nothing that knows the card moved
+                // would say so once the fade and the drag are over. Two float compares, and a
+                // frame bought only while a reader is listening.
+                invalidateAccessible();
+            }
             super.paintChildren(canvas);
         }
 
