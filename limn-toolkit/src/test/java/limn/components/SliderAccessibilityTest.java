@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
@@ -148,15 +147,13 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * Frames until {@code millis} of wall time have passed, damaging the slider each time, which
-     * is what lets a wall-clock transition run its course before a measurement is taken.
+     * Moves the scene's clock on by {@code millis}, damaging the slider each time, which is what
+     * lets a transition run its course before a measurement is taken. The clock is the test's:
+     * a span of wall time settles a fade on a fast machine and lands in the middle of it on a
+     * slow one, which is not a property of anything under test.
      */
     private void frameFor(long millis) {
-        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(millis);
-        while (System.nanoTime() < until) {
-            slider.invalidate();
-            frame();
-        }
+        advanceTime(millis, slider);
     }
 
     /** @return whether any node in {@code tree} carries {@code role} */
@@ -624,7 +621,7 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
         hover();
         frame();
 
-        // The hover and focus fades are wall-clock transitions that damage the slider on every
+        // The hover and focus fades are timed transitions that damage the slider on every
         // frame they run for, and a measurement taken while one is mid-flight is a measurement
         // of the animation.
         frameFor(400);
@@ -643,19 +640,22 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
         // A string formatted inside the hook, or the variable-argument action call, would be one
         // allocation per damaged frame spent concluding that nothing moved. This is the only
         // place it would be visible.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            slider.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             slider.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            slider.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a slider that did not move must cost no memory: the role is an enum, "

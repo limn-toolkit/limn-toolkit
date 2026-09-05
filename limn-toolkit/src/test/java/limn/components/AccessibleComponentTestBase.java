@@ -35,6 +35,27 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
     /** The scene under test, bound in {@link #bind}. */
     protected Scene scene;
 
+    /**
+     * The nanosecond every scene bound here reads, moved only by {@link #advanceTime} and
+     * {@link #settleAnimations}.
+     *
+     * <p><b>Time does not pass in these tests unless a test says it does.</b> What a settle has to
+     * guarantee is that every animation has finished before a measurement starts, and a span of
+     * wall time does not guarantee it: how far a transition gets depends on how fast the machine
+     * happens to be running, which is not a property of anything under test. That is not a
+     * hypothetical &mdash; it is the recorded cause of one measurement landing in the middle of a
+     * fade on a cold virtual machine, chased and fixed once already for the combo box's popup.
+     * Held still, a widget is at the instant the test put it at, on every machine and in every
+     * order.
+     *
+     * <p>It is worth being exact about what this is <em>not</em> for. It is not what made the
+     * allocation comparisons flaky; that was the comparison itself, and the fix for it is in
+     * {@link AllocationProbe#typicalAllocatedByEach}. Freezing time here without that fix made
+     * those failures more frequent rather than less, measured against the wall-clock settle in
+     * paired runs.
+     */
+    private final long[] nanos = {TimeUnit.SECONDS.toNanos(1)};
+
     /** The window it is bound to, whose {@link StubWindow#accessibility} is the double below. */
     protected StubWindow window;
 
@@ -140,10 +161,47 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
         window = over;
         window.accessibility = bridge;
         canvas = new FakeCanvas(400, 300);
-        scene = new Scene(root);
+        scene = new Scene(root, () -> nanos[0]);
         scene.bind(window);
         frame();
         bridge.events.clear();
+    }
+
+    /**
+     * Moves the scene's clock forward and renders a frame for each step of it.
+     *
+     * <p>In steps no larger than the tick clamp, because a scene clamps how much time one frame
+     * may account for: a single jump of a second would advance an animation by
+     * {@link Scene#MAX_TICK_SECONDS} and leave the rest of the second unspent.
+     *
+     * @param millis how much time to spend
+     * @param damage the widget to invalidate before each frame, so the frames are real ones, or
+     *               {@code null} to let the scene decide what to redraw
+     */
+    protected void advanceTime(long millis, Widget damage) {
+        long step = (long) (Scene.MAX_TICK_SECONDS * 1000);
+        for (long left = millis; left > 0; left -= step) {
+            nanos[0] += TimeUnit.MILLISECONDS.toNanos(Math.min(step, left));
+            if (damage != null) {
+                damage.invalidate();
+            }
+            frame();
+        }
+    }
+
+    /**
+     * Moves time past every transition the toolkit runs and leaves it there, which is what a
+     * measurement needs before it is taken.
+     *
+     * <p>Three seconds covers the longest of them by a wide margin &mdash; a revealed scroll bar
+     * holds for over one before it starts to fade &mdash; and the clock is not moved again
+     * afterwards, so nothing can expire or animate inside the window being measured. That is the
+     * whole point: an allocation figure taken while a fade is mid-flight is a figure for the fade.
+     *
+     * @param damage the widget to invalidate before each frame
+     */
+    protected void settleAnimations(Widget damage) {
+        advanceTime(3000, damage);
     }
 
     /** Renders one frame, which is what turns a setter into a published tree. */

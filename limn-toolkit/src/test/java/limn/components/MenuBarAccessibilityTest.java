@@ -513,17 +513,20 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
         // Shaping a title inside the hook is a ShapedText and its metrics per title per damaged
         // frame; Accelerator.display() is a builder and a string; the variable-argument action
         // call is an array. This is the only place any of the three is visible.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            bar.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             bar.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            bar.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a strip that did not move must cost no memory: the widths come from "

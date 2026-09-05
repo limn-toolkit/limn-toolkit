@@ -274,19 +274,22 @@ class BackdropPanelAccessibilityTest extends AccessibleComponentTestBase {
         int published = bridge.published.size();
         bridge.events.clear();
 
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            panel.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             panel.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), "and no events: " + bridge.events);
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            panel.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a backdrop that says nothing must cost no memory at all; a frame of "

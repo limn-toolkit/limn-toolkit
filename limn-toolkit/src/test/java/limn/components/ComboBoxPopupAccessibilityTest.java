@@ -11,7 +11,6 @@ import limn.i18n.I18nString;
 import limn.i18n.StringBundle;
 import limn.input.Keys;
 import limn.scene.LayoutDirection;
-import limn.scene.Scene;
 import limn.scene.layout.Column;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
@@ -21,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.LongSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -123,26 +121,10 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
      * @param into the window to bind to
      */
     private void bindCombo(ComboBox box, StubWindow into) {
-        bindCombo(box, into, System::nanoTime);
-    }
-
-    /**
-     * {@link #bindCombo(ComboBox, StubWindow)} on a clock the test owns, for the one case that
-     * has to hold time still.
-     */
-    private void bindCombo(ComboBox box, StubWindow into, LongSupplier clock) {
         combo = box;
         Column root = new Column();
         root.add(combo);
-        bridge = new RecordingBridge();
-        window = into;
-        window.accessibility = bridge;
-        canvas = new FakeCanvas(400, 300);
-        scene = new Scene(root, clock);
-        scene.setTextRuler(RULER);
-        scene.bind(window);
-        frame();
-        bridge.events.clear();
+        bind(root, into);
     }
 
     /** Opens the list and renders the frame that publishes it. */
@@ -575,26 +557,17 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
     void aQuietOpenListAllocatesNothing() {
         Assumptions.assumeTrue(AllocationProbe.isSupported(),
                 "this virtual machine does not count per-thread allocation");
-        // On a clock this test owns, because the two windows below have to be measured in the
-        // same state and a frame count cannot put them there. The list fades in, its scroll bar
-        // holds for over a second and then fades out, and each of those is a plateau with its own
-        // per-frame cost: a bar that is painted, a bar that is fading, a bar that is gone. On a
-        // warm machine 200 frames pass in under ten milliseconds and both windows sit on the first
-        // plateau; on a cold one they take about as long as the hold, and the second window landed
-        // on the fade -- every one of its sixty frames, so the minimum could not filter it. Time is
-        // therefore moved by decree past all three, in steps the tick clamp accepts, and then not
-        // moved again: nothing can expire or animate inside either window.
-        long[] now = {1_000_000_000L};
-        ComboBox box = new ComboBox(List.of("Item 0", "Item 1", "Item 2", "Item 3", "Item 4",
-                "Item 5", "Item 6", "Item 7", "Item 8", "Item 9", "Item 10", "Item 11"));
-        box.setDisplayMode(DisplayMode.IN_SCENE);
-        bindCombo(box, new StubWindow(), () -> now[0]);
+        // The two windows below have to be measured in the same state, and a frame count cannot
+        // put them there. The list fades in, its scroll bar holds for over a second and then fades
+        // out, and each of those is a plateau with its own per-frame cost: a bar that is painted,
+        // a bar that is fading, a bar that is gone. On a warm machine 200 frames passed in under
+        // ten milliseconds and both windows sat on the first plateau; on a cold one they took
+        // about as long as the hold, and the second window landed on the fade -- every one of its
+        // sixty frames, so the minimum could not filter it. Time is moved past all three instead,
+        // and then not moved again: nothing can expire or animate inside either window.
+        bindCombo(12);
         openList();
-        for (int i = 0; i < 12; i++) {
-            now[0] += (long) (Scene.MAX_TICK_SECONDS * 1e9);
-            combo.invalidate();
-            frame();
-        }
+        settleAnimations(combo);
         int published = bridge.published.size();
         bridge.events.clear();
 
@@ -602,19 +575,22 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         // name read out of the model with get(), a formatted position, or the variable-argument
         // action call is a string or an array per option per frame spent concluding that nothing
         // moved, and this is the only place any of them is visible.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            combo.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             combo.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertTrue(bridge.events.isEmpty(), "and no events: " + bridge.events + describe(tree()));
         assertEquals(published, bridge.published.size(), "no difference, so no snapshot");
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            combo.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a list that did not move must cost no memory: every name is an "

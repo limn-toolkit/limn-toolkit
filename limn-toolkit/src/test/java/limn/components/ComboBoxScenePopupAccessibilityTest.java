@@ -366,21 +366,24 @@ class ComboBoxScenePopupAccessibilityTest extends AccessibleComponentTestBase {
         // The list fades in, so the overlay is damaged on every frame the fade lasts and each of
         // those frames walks the tree to conclude that nothing moved. A name formatted in the
         // hook, or the variable-argument action call, is invisible anywhere but here.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            combo.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             combo.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), "and no events: " + bridge.events);
 
         // Against the same frame with nothing listening rather than against zero: a headless
         // frame has a floor that has nothing to do with this widget.
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            combo.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing an open list that did not move must cost no memory at all: the name "

@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
@@ -524,28 +523,27 @@ class ColorPickerPreviewAccessibilityTest extends AccessibleComponentTestBase {
      * @return how much the least expensive of sixty such frames allocated
      */
     private long allocatedByADamagedFrame() {
-        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(400);
-        while (System.nanoTime() < until) {
-            picker.invalidate();
-            frame();
-        }
+        settleAnimations(picker);
         int published = bridge.published.size();
         bridge.events.clear();
 
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            picker.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             picker.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(),
                 "a damaged frame that moved no colour is no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            picker.invalidate();
-            frame();
-        }, 60);
         bridge.listening = true;
         return withAReaderAttached - withNobodyListening;
     }

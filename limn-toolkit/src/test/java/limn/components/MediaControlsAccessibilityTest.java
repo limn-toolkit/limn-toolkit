@@ -707,19 +707,22 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
                         + "strings compared by reference and the clock's literal is guarded");
         assertTrue(bridge.events.isEmpty(), "and no events: " + bridge.events);
 
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            controls.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             controls.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            controls.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a bar that did not move must cost no memory: a role, a bit, a "

@@ -14,7 +14,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
@@ -137,15 +136,13 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * Frames until {@code millis} of wall time have passed, damaging the bar each time, which is
-     * what lets a wall-clock transition run its course before a measurement is taken.
+     * Moves the scene's clock on by {@code millis}, damaging the bar each time, which is what
+     * lets a transition run its course before a measurement is taken. The clock is the test's:
+     * a span of wall time settles a fade on a fast machine and lands in the middle of it on a
+     * slow one, which is not a property of anything under test.
      */
     private void frameFor(long millis) {
-        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(millis);
-        while (System.nanoTime() < until) {
-            bar.invalidate();
-            frame();
-        }
+        advanceTime(millis, bar);
     }
 
     /** @return whether any node in {@code tree} carries {@code role} */
@@ -488,7 +485,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         bar.setProgress(0.7f);
         frame();
 
-        // The fill is a wall-clock transition that damages the bar on every frame it runs for,
+        // The fill is a timed transition that damages the bar on every frame it runs for,
         // and a measurement taken while it is mid-flight is a measurement of the animation.
         frameFor(400);
         int published = bridge.published.size();
@@ -505,19 +502,22 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
 
         // A string formatted inside the hook would be one allocation per damaged frame spent
         // concluding that nothing moved. This is the only place it would be visible.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            bar.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             bar.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            bar.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a bar that did not move must cost no memory: the role is an enum, "

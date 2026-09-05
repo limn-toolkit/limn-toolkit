@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -546,14 +545,10 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
         hover(chevron);
         frame();
 
-        // The hover fade is a wall-clock transition that damages the control on every frame it
-        // runs for, and a measurement taken while one is mid-flight measures the animation. Frame
-        // past it before measuring.
-        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(400);
-        while (System.nanoTime() < until) {
-            chevron.invalidate();
-            frame();
-        }
+        // The hover fade is a timed transition that damages the control on every frame it
+        // runs for, and a measurement taken while one is mid-flight measures the animation. Move
+        // time past it before measuring.
+        settleAnimations(chevron);
         int published = bridge.published.size();
         bridge.events.clear();
 
@@ -566,19 +561,22 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
                 "damage changes nothing a reader hears, so no snapshot");
         assertTrue(bridge.events.isEmpty(), "and no events: " + bridge.events);
 
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            chevron.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             chevron.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            chevron.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a control that did not move must cost no memory: the name is the held "

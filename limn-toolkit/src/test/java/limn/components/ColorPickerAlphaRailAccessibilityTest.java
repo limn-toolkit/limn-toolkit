@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
@@ -596,13 +595,9 @@ class ColorPickerAlphaRailAccessibilityTest extends AccessibleComponentTestBase 
         scene.requestFocus(picker.alphaRail());
         frame();
 
-        // The rail's focus outline thickens on a wall clock, and it damages this widget on every
+        // The rail's focus outline thickens on the scene's clock, and it damages this widget on every
         // frame it runs for; a measurement taken while it is mid-flight measures the animation.
-        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(400);
-        while (System.nanoTime() < until) {
-            picker.invalidate();
-            frame();
-        }
+        settleAnimations(picker);
         int published = bridge.published.size();
         bridge.events.clear();
 
@@ -615,19 +610,22 @@ class ColorPickerAlphaRailAccessibilityTest extends AccessibleComponentTestBase 
                 "damage changes nothing a reader hears, so no snapshot");
         assertTrue(bridge.events.isEmpty(), "and no events: " + bridge.events);
 
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            picker.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             picker.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            picker.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a rail that did not move must cost no memory: the role is an enum, "

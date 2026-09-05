@@ -480,19 +480,22 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
         // A value text built with a format call, a name read out of the model on every pass, or
         // the variable-argument action call is a string or an array per damaged frame spent
         // concluding that nothing moved, and this is the only place any of them is visible.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            combo.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             combo.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertTrue(bridge.events.isEmpty(), "and no events: " + bridge.events);
         assertEquals(published, bridge.published.size(), "no difference, so no snapshot");
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            combo.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a field that did not move must cost no memory: the item's text comes "

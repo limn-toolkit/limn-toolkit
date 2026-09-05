@@ -948,19 +948,22 @@ class BarChartAccessibilityTest extends AccessibleComponentTestBase {
         // and a chart is damaged on every frame of its entry animation and every hover move. The
         // paint's own rounded rectangles are the widget's cost and cancel between the two
         // measurements; what must not remain is the walk's.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            chart.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             chart.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            chart.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a bar chart that did not move must cost no memory: the title and the "

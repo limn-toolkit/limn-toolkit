@@ -695,19 +695,22 @@ class DonutChartAccessibilityTest extends AccessibleComponentTestBase {
         // under a ruler that does not memoize is memory spent per damaged frame concluding that
         // nothing moved, and a value tween or a hover pop damages every frame. This is the only
         // place any of them is visible.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            chart.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             chart.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            chart.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a donut that did not move must cost no memory: the title, the series "

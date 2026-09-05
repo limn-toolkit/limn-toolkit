@@ -435,19 +435,22 @@ class ImageViewAccessibilityTest extends AccessibleComponentTestBase {
         int published = bridge.published.size();
         bridge.events.clear();
 
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            view.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             view.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), "and no events: " + bridge.events);
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            view.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a picture is one primitive write and must cost no memory at all");

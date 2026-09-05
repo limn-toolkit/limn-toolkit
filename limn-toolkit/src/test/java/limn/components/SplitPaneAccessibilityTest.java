@@ -307,10 +307,18 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
         // The hover fade damages the divider on every frame it runs for, and each of those frames
         // walks the whole tree to conclude that nothing moved. A name built in the hook, a
         // formatted value text or an action(Action...) call are all invisible except here.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            divider.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             divider.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), "and no events: " + bridge.events);
@@ -319,11 +327,6 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
         // has a floor of its own that has nothing to do with this widget, and a test written
         // against a constant would be measuring that floor instead. What is being claimed is the
         // difference -- that describing the split adds nothing to a frame that changed nothing.
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            divider.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a splitter that did not move must cost no memory at all: the name is "

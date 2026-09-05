@@ -646,15 +646,18 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         Assumptions.assumeTrue(AllocationProbe.isSupported(),
                 "this virtual machine does not count per-thread allocation");
         bridge.listening = true;
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            area.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             area.invalidate();
             frame();
         }, 60);
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            area.invalidate();
-            frame();
-        }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
         bridge.listening = true;
 
         assertEquals(0, withAReaderAttached - withNobodyListening,

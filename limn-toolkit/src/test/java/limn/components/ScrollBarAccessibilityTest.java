@@ -767,21 +767,24 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
         // allocation per damaged frame spent concluding that nothing moved, on the one widget
         // damaged for a second after every scroll in the toolkit. This is the only place it would
         // be visible.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            bar.onHostActivity();
+            bar.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             bar.onHostActivity();
             bar.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            bar.onHostActivity();
-            bar.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a bar that did not move must cost no memory: the role is an enum, the "

@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -521,14 +520,10 @@ class CheckboxAccessibilityTest extends AccessibleComponentTestBase {
         hover();
         frame();
 
-        // The slide, the hover and the focus fades are wall-clock transitions that damage the row
+        // The slide, the hover and the focus fades are timed transitions that damage the row
         // on every frame they run for, and a measurement taken while one is mid-flight is a
-        // measurement of the animation. Frame past all three before measuring.
-        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(400);
-        while (System.nanoTime() < until) {
-            checkbox.invalidate();
-            frame();
-        }
+        // measurement of the animation. Move time past all three before measuring.
+        settleAnimations(checkbox);
         int published = bridge.published.size();
         bridge.events.clear();
 
@@ -544,19 +539,22 @@ class CheckboxAccessibilityTest extends AccessibleComponentTestBase {
         // A name resolved inside the hook, or the variable-argument action call, is a string or
         // an array per damaged frame spent concluding that nothing moved, and every frame of a
         // hover fade is such a frame. This is the only place either is visible.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            checkbox.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             checkbox.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            checkbox.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a checkbox that did not move must cost no memory: the name is a held "

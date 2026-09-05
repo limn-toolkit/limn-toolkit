@@ -479,11 +479,14 @@ class VideoViewAccessibilityTest extends AccessibleComponentTestBase {
      *         one decodes.
      */
     private long allocatedByADamagedFrame(Runnable oneFrame) {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            oneFrame.run();
+        }, () -> {
+            bridge.listening = false;
+            oneFrame.run();
+        }, 60);
         bridge.listening = true;
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(oneFrame, 60);
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(oneFrame, 60);
-        bridge.listening = true;
-        return withAReaderAttached - withNobodyListening;
+        return cost[0] - cost[1];
     }
 }

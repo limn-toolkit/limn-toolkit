@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -337,14 +336,10 @@ class ButtonAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(beforeTheClick + 1, bridge.published.size(),
                 "one snapshot for the focus, and none for the hover, the arm or the release");
 
-        // The hover and focus fades are wall-clock transitions that damage the button on every
+        // The hover and focus fades are timed transitions that damage the button on every
         // frame they run for, and a measurement taken while one is mid-flight is a measurement
-        // of the animation. Frame past both durations before measuring.
-        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(400);
-        while (System.nanoTime() < until) {
-            button.invalidate();
-            frame();
-        }
+        // of the animation. Move time past both before measuring.
+        settleAnimations(button);
         int published = bridge.published.size();
         bridge.events.clear();
 
@@ -360,19 +355,22 @@ class ButtonAccessibilityTest extends AccessibleComponentTestBase {
         // A name resolved inside the hook, or the variable-argument action call, is a string or
         // an array per damaged frame spent concluding that nothing moved, and every frame of a
         // hover fade is such a frame. This is the only place either is visible.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            button.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             button.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            button.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a button that did not move must cost no memory: the name is a held "

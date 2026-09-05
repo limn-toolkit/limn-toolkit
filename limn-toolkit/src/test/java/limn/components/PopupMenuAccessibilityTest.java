@@ -876,9 +876,16 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
                 "this virtual machine does not count per-thread allocation");
         open(everyShape());
 
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(this::frame, 60);
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(this::frame, 60);
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            frame();
+        }, () -> {
+            bridge.listening = false;
+            frame();
+        }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "every name is an I18nString the model holds, every chord is the string the "

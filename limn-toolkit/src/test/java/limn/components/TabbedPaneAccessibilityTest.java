@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
@@ -551,13 +550,9 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
         hover(header);
         frame();
 
-        // The hover and focus fades are wall-clock transitions that damage the header on every
+        // The hover and focus fades are timed transitions that damage the header on every
         // frame they run for; a measurement taken mid-flight measures the animation.
-        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(400);
-        while (System.nanoTime() < until) {
-            header.invalidate();
-            frame();
-        }
+        settleAnimations(header);
         int published = bridge.published.size();
         bridge.events.clear();
 
@@ -570,18 +565,21 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
                 "damage changes nothing a reader hears, so no snapshot");
         assertTrue(bridge.events.isEmpty(), "and no events: " + bridge.events);
 
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            header.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             header.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            header.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a panel that did not move must cost no memory: the name is the "

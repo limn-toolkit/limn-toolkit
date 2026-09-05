@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -611,14 +610,10 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
         hover(header);
         frame();
 
-        // The hover and the focus fades are wall-clock transitions that damage the header on
+        // The hover and the focus fades are timed transitions that damage the header on
         // every frame they run for, and a measurement taken while one is mid-flight measures the
-        // animation. Frame past both before measuring.
-        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(400);
-        while (System.nanoTime() < until) {
-            header.invalidate();
-            frame();
-        }
+        // animation. Move time past both before measuring.
+        settleAnimations(header);
         int published = bridge.published.size();
         bridge.events.clear();
 
@@ -634,19 +629,22 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
         // A caption resolved inside the hook is one string per header per damaged frame spent
         // concluding that nothing moved, and every frame of a hover fade is such a frame. This is
         // the only place that is visible.
-        long withAReaderAttached = AllocationProbe.leastAllocatedBy(() -> {
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            header.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
             header.invalidate();
             frame();
         }, 60);
+        long withAReaderAttached = cost[0];
+        long withNobodyListening = cost[1];
+        bridge.listening = true;
 
         assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
-        bridge.listening = false;
-        long withNobodyListening = AllocationProbe.leastAllocatedBy(() -> {
-            header.invalidate();
-            frame();
-        }, 60);
 
         assertEquals(withNobodyListening, withAReaderAttached,
                 "describing a tab that did not move must cost no memory: the name is the held "
