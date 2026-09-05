@@ -346,7 +346,7 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
                         "SLIDER \"Hue\"",
                         "IMAGE \"Colour #FFFFFF, was #FFFFFF\"",
                         "LABEL \"#\"",
-                        "UNKNOWN \"Hex\"",
+                        "TEXT_FIELD \"Hex\"",
                         "TAB_LIST \"\"",
                         "BUTTON \"Previous tabs\"",
                         "BUTTON \"Next tabs\"",

@@ -115,7 +115,15 @@ class StubWindow implements NativeWindow {
     @Override public boolean isModal() { return modal; }
     @Override public void registerChildPopup(NativeWindow child, PopupKind kind) { }
     @Override public void unregisterChildPopup(NativeWindow child) { }
-    @Override public Clipboard clipboard() { return null; }
+    /**
+     * A clipboard that holds nothing, and not {@code null}.
+     *
+     * <p>{@code Scene#clipboard()} promises its callers a clipboard and keeps that promise by
+     * handing over the window's, so a window answering null makes the scene break a contract it
+     * states in its own javadoc. Nothing noticed until a text field's context menu was raised
+     * headlessly and asked what was on the clipboard to decide whether Paste is enabled.
+     */
+    @Override public Clipboard clipboard() { return Clipboard.NONE; }
     // Zero and one by default, which is what a Wayland window reports and what every test that
     // does not care about the screen wants. A test that does care sets the three fields.
     @Override public int screenX() { return screenX; }

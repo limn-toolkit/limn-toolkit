@@ -370,10 +370,32 @@ public final class ShapedText {
      * @param position where the caret is, index and side
      */
     public float caretX(Position position) {
-        int k = caretOrdinal(position.charIndex());
+        return caretX(position.charIndex(), position.affinity());
+    }
+
+    /**
+     * The same x, for a caller that holds the index and the side as two values rather than as a
+     * {@link Position}.
+     *
+     * <p>It exists because the pair form is what the editing model actually stores, so every
+     * caller that reached the overload above had to build a {@code Position} to ask — and the
+     * promise the overload makes about itself, that it allocates nothing on a path a scroll clamp
+     * runs per frame, was then being paid for at the call site instead. A text field asks this on
+     * every keystroke, on every blink, and once more per damaged frame for the caret rectangle it
+     * publishes to a screen reader, so the object it used to mint on the way in is a per-frame cost
+     * for a value read twice and dropped.
+     *
+     * @param charIndex a char index into {@link #text()}, clamped and snapped to a caret stop
+     * @param affinity  which side of it the caret is on; never {@code null}
+     * @return the caret's x in logical points from the run origin
+     * @throws NullPointerException if {@code affinity} is {@code null}
+     */
+    public float caretX(int charIndex, Affinity affinity) {
+        Objects.requireNonNull(affinity, "affinity");
+        int k = caretOrdinal(charIndex);
         // Spelled out rather than via caretAt().x(): the cost contract promises this one allocates
         // nothing, and it is called per frame by a scroll clamp that follows the caret.
-        return position.affinity() == Affinity.UPSTREAM ? stopUpstreamX[k] : stopDownstreamX[k];
+        return affinity == Affinity.UPSTREAM ? stopUpstreamX[k] : stopDownstreamX[k];
     }
 
     /**

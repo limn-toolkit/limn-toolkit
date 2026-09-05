@@ -53,10 +53,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * raised only when a number moves, so it would cost a formatted string per drag step and reach
  * nobody.
  *
- * <p>One thing here is transitional and says so where it is asserted: the steppers and the hex
- * field have no role of their own yet, so they publish {@code UNKNOWN} while they are focusable and
- * {@code GROUP} while they are not &mdash; the rails are the ones that have taken their step, and
- * publish {@code SLIDER}. All three painted parts have taken theirs: the saturation/value plane is
+ * <p>One thing here is transitional and says so where it is asserted: the steppers have no role of
+ * their own yet, so they publish {@code UNKNOWN} while they are focusable and {@code GROUP} while
+ * they are not &mdash; the rails and the hex field are the ones that have taken their step, and
+ * publish {@code SLIDER} and {@code TEXT_FIELD}. All three painted parts have taken theirs: the saturation/value plane is
  * the {@code CANVAS} at the head of the chooser's children, over one axis node per channel, the
  * hue ramp is the {@code SLIDER} named "Hue" beside it and the before/after swatch is the
  * {@code IMAGE} after them, and what each says is pinned by
@@ -293,7 +293,7 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         "SLIDER \"Hue\"",
                         "IMAGE \"Colour #FFFFFF, was #FFFFFF\"",
                         "LABEL \"#\"",
-                        "UNKNOWN \"Hex\"",
+                        "TEXT_FIELD \"Hex\"",
                         "TAB_LIST \"\"",
                         "BUTTON \"Previous tabs\"",
                         "BUTTON \"Next tabs\"",
@@ -317,7 +317,8 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         + "limn.components.ColorPickerPreviewAccessibilityTest. The notation tabs "
                         + "bring their pane's three overflow controls with them, which publish "
                         + "whether or not the strip overflows and are not on screen while it fits. "
-                        + "The hex field's UNKNOWN is what is transitional here" + describe(tree()));
+                        + "The alpha spinner's UNKNOWN is what is transitional here, and the hex "
+                        + "field's TEXT_FIELD is what stopped being" + describe(tree()));
 
         for (int i = 0; i < tree().nodeCount(); i++) {
             AccessibleNode node = tree().node(i);

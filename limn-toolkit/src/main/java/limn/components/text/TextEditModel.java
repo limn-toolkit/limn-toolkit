@@ -467,6 +467,21 @@ public final class TextEditModel {
     }
 
     /**
+     * Which side of {@link #cursor()} the caret is on: the other half of {@link #caret()}, read
+     * without minting the pair.
+     *
+     * <p>It exists for a caller that already has the index and wants only the side, on a path where
+     * the pair would be built and dropped. The accessible tree is that caller — it publishes the
+     * offset and the affinity as two fields of a record it fills in per damaged frame, and a field
+     * whose only accessor allocates is a field the tree cannot read for free.
+     *
+     * @return the side the caret draws on; never null
+     */
+    public Affinity caretAffinity() {
+        return cursorAffinity;
+    }
+
+    /**
      * Places the cursor; {@code select} extends/starts a selection from the old spot. The caret
      * takes {@link Affinity#DOWNSTREAM}, the side a programmatic placement has nothing better to go
      * on than. A caller that <em>does</em> know the side — a click, a drag, a visual arrow — calls

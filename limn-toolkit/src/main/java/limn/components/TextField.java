@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.text.TextEditModel;
@@ -57,6 +59,15 @@ public class TextField extends Widget {
 
     private static final double BLINK_SECONDS = 0.5;
 
+    /**
+     * The key of the one synthetic child this widget declares, the trailing coupled button.
+     *
+     * <p>A constant, because there is exactly one such button and it stands for the same thing
+     * across every {@link #setTrailingButton} call: replacing its icon or its action is a rename
+     * and not a re-key, so an assistive technology holding the node keeps holding it.
+     */
+    private static final long TRAILING_BUTTON = 1L;
+
     protected final TextEditModel model = new TextEditModel(true);
     private I18nString placeholder = I18nString.EMPTY;
     private Consumer<String> onChange = text -> {
@@ -103,6 +114,16 @@ public class TextField extends Widget {
     private ShapedText.Direction composedBase;
     /** Selection boxes, reused across paints; see {@link #fillSpans}. */
     private float[] spans = new float[8];
+    /** The caret box in widget-local coordinates and the scratch it is compared through. */
+    private Rect caretBox;
+    private final float[] caretScratch = new float[4];
+    /** The string the accessible tree publishes and its key; see {@link #accessibleText()}. */
+    private String accessibleText = "";
+    private long accessibleTextRevision;
+    private long accessibleTextVersion = -1; // model.textVersion(); -1 forces the first build
+    private boolean accessibleTextComposing;
+    private int accessibleTextCursor = -1;
+    private String accessibleTextPreedit = "";
     /** Bumped whenever the blink phase restarts; stale scheduled toggles no-op. */
     private int blinkGeneration;
     /** Focus-ring fade: morphs the border between outline and focusRing. */
@@ -478,13 +499,18 @@ public class TextField extends Widget {
         return composed;
     }
 
-    /** Where the caret sits on the composed line: inside the preedit, at its own caret. */
-    private ShapedText.Position composedCaret() {
-        // UPSTREAM is not arbitrary: the preedit caret TRAILS the text just typed, so the next
-        // character of the same script appears where the caret is drawn.
-        return new ShapedText.Position(
-                Math.min(model.cursor(), model.length()) + Math.min(preeditCaret, preedit.length()),
-                ShapedText.Affinity.UPSTREAM);
+    /**
+     * Where the caret sits on the composed line: inside the preedit, at its own caret.
+     *
+     * <p>The index alone, and the side is {@link ShapedText.Affinity#UPSTREAM} wherever this is
+     * used — which is not arbitrary: the preedit caret TRAILS the text just typed, so the next
+     * character of the same script appears where the caret is drawn. The pair used to be minted
+     * here as a {@link ShapedText.Position}, which put one object on the floor per blink of a
+     * composing field and one more per damaged frame once the accessible tree started asking.
+     */
+    private int composedCaretIndex() {
+        return Math.min(model.cursor(), model.length())
+                + Math.min(preeditCaret, preedit.length());
     }
 
     // ----------------------------------------------------------- measurement
@@ -671,11 +697,18 @@ public class TextField extends Widget {
         scrollX = Math.max(0, Math.min(scrollX, overflow));
     }
 
-    /** Display-x of the caret, on whichever line is live: the composed one while composing. */
+    /**
+     * Display-x of the caret, on whichever line is live: the composed one while composing.
+     *
+     * <p>Through the index-and-side form of {@link ShapedText#caretX}, never the
+     * {@link ShapedText.Position} one: this runs on every keystroke, on every blink and once more
+     * per damaged frame for the box the accessible tree publishes, and the pair is two values the
+     * model already stores apart.
+     */
     private float caretDisplayX(SizeTokens t) {
         return preedit.isEmpty()
-                ? displayLine(t).caretX(model.caret())
-                : composedLine(t).caretX(composedCaret());
+                ? displayLine(t).caretX(model.cursor(), model.caretAffinity())
+                : composedLine(t).caretX(composedCaretIndex(), ShapedText.Affinity.UPSTREAM);
     }
 
     // ---------------------------------------------------------------- paint
@@ -916,10 +949,12 @@ public class TextField extends Widget {
                     event.consume();
                 } else if (event.button() == Keys.MOUSE_LEFT) {
                     if (overTrailing) {
-                        if (isEnabled()) {
+                        // The same guarded call an assistive technology's press reaches; the armed
+                        // shade is the pointer's alone, because only a pointer sends the RELEASE
+                        // that clears it.
+                        if (pressTrailing()) {
                             trailingArmed = true; // press feedback until release
                             invalidate();
-                            onTrailing.run(); // the coupled action (e.g. clear/submit)
                         }
                     } else {
                         model.setCaret(positionAt(displayX(lx, t), t),
@@ -1119,10 +1154,22 @@ public class TextField extends Widget {
         return cpIndex >= total ? text.length() : text.offsetByCodePoints(0, cpIndex);
     }
 
-    @Override
-    protected Rect caretRect() {
+    /**
+     * The caret's box in this widget's <b>own</b> coordinates, written into {@code out} as x, y,
+     * width, height.
+     *
+     * <p>Split out of {@link #caretRect()} because the accessible tree asks for the same rectangle
+     * on every damaged frame of the one widget whose blink guarantees a damaged frame twice a
+     * second, and the whole-{@code Rect} form cannot be asked that often: it produces a box. This
+     * writes into a buffer instead, so the caller can compare four floats against the four it is
+     * holding and produce nothing when the caret has not moved.
+     *
+     * @param out four floats to write x, y, width and height into
+     * @return whether there is a caret box at all; {@code false} before the first layout
+     */
+    private boolean caretBoxLocal(float[] out) {
         if (width() <= 0) {
-            return null; // not laid out yet
+            return false; // not laid out yet
         }
         // Its own resolve: the scene also calls this from the async blink chain, where there
         // is no enclosing measure/paint pass to thread tokens down from.
@@ -1132,10 +1179,44 @@ public class TextField extends Widget {
         float liveWidth = (preedit.isEmpty() ? displayLine(t) : composedLine(t))
                 .metrics().width();
         float localX = originX(t, liveWidth) + caretDisplayX(t);
-        localX = Math.max(left, Math.min(localX, left + innerWidth(t)));
-        float localY = textTop(metrics) - Strokes.INK_BLEED;
-        return new Rect(localToSceneX() + localX, localToSceneY() + localY,
-                Strokes.CARET, metrics.height() + 2 * Strokes.INK_BLEED);
+        out[0] = Math.max(left, Math.min(localX, left + innerWidth(t)));
+        out[1] = textTop(metrics) - Strokes.INK_BLEED;
+        out[2] = Strokes.CARET;
+        out[3] = metrics.height() + 2 * Strokes.INK_BLEED;
+        return true;
+    }
+
+    /**
+     * The held caret box, in this widget's own coordinates: the one value the IME's rectangle and
+     * the accessible tree's are both built from, refreshed only when one of its four floats moves.
+     *
+     * <p>That the two come from here rather than from two expressions is the invariant worth
+     * pinning. An assistive technology draws its cursor around the box this hands over and the
+     * platform places a candidate window under the box {@link #caretRect()} hands over, and a field
+     * whose two answers drifted would put them in different places on the same line.
+     *
+     * @return the box, or {@code null} before the first layout
+     */
+    private Rect heldCaretBox() {
+        if (!caretBoxLocal(caretScratch)) {
+            caretBox = null;
+            return null;
+        }
+        if (caretBox == null || caretBox.x() != caretScratch[0] || caretBox.y() != caretScratch[1]
+                || caretBox.width() != caretScratch[2]
+                || caretBox.height() != caretScratch[3]) {
+            caretBox = new Rect(caretScratch[0], caretScratch[1],
+                    caretScratch[2], caretScratch[3]);
+        }
+        return caretBox;
+    }
+
+    @Override
+    protected Rect caretRect() {
+        Rect local = heldCaretBox();
+        return local == null ? null
+                : new Rect(localToSceneX() + local.x(), localToSceneY() + local.y(),
+                        local.width(), local.height());
     }
 
     /**
@@ -1231,6 +1312,291 @@ public class TextField extends Widget {
         if (!before.equals(model.text())) {
             fireChange();
         }
+    }
+
+    // -------------------------------------------------------- accessibility
+
+    /**
+     * The string the accessible tree publishes, and the counter that says when it moved.
+     *
+     * <p><b>{@link TextEditModel#textVersion()} alone is the wrong witness here</b>, which is the
+     * one thing about this widget a survey written from the outside could not have known. A preedit
+     * does not touch the model, so a composing field keyed on the model's counter would publish the
+     * string it had before the composition opened and would go on publishing it for the whole
+     * composition, with a caret offset pointing inside text the tree does not carry. So the widget
+     * holds its own string and its own counter, and the counter moves when <em>this</em> string
+     * does.
+     *
+     * <p>While composing the string is the composed line's own {@link ShapedText#text()} — the very
+     * String the single shaping was built from, not a second splice of the same pieces — so the
+     * tree and the pixels cannot describe different text. The preedit is compared by identity, as
+     * {@link #composedLine} compares it and for the same reason: this widget is the only writer of
+     * that field and writes the String the event carried, so the comparison can only rebuild more
+     * often than strictly necessary, which is the cheap direction to be wrong in.
+     *
+     * <p><b>The counter moves when the string does and not when the rebuild does</b>, which is one
+     * {@code equals} on the rebuild path and is what the tree means by a witness. Bumping it on
+     * every rebuild is correct and not enough: {@link TextEditModel#setText} bumps the model's
+     * counter for a value equal to the one already there, which a widget bound to a colour or a
+     * number writes back on every change of it, and the tree would then publish a whole snapshot
+     * per such write while reporting no event, since the difference compares the strings before it
+     * reports one. A neighbouring widget's own promise that a damaged frame says nothing is what
+     * found it.
+     *
+     * @return the text as a reader is told it, held across frames
+     */
+    private String accessibleText() {
+        boolean composing = !preedit.isEmpty();
+        long version = model.textVersion();
+        int cursor = model.cursor();
+        // The cursor is part of the key only while composing, and it has to be: the preedit is
+        // spliced in AT the cursor, so moving the caret through a composition moves the same
+        // characters to another place in the same string.
+        if (accessibleTextVersion != version || accessibleTextComposing != composing
+                || (composing && (accessibleTextPreedit != preedit
+                        || accessibleTextCursor != cursor))) {
+            String rebuilt = composing
+                    ? composedLine(Theme.current().tokensFor(this)).text()
+                    : model.text();
+            accessibleTextVersion = version;
+            accessibleTextComposing = composing;
+            accessibleTextCursor = cursor;
+            accessibleTextPreedit = preedit;
+            if (!rebuilt.equals(accessibleText)) {
+                accessibleText = rebuilt;
+                accessibleTextRevision++;
+            }
+        }
+        return accessibleText;
+    }
+
+    /**
+     * One text field: what it is, what is in it, where the caret and the selection are, and — when
+     * there is one — the trailing button as a child node of its own.
+     *
+     * <p>The name is the placeholder, handed over as the {@link I18nString} this widget holds and
+     * never as a resolved string, and an unset one is {@link I18nString#EMPTY}, which names nothing
+     * and leaves the walk's tooltip default somewhere to go. The order that falls out is the right
+     * one and costs no application a line: an explicit name wins, then a bound {@code Label}'s
+     * caption, then the placeholder — the field's own visible word for what goes in it — and then
+     * the tooltip, which becomes the description instead when the placeholder already named the
+     * node.
+     *
+     * <p>No description of its own. The validation message beside a field is a {@code Label} the
+     * application owns and this widget holds no string for it; what {@link #setValidation} holds is
+     * a colour.
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.TEXT_FIELD);
+        a.name(placeholder, Accessible.NameFrom.PLACEHOLDER);
+        // Always editable, and never read-only: this class has no read-only mode, and a disabled
+        // field is still an editable control that happens to be disabled. Conflating the two tells
+        // a reader the text can never be typed into, which is a different and false fact.
+        a.state(Accessible.State.EDITABLE);
+        // ERROR alone, and not "validation() != NONE": SUCCESS is the valid-input state, and
+        // publishing INVALID there would announce a field that just passed as failing. WARNING and
+        // INFO carry no bit either -- the platform flag is a boolean, so folding this widget's
+        // four-way vocabulary into it loses the distinction the vocabulary exists to draw, and the
+        // message that draws it is an application Label reachable through a description or a
+        // declared relation.
+        a.state(Accessible.State.INVALID, validation == Validation.ERROR);
+        // The field raises the Cut/Copy/Paste/Select All menu from the pointer and from the
+        // keyboard, so the node owes both halves of that fact. Without them a reader has no route
+        // to any of those four operations at all.
+        a.state(Accessible.State.HAS_POPUP);
+        // The single-argument form; the variable-argument one allocates an array per call. FOCUS
+        // and SCROLL_INTO_VIEW arrive free from the walk. No PRESS: pressing a text field is not an
+        // activation, and the caret placement a click performs has no verb in the vocabulary.
+        a.action(Accessible.Action.SHOW_MENU);
+        publishText(a);
+        if (trailingIcon != null) {
+            SizeTokens t = Theme.current().tokensFor(this);
+            a.child(TRAILING_BUTTON);
+            // The hit region's own two expressions, which are the painted region's: the icon's
+            // centred square is smaller than what a click lands in, and a node whose box is the
+            // glyph would send a platform hit test past the edges of a control it can operate.
+            // They mirror, so the button is at x = 0 in a right-to-left subtree.
+            a.bounds(trailingRegionX(t), 0, trailingWidth(t), height());
+            a.role(Accessible.Role.BUTTON);
+            // By source, and null when the unnamed overloads made it: an operable control is never
+            // deleted, so it publishes nameless rather than not at all, which is what makes the
+            // omission visible instead of silent.
+            a.name(trailingName, Accessible.NameFrom.CONTENT);
+            a.action(Accessible.Action.PRESS);
+            a.endChild();
+            // Not focusable, and that is the truth rather than an omission: Tab steps over this
+            // button and only the pointer reaches it. Enabled, visible and showing are written onto
+            // it by the walk, from the field's own.
+        }
+        // The leading icon is not a node. Its setter takes a glyph and a mirroring flag, there is
+        // nothing to name it by and no operation behind it, so it is decoration.
+    }
+
+    /**
+     * The text facet: the contents, the caret with its side, the selection, and the caret's box.
+     *
+     * <p><b>Nothing is published at all when the content may not leave the widget.</b>
+     * {@link #allowClipboardCopy()} is already the widget's own answer to that question — a
+     * password field says no until it is revealed — and a subclass inherits this hook the moment it
+     * exists, so without the gate the first masked field to be bound would publish its secret as
+     * plain text under the role of a plain field. That is the interim, and it is deliberately the
+     * conservative one: a masked field's own step will publish its <em>mask</em> here, which is
+     * what {@code TextFacet} asks of it, and until then a reader is told nothing rather than
+     * something it must not be told. The display line is never the source of this string under any
+     * circumstances: for a masked field that value <em>is</em> the secret, because its index space
+     * has to be the model's.
+     *
+     * <p>While composing, the model's own text and caret would describe a different string from the
+     * one on the screen — the preedit is spliced in at the caret and the caret sits inside it — so
+     * the composed view is published whole: the spliced string, the caret at
+     * {@link #composedCaretIndex()} with the upstream side {@link #paintComposing} draws it on, and
+     * a collapsed selection, because a composition paints no selection band.
+     *
+     * <p>The selection is the model's and not the paint's. The band is drawn only while focused,
+     * but every operation on a selection reads the model, and {@link #onFocusLost} clears it
+     * anyway, so the two can differ only for a programmatic {@code model().selectAll()} on a field
+     * nobody is in.
+     *
+     * @param a the node being described
+     */
+    private void publishText(Accessibility a) {
+        if (!allowClipboardCopy()) {
+            return;
+        }
+        boolean composing = !preedit.isEmpty();
+        int caret = composing ? composedCaretIndex() : model.cursor();
+        ShapedText.Affinity affinity = composing
+                ? ShapedText.Affinity.UPSTREAM : model.caretAffinity();
+        int selectionStart = composing ? caret : model.selectionStart();
+        int selectionEnd = composing ? caret : model.selectionEnd();
+        // The line count is asked of the model rather than written as 1, so the two cannot drift if
+        // a subclass ever holds a model that is not single-line. The caret box only while focused:
+        // an unfocused field draws no caret, and the facet documents null as "no caret to draw",
+        // which confines the whole of that geometry to one field per window.
+        a.text(accessibleText(), accessibleTextRevision, caret, affinity,
+                selectionStart, selectionEnd, model.lineCount(),
+                isFocused() ? heldCaretBox() : null, false);
+    }
+
+    /**
+     * Raises the context menu, replaces the contents, moves the caret or sets the selection, each
+     * through the path the user's own gesture takes.
+     *
+     * <p>No enabled check of its own, following the same reasoning {@code ComboBox} states: the
+     * node acted on is this widget, so the scene's gate has already walked this field and every
+     * ancestor for enabled, checked that it is showing, that the window is not modal-blocked and
+     * that it is inside the layer that owns input.
+     *
+     * @param action what is being asked
+     * @param arg    the text for {@code SET_TEXT} and the range for the other two
+     * @return whether this widget did it
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        switch (action) {
+            case SHOW_MENU -> {
+                if (width() <= 0) {
+                    return false; // no caret to raise it at until the first layout
+                }
+                // Focus first, exactly as the right-click branch does and for the reason it gives:
+                // the menu's Cut and Paste act on this field.
+                requestFocus();
+                showContextMenuForFocus();
+                return true;
+            }
+            case SET_TEXT -> {
+                if (!(arg instanceof Accessible.Argument.OfText replacement)) {
+                    return false;
+                }
+                // NEVER setText(String): that one is silent, so a reader replacing the value would
+                // change the text and tell the application nothing. Select-all-then-insert is what
+                // a user does, it keeps the undo history setText would clear, and it handles the
+                // empty case correctly -- an insert of "" with a selection deletes it, and with no
+                // selection does nothing. The model sanitizes a single line, so a string carrying
+                // a newline comes back with a space in its place and a bridge has to re-read.
+                fireIfChanged(() -> {
+                    model.selectAll();
+                    model.insert(replacement.text());
+                });
+                ensureCursorVisible();
+                resetBlink();
+                invalidate();
+                return true;
+            }
+            case SET_CARET -> {
+                if (!(arg instanceof Accessible.Argument.OfRange range)
+                        || range.start() != range.end()) {
+                    return false; // a caret is a collapsed range; anything else is not this verb
+                }
+                return placeCaret(range.start(), range.start());
+            }
+            case SET_SELECTION -> {
+                if (!(arg instanceof Accessible.Argument.OfRange range)) {
+                    return false;
+                }
+                return placeCaret(range.start(), range.end());
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Puts the caret at {@code end}, with a selection back to {@code start} when the two differ:
+     * the click-then-shift-click gesture, which is the widget's own path to both.
+     *
+     * <p>An offset outside the text is <b>refused</b> and never clamped to a neighbour, because a
+     * client that asked for character forty of a ten-character field has misunderstood something
+     * and a caret quietly placed at ten hides that. Both offsets are aligned to a grapheme
+     * boundary first: {@link TextEditModel#cursor()} documents itself as always on one, and a
+     * bridge counting UTF-16 units can name a point inside a cluster.
+     */
+    private boolean placeCaret(int start, int end) {
+        int length = model.length();
+        if (start < 0 || start > length || end < 0 || end > length) {
+            return false;
+        }
+        model.setCursor(model.alignToGrapheme(start), false);
+        model.setCursor(model.alignToGrapheme(end), true);
+        ensureCursorVisible();
+        resetBlink();
+        invalidate();
+        return true;
+    }
+
+    /**
+     * Presses the trailing button, if there is one and this field is enabled.
+     *
+     * @param key    the synthetic child's key
+     * @param action what was asked
+     * @param arg    unused; the press takes no argument
+     * @return whether this widget did it
+     */
+    @Override
+    protected boolean onSyntheticAction(long key, Accessible.Action action,
+                                        Accessible.Argument arg) {
+        if (key != TRAILING_BUTTON || action != Accessible.Action.PRESS) {
+            return false;
+        }
+        // Deliberately not the pointer branch's trailingArmed: that shade is cleared by a RELEASE
+        // or an EXIT, a press from an assistive technology has neither, and the button would stay
+        // drawn pressed for the rest of the session.
+        return pressTrailing();
+    }
+
+    /**
+     * Runs the trailing button's action, holding the enabled guard both routes to it share.
+     *
+     * @return whether it ran, which is the same answer both routes need
+     */
+    private boolean pressTrailing() {
+        if (trailingIcon == null || !isEnabled()) {
+            return false;
+        }
+        onTrailing.run(); // the coupled action (e.g. clear/submit)
+        return true;
     }
 
     // ---------------------------------------------------------------- blink

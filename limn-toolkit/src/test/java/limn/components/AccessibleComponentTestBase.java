@@ -119,8 +119,25 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
      * @param root the widget under test
      */
     protected void bind(Widget root) {
+        bind(root, new StubWindow());
+    }
+
+    /**
+     * The same, over a window a test chose: for a component whose behaviour depends on what the
+     * platform underneath it can do.
+     *
+     * <p>The case that needs it is a menu. A popup goes into a window of its own wherever the
+     * platform can place one, and no headless test can create one — {@link StubWindow#backend()}
+     * says so by throwing. A window that answers {@code false} to
+     * {@link StubWindow#supportsAbsolutePositioning()} is Wayland, where the toolkit's documented
+     * fallback is an in-scene overlay, and that overlay is a thing the tree can be asked about.
+     *
+     * @param root the widget under test
+     * @param over the window to bind it to; its bridge is replaced with the recording one
+     */
+    protected void bind(Widget root, StubWindow over) {
         bridge = new RecordingBridge();
-        window = new StubWindow();
+        window = over;
         window.accessibility = bridge;
         canvas = new FakeCanvas(400, 300);
         scene = new Scene(root);
