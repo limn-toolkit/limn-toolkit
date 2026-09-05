@@ -755,6 +755,87 @@ public class TabbedPane extends Widget {
             // dense strip and a roomy one, so this is locked rather than tabled.
             scrollStripBy(-delta * Strokes.WHEEL_STEP);
         }
+
+        // --------------------------------------------------------- accessibility
+
+        /**
+         * What the strip is to an assistive technology: the tab list the headers are tabs of, one
+         * horizontal run of them, holding the selection they are members of and saying how much of
+         * itself is on screen.
+         *
+         * <p><b>The node exists so that the tabs have a container</b>, and that is the whole of
+         * why. Without a role the strip declares nothing, is never focusable and — because the
+         * sliding indicator is painted as an overlay rather than as content — would be deleted as
+         * scaffolding <em>without even the warning</em> a widget that paints normally gets; the
+         * headers would then hoist into whatever sits above the pane. A tab list is the container
+         * every platform needs above a tab for a position in a set to mean anything; the selection
+         * change a tab raises is addressed to that tab's published parent, so with no node here it
+         * would arrive on the window; and a reader looking for the strip's own extent under
+         * overflow would find the pane's.
+         *
+         * <p>The role is unconditional, an empty pane included. A pane with no tabs is legal and
+         * an empty tab list is honest, while a role that arrived with the first tab would re-shape
+         * the tree on a structural change that already re-shapes it.
+         *
+         * <p>No name and no description: the strip holds no string of its own and there is nothing
+         * here for it to derive one from. It is not focusable either, so it is not one of the
+         * nodes a name is required of.
+         *
+         * <p>The orientation is the one state declared. The class is a single horizontal run at
+         * every width and in both directions — mirroring reflects the run and does not turn its
+         * axis — and it is what tells a reader that Left and Right are the keys that traverse
+         * this. Nothing else: enabled, visible, showing, focusable and focused are the walk's, and
+         * selected and expanded belong to facets.
+         *
+         * <p>The selection facet carries the container's own shape and nothing about which tab is
+         * selected, which is each header's to say. Single-selection, because the pane keeps one
+         * index and swaps it; required only while there are tabs, because an empty pane genuinely
+         * has no selection and there is no route back to none once it has one. The active
+         * descendant is not declared here and could not be — the publish step resolves it from the
+         * first node in this subtree that says it is active — and nothing in the strip marks one:
+         * only the selected header is a tab stop, so whenever the strip holds the keyboard that
+         * header is already the focused node, and the bit would additionally hand any enclosing
+         * container one of these tabs as its own cursor.
+         *
+         * <p>The scroll facet is published whether or not anything overflows, so that resizing the
+         * pane past the fitting point moves two booleans rather than making a whole facet appear
+         * and disappear. It is derived from {@code overflowing}, the strip's own predicate, and
+         * not from the arithmetic alone: that predicate carries the half-point slop below which
+         * the widget refuses to scroll at all, and a strip within half a point of fitting must not
+         * advertise a movement every one of its own paths declines to make. The percent is the
+         * offset over the maximum offset, and the offset is a distance from the <b>leading</b>
+         * edge, so it is zero on the first tab and one on the last in both layout directions and
+         * is published unflipped by decision: mirroring lives in where the headers are placed and
+         * never in the offset, and flipping it would tell a reader that a right-to-left strip
+         * resting on its first tab is scrolled to the end. The vertical pair is the axis's
+         * nothing-to-scroll answer, because the run has no second axis.
+         *
+         * <p>No verb, and no action hook. The strip is not focusable, so the walk grants it
+         * neither of the two free ones; the vocabulary has no scroll verb to offer; and the two
+         * chevrons and the all-tabs button are operable controls of their own. Every number here
+         * is a field this widget or its pane already holds, so describing it builds no string and
+         * allocates nothing, and a frame damaged by the indicator's slide compares equal and
+         * republishes nothing.
+         *
+         * @param a the node being described
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.TAB_LIST);
+            a.state(Accessible.State.HORIZONTAL);
+            // selected >= 0 is exactly "there is at least one tab": the first addTab moves it off
+            // -1 and nothing moves it back.
+            a.selection(false, selected >= 0);
+            // The strip's own box IS the viewport, whether it is the whole strip row or the gap
+            // the pane left between the three overflow controls, and the publish step reads these
+            // after layout, so they are this frame's.
+            float viewport = width();
+            float maxOffset = Math.max(0, headersTotal - viewport);
+            boolean scrollable = overflowing && maxOffset > 0;
+            a.scroll(scrollable ? scrollOffset / maxOffset : 0, 0,
+                    scrollable ? viewport / headersTotal : 1, 1,
+                    scrollable, false);
+        }
     }
 
     /** A square strip control: scroll chevron (‹ ›) or the all-tabs list (⌄). */
