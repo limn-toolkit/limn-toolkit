@@ -2,12 +2,10 @@ package limn.components.chart;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
-import limn.accessibility.ToggleFacet;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.RoundRect;
-import limn.i18n.I18nString;
 
 import java.util.List;
 
@@ -348,7 +346,9 @@ public class BarChart extends CartesianChart {
 
     /**
      * One chart node, named by the title when there is one and carrying which way the bars'
-     * value axis runs, with one toggleable series node per series in paint order.
+     * value axis runs, with one toggleable series node per series in paint order: the body every
+     * chart with axes shares, declared here because the coverage ratchet counts a hook the class
+     * declares itself.
      *
      * <p>Every series is a node because every series is drawn: unlike a donut, a bar chart with
      * one series and no legend still has that series on screen. A series' box is the legend
@@ -356,38 +356,11 @@ public class BarChart extends CartesianChart {
      * the union of its bars, which folds the entry animation in and would move on every frame
      * of it; a series with no legend row keeps the chart's box, which is the honest answer to
      * where it is. Its toggle state is the model's visibility bit and never the fade, so the
-     * frames of a fade damage the chart and publish nothing. The verb is offered only where a
-     * pointer could perform it: an interactive legend with a row for the series. Nothing is
-     * generated: no description from the axes, no values, and no category labels, all of which
-     * would be strings built per damaged frame with no source to compare. Every string here is
-     * an {@code I18nString} the chart or the series already holds, handed over by reference.
+     * frames of a fade damage the chart and publish nothing.
      */
     @Override
     protected void onAccessibility(Accessibility a) {
-        a.role(Accessible.Role.CHART);
-        I18nString heading = titleSource();
-        if (heading != null) {
-            a.name(heading, Accessible.NameFrom.CONTENT);
-        }
-        a.state(isHorizontal() ? Accessible.State.HORIZONTAL : Accessible.State.VERTICAL);
-        // Zero when the legend is not drawn, and otherwise one per series in this chart, whose
-        // legend is the series list; asked before the loop so the boxes it reads are current.
-        int entries = legendEntryCount();
-        boolean operable = isLegendInteractive();
-        for (int i = 0; i < seriesCount(); i++) {
-            ChartSeries s = series(i);
-            a.child(s.serial());
-            if (i < entries) {
-                legendEntryBounds(i, a);
-            }
-            a.role(Accessible.Role.CHART_SERIES);
-            a.name(s.nameSource(), Accessible.NameFrom.CONTENT);
-            a.toggle(s.isVisible() ? ToggleFacet.State.ON : ToggleFacet.State.OFF);
-            if (operable && i < entries) {
-                a.action(Accessible.Action.TOGGLE);
-            }
-            a.endChild();
-        }
+        describeSeriesChart(a);
     }
 
     /**
@@ -399,20 +372,6 @@ public class BarChart extends CartesianChart {
     @Override
     protected boolean onSyntheticAction(long key, Accessible.Action action,
                                         Accessible.Argument arg) {
-        if (action != Accessible.Action.TOGGLE || !isLegendInteractive() || !isEnabled()) {
-            return false;
-        }
-        int index = -1;
-        for (int i = 0; i < seriesCount(); i++) {
-            if (series(i).serial() == key) {
-                index = i;
-                break;
-            }
-        }
-        if (index < 0 || index >= legendEntryCount()) {
-            return false;
-        }
-        toggleLegendEntry(index);
-        return true;
+        return toggleSeriesFromReader(key, action, arg);
     }
 }

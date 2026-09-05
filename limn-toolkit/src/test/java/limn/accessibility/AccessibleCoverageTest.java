@@ -79,8 +79,7 @@ class AccessibleCoverageTest {
             "limn.components.TextField",
             "limn.components.ToolBar",
             "limn.components.VideoView",
-            "limn.components.Viewport3D",
-            "limn.components.chart.LineChart"
+            "limn.components.Viewport3D"
     ));
 
     /**

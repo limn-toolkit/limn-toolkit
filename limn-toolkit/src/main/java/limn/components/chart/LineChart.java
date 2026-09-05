@@ -1,5 +1,7 @@
 package limn.components.chart;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.components.Strokes;
 import limn.components.Theme;
 import limn.concurrent.Ui;
@@ -373,5 +375,40 @@ public class LineChart extends CartesianChart {
         double share = Double.isNaN(total) || total == 0
                 ? Double.NaN : series(seriesIndex).value(category) / total;
         return pointFor(seriesIndex, category, share, px[category], py[category]);
+    }
+
+    // ---------------------------------------------------------- accessibility
+
+    /**
+     * One chart node, named by the title when there is one and carrying which way the value
+     * axis runs, with one toggleable series node per series in paint order: the body every chart
+     * with axes shares, declared here because the coverage ratchet counts a hook the class
+     * declares itself.
+     *
+     * <p>Every series is a node because every series is drawn, legend or no legend. A series'
+     * box is its legend row, the rectangle a click toggles it on and the one per-series geometry
+     * that stands still: the line's own points live in buffers that hold one series at a time,
+     * are overwritten by the next series painted, and are keyed on the animation's progress, so
+     * a box over them would be an alias that moved on every frame of an entry nobody is touching.
+     * A series with no legend row keeps the chart's box. The toggle is the model's visibility
+     * bit and never the fade a hidden line goes out through, so those frames damage the chart and
+     * publish nothing; smoothing, filling, the stroke width, the marker radius and the tension are
+     * style, and are nowhere in the tree. Nothing is generated from the axes or the values.
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        describeSeriesChart(a);
+    }
+
+    /**
+     * A toggle on a series node reaches the same path a click on its legend entry reaches, so
+     * a reader's toggle and a pointer's are one and the same to the chart and to the application,
+     * which is told nothing by either; refused when the legend is not interactive, when the
+     * series has no legend row for a pointer to have found, or when the key names no series.
+     */
+    @Override
+    protected boolean onSyntheticAction(long key, Accessible.Action action,
+                                        Accessible.Argument arg) {
+        return toggleSeriesFromReader(key, action, arg);
     }
 }

@@ -1,5 +1,8 @@
 package limn.components.chart;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
+import limn.accessibility.ToggleFacet;
 import limn.components.SizeTokens;
 import limn.components.Strokes;
 import limn.components.Theme;
@@ -9,6 +12,7 @@ import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
+import limn.i18n.I18nString;
 import limn.scene.LayoutDirection;
 
 import java.util.ArrayList;
@@ -827,5 +831,86 @@ public abstract class CartesianChart extends Chart {
             return -1;
         }
         return Math.max(0, Math.min(count - 1, (int) (along / (extent / count))));
+    }
+
+    // ---------------------------------------------------------- accessibility
+
+    /**
+     * What a chart with axes becomes in the accessible tree, for a subclass's describe hook to
+     * hand its builder to: one chart node, named by the title when there is one and carrying
+     * which way the value axis runs, with one toggleable series node per series in paint order.
+     *
+     * <p>This is a body and not the hook itself, because the coverage ratchet strikes a widget
+     * off only for a hook the concrete class declares, and a hook here would describe every
+     * subclass by inheritance whether or not anyone had read it. The bar chart and the line chart
+     * both declare their own and both hand it here, because the facts are the same for both:
+     * every series is drawn whether or not the legend is, so every series is a node; the one
+     * per-series rectangle that stands still through the entry animation is the legend row a
+     * click toggles the series on, so that is its box, and a series with no row keeps the
+     * chart's box; the toggle is the model's visibility bit and never the fade; and the verb is
+     * offered only where a pointer could perform it, an interactive legend with a row. Nothing is
+     * generated: no description from the axes, no values, no category labels, all of which would
+     * be strings built per damaged frame with no source to compare. Every string here is an
+     * {@code I18nString} the chart or a series already holds, handed over by reference.
+     *
+     * @param a the builder, with this chart's own node open
+     */
+    final void describeSeriesChart(Accessibility a) {
+        a.role(Accessible.Role.CHART);
+        I18nString heading = titleSource();
+        if (heading != null) {
+            a.name(heading, Accessible.NameFrom.CONTENT);
+        }
+        a.state(isHorizontal() ? Accessible.State.HORIZONTAL : Accessible.State.VERTICAL);
+        // Zero when the legend is not drawn, and otherwise one per series in this chart, whose
+        // legend is the series list; asked before the loop so the boxes it reads are current.
+        int entries = legendEntryCount();
+        boolean operable = isLegendInteractive();
+        for (int i = 0; i < seriesCount(); i++) {
+            ChartSeries s = series(i);
+            a.child(s.serial());
+            if (i < entries) {
+                legendEntryBounds(i, a);
+            }
+            a.role(Accessible.Role.CHART_SERIES);
+            a.name(s.nameSource(), Accessible.NameFrom.CONTENT);
+            a.toggle(s.isVisible() ? ToggleFacet.State.ON : ToggleFacet.State.OFF);
+            if (operable && i < entries) {
+                a.action(Accessible.Action.TOGGLE);
+            }
+            a.endChild();
+        }
+    }
+
+    /**
+     * Performs a toggle posted on one of the series nodes {@link #describeSeriesChart} published,
+     * for a subclass's synthetic-action hook: it reaches the same {@link #toggleLegendEntry} a
+     * click on the series' legend row reaches, so a reader's toggle and a pointer's are one and
+     * the same to the chart and to the application, which is told nothing by either. Refused,
+     * as the click is, when the chart is disabled or the legend is not interactive; and when the
+     * key names no series or a series with no legend row for a pointer to have found.
+     *
+     * @param key    the series' serial, which is the key its node was published under
+     * @param action the verb posted
+     * @param arg    its argument, which a toggle does not use
+     * @return whether the toggle was performed
+     */
+    final boolean toggleSeriesFromReader(long key, Accessible.Action action,
+                                         Accessible.Argument arg) {
+        if (action != Accessible.Action.TOGGLE || !isLegendInteractive() || !isEnabled()) {
+            return false;
+        }
+        int index = -1;
+        for (int i = 0; i < seriesCount(); i++) {
+            if (series(i).serial() == key) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0 || index >= legendEntryCount()) {
+            return false;
+        }
+        toggleLegendEntry(index);
+        return true;
     }
 }
