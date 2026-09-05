@@ -223,7 +223,8 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
 
     /**
      * @param column a column's node
-     * @return its two scroll bands, in tree order, or nothing when it does not scroll
+     * @return the scroll bands it publishes, in tree order: both while it is between its clamps,
+     *         one while it is parked at one of them, none when it does not scroll
      */
     private List<AccessibleNode> bandsOf(AccessibleNode column) {
         return childrenOf(column).stream()
@@ -638,8 +639,51 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aBandParkedAtItsClampIsNotPublishedAtAll() {
+        open(thirtyRows());
+
+        AccessibleNode menu = rootColumn();
+        assertEquals(List.of(bandName(false)),
+                bandsOf(menu).stream().map(AccessibleNode::name).toList(),
+                "a column opens at a scroll of 0, where paintScrollHint draws nothing at the top "
+                        + "and hintBandDirection answers 0: there is no band there to publish"
+                        + describe(tree()));
+
+        // What that rectangle really holds at this scroll, and what a BUTTON over it would have
+        // been saying: MENU_SCROLL_HINT_H is 12 and the first row starts at menuPadV.
+        click(menu.x() + menu.width() / 2, menu.y() + Strokes.MENU_SCROLL_HINT_H / 2);
+
+        assertEquals(List.of("Item 0"), chosen,
+                "a band published there would tell a reader that a press scrolls, where the "
+                        + "click chooses the first row" + describe(tree()));
+    }
+
+    @Test
+    void theBandAtTheFarClampStopsBeingPublishedWhenTheColumnReachesIt() throws Exception {
+        open(thirtyRows());
+
+        long down = bandsOf(rootColumn()).get(0).id();
+        for (float before = -1; before != popup.columnScrollForTest(0); ) {
+            before = popup.columnScrollForTest(0);
+            perform(down, Accessible.Action.PRESS, Accessible.Argument.NONE);
+            frame();
+        }
+
+        assertEquals(List.of(bandName(true)),
+                bandsOf(rootColumn()).stream().map(AccessibleNode::name).toList(),
+                "and the other side goes the same way at the other clamp" + describe(tree()));
+        assertEquals(Set.of(Accessible.Action.PRESS),
+                bandsOf(rootColumn()).get(0).actions().actions(),
+                "the side that is left is the live one" + describe(tree()));
+    }
+
+    @Test
     void theScrollBandsArePublishedAtTheRegionAClickLandsIn() throws Exception {
         open(thirtyRows());
+        // One step down, so the column is between its clamps and both sides are on the glass.
+        perform(bandsOf(rootColumn()).get(0).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE);
+        frame();
 
         AccessibleNode menu = rootColumn();
         List<AccessibleNode> bands = bandsOf(menu);
@@ -660,28 +704,39 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(menu.y() + menu.height() - Strokes.MENU_SCROLL_HINT_H, down.y(), 1e-3,
                 describe(tree()));
 
-        assertNull(up.actions(),
-                "parked at the top: a dead side carries no verb, and a synthetic child cannot be "
-                        + "published disabled by any route" + describe(tree()));
+        assertEquals(Set.of(Accessible.Action.PRESS), up.actions().actions(),
+                "a published band is a live one, so the verb is unconditional: the parked side "
+                        + "is left out of the tree rather than published without it, because a "
+                        + "synthetic child cannot be published disabled by any route"
+                        + describe(tree()));
         assertEquals(Set.of(Accessible.Action.PRESS), down.actions().actions(), describe(tree()));
 
         float rowY = rowsOf(menu).get(0).y();
         assertTrue(perform(down.id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
         frame();
 
-        assertEquals(Strokes.WHEEL_STEP, popup.columnScrollForTest(0), 1e-3,
+        assertEquals(2 * Strokes.WHEEL_STEP, popup.columnScrollForTest(0), 1e-3,
                 "the same expression the click branch uses" + describe(tree()));
         assertEquals(rowY - Strokes.WHEEL_STEP, rowsOf(rootColumn()).get(0).y(), 1e-3,
                 "and every row's box moved with it" + describe(tree()));
         assertFalse(rowsOf(rootColumn()).get(0).has(Accessible.State.SHOWING), describe(tree()));
-        assertNotNull(bandsOf(rootColumn()).get(0).actions(),
-                "the side that was parked is live now" + describe(tree()));
     }
 
     @Test
     void aBandPressThatClampsToNothingIsRefused() throws Exception {
         open(thirtyRows());
+        // A key minted while the top band was live, sent after the column parked back at 0: a key
+        // outlives the snapshot it was read from, which is why pressBand asks the question again.
+        long down = bandsOf(rootColumn()).get(0).id();
+        perform(down, Accessible.Action.PRESS, Accessible.Argument.NONE);
+        frame();
         long up = bandsOf(rootColumn()).get(0).id();
+        perform(up, Accessible.Action.PRESS, Accessible.Argument.NONE);
+        frame();
+        assertEquals(0, popup.columnScrollForTest(0), 1e-3, "the fixture is back at the clamp");
+        assertEquals(List.of(bandName(false)),
+                bandsOf(rootColumn()).stream().map(AccessibleNode::name).toList(),
+                "and that band is no longer in the tree" + describe(tree()));
         int published = bridge.published.size();
 
         perform(up, Accessible.Action.PRESS, Accessible.Argument.NONE);

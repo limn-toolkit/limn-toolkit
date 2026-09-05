@@ -1019,10 +1019,10 @@ public final class PopupMenu {
             }
             // Scroll affordances: chevrons over a small band at the clamped edges. The band is
             // a control height (locked), and its 1pt insets are the border width.
-            if (col.scroll > SCROLL_EPSILON) {
+            if (hintBandIsLive(col, true)) {
                 paintScrollHint(canvas, col, x, y + Strokes.ROW_CLIP, true, t);
             }
-            if (col.scroll < col.maxScroll() - SCROLL_EPSILON) {
+            if (hintBandIsLive(col, false)) {
                 paintScrollHint(canvas, col, x,
                         y + col.visibleH - Strokes.MENU_SCROLL_HINT_H - Strokes.ROW_CLIP, false, t);
             }
@@ -1129,19 +1129,36 @@ public final class PopupMenu {
         }
 
         /**
+         * Whether one of {@code col}'s scroll-hint bands is on the glass.
+         *
+         * <p>The one place this is decided, because four callers ask it and the harm of two of
+         * them disagreeing is a control on the wrong side of the truth. The paint draws the
+         * band; {@link #hintBandDirection} gives a click on it priority over the row beneath;
+         * {@code describeColumn} publishes its box; {@link #pressBand} runs the scroll. A band
+         * that is painted and not published is a control a reader cannot reach, and one that is
+         * published and not painted is an enabled button lying over a row &mdash; it tells a
+         * user that pressing there scrolls, where the click chooses an item.
+         *
+         * @param col a column
+         * @param up  whether to ask about the band that scrolls back toward the first item
+         * @return whether that band is drawn, published, and pressable
+         */
+        private boolean hintBandIsLive(Column col, boolean up) {
+            return up ? col.scroll > SCROLL_EPSILON
+                    : col.scroll < col.maxScroll() - SCROLL_EPSILON;
+        }
+
+        /**
          * @return the scroll direction when the point sits on a visible
          *         scroll-hint band of {@code col} (matching the paint
          *         conditions), else 0; the bands are controls, not veneers.
          */
         private int hintBandDirection(Column col, float ly) {
-            if (col.maxScroll() <= 0) {
-                return 0;
-            }
             float local = ly - col.y;
-            if (col.scroll > SCROLL_EPSILON && local < Strokes.MENU_SCROLL_HINT_H) {
+            if (hintBandIsLive(col, true) && local < Strokes.MENU_SCROLL_HINT_H) {
                 return -1;
             }
-            if (col.scroll < col.maxScroll() - SCROLL_EPSILON
+            if (hintBandIsLive(col, false)
                     && local > col.visibleH - Strokes.MENU_SCROLL_HINT_H) {
                 return 1;
             }
@@ -1582,7 +1599,7 @@ public final class PopupMenu {
             a.scroll(0, max > 0 ? col.scroll / max : 0,
                     1, col.h > 0 ? Math.min(1, col.visibleH / col.h) : 1,
                     false, max > 0);
-            if (max > 0) {
+            if (hintBandIsLive(col, true)) {
                 describeBand(a, c, col, true);
             }
             List<MenuItem> items = col.menu.items();
@@ -1666,7 +1683,7 @@ public final class PopupMenu {
                 }
                 a.endChild();
             }
-            if (max > 0) {
+            if (hintBandIsLive(col, false)) {
                 describeBand(a, c, col, false);
             }
             a.endChild();
@@ -1696,11 +1713,14 @@ public final class PopupMenu {
          * the column's edge, while {@code hintBandDirection} measures from {@code col.y} across
          * the column's whole width. What is published is the box a click lands in.
          *
-         * <p><b>A dead side carries no verb</b>, and is not published disabled: a widget cannot
-         * say that of a synthetic child by any route, because the builder refuses the states the
-         * publish step owns and the walk overwrites a synthetic node's enabled bit with its
-         * owner's. The verb's condition is {@code hintBandDirection}'s own, so the tree, the paint
-         * and the hit test agree by construction.
+         * <p><b>A parked side is not published at all</b>, which is why this is only ever called
+         * for a live one and the verb is unconditional. It could not be published as a disabled
+         * button instead: a widget cannot say that of a synthetic child by any route, because the
+         * builder refuses the states the publish step owns and the walk overwrites a synthetic
+         * node's enabled bit with its owner's &mdash; so the alternative to leaving it out is an
+         * enabled, on-screen button over a rectangle where nothing is drawn and where a click
+         * chooses the row beneath. The caller's condition is {@link #hintBandIsLive}, which the
+         * paint and the hit test ask too, so the three agree by construction.
          *
          * @param a   the builder
          * @param c   the column's index, encoded into the key because
@@ -1717,10 +1737,7 @@ public final class PopupMenu {
             a.role(Accessible.Role.BUTTON);
             a.name(up ? ComponentStrings.MENU_SCROLL_PREVIOUS : ComponentStrings.MENU_SCROLL_NEXT,
                     Accessible.NameFrom.CONTENT);
-            if (up ? col.scroll > SCROLL_EPSILON
-                    : col.scroll < col.maxScroll() - SCROLL_EPSILON) {
-                a.action(Accessible.Action.PRESS);
-            }
+            a.action(Accessible.Action.PRESS);
             a.endChild();
         }
 
@@ -1856,13 +1873,10 @@ public final class PopupMenu {
                 return false; // a key from a tree this cascade no longer has
             }
             Column col = cols.get(c);
-            if (col.maxScroll() <= 0) {
-                return false;
-            }
-            // hintBandDirection's own conditions, so a side that is parked at its clamp is
-            // refused here exactly where it is left without a verb above.
-            if (up ? col.scroll <= SCROLL_EPSILON
-                    : col.scroll >= col.maxScroll() - SCROLL_EPSILON) {
+            // The same question the tree asked when it published the band, asked again because a
+            // key outlives the snapshot it was minted in: the column may have reached this side's
+            // clamp between the frame a reader read and the press it sent.
+            if (!hintBandIsLive(col, up)) {
                 return false;
             }
             float before = col.scroll;
