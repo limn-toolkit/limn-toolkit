@@ -70,7 +70,6 @@ class AccessibleCoverageTest {
             "limn.components.Dialog$DialogPanel",
             "limn.components.Dialog$SceneOverlay",
             "limn.components.ImageView",
-            "limn.components.Label",
             "limn.components.ListView",
             "limn.components.MediaControls",
             "limn.components.MediaControls$MuteButton",

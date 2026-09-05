@@ -21,6 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * proximity doing nothing. The combo is the control under test because it is the one that already
  * names itself from its own content, which makes it the case where the precedence has to be right:
  * a bound caption must beat what the widget derived, and an application's own name must beat both.
+ *
+ * <p>The caption is a node of its own since the label was described, so the relation resolves to
+ * it and a client may walk there. Before that it was deleted by the transparency rule and the
+ * relation was dropped, and an earlier version of this file pinned that as if it were the design;
+ * it was the state before the label's own step, and the cases here say what the tree does now.
  */
 class LabelForAccessibilityTest extends AccessibleComponentTestBase {
 
@@ -65,38 +70,50 @@ class LabelForAccessibilityTest extends AccessibleComponentTestBase {
                         + describe(tree()));
     }
 
-    @Test
-    void theRelationIsDroppedWhileTheCaptionIsNotANodeOfItsOwn() {
-        bindPair(true);
-
-        assertEquals(List.of(), field().relations(),
-                "a relation naming a node that was never published is worse than none, because "
-                        + "every platform answers it with an element that does not resolve. A "
-                        + "plain caption declares nothing and is deleted by the transparency "
-                        + "rule, so there is nothing to point at -- and the name still crossed, "
-                        + "which is the half that does not need a node" + describe(tree()));
+    /** @return the id the field's one {@code LABELLED_BY} relation points at */
+    private long labelledBy() {
+        long target = AccessibleNode.NONE;
+        int count = 0;
+        for (var relation : field().relations()) {
+            if (relation.kind() == Accessible.Relation.LABELLED_BY) {
+                target = relation.target();
+                count++;
+            }
+        }
+        assertEquals(1, count, "one LABELLED_BY on the field: " + field().relations());
+        return target;
     }
 
     @Test
-    void theRelationResolvesOnceTheCaptionPublishesANode() {
+    void theRelationResolvesToTheCaptionsOwnNodeWithNoExplicitNameNeeded() {
         bindPair(true);
-        // A different string from the caption's own text on purpose: the combo takes the text,
-        // the caption's node takes this, and the two names being distinct is what makes the
-        // lookup below name one node rather than either of two.
+
+        AccessibleNode label = node(Accessible.Role.LABEL);
+        assertEquals("Colour theme", label.name(),
+                "a plain caption is a node of its own now, named by its content" + describe(tree()));
+        assertEquals(label.id(), labelledBy(),
+                "so a client that would rather read the caption's own node can walk to it, and the "
+                        + "relation is never a dangling one that every platform answers with an "
+                        + "element that does not resolve" + describe(tree()));
+    }
+
+    @Test
+    void anExplicitNameRenamesTheCaptionsOwnNodeAndNotTheField() {
+        bindPair(true);
+        // A different string from the caption's own text on purpose: the combo keeps the text,
+        // the caption's node takes this, and the two being distinct is what proves which of the
+        // two nodes an application's rename reached.
         caption.setAccessibleName("The caption itself");
         frame();
 
         AccessibleNode label = node("The caption itself");
-        long target = 0;
-        for (var relation : field().relations()) {
-            if (relation.kind() == Accessible.Relation.LABELLED_BY) {
-                target = relation.target();
-            }
-        }
-        assertNotNull(label, "the caption now declares something and survives" + describe(tree()));
-        assertEquals(label.id(), target,
-                "so a client that would rather read the caption's own node can walk to it"
-                        + describe(tree()));
+        assertEquals(Accessible.Role.LABEL, label.role(), describe(tree()));
+        assertEquals(label.id(), labelledBy(),
+                "the relation still points at the renamed caption" + describe(tree()));
+        assertEquals("Colour theme", field().name(),
+                "the field is named from the caption's text, read at publish, and not from what "
+                        + "the application called the caption's node" + describe(tree()));
+        assertEquals(Accessible.NameFrom.LABEL, field().nameFrom(), describe(tree()));
     }
 
     @Test

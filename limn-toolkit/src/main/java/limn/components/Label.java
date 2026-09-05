@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessible;
+import limn.accessibility.Accessibility;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -206,6 +208,30 @@ public class Label extends Widget {
     @Override
     protected I18nString accessibleLabelText() {
         return text;
+    }
+
+    /**
+     * What a label is to an assistive technology: static text, or a heading when its typographic
+     * role is {@link Role#TITLE}, named by the whole paragraph it holds.
+     *
+     * <p>The role is decided on {@link #role()} alone and never on the font actually drawn with:
+     * {@link #setFont} pins a face as a size escape hatch and says nothing about what the text
+     * means, so a title drawn at fourteen points is still the title. The name is {@link #text}
+     * handed over by reference, which is what keeps a damaged frame that changed nothing free;
+     * it is never the painted lines, because an ellipsis and a wrap are how the text fits a box
+     * and a reader must hear what the box cut off. An empty text still publishes, so a status
+     * label that empties between messages keeps its identity and an icon-only label keeps the
+     * tooltip the walk then names it by. The one relation declared is the half nothing else can
+     * supply: the walk writes {@code LABELLED_BY} onto the widget this label names, and only this
+     * label knows to point back.
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(role == Role.TITLE ? Accessible.Role.HEADING : Accessible.Role.LABEL);
+        a.name(text, Accessible.NameFrom.CONTENT);
+        if (labelFor != null) {
+            a.relation(Accessible.Relation.LABEL_FOR, labelFor);
+        }
     }
 
     /** Replaces the text with a fixed string. Repaints without a layout pass when the box is unchanged. */
