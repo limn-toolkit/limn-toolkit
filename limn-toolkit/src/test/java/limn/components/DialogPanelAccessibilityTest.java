@@ -4,10 +4,6 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
-import limn.backend.Backend;
-import limn.backend.NativeWindow;
-import limn.backend.WindowConfig;
-import limn.concurrent.UiRuntime;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.input.Keys;
@@ -90,32 +86,6 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
         protected Size onMeasure(Constraints constraints) {
             return constraints.constrain(120, 24);
         }
-    }
-
-    /**
-     * A window that can host an in-scene dialog: the presentation asks the window's backend to
-     * lock the owner's sibling windows, and the stub's backend refuses to exist. This one answers
-     * that request with a handle and nothing else, so the card can be drawn in scene under a
-     * listening bridge without a display server.
-     */
-    private static final class OverlayHost extends StubWindow implements Backend {
-        /** The window the presentation named as the one that stays interactive. */
-        NativeWindow sceneModalOwner;
-
-        @Override public Backend backend() { return this; }
-        @Override public UiRuntime uiRuntime() { return null; }
-        @Override public NativeWindow createWindow(WindowConfig config) {
-            throw new AssertionError("an in-scene dialog must not create a window");
-        }
-        @Override public void runEventLoop() { }
-        @Override public void pushModal(NativeWindow modal, NativeWindow parent) { }
-        @Override public void popModal(NativeWindow modal) { }
-        @Override public SceneModalHandle pushSceneModal(NativeWindow owner, boolean toolkitScope) {
-            sceneModalOwner = owner;
-            return () -> sceneModalOwner = null;
-        }
-        @Override public void signalModalBlocked() { }
-        @Override public void stop() { }
     }
 
     private Dialog dialog;

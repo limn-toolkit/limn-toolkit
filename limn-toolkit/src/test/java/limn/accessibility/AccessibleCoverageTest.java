@@ -63,7 +63,6 @@ class AccessibleCoverageTest {
             "limn.components.ColorPicker$SaturationValueField",
             "limn.components.ColorPickerButton",
             "limn.components.ContextMenus$ContextRegion",
-            "limn.components.Dialog$SceneOverlay",
             "limn.components.ImageView",
             "limn.components.ListView",
             "limn.components.MediaControls",
@@ -210,6 +209,28 @@ class AccessibleCoverageTest {
             // children are laid out at the column's full width from its origin, so it leaves no
             // mirroring behind. Pinned by limn.components.DialogCardColumnAccessibilityTest.
             "limn.components.Dialog$CardColumn",
+            // Transparent by the predicate on its own declarations: no role, name, description,
+            // action or state of its own, never focusable, no tooltip it could ever be given, no
+            // synthetic children, and one child, the card. What materialises it is not its own
+            // and depends on where it sits in the overlay stack. As the top overlay the walk
+            // writes MODAL on it before the predicate runs, so it publishes as an unnamed GROUP
+            // over the whole scene, the card's parent, with POPUP_FOR to the host; a hook that
+            // named it would make a reader hear the title twice, a CANCEL on it would be a second
+            // verb for the one resolve() the card's verb and this layer's own Escape and scrim
+            // press already reach, and a MODAL setter would be one fact written twice. Buried
+            // under a second in-scene dialog or an in-scene dropdown the walk passes it
+            // unreachable and writes nothing, so the predicate deletes it and hoists the card to
+            // the window node, where it publishes VISIBLE and SHOWING without ENABLED, which is
+            // §1.13's frozen dialog; the card keeps its identity through both moves because
+            // serials are minted on the widget. The one thing it needed is the same seam
+            // BackdropPanel needed: it paints the scrim, so on the buried path the
+            // paints-and-says-nothing warning named a toolkit class and recommended the flag
+            // that would delete the dialog's controls, and paintsDecoration silences it because
+            // the scrim is a wash. §7's "panel or overlay" row is wrong about it in every clause
+            // it has: the overlay is never the DIALOG, declares no CANCEL, declares no MODAL, and
+            // the row never says it is a node at all. Pinned by
+            // limn.components.DialogSceneOverlayAccessibilityTest.
+            "limn.components.Dialog$SceneOverlay",
             // Clips its children, declares nothing, is never focusable and can never acquire a
             // tooltip, so §1.6's predicate deletes it and hoists its content into the split's own
             // place. The clip outlives the node: isShowing() walks widgets rather than nodes, so a

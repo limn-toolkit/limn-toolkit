@@ -1257,6 +1257,28 @@ public final class Dialog {
             canvas.fillRect(0, 0, width(), height(), veil.withAlpha(veil.a() * fade));
         }
 
+        /**
+         * The scrim is material over content this layer does not own, and it is the reason this
+         * class needs the seam at all.
+         *
+         * <p>While it is the top overlay the walk writes {@code MODAL} on it and it survives as
+         * the card's parent with no code here. Buried under a second in-scene dialog or an
+         * in-scene dropdown it declares nothing, is never focusable and holds no synthetic
+         * children, so the transparency rule deletes it and hoists the card to the window &mdash;
+         * and the guard that catches a custom gauge nobody named cannot tell a gauge from a veil:
+         * it would name a toolkit class in an application's log, for a picture that says only
+         * "the background is blocked", which the tree already carries as {@code MODAL} on the
+         * layer above and as the enabled bit taken from everything beneath it, and it would
+         * recommend the ignore flag, which on this widget deletes the dialog's own controls with
+         * it.
+         *
+         * @return {@code true}, always
+         */
+        @Override
+        protected boolean paintsDecoration() {
+            return true;
+        }
+
         @Override
         protected void paintChildren(Canvas canvas) {
             float wasX = card.x();
