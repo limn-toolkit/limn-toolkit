@@ -63,7 +63,20 @@ public final class LiveProbe {
 
         Canvas nothing = new NoCanvas();
         long end = System.nanoTime() + seconds * 1_000_000_000L;
+        long next = System.nanoTime() + 4_000_000_000L;
+        int step = 0;
         while (System.nanoTime() < end) {
+            // Something moves every four seconds, so a listening client has events to hear: the
+            // focus travels between the two controls and the checkbox toggles under it.
+            if (System.nanoTime() > next) {
+                next = System.nanoTime() + 4_000_000_000L;
+                switch (step++ % 3) {
+                    case 0 -> scene.requestFocus(save);
+                    case 1 -> scene.requestFocus(wrap);
+                    default -> wrap.setChecked(!wrap.isChecked());
+                }
+                System.out.println("--- step " + step + " ---");
+            }
             scene.renderFrame(nothing);
             runtime.drain();
             Thread.sleep(16);

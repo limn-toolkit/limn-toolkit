@@ -185,8 +185,31 @@ public final class AtspiBridge implements AccessibilityBridge {
 
     @Override
     public void emit(AccessibleEvent event) {
-        // Signals are the one message this bridge may refuse; see Outbound. Wiring them to the
-        // connection is the next step and needs the role and state table below to be complete.
+        DBus.Conn open = connection;
+        if (open == null || !embedded) {
+            return;
+        }
+        AtspiEvents.Signal signal = AtspiEvents.of(event);
+        if (signal == null) {
+            return;  // nothing on this platform carries it; better silent than approximate
+        }
+        try {
+            // From the node the event is about, so a client that subscribed by path hears it, and
+            // as a signal rather than a reply, so it is the one kind this connection may refuse
+            // when a peer has stopped draining.
+            open.sendSignal(DBus.Msg.signal(pathOf(event.nodeId()), signal.iface(),
+                    signal.member(), AtspiEvents.SIGNATURE,
+                    AtspiEvents.body(signal, objects.rootRef())));
+        } catch (IOException e) {
+            // The writer thread reports its own failures and the connection closes itself; an
+            // event lost to a dying socket is not worth a second report from the frame that
+            // raised it.
+        }
+    }
+
+    /** The object path an event's node is published at; node zero's is the application's. */
+    private String pathOf(long nodeId) {
+        return nodeId == 0 ? Atspi.PATH_ROOT : "/org/a11y/atspi/accessible/" + nodeId;
     }
 
     /** @return the tree this bridge is currently answering from; never {@code null} */
