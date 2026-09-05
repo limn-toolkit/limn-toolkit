@@ -146,6 +146,105 @@ class ButtonGroupTest extends ComponentTestBase {
         assertFalse(a.isFocusable());
     }
 
+    /**
+     * The tab stop is decided among the enabled members, so a member's flag moving can move it.
+     * It used to be decided only when a member joined or the selection moved: a holder disabled
+     * afterwards left the group with no focusable member at all, and Tab skipped a group whose
+     * other members still worked.
+     */
+    @Test
+    void disablingTheHolderHandsTheTabStopToTheNextEnabledMember() {
+        RadioButton a = new RadioButton("A");
+        RadioButton b = new RadioButton("B");
+        RadioButton c = new RadioButton("C");
+        ButtonGroup group = new ButtonGroup().add(a).add(b).add(c);
+        Scene scene = bound(a, b, c);
+        assertEquals(List.of("A"), tabOrder(scene), "the first enabled member holds it");
+
+        scene.requestFocus(a);
+        a.setEnabled(false);
+
+        assertEquals(List.of("B"), tabOrder(scene), "the next enabled member takes it over");
+        assertFalse(a.isFocusable());
+        assertTrue(b.isFocusable());
+
+        // The selected member holds the stop only while it is enabled; the selection itself stays.
+        group.setSelectedIndex(2);
+        assertEquals(List.of("C"), tabOrder(scene));
+        c.setEnabled(false);
+        assertEquals(List.of("B"), tabOrder(scene), "passed over exactly as when joining");
+        assertEquals(2, group.selectedIndex(), "and still selected");
+        c.setEnabled(true);
+        assertEquals(List.of("C"), tabOrder(scene), "and back the moment it is enabled again");
+    }
+
+    /** Disabling the focused holder revokes its focus and hands nothing to the new holder. */
+    @Test
+    void theNewHolderIsNotHandedTheFocusItsPredecessorLost() {
+        RadioButton a = new RadioButton("A");
+        RadioButton b = new RadioButton("B");
+        new ButtonGroup().add(a).add(b);
+        Scene scene = bound(a, b);
+        scene.requestFocus(a);
+        assertTrue(a.isFocused());
+
+        a.setEnabled(false);
+
+        assertTrue(b.isFocusable(), "the stop moved");
+        assertFalse(b.isFocused(), "the focus did not: nothing steals it, the next Tab reaches it");
+        assertFalse(a.isFocused());
+    }
+
+    /** A group with no enabled member has no tab stop, and gets one back with its first member. */
+    @Test
+    void reEnablingAMemberOfAFullyDisabledGroupRestoresTheTabStop() {
+        RadioButton a = new RadioButton("A");
+        RadioButton b = new RadioButton("B");
+        new ButtonGroup().add(a).add(b);
+        Scene scene = bound(a, b);
+        a.setEnabled(false);
+        b.setEnabled(false);
+        assertEquals(List.of(), tabOrder(scene), "nothing to reach");
+
+        b.setEnabled(true);
+
+        assertEquals(List.of("B"), tabOrder(scene));
+        assertTrue(b.isFocusable());
+        assertFalse(a.isFocusable());
+    }
+
+    /** A column of the radios, bound and rendered once, so that focus traversal has a tree. */
+    private Scene bound(RadioButton... radios) {
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        for (RadioButton radio : radios) {
+            column.add(radio);
+        }
+        Scene scene = new Scene(column);
+        scene.setTextRuler(ComponentTestBase.RULER);
+        scene.bind(new StubWindow());
+        scene.renderFrame(new FakeCanvas(200, 200));
+        return scene;
+    }
+
+    /** The captions Tab reaches from nothing, in order, until it wraps: the group's tab stops. */
+    private static List<String> tabOrder(Scene scene) {
+        List<String> order = new ArrayList<>();
+        scene.requestFocus(null);
+        for (int i = 0; i < 32; i++) {
+            scene.focusTraverse(false);
+            limn.scene.Widget focused = scene.focusedWidget();
+            if (focused == null) {
+                break;
+            }
+            String caption = ((RadioButton) focused).text();
+            if (order.contains(caption)) {
+                break; // wrapped
+            }
+            order.add(caption);
+        }
+        return order;
+    }
+
     /** Arrows move the selection and the focus together, and wrap: Windows and GTK behaviour. */
     @Test
     void arrowKeysMoveThroughTheGroupAndWrap() {

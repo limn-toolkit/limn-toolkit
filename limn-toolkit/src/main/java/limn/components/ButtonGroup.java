@@ -143,6 +143,12 @@ public final class ButtonGroup {
         return members.size();
     }
 
+    // Called by RadioButton.setEnabled(): the holder is chosen among the enabled members, so a
+    // flag moving on any member can move it, and the group hears about that from nowhere else.
+    void memberEnabledChanged(RadioButton member) {
+        applyRovingFocus();
+    }
+
     // Called by RadioButton.select(): swap the selection and notify.
     void select(RadioButton radio) {
         if (current == radio) {
@@ -189,13 +195,19 @@ public final class ButtonGroup {
     }
 
     /**
-     * One tab stop: the selected member holds it, or the first enabled member before anything is
-     * selected. The new holder is made focusable before the old one loses it, because
+     * One tab stop: the selected member holds it while it is enabled, or the first enabled member
+     * otherwise. The new holder is made focusable before the old one loses it, because
      * {@code setFocusable(false)} does not move focus away and the order stops a group from
      * briefly having no focusable member at all.
+     *
+     * <p>A selected member that has since been disabled is passed over exactly as it would have
+     * been when joining: the selection stays where it is, only the tab stop moves, and it moves
+     * back the moment the member is enabled again. Nothing here requests focus; a holder that was
+     * focused when it was disabled had its focus revoked by {@code setEnabled} itself, and the
+     * next Tab reaches the group through its new holder.
      */
     private void applyRovingFocus() {
-        RadioButton holder = current;
+        RadioButton holder = current != null && current.isEnabled() ? current : null;
         if (holder == null) {
             for (RadioButton member : members) {
                 if (member.isEnabled()) {
