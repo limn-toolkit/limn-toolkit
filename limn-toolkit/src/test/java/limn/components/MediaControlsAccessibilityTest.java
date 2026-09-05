@@ -4,6 +4,9 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.input.Keys;
+import limn.scene.Widget;
+import limn.scene.layout.Column;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;
@@ -23,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -47,6 +51,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * parent, so the buttons describe themselves through their shared private base. And the row
  * omits the two sliders and the slots entirely; the slots are pinned here, and the sliders are
  * {@link Slider}'s own step.
+ *
+ * <p>The play button has cases of its own below, because it is the one control of the family that
+ * an application is certain to ship: that it is a plain button with no facet, that its box is
+ * the square it measured and not the ring it paints around it, that a container's disabled flag
+ * refuses a press its own flag would allow, that it is a tab stop exactly once, and that a click
+ * from a pointer is never acknowledged and never publishes the armed visual. The button is a
+ * private class reached through the public child lists, so nothing here depends on its name.
  *
  * <p>TODO, deferred until Slider is described: an assistive technology's {@code SET_VALUE} on
  * the scrub bar with a seekable source must leave the thumb following the playhead afterwards,
@@ -172,6 +183,42 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
         controls.invalidate();
         frame();
         frame();
+    }
+
+    /**
+     * @return the play button, reached through the public child lists: the bar's only child is
+     *         the row and the row's first child is the play button, as {@code rebuild()} orders it
+     */
+    private Widget playButton() {
+        return controls.children().get(0).children().get(0);
+    }
+
+    /** Delivers one click at the centre of {@code target}'s box, as a pointer does, and frames it. */
+    private void click(Widget target) {
+        float x = target.localToSceneX() + target.width() / 2;
+        float y = target.localToSceneY() + target.height() / 2;
+        scene.mouseMoved(x, y);
+        scene.inputBatchEnded();
+        frame();
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        scene.inputBatchEnded();
+        frame(); // a frame with the button held, so a published PRESSED would be seen
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        scene.inputBatchEnded();
+        frame();
+    }
+
+    /** @return whether any tree published so far carried {@code state} on a button */
+    private boolean everPublishedOnAButton(Accessible.State state) {
+        for (AccessibleTree published : bridge.published) {
+            for (int i = 0; i < published.nodeCount(); i++) {
+                AccessibleNode node = published.node(i);
+                if (node.role() == Accessible.Role.BUTTON && node.has(state)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------------------- the shape
@@ -336,6 +383,158 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
                 bridge.events.toString());
         assertEquals(0, bridge.countOf(AccessibleEvent.Type.NODE_DESTROYED),
                 "a name is not a rebuild: " + bridge.events);
+
+        int published = bridge.published.size();
+        bridge.events.clear();
+
+        view.setPaused(true);
+        heartbeat();
+
+        assertEquals(published, bridge.published.size(),
+                "the same answer again re-sets nothing: refresh() guards the tooltip on the state "
+                        + "it last showed, and the static I18nString compares by reference, so a "
+                        + "poll at ten hertz over a paused picture is not a rename at ten hertz");
+        assertTrue(bridge.events.isEmpty(), "and nothing was said: " + bridge.events);
+    }
+
+    // -------------------------------------------------------------------------- the play button
+
+    @Test
+    void thePlayButtonIsOnePlainButtonWithNoFacetInsideItsOwnMeasuredBox() {
+        bindControls();
+        Widget widget = playButton();
+        AccessibleNode play = node("Play");
+
+        assertEquals(Accessible.Role.BUTTON, play.role(), describe(tree()));
+        assertEquals(Accessible.NameFrom.TOOLTIP, play.nameFrom(), describe(tree()));
+        assertEquals("", play.description(), describe(tree()));
+        assertTrue(play.has(Accessible.State.FOCUSABLE), describe(tree()));
+        assertTrue(play.has(Accessible.State.ENABLED), describe(tree()));
+        assertFalse(play.has(Accessible.State.PRESSED), describe(tree()));
+        assertTrue(play.actions().has(Accessible.Action.PRESS),
+                "the one verb the family declares" + describe(tree()));
+        assertTrue(play.actions().has(Accessible.Action.FOCUS),
+                "and the two the walk adds for every focusable widget" + describe(tree()));
+        assertTrue(play.actions().has(Accessible.Action.SCROLL_INTO_VIEW), describe(tree()));
+        assertNull(play.actions().keyBinding(),
+                "Space and Enter are the platform's generic activation, not an accelerator");
+        assertNull(play.toggle(),
+                "not a toggle: the state is spoken through the name that flips, and a pressed bit "
+                        + "beside it would announce a running film as \"Pause, not pressed\""
+                        + describe(tree()));
+        assertNull(play.value(), describe(tree()));
+        assertNull(play.text(), describe(tree()));
+        assertNull(play.expand(), describe(tree()));
+        assertNull(play.selectionItem(), describe(tree()));
+        assertEquals(List.of(), play.relations(), describe(tree()));
+        assertEquals(AccessibleNode.NONE, play.firstChild(),
+                "the triangle and the bars are paint carrying nothing the name does not"
+                        + describe(tree()));
+
+        assertEquals(widget.localToSceneX(), play.x(), 0.001f, describe(tree()));
+        assertEquals(widget.localToSceneY(), play.y(), 0.001f, describe(tree()));
+        assertEquals(widget.width(), play.width(), 0.001f,
+                "the box is the square the button measured; the focus ring's outset is damage, "
+                        + "not bounds" + describe(tree()));
+        assertEquals(widget.height(), play.height(), 0.001f, describe(tree()));
+        assertEquals(widget.width(), widget.height(), 0.001f, "a square");
+        assertTrue(widget.width() > 2 * Strokes.FOCUS_RING_OUTSET,
+                "the fixture has to be able to tell a box from a box grown by the ring");
+    }
+
+    @Test
+    void aPressInsideADisabledContainerIsRefusedWhileTheButtonsOwnFlagStaysTrue()
+            throws Exception {
+        view = new VideoView().setSource(new FakeVideo());
+        controls = new MediaControls(view);
+        Column around = new Column();
+        around.add(controls);
+        bind(around);
+        around.setEnabled(false);
+        frame();
+        Widget widget = playButton();
+        AccessibleNode play = node("Play");
+
+        assertTrue(widget.isEnabled(), "the fixture has to leave the button's own flag alone");
+        assertFalse(play.has(Accessible.State.ENABLED),
+                "the walk carries the container's flag down" + describe(tree()));
+        assertFalse(play.has(Accessible.State.FOCUSABLE), describe(tree()));
+        assertTrue(view.isPaused());
+
+        perform(play.id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        frame();
+
+        assertTrue(view.isPaused(),
+                "the button's own guard passes and the scene's ancestor gate is what refuses, as "
+                        + "the keyboard does");
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED), bridge.events.toString());
+        assertEquals("Play", byId(tree(), play.id()).name(), describe(tree()));
+    }
+
+    @Test
+    void thePlayButtonIsATabStopExactlyOnceAndFocusIsReported() {
+        bindControls();
+        Widget widget = playButton();
+        long id = node("Play").id();
+
+        List<Long> tabStops = nodesWith(Accessible.State.FOCUSABLE).stream()
+                .map(AccessibleNode::id).toList();
+        assertEquals(1, tabStops.stream().filter(stop -> stop == id).count(),
+                "the play button is a tab stop, once" + describe(tree()));
+        assertFalse(node("Play").has(Accessible.State.FOCUSED), describe(tree()));
+
+        scene.requestFocus(widget);
+        frame();
+
+        assertTrue(byId(tree(), id).has(Accessible.State.FOCUSED),
+                "the walk carries focus down; the hook declares no state of its own"
+                        + describe(tree()));
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.FOCUS_CHANGED), bridge.events.toString());
+
+        // The published tab stops are the scene's traversal order and nothing else: walking Tab
+        // once around the ring visits every FOCUSABLE node exactly once and comes back.
+        List<Long> visited = new ArrayList<>();
+        for (int i = 0; i < tabStops.size(); i++) {
+            scene.focusTraverse(false);
+            frame();
+            List<AccessibleNode> focused = nodesWith(Accessible.State.FOCUSED);
+            assertEquals(1, focused.size(), "one focus at a time" + describe(tree()));
+            visited.add(focused.get(0).id());
+        }
+        assertEquals(tabStops.stream().sorted().toList(), visited.stream().sorted().toList(),
+                "what is published FOCUSABLE is what Tab reaches, no more and no less"
+                        + describe(tree()));
+        assertEquals(id, visited.get(visited.size() - 1),
+                "and the ring closes on the play button, where it started" + describe(tree()));
+    }
+
+    @Test
+    void aClickFromAPointerFiresIsNotAcknowledgedAndNeverPublishesPressed() {
+        bindControls();
+        Widget widget = playButton();
+        long id = node("Play").id();
+        assertTrue(view.isPaused());
+        int beforeTheClick = bridge.published.size();
+
+        click(widget);
+
+        assertFalse(view.isPaused(), "the fixture has to actually click");
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED),
+                "a press the user made is not acknowledged: it leaves no difference between two "
+                        + "snapshots, and §11 says so: " + bridge.events);
+        assertFalse(everPublishedOnAButton(Accessible.State.PRESSED),
+                "the armed visual is never published: no platform maps it, it would republish "
+                        + "the tree twice per click, and a press from a reader never arms");
+        assertSame(widget, scene.focusedWidget(),
+                "click-to-focus is the scene's, not the button's");
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.FOCUS_CHANGED), bridge.events.toString());
+        assertEquals(1, eventsOf(AccessibleEvent.Type.NAME_CHANGED, id).size(),
+                "the one other thing the click changed for a reader is the name: "
+                        + bridge.events);
+        assertEquals("Pause", byId(tree(), id).name(), describe(tree()));
+        assertEquals(beforeTheClick + 2, bridge.published.size(),
+                "one snapshot for the focus and one for the name, none for the hover, the arm or "
+                        + "the release");
     }
 
     // ------------------------------------------------------------------------------ the presses
