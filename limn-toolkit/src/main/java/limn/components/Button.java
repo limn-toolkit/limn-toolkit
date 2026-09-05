@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -311,6 +313,60 @@ public class Button extends Widget {
         // end. With no icon the advance is zero and the two arms are the same number.
         float textX = rtl ? blockX : blockX + advance;
         canvas.drawText(line, textX, (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+    }
+
+    /**
+     * What this button is to an assistive technology: one {@link Accessible.Role#BUTTON} named by
+     * the caption it holds and offering {@link Accessible.Action#PRESS}, and nothing else.
+     *
+     * <p>The name is the held {@link I18nString} handed over by reference, never {@link #text()}:
+     * the walk compares the reference, the locale and the translation epoch, so a hover or focus
+     * fade that damages this button on every frame concludes that nothing moved without
+     * allocating. It is handed over even when the caption is empty, because the walk names a
+     * nameless node from its tooltip and describes a named one with it, which is how an icon-only
+     * button is named by the tooltip it should have and a captioned one keeps the tooltip as its
+     * description. The role is unconditional so that a disabled button stays in the tree and is
+     * heard as disabled rather than vanishing.
+     *
+     * <p>Declared here is all a reader is told. The focus and scroll-into-view verbs, the enabled,
+     * visible, showing, focusable and focused states and the box are the walk's; the pressed
+     * visual is not published, because no platform maps it and a press from an assistive
+     * technology never arms; whether this is a dialog's default button is the dialog's fact and
+     * not this widget's, which holds no such notion; and the icon is paint with no name and no
+     * operation, so it is not a node.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.BUTTON);
+        a.name(text, Accessible.NameFrom.CONTENT);
+        a.action(Accessible.Action.PRESS);
+    }
+
+    /**
+     * Performs a press an assistive technology asked for, exactly as a click or a Space release
+     * does: the same private action slot, so the application is notified the same way. Any other
+     * verb is refused, and so is a press while this button is disabled, since the click and key
+     * paths rely on the scene never delivering to a disabled widget and this one keeps the guard
+     * itself.
+     *
+     * <p>It does not arm, invalidate or request focus. A pointer click gets click-to-focus from
+     * the scene and not from this widget, a reader that wants focus has the focus verb, and a
+     * press that pulled focus out of a text field onto a tool-bar button would be worse than one
+     * that leaves it.
+     *
+     * @param verb what was asked
+     * @param arg  ignored; a press carries none
+     * @return whether the action ran
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action verb, Accessible.Argument arg) {
+        if (verb != Accessible.Action.PRESS || !isEnabled()) {
+            return false;
+        }
+        action.run();
+        return true;
     }
 
     @Override
