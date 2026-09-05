@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -143,8 +145,54 @@ public class ColorPickerButton extends Widget {
 
     /** The caption as it currently reads: the colour's hex unless one was set. */
     public String text() {
-        return text != null ? text.get() : color.toHex();
+        return text != null ? text.get() : hex();
     }
+
+    /**
+     * The colour written the way the default caption writes it, rebuilt only when the colour has
+     * moved.
+     *
+     * <p>{@link Color#toHex()} is a pair of format calls, and both callers are hot. The paint pass
+     * asks three or four times a frame &mdash; to measure, to place the baseline, to decide the
+     * chip's advance and to draw &mdash; and the accessible tree is walked over every widget
+     * whenever anything at all is damaged, which for this button is every frame of a hover fade, a
+     * focus fade and a picker drag. A hex built inside the describe hook would allocate one string
+     * per damaged frame in order to conclude that nothing had moved, which is the failure the
+     * cached form of {@link Accessibility#name(String, long, Accessible.NameFrom)} exists to
+     * prevent.
+     *
+     * <p>Validated against the colour rather than cleared where the colour is written: a cache
+     * that has to be cleared at every mutation is one new assignment away from speaking a colour
+     * that is no longer on the chip. {@link Color} is a record, so the comparison is four float
+     * compares and allocates nothing.
+     *
+     * <p><b>The colour is the whole key.</b> Not the locale and not the translation epoch, unlike
+     * the picker's own spoken swatch: this string passes through no bundle and no
+     * {@link java.text.MessageFormat}, and {@code %02X} is one of the conversions
+     * {@link java.util.Formatter} leaves unlocalized, so no language move can change a digit of it.
+     *
+     * @return the hex the chip's caption reads
+     */
+    private String hex() {
+        if (hexText == null || !color.equals(hexFrom)) {
+            hexFrom = color;
+            hexText = color.toHex();
+            hexRevision++;
+        }
+        return hexText;
+    }
+
+    /** The colour {@link #hexText} was built from; {@code null} until the first call. */
+    private Color hexFrom;
+
+    /** The memo itself; {@code null} until the first call, which is what makes that call build. */
+    private String hexText;
+
+    /**
+     * Bumped every time the memo above refills, and by nothing else, so that the tree can decide
+     * the hex is unchanged without producing it. Compared as two {@code long}s.
+     */
+    private long hexRevision;
 
     /** Replaces the caption with a fixed string; {@code ""} leaves chrome and the chip. */
     public ColorPickerButton setText(String value) {
@@ -271,7 +319,10 @@ public class ColorPickerButton extends Widget {
         if (color.equals(value)) {
             return false;
         }
-        boolean resized = text == null && color.toHex().length() != value.toHex().length();
+        // hex() is still the outgoing colour's here, because the assignment below has not run
+        // yet, so this reads exactly as the two format calls it replaces did -- and one of those
+        // pairs per frame of a drag goes away.
+        boolean resized = text == null && hex().length() != value.toHex().length();
         color = value;
         if (resized) {
             markNeedsLayout();
@@ -482,5 +533,119 @@ public class ColorPickerButton extends Widget {
         armed = false;
         keyArmed = false;
         invalidate();
+    }
+
+    // --- accessibility -------------------------------------------------------
+
+    /**
+     * What this button is to an assistive technology: one {@link Accessible.Role#BUTTON} carrying
+     * a popup, offering a press, and named by whichever of its two captions it is painting.
+     *
+     * <p><b>A button and not a colour chooser.</b> The chooser is the {@link ColorPicker} the
+     * press raises, which has a node of its own in whichever tree it is mounted in. What this
+     * widget does is open a dialog, which is what a button with a popup does.
+     *
+     * <p><b>The name is the caption, and the caption is two different things.</b> A caption set
+     * through {@link #setText} is an {@link I18nString} this widget holds, so it is handed over by
+     * reference and the walk compares the reference, the language and the translation epoch. The
+     * default caption is the colour's hex, which has no source to compare because it is formatted,
+     * so it is handed over from {@link #hex()} with the counter that memo was filled against. Both
+     * are {@link Accessible.NameFrom#CONTENT}: on the default path that is exact, since the hex is
+     * literally the painted caption, and with an empty caption it is the closest of the five, the
+     * same divergence the picker's own swatch and the split pane's divider already record. One
+     * provenance for both branches also keeps a {@code setText("")} and a
+     * {@link #setTextFromColor()} from churning the attribute one platform writes the name into.
+     *
+     * <p><b>An empty caption is still named, by the colour.</b> {@code setText("")} is a supported
+     * configuration &mdash; chrome and a chip, which is what a dense inspector column wants
+     * &mdash; and the widget still paints the chip there, so the colour is its whole content. A
+     * focusable node with no name at all is the one thing the gallery check refuses, and this is
+     * the answer that costs no application a line.
+     *
+     * <p><b>The hex moves to the description when a caption displaced it, and is published exactly
+     * once either way.</b> What that costs, said plainly: a captioned button with a tooltip loses
+     * the tooltip, because the walk gives a tooltip to the description only when nothing else took
+     * it. The trade is deliberate &mdash; a caption already identifies the control, and the colour
+     * is published nowhere else in this widget's tree, so without it a reader of a captioned
+     * colour well can never learn the colour. An application that disagrees calls
+     * {@code setAccessibleDescription}, which is applied after this hook and wins.
+     *
+     * <p><b>{@link Accessible.State#HAS_POPUP} always, and not only while the picker is up.</b> It
+     * is the bit that tells a reader this is not a plain button before anything has happened, and
+     * a bit that moved with the dialog would republish this node twice per picker.
+     *
+     * <p><b>No facet of any kind, and the survey's row is wrong to want one.</b> "Value text is
+     * the hex" cannot be implemented: {@link Accessibility#valueText} writes the text and leaves
+     * the node without a number, the publish step builds a value facet only where a number is
+     * present, and the difference raises a value event only when a number moves &mdash; so such a
+     * text is dropped in silence on all three platforms. And there is no honest number to pair
+     * with it, because a colour has no scalar. The hex belongs in the name, which is where it is.
+     *
+     * <p><b>No relation.</b> Presented in scene, the dialog's overlay is a parentless root whose
+     * inheritance host is this button, so the walk publishes the popup relation there and its
+     * mirror here; declaring it again would put two of the same relation on this node, since
+     * relations are not de-duplicated. Presented in a window of its own &mdash; the default
+     * &mdash; the picker is in another scene and another tree, and the {@link Dialog} the survey's
+     * row names is not a widget at all, so a relation naming it could only ever be dropped.
+     *
+     * <p>Declared here is all a reader is told. The box, the language, the enabled, visible,
+     * showing, focusable and focused bits and the focus and scroll-into-view verbs are the walk's;
+     * {@link #paintOutset()} is how far the focus ring's ink reaches for damage and is never the
+     * operable rectangle. The armed visual is not published, for {@link Button}'s reasons: no
+     * platform maps it, it would republish the tree twice per click, and a press from an assistive
+     * technology never arms. The chip is not a node either &mdash; the whole box is one hit
+     * target, a node for it would say what the name already says, and leaving it out keeps this
+     * hook free of {@link #layoutDirection()} entirely while the box mirrors for free.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.BUTTON);
+        // get() is a per-language memo and allocates nothing when the language and the epoch have
+        // not moved, so asking whether the caption is empty is free on every damaged frame.
+        if (text != null && !text.get().isEmpty()) {
+            a.name(text, Accessible.NameFrom.CONTENT);
+            // hex() first, because the counter is only current once the memo has been asked.
+            a.description(hex(), hexRevision);
+        } else {
+            a.name(hex(), hexRevision, Accessible.NameFrom.CONTENT);
+        }
+        a.state(Accessible.State.HAS_POPUP);
+        // The single-argument form; the variable-argument one allocates an array per call.
+        a.action(Accessible.Action.PRESS);
+    }
+
+    /**
+     * Raises the picker an assistive technology asked for, through {@link #openPicker()} &mdash;
+     * the same call a left click and an Enter or Space release make, so the dialog, its Cancel and
+     * OK, and the revert that reports the previous colour through {@link #onChange} are all
+     * exactly what the pointer would have got.
+     *
+     * <p>No enabled check of its own, unlike {@link Button}'s. The node acted on here is this
+     * widget, so the scene's own gate has already walked this button and every ancestor for
+     * {@code isEnabled()}, checked that it is showing, that the window is not modal-blocked and
+     * that it is inside the layer that owns input. This widget's click and key paths rely on
+     * exactly that gate and carry no guard either, and a reader's press that was stricter than the
+     * pointer's would be a second rule to keep in step.
+     *
+     * <p>The refusal while a picker is already up is about truthfulness rather than safety:
+     * {@link #openPicker()} returns silently in that case, and a {@code true} here is published as
+     * an invocation, so acknowledging a press that did nothing would tell a reader something
+     * happened. The scene's own reachability test refuses first in both presentations &mdash; in
+     * scene the dialog's overlay owns input, natively the owner window is modal-blocked &mdash; so
+     * this is the second line and not the first.
+     *
+     * @param verb what was asked
+     * @param arg  ignored; a press carries none
+     * @return whether this widget did it
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action verb, Accessible.Argument arg) {
+        if (verb != Accessible.Action.PRESS || open != null) {
+            return false;
+        }
+        openPicker();
+        return true;
     }
 }
