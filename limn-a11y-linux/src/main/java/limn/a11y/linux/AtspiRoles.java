@@ -49,6 +49,24 @@ final class AtspiRoles {
         return KNOWN.get(role);
     }
 
+    /**
+     * The platform's own name for {@code role}, for {@code GetRoleName}.
+     *
+     * @param role the toolkit's role
+     * @return the AT-SPI role name, or {@code "unknown"} while the number is unread
+     */
+    static String nameOf(Accessible.Role role) {
+        Integer n = KNOWN.get(role);
+        if (n == null) {
+            return "unknown";
+        }
+        return switch (n) {
+            case 23 -> "frame";
+            case 43 -> "push button";
+            default -> "unknown";
+        };
+    }
+
     /** @return the roles that have a number, for the test that keeps the list honest */
     static java.util.Set<Accessible.Role> mapped() {
         return java.util.Collections.unmodifiableSet(KNOWN.keySet());
