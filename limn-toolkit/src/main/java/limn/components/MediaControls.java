@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -53,6 +55,14 @@ import java.util.Objects;
  * <p>The bar polls on a timer rather than a ticker, so parked over a paused picture it costs
  * nothing: every write below is guarded, and a frame is only asked for when a number actually
  * moved.
+ *
+ * <p><b>To an assistive technology</b> this is one tool bar holding the transport, and nothing
+ * more: the play and mute buttons are real widgets that describe themselves as buttons named by
+ * the tooltips that already flip with their state, the two sliders and the clock describe
+ * themselves, and the row and the boxes between them are scaffolding the tree deletes. The bar
+ * cannot say anything about a control on the buttons' behalf &mdash; its only child is the row
+ * &mdash; and so it does not try to. A press from a screen reader reaches the same activation a
+ * click and a Space release reach.
  */
 public class MediaControls extends Widget {
 
@@ -152,6 +162,13 @@ public class MediaControls extends Widget {
         volumeBox.setVisible(false);
         rebuild();
         add(row);
+        // The first heartbeat runs here and not at the first paint. The accessible tree is
+        // published before the paint of the same frame, so a bar that waited for it published,
+        // for one frame, a focusable play button with no name and enabled with nothing to play,
+        // a mute button with no name at all until the sound cluster appeared, and an empty clock.
+        // Nothing here is armed by it: the poll starts from the paint, and the listener slot is
+        // still empty.
+        refresh();
     }
 
     /** The view these controls drive. */
@@ -335,6 +352,31 @@ public class MediaControls extends Widget {
         return backdrop ? Theme.current().tokensFor(this).padV() : 0;
     }
 
+    /**
+     * Describes this bar as one horizontal tool bar that controls its view, and nothing else.
+     *
+     * <p>The role is unconditional and does not follow {@link #setBackdrop}: the class paints the
+     * backdrop, so a bar that declared nothing would be deleted as scaffolding with a warning
+     * naming a toolkit class in an application's log, and the node is wanted with the panel off
+     * as much as with it on, because either way this is the bar that holds the transport. The
+     * orientation is fixed by the class, which lays its controls in a row and only a row. The
+     * relation names the view these controls drive; it is resolved to the view's own node once the
+     * view publishes one and is dropped until then.
+     *
+     * <p>No name is declared, because the bar holds no string that names itself; an application
+     * that wants one calls {@code setAccessibleName}. Nothing is declared about the controls:
+     * each button, slider and the clock describes itself, and the row and the boxes between them
+     * are removed by the tree's own rule.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.TOOL_BAR);
+        a.state(Accessible.State.HORIZONTAL);
+        a.relation(Accessible.Relation.CONTROLLER_FOR, view);
+    }
+
     @Override
     protected Size onMeasure(Constraints constraints) {
         float pad = pad();
@@ -395,11 +437,13 @@ public class MediaControls extends Widget {
             playPause.invalidate();
         }
         updateSoundCluster();
+        // Named whether or not the cluster is offered: the button is in the accessible tree either
+        // way, and showing it later must not be the moment it first acquires a name.
+        if (showingMuted == null || showingMuted != muted) {
+            showingMuted = muted;
+            mute.setTooltip(muted ? UNMUTE : MUTE);
+        }
         if (soundShown) {
-            if (showingMuted == null || showingMuted != muted) {
-                showingMuted = muted;
-                mute.setTooltip(muted ? UNMUTE : MUTE);
-            }
             syncVolume();
             applyGain();
         }
@@ -473,6 +517,41 @@ public class MediaControls extends Widget {
 
         /** What a click, Space or Enter does. */
         abstract void activate();
+
+        /**
+         * Describes this button as a button offering a press, and declares no name: the walk
+         * names it from the tooltip the bar keeps in step with the state, compared by reference,
+         * so a quiet frame costs nothing, and declaring the same string here would make the walk
+         * add it a second time as the description. It is a plain button and not a toggle,
+         * because a control whose name flips with its state is announced by that name on every
+         * platform, and a pressed bit beside "Unmute" would be heard twice.
+         *
+         * @param a the node being described
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.BUTTON);
+            a.action(Accessible.Action.PRESS);
+        }
+
+        /**
+         * Performs a press an assistive technology asked for through the same activation a click
+         * and a Space release reach, with the same enabled guard those paths keep. Any other verb
+         * is refused. It does not arm and does not take focus.
+         *
+         * @param action what was asked
+         * @param arg    ignored; a press carries none
+         * @return whether the button fired
+         */
+        @Override
+        protected boolean onAccessibilityAction(Accessible.Action action,
+                                                Accessible.Argument arg) {
+            if (action != Accessible.Action.PRESS || !isEnabled()) {
+                return false;
+            }
+            activate();
+            return true;
+        }
 
         @Override
         protected Size onMeasure(Constraints constraints) {

@@ -65,9 +65,6 @@ class AccessibleCoverageTest {
             "limn.components.ContextMenus$ContextRegion",
             "limn.components.ImageView",
             "limn.components.ListView",
-            "limn.components.MediaControls",
-            "limn.components.MediaControls$MuteButton",
-            "limn.components.MediaControls$PlayPause",
             "limn.components.MenuBar",
             "limn.components.PasswordField",
             "limn.components.PopupMenu$MenuSurface",
@@ -127,7 +124,18 @@ class AccessibleCoverageTest {
      * <p>A name here is still checked: the ancestor it defers to has to actually declare one.
      */
     private static final Set<String> DEFERS_TO_AN_ANCESTOR = new TreeSet<>(Set.of(
-            // Nothing yet. A rail family or a chart family is where the first entries belong.
+            // The transport's two icon buttons are one family: the private abstract IconButton
+            // between them and Widget owns the square box, the hover veil, the focus ring, the
+            // press and Space/Enter arming and the enabled guard, and it is the one place the
+            // click reaches activate(). Its describe hook says BUTTON with a press and no name,
+            // and its action hook reaches the same activate() with the same guard; the two
+            // subclasses differ only in the glyph they paint and in what activate() does, and
+            // neither of those is an accessible fact — the name is the tooltip the bar keeps in
+            // step with the state, which the walk supplies by reference. The abstract class is
+            // not a concrete widget, so it takes no entry of its own; this is what the ancestry
+            // walk exists for. Pinned by limn.components.MediaControlsAccessibilityTest.
+            "limn.components.MediaControls$MuteButton",
+            "limn.components.MediaControls$PlayPause"
     ));
 
     /**
