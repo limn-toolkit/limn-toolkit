@@ -1966,7 +1966,14 @@ public abstract class Widget {
     }
 
     final void describeAccessibleChild(Widget child, limn.accessibility.Accessibility a) {
-        Locale enclosing = I18n.pushScope(locale());
+        // The CHILD's language and not this widget's, because everything the hook writes lands in
+        // the child's slot and the builder stamps every name it resolves with that slot's locale.
+        // Pushing the parent's resolved a name in one language and published it as being in
+        // another, and the two never met again: a name is carried over from the last frame while
+        // its slot's locale and the translation epoch both hold, so the mismatched node kept a
+        // caption its own declared language says it is not in, until something unrelated moved
+        // the epoch. This is the only hook that writes into a slot it does not own.
+        Locale enclosing = I18n.pushScope(child.locale());
         try {
             onAccessibilityChild(child, a);
         } finally {

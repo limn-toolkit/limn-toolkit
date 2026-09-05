@@ -1,6 +1,8 @@
 package limn.scene;
 
 import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleNode;
+import limn.accessibility.Accessibility;
 import limn.accessibility.AccessibleEvent;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
@@ -118,6 +121,61 @@ class AccessibleLocaleTest extends AccessibleTestBase {
                 "and moving the subtree's language re-resolves it" + describe(tree()));
         assertEquals("Hello", tree().node(3).name(), describe(tree()));
         assertEquals(2, bridge.countOf(AccessibleEvent.Type.NAME_CHANGED), bridge.events.toString());
+    }
+
+    /**
+     * A parent that names its child names it in the CHILD's language, because that is the language
+     * the node it is writing into will claim to be in.
+     *
+     * <p>The one hook in the toolkit that writes into a slot it does not own, and the divergence
+     * it opened was invisible until a parent used it to supply a name: the walk opens the slot with
+     * the child's locale and the builder stamps every name with the slot's, so resolving under the
+     * parent's published a caption in one language labelled as being in another. Worse than wrong
+     * once — a name is carried over from the previous frame while its slot locale and the epoch
+     * both hold, so moving the parent's language re-resolved the child that named itself and left
+     * the one its parent had named saying the old words, permanently, until something unrelated
+     * moved the epoch.
+     */
+    @Test
+    void aParentThatNamesItsChildResolvesInTheChildsLanguageAndNotItsOwn() {
+        install();
+        Namer pane = new Namer();
+        Probe page = new Probe();
+        page.role = Accessible.Role.GROUP;
+        page.setLocale(BRAZILIAN);
+        pane.add(page);
+        pane.setAccessibleName("pane");
+        bind(pane);
+        frame();
+
+        AccessibleNode panel = node("Olá");
+        assertNotNull(panel,
+                "the parent supplied the name and the child's language is what resolved it"
+                        + describe(tree()));
+        assertEquals(BRAZILIAN, panel.locale(),
+                "which is the language the node itself claims to be in" + describe(tree()));
+
+        // The move that used to strand it: the parent's language changes, the child's does not.
+        pane.setLocale(Locale.FRENCH);
+        frame();
+
+        assertNotNull(node("Olá"),
+                "the child's language did not move, so its name did not either" + describe(tree()));
+
+        page.setLocale(Locale.FRENCH);
+        frame();
+
+        assertNotNull(node("Bonjour"),
+                "and when the child's own language moves, the name its parent supplies follows it"
+                        + describe(tree()));
+    }
+
+    /** A container that names its one child, which is what TabbedPane does for a tab's page. */
+    private static final class Namer extends Group {
+        @Override
+        protected void onAccessibilityChild(Widget child, Accessibility a) {
+            a.name(GREETING, Accessible.NameFrom.LABEL);
+        }
     }
 
     @Test
