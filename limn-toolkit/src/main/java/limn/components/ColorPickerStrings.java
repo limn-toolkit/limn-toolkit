@@ -47,6 +47,28 @@ final class ColorPickerStrings {
      */
     static final I18nString HEX = new I18nString("limn.colorPicker.hex", "Hex");
 
+    /**
+     * What the before/after swatch says: the colour showing now, and the one the picker opened on.
+     *
+     * <p>The second string here that names nothing on screen, and the first parameterized key in
+     * this package. The swatch paints two halves and no text, and the earlier of the two is the one
+     * fact the picker publishes nowhere else &mdash; the current colour is also the hex field's
+     * text and the channel numbers, the opening one is only ever drawn. So the swatch's whole
+     * content is the comparison, and the comparison is one sentence rather than two nodes.
+     *
+     * <p>Both arguments arrive as already-rendered hex strings, never as colours and never as
+     * numbers: {@link I18nString#format} routes through {@code MessageFormat}, which localises a
+     * numeric argument, and a hex triplet is a spelling rather than a quantity.
+     *
+     * <p><b>For a translator:</b> this pattern carries two slots, so their order is yours to
+     * choose &mdash; a language that says the old colour first moves {@code {1}} in front of
+     * {@code {0}} and nothing else changes. Being parameterized, it also pays
+     * {@code MessageFormat}'s two escaping rules that the plain keys above do not: an apostrophe
+     * has to be doubled, and a brace that is not opening a slot has to be quoted.
+     */
+    static final I18nString SWATCH =
+            new I18nString("limn.colorPicker.swatch", "Colour {0}, was {1}");
+
     /** The tab caption for a notation; {@code Format.name()} is API, not display text. */
     static I18nString format(ColorPicker.Format format) {
         return switch (format) {

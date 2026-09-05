@@ -57,8 +57,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * field have no role of their own yet, so they publish {@code UNKNOWN} while they are focusable and
  * {@code GROUP} while they are not &mdash; the rails are the ones that have taken their step, and
  * publish {@code SLIDER} &mdash;
- * and the saturation/value field, the hue ramp and
- * the swatch declare nothing and are deleted by the predicate. Each takes its own step. Nothing
+ * and the saturation/value field and the hue ramp declare nothing and are deleted by the
+ * predicate. Each takes its own step. The third painted part, the before/after swatch, has taken
+ * its: it is the {@code IMAGE} at the head of the chooser's children, and what it says is pinned
+ * by {@code limn.components.ColorPickerPreviewAccessibilityTest} rather than here. Nothing
  * asserted below depends on which role those nodes end up with; they are found by the names this
  * widget gives them.
  *
@@ -285,6 +287,7 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
             shape.add(child.role() + " \"" + child.name() + "\"");
         }
         assertEquals(List.of(
+                        "IMAGE \"Colour #FFFFFF, was #FFFFFF\"",
                         "LABEL \"#\"",
                         "UNKNOWN \"Hex\"",
                         "TAB_LIST \"\"",
@@ -296,10 +299,13 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         "UNKNOWN \"A\""),
                 shape,
                 "the rows, columns, paddings, token boxes and expanded shares between the picker "
-                        + "and its controls are all deleted, and the three parts it draws — the "
-                        + "saturation/value field, the hue ramp and the before/after swatch — "
-                        + "declare nothing and are deleted with them, each pending its own step. "
-                        + "The hex field's UNKNOWN is transitional in the same way"
+                        + "and its controls are all deleted, and two of the three parts it draws — "
+                        + "the saturation/value field and the hue ramp — declare nothing and are "
+                        + "deleted with them, each pending its own step. The third has taken its: "
+                        + "the swatch is the IMAGE at the head of this list, because it is the "
+                        + "first thing in the identity row, and what it says is pinned by "
+                        + "limn.components.ColorPickerPreviewAccessibilityTest. The hex field's "
+                        + "UNKNOWN is transitional in the way the two deletions are"
                         + describe(tree()));
 
         for (int i = 0; i < tree().nodeCount(); i++) {
@@ -426,8 +432,9 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         assertNull(chooser().value(),
-                "the chosen colour reaches a reader through the hex field's text and the channel "
-                        + "numbers, which are nodes of their own; a copy here would be one fact "
+                "the chosen colour reaches a reader through the swatch's own name, the channel "
+                        + "numbers and, once the field has taken its step, the hex field's text — "
+                        + "each of which is a node of its own; a copy here would be one fact "
                         + "published twice, and would republish the tree on every step of a drag"
                         + describe(tree()));
         assertNull(chooser().text(), describe(tree()));

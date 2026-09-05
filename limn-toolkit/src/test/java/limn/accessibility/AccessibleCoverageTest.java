@@ -56,7 +56,6 @@ class AccessibleCoverageTest {
      */
     private static final Set<String> UNDESCRIBED = new TreeSet<>(Set.of(
             "limn.components.ColorPicker$HueRamp",
-            "limn.components.ColorPicker$Preview",
             "limn.components.ColorPicker$SaturationValueField",
             "limn.components.ColorPickerButton",
             "limn.components.ContextMenus$ContextRegion",

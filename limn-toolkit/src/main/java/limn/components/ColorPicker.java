@@ -8,6 +8,7 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.LinearGradient;
 import limn.graphics.RoundRect;
+import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
@@ -25,6 +26,7 @@ import limn.scene.layout.Row;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -1676,5 +1678,141 @@ public final class ColorPicker extends Widget {
             canvas.restore();
             canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.current().outline);
         }
+
+        /**
+         * What the swatch is to an assistive technology: one {@link Accessible.Role#IMAGE} node
+         * whose name is the comparison it paints &mdash; the colour showing now, and the one the
+         * picker opened on &mdash; in the same hex notation the field beside it shows.
+         *
+         * <p><b>Not a choice between the two halves, and that is the whole of the decision.</b>
+         * The current colour is already published three or four times over in this widget: the hex
+         * field's text, each channel's number, the alpha number. The opening colour is written
+         * only by {@link ColorPicker#setInitialColor}, read only by the paint above, and published
+         * nowhere else in the tree at all. A name holding only the current hex would therefore
+         * repeat a neighbour and drop the one fact this widget contributes; a name holding only
+         * the opening one would describe half the picture. The comparison <em>is</em> the content,
+         * it is a single fact, and it is one string.
+         *
+         * <p>The duplication of the current hex is deliberate for the same reason the chooser's own
+         * hook refuses to copy its children: a container that repeats what its children say is
+         * heard twice on entry, and this is not a container. It is a leaf whose whole content is a
+         * pair, and a pair with one half missing is not a shorter answer, it is a wrong one.
+         *
+         * <p><b>The name is not built here</b>, and that is what keeps a quiet frame free. The
+         * tree is walked over every widget whenever anything at all is damaged, and this widget is
+         * damaged on every step of every drag. {@link ColorPicker#color()} allocates a record per
+         * call, {@link Color#toHex()} is two format calls, and a parameterized
+         * {@link limn.i18n.I18nString} is documented as never cached: any of the three inside this
+         * method would allocate on every published frame in order to conclude that nothing had
+         * moved. So the sentence comes from {@link #spoken()}, with the counter that memo was
+         * filled against, which is what the cached-name form of {@code name} exists for.
+         *
+         * <p>No description: everything a reader needs is in the name, and a description is
+         * published where one platform's client does not read it aloud by default, which would
+         * silence half the comparison there.
+         *
+         * <p><b>No value and no value text.</b> A value text with no number beside it is dropped
+         * by the builder without a word, and a colour has no honest scalar to pair one with. The
+         * hex belongs in the name here, which is where it is.
+         *
+         * <p><b>No synthetic children for the two halves.</b> They are drawn and never
+         * instantiated, which is the shape a synthetic child is for, but a synthetic child is for
+         * something an assistive technology operates, selects or hit-tests &mdash; a menu row, a
+         * combo option, a chart slice. A half of a swatch has no verb and no selection. Two nodes
+         * would double the identity and the difference cost of a widget every drag step damages,
+         * would need two more keys for words a reader hears once, and would drag the paint's
+         * right-to-left half-swap into the tree; one node keeps this hook free of
+         * {@code layoutDirection()} entirely, which is why the sentence below reads the same in
+         * both directions while the box mirrors for free.
+         *
+         * <p>No verbs, on either hook. This class is the one of the three painted parts that is
+         * not an input site: it has no mouse handler, no key handling and no private
+         * user-equivalent path for an action to reach, and it is not focusable, so the walk offers
+         * it neither focus nor scroll-into-view.
+         *
+         * <p>The box, the language and the enabled, visible and showing bits are the walk's and
+         * need no help: the token box around this widget hands it that whole rectangle, so the
+         * published node is the painted swatch including its outline.
+         *
+         * <p><b>On the provenance.</b> {@code CONTENT} is the closest of the five and is still not
+         * exact: the name is intrinsic to the widget rather than supplied by an application or a
+         * label, but it is not the widget's own <em>visible text</em>, because the widget draws no
+         * text. It is the same divergence the split pane's divider already records, and the same
+         * gap in the enumeration: {@code LABEL} would publish a relation with no label behind it,
+         * {@code TOOLTIP} and {@code PLACEHOLDER} are simply false, and {@code EXPLICIT} would
+         * claim the application set it. On macOS this lands the sentence in the title attribute
+         * where an image's name conventionally goes in the label one, which is a question for the
+         * bridge's own record rather than for this widget.
+         *
+         * @param a the node being described
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.IMAGE);
+            // spoken() first, because the counter is only current once the memo has been asked.
+            a.name(spoken(), spokenRevision, Accessible.NameFrom.CONTENT);
+        }
+
+        /**
+         * The sentence above, memoized on everything that could change it.
+         *
+         * <p>Keyed on the picker's five raw primitives rather than on a {@link Color}, because
+         * {@link ColorPicker#color()} builds a fresh record on every call and a key that asked for
+         * one would fail a zero-allocation frame by itself, before any string was built.
+         * {@code original} is compared by value, not by reference, because
+         * {@link ColorPicker#setInitialColor} stores a new object each time it is called.
+         *
+         * <p>{@code alphaEnabled} is in the key because it moves the sentence without moving a
+         * colour: {@link ColorPicker#color()} clamps alpha to opaque while it is off, so the
+         * current half loses its two alpha digits. The opening half keeps its own, because the
+         * paint fills {@code original} raw, and this node says what is painted.
+         *
+         * <p>The epoch and the effective locale are in the key for {@code Spinner}'s reason,
+         * doubled: the pattern is translated <em>and</em> substituted, so both the lookup and
+         * {@code MessageFormat} read the language in scope. That language is only in scope here.
+         * {@code syncFields} is the tempting home for this &mdash; it already renders the current
+         * colour for the hex field, on every move of the model &mdash; but it runs from the public
+         * setters, outside any pass, where the language in scope is the process's rather than this
+         * subtree's, and a name resolved there would be published as being in a language it is not
+         * in.
+         *
+         * @return the name this node publishes, rebuilt only when it would differ
+         */
+        private String spoken() {
+            Locale locale = I18n.locale();
+            if (spoken == null || spokenHue != hue || spokenSaturation != saturation
+                    || spokenValue != value || spokenAlpha != alpha
+                    || spokenAlphaEnabled != alphaEnabled || !original.equals(spokenOriginal)
+                    || spokenEpoch != I18n.epoch() || !locale.equals(spokenLocale)) {
+                spokenHue = hue;
+                spokenSaturation = saturation;
+                spokenValue = value;
+                spokenAlpha = alpha;
+                spokenAlphaEnabled = alphaEnabled;
+                spokenOriginal = original;
+                spokenEpoch = I18n.epoch();
+                spokenLocale = locale;
+                spoken = ColorPickerStrings.SWATCH.format(color().toHex(), original.toHex());
+                spokenRevision++;
+            }
+            return spoken;
+        }
+
+        /**
+         * Bumped every time the memo above refills, and by nothing else, so that the tree can
+         * decide the sentence is unchanged without producing it. Compared as two {@code long}s.
+         */
+        private long spokenRevision;
+
+        /** {@code null} until the first description, which is what makes the first call build. */
+        private String spoken;
+        private float spokenHue;
+        private float spokenSaturation;
+        private float spokenValue;
+        private float spokenAlpha;
+        private boolean spokenAlphaEnabled;
+        private Color spokenOriginal;
+        private long spokenEpoch;
+        private Locale spokenLocale;
     }
 }
