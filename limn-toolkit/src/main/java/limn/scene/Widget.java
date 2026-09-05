@@ -210,6 +210,35 @@ public abstract class Widget {
     /** Appends a child (UI thread only). */
     public void add(Widget child) {
         Ui.checkUiThread();
+        insert(children.size(), child);
+    }
+
+    /**
+     * Inserts a child at a position in {@link #children()} (UI thread only).
+     *
+     * <p>{@link #add(Widget)} appends, which is right for every container that builds its children
+     * once and in the order they are meant to be read. It is wrong for one that mounts them on
+     * demand from both ends: a virtualized list scrolling back up realizes the rows above its
+     * anchor in descending order, and appending each would leave {@code children()} — which is
+     * reading order and Tab order both — holding the order the rows happened to be realized in
+     * rather than the order the data is in. Re-adding a child to move it is not the alternative:
+     * {@link #remove} detaches the subtree, which revokes the focus, hover and press inside it.
+     *
+     * @param index where the child goes, in {@code [0, children().size()]}
+     * @param child the child to insert; never {@code null}
+     * @throws IndexOutOfBoundsException if {@code index} is outside that range
+     * @throws NullPointerException      if {@code child} is {@code null}
+     * @throws IllegalStateException     if {@code child} already has a parent
+     * @throws IllegalArgumentException  if {@code child} is an ancestor of this widget
+     */
+    public void add(int index, Widget child) {
+        Ui.checkUiThread();
+        Objects.checkIndex(index, children.size() + 1);
+        insert(index, child);
+    }
+
+    /** The one place a child joins the tree; both {@code add} overloads end here. */
+    private void insert(int index, Widget child) {
         Objects.requireNonNull(child, "child");
         if (child.parent != null) {
             throw new IllegalStateException("widget already has a parent");
@@ -219,7 +248,7 @@ public abstract class Widget {
                 throw new IllegalArgumentException("cycle: child is an ancestor of this widget");
             }
         }
-        children.add(child);
+        children.add(index, child);
         child.parent = this;
         child.setSceneRecursively(scene);
         markNeedsLayout();

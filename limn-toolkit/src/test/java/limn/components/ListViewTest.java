@@ -306,6 +306,64 @@ class ListViewTest extends ComponentTestBase {
         assertEquals(2, list.selectedIndex());
     }
 
+    /** A cell that remembers which row it was built for; not pooled, so the row is unambiguous. */
+    static final class IndexCell extends Widget {
+        final int index;
+
+        IndexCell(int index) {
+            this.index = index;
+        }
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(c.maxWidth(), 40);
+        }
+    }
+
+    /**
+     * {@code children()} is the bar and then the mounted cells <b>in data order</b>, whichever
+     * direction the scroll realized them in.
+     *
+     * <p>Rows are realized from both ends: the walk that renormalizes the anchor after an upward
+     * scroll runs <em>upward</em> and mounts the rows above the anchor in descending order. A
+     * container that appended each one as it arrived would leave this list holding 3, 4, 2, 1, 0
+     * after the round trip below — and {@code children()} is Tab order, which the class
+     * documentation advertises ("clicks on a row's own buttons reach those buttons"), and is also
+     * the reading order an assistive technology is given. Its accessible half is pinned by
+     * {@link ListViewAccessibilityTest}.
+     */
+    @Test
+    void childrenStayInDataOrderAfterScrollingDownAndBackUp() {
+        ListView list = new ListView(new ListView.Adapter() {
+            @Override
+            public int rowCount() {
+                return 100;
+            }
+
+            @Override
+            public Widget rowAt(int index) {
+                return new IndexCell(index);
+            }
+        });
+        FakeCanvas canvas = new FakeCanvas(300, 200); // five 40pt rows
+        Scene scene = scene(list, canvas);
+
+        list.scrollBy(200);
+        scene.renderFrame(canvas);
+        assertEquals(5, list.firstVisibleIndex(), "one viewport down");
+        list.scrollBy(-200);
+        scene.renderFrame(canvas);
+        assertEquals(0, list.firstVisibleIndex(), "and back");
+
+        List<Widget> children = list.children();
+        assertEquals(6, children.size(), "the bar and five rows: " + children);
+        assertTrue(children.get(0) instanceof ScrollBar, "the bar keeps position zero");
+        for (int i = 1; i < children.size(); i++) {
+            assertEquals(i - 1, ((IndexCell) children.get(i)).index,
+                    "children() is data order, not the order the scroll realized them in");
+        }
+    }
+
     // ------------------------------------------------------------ size steps
 
     private static Constraints unbounded() {

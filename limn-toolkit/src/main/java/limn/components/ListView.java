@@ -1,8 +1,11 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
+import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
@@ -12,12 +15,8 @@ import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.Arrays;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.IntConsumer;
 
 /**
@@ -44,6 +43,10 @@ import java.util.function.IntConsumer;
  * list is focusable and, while focused, Up/Down/Home/End/PageUp/PageDown move a
  * highlighted selection (auto-scrolling to reveal it) and Enter activates it;
  * clicking a row selects it (clicks on a row's own buttons reach those buttons).
+ *
+ * <p><b>{@link #children()} is the bar and then the realized rows in data order</b>, whichever
+ * direction the scroll realized them in — which is what makes a Tab through those row buttons, and
+ * the reading order an assistive technology is given, agree with the list on screen.
  *
  * <p><b>Size steps propagate rather than being imposed.</b> Rows are adapter-supplied
  * widgets in this list's subtree, so they resolve the {@link limn.scene.ControlSize}
@@ -75,18 +78,28 @@ public class ListView extends Widget implements Scrollable {
         }
 
         /**
-         * What to call row {@code index} when its own widget is not mounted.
+         * What to call row {@code index} for an assistive technology.
          *
-         * <p>A list publishes its true row count to an assistive technology and describes only the
-         * rows it has actually realized, because handing a screen reader thousands of anonymous
-         * items would be worse for its user rather than better. The gap that leaves is a selected
-         * row scrolled out of view, which still has to be announced: this is what answers it, and
-         * it is what the later virtualization work builds on.
+         * <p>A list publishes its true row count and describes only the rows it has actually
+         * realized, because handing a screen reader thousands of anonymous items would be worse
+         * for its user rather than better. This is asked for <b>two</b> of them. Once per realized
+         * row whose own cell widget said nothing about itself — which is the common case, because
+         * a cell is an application's widget and a cell that paints its own text usually declares
+         * nothing, and the {@code LIST_ITEM} role the list writes onto it suppresses the warning
+         * that would otherwise have been the application's only notice. And once more for a
+         * selected row that is <em>not</em> realized, which has no widget to carry a name and is
+         * announced from the list's own node instead.
+         *
+         * <p><b>Hand back a string this adapter holds.</b> The tree compares a name by reference,
+         * locale and translation epoch, so a string built inside this call allocates once per
+         * realized row per damaged frame and republishes the whole tree every frame, because two
+         * freshly built strings are never the same object. A field, a constant, or an entry in the
+         * adapter's own data is what belongs here.
          *
          * @param index a row in {@code [0, rowCount)}
          * @return the row's name, or {@code null} when the adapter has none to give
          */
-        default limn.i18n.I18nString rowName(int index) {
+        default I18nString rowName(int index) {
             return null;
         }
     }
@@ -101,8 +114,33 @@ public class ListView extends Widget implements Scrollable {
     private final Adapter adapter;
     private final ScrollBar vBar;
     private final ScrollGutters gutters = new ScrollGutters();
-    private final Map<Integer, Widget> mounted = new HashMap<>(); // index -> mounted child
-    private final Set<Integer> keepScratch = new HashSet<>();
+
+    /**
+     * The realized rows, in <b>data order</b>: {@code mountedRows[i]} is the index
+     * {@code mountedCells[i]} is bound to, ascending, and {@code children()} holds the bar and
+     * then exactly these cells in exactly this order.
+     *
+     * <p>Two parallel arrays and not a {@code Map<Integer, Widget>}, for two reasons that arrived
+     * together. Data order is <b>reading order and Tab order</b>, and rows are realized in neither
+     * — an upward scroll mounts the rows above the anchor from the anchor downwards — so a
+     * container that appended each one as it arrived would hand a screen reader "4 of 5000, 5 of
+     * 5000, 3 of 5000" and walk a Tab through the rows' own buttons in the same wrong order. And
+     * the describe hooks run on every damaged frame under a rule that they allocate nothing, which
+     * a map keyed by {@code Integer} cannot meet: a get boxes its key for any row above 127, and
+     * an iteration over its entries or values allocates an iterator per call. Grown once by
+     * doubling and then reused.
+     */
+    private int[] mountedRows = new int[16];
+    private Widget[] mountedCells = new Widget[16];
+    private int mountedCount;
+
+    /**
+     * The half-open run of rows {@link #placeDown} last laid out, which is what
+     * {@link #recycleExcept} keeps. A range and not a set of indices: the walk starts at the
+     * anchor and steps down one row at a time, so what it places is contiguous by construction.
+     */
+    private int placedFrom;
+    private int placedTo;
 
     // Anchor scroll state: the top edge of row `anchorIndex` sits at y = anchorTop.
     private int anchorIndex;
@@ -236,7 +274,7 @@ public class ListView extends Widget implements Scrollable {
         // Unmount every row: a mounted cell is bound to the OLD datum at its
         // index and layout reuses mounted cells without consulting the adapter,
         // so without this the visible viewport is exactly what never refreshes.
-        recycleExcept(java.util.Set.of());
+        recycleExcept(0, 0);
         markNeedsLayout();
         invalidate();
         if (selectedIndex >= count) {
@@ -334,7 +372,8 @@ public class ListView extends Widget implements Scrollable {
         // (once per mounted row, per wheel detent, per drag frame), and the pass this
         // schedules re-runs it again anyway. ScrollView's scroll path is the same
         // shape for the same reason.
-        for (Widget cell : mounted.values()) {
+        for (int i = 0; i < mountedCount; i++) {
+            Widget cell = mountedCells[i];
             moveChild(cell, cell.x(), cell.y() - applied);
         }
         // Contained, not global: a scroll changes which rows are mounted and where they sit, and
@@ -444,9 +483,8 @@ public class ListView extends Widget implements Scrollable {
         float rowX = rtl ? box - w : 0;
 
         int count = adapter.rowCount();
-        Set<Integer> keep = keepScratch;
         if (count == 0) {
-            recycleExcept(Set.of());
+            recycleExcept(0, 0);
             anchorIndex = 0;
             anchorTop = 0;
             return;
@@ -455,16 +493,16 @@ public class ListView extends Widget implements Scrollable {
 
         normalizeUp(w);
         normalizeDown(count, w);
-        float bottom = placeDown(count, rowX, w, h, keep);
+        float bottom = placeDown(count, rowX, w, h);
         // Over-scrolled past the end: close the gap at the bottom, unless the
         // content is shorter than the viewport (then it stays top-aligned).
         if (bottom < h && !(anchorIndex == 0 && anchorTop >= 0)) {
             anchorTop += h - bottom;
             normalizeUp(w);
             normalizeDown(count, w);
-            placeDown(count, rowX, w, h, keep);
+            placeDown(count, rowX, w, h);
         }
-        recycleExcept(keep);
+        recycleExcept(placedFrom, placedTo);
         updateAverageHeight();
         vBar.refresh();
         if (pendingEnsureVisible >= 0) {
@@ -504,54 +542,108 @@ public class ListView extends Widget implements Scrollable {
      * direction belongs to the pass rather than to the loop: the cursor is the {@code y}
      * arithmetic below, which is untouched.
      */
-    private float placeDown(int count, float rowX, float w, float viewport, Set<Integer> keep) {
-        keep.clear();
+    private float placeDown(int count, float rowX, float w, float viewport) {
         float y = anchorTop;
         int i = anchorIndex;
         while (i < count && y < viewport) {
             float h = measuredHeight(i, w);
-            mounted.get(i).layoutBox(rowX, y, w, h);
-            keep.add(i);
+            cellFor(i).layoutBox(rowX, y, w, h);
             y += h;
             i++;
         }
+        placedFrom = anchorIndex;
+        placedTo = i;
         return y;
     }
 
     private float measuredHeight(int index, float w) {
-        Widget cell = mounted.get(index);
+        Widget cell = cellFor(index);
         if (cell == null) {
             cell = Objects.requireNonNull(adapter.rowAt(index), "adapter.rowAt returned null");
-            add(cell);
+            mount(index, cell);
             cell.setVisible(true);
-            mounted.put(index, cell);
         }
         return cell.measure(new Constraints(w, w, 0, Constraints.UNBOUNDED_LIMIT)).height();
     }
 
-    private void recycleExcept(Set<Integer> keep) {
-        Iterator<Map.Entry<Integer, Widget>> it = mounted.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<Integer, Widget> entry = it.next();
-            if (!keep.contains(entry.getKey())) {
-                Widget cell = entry.getValue();
-                boolean hadFocus = containsFocus(cell);
-                remove(cell);
-                adapter.recycle(cell);
-                it.remove();
-                if (hadFocus) {
-                    requestFocus();
-                }
+    /**
+     * Mounts {@code cell} as row {@code index}, into the position that keeps both the mounted run
+     * and {@code children()} in data order. Rows arrive in neither order: {@link #normalizeUp}
+     * walks upward from the anchor and realizes the rows above it in descending order, and a
+     * container that appended them would leave a reader and the Tab key walking the list in the
+     * order the scroll happened to realize it.
+     */
+    private void mount(int index, Widget cell) {
+        int at = 0;
+        while (at < mountedCount && mountedRows[at] < index) {
+            at++;
+        }
+        // The bar is children() zero, added by the constructor before any row, and every cell goes
+        // after it: the run below is the whole of the rest, in the same order.
+        add(at + 1, cell);
+        if (mountedCount == mountedRows.length) {
+            mountedRows = Arrays.copyOf(mountedRows, mountedCount * 2);
+            mountedCells = Arrays.copyOf(mountedCells, mountedCount * 2);
+        }
+        System.arraycopy(mountedRows, at, mountedRows, at + 1, mountedCount - at);
+        System.arraycopy(mountedCells, at, mountedCells, at + 1, mountedCount - at);
+        mountedRows[at] = index;
+        mountedCells[at] = cell;
+        mountedCount++;
+    }
+
+    /** Recycles every mounted row outside {@code [from, toExclusive)}, keeping the rest in order. */
+    private void recycleExcept(int from, int toExclusive) {
+        int kept = 0;
+        for (int i = 0; i < mountedCount; i++) {
+            int row = mountedRows[i];
+            Widget cell = mountedCells[i];
+            if (row >= from && row < toExclusive) {
+                mountedRows[kept] = row;
+                mountedCells[kept] = cell;
+                kept++;
+                continue;
+            }
+            boolean hadFocus = containsFocus(cell);
+            remove(cell);
+            adapter.recycle(cell);
+            if (hadFocus) {
+                requestFocus();
             }
         }
+        for (int i = kept; i < mountedCount; i++) {
+            mountedCells[i] = null; // the adapter owns it now; holding a reference would pin it
+        }
+        mountedCount = kept;
+    }
+
+    /** The cell currently bound to a row, or {@code null} when that row is not realized. */
+    private Widget cellFor(int index) {
+        for (int i = 0; i < mountedCount; i++) {
+            if (mountedRows[i] == index) {
+                return mountedCells[i];
+            }
+        }
+        return null;
+    }
+
+    /** The row a cell is currently bound to, or {@code -1} when it is not one of this list's. */
+    private int indexOfCell(Widget cell) {
+        for (int i = 0; i < mountedCount; i++) {
+            if (mountedCells[i] == cell) {
+                return mountedRows[i];
+            }
+        }
+        return -1;
     }
 
     private void updateAverageHeight() {
         float sum = 0;
         int n = 0;
-        for (Widget cell : mounted.values()) {
-            if (cell != vBar && cell.height() > 0) {
-                sum += cell.height();
+        for (int i = 0; i < mountedCount; i++) {
+            float cellHeight = mountedCells[i].height();
+            if (cellHeight > 0) {
+                sum += cellHeight;
                 n++;
             }
         }
@@ -570,7 +662,7 @@ public class ListView extends Widget implements Scrollable {
             pendingEnsureVisible = index;
             return;
         }
-        Widget cell = mounted.get(index);
+        Widget cell = cellFor(index);
         if (cell != null) {
             float top = cell.y();
             float bottom = top + cell.height();
@@ -628,7 +720,7 @@ public class ListView extends Widget implements Scrollable {
                 }
             }
             if (selectedIndex >= 0) {
-                Widget cell = mounted.get(selectedIndex);
+                Widget cell = cellFor(selectedIndex);
                 if (cell != null) {
                     Theme theme = Theme.current();
                     SizeTokens t = theme.tokensFor(this);
@@ -712,10 +804,10 @@ public class ListView extends Widget implements Scrollable {
     }
 
     private int rowAtLocalY(float localY) {
-        for (Map.Entry<Integer, Widget> entry : mounted.entrySet()) {
-            Widget cell = entry.getValue();
-            if (cell != vBar && localY >= cell.y() && localY < cell.y() + cell.height()) {
-                return entry.getKey();
+        for (int i = 0; i < mountedCount; i++) {
+            Widget cell = mountedCells[i];
+            if (localY >= cell.y() && localY < cell.y() + cell.height()) {
+                return mountedRows[i];
             }
         }
         return -1;
@@ -765,6 +857,180 @@ public class ListView extends Widget implements Scrollable {
     /** A page is a viewport of rows: a count derived from the current estimate, not a token. */
     private int rowsPerPage(SizeTokens t) {
         return Math.max(1, (int) (height() / Math.max(1, avgRowHeight(t))));
+    }
+
+    // -------------------------------------------------------- accessibility
+
+    /**
+     * The row count the rows below are numbered against, read once at the top of a publish.
+     *
+     * <p>A field and not a per-row call, because {@link Adapter#rowCount()} is application code:
+     * one read per publish instead of one per realized row, and — since the walk always runs a
+     * widget's own description before it walks that widget's children — the list's own facts and
+     * every row's size of set come out of the same read. An adapter whose count moved between two
+     * calls would otherwise publish rows numbered against two different sets in one tree.
+     */
+    private int describedRowCount;
+
+    /**
+     * One list node over the rows it has realized, carrying where the viewport sits and which row
+     * the cursor is on.
+     *
+     * <p>Three facts decide the shape. The selection is <b>not</b> required: this class documents
+     * no-selection as a genuine resting state — a fresh list is in it, {@link #clearSelection()}
+     * reaches it, and {@link #refresh()} returns to it on an emptied adapter — unlike the combo,
+     * which refuses an empty item list, and unlike the tabbed pane, which is always selected while
+     * it has tabs. The active descendant is not declared here and cannot be: it is resolved in the
+     * copy from the first node in this subtree published {@link Accessible.State#ACTIVE}, which is
+     * the selected row. And the scroll facet is published unconditionally, as the scroll pane's
+     * and the tab strip's are, so that resizing past the fitting point moves two booleans rather
+     * than making a facet appear and disappear — but with <b>no half-point slop</b>, unlike the
+     * tab strip's: this widget's wheel gate and {@link #scrollBy}'s clamp both use the bare
+     * subtraction and will move a list that overflows by a third of a point, so a slop-gated
+     * boolean would advertise a refusal the widget does not make.
+     *
+     * <p>The verb is on this node and not on a row, which is where the record's own survey was
+     * wrong: the walk records a published node's owner as the widget it came from, and the scene
+     * dispatches strictly to that owner, so a verb written onto a row would be sent to the
+     * application's own cell widget and refused there. It is offered only while something is
+     * selected, because {@link #activate()} on an empty selection is a no-op and a verb that can
+     * only fail is worse than an absent one.
+     *
+     * <p>Nothing is formatted here. The one string this hook can hand over is an
+     * {@link I18nString} the adapter holds, compared by reference, so a frame that damaged the
+     * list and moved nothing costs no memory at all.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        describedRowCount = adapter.rowCount();
+        // One resolution for the whole description, as every other pass in this class requires:
+        // two inside one description would let the offset and the maximum disagree, and the
+        // percent would then leave [0,1]. The viewport is height() and not
+        // gutters.viewportHeight(height()), which is the same number here — nothing horizontal
+        // scrolls, so the horizontal strip is always zero — and is the number scrollBy's own
+        // clamp uses.
+        SizeTokens t = tokens();
+        float viewport = height();
+        float content = estimatedContentHeight(t);
+        float max = Math.max(0, content - viewport);
+
+        a.role(Accessible.Role.LIST);
+        // No name is derived: the widget holds no title, caption or placeholder, so the walk's
+        // tooltip default and the application's own setters are the whole of it. No orientation
+        // either: a list is read as vertical by default on all three platforms, its value has no
+        // axis to run along, and the nearest widget in the toolkit — the combo's popup panel,
+        // also a vertical LIST with a scroll facet — declares none.
+        a.selection(false, false);
+        a.scroll(0, max > 0 ? estimatedOffset(t) / max : 0,
+                1, content > 0 ? Math.min(1, viewport / content) : 1,
+                false, max > 0);
+        if (selectedIndex >= 0) {
+            // The single-argument form; the variable-argument one allocates an array per call.
+            // FOCUS and SCROLL_INTO_VIEW arrive free from the walk, and the two scroll verbs live
+            // on the bar's own node, which is the toolkit's settled shape for a scrolling
+            // container.
+            a.action(Accessible.Action.PRESS);
+            if (cellFor(selectedIndex) == null) {
+                // The selected row scrolled out of the viewport has no widget and therefore no
+                // node, so the only place its name can be said is here. A description and not a
+                // value text, which is written and then dropped without a value facet, and not a
+                // synthetic phantom row, which is declared before the widget children and would
+                // put a selection below the viewport ahead of every realized row. Set only while
+                // that row is unrealized: a mounted one carries its own name and its own SELECTED,
+                // and a second copy here is the same name spoken twice. The known cost is that
+                // while it stands, the walk's tooltip-as-description default has nowhere to go on
+                // a list that has both an application name and a tooltip.
+                I18nString name = adapter.rowName(selectedIndex);
+                if (name != null) {
+                    a.description(name);
+                }
+            }
+        }
+    }
+
+    /**
+     * What only the list knows about a mounted row: which row it is, that it is one, where it sits
+     * in the data, and whether the cursor is on it.
+     *
+     * <p><b>The identity key is the line the whole recycling story rests on.</b> A cell is pooled
+     * and rebound, so the widget object is the wrong key the moment it is reused: keyed by the
+     * data index, a cell that carried row three and is recycled onto row nine is minted row nine's
+     * identifier, and a cell coming back to row three gets row three's identifier back out of the
+     * intern table. A screen reader holding row three therefore still holds row three.
+     *
+     * <p>The role and the name are conditional and the reason is the same for both: a cell is an
+     * application's widget and may already have said what it is. A {@code Row}, a {@code Column}
+     * or a padded box says nothing and takes {@code LIST_ITEM}, which is also what keeps it from
+     * being deleted as scaffolding; a cell that is a button or a scroll pane keeps what it
+     * declared, because eliding a scroll pane would take its scroll facet with it. The name is the
+     * widening this step made to {@link Adapter#rowName}: rows commonly paint their own text and
+     * declare nothing, and the role written here suppresses the paints-and-says-nothing warning
+     * that would have been the application's only notice, so without asking the adapter the
+     * ordinary case publishes thousands of nameless list items and nothing anywhere says so. An
+     * application's own {@code setAccessibleName} still wins, because it is applied after this.
+     *
+     * <p>The position and the size of the set are the <b>model's</b> numbers and never the
+     * published tree's: a list that realizes twenty of five thousand rows still tells a reader
+     * which of five thousand it is on. And the selected row is marked active as well as selected,
+     * because here the selection <em>is</em> the cursor — there is no second highlight, unlike the
+     * combo's — and the keyboard stays on the list while it moves, which is exactly what an active
+     * descendant is for: without the bit a reader can enumerate the rows and never learn which one
+     * the user is on. The model's known cost comes with it, unchanged: a container takes the first
+     * active node anywhere in its subtree, so a list nested inside another list's row cell hands
+     * the outer list the inner one's selected row as its own cursor.
+     *
+     * <p>No verb, which is where the record's own survey was wrong — see {@link #onAccessibility}.
+     *
+     * @param child the child being described, which is the bar or one mounted cell
+     * @param a     the child's node
+     */
+    @Override
+    protected void onAccessibilityChild(Widget child, Accessibility a) {
+        if (child == vBar) {
+            return; // the bar describes itself, and ignores itself when the content fits
+        }
+        int index = indexOfCell(child);
+        if (index < 0) {
+            return; // not one of this list's rows: whatever it is, it keeps its own verdict
+        }
+        a.key(index);
+        if (!a.hasRole()) {
+            a.role(Accessible.Role.LIST_ITEM);
+        }
+        if (!a.hasName()) {
+            I18nString name = adapter.rowName(index);
+            if (name != null) {
+                a.name(name, Accessible.NameFrom.CONTENT);
+            }
+        }
+        a.selectionItem(index == selectedIndex, index + 1, describedRowCount);
+        if (index == selectedIndex) {
+            a.state(Accessible.State.ACTIVE);
+        }
+    }
+
+    /**
+     * Opens the selected row, through the same {@link #activate()} Enter reaches.
+     *
+     * <p>No enabled guard of its own: the node acted on here is this widget, so the scene's gate
+     * has already walked this list and every ancestor for {@code isEnabled()}, checked that it is
+     * showing, that the window is not modal-blocked and that it is inside the layer that owns
+     * input. {@code activate()} re-checks the selection and the thread for itself, so the
+     * application is told exactly as Enter tells it and nothing here is a second entry point.
+     *
+     * @param action what was asked
+     * @param arg    unused; the one verb offered here is parameterless
+     * @return whether this list did it
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        if (action != Accessible.Action.PRESS || selectedIndex < 0) {
+            return false;
+        }
+        activate();
+        return true;
     }
 
     @Override
