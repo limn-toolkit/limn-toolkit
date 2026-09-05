@@ -93,7 +93,6 @@ class AccessibleCoverageTest {
             "limn.components.TabbedPane$TabStrip",
             "limn.components.TextArea",
             "limn.components.TextField",
-            "limn.components.TokenColumn",
             "limn.components.ToolBar",
             "limn.components.VideoView",
             "limn.components.Viewport3D",
@@ -346,7 +345,33 @@ class AccessibleCoverageTest {
             // staying hookless: the transparency check walks the ancestry, so a hook on Flex would
             // fail this name and would silently describe Row, Column, TokenColumn and TokenRow at
             // once. Pinned by limn.components.TokenRowAccessibilityTest.
-            "limn.components.TokenRow"
+            "limn.components.TokenRow",
+            // One field and one onMeasure over Column, which is a constructor over abstract Flex,
+            // and nothing in that chain declares a role, name, description, action or state,
+            // overrides onPaint, clips, sets a tooltip or is focusable of its own accord — so
+            // §1.6's predicate deletes it in silence and hoists its children into its parent's
+            // place, in children() order. Everything else Column leaves behind — the main
+            // alignment as the first child's origin, the cross alignment as each child's x and
+            // under STRETCH its width, the cross-axis mirror with tree order staying top to
+            // bottom, a hidden child keeping its node while its siblings close the gap, and an
+            // over-subscribed column publishing boxes outside its own rectangle and still SHOWING
+            // because it is not a viewport — is inherited untouched and pinned on the superclass.
+            // What is this class's own is where the gap comes from: the resolved spacing token,
+            // pushed through Flex's silent form from inside onMeasure so it is in force for the
+            // very pass that lays the children out, and read by an assistive technology as the
+            // vertical distance between every pair of adjacent child boxes. So a size-step change
+            // reaches a reader as a BOUNDS_CHANGED on the children and nothing else, and the
+            // public gap(float) is not a literal here: it buys a layout pass whose measure step
+            // overwrites it with the token again, and the publish step's no-change return keeps
+            // the reader quiet. The scene's own step starts unset, so a first setControlSize that
+            // resolves to the default's number is a real set that moves nothing, and only a step
+            // the scene already holds is the setter's guard. Public and non-final, so naming,
+            // tooltipping or roling an instance materialises a GROUP over the column's own
+            // rectangle: transparency is per instance. The entry stands on Column and abstract
+            // Flex above it staying hookless: the transparency check walks the ancestry, so a hook
+            // on either would fail this name and would silently describe Row, Column and TokenRow
+            // at once. Pinned by limn.components.TokenColumnAccessibilityTest.
+            "limn.components.TokenColumn"
     ));
 
     @Test
