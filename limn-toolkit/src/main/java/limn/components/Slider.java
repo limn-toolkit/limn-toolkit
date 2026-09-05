@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -103,10 +105,21 @@ public class Slider extends Widget {
         return max;
     }
 
-    /** Sets the discrete increment ({@code 0} = continuous). Re-snaps the current value. */
+    /**
+     * Sets the discrete increment ({@code 0} = continuous). Re-snaps the current value.
+     *
+     * <p>The step is published to an assistive technology as the grid a set is snapped onto, so
+     * a change to it is an accessible fact even when the value already sits on the new grid and
+     * nothing repaints; that case is flagged to the tree directly rather than through damage the
+     * picture does not have.
+     */
     public Slider setStep(float newStep) {
         Ui.checkUiThread();
-        this.step = Math.max(0, newStep);
+        float clamped = Math.max(0, newStep);
+        if (clamped != step) {
+            step = clamped;
+            invalidateAccessible();
+        }
         apply(value, false);
         return this;
     }
@@ -367,6 +380,96 @@ public class Slider extends Widget {
             onCommit.accept(value);
             event.consume();
         }
+    }
+
+    // ---------------------------------------------------------------- accessibility
+
+    /**
+     * What this slider is to an assistive technology: one {@link Accessible.Role#SLIDER} node,
+     * horizontal because the class has no other axis, carrying a writable value facet read from
+     * the model and offering {@link Accessible.Action#INCREMENT} and
+     * {@link Accessible.Action#DECREMENT}, and nothing else.
+     *
+     * <p>No name is declared, on purpose. The widget holds no string and formats none, so it has
+     * nothing to hand over: a tooltip names it through the walk's free default, an application's
+     * {@code setAccessibleName} wins over that and turns the tooltip into the description, and a
+     * caption beside the track is a relation the application declares rather than one guessed
+     * here. There is no value text either, and so no cache and no witness: the number is the
+     * whole of it, and a read-out is the application's to render beside the control.
+     *
+     * <p>The facet is the {@code value} field, already clamped and snapped, with the bounds and
+     * the {@code step} field as set: {@code 0} when the slider is continuous, because the facet's
+     * step is the grid a set is snapped onto and a continuous slider accepts any value in range.
+     * The amount the keyboard nudges by is not the same number on a continuous slider and is not
+     * published; it is what the two verbs move by. The facet is writable, so
+     * {@code SET_VALUE} is advertised by its presence and never appears in the action list.
+     *
+     * <p>Neither fade, the drag flag nor the pointer's whereabouts is read here. The hover and
+     * focus transitions damage this widget on every frame they run for, and a hook that published
+     * either would make the difference find a change on each of those frames; publishing the
+     * model means they walk, bounded and without allocating, and publish nothing. A drag moves
+     * the model and republishes once per frame, which is what a drag is. The box, the focus and
+     * scroll-into-view verbs and the enabled, visible, showing, focusable and focused states are
+     * the walk's.
+     *
+     * @param a the node being described
+     */
+    @Override
+    protected void onAccessibility(Accessibility a) {
+        a.role(Accessible.Role.SLIDER);
+        a.state(Accessible.State.HORIZONTAL);
+        a.value(value, min, max, step);
+        a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+    }
+
+    /**
+     * Performs a change an assistive technology asked for exactly as a key press does: through
+     * the private from-the-user path, so {@link #onChange} fires when the value moves, and then
+     * through {@link #onCommit} whether it moved or not, because a request from a reader is a
+     * whole gesture the way a key press is and the change and the decision are the same moment.
+     * Never through {@link #setValue}, which is the silent path: an application that starts
+     * something on commit, as the toolkit's own media transport does, would otherwise never hear
+     * that the user chose a value.
+     *
+     * <p>{@code INCREMENT} and {@code DECREMENT} move by the step, or by one percent of the range
+     * when the slider is continuous, in the sense Up and Down have: a direction of the value and
+     * not a side of the track, so they do not mirror when the layout reads right to left, where
+     * Left and Right do. {@code SET_VALUE} takes an {@link Accessible.Argument.OfValue} and hands
+     * it to the same clamp and snap a drag reaches; a value that is not a finite number is
+     * refused before it gets there, because the clamp would pass it through untouched. Any other
+     * verb is refused, and so is every verb while this widget is disabled; the scene has already
+     * re-checked the ancestors, showing and modality before the call arrives, and this guard is
+     * the one the key path keeps for itself.
+     *
+     * <p>What a reader hears is the value change the next publish's difference produces on this
+     * node. No invocation event is raised for a value verb, on any platform.
+     *
+     * @param action what was asked
+     * @param arg    the value for {@code SET_VALUE}; ignored by the two steps
+     * @return whether the request ran, which at the ends of the range can be a commit of the
+     *         value already held
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        if (!isEnabled()) {
+            return false;
+        }
+        switch (action) {
+            case INCREMENT -> apply(value + keyStep(), true);
+            case DECREMENT -> apply(value - keyStep(), true);
+            case SET_VALUE -> {
+                if (!(arg instanceof Accessible.Argument.OfValue of)
+                        || !Double.isFinite(of.value())) {
+                    return false;
+                }
+                apply((float) of.value(), true);
+            }
+            default -> {
+                return false;
+            }
+        }
+        onCommit.accept(value);
+        return true;
     }
 
     @Override

@@ -62,12 +62,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * from a pointer is never acknowledged and never publishes the armed visual. The button is a
  * private class reached through the public child lists, so nothing here depends on its name.
  *
- * <p>TODO, deferred until Slider is described: an assistive technology's {@code SET_VALUE} on
- * the scrub bar with a seekable source must leave the thumb following the playhead afterwards,
- * which means the bar's commit fired and {@code dragging} cleared, as the keyboard path does; and
- * the published value must move no faster than the record's rounding allows, since the poll
- * writes the bar at ten hertz with a resolution of a thousandth of the length. Both are Slider's
- * to decide and this class's to test once decided.
+ * <p>TODO, now that Slider is described and this class's own step: an assistive technology's
+ * {@code SET_VALUE} on the scrub bar with a seekable source must leave the thumb following the
+ * playhead afterwards, which means the bar's commit fired and {@code dragging} cleared; Slider's
+ * hook fires the commit after every accepted verb, so what is left is to pin it here through the
+ * bar. And the published value must move no faster than the record's rounding allows, since
+ * {@code refresh()} writes the bar unrounded at ten hertz with a resolution of a thousandth of
+ * the length; the rounding belongs to the writer that advances the value, which is this bar's
+ * poll and not Slider.
  *
  * <p>Every case drives the public API of {@link MediaControls}, {@link VideoView} and
  * {@code Widget} on a bound scene, or calls the scene from where a bridge stands, and reads back
@@ -243,9 +245,10 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(anyUnnamedGroup(tree()),
                 "the row, the sized box and the expanded wrapper are scaffolding and hoist; a "
                         + "wrapper that survived would be a group with no name. The two sliders "
-                        + "are groups WITH a name until Slider's own step gives them a role, "
-                        + "because the walk names them from their tooltips before the predicate "
-                        + "runs" + describe(tree()));
+                        + "were never groups: before Slider described itself they were focusable "
+                        + "widgets with no role, published UNKNOWN under their tooltip names with "
+                        + "the walk's once-per-VM warning, which this class's log filter did not "
+                        + "look for; they are SLIDER nodes now" + describe(tree()));
 
         List<AccessibleNode> children = childrenOf(bar);
         assertFalse(children.isEmpty(), describe(tree()));
