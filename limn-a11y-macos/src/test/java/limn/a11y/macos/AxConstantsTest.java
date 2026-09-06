@@ -77,15 +77,22 @@ class AxConstantsTest {
         assertTrue(dump.exported().contains("NSAccessibilityButtonRole"), "the dump has no button role");
     }
 
+    /** Every symbol any table in this module names. */
+    private static Set<String> allSymbols() {
+        Set<String> symbols = new LinkedHashSet<>(AxRoles.symbols());
+        symbols.addAll(AxNotifications.symbols());
+        return symbols;
+    }
+
     @Test
-    void everySymbolTheRoleTableNamesIsExportedByAppKit() {
+    void everySymbolTheTablesNameIsExportedByAppKit() {
         Dump dump = read();
         Set<String> invented = new LinkedHashSet<>();
-        for (String symbol : AxRoles.symbols()) {
+        for (String symbol : allSymbols()) {
             if (!dump.exported().contains(symbol)) invented.add(symbol);
         }
         assertTrue(invented.isEmpty(),
-                "AxRoles names symbols the running AppKit does not export: " + invented
+                "this module names symbols the running AppKit does not export: " + invented
                         + ". A role constant is a string on this platform, so this is a null pointer "
                         + "at run time and not a compile error.");
     }
@@ -100,8 +107,11 @@ class AxConstantsTest {
                 "the dump records nothing as absent, which means the script stopped looking for the "
                         + "symbols that do not exist; that list is the point of it");
         for (String absent : dump.missing()) {
-            assertFalse(AxRoles.symbols().contains(absent),
-                    "AxRoles uses " + absent + ", which the dump records as not exported by AppKit");
+            assertFalse(allSymbols().contains(absent),
+                    "this module uses " + absent + ", which the dump records as not exported by AppKit. "
+                            + "The three announcement priorities are on that list permanently and on "
+                            + "purpose: they are a C enum, and AxNotifications carries the numbers "
+                            + "with §12.3's exception written beside them.");
         }
     }
 }
