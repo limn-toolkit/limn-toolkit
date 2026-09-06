@@ -3204,7 +3204,17 @@ elision meet.
     itself rather than descending one level and being asked again. §13.16 stays withdrawn — the
     override is on our class, not on GLFW's.
 
-    **The mutation half is still open**, and it is the half §5.3's per-frame publish rides on.
+    **The mutation half is answered too, and §2.2's re-push rule survives its own control run.**
+    Against one live provider — mutating between walks, because restarting it between them would
+    change the elements as well as the tree — three shapes were driven: a child added under a
+    grandchild, a child added to the root, and the root's first child removed with its whole
+    subtree. All three appeared correctly. Then the same three with the re-push suppressed:
+    the deep add still appeared, because it is a pull, and **neither root-level change appeared at
+    all** — the removed group was still walked, with its children, and the added one was not there,
+    while the provider's own model had already changed. That is §2.2's "the pushed array is a
+    snapshot AppKit holds and nothing re-derives it", demonstrated from both sides. It is also the
+    exact shape of the bug this rule exists to prevent: an in-scene modal is a child of the root, so
+    the failure a missing re-push produces is a dialog that opens and is never announced.
 22. **`accessibilityFocusedUIElement` has no proven home on macOS.** Our elements are not responders,
     so it is not obvious that AppKit will ask us at all, and the spike never moved focus. Posting
     `AXFocusedUIElementChanged` at application level *is* proven to be delivered; being able to answer

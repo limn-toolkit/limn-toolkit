@@ -595,6 +595,65 @@ public final class AxProbe {
         log("---- self-test done ----");
     }
 
+    /**
+     * Adds a child under {@code parentKey}. The frame is stacked below the parent's existing
+     * children so a new node is somewhere a hit test can find it.
+     */
+    static void add(Node root, String parentKey, String key) {
+        Node parent = parentKey.equals("root") ? root : BY_KEY.get(parentKey);
+        if (parent == null) { log("!!! no such parent: " + parentKey); return; }
+        Node child = new Node(key, "NSAccessibilityButtonRole", "Novo " + key,
+                10, 10 + 30L * parent.kids.size(), 120, 24);
+        parent.kids.add(child);
+        materialise(child, parent.element == NULL ? contentView : parent.element, elementClassGlobal);
+        afterStructuralChange(root, parent);
+    }
+
+    /**
+     * Removes a node from its parent. It does not yet release the element -- that is §13.20 and it
+     * has its own increment; this one is only about whether the platform sees the shape change.
+     */
+    static void remove(Node root, String key) {
+        Node parent = parentOf(root, key);
+        if (parent == null) { log("!!! no such node, or it is the root: " + key); return; }
+        parent.kids.removeIf(kid -> kid.key.equals(key));
+        afterStructuralChange(root, parent);
+    }
+
+    static Node parentOf(Node node, String key) {
+        for (Node kid : node.kids) {
+            if (kid.key.equals(key)) return node;
+            Node found = parentOf(kid, key);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    /**
+     * The whole of §2.2's re-push rule in one place: a node's own children array is rebuilt, and
+     * <b>if the node whose children changed is the root, the array is pushed onto the content view
+     * again</b>. Everything deeper needs nothing, because everything deeper is a pull.
+     *
+     * <p>{@code probe.norepush} skips the push so the case can be watched failing. That is not
+     * decoration: "the pushed array is a snapshot AppKit holds and nothing re-derives it" is a
+     * claim, and a claim about a platform is worth exactly one run.
+     */
+    static void afterStructuralChange(Node root, Node changed) {
+        rebuildChildren(changed, changed.element == NULL ? contentView : changed.element);
+        if (PUSH_EVERY_LEVEL && changed.element != NULL) {
+            msgV(changed.element, "setAccessibilityChildren:", changed.childrenArray);
+        }
+        if (changed != root) {
+            log("    children of '" + changed.key + "' rebuilt; nothing pushed (it is a pull)");
+            return;
+        }
+        if (Boolean.getBoolean("probe.norepush")) {
+            log("    root's children changed and probe.norepush=true: NOT re-pushed");
+            return;
+        }
+        pushRoot(root);
+    }
+
     /** The driver appends a line, the probe does it and truncates. Returns true to quit. */
     static boolean drainCommands(Path file, Node root) throws Exception {
         if (!Files.exists(file)) return false;
@@ -605,9 +664,14 @@ public final class AxProbe {
             String command = line.strip();
             if (command.isEmpty()) continue;
             log(">>> command: " + command);
-            if (command.equals("quit")) return true;
-            if (command.equals("dump")) { dump(root, 0); continue; }
-            log("!!! unknown command: " + command);
+            String[] words = command.split("\\s+");
+            switch (words[0]) {
+                case "quit" -> { return true; }
+                case "dump" -> dump(root, 0);
+                case "add" -> add(root, words[1], words[2]);
+                case "remove" -> remove(root, words[1]);
+                default -> log("!!! unknown command: " + command);
+            }
         }
         return false;
     }
