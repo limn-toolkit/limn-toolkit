@@ -1,27 +1,31 @@
 package limn.backend.lwjgl.a11y.linux;
 
 import limn.backend.AccessibilityBridge;
-import limn.components.Button;
-import limn.components.Checkbox;
-import limn.components.Label;
+import limn.backend.Backend;
+import limn.backend.NativeWindow;
+import limn.backend.WindowConfig;
+import limn.backend.lwjgl.LwjglBackend;
+import limn.backend.lwjgl.a11y.ProbeScene;
 import limn.concurrent.Ui;
-import limn.concurrent.UiRuntime;
-import limn.graphics.Canvas;
 import limn.scene.Scene;
-import limn.scene.layout.Column;
-
-import java.util.concurrent.Executors;
 
 /**
- * Publishes a real Limn scene into this machine's accessibility tree, and stays there.
+ * The demo this bridge is meant to be read from: real widgets, really painted, in a window the
+ * backend opened.
  *
- * <p>Not a test: a program, run on a Linux guest with a desktop session, so that a platform client
- * can be pointed at it. Everything below the bridge is the toolkit's own — a scene, real widgets,
- * the walk, the snapshot — and the only thing standing in for a window is the fact that this one
- * paints nothing, because an accessible tree needs no pixels.
+ * <p>Not a test: it does not assert, it stays alive. Point Orca at it, or
+ * {@code scripts/a11y/linux/walk-the-probe.py}.
+ *
+ * <p><b>It used to paint nothing</b>, on the reasoning that an accessible tree needs no pixels —
+ * which is true and was still the wrong shape. It is the second of the three shapes the Windows run
+ * went through and rejected: a window that reads correctly and shows nothing is impossible to look
+ * at and believe, and a person and a reader disagreeing is exactly what a live run is for. It could
+ * not have the first shape while the bridge was an artifact of its own with no backend to reach;
+ * now that they live together, it opens a real window like its two siblings and shows the same
+ * widgets.
  *
  * <pre>
- * java -cp &lt;classes&gt; limn.backend.lwjgl.a11y.linux.LiveProbe [seconds]
+ * java -jar limn-a11y-linux-probe.jar
  * </pre>
  */
 public final class LiveProbe {
@@ -30,61 +34,52 @@ public final class LiveProbe {
     }
 
     /**
-     * @param args optionally how many seconds to stay on the bus; sixty by default
-     * @throws Exception if the scene cannot be built
+     * @param args unused
      */
-    public static void main(String[] args) throws Exception {
-        int seconds = args.length > 0 ? Integer.parseInt(args[0]) : 60;
-        UiRuntime runtime = new UiRuntime(System::nanoTime, () -> { }, Executors.newFixedThreadPool(1));
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+    public static void main(String[] args) {
+        try (Backend backend = new LwjglBackend()) {
+            NativeWindow window = backend.createWindow(
+                    new WindowConfig("Limn accessibility probe", 480, 560, true, true));
 
-        AccessibilityBridge bridge = AtspiBridge.openIfEnabled("Limn probe");
-        System.out.println("bridge      : " + bridge.getClass().getSimpleName()
-                + "  listening=" + bridge.isListening());
-        if (bridge == AccessibilityBridge.NONE) {
-            System.out.println("accessibility is off on this session, or the a11y bus refused us");
-            return;
-        }
+            // Opened by the backend, not by this probe: the bridges ship with it now, so what runs
+            // here is the path an application takes rather than a shortcut only a probe knows.
+            AccessibilityBridge bridge = window.accessibility();
+            System.out.println("bridge: " + bridge.getClass().getSimpleName()
+                    + "  listening=" + bridge.isListening()
+                    + (bridge == AccessibilityBridge.NONE
+                       ? "   (accessibility is off on this desktop, or the a11y bus refused us)" : ""));
 
-        Column root = new Column();
-        root.add(new Label("Limn accessibility probe"));
-        Button save = new Button("Save");
-        save.onAction(() -> System.out.println("*** Save pressed, through the toolkit's own path"));
-        root.add(save);
-        Checkbox wrap = new Checkbox(Checkbox.Variant.BOX, "Wrap lines");
-        wrap.onChange(on -> System.out.println("*** Wrap toggled to " + on));
-        root.add(wrap);
+            ProbeScene probe = new ProbeScene();
+            Scene scene = new Scene(probe.root());
+            scene.bind(window);
+            window.setFrameCallback((renderer, frame) ->
+                    scene.renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs()));
 
-        ProbeWindow window = new ProbeWindow();
-        window.accessibility = bridge;
-        Scene scene = new Scene(root);
-        scene.bind(window);
-        // The window has the user's focus, which a real backend reports and a stub must say for
-        // itself: without it the tree is published by a window no client considers active.
-        scene.windowFocusChanged(true);
-        scene.inputBatchEnded();
-
-        Canvas nothing = new NoCanvas();
-        long end = System.nanoTime() + seconds * 1_000_000_000L;
-        long next = System.nanoTime() + 4_000_000_000L;
-        int step = 0;
-        while (System.nanoTime() < end) {
-            // Something moves every four seconds, so a listening client has events to hear: the
-            // focus travels between the two controls and the checkbox toggles under it.
-            if (System.nanoTime() > next) {
-                next = System.nanoTime() + 4_000_000_000L;
-                switch (step++ % 3) {
-                    case 0 -> scene.requestFocus(save);
-                    case 1 -> scene.requestFocus(wrap);
-                    default -> wrap.setChecked(!wrap.isChecked());
+            int tickMs = Integer.getInteger("probe.tickMs", 4_000);
+            Runnable[] tick = new Runnable[1];
+            tick[0] = () -> {
+                // The foreground first, every time: a reader announces the window in front, and the
+                // terminal that launched this keeps taking it back.
+                window.focus();
+                probe.tick(scene);
+                if (bridge instanceof AtspiBridge atspi) {
+                    // Whether it is on the bus, and whether it has even tried. The two are
+                    // different failures: never trying means no publish carried a tree, and
+                    // trying and failing means the bus refused.
+                    System.out.println("    onTheBus=" + atspi.isOnTheBus()
+                            + " joinAttempts=" + atspi.joinAttempts()
+                            + " listening=" + atspi.isListening());
                 }
-                System.out.println("--- step " + step + " ---");
-            }
-            scene.renderFrame(nothing);
-            runtime.drain();
-            Thread.sleep(16);
+                if (probe.steps() < 40) {
+                    Ui.postDelayed(tick[0], tickMs);
+                } else {
+                    window.close();
+                }
+            };
+            Ui.postDelayed(tick[0], 4_000);
+
+            backend.runEventLoop();
+            System.out.println("DONE");
         }
-        System.out.println("done; listening=" + bridge.isListening());
     }
 }

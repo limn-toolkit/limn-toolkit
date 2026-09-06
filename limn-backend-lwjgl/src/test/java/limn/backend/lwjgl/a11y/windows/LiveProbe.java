@@ -5,12 +5,9 @@ import limn.backend.Backend;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.backend.lwjgl.LwjglBackend;
-import limn.components.Button;
-import limn.components.Checkbox;
-import limn.components.Label;
+import limn.backend.lwjgl.a11y.ProbeScene;
 import limn.concurrent.Ui;
 import limn.scene.Scene;
-import limn.scene.layout.Column;
 
 /**
  * The demo this bridge is meant to be read from: real widgets, really painted, in a window the
@@ -61,16 +58,8 @@ public final class LiveProbe {
             System.out.println("bridge: " + bridge.getClass().getSimpleName()
                     + "  listening=" + bridge.isListening());
 
-            Column root = new Column();
-            root.add(new Label("Limn accessibility probe"));
-            Button save = new Button("Save");
-            save.onAction(() -> System.out.println("*** Save pressed, through the toolkit's path"));
-            root.add(save);
-            Checkbox wrap = new Checkbox(Checkbox.Variant.BOX, "Wrap lines");
-            wrap.onChange(on -> System.out.println("*** Wrap toggled to " + on));
-            root.add(wrap);
-
-            Scene scene = new Scene(root);
+            ProbeScene probe = new ProbeScene();
+            Scene scene = new Scene(probe.root());
             scene.bind(window);
             window.setFrameCallback((renderer, frame) ->
                     scene.renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs()));
@@ -79,21 +68,14 @@ public final class LiveProbe {
             // one is raised by the scene from a real focus move or a real toggle rather than
             // published by hand. Posted rather than looped, because the event loop below owns this
             // thread and a widget may only be touched on it.
-            int[] step = {0};
             Runnable[] tick = new Runnable[1];
             tick[0] = () -> {
                 // The foreground first, every time. A screen reader announces the focused element
                 // of the window in front; a window nobody brought forward is one it never reaches,
                 // and on this guest the terminal that launched the probe keeps taking it back.
                 window.focus();
-                switch (step[0]++ % 3) {
-                    case 0 -> scene.requestFocus(save);
-                    case 1 -> scene.requestFocus(wrap);
-                    default -> wrap.setChecked(!wrap.isChecked());
-                }
-                System.out.println("--- step " + step[0] + " ---");
-                System.out.flush();
-                if (step[0] < 24) {
+                probe.tick(scene);
+                if (probe.steps() < 40) {
                     Ui.postDelayed(tick[0], 6_000);
                 } else {
                     window.close();

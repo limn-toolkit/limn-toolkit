@@ -271,11 +271,15 @@ final class AtspiTree {
 
     private Map<Object, Object> propertiesOf(String which, boolean root, AccessibleNode node) {
         Map<Object, Object> out = new LinkedHashMap<>();
-        if (Atspi.I_ACTION.equals(which) && node != null) {
+        if (Atspi.I_ACTION.equals(which)) {
             // A property and not only the GetNActions method: libatspi reads the count through
             // org.freedesktop.DBus.Properties, so a bridge that answers the method alone reports
             // no verbs to every client while happily performing the ones it says it has not got.
-            out.put("NActions", new DBus.Variant("i", verbsOf(node).size()));
+            //
+            // Answered for the application object too, where it is zero. Fedora's newer registry
+            // asks the root for it, and refusing a property is an error reply on a conversation
+            // that had none -- "this object performs nothing" is both true and quieter.
+            out.put("NActions", new DBus.Variant("i", node == null ? 0 : verbsOf(node).size()));
             return out;
         }
         if (Atspi.I_APPLICATION.equals(which)) {
@@ -296,6 +300,7 @@ final class AtspiTree {
             out.put("ChildCount", new DBus.Variant("i", tree.nodeCount() == 0 ? 0 : 1));
             out.put("Locale", new DBus.Variant("s", ""));
             out.put("AccessibleId", new DBus.Variant("s", ""));
+            out.put("HelpText", new DBus.Variant("s", ""));
             return out;
         }
         out.put("Name", new DBus.Variant("s", node.name()));
@@ -305,6 +310,11 @@ final class AtspiTree {
         out.put("Locale", new DBus.Variant("s",
                 node.locale() == null ? "" : node.locale().toLanguageTag()));
         out.put("AccessibleId", new DBus.Variant("s", Long.toString(node.id())));
+        // Empty, and deliberately not the description. AT-SPI2 2.52 added HelpText beside
+        // Description as a SECOND string, and a bridge that answered the same text in both would
+        // have a reader say it twice. This toolkit publishes one description per node; when a
+        // widget grows something that is genuinely help rather than description, it goes here.
+        out.put("HelpText", new DBus.Variant("s", ""));
         return out;
     }
 

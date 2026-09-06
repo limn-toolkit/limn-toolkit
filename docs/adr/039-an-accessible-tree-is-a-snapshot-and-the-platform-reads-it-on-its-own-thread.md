@@ -3095,9 +3095,9 @@ that shipped, while a script anyone can re-run says everything.
 | Platform | Client | Assertion |
 | --- | --- | --- |
 | Windows 11 ARM64 guest | `scripts/a11y/windows/client.ps1`, the spike's PowerShell `UIAutomationClient` walk, run into session 1, plus NVDA 2025.1 portable | find by name, control type, bounding rectangle, `InvokePattern.Invoke`, `SetFocus`, `ElementFromPoint`, and a focus event observed by NVDA |
-| macOS guest | `scripts/a11y/macos/verify.sh`, which refuses to run while the console is locked, plus `notify.sh`, `threading.sh` and `unprivileged.sh` beside it and the Swift clients they drive — **and VoiceOver, which is the part no script covers** | the four scripts already pass against the spike's one-element provider; against the real bridge they must pass against a *tree*: find by name through `AXTitle` **or** `AXDescription`, `AXPress` arriving back in Java on the main thread, hit test through several nested levels, notifications to a real `AXObserver` (with focus observed only at application level), and the loop-mode sweep. Three assertions are new and are the ones this round's fixes created: **an overlay opening while a client is attached is visible to it**, which is the re-push of §2.2; a destroyed element is released and a stale message to it fails rather than crashing; and a scene rebound over the same window leaves no element alive. `unprivileged.sh` runs every one of them as an ordinary user, because root is accessibility-trusted and the lab's `sudo` would otherwise be doing the work. What only VoiceOver can settle is the attributes a purpose-built client never asks for |
-| Ubuntu GNOME, X11 and Wayland | `scripts/a11y/linux/axwalk.py` through `libatspi`'s typelib, `orca --list-apps`, and a talking Orca | tree walk, find by name, `DoAction`, `Cache.GetItems` in one round trip, extents in both coordinate types, one application object with one child per window |
-| Fedora KDE, X11 and Wayland | the same | that AT-SPI2 under Qt's implementation and KDE's registry behaves the same; the two things to re-check are the bus addresses and Orca's Qt behaviour |
+| macOS guest | `scripts/a11y/macos/`: `guest-build.sh` and `guest-probe.sh` bring the rendered probe up in the console session, `guest-steps.sh` drives a sequence of walks and mutations against one live provider, and `guest-voiceover.sh` photographs VoiceOver's caption panel on a timer and stacks the distinct phrases into one strip. The clients are `axtree` (walk, hit-test, follow relations), `axlife` (destroy an element under a client that holds it) and `dump-appkit-constants.swift` (§12.3). `vocap` exists because `screencapture` raises a consent dialog on every invocation and a dialog takes the foreground, which is what a reader announces — **the measurement destroying what it measures, which is the shape to watch for on every one of these guests** | the four scripts already pass against the spike's one-element provider; against the real bridge they must pass against a *tree*: find by name through `AXTitle` **or** `AXDescription`, `AXPress` arriving back in Java on the main thread, hit test through several nested levels, notifications to a real `AXObserver` (with focus observed only at application level), and the loop-mode sweep. Three assertions are new and are the ones this round's fixes created: **an overlay opening while a client is attached is visible to it**, which is the re-push of §2.2; a destroyed element is released and a stale message to it fails rather than crashing; and a scene rebound over the same window leaves no element alive. `unprivileged.sh` runs every one of them as an ordinary user, because root is accessibility-trusted and the lab's `sudo` would otherwise be doing the work. What only VoiceOver can settle is the attributes a purpose-built client never asks for |
+| Ubuntu GNOME, X11 and Wayland | `scripts/a11y/linux/walk-the-probe.py` through `libatspi`'s own typelib — so a tree it walks is a tree Orca sees — and a talking Orca read through `--debug-file`. `-Dlimn.a11y.linux.trace=true` logs every inbound call, which is what turned "the desktop will not list us" from a silence into a question | tree walk, find by name, `DoAction`, `Cache.GetItems` in one round trip, extents in both coordinate types, one application object with one child per window |
+| Fedora KDE, X11 and Wayland | the same | **run 2026-09-06, and it did not behave the same.** Its at-spi2-core 2.60 reads an application as it registers and refuses to list one that answers "no children", which found a registration-order defect this bridge had had since it was written (§13.15). With that fixed, a client walks the tree and Orca speaks names, roles and states. What is still open is the rendered probe on a **Wayland surface**, below |
 
 **One of these can plausibly move into CI, and it is worth trying.** The Linux bridge is pure Java and
 pure D-Bus, and the Ubuntu runner can install `at-spi2-core` and run the whole probe under
@@ -3205,8 +3205,36 @@ exception stays visible rather than becoming a habit.
 15. **Every ABI fact is proven on exactly one architecture, and they are not the same one.** The
     Windows spike ran an x64 JDK under emulation, so its facts hold for Win64 x64. The macOS spike is
     arm64 only, and the spike names the gap precisely: `objc_msgSend_stret` was never needed there and
-    *would* be on x86_64, so the "one call path" claim in §10.2 is arm64's. Fedora KDE and Wayland are
-    untested; the Linux spike ran on GNOME 46 on X11.
+    *would* be on x86_64, so the "one call path" claim in §10.2 is arm64's.
+
+    **~~Fedora KDE and Wayland are untested.~~ Both were run on 2026-09-06, and each found
+    something.** Fedora 44 KDE carries at-spi2-core 2.60 against Ubuntu 24.04's 2.52, and the newer
+    registry reads an application *as it registers* rather than adding it and reading later. This
+    bridge joined the accessibility bus in its factory, before any scene existed, so it had always
+    registered with an empty tree — and 2.60 will not list an application that answers "no
+    children": a hundred and thirty-two inbound calls, no error anywhere, and not one `libatspi`
+    client would show it, Orca included. Registering before there is anything to show was wrong on
+    both desktops and only one of them minded. The bus is joined on the first publish with a tree
+    now, and Fedora KDE on Wayland walks correctly and Orca speaks `'Save' 'botão.'` and
+    `'Wrap lines' 'caixa de seleção não selecionada.'`.
+
+    **What is open is narrower and is a Wayland surface, not Fedora.** Three measurements, and the
+    middle one is the one to explain:
+
+    | guest | window | listed by `libatspi` |
+    | --- | --- | --- |
+    | Fedora 44 KDE, Wayland | none (the probe painted nothing) | yes |
+    | Fedora 44 KDE, Wayland | a real Wayland window | **no** |
+    | Ubuntu 24.04 GNOME, X11 | a real X11 window | yes |
+
+    In the failing case the bridge is demonstrably on the bus, the registry makes 374 inbound calls
+    and refuses nothing, and the desktop's child count does not move. Two things are ruled out: it
+    is not the registration order, which the row above fixed and which the first line here exercises
+    on the same desktop; and it is not the tree, which the third line walks in full. **Forcing X11
+    on that guest is not an experiment that can be run**: window creation under XWayland blocks
+    before any code of ours, reproducibly. So this is recorded as measured rather than explained,
+    and the honest consequence today is that the Linux bridge is verified with a window on X11 and
+    without one on Wayland.
 16. **~~Adding methods to GLFW's content view class is designed and not proven.~~ Withdrawn**, by
     deleting the design that needed it. The re-run measured that `setAccessibilityChildren:` on the
     content view is sufficient on its own and that `accessibilityHitTest:` was never needed, so §2.2

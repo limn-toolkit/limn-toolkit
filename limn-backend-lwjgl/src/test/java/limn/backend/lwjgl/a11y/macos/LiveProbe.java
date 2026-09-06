@@ -7,22 +7,9 @@ import limn.backend.Backend;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.backend.lwjgl.LwjglBackend;
-import limn.components.Button;
-import limn.components.ButtonGroup;
-import limn.components.Checkbox;
-import limn.components.ComboBox;
-import limn.components.Label;
-import limn.components.PasswordField;
-import limn.components.ProgressBar;
-import limn.components.RadioButton;
-import limn.components.SearchField;
-import limn.components.Separator;
-import limn.components.Slider;
-import limn.components.TextField;
-import limn.scene.Widget;
+import limn.backend.lwjgl.a11y.ProbeScene;
 import limn.concurrent.Ui;
 import limn.scene.Scene;
-import limn.scene.layout.Column;
 
 import java.util.List;
 
@@ -98,67 +85,8 @@ public final class LiveProbe {
                     + (bridge == AccessibilityBridge.NONE
                        ? "   !!! NONE: AppKit was not reachable, so nothing will be read" : ""));
 
-            // Enough widgets to exercise the role table rather than three rows of it, and chosen
-            // for what each one can go wrong at. Half of them carry a value and half do not, which
-            // matters more than it looks: a widget with a value announces itself when the value
-            // moves, so it can look correctly focused while focus tracking is entirely broken. The
-            // button is what showed that, because a button has nothing else to say.
-            Column root = new Column();
-            root.add(new Label("Limn accessibility probe"));
-
-            Button save = new Button("Save");
-            save.onAction(() -> System.out.println("*** Save pressed, through the toolkit's path"));
-            root.add(save);
-
-            Checkbox wrap = new Checkbox(Checkbox.Variant.BOX, "Wrap lines");
-            wrap.onChange(on -> System.out.println("*** Wrap toggled to " + on));
-            root.add(wrap);
-
-            // A switch and a check box are different roles on purpose (§1.12), and this is the
-            // platform where the difference is cheapest: AXCheckBox with the switch subrole.
-            Checkbox dark = new Checkbox(Checkbox.Variant.SWITCH, "Dark mode");
-            root.add(dark);
-
-            TextField name = new TextField();
-            name.setPlaceholder("Nome do arquivo");
-            name.setText("relatório.txt");
-            root.add(name);
-
-            // A password field is a text field with a subrole, and a reader must not read it out.
-            PasswordField secret = new PasswordField();
-            secret.setText("hunter2");
-            root.add(secret);
-
-            SearchField search = new SearchField();
-            search.setPlaceholder("Buscar");
-            root.add(search);
-
-            // The three value-carrying roles, which share one attribute on this platform and are
-            // three facets for exactly that reason.
-            Slider volume = new Slider(0, 100);
-            volume.setValue(40);
-            root.add(volume);
-
-            ProgressBar progress = new ProgressBar();
-            progress.setProgress(0.6f);
-            root.add(progress);
-
-            ComboBox format = new ComboBox(List.of("PDF", "Markdown", "HTML"));
-            format.setSelectedIndex(1);
-            root.add(format);
-
-            // A radio group has no container widget, so the grouping is a relation plus position
-            // and size of set (§13.13) -- the one place this design deliberately publishes less
-            // than the platform would prefer.
-            RadioButton daily = new RadioButton("Diário");
-            RadioButton weekly = new RadioButton("Semanal");
-            new ButtonGroup().add(daily).add(weekly).setSelectedIndex(0);
-            root.add(daily);
-            root.add(weekly);
-
-            root.add(Separator.horizontal());
-
-            Scene scene = new Scene(root);
+            ProbeScene probe = new ProbeScene();
+            Scene scene = new Scene(probe.root());
             scene.bind(window);
             window.setFrameCallback((renderer, frame) ->
                     scene.renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs()));
@@ -167,8 +95,6 @@ public final class LiveProbe {
             // has something to watch; each is a real focus move or a real toggle rather than a tree
             // published by hand. Posted rather than looped, because the event loop below owns this
             // thread and a widget may only be touched on it.
-            List<Widget> focusable = List.of(save, wrap, dark, name, secret, search,
-                    volume, format, daily, weekly);
             // A reader needs time to finish a phrase before the next one starts, and a run needs to
             // reach every widget: those pull opposite ways, so the interval is a knob.
             int tickMs = Integer.getInteger("probe.tickMs", 6_000);
@@ -181,21 +107,7 @@ public final class LiveProbe {
                 // window in front, and on these guests the terminal that launched the probe keeps
                 // taking it back -- which looks exactly like a broken bridge.
                 window.focus();
-                // The focus walks every focusable widget in turn, and touches nothing else.
-                //
-                // Nothing else is the point, and it is what the first VoiceOver run of this bridge
-                // got wrong. A cycle that also toggled the check box could not tell "the reader
-                // does not follow our focus" from "the reader is announcing the value change that
-                // travelled with it" -- and the answer was the first, invisible for as long as
-                // every step had a value change in it. probe.cycle=value drives the other half.
-                int index = step[0]++ % focusable.size();
-                if ("value".equals(System.getProperty("probe.cycle"))) {
-                    wrap.setChecked(!wrap.isChecked());
-                    volume.setValue((volume.value() + 10) % 100);
-                } else {
-                    scene.requestFocus(focusable.get(index));
-                }
-                System.out.println("--- step " + step[0] + " ---");
+                probe.tick(scene);
                 // republishNow() is the platform's path, and this probe is standing in for the
                 // platform: it is the user-interface thread, inside the pump, which is exactly the
                 // contract that call names. It is here because the listening gate is shut until
@@ -224,7 +136,7 @@ public final class LiveProbe {
                     lastPosted[0] = all.size();
                 }
                 System.out.flush();
-                if (step[0] < 40) {
+                if (probe.steps() < 40) {
                     Ui.postDelayed(tick[0], tickMs);
                 } else {
                     window.close();

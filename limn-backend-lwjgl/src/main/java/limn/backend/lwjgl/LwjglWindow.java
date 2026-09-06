@@ -487,13 +487,28 @@ final class LwjglWindow implements NativeWindow {
      * <p>Asked of GLFW, which is the only thing here that knows what a window is on this platform.
      * An unsupported platform answers zero rather than throwing, because "there is no handle" is a
      * legitimate answer and a bridge that gets one will decline to open.
+     *
+     * <p><b>Asked of the WINDOWING platform and not of the operating system</b>, which is not the
+     * same question on Linux and used not to be distinguished here. {@code Platform.get()} answers
+     * LINUX for a Wayland session as readily as for an X11 one, and
+     * {@code glfwGetX11Window} on a Wayland session is not zero but an error —
+     * {@code GLFW_PLATFORM_UNAVAILABLE, "X11: Platform not initialized"}. That went unnoticed while
+     * nothing asked: the two bridges that need a handle are for the two operating systems with one
+     * windowing platform each, and the Linux bridge addresses nodes by object path and never asks.
+     * It surfaced the moment the backend began opening bridges itself, on the first Wayland guest.
+     *
+     * <p>Wayland answers zero, which is honest: this backend has not been taught to hand a Wayland
+     * surface to anything, and nothing on that platform wants one.
      */
     @Override
     public long nativeHandle() {
-        return switch (org.lwjgl.system.Platform.get()) {
-            case WINDOWS -> org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
-            case MACOSX -> org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle);
-            case LINUX -> org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle);
+        return switch (org.lwjgl.glfw.GLFW.glfwGetPlatform()) {
+            case org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WIN32 ->
+                    org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
+            case org.lwjgl.glfw.GLFW.GLFW_PLATFORM_COCOA ->
+                    org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle);
+            case org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11 ->
+                    org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle);
             default -> 0;
         };
     }
