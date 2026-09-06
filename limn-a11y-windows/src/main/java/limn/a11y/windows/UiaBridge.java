@@ -223,9 +223,15 @@ public final class UiaBridge implements AccessibilityBridge {
         try {
             java.nio.ByteBuffer oldOne = MemoryUtil.memByteBuffer(before, UiaVariant.SIZE);
             java.nio.ByteBuffer newOne = MemoryUtil.memByteBuffer(after, UiaVariant.SIZE);
-            write(oldOne, event.oldValue());
-            write(newOne, event.newValue());
-            Uia.raisePropertyChangedEvent(element.pointer(), propertyId, before, after);
+            write(oldOne, propertyId, event.oldValue());
+            write(newOne, propertyId, event.newValue());
+            int hresult = Uia.raisePropertyChangedEvent(element.pointer(), propertyId,
+                    before, after);
+            java.util.function.Consumer<String> to = UiaWindow.trace;
+            if (to != null) {
+                to.accept("property " + propertyId + " changed -> 0x"
+                        + Integer.toHexString(hresult));
+            }
             freeIfString(oldOne);
             freeIfString(newOne);
         } finally {
@@ -234,9 +240,23 @@ public final class UiaBridge implements AccessibilityBridge {
         }
     }
 
-    /** Writes one of the model's values into a variant, or leaves it empty for anything else. */
-    private void write(java.nio.ByteBuffer variant, Object value) {
-        if (value instanceof Boolean flag) {
+    /**
+     * Writes a value into a variant <b>as the property's own type</b>, which is not always the
+     * model's.
+     *
+     * <p>The toolkit says a check box is checked with a boolean, and UI Automation says it with an
+     * integer: {@code ToggleState} is an enumeration, and so is {@code ExpandCollapseState}. A
+     * boolean written where a client expects one of those is not a wrong value, it is a wrong
+     * <em>type</em> — and a client reading it hears nothing rather than hearing the opposite, which
+     * is why the first live run of this path announced the focus move and stayed silent about the
+     * state that moved with it.
+     */
+    private void write(java.nio.ByteBuffer variant, int propertyId, Object value) {
+        boolean anEnumeration = propertyId == UiaIds.TOGGLE_STATE
+                || propertyId == UiaIds.EXPAND_COLLAPSE_EXPAND_COLLAPSE_STATE;
+        if (value instanceof Boolean flag && anEnumeration) {
+            UiaVariant.i4(variant, 0, flag ? 1 : 0);
+        } else if (value instanceof Boolean flag) {
             UiaVariant.bool(variant, 0, flag);
         } else if (value instanceof Number number) {
             UiaVariant.r8(variant, 0, number.doubleValue());
