@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.accessibility.Accessible;
+import limn.accessibility.RoleNames;
 import limn.i18n.I18n;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -50,7 +52,10 @@ class ShippedTranslationsTest extends ComponentTestBase {
     private static Set<String> declaredKeys() {
         touch(ComponentStrings.SEARCH_PLACEHOLDER, ComponentStrings.VIEWPORT3D_NO_BACKEND,
                 ColorPickerStrings.FORMAT_RGB, ColorPickerStrings.CHANNEL_ALPHA,
-                ThemeStrings.of(Theme.builtins().get(0)));
+                ThemeStrings.of(Theme.builtins().get(0)),
+                // The role catalogue declares its keys the same way, and a domain missing from
+                // this list looks like a file full of keys nobody asks for.
+                RoleNames.englishOf(Accessible.Role.BUTTON));
         return I18n.declaredKeys().keySet().stream()
                 .filter(key -> key.startsWith("limn."))
                 .collect(Collectors.toCollection(TreeSet::new));

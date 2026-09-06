@@ -2,12 +2,22 @@ package limn.accessibility;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The role vocabulary a screen reader speaks, and the rules that keep it worth speaking. */
@@ -56,9 +66,39 @@ class RoleNamesTest {
 
     @Test
     void theKeyIsDerivedFromTheRoleAndNotWrittenTwice() {
-        assertEquals("role.check_box", RoleNames.keyFor(Accessible.Role.CHECK_BOX));
+        assertEquals("limn.role.check_box", RoleNames.keyFor(Accessible.Role.CHECK_BOX));
         for (Accessible.Role role : Accessible.Role.values()) {
             assertNotNull(RoleNames.keyFor(role));
+        }
+    }
+
+    @Test
+    void noTwoRolesSayTheSameWordInAnyShippedLanguage() throws Exception {
+        // The English is not where this goes wrong. European Portuguese is: "separador" is the
+        // natural word for both a separator and a tab, and a reader that used it for both would
+        // describe two different controls identically in one language while every other language
+        // stayed correct -- which nothing but this would catch.
+        Path dir = Path.of("src/main/resources/limn/i18n");
+        List<Path> files;
+        try (Stream<Path> listing = Files.list(dir)) {
+            files = listing.filter(f -> f.getFileName().toString().startsWith("roles_")).toList();
+        }
+        assertTrue(files.size() >= 20, "only " + files.size() + " role translations found");
+        for (Path file : files) {
+            Properties phrases = new Properties();
+            try (Reader in = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                phrases.load(in);
+            }
+            assertEquals(Accessible.Role.values().length, phrases.size(),
+                    file.getFileName() + " does not name every role");
+            Map<String, String> byPhrase = new TreeMap<>();
+            for (String key : phrases.stringPropertyNames()) {
+                String phrase = phrases.getProperty(key).strip();
+                assertTrue(!phrase.isBlank(), file.getFileName() + " has a blank " + key);
+                String already = byPhrase.put(phrase, key);
+                assertNull(already, file.getFileName() + ": " + key + " and " + already
+                        + " both say \"" + phrase + "\"");
+            }
         }
     }
 

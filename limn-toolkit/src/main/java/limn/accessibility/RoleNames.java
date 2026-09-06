@@ -120,10 +120,10 @@ public final class RoleNames {
 
     /**
      * @param role a role
-     * @return the key its phrase lives under, {@code role.<lower-case-name>}
+     * @return the key its phrase lives under, {@code limn.role.<lower-case-name>}
      */
     public static String keyFor(Accessible.Role role) {
-        return "role." + role.name().toLowerCase(Locale.ROOT);
+        return "limn.role." + role.name().toLowerCase(Locale.ROOT);
     }
 
     /**
