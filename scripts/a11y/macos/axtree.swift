@@ -64,6 +64,9 @@ func walk(_ el: AXUIElement, _ depth: Int) {
     let role = str(attr(el, kAXRoleAttribute))
     let title = str(attr(el, kAXTitleAttribute))
     let ident = str(attr(el, "AXIdentifier"))
+    // The phrase a reader speaks after the name. AppKit's own is English from a JVM, so this is
+    // the one attribute whose LANGUAGE is the thing being checked.
+    let roleDesc = str(attr(el, "AXRoleDescription"))
     let frame = str(attr(el, "AXFrame"))
     var names: CFArray?
     AXUIElementCopyActionNames(el, &names)
@@ -71,6 +74,7 @@ func walk(_ el: AXUIElement, _ depth: Int) {
     var line = "\(ind)\(role) title='\(title)'"
     if !title.isEmpty { line += " \(scalars(title))" }
     if !ident.isEmpty { line += " id='\(ident)'" }
+    if !roleDesc.isEmpty { line += " says='\(roleDesc)'" }
     line += " \(frame)"
     if !actions.isEmpty { line += " actions=[\(actions)]" }
     // §13.27: a relation is only worth publishing if a client can FOLLOW it, so this does not
