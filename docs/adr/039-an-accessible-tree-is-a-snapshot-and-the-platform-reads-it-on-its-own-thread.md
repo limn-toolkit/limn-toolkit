@@ -3,11 +3,15 @@
 - **Status:** Proposed, 2026-09-04; §14's phases 1 to 3 implemented 2026-09-04. Closes the "No screen reader
   bridge" bullet the README carries in ten languages, and delivers ADR 006 §5's promise that
   accessibility labels are `I18nString`s. The work is a new `limn.accessibility` package, four
-  hooks on `Widget`, one `default` member on `NativeWindow`, three bridges — **one module each,
-  and not in `limn-backend-lwjgl` as this line first said**: the bridges are per-platform
-  artifacts so that an application pays for the one it ships on, which is a decision taken after
-  this record was drafted and which `limn-a11y-linux` already lives by, with no native code at all
-  —, and a short list of corrections to seams that were never observed before and turn out not to fire
+  hooks on `Widget`, one `default` member on `NativeWindow`, three bridges — **in
+  `limn-backend-lwjgl`, as this line first said, after a round trip worth recording**: they were cut
+  into per-platform artifacts so that an application would pay only for the one it ships on, and
+  brought back when that stopped being true. What was being paid for was the native payload, and
+  there is none: two of the three reach their platform through LWJGL's JNI trampoline and import
+  nothing but `org.lwjgl.system`, which the backend already carries for all six targets, and the
+  third is pure Java over unix sockets. Thirty-four classes with no binaries are not an artifact's
+  worth of weight, and the split cost a build exception and a seam an application could forget to
+  connect —, and a short list of corrections to seams that were never observed before and turn out not to fire
   (§8). §11 is what the first cut deliberately does not do; §14 is the order the work lands in. It
   lands as
   `docs/adr/039-an-accessible-tree-is-a-snapshot-and-the-platform-reads-it-on-its-own-thread.md`,
@@ -2874,6 +2878,18 @@ need it.
 
 Linux needs nothing at all: `java.nio.channels.SocketChannel`, `java.net.UnixDomainSocketAddress` and a
 hand-written D-Bus marshaller. The spike compiled with no classpath whatsoever.
+
+**This paragraph is also the reason the bridges are not artifacts of their own, which they briefly
+were.** They were cut out so that an application would pay only for the platform it ships on, and
+the thing being paid for was a native payload — the argument that made the fonts and the FFmpeg
+libraries their own artifacts, where the weight is megabytes of binaries per target. There is no
+payload here. Two of the three reach their platform through LWJGL's JNI trampoline and import
+nothing but `org.lwjgl.system`, which the backend already declares for all six native classifiers;
+the third has no native code at all. What the split actually bought was thirty-four classes of Java
+moving between jars, and what it cost was an exception in the architecture check and a seam an
+application had to connect by hand — which §5.1 records being found disconnected. They live in
+`limn-backend-lwjgl`, the backend opens the one this machine has, and `AccessibilityBridge.NONE` is
+still what a platform without one answers.
 
 ### 10.1 The evaluated alternative, with its numbers
 
