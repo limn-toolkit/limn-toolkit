@@ -48,8 +48,5 @@ include(
     "limn-video-ffmpeg-natives-all",
     "limn-fonts-all",
     "limn-backend-lwjgl",
-    "limn-a11y-linux",
-    "limn-a11y-windows",
-    "limn-a11y-macos",
     "limn-demo",
 )
