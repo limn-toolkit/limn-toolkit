@@ -1,0 +1,125 @@
+AppKit: /System/Library/Frameworks/AppKit.framework/AppKit
+macOS: Version 26.6.2 (Build 25G83)
+
+==== roles ====
+  NSAccessibilityButtonRole = "AXButton"
+  NSAccessibilityCheckBoxRole = "AXCheckBox"
+  NSAccessibilityColorWellRole = "AXColorWell"
+  NSAccessibilityComboBoxRole = "AXComboBox"
+  NSAccessibilityDrawerRole = "AXDrawer"
+  NSAccessibilityGroupRole = "AXGroup"
+  NSAccessibilityImageRole = "AXImage"
+  NSAccessibilityIncrementorRole = "AXIncrementor"
+  NSAccessibilityLayoutAreaRole = "AXLayoutArea"
+  NSAccessibilityLayoutItemRole = "AXLayoutItem"
+  NSAccessibilityLevelIndicatorRole = "AXLevelIndicator"
+  NSAccessibilityListRole = "AXList"
+  NSAccessibilityMenuBarItemRole = "AXMenuBarItem"
+  NSAccessibilityMenuBarRole = "AXMenuBar"
+  NSAccessibilityMenuItemRole = "AXMenuItem"
+  NSAccessibilityMenuRole = "AXMenu"
+  NSAccessibilityPopUpButtonRole = "AXPopUpButton"
+  NSAccessibilityProgressIndicatorRole = "AXProgressIndicator"
+  NSAccessibilityRadioButtonRole = "AXRadioButton"
+  NSAccessibilityRadioGroupRole = "AXRadioGroup"
+  NSAccessibilityRowRole = "AXRow"
+  NSAccessibilityScrollAreaRole = "AXScrollArea"
+  NSAccessibilityScrollBarRole = "AXScrollBar"
+  NSAccessibilitySheetRole = "AXSheet"
+  NSAccessibilitySliderRole = "AXSlider"
+  NSAccessibilitySplitGroupRole = "AXSplitGroup"
+  NSAccessibilitySplitterRole = "AXSplitter"
+  NSAccessibilitySplitterRole = "AXSplitter"
+  NSAccessibilityStaticTextRole = "AXStaticText"
+  NSAccessibilityTabGroupRole = "AXTabGroup"
+  NSAccessibilityTableRole = "AXTable"
+  NSAccessibilityTextAreaRole = "AXTextArea"
+  NSAccessibilityTextFieldRole = "AXTextField"
+  NSAccessibilityToolbarRole = "AXToolbar"
+  NSAccessibilityToolbarRole = "AXToolbar"
+  NSAccessibilityUnknownRole = "AXUnknown"
+  NSAccessibilityValueIndicatorRole = "AXValueIndicator"
+  NSAccessibilityWindowRole = "AXWindow"
+
+==== subroles ====
+  NSAccessibilityCloseButtonSubrole = "AXCloseButton"
+  NSAccessibilityCollectionListSubrole = "AXCollectionList"
+  NSAccessibilityContentListSubrole = "AXContentList"
+  NSAccessibilityDefinitionListSubrole = "AXDefinitionList"
+  NSAccessibilityDescriptionListSubrole = "AXDescriptionList"
+  NSAccessibilityDialogSubrole = "AXDialog"
+  NSAccessibilityIncrementArrowSubrole = "AXIncrementArrow"
+  NSAccessibilitySearchFieldSubrole = "AXSearchField"
+  NSAccessibilitySectionListSubrole = "AXSectionList"
+  NSAccessibilitySecureTextFieldSubrole = "AXSecureTextField"
+  NSAccessibilityStandardWindowSubrole = "AXStandardWindow"
+  NSAccessibilitySwitchSubrole = "AXSwitch"
+  NSAccessibilitySystemDialogSubrole = "AXSystemDialog"
+  NSAccessibilitySystemFloatingWindowSubrole = "AXSystemFloatingWindow"
+  NSAccessibilityTabButtonSubrole = "AXTabButton"
+  NSAccessibilityTimelineSubrole = "AXTimeline"
+  NSAccessibilityToggleSubrole = "AXToggle"
+  !! NOT EXPORTED BY THIS APPKIT: NSAccessibilitySeparatorSubrole
+
+==== notifications and announcement keys ====
+  NSAccessibilityAnnouncementKey = "AXAnnouncementKey"
+  NSAccessibilityAnnouncementRequestedNotification = "AXAnnouncementRequested"
+  NSAccessibilityCreatedNotification = "AXCreated"
+  NSAccessibilityFocusedUIElementChangedNotification = "AXFocusedUIElementChanged"
+  NSAccessibilityFocusedWindowChangedNotification = "AXFocusedWindowChanged"
+  NSAccessibilityLayoutChangedNotification = "AXLayoutChanged"
+  NSAccessibilityMainWindowChangedNotification = "AXMainWindowChanged"
+  NSAccessibilityMovedNotification = "AXMoved"
+  NSAccessibilityPriorityKey = "AXPriorityKey"
+  NSAccessibilityResizedNotification = "AXResized"
+  NSAccessibilityRowCountChangedNotification = "AXRowCountChanged"
+  NSAccessibilitySelectedChildrenChangedNotification = "AXSelectedChildrenChanged"
+  NSAccessibilitySelectedTextChangedNotification = "AXSelectedTextChanged"
+  NSAccessibilityTitleChangedNotification = "AXTitleChanged"
+  NSAccessibilityUIElementDestroyedNotification = "AXUIElementDestroyed"
+  NSAccessibilityValueChangedNotification = "AXValueChanged"
+  NSAccessibilityWindowCreatedNotification = "AXWindowCreated"
+  !! NOT EXPORTED BY THIS APPKIT: NSAccessibilityPriorityHigh, NSAccessibilityPriorityLow, NSAccessibilityPriorityMedium
+
+==== selector type encodings ====
+  -accessibilityRole  @16@0:8  (from NSAccessibilityElement)
+  -accessibilitySubrole  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityRoleDescription  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityTitle  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityLabel  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityHelp  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityValue  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityMinValue  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityMaxValue  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityChildren  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityParent  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityFocusedUIElement  @16@0:8  (from NSView)
+  -isAccessibilityElement  B16@0:8  (from NSAccessibilityElement)
+  -isAccessibilityEnabled  B16@0:8  (from NSAccessibilityElement)
+  -isAccessibilityFocused  B16@0:8  (from NSAccessibilityElement)
+  -setAccessibilityFocused:  v20@0:8B16  (from NSAccessibilityElement)
+  -accessibilitySelectedChildren  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityHitTest:  @32@0:8{CGPoint=dd}16  (from NSAccessibilityElement)
+  -accessibilityIdentifier  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityFrame  {CGRect={CGPoint=dd}{CGSize=dd}}16@0:8  (from NSAccessibilityElement)
+  -accessibilityFrameInParentSpace  {CGRect={CGPoint=dd}{CGSize=dd}}16@0:8  (from NSAccessibilityElement)
+  -setAccessibilityFrameInParentSpace:  v48@0:8{CGRect={CGPoint=dd}{CGSize=dd}}16  (from NSAccessibilityElement)
+  -setAccessibilityChildren:  v24@0:8@16  (from NSAccessibilityElement)
+  -accessibilityPerformPress  B16@0:8  (from NSAccessibilityElement)
+  -accessibilityPerformIncrement  B16@0:8  (from NSAccessibilityElement)
+  -accessibilityPerformDecrement  B16@0:8  (from NSAccessibilityElement)
+  -accessibilityPerformShowMenu  B16@0:8  (from NSAccessibilityElement)
+  -accessibilityPerformPick  B16@0:8  (from NSAccessibilityElement)
+  -accessibilityPerformCancel  B16@0:8  (from NSAccessibilityElement)
+  -accessibilityPerformConfirm  B16@0:8  (from NSAccessibilityElement)
+  -accessibilityNumberOfCharacters  q16@0:8  (from NSAccessibilityElement)
+  -accessibilitySelectedText  @16@0:8  (from NSAccessibilityElement)
+  -accessibilitySelectedTextRange  {_NSRange=QQ}16@0:8  (from NSAccessibilityElement)
+  -accessibilityStringForRange:  @32@0:8{_NSRange=QQ}16  (from NSAccessibilityElement)
+  -accessibilityRangeForLine:  {_NSRange=QQ}24@0:8q16  (from NSAccessibilityElement)
+  -accessibilityInsertionPointLineNumber  q16@0:8  (from NSAccessibilityElement)
+  -accessibilityLinkedUIElements  @16@0:8  (from NSAccessibilityElement)
+  -setAccessibilityLinkedUIElements:  v24@0:8@16  (from NSAccessibilityElement)
+  -isAccessibilityModal  B16@0:8  (from NSAccessibilityElement)
+  -setAccessibilityModal:  v20@0:8B16  (from NSAccessibilityElement)
+  -accessibilityWindow  @16@0:8  (from NSAccessibilityElement)

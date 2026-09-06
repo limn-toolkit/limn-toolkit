@@ -214,10 +214,10 @@ subprojects {
             doLast {
                 val forbiddenEverywhere = listOf("java.awt.", "javax.swing.", "org.eclipse.swt.")
                 // LWJGL is the backend's, and one exception, which is narrower than it looks.
-                // limn-a11y-windows reaches UI Automation, a COM API, and ADR 039 §10.2 settled
-                // that it does so through LWJGL's JNI trampoline rather than through a shim of
-                // its own -- so the alternative to this line is a second native payload in the
-                // build. It cannot live in the backend instead: the platform bridges are their
+                // limn-a11y-windows reaches UI Automation, a COM API, and limn-a11y-macos reaches
+                // NSAccessibility, an Objective-C one, and ADR 039 §10.2 settled that both do so
+                // through LWJGL's JNI trampoline rather than through a shim of their own -- so the
+                // alternative to these two lines is a native payload of ours in the build. It cannot live in the backend instead: the platform bridges are their
                 // own artifacts, one per platform, so that an application pays for the one it
                 // ships on and no other, and its Linux sibling already lives that way with no
                 // native anything. What the exception does not permit is the rest of LWJGL: this
@@ -225,6 +225,7 @@ subprojects {
                 // org.lwjgl.system, which is the trampoline, the library loader and the stack.
                 val lwjglAllowed = moduleName == "limn-backend-lwjgl"
                         || moduleName == "limn-a11y-windows"
+                        || moduleName == "limn-a11y-macos"
                 val importPattern = Regex("""^\s*import\s+(?:static\s+)?([A-Za-z_][A-Za-z0-9_.]*)""")
                 val violations = mutableListOf<String>()
                 javaSources.forEach { file ->
