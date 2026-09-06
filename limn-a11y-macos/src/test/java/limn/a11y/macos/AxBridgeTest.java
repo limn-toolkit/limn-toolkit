@@ -55,6 +55,30 @@ class AxBridgeTest {
         return a.publish(0, 0, 0, 1f, true);
     }
 
+    /** The same window, with one node holding the keyboard. */
+    private static AccessibleTree aNestedWindowWithFocus(long focusedId) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(480, 320, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 20, 60, 200, 200);
+        a.role(Accessible.Role.GROUP);
+        a.name(I18nString.literal("A group"), Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, false, false);
+        a.begin(1002, 1, Locale.ENGLISH, 40, 96, 160, 40);
+        a.role(Accessible.Role.BUTTON);
+        a.name(I18nString.literal("Button 0"), Accessible.NameFrom.CONTENT);
+        a.action(Accessible.Action.PRESS);
+        a.inherited(true, true, true, true, false);
+        a.state(Accessible.State.FOCUSED, true);
+        a.end();
+        a.end();
+        a.end();
+        return a.publish(focusedId, 0, 0, 1f, true);
+    }
+
     @Test
     void aMachineWithNoAppKitGetsNoBridgeAtAll() {
         assertSame(AccessibilityBridge.NONE, AxBridge.openIfEnabled(0),
@@ -272,6 +296,34 @@ class AxBridgeTest {
                 "a collapse is exactly the burst whose per-node destructions were dropped");
         assertEquals(0, bridge.pushedElements().length,
                 "and the array AppKit holds names elements that were just released");
+    }
+
+    @Test
+    void theFocusedElementIsAnsweredFromTheSnapshot() {
+        // §13.22, and the live run is what settled it. Posting AXFocusedUIElementChanged is proven
+        // to be delivered; being able to answer "where am I" afterwards was not, and a reader that
+        // is told the focus moved and cannot find out where it went does nothing at all -- which is
+        // exactly what VoiceOver did until this was answered.
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindowWithFocus(1002);
+        bridge.publish(tree, false);
+        assertEquals(bridge.childElementsOf(tree.find(1001))[0], bridge.focusedElement());
+    }
+
+    @Test
+    void nothingFocusedIsAnsweredWithNilRatherThanWithSomethingNearby() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        bridge.publish(aNestedWindow(1), false);
+        assertEquals(0L, bridge.focusedElement(),
+                "answering the view itself would put the reader on a thing with no name");
+    }
+
+    @Test
+    void aFocusedNodeThatLeftTheTreeIsNotVendedAsFocused() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        bridge.publish(aNestedWindowWithFocus(1002), false);
+        bridge.publish(AccessibleTree.EMPTY, false);
+        assertEquals(0L, bridge.focusedElement());
     }
 
     @Test

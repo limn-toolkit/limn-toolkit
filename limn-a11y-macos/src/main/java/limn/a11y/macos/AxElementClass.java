@@ -62,6 +62,11 @@ final class AxElementClass {
         long parentElementOf(AccessibleNode node);
 
         /**
+         * @return the element for the node that has the keyboard, or zero when nothing does
+         */
+        long focusedElement();
+
+        /**
          * Called on entry to every implementation below. §6's honest gate on this platform is
          * "someone has asked", and this is the ask: there is no {@code UiaClientsAreListening} here
          * and no registry to consult.
@@ -152,6 +157,86 @@ final class AxElementClass {
         addBool("isAccessibilityFocused", is(node -> node.has(Accessible.State.FOCUSED)));
 
         installHitTest();
+        installFocusedElement();
+    }
+
+    /**
+     * §13.22's experiment, and the selector this design could not reason its way to.
+     *
+     * <p>{@code NSAccessibilityElement} does not declare it at all — {@code NSView} does — so our
+     * elements are not obviously the thing AppKit asks. The spike never moved focus, and posting
+     * {@code AXFocusedUIElementChanged} is proven to be <em>delivered</em>; being able to answer
+     * "where am I" afterwards is not, and a reader that is told the focus moved and cannot find out
+     * where it went does nothing at all, which is what the first VoiceOver run of this bridge
+     * showed: it landed on the first element and stayed there through every move.
+     *
+     * <p>It is installed here first because here is where it costs nothing. Whether AppKit ever
+     * enters it is the measurement; {@link #focusedElementAsks()} is the answer.
+     */
+    private void installFocusedElement() {
+        addId("accessibilityFocusedUIElement", new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                focusedElementAsks++;
+                return source.focusedElement();
+            }
+        });
+    }
+
+    private int focusedElementAsks;
+    private int focusedElementAsksOnView;
+
+    /** @return how many times AppKit has asked one of our elements where the focus is. */
+    int focusedElementAsks() {
+        return focusedElementAsks;
+    }
+
+    /** @return how many times AppKit has asked the CONTENT VIEW where the focus is. */
+    int focusedElementAsksOnView() {
+        return focusedElementAsksOnView;
+    }
+
+    /**
+     * Answers {@code accessibilityFocusedUIElement} on the content view, by pointing that one
+     * instance at a subclass of its own class that implements it.
+     *
+     * <p><b>This is §13.16 reopened for exactly one selector, which §13.22 said it would be.</b> The
+     * measurement that reopened it: with the selector on our element class alone, AppKit entered it
+     * <b>zero</b> times, and VoiceOver landed on the first element and stayed there through every
+     * focus move — told each time that the focus had changed, and with no way to ask where it went.
+     * Our elements are not responders, so the question never reaches them; it goes to the view.
+     *
+     * <p><b>Nothing is added to a class GLFW owns.</b> {@code class_addMethod} on
+     * {@code GLFWContentView} would change every window in the process, including windows this
+     * bridge knows nothing about. This allocates a subclass <em>of</em> that class and re-points
+     * one instance's {@code isa} at it — the technique the spike proved — so the effect is exactly
+     * one view wide, and GLFW's own class is left as it was found.
+     *
+     * @param contentView the window's content view
+     * @param subclassName a name unique in this process
+     */
+    void installFocusedElementOnView(long contentView, String subclassName) {
+        long viewClass = ObjCRuntime.object_getClass(contentView);
+        long subclass = ObjCRuntime.objc_allocateClassPair(viewClass, subclassName, 0);
+        if (subclass == NULL) {
+            throw new IllegalStateException("objc_allocateClassPair(" + subclassName + ") failed");
+        }
+        IdGetter body = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                focusedElementAsksOnView++;
+                long focused = source.focusedElement();
+                // Zero would be nil, and nil from the view means "nothing here has the keyboard",
+                // which is the truthful answer while no node of ours is focused. Answering the view
+                // itself instead would put the reader on a thing with no name.
+                return focused;
+            }
+        };
+        callbacks.add(body);
+        ObjCRuntime.class_addMethod(subclass, objc.sel("accessibilityFocusedUIElement"),
+                body.address(), objc.encodingOf("accessibilityFocusedUIElement"));
+        ObjCRuntime.objc_registerClassPair(subclass);
+        ObjCRuntime.object_setClass(contentView, subclass);
     }
 
     /**

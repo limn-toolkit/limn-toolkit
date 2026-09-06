@@ -75,6 +75,10 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
     private final AxEvents events = new AxEvents();
     /** Every notification posted since this bridge opened. For tests and for the probe's log. */
     private final List<String> posted = new ArrayList<>();
+    /** What each ask for the focused element was answered with. For the live run's log. */
+    private final List<String> focusedAnswers = new ArrayList<>();
+    /** Every event the scene handed this bridge. For the live run's log. */
+    private final List<String> emitted = new ArrayList<>();
 
     private AxBridge(AxObjC objc, long contentView) {
         this.objc = objc;
@@ -83,6 +87,10 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
         // registered, and a process can open several windows.
         this.elementClass = objc == null ? null : new AxElementClass(objc, this,
                 "LimnAccessibleElement_" + Long.toHexString(contentView));
+        if (elementClass != null) {
+            elementClass.installFocusedElementOnView(contentView,
+                    "LimnAXContentView_" + Long.toHexString(contentView));
+        }
         this.elements = new AxElements(Thread.currentThread(), new AxElements.Factory() {
             private long synthetic = 0x1000;
 
@@ -160,6 +168,7 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
     public void emit(AccessibleEvent event) {
         // Enqueue, never post: every post is a cross-process call, and a difference between two
         // frames can be hundreds of nodes wide.
+        emitted.add(event.type() + "#" + event.nodeId());
         events.add(event);
     }
 
@@ -192,6 +201,19 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
     @Override
     public void entered() {
         listening = true;
+    }
+
+    @Override
+    public long focusedElement() {
+        long focused = tree.focused();
+        if (focused == 0 || tree.indexOf(focused) < 0) {
+            focusedAnswers.add("none");
+            return 0;
+        }
+        long element = elements.elementFor(focused);
+        focusedAnswers.add(focused + "=" + tree.find(focused).role()
+                + "@" + Long.toHexString(element));
+        return element;
     }
 
     @Override
@@ -357,6 +379,26 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
     /** @return whether a reentrant publish left work for the next ordinary frame. */
     boolean obligationsDeferred() {
         return obligationsDeferred;
+    }
+
+    /** @return every event the scene emitted, in order. */
+    List<String> emittedEvents() {
+        return List.copyOf(emitted);
+    }
+
+    /** @return what each ask for the focused element was answered with, in order. */
+    List<String> focusedAnswers() {
+        return List.copyOf(focusedAnswers);
+    }
+
+    /** @return how many times AppKit asked one of our elements where the focus is (§13.22). */
+    int focusedElementAsks() {
+        return elementClass == null ? 0 : elementClass.focusedElementAsks();
+    }
+
+    /** @return how many times AppKit asked the content view where the focus is (§13.22). */
+    int focusedElementAsksOnView() {
+        return elementClass == null ? 0 : elementClass.focusedElementAsksOnView();
     }
 
     /** @return the notification symbols posted so far, in order. */

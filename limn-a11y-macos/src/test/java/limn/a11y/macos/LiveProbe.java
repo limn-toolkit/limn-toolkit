@@ -104,16 +104,24 @@ public final class LiveProbe {
             // thread and a widget may only be touched on it.
             int[] step = {0};
             int[] lastPosted = {0};
+            int[] lastEmitted = {0};
             Runnable[] tick = new Runnable[1];
             tick[0] = () -> {
                 // The foreground first, every time. A reader announces the focused element of the
                 // window in front, and on these guests the terminal that launched the probe keeps
                 // taking it back -- which looks exactly like a broken bridge.
                 window.focus();
-                switch (step[0]++ % 3) {
-                    case 0 -> scene.requestFocus(save);
-                    case 1 -> scene.requestFocus(wrap);
-                    default -> wrap.setChecked(!wrap.isChecked());
+                // probe.cycle=focus moves the focus and touches nothing else, which is the only
+                // way to tell "a reader does not follow our focus" from "a reader is announcing
+                // the value change that happened to travel with it".
+                if ("focus".equals(System.getProperty("probe.cycle"))) {
+                    scene.requestFocus(step[0]++ % 2 == 0 ? save : wrap);
+                } else {
+                    switch (step[0]++ % 3) {
+                        case 0 -> scene.requestFocus(save);
+                        case 1 -> scene.requestFocus(wrap);
+                        default -> wrap.setChecked(!wrap.isChecked());
+                    }
                 }
                 System.out.println("--- step " + step[0] + " ---");
                 // republishNow() is the platform's path, and this probe is standing in for the
@@ -127,7 +135,14 @@ public final class LiveProbe {
                             + " elements=" + ax.elementCount()
                             + " pushed=" + ax.pushedElements().length
                             + " pushes=" + ax.pushes()
-                            + " queued=" + ax.queuedEvents());
+                            + " queued=" + ax.queuedEvents()
+                            + " focusedAsks=" + ax.focusedElementAsks()
+                            + "/" + ax.focusedElementAsksOnView() + " (element/view)");
+                    System.out.println("    focus answers: " + ax.focusedAnswers());
+                    java.util.List<String> ev = ax.emittedEvents();
+                    System.out.println("    emitted since last step: "
+                            + ev.subList(Math.min(lastEmitted[0], ev.size()), ev.size()));
+                    lastEmitted[0] = ev.size();
                     // What was actually posted since the last step. A reader that says nothing
                     // when the focus moves is either not being told or not listening, and only
                     // this line tells the two apart.
