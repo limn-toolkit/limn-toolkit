@@ -342,6 +342,8 @@ public final class AxProbe {
     // ---- main ------------------------------------------------------------------------------------
 
     private static SharedLibrary appKit;
+    private static long postNotification;
+    private static long destroyedNotification;
 
     /** A role constant resolved by dlsym on AppKit -- never the literal "AXButton". */
     static long roleConstant(String symbol) {
@@ -362,6 +364,11 @@ public final class AxProbe {
         long poolPop = ObjCRuntime.getLibrary().getFunctionAddress("objc_autoreleasePoolPop");
         pthreadMainNp = APIUtil.apiCreateLibrary("libSystem.B.dylib").getFunctionAddress("pthread_main_np");
         appKit = APIUtil.apiCreateLibrary("/System/Library/Frameworks/AppKit.framework/AppKit");
+        postNotification = appKit.getFunctionAddress("NSAccessibilityPostNotification");
+        destroyedNotification = memGetAddress(appKit.getFunctionAddress(
+                "NSAccessibilityUIElementDestroyedNotification"));
+        log("AppKit: NSAccessibilityPostNotification=0x" + Long.toHexString(postNotification)
+                + " NSAccessibilityUIElementDestroyedNotification='" + javaString(destroyedNotification) + "'");
 
         FFIType cgRect = doubles(4);
         rectSetterCif = APIUtil.apiCreateCIF(LibFFI.ffi_type_void, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, cgRect);
@@ -495,6 +502,10 @@ public final class AxProbe {
         return node.element;
     }
 
+    /** True while an AX callback of ours is on the stack. §3.2's reentrancy flag, in miniature. */
+    private static boolean REENTRANT_GUARD;
+    private static final List<String> pendingDestroy = new ArrayList<>();
+
     private static int hitTests;
     private static int childReads;
     private static long elementClassGlobal;
@@ -620,6 +631,44 @@ public final class AxProbe {
         afterStructuralChange(root, parent);
     }
 
+    /**
+     * §1.3's lifetime rule, which the spike never exercised because it retained everything and
+     * released nothing: <b>unlink, post {@code UIElementDestroyed}, then release</b>.
+     *
+     * <p>The order is the whole of it. Posting after the release would name an object that is
+     * already gone, and releasing without posting leaves a client holding a reference it has no way
+     * to learn is stale — which is the crash vector §13.9 calls the obvious one.
+     */
+    static void destroy(Node root, String key) {
+        Node node = BY_KEY.get(key);
+        Node parent = parentOf(root, key);
+        if (node == null || parent == null) { log("!!! no such node: " + key); return; }
+        if (REENTRANT_GUARD) {
+            // §3.2: from inside an AX callback this releases nothing at all. The caller is standing
+            // on the object.
+            log("    destroy('" + key + "') DEFERRED: an AX callback is on the stack");
+            pendingDestroy.add(key);
+            return;
+        }
+        parent.kids.removeIf(kid -> kid.key.equals(key));
+        afterStructuralChange(root, parent);
+        long element = node.element;
+        // probe.nopost is the rule broken on purpose: release the object and tell nobody. §1.3 says
+        // post first, and a rule with no observed consequence is a preference.
+        if (Boolean.getBoolean("probe.nopost")) {
+            log("    probe.nopost=true: NOT posting UIElementDestroyed for '" + key + "'");
+        } else {
+            JNI.invokePPV(element, destroyedNotification, postNotification);
+            log("    posted UIElementDestroyed for '" + key + "' (element=0x" + Long.toHexString(element) + ")");
+        }
+        node.released = true;
+        BY_ELEMENT.remove(element);
+        if (node.childrenArray != NULL) { msg(node.childrenArray, "release"); node.childrenArray = NULL; }
+        msg(element, "release");
+        node.element = NULL;
+        log("    released '" + key + "'; the client's reference is now stale");
+    }
+
     static Node parentOf(Node node, String key) {
         for (Node kid : node.kids) {
             if (kid.key.equals(key)) return node;
@@ -670,6 +719,7 @@ public final class AxProbe {
                 case "dump" -> dump(root, 0);
                 case "add" -> add(root, words[1], words[2]);
                 case "remove" -> remove(root, words[1]);
+                case "destroy" -> destroy(root, words[1]);
                 default -> log("!!! unknown command: " + command);
             }
         }

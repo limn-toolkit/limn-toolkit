@@ -1363,12 +1363,21 @@ element stays the same object across publishes. That map is UI-thread-confined a
 which is a simplification only this platform gets.
 
 **It releases on three occasions, and on none of them from inside a callback (§3.2).** On
-`NODE_DESTROYED`, posting
-`NSAccessibilityUIElementDestroyedNotification` first; on the reconciliation sweep that follows an
+`NODE_DESTROYED`; on the reconciliation sweep that follows an
 event-queue collapse, because a collapse is precisely the burst in which the per-node destructions
 were dropped; and on `attach` replacing a live host or `detach`, because a rebind invalidates every
-element at once and an earlier draft released nothing there at all (§1.10, §5.3). That release is the
-least-tested thing in this section (§13.20): the spike retained every object it made and freed none. A live LWJGL `Callback` pins
+element at once and an earlier draft released nothing there at all (§1.10, §5.3).
+
+**And it posts no destruction notification of its own, which is a correction the probe run forced.**
+Every earlier draft of this section said "post `NSAccessibilityUIElementDestroyedNotification`
+first, then release", by analogy with the other two platforms. The phase 7 probe measured that
+AppKit already posts it: with our own post suppressed, a client holding the element still received
+exactly one `AXUIElementDestroyed`, whether it had registered on the element, on the application
+element, or on both. With our post added the client received **one more per matching registration**
+— two notifications for one registration and three for two. So the explicit post is not the
+mechanism by which a client learns; it is a duplicate whose count depends on how the client
+registered. This is the same rule as the one two paragraphs down about window events, arrived at
+from the other end: what AppKit already says, we do not say again. A live LWJGL `Callback` pins
 its Java object through a JNI global reference until `free()`, which is the discipline
 `LwjglWindow#destroy` already applies to the preedit callback.
 
@@ -1522,7 +1531,7 @@ must **not** be sent: agreeing lets a peer send a message carrying a file descri
 | `BOUNDS_CHANGED` | `BoundingRectangle` property change, or one `LayoutInvalidated` in bulk | `Moved` / `Resized` on a window, `LayoutChanged` in bulk | `BoundsChanged` |
 | `WINDOW_OPENED` / `WINDOW_CLOSED` | `Window_WindowOpened` / `Window_WindowClosed` | `WindowCreated` / `UIElementDestroyed` | `Event.Window` `Create` / `Destroy` |
 | `WINDOW_ACTIVATED` / `WINDOW_DEACTIVATED` | focus change into the window | `MainWindowChanged`, `FocusedWindowChanged` | `Event.Window` `Activate` / `Deactivate` |
-| `NODE_DESTROYED` | element answers `UIA_E_ELEMENTNOTAVAILABLE` | `UIElementDestroyed`, then release | `Cache.RemoveAccessible` |
+| `NODE_DESTROYED` | element answers `UIA_E_ELEMENTNOTAVAILABLE` | **release, and post nothing** — AppKit posts `UIElementDestroyed` on its own (§13.20) | `Cache.RemoveAccessible` |
 | `ANNOUNCEMENT` | `UiaRaiseNotificationEvent` | `AnnouncementRequested` with a priority | `Event.Object` `Announcement` |
 
 The two blanks are the model being honest: nothing is invented to fill a cell.
@@ -3173,15 +3182,37 @@ kind of thing, a check that cannot fail for the defect it is aimed at. Item 27 i
 comes from the last review pass, which found the one case where §1.11's relation rule and §2.2's
 elision meet.
 
-20. **A macOS element has never been destroyed while a client held it.** The spike retained
+20. **~~A macOS element has never been destroyed while a client held it.~~ The destruction half is
+    closed; the reentrancy half is not.** The spike retained
     everything and released nothing, and calls this the obvious crash vector. §1.3's lifetime rule —
-    post `UIElementDestroyed`, then release — is the design's answer and is untested. The experiment
-    is the existing notification harness with an element removed from `accessibilityChildren` mid-run
-    while the notification client holds a reference, asserting that the observer sees the destruction
-    and that a later message to the stale element fails rather than crashing. The same run answers the
-    reentrancy rule from the other side: with the client holding an element, drive a change that makes
-    `republishNow()` run inside an AX callback and confirm that nothing is released under the caller
-    and that the deferred release arrives on the next frame (§3.2).
+    post `UIElementDestroyed`, then release — was the design's answer and it was untested.
+
+    **What the run showed.** A client found the deepest node by identifier, held it, registered an
+    `AXObserver`, and asked the provider to destroy it — writing the command itself, so the observer
+    was demonstrably registered before the destruction rather than probably. The observer saw the
+    destruction, a later `AXRole` read on the stale reference returned `-25202`
+    (`kAXErrorInvalidUIElement`) rather than crashing, and a re-walk no longer found the node. The
+    crash vector is real and the answer to it works.
+
+    **But half of §1.3's rule is wrong on this platform, and the control run is what showed it.**
+    Six runs, crossing our own post against which registration the client held:
+
+    | our post | registered on | `AXUIElementDestroyed` received |
+    | --- | --- | --- |
+    | yes | the element | 2 |
+    | yes | the application | 2 |
+    | yes | both | 3 |
+    | no | the element | 1 |
+    | no | the application | 1 |
+    | no | both | 1 |
+
+    AppKit posts the destruction itself, exactly once, however the client registered. Ours arrives
+    once **per matching registration** on top of that. So the bridge releases and says nothing, and
+    §2.2 and §2.4 now say so.
+
+    **The reentrancy half is still open**: with a client holding an element, drive a change that
+    makes `republishNow()` run inside an AX callback and confirm that nothing is released under the
+    caller and that the deferred release arrives on the next frame (§3.2).
 21. **A macOS tree has never been mutated, nor been more than one element deep.** Adding and removing
     children is the operation a screen reader's world is made of, and the spike's `AXChildren` array
     was set once and never touched. Two things ride on this. §5.3's per-frame publish is verified on

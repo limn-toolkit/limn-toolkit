@@ -54,6 +54,14 @@ for step in $STEP_LIST; do
             HIT_POINTS=(${=step#hit:})
             "$HERE/axtree" "$PID" 0 "${HIT_POINTS[@]}" | grep -E '^hitTest'
             ;;
+        life:*)
+            echo
+            echo "--- step $n: ${step} ---"
+            # The client writes the destroy command itself, so the observer is demonstrably
+            # registered before the destruction rather than probably.
+            LIFE_ARGS=(${=step#life:})
+            "$HERE/axlife" "$PID" "${LIFE_ARGS[1]}" "$CMD" 8 "${LIFE_ARGS[2]:-both}"
+            ;;
         cmd:*)
             echo
             echo "--- step $n: ${step#cmd:} ---"

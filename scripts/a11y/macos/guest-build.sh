@@ -10,7 +10,7 @@ FATJAR=${FATJAR:-/Users/activities/limn-a11y/limn-demo-all.jar}
 
 rm -rf "$HERE/classes"; mkdir -p "$HERE/classes"
 "$JAVA_HOME/bin/javac" --release 17 -Xlint:all -cp "$FATJAR" -d "$HERE/classes" "$HERE/AxProbe.java"
-for client in axtree; do
+for client in axtree axlife; do
     /usr/bin/swiftc -O -o "$HERE/$client" "$HERE/$client.swift"
 done
-echo "built: $HERE/classes/AxProbe.class $HERE/axtree"
+echo "built: $HERE/classes/AxProbe.class $HERE/axtree $HERE/axlife"
