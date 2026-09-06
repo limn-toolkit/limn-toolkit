@@ -1,89 +1,210 @@
 package limn.a11y.macos;
 
+import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
+import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
 
+import java.util.Locale;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The toolkit-facing half of the seam: what a bridge holds, and what a reentrant publish defers. */
+/**
+ * What the bridge assembles out of the pieces below it: the links it hands the platform, the boxes
+ * it converts, and what a publish decides to push.
+ *
+ * <p>The Objective-C calls are skipped on a machine with no AppKit, which is where these run — so
+ * what is asserted is the assembly and never the conversation with a reader. That conversation is
+ * the guest's to verify, and it is the one thing this phase still owes.
+ */
 class AxBridgeTest {
 
-    /** A host that records nothing and answers nothing: this half of the bridge never calls back. */
-    private static final class SilentHost implements AccessibilityBridge.Host {
-        @Override public void requestRepublish() { }
-        @Override public void requestRestamp() { }
-        @Override public AccessibleTree republishNow() { return AccessibleTree.EMPTY; }
-        @Override public boolean perform(long nodeId, Accessible.Action action, Accessible.Argument arg) {
-            return false;
+    /** A window with a group, and a button inside the group: three levels, which is the point. */
+    private static AccessibleTree aNestedWindow(int buttons) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(480, 320, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 20, 60, 200, 200);
+        a.role(Accessible.Role.GROUP);
+        a.name(I18nString.literal("A group"), Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, false, false);
+        for (int i = 0; i < buttons; i++) {
+            a.begin(1002 + i, 1, Locale.ENGLISH, 40, 96 + 40L * i, 160, 40);
+            a.role(Accessible.Role.BUTTON);
+            a.name(I18nString.literal("Button " + i), Accessible.NameFrom.CONTENT);
+            a.action(Accessible.Action.PRESS);
+            a.inherited(true, true, true, true, false);
+            a.end();
         }
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
     }
 
     @Test
-    void aBridgeWithNoHostHoldsTheEmptyTreeRatherThanNull() {
-        assertSame(AccessibleTree.EMPTY, new AxBridge().tree());
+    void aMachineWithNoAppKitGetsNoBridgeAtAll() {
+        assertSame(AccessibilityBridge.NONE, AxBridge.openIfEnabled(0),
+                "a zero window handle is refused even where the platform is present, because the "
+                        + "backend answers zero on a platform it has not been taught");
     }
 
     @Test
     void thisPlatformIsTheOneThatAsksForAPrimingPublish() {
-        // §2.2: the listening gate cannot open before the platform has elements to ask about, and
-        // it is the only platform where that is true. A false here silently costs the whole feature.
-        assertTrue(new AxBridge().needsPrimingPublish());
+        assertTrue(AxBridge.withoutThePlatform().needsPrimingPublish());
     }
 
     @Test
-    void attachReplacesTheHostRatherThanAccumulating() {
-        AxBridge bridge = new AxBridge();
-        SilentHost first = new SilentHost();
-        SilentHost second = new SilentHost();
-        bridge.attach(first);
-        assertSame(first, bridge.host());
-        bridge.attach(second);
-        assertSame(second, bridge.host(),
-                "a scene can be bound over a live window and the outgoing host never learns it was");
+    void nothingIsListeningUntilSomethingHasAsked() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        bridge.publish(aNestedWindow(2), false);
+        assertFalse(bridge.isListening(),
+                "there is no UiaClientsAreListening here; the gate is 'someone has asked'");
+        bridge.entered();
+        assertTrue(bridge.isListening());
     }
 
     @Test
-    void detachDropsTheHostAndTheTree() {
-        AxBridge bridge = new AxBridge();
-        bridge.attach(new SilentHost());
+    void theWindowRootIsNotVendedAndItsChildrenAreWhatGetsPushed() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(2);
+        bridge.publish(tree, false);
+        // One element, for the group. AppKit already vends the window, and a second one inside it
+        // would be announced twice with two sets of window actions (§2.2).
+        assertEquals(1, bridge.pushedElements().length);
+        assertEquals(1, bridge.elementCount(), "and only the pushed level is minted up front");
+    }
+
+    @Test
+    void aChildOfTheRootAnswersTheContentViewAsItsParent() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(1);
+        bridge.publish(tree, false);
+        // 0 is the content view here, which is what withoutThePlatform stands in with -- the point
+        // is that it is not an element of ours, because AppKit was handed the view and expects it.
+        assertEquals(0L, bridge.parentElementOf(tree.find(1001)));
+        assertEquals(bridge.pushedElements()[0], bridge.parentElementOf(tree.find(1002)),
+                "and a deeper node answers with its own parent's element");
+    }
+
+    @Test
+    void everythingBelowThePushedLevelIsMintedOnlyWhenAsked() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(2);
+        bridge.publish(tree, false);
+        assertEquals(1, bridge.elementCount());
+        long[] children = bridge.childElementsOf(tree.find(1001));
+        assertEquals(2, children.length);
+        assertEquals(3, bridge.elementCount(), "the pull is what mints them");
+        assertArrayEquals(children, bridge.childElementsOf(tree.find(1001)),
+                "and a second ask gets the same objects, so a client's reference stays valid");
+    }
+
+    @Test
+    void thePushedElementsHaveTheirBoxesAfterTheVeryFirstPublish() {
+        // The first live run of this bridge got the order wrong: frames were applied before the
+        // push, so on the priming publish there was nothing holding an element yet and every node
+        // reached the client as a zero-size rectangle at the origin. A walk reads that perfectly --
+        // names, roles and identifiers were all correct -- and a hit test cannot resolve it at all,
+        // which is why it took a client to see it (§13.21).
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(1);
+        bridge.publish(tree, false);
+        double[] box = bridge.lastFrameOf(1001);
+        assertNotNull(box, "the pushed level has no box, so it is a zero-size rectangle to a client");
+        assertTrue(box[2] > 0 && box[3] > 0, "a pushed element with no size cannot be hit-tested");
+    }
+
+    @Test
+    void anElementMintedByAPullGetsItsBoxAtOnceRatherThanNextFrame() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(1);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));
+        assertNotNull(bridge.lastFrameOf(1002),
+                "the moment a client asks for a node is the moment it reads it; a box that arrives "
+                        + "on the next frame arrives after the answer");
+    }
+
+    @Test
+    void aNodesBoxIsConvertedAgainstItsOwnParentAndNotTheScene() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(1);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));   // mint the button
+        bridge.publish(tree, false);               // and let the publish give it a box
+
+        // The group: 200x200 at (20,60) in a 480x320 scene, so 60 up from the view's bottom.
+        assertArrayEquals(new double[] { 20, 60, 200, 200 }, bridge.lastFrameOf(1001));
+        // The button: 160x40 at (40,96), inside a group whose bottom edge is at 260. 260-136 = 124.
+        // Against the SCENE it would be 320-136 = 184, which is the wrong answer a walk cannot see.
+        assertArrayEquals(new double[] { 20, 124, 160, 40 }, bridge.lastFrameOf(1002));
+    }
+
+    @Test
+    void theRootsChildrenArePushedAgainOnlyWhenTheyChange() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        bridge.publish(aNestedWindow(1), false);
+        assertEquals(1, bridge.pushes());
+        bridge.publish(aNestedWindow(1), false);
+        assertEquals(1, bridge.pushes(),
+                "an unchanged root costs no push; the array AppKit holds is still right");
+        bridge.publish(aNestedWindow(2), false);
+        assertEquals(1, bridge.pushes(),
+                "and a change BELOW the root costs no push either, because it is a pull");
+    }
+
+    @Test
+    void aReentrantPublishPushesNothingAtAll() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        bridge.publish(aNestedWindow(1), false);
+        int before = bridge.pushes();
+        bridge.publish(AccessibleTree.EMPTY, true);
+        assertEquals(before, bridge.pushes(),
+                "re-pushing from inside an AX callback replaces the array AppKit is walking (§3.2)");
+        assertTrue(bridge.obligationsDeferred());
+    }
+
+    @Test
+    void attachingOverALiveTreeInvalidatesEveryElement() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(2);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));
+        assertEquals(3, bridge.elementCount());
+        bridge.attach(null);
+        assertEquals(0, bridge.elementCount(),
+                "a rebind invalidates them all at once, and an earlier draft released none of them");
+        assertEquals(0, bridge.pushedElements().length, "so the next publish must push again");
+    }
+
+    @Test
+    void aMessageToAnElementWhoseNodeIsGoneAnswersNothingRatherThanFailing() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(1);
+        bridge.publish(tree, false);
+        long element = bridge.pushedElements()[0];
+        assertNotNull(bridge.nodeFor(element));
         bridge.publish(AccessibleTree.EMPTY, false);
-        bridge.detach();
-        assertNull(bridge.host());
-        assertSame(AccessibleTree.EMPTY, bridge.tree());
+        assertNull(bridge.nodeFor(element),
+                "a client using a reference it held across a destruction is not an error");
     }
 
     @Test
-    void aReentrantPublishStoresTheTreeAndDefersEverythingElse() {
-        AxBridge bridge = new AxBridge();
-        bridge.attach(new SilentHost());
-        assertFalse(bridge.obligationsDeferred());
-        bridge.publish(AccessibleTree.EMPTY, true);
-        assertTrue(bridge.obligationsDeferred(),
-                "a publish from inside an AX callback owes the next ordinary frame its registry work");
-    }
-
-    @Test
-    void theNextOrdinaryPublishClearsWhatAReentrantOneDeferred() {
-        AxBridge bridge = new AxBridge();
-        bridge.attach(new SilentHost());
-        bridge.publish(AccessibleTree.EMPTY, true);
-        bridge.publish(AccessibleTree.EMPTY, false);
-        assertFalse(bridge.obligationsDeferred(),
-                "the scene asks for a frame whenever a reentrant publish published anything, so the "
-                        + "deferred work has a frame to happen on and must not survive it");
-    }
-
-    @Test
-    void detachClearsADeferredObligationRatherThanLeavingItForATreeThatIsGone() {
-        AxBridge bridge = new AxBridge();
-        bridge.attach(new SilentHost());
-        bridge.publish(AccessibleTree.EMPTY, true);
-        bridge.detach();
-        assertFalse(bridge.obligationsDeferred());
+    void everyNodeInTheTreeIsCountedAsLiveForTheReconciliationSweep() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        bridge.publish(aNestedWindow(2), false);
+        assertEquals(4, bridge.liveNodeIds().size());
     }
 }

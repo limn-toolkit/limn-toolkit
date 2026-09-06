@@ -2,6 +2,7 @@ package limn.a11y.macos;
 
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.backend.AccessibilityBridge;
 import limn.backend.Backend;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
@@ -53,6 +54,10 @@ public final class LiveProbe {
         // to a software NSOpenGLContext -- a handful of frames a second, which is plenty for a
         // window whose job is to be looked at and read. Saying it here means a slow window is not
         // mistaken for a hung one.
+        // Its own pid, because `sudo launchctl asuser` puts a wrapper process in front of this one
+        // and a client pointed at the wrapper gets kAXErrorCannotComplete in a tenth of a
+        // millisecond -- which looks exactly like a bridge that is not answering.
+        System.out.println("pid=" + ProcessHandle.current().pid());
         System.out.println("If this window paints slowly, that is the backend's macOS software GL "
                 + "fallback and not a stall.");
 
@@ -67,11 +72,17 @@ public final class LiveProbe {
             long nsWindow = window.nativeHandle();
             System.out.println("NSWindow: 0x" + Long.toHexString(nsWindow)
                     + (nsWindow == 0 ? "   !!! zero: the backend has not been taught this platform" : ""));
-            AxBridge bridge = new AxBridge();
+            AccessibilityBridge bridge = AxBridge.openIfEnabled(nsWindow);
+            // Kept typed as well, because the probe prints what the bridge is holding and the two
+            // questions a run must separate are "does the scene describe what it painted" and
+            // "does the platform reach what the bridge vends".
+            AxBridge ax = bridge instanceof AxBridge opened ? opened : null;
             window.setAccessibility(bridge);
             System.out.println("bridge: " + bridge.getClass().getSimpleName()
                     + "  listening=" + bridge.isListening()
-                    + "  needsPrimingPublish=" + bridge.needsPrimingPublish());
+                    + "  needsPrimingPublish=" + bridge.needsPrimingPublish()
+                    + (bridge == AccessibilityBridge.NONE
+                       ? "   !!! NONE: AppKit was not reachable, so nothing will be read" : ""));
 
             Column root = new Column();
             root.add(new Label("Limn accessibility probe"));
@@ -109,7 +120,13 @@ public final class LiveProbe {
                 // contract that call names. It is here because the listening gate is shut until
                 // the elements land, so the priming publish would otherwise be the only tree there
                 // ever is.
-                dump(bridge.host() == null ? AccessibleTree.EMPTY : bridge.host().republishNow());
+                if (ax != null) {
+                    dump(ax.tree());
+                    System.out.println("    listening=" + ax.isListening()
+                            + " elements=" + ax.elementCount()
+                            + " pushed=" + ax.pushedElements().length
+                            + " pushes=" + ax.pushes());
+                }
                 System.out.flush();
                 if (step[0] < 24) {
                     Ui.postDelayed(tick[0], 6_000);

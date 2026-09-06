@@ -1,91 +1,284 @@
 package limn.a11y.macos;
 
 import limn.accessibility.AccessibleEvent;
+import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
+import limn.graphics.Rect;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * The NSAccessibility bridge: what a macOS window gives a Limn scene so that VoiceOver can read it.
  *
- * <p><b>What exists here so far is the half that has no Objective-C in it</b> — the host, the
- * published snapshot, and the reentrancy bookkeeping §3.2 turns on. The element registry, the push
- * onto the content view, the attribute implementations and the notifications are the platform half
- * and land on top of this. {@link #isListening()} therefore answers {@code false} and this bridge
- * currently vends nothing; that is stated rather than hidden, because a bridge that claimed to be
- * listening while vending nothing would make a scene pay for a walk on every frame and hand the
- * result to no one.
+ * <p><b>The top of the tree is pushed and everything below it is pulled.</b> On the scene's first
+ * frame the root's children are handed to the content view with {@code setAccessibilityChildren:},
+ * which is enough to place them under the window a reader walks; every level below that is answered
+ * by {@link AxElementClass}'s own {@code accessibilityChildren}, and the first such call is the
+ * listening gate. The pushed array is a snapshot AppKit holds and nothing re-derives, so it is
+ * pushed again whenever the root's children change — the phase 7 probe run measured that without
+ * that re-push a modal opening into the scene is invisible to an attached client, which is the one
+ * change a reader's user most needs to be told about (§13.21).
  *
- * <p><b>The one rule to read before changing anything here.</b> On this platform every accessibility
- * callback arrives on the user-interface thread, inside the event pump (Finding 4). That is what
- * lets the registry be a plain map with a thread assertion instead of the concurrent structures
- * Windows needed — and it is exactly why reentrancy is the trap rather than a corner case. When the
- * platform asks a question that cannot wait for a frame, the scene rebuilds and publishes from
- * inside that callback, with AppKit standing on objects this bridge vended. A publish in that state
- * <b>releases nothing, re-pushes nothing and drains nothing</b> (§3.2): each of those would act on
- * the objects the caller is holding, and on macOS the consequence is a crash rather than a stale
- * reading. Everything deferred is owed by the next ordinary frame, which the scene has already asked
- * for.
+ * <p><b>The window root is not vended at all.</b> AppKit already offers the window, with its title,
+ * its close and zoom buttons and an {@code AXRaise}; hanging ours off the content view would put a
+ * window inside a window and VoiceOver would announce it twice (§2.2).
+ *
+ * <p><b>The rule that crashes rather than degrades.</b> Every accessibility callback here arrives on
+ * the user-interface thread inside the event pump (Finding 4), which is what lets the registry be a
+ * plain map — and is exactly why reentrancy is the trap. When the platform asks something that
+ * cannot wait for a frame, the scene rebuilds and publishes from inside that callback with AppKit
+ * standing on objects this bridge vended. Such a publish <b>releases nothing, re-pushes nothing and
+ * drains nothing</b> (§3.2): each would act on what the caller is holding. What it defers is owed to
+ * the next ordinary frame, which the scene has already asked for.
  */
-public final class AxBridge implements AccessibilityBridge {
+public final class AxBridge implements AccessibilityBridge, AxElementClass.Source {
+
+    /**
+     * Opens a bridge for a window, or answers {@link AccessibilityBridge#NONE} where AppKit is not
+     * the windowing system.
+     *
+     * @param nsWindow the window's own handle, from {@code NativeWindow#nativeHandle()}
+     * @return a bridge, or {@code NONE} — never null, so a caller never branches on this
+     */
+    public static AccessibilityBridge openIfEnabled(long nsWindow) {
+        if (nsWindow == 0) return NONE;
+        AxObjC objc = AxObjC.openOrNull();
+        if (objc == null) return NONE;
+        long contentView = objc.msg(nsWindow, "contentView");
+        if (contentView == 0) return NONE;
+        return new AxBridge(objc, contentView);
+    }
+
+    private final AxObjC objc;
+    private final long contentView;
+    private final AxElementClass elementClass;
+    private final AxElements elements;
+    /** element pointer to node id: the recovery every implementation starts with. */
+    private final Map<Long, Long> nodeIdByElement = new HashMap<>();
 
     private Host host;
     private AccessibleTree tree = AccessibleTree.EMPTY;
+    private boolean listening;
+    private boolean obligationsDeferred;
+    private long[] pushed = new long[0];
+    /** How many times the root's children have been handed to the content view. For tests. */
+    private int pushes;
+    /** The last parent-space box computed for each held node. For tests. */
+    private final Map<Long, double[]> lastFrames = new HashMap<>();
+
+    private AxBridge(AxObjC objc, long contentView) {
+        this.objc = objc;
+        this.contentView = contentView;
+        // One class per bridge, named per instance: objc_allocateClassPair refuses a name already
+        // registered, and a process can open several windows.
+        this.elementClass = objc == null ? null : new AxElementClass(objc, this,
+                "LimnAccessibleElement_" + Long.toHexString(contentView));
+        this.elements = new AxElements(Thread.currentThread(), new AxElements.Factory() {
+            private long synthetic = 0x1000;
+
+            @Override public long newElement(long nodeId) {
+                // Off AppKit there is no object to make, and a distinct number stands in for one:
+                // everything above the platform calls -- the registry, the links, the push
+                // comparison -- is bookkeeping over pointers it never dereferences.
+                long element = elementClass == null ? (synthetic += 0x10) : elementClass.newInstance();
+                nodeIdByElement.put(element, nodeId);
+                // Its box, now rather than on the next publish. An element minted by a client's
+                // pull would otherwise be a zero-size rectangle for as long as it took the next
+                // frame to arrive, and the client asking is precisely the moment it is read.
+                applyFrame(nodeId, element);
+                return element;
+            }
+
+            @Override public void release(long element) {
+                nodeIdByElement.remove(element);
+                if (objc != null) objc.msg(element, "release");
+            }
+        });
+    }
 
     /**
-     * Whether an obligation was deferred by a reentrant publish and is owed to the next ordinary
-     * one. Read and written only on the user-interface thread, which on this platform is every
-     * thread this class is ever touched from.
+     * The same bridge without the platform, so that everything above the Objective-C calls can be
+     * exercised on a machine that has no AppKit — which is most of them, and is where this module's
+     * tests run.
+     *
+     * <p>Package-private, and not a way to install a bridge anywhere: what it serves is elements
+     * that are numbers, under a content view that does not exist.
+     *
+     * @return a bridge whose platform calls are all skipped
      */
-    private boolean obligationsDeferred;
+    static AxBridge withoutThePlatform() {
+        return new AxBridge(null, 0);
+    }
 
     @Override
     public boolean isListening() {
-        // Not yet: nothing of ours has been handed to the platform, so nothing of ours can have
-        // been asked. §6's honest gate on macOS is "someone has asked", and it opens in the
-        // increment that adds the elements to ask about.
-        return false;
+        // §6's honest gate here is "someone has asked", because there is no
+        // UiaClientsAreListening on this platform and no registry to consult. It cannot open before
+        // the platform has been handed elements to ask about, which is what needsPrimingPublish is.
+        return listening;
     }
 
     @Override
     public boolean needsPrimingPublish() {
-        // True, and macOS is the only platform where it is. The gate above cannot open until the
-        // platform has been handed elements to ask about, which needs a published tree, which the
-        // gate would otherwise be holding shut -- a cycle that never starts (§2.2). It is cut here,
-        // at the cost of one tree walk per window on its first frame, for a window an assistive
-        // technology may never touch.
         return true;
     }
 
     @Override
     public void publish(AccessibleTree published, boolean reentrant) {
-        // The store is the whole of a reentrant publish. Everything else this method will grow --
-        // releasing destroyed elements, re-pushing the root's children, draining the event queue --
-        // is precisely what §3.2 forbids while the platform is on the stack.
         tree = published;
         if (reentrant) {
+            // The store is the whole of it. Releasing, re-pushing or draining here would act on the
+            // objects AppKit is standing on, and on this platform that is a crash rather than a
+            // stale reading.
             obligationsDeferred = true;
             return;
         }
         obligationsDeferred = false;
+        // The push before the frames, because the push is what mints the root's children and a
+        // node with no element has no box to set. The first run of this had them the other way
+        // round and every element arrived as a zero-size rectangle at the origin -- which a walk
+        // reads perfectly and a hit test cannot resolve at all, so it is exactly the defect §13.21
+        // says only a live client finds.
+        repushRootIfChanged();
+        refreshFrames();
     }
 
     @Override
     public void emit(AccessibleEvent event) {
         // Enqueue, never raise: a diff between two frames of a scrolling list can be hundreds of
-        // nodes wide and every raise is a cross-process call. The queue and its collapse arrive
-        // with the notifications; until then there is nothing to raise them to.
+        // nodes wide and every raise is a cross-process call. The queue and its per-frame budget
+        // are the next increment; nothing is dropped silently in the meantime because nothing is
+        // yet promised.
     }
 
     @Override
     public void attach(Host newHost) {
+        // A scene can be bound over a live window and the outgoing host never learns it was, so the
+        // bridge is the only object that knows there was a tree to close. Every element is
+        // invalidated at once; an earlier draft released nothing here at all (§1.10, §5.3).
+        elements.empty();
+        pushed = new long[0];
+        tree = AccessibleTree.EMPTY;
+        obligationsDeferred = false;
         host = newHost;
     }
 
     @Override
     public void detach() {
+        elements.empty();
+        pushed = new long[0];
+        if (objc != null) objc.msgVoid(contentView, "setAccessibilityChildren:", 0);
         host = null;
         tree = AccessibleTree.EMPTY;
         obligationsDeferred = false;
+        listening = false;
+        if (elementClass != null) elementClass.free();
+    }
+
+    // ---- what an implementation asks ------------------------------------------------------------
+
+    @Override
+    public void entered() {
+        listening = true;
+    }
+
+    @Override
+    public AccessibleNode nodeFor(long element) {
+        Long nodeId = nodeIdByElement.get(element);
+        if (nodeId == null) return null;
+        return tree.find(nodeId);
+    }
+
+    @Override
+    public long[] childElementsOf(AccessibleNode node) {
+        int index = tree.indexOf(node.id());
+        if (index < 0) return new long[0];
+        List<Long> children = new ArrayList<>();
+        for (int child = tree.node(index).firstChild(); child != AccessibleNode.NONE;
+                child = tree.node(child).nextSibling()) {
+            children.add(elements.elementFor(tree.node(child).id()));
+        }
+        long[] answer = new long[children.size()];
+        for (int i = 0; i < answer.length; i++) answer[i] = children.get(i);
+        return answer;
+    }
+
+    @Override
+    public long parentElementOf(AccessibleNode node) {
+        int index = tree.indexOf(node.id());
+        if (index < 0) return contentView;
+        int parent = tree.node(index).parent();
+        // A child of the elided window root answers with the content view, because that is the
+        // object AppKit was handed and the one it expects to get back.
+        if (parent == AccessibleNode.NONE || parent == 0) return contentView;
+        return elements.elementFor(tree.node(parent).id());
+    }
+
+    // ---- the publish path ------------------------------------------------------------------------
+
+    /**
+     * Re-states every held element's box.
+     *
+     * <p>The frame is pushed rather than pulled, which is the one attribute that is. AppKit stores
+     * what {@code setAccessibilityFrameInParentSpace:} is given, so a box that moved has to be
+     * given again; the alternative is a libffi closure returning a struct by value, which buys
+     * nothing here because the set of elements to touch is only what a client has already asked
+     * about.
+     *
+     * <p>Parent space is the <b>parent element's</b> space, with y measured up from its bottom —
+     * measured through three levels in the phase 7 probe run, and not the content view's space,
+     * which §2.2 said until that run.
+     */
+    private void refreshFrames() {
+        for (int index = 1; index < tree.nodeCount(); index++) {
+            AccessibleNode node = tree.node(index);
+            if (!elements.holds(node.id())) continue;
+            applyFrame(node.id(), elements.elementFor(node.id()));
+        }
+    }
+
+    /**
+     * Gives one element its box in its parent's space.
+     *
+     * <p>Parent space is the <b>parent element's</b> space, with y measured up from that parent's
+     * bottom edge — measured through three levels in the phase 7 probe run, and not the content
+     * view's space, which §2.2 said until that run. A child of the elided window root is measured
+     * against the whole scene, because the content view is what it hangs from.
+     */
+    private void applyFrame(long nodeId, long element) {
+        int index = tree.indexOf(nodeId);
+        if (index <= 0) return;
+        AccessibleNode node = tree.node(index);
+        int parent = node.parent();
+        Rect parentBounds = parent == AccessibleNode.NONE
+                ? new Rect(0, 0, tree.sceneWidth(), tree.sceneHeight())
+                : tree.node(parent).bounds();
+        double[] parentSpace = AxFrames.inParentSpace(node.bounds(), parentBounds);
+        if (objc != null) {
+            objc.msgRect(element, "setAccessibilityFrameInParentSpace:", parentSpace);
+        }
+        lastFrames.put(nodeId, parentSpace);
+    }
+
+    /** §2.2's re-push: the root's children onto the content view, and only when they changed. */
+    private void repushRootIfChanged() {
+        if (tree.nodeCount() == 0) return;
+        long[] now = childElementsOf(tree.root());
+        if (Arrays.equals(now, pushed)) return;
+        if (objc != null) {
+            long array = objc.mutableArray();
+            for (long element : now) objc.addObject(array, element);
+            objc.msgVoid(contentView, "setAccessibilityChildren:", array);
+        }
+        pushed = now;
+        pushes++;
     }
 
     /** @return the snapshot every platform answer is read from; never {@code null}. */
@@ -93,7 +286,7 @@ public final class AxBridge implements AccessibilityBridge {
         return tree;
     }
 
-    /** @return what the scene answers with, or {@code null} between a {@link #detach()} and an attach. */
+    /** @return what the scene answers with, or {@code null} between a detach and an attach. */
     Host host() {
         return host;
     }
@@ -101,5 +294,32 @@ public final class AxBridge implements AccessibilityBridge {
     /** @return whether a reentrant publish left work for the next ordinary frame. */
     boolean obligationsDeferred() {
         return obligationsDeferred;
+    }
+
+    /** @return how many times the root's children have been pushed onto the content view. */
+    int pushes() {
+        return pushes;
+    }
+
+    /** @return the elements last pushed, in order. */
+    long[] pushedElements() {
+        return pushed.clone();
+    }
+
+    /** @return the parent-space box last computed for a node, or {@code null}. */
+    double[] lastFrameOf(long nodeId) {
+        return lastFrames.get(nodeId);
+    }
+
+    /** @return how many elements are alive. */
+    int elementCount() {
+        return elements.size();
+    }
+
+    /** @return the node identifiers currently alive in the tree, for the reconciliation sweep. */
+    Set<Long> liveNodeIds() {
+        Set<Long> live = new HashSet<>();
+        for (int i = 0; i < tree.nodeCount(); i++) live.add(tree.node(i).id());
+        return live;
     }
 }

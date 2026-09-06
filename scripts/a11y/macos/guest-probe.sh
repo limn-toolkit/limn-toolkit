@@ -25,7 +25,10 @@ for i in {1..${1:-90}}; do
     grep -q 'bridge:' "$LOG" 2>/dev/null && break
     sleep 1
 done
-PID=$(pgrep -f 'limn-a11y-macos-probe.jar' | head -1)
+# From the probe's own log, never from pgrep: `sudo launchctl asuser` leaves a wrapper process
+# matching the same command line, and a client pointed at the wrapper is refused in a tenth of a
+# millisecond -- which reads exactly like a bridge that is not answering.
+PID=$(grep -m1 '^pid=' "$LOG" | cut -d= -f2)
 echo "=== LiveProbe pid=${PID:-none} ==="
 cat "$LOG"
 echo "(still running; log at $LOG)"
