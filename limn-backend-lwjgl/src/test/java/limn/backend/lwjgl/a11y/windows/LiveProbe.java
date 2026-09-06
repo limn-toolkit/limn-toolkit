@@ -55,8 +55,9 @@ public final class LiveProbe {
             // comes back.
             long hwnd = window.nativeHandle();
             System.out.println("hwnd: " + Long.toHexString(hwnd));
-            AccessibilityBridge bridge = UiaBridge.openIfEnabled(hwnd);
-            window.setAccessibility(bridge);
+            // Not installed here any more: the backend opens the platform's bridge on the first
+            // ask, so this probe exercises the same path an application does.
+            AccessibilityBridge bridge = window.accessibility();
             System.out.println("bridge: " + bridge.getClass().getSimpleName()
                     + "  listening=" + bridge.isListening());
 

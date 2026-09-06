@@ -84,12 +84,14 @@ public final class LiveProbe {
             long nsWindow = window.nativeHandle();
             System.out.println("NSWindow: 0x" + Long.toHexString(nsWindow)
                     + (nsWindow == 0 ? "   !!! zero: the backend has not been taught this platform" : ""));
-            AccessibilityBridge bridge = AxBridge.openIfEnabled(nsWindow);
+            // Not installed here any more: the backend opens the platform's bridge on the first
+            // ask, so this probe exercises the same path an application does rather than a shortcut
+            // only a probe knows about.
+            AccessibilityBridge bridge = window.accessibility();
             // Kept typed as well, because the probe prints what the bridge is holding and the two
             // questions a run must separate are "does the scene describe what it painted" and
             // "does the platform reach what the bridge vends".
             AxBridge ax = bridge instanceof AxBridge opened ? opened : null;
-            window.setAccessibility(bridge);
             System.out.println("bridge: " + bridge.getClass().getSimpleName()
                     + "  listening=" + bridge.isListening()
                     + "  needsPrimingPublish=" + bridge.needsPrimingPublish()

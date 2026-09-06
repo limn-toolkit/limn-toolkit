@@ -127,7 +127,12 @@ final class LwjglWindow implements NativeWindow {
     private final long handle;
 
     /** The accessibility bridge an application handed this window, or none. */
-    private limn.backend.AccessibilityBridge accessibility = limn.backend.AccessibilityBridge.NONE;
+    /**
+     * Null until something asks, and then whatever this platform has — or the one an application
+     * installed instead. Not initialised to NONE: that would be indistinguishable from "asked, and
+     * this machine has none", and the difference is a platform gate that has or has not been read.
+     */
+    private limn.backend.AccessibilityBridge accessibility;
     // The hand-built macOS software-renderer context, or NULL on every normal
     // window (which is every window on every other platform, and nearly all of
     // them on macOS). Non-NULL means GLFW owns no context for this window, so
@@ -444,17 +449,35 @@ final class LwjglWindow implements NativeWindow {
     /**
      * {@inheritDoc}
      *
-     * <p>Kept and handed to a scene when one binds here. The bridge is the application's choice —
-     * this backend links no accessibility module and knows none by name, which is what lets the
-     * per-platform ones be artifacts an application adds or does not.
+     * <p>Kept and handed to a scene when one binds here, in place of the one this backend would
+     * have chosen. An application needs this only to install a bridge of its own or to refuse the
+     * platform's with {@link limn.backend.AccessibilityBridge#NONE}; the ordinary case is answered
+     * by {@link #accessibility()} without anyone asking.
      */
     @Override
     public void setAccessibility(limn.backend.AccessibilityBridge bridge) {
         this.accessibility = java.util.Objects.requireNonNull(bridge, "bridge");
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p><b>Opened here, on the first ask, rather than by the application.</b> The platform bridges
+     * live in this backend now, so there is nothing for an application to add and nothing for it to
+     * forget: a scene binding to this window gets whatever this machine has. Phase 6 found the
+     * failure this closes — a window could be asked what its accessibility was and had no way to be
+     * told, so an application could ship the right artifact and never connect it, with no symptom
+     * but silence.
+     *
+     * <p>On the first ask and not in the constructor, because the gate each platform reads is the
+     * cheapest thing it does and still not free, and a window nothing ever binds to should pay for
+     * nothing. After that it is a field.
+     */
     @Override
     public limn.backend.AccessibilityBridge accessibility() {
+        if (accessibility == null) {
+            accessibility = limn.backend.lwjgl.a11y.Bridges.openFor(nativeHandle(), title);
+        }
         return accessibility;
     }
 
