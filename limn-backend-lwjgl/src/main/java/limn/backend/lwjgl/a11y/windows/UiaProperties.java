@@ -2,6 +2,7 @@ package limn.backend.lwjgl.a11y.windows;
 
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
+import limn.accessibility.RoleNames;
 
 /**
  * What one node answers to {@code IRawElementProviderSimple::GetPropertyValue}.
@@ -44,6 +45,18 @@ final class UiaProperties {
         switch (propertyId) {
             case UiaIds.CONTROL_TYPE:
                 return UiaRoles.of(node.role());
+
+            case UiaIds.LOCALIZED_CONTROL_TYPE: {
+                // Only for the eight roles UI Automation has no word for. Every other role gets the
+                // platform's own phrase, already localized and already what every other application
+                // on the machine says -- and answering here would replace it with ours for no gain.
+                // Microsoft's guidance makes it REQUIRED for Custom, which is where three of the
+                // eight are: "custom" is not a word worth speaking.
+                // Under the node's own locale, not the process's: a dialog in another language
+                // names its own controls in that language (§1.7).
+                return UiaRoles.speaksOurOwnPhrase(node.role())
+                        ? RoleNames.of(node.role(), node.locale()) : null;
+            }
 
             // Both true for every published node, on purpose. They are how UI Automation builds
             // its control view and its content view, and a provider that leaves them empty is

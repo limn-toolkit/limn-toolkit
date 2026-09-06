@@ -2,6 +2,7 @@ package limn.backend.lwjgl.a11y.macos;
 
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
+import limn.accessibility.RoleNames;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Callback;
 import org.lwjgl.system.CallbackI;
@@ -151,6 +152,13 @@ final class AxElementClass {
                         ? objc.string(node.name()) : NULL));
         addId("accessibilityHelp", get(node ->
                 node.description().isEmpty() ? NULL : objc.string(node.description())));
+
+        // Every role, not only the ones AppKit has no word for. NSAccessibilityRoleDescription()
+        // localizes against the CALLING process's bundle and a JVM has none, so deferring to AppKit
+        // means English on every non-English desktop -- measured on a wholly pt-BR guest, where
+        // VoiceOver said "checkbox" and "slider" in English inside its own Portuguese sentences.
+        addId("accessibilityRoleDescription", get(node ->
+                objc.string(RoleNames.of(node.role(), node.locale()))));
 
         addId("accessibilityValue", get(this::valueOf));
         addId("accessibilityIdentifier", get(node -> objc.string(Long.toString(node.id()))));

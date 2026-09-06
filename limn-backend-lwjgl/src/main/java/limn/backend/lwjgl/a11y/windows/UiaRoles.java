@@ -41,23 +41,25 @@ final class UiaRoles {
             new EnumMap<>(Accessible.Role.class);
 
     /**
-     * The roles whose platform word is absent or wrong, each mapped to the key of the phrase this
-     * bridge speaks instead.
+     * The roles whose platform word is absent or wrong, and for which this bridge speaks its own.
      *
-     * <p>The key and not the phrase: {@code LocalizedControlType} is spoken to the user, so it
-     * resolves under the node's own locale at the moment the property is asked for, in the step
-     * that answers it. Naming it here and resolving it there is what keeps this file a table.
+     * <p><b>A set and not a table of phrases.</b> The phrases live in {@code RoleNames}, in the
+     * core, where all three bridges reach them and where their translations are; this file's job is
+     * the choice — which roles UI Automation cannot name — and that choice is this platform's
+     * alone. It used to hold the English words too, which meant the same eight nouns existed in two
+     * places and could disagree.
      */
-    private static final Map<Accessible.Role, String> LOCALIZED =
-            new EnumMap<>(Accessible.Role.class);
+    private static final Set<Accessible.Role> SPEAKS_OUR_OWN_PHRASE =
+            EnumSet.noneOf(Accessible.Role.class);
 
     private static void map(Accessible.Role role, int controlType) {
         TYPE.put(role, controlType);
     }
 
-    private static void map(Accessible.Role role, int controlType, String localizedTypeKey) {
+    /** Maps a role, and records that UI Automation has no word for it worth speaking. */
+    private static void mapAndSayOurOwn(Accessible.Role role, int controlType) {
         TYPE.put(role, controlType);
-        LOCALIZED.put(role, localizedTypeKey);
+        SPEAKS_OUR_OWN_PHRASE.add(role);
     }
 
     static {
@@ -74,7 +76,7 @@ final class UiaRoles {
         // The same shape for an alert: UI Automation has no alert control type at all, and a
         // client learns "this is a thing to read now" from IsDialog plus the notification event
         // rather than from the type. The word is ours because the platform has none.
-        map(Accessible.Role.ALERT, UiaIds.CONTROL_PANE, "alert");
+        mapAndSayOurOwn(Accessible.Role.ALERT, UiaIds.CONTROL_PANE);
 
         map(Accessible.Role.GROUP, UiaIds.CONTROL_GROUP);
         // Pane and not Group: a scroll pane is a viewport with a Scroll pattern, and Group is
@@ -85,7 +87,7 @@ final class UiaRoles {
         // Thumb is the platform's word for the part of a control a user drags, which is exactly
         // what a splitter is; but a client speaking "thumb" after the splitter's name would be
         // describing scroll-bar furniture, so the phrase is ours.
-        map(Accessible.Role.SPLITTER, UiaIds.CONTROL_THUMB, "splitter");
+        mapAndSayOurOwn(Accessible.Role.SPLITTER, UiaIds.CONTROL_THUMB);
 
         map(Accessible.Role.TOOL_BAR, UiaIds.CONTROL_TOOL_BAR);
         map(Accessible.Role.MENU_BAR, UiaIds.CONTROL_MENU_BAR);
@@ -100,11 +102,11 @@ final class UiaRoles {
         map(Accessible.Role.BUTTON, UiaIds.CONTROL_BUTTON);
         // UI Automation has no toggle-button type. Button plus a Toggle pattern is the shape every
         // Windows application uses for one, and the phrase says which kind of button it is.
-        map(Accessible.Role.TOGGLE_BUTTON, UiaIds.CONTROL_BUTTON, "toggle button");
+        mapAndSayOurOwn(Accessible.Role.TOGGLE_BUTTON, UiaIds.CONTROL_BUTTON);
         map(Accessible.Role.CHECK_BOX, UiaIds.CONTROL_CHECK_BOX);
         // §1.12's case: the platform has no switch, and CheckBox plus a phrase is what it takes.
         // Collapsing this into CHECK_BOX would lose the distinction on all three platforms at once.
-        map(Accessible.Role.SWITCH, UiaIds.CONTROL_CHECK_BOX, "switch");
+        mapAndSayOurOwn(Accessible.Role.SWITCH, UiaIds.CONTROL_CHECK_BOX);
         map(Accessible.Role.RADIO_BUTTON, UiaIds.CONTROL_RADIO_BUTTON);
         // Group and not List: the members are radio buttons with a SelectionItem pattern each, and
         // a List would make a client offer list navigation over controls that are not list items.
@@ -117,12 +119,12 @@ final class UiaRoles {
         map(Accessible.Role.IMAGE, UiaIds.CONTROL_IMAGE);
         // No video control type. Pane rather than Image, because a client that treats it as an
         // image will try to describe a still that does not exist; the phrase carries the fact.
-        map(Accessible.Role.VIDEO, UiaIds.CONTROL_PANE, "video");
+        mapAndSayOurOwn(Accessible.Role.VIDEO, UiaIds.CONTROL_PANE);
         // Custom is the platform's own answer for "a control that matches nothing here", and it is
         // the one control type whose guidance says a localized phrase is required rather than
         // optional: "custom" is not a word worth speaking.
-        map(Accessible.Role.CANVAS, UiaIds.CONTROL_CUSTOM, "drawing");
-        map(Accessible.Role.CHART, UiaIds.CONTROL_CUSTOM, "chart");
+        mapAndSayOurOwn(Accessible.Role.CANVAS, UiaIds.CONTROL_CUSTOM);
+        mapAndSayOurOwn(Accessible.Role.CHART, UiaIds.CONTROL_CUSTOM);
         // A series is a labelled cluster of the chart's own points, which is what Group means.
         map(Accessible.Role.CHART_SERIES, UiaIds.CONTROL_GROUP);
 
@@ -136,7 +138,7 @@ final class UiaRoles {
         map(Accessible.Role.TEXT_FIELD, UiaIds.CONTROL_EDIT);
         map(Accessible.Role.TEXT_AREA, UiaIds.CONTROL_EDIT);
         map(Accessible.Role.PASSWORD_FIELD, UiaIds.CONTROL_EDIT);
-        map(Accessible.Role.SEARCH_FIELD, UiaIds.CONTROL_EDIT, "search field");
+        mapAndSayOurOwn(Accessible.Role.SEARCH_FIELD, UiaIds.CONTROL_EDIT);
 
         map(Accessible.Role.COMBO_BOX, UiaIds.CONTROL_COMBO_BOX);
         map(Accessible.Role.LIST, UiaIds.CONTROL_LIST);
@@ -176,12 +178,18 @@ final class UiaRoles {
      * @return the key of the phrase to answer {@code LocalizedControlType} with, or {@code null}
      *         where the platform's own word for the control type is the right one
      */
-    static String localizedTypeKey(Accessible.Role role) {
-        return LOCALIZED.get(role);
+    /**
+     * @param role a role
+     * @return whether this bridge speaks its own phrase for it, because UI Automation's word is
+     *         absent or wrong. A role not in this set takes the platform's word and says nothing
+     *         extra, which is what makes a reader sound like every other application on the machine
+     */
+    static boolean speaksOurOwnPhrase(Accessible.Role role) {
+        return SPEAKS_OUR_OWN_PHRASE.contains(role);
     }
 
     /** @return every role that answers {@code LocalizedControlType} with a phrase of its own */
     static Set<Accessible.Role> rolesWithAPhraseOfTheirOwn() {
-        return EnumSet.copyOf(LOCALIZED.keySet());
+        return EnumSet.copyOf(SPEAKS_OUR_OWN_PHRASE);
     }
 }

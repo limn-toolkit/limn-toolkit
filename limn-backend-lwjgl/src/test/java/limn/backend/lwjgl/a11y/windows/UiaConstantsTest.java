@@ -1,6 +1,7 @@
 package limn.backend.lwjgl.a11y.windows;
 
 import limn.accessibility.Accessible;
+import limn.accessibility.RoleNames;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
@@ -9,6 +10,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -103,7 +105,7 @@ class UiaConstantsTest {
     void aRoleWithThePlatformsOwnWordSaysNothingExtra() {
         for (Accessible.Role role : new Accessible.Role[] {Accessible.Role.BUTTON,
                 Accessible.Role.CHECK_BOX, Accessible.Role.SLIDER, Accessible.Role.MENU_ITEM}) {
-            assertNull(UiaRoles.localizedTypeKey(role),
+            assertFalse(UiaRoles.speaksOurOwnPhrase(role),
                     role + " speaks a phrase of ours over a control type the platform has its own "
                             + "word for, and the platform's word is what makes a reader sound "
                             + "like every other application on the machine");
@@ -143,14 +145,18 @@ class UiaConstantsTest {
     }
 
     @Test
-    void everyPhraseKeyIsNonEmptyAndDistinct() {
-        Set<String> keys = new TreeSet<>();
+    void everyPhraseIsNonEmptyAndDistinct() {
+        // The phrases live in the core catalogue now, shared with the macOS bridge, so what this
+        // checks is that the roles THIS platform chose to speak for itself have phrases there and
+        // that no two of them say the same word -- which would describe two different controls
+        // identically to a reader.
+        Set<String> phrases = new TreeSet<>();
         for (Accessible.Role role : UiaRoles.rolesWithAPhraseOfTheirOwn()) {
-            String key = UiaRoles.localizedTypeKey(role);
-            assertNotNull(key, role.name());
-            assertTrue(!key.isBlank(), role + " has a blank phrase key");
-            assertTrue(keys.add(key),
-                    role + " reuses the phrase \"" + key + "\", which would speak two different "
+            String phrase = RoleNames.englishOf(role);
+            assertNotNull(phrase, role.name());
+            assertTrue(!phrase.isBlank(), role + " has a blank phrase");
+            assertTrue(phrases.add(phrase),
+                    role + " reuses the phrase \"" + phrase + "\", which would speak two different "
                             + "controls the same way");
         }
     }

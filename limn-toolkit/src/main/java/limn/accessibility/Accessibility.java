@@ -47,6 +47,16 @@ import java.util.function.ToLongFunction;
  */
 public final class Accessibility {
 
+    static {
+        // The role-name catalogue registers a bundle when it is initialised, and registering one
+        // prepares its tables on the thread that asks -- which I18n requires to be the
+        // user-interface thread. A bridge is the wrong first toucher: two of the three answer a
+        // platform's questions from the platform's own threads, and one of those loading the
+        // catalogue would throw inside a native callback. The walk is user-interface-thread by
+        // construction, so it is where the class is forced to load.
+        RoleNames.ensureRegistered();
+    }
+
     /**
      * How many differing nodes a single publish reports individually before the difference stops
      * being a list of events and becomes "everything changed".

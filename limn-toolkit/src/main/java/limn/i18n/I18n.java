@@ -464,8 +464,28 @@ public final class I18n {
         }
     }
 
-    /** The first bundle with an answer, else the English. Package-private: {@link I18nString}. */
-    static String resolve(String key, String english, Locale target) {
+    /**
+     * The first bundle with an answer for a key in a <b>named</b> locale, else the English.
+     *
+     * <p>{@link I18nString#get()} is the ordinary way to read a string and resolves under the
+     * locale in effect on this thread. This is the other way, and it exists for one caller: an
+     * accessibility bridge answering a platform's question about a node, which must resolve under
+     * <em>that node's</em> locale (§1.7) and is very often not on the user-interface thread when it
+     * does. {@link #pushScope} cannot serve it — that is thread-confined ambient state, and a
+     * bridge reaching for it would be the silent data race this toolkit's threading rules exist to
+     * prevent.
+     *
+     * <p><b>Safe from any thread</b>, and read-only: the bundle list is copy-on-write and each
+     * bundle's tables are concurrent. What it cannot do is prepare a table, so a locale that no
+     * scene has {@linkplain #retainLocale retained} resolves to the English rather than blocking or
+     * reading a file on a caller's thread.
+     *
+     * @param key     the key to look up
+     * @param english what to answer when nothing translates it
+     * @param target  the locale to answer in
+     * @return the translation, or {@code english}
+     */
+    public static String resolve(String key, String english, Locale target) {
         for (StringBundle bundle : BUNDLES) {
             String translated = bundle.lookup(key, target);
             if (translated != null) {

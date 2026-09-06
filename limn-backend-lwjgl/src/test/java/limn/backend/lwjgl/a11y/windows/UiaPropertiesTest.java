@@ -177,13 +177,27 @@ class UiaPropertiesTest {
      * rather than a decision, and each is recorded on {@link UiaProperties}.
      */
     @Test
+    void theEightRolesUiAutomationCannotNameSpeakOurOwnPhrase() {
+        // This used to be an assertNull with "and this module carries no bundle yet" beside it.
+        // The bundle exists now, in the core, shared with the macOS bridge -- which needs a phrase
+        // for every role because AppKit localizes against a bundle a JVM does not have, while UI
+        // Automation names thirty-five of them correctly by itself and this answers only the rest.
+        AccessibleNode aSwitch = control(publish(Accessible.Role.SWITCH, "Wrap lines", null,
+                Accessible.State.ENABLED));
+        assertEquals("switch", UiaProperties.valueOf(aSwitch, UiaIds.LOCALIZED_CONTROL_TYPE));
+
+        AccessibleNode button = control(publish(Accessible.Role.BUTTON, "Save", null,
+                Accessible.State.ENABLED));
+        assertNull(UiaProperties.valueOf(button, UiaIds.LOCALIZED_CONTROL_TYPE),
+                "the platform's own word is what makes a reader sound like every other application "
+                        + "on the machine, and answering here would replace it with ours");
+    }
+
+    @Test
     void anUnansweredPropertyIsEmptyRatherThanAGuess() {
         AccessibleNode node = control(publish(Accessible.Role.SWITCH, "Wrap lines", null,
                 Accessible.State.ENABLED));
 
-        assertNull(UiaProperties.valueOf(node, UiaIds.LOCALIZED_CONTROL_TYPE),
-                "the phrase is chosen and not yet speakable: it is said to the user, so it "
-                        + "resolves under the node's locale, and this module carries no bundle yet");
         assertNull(UiaProperties.valueOf(node, UiaIds.HEADING_LEVEL),
                 "the guest's interop assembly knows the property and not its enumerators, and "
                         + "§12.3 refuses a recalled constant");
