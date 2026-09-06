@@ -249,6 +249,18 @@ final class UiaIds {
      */
     static final int APPEND_RUNTIME_ID = 3;
 
+    /**
+     * {@code S_OK}, and {@code E_NOINTERFACE} for a {@code QueryInterface} an object cannot answer.
+     *
+     * <p>Read behaviourally rather than recalled: the guest was asked to query a real COM object
+     * for an identifier nobody serves, and it answered {@code 0x80004002} with the out parameter
+     * left at zero — which is the second half of the contract and the half a provider forgets.
+     */
+    static final int S_OK = 0;
+
+    /** @see #S_OK */
+    static final int E_NO_INTERFACE = 0x80004002;
+
     /** {@code UIA_E_ELEMENTNOTAVAILABLE}: what a stale element answers until its refcount drops. */
     static final int E_ELEMENT_NOT_AVAILABLE = 0x80040201;
 

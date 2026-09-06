@@ -75,6 +75,27 @@ final class UiaCom {
         int invoke(long self, long out);
     }
 
+    /** {@code HRESULT f(void* this, REFIID riid, void** out)} — QueryInterface, and only it. */
+    interface PPP extends CallbackI {
+
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PPP.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_sint32, LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
+
+        @Override
+        default Callback.Descriptor getDescriptor() {
+            return DESCRIPTOR;
+        }
+
+        @Override
+        default void callback(long ret, long args) {
+            APIUtil.apiClosureRet(ret,
+                    invoke(argPointer(args, 0), argPointer(args, 1), argPointer(args, 2)));
+        }
+
+        int invoke(long self, long riid, long out);
+    }
+
     /**
      * {@code HRESULT f(void* this, int which, T* out)} — GetPropertyValue, GetPatternProvider and
      * Navigate, which is three different meanings for one shape and the reason slot order matters.
