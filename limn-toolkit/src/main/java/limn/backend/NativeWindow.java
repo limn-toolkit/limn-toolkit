@@ -413,6 +413,40 @@ public interface NativeWindow extends AutoCloseable {
         return AccessibilityBridge.NONE;
     }
 
+    /**
+     * Hands this window the platform accessibility bridge an application chose for it.
+     *
+     * <p>The other half of the seam above, and it was missing: an application could read what a
+     * window's bridge was and had no way to say what it should be, so the per-platform bridges
+     * ADR&nbsp;039 makes optional artifacts could be added to a classpath and never installed. It
+     * is a setter and not a constructor argument because the Windows bridge needs
+     * {@link #nativeHandle()} to exist before it can be made, and that handle is the window's.
+     *
+     * <p>{@code default} for the same reason the getter is: a window with no accessibility is a
+     * correct window, and ignoring the offer is the correct thing for one to do.
+     *
+     * @param bridge what to hand a scene bound here, never {@code null}
+     */
+    default void setAccessibility(AccessibilityBridge bridge) {
+    }
+
+    /**
+     * This window's handle in the platform's own terms: an {@code HWND} on Windows, an
+     * {@code NSWindow} on macOS, an {@code xcb_window_t} or {@code wl_surface} on Linux.
+     *
+     * <p>Exists for one caller and should have no other: a platform accessibility bridge that has
+     * to attach to the window itself. The Windows one replaces the window procedure to answer
+     * {@code WM_GETOBJECT}; the macOS one will need the {@code NSWindow} to reach its content
+     * view. Nothing in the toolkit reads this, and an application that finds itself wanting it for
+     * anything else is describing a gap in this interface rather than a use for this method.
+     *
+     * @return the handle, or {@code 0} where there is none — a test double, an embedded surface, a
+     *         platform this backend has not been taught
+     */
+    default long nativeHandle() {
+        return 0;
+    }
+
     /** Registers a listener for runtime monitor/content-scale changes. */
     void setContentScaleListener(ContentScaleListener listener);
 

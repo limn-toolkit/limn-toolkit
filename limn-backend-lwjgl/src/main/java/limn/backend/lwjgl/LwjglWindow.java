@@ -125,6 +125,9 @@ final class LwjglWindow implements NativeWindow {
 
     private final LwjglBackend backend;
     private final long handle;
+
+    /** The accessibility bridge an application handed this window, or none. */
+    private limn.backend.AccessibilityBridge accessibility = limn.backend.AccessibilityBridge.NONE;
     // The hand-built macOS software-renderer context, or NULL on every normal
     // window (which is every window on every other platform, and nearly all of
     // them on macOS). Non-NULL means GLFW owns no context for this window, so
@@ -435,6 +438,40 @@ final class LwjglWindow implements NativeWindow {
                 backend.uiRuntime().checkUiThread();
                 glfwSetClipboardString(handle, text == null ? "" : text);
             }
+        };
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Kept and handed to a scene when one binds here. The bridge is the application's choice —
+     * this backend links no accessibility module and knows none by name, which is what lets the
+     * per-platform ones be artifacts an application adds or does not.
+     */
+    @Override
+    public void setAccessibility(limn.backend.AccessibilityBridge bridge) {
+        this.accessibility = java.util.Objects.requireNonNull(bridge, "bridge");
+    }
+
+    @Override
+    public limn.backend.AccessibilityBridge accessibility() {
+        return accessibility;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Asked of GLFW, which is the only thing here that knows what a window is on this platform.
+     * An unsupported platform answers zero rather than throwing, because "there is no handle" is a
+     * legitimate answer and a bridge that gets one will decline to open.
+     */
+    @Override
+    public long nativeHandle() {
+        return switch (org.lwjgl.system.Platform.get()) {
+            case WINDOWS -> org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
+            case MACOSX -> org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle);
+            case LINUX -> org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle);
+            default -> 0;
         };
     }
 

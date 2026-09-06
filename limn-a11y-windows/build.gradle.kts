@@ -39,10 +39,10 @@ dependencies {
     val lwjglVersion = libs.versions.lwjgl.get()
     lwjglNatives.take(2).forEach { runtimeOnly("org.lwjgl:lwjgl:$lwjglVersion:$it") }
 
-    // For the live probe only: it opens a real window on the guest so that a real client can ask
-    // this bridge for a tree. Nothing in the module's own sources knows what GLFW is.
-    testImplementation(libs.lwjgl.glfw)
-    lwjglNatives.forEach { testRuntimeOnly("org.lwjgl:lwjgl-glfw:${libs.versions.lwjgl.get()}:$it") }
+    // For the live probe only, which opens a real window on the guest and paints a real scene in
+    // it so that a screen reader and a person are looking at the same thing. Nothing in the
+    // module's own sources knows what a backend is.
+    testImplementation(project(":limn-backend-lwjgl"))
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
