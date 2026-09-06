@@ -103,6 +103,16 @@ public final class UiaBridge extends PlatformBridge {
         return element == null ? null : objects.get(element.pointer());
     }
 
+    /**
+     * @return the context the provider slots read, so a test can ask it the same questions UI
+     *         Automation does. It exists because the one defect this file has had since it was
+     *         written was invisible to every test here: the context's own answers were reached
+     *         only from a live client
+     */
+    UiaProvider.Context contextForTests() {
+        return context;
+    }
+
     /** @return how many nodes this bridge currently holds an element for */
     int elementCount() {
         return elements.size();
@@ -341,7 +351,7 @@ public final class UiaBridge extends PlatformBridge {
 
         @Override
         public AccessibleTree tree() {
-            return tree();
+            return UiaBridge.this.tree();
         }
 
         @Override

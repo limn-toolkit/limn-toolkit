@@ -57,6 +57,24 @@ class UiaBridgeTest {
     }
 
     @Test
+    void theContextTheProviderSlotsReadAnswersThePublishedTree() {
+        // Not a hypothetical. This method used to read `published` directly; a refactor moved the
+        // field into a base class and rewrote every read as a call to the accessor, which turned
+        // this one into a call to itself. Nothing here noticed, because no test had ever asked the
+        // bridge's own context anything -- and the first Windows run after it died in a
+        // StackOverflowError inside the message pump.
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        try {
+            AccessibleTree tree = aWindowWith(Accessible.Role.BUTTON, true);
+            bridge.publish(tree, false);
+            assertSame(tree, bridge.contextForTests().tree(),
+                    "every provider slot answers from this, so it is the first thing to break");
+        } finally {
+            bridge.detach();
+        }
+    }
+
+    @Test
     void theRootServesTheFragmentRootAndNoOtherNodeDoes() {
         UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
         try {
