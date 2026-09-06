@@ -77,10 +77,24 @@ public final class LiveProbe {
         // brought forward is a window it never reaches.
         long until = System.currentTimeMillis() + 180_000;
         long nextFocus = 0;
+        long moveTheKeyboard = System.currentTimeMillis() + 25_000;
+        boolean moved = false;
         while (System.currentTimeMillis() < until && !GLFW.glfwWindowShouldClose(window)) {
             if (System.currentTimeMillis() > nextFocus) {
                 GLFW.glfwFocusWindow(window);
                 nextFocus = System.currentTimeMillis() + 8_000;
+            }
+            // Once, after the reader has settled on the button: move the keyboard to the check box
+            // and say so. A reader learns of a focus move from the event and not by asking, so
+            // this exercises the one path a client cannot prompt -- the path where the Linux run
+            // found its two defects.
+            if (!moved && System.currentTimeMillis() > moveTheKeyboard) {
+                moved = true;
+                live.publish(threeNodes(1002), false);
+                live.emit(limn.accessibility.AccessibleEvent.of(
+                        limn.accessibility.AccessibleEvent.Type.FOCUS_CHANGED, 1002));
+                System.out.println("moved the keyboard to the check box and raised FOCUS_CHANGED");
+                System.out.flush();
             }
             GLFW.glfwWaitEventsTimeout(0.2);
         }
@@ -89,6 +103,15 @@ public final class LiveProbe {
 
     /** A window, a button and a check box, which is enough for a client to walk and read. */
     private static AccessibleTree threeNodes() {
+        return threeNodes(1001);
+    }
+
+    /**
+     * @param focusedId which node holds the keyboard, so that a run can move it and hear the
+     *                  difference
+     * @return the tree
+     */
+    private static AccessibleTree threeNodes(long focusedId) {
         Accessibility a = new Accessibility();
         a.beginWalk(480, 320, Locale.ENGLISH);
         a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
@@ -101,7 +124,7 @@ public final class LiveProbe {
         a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
         a.description(I18nString.literal("Writes the file"));
         a.action(Accessible.Action.PRESS);
-        a.inherited(true, true, true, true, true);
+        a.inherited(true, true, true, true, focusedId == 1001);
         a.end();
 
         a.begin(1002, 0, Locale.ENGLISH, 20, 100, 160, 24);
@@ -109,10 +132,10 @@ public final class LiveProbe {
         a.name(I18nString.literal("Wrap lines"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.TOGGLE);
         a.toggle(limn.accessibility.ToggleFacet.State.ON);
-        a.inherited(true, true, true, true, false);
+        a.inherited(true, true, true, true, focusedId == 1002);
         a.end();
 
         a.end();
-        return a.publish(1001, 0, 0, 1f, true);
+        return a.publish(focusedId, 0, 0, 1f, true);
     }
 }
