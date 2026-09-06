@@ -3075,6 +3075,25 @@ AppKit, which is a test the bridge can run on any future macOS; and UI Automatio
 `uiautomationcore.h` or the interop assembly on the guest. A constant that appears in a bridge without a
 test that read it off the platform is a defect that compiles.
 
+**macOS's recipe is `scripts/a11y/macos/dump-appkit-constants.swift`**, and running it before writing
+the role table found two things a table copied from a header would have carried into the bridge.
+
+*A subrole this record would have used does not exist.* There is no
+`NSAccessibilitySeparatorSubrole` in this AppKit — the name is plausible, the neighbouring
+`NSAccessibilityContentListSubrole` and `NSAccessibilityTimelineSubrole` are real, and a `SEPARATOR`
+mapped to it would have resolved to a null pointer at run time on the one platform where a role is a
+string rather than a number.
+
+*And three constants this design needs cannot be read at all.*
+`NSAccessibilityPriorityLow`, `…Medium` and `…High` are **not exported symbols**: unlike every role,
+subrole and notification name, they are values of a C enum
+(`NSAccessibilityPriorityLevel`) and there is nothing for `dlsym` to find. §2.2 says politeness rides
+`NSAccessibilityPriorityKey`, and the key *is* exported; the number that goes under it is not. So
+this is the one place in three platforms where the constants rule cannot be honoured, and the honest
+form of it is the narrow one: the three numbers are written down as literals, in one place, with
+this paragraph as the reason — and the dump script keeps listing them as unexported so that the
+exception stays visible rather than becoming a habit.
+
 ---
 
 ## 13. Risks and open edges
