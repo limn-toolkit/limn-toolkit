@@ -103,6 +103,7 @@ public final class LiveProbe {
             // published by hand. Posted rather than looped, because the event loop below owns this
             // thread and a widget may only be touched on it.
             int[] step = {0};
+            int[] lastPosted = {0};
             Runnable[] tick = new Runnable[1];
             tick[0] = () -> {
                 // The foreground first, every time. A reader announces the focused element of the
@@ -125,7 +126,15 @@ public final class LiveProbe {
                     System.out.println("    listening=" + ax.isListening()
                             + " elements=" + ax.elementCount()
                             + " pushed=" + ax.pushedElements().length
-                            + " pushes=" + ax.pushes());
+                            + " pushes=" + ax.pushes()
+                            + " queued=" + ax.queuedEvents());
+                    // What was actually posted since the last step. A reader that says nothing
+                    // when the focus moves is either not being told or not listening, and only
+                    // this line tells the two apart.
+                    java.util.List<String> all = ax.postedNotifications();
+                    System.out.println("    posted since last step: "
+                            + all.subList(Math.min(lastPosted[0], all.size()), all.size()));
+                    lastPosted[0] = all.size();
                 }
                 System.out.flush();
                 if (step[0] < 24) {
