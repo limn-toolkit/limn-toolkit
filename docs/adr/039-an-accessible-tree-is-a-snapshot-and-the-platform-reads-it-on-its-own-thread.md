@@ -1342,13 +1342,13 @@ is a latent crash in a caller that trusts the union.
 | `accessibilityTitle` / `accessibilityLabel` | name, chosen by `nameFrom` | Finding 5. `CONTENT` → title; anything else → label; **never both** |
 | `accessibilityHelp` | description | the tooltip lands here when it is not the name |
 | `accessibilityValue`, `accessibilityMinValue`, `accessibilityMaxValue` | `ValueFacet`; `ToggleFacet` as `@0`/`@1`/`@2`; **`TextFacet` as its text** | three facets share one attribute, which is why they are separate facets rather than one field. A text node with no `TextFacet`-sourced value is a field VoiceOver cannot read (§2.1) |
-| `setAccessibilityFrameInParentSpace:` | bounds in the content view's space, y measured from its bottom | **proven end to end**: `(40,40,160,48)` in parent space read back as `rect(240,412,160,48)` on screen. AppKit owns the flip and the title bar (§1.8). `accessibilityFrame` is implemented too, answering the same box, for a client that asks the element directly. Struct-by-value both ways needs libffi; `CGRect` proven at size 32, alignment 8 |
+| `setAccessibilityFrameInParentSpace:` | bounds in the **parent element's** space, y measured from its bottom | **proven end to end**: `(40,40,160,48)` in parent space read back as `rect(240,412,160,48)` on screen. AppKit owns the flip and the title bar (§1.8). `accessibilityFrame` is implemented too, answering the same box, for a client that asks the element directly. Struct-by-value both ways needs libffi; `CGRect` proven at size 32, alignment 8. **"Parent" is literal, and an earlier draft of this row said "the content view's space", which is true only of the root's own children**: the phase 7 probe run measured the offsets adding up through three levels — a child at `(20,20)` of a group at `(20,60)` of the view lands at the view's origin plus `(40,80)` — so a bridge hands each node its box **relative to its own parent node**, not relative to the view |
 | `accessibilityParent`, `accessibilityChildren` | the snapshot links | **the top of the tree is pushed, everything below it is pulled** — see below. `setAccessibilityChildren:` on the content view is proven sufficient to place a Java-built element under the window a screen reader walks, and the push is **repeated whenever the root's children change**, because that array is a snapshot AppKit holds and an overlay opening changes it |
 | `accessibilityFocusedUIElement` | the focused node's element | **not proven, and not obviously ours to answer**: our elements are not responders, and the spike never moved focus. §13 carries the experiment; until it runs the bridge posts `AXFocusedUIElementChanged` (which is delivered, and only at application level) and does not claim the attribute |
 | `isAccessibilityElement` | `true` for every published node | transparent and ignored widgets never become nodes |
 | `accessibilityEnabled`, `accessibilityFocused` / `setAccessibilityFocused:` | states | `setAccessibilityEnabled:` proven; a `BOOL` argument rides the low bits of a pointer-sized slot |
 | `accessibilitySelectedChildren` | `SelectionFacet` | |
-| `accessibilityHitTest:` | **not implemented** | measured, and it is the surprise of the run: with no override at all, `AXUIElementCopyElementAtPosition` returned our element `CFEqual` to the one found by name, through the application element *and* the system-wide element. AppKit hit-tests from the frames. The encoding is on record (`@32@0:8{CGPoint=dd}16`) so implementing it later is cheap, and §13 keeps that open for a tree deeper than the one element the spike published |
+| `accessibilityHitTest:` | **implemented on our own element class, and it must recurse to the bottom itself** | the spike measured that with no override at all `AXUIElementCopyElementAtPosition` found its one element, and concluded AppKit hit-tests from the frames. It does — **for one level only**. The phase 7 probe run put three grandchildren under a group and three points inside three different grandchildren all resolved to the *group*, which is the level that was pushed onto the content view; pushing `setAccessibilityChildren:` at every level as well changed nothing, so this is not stored-versus-pulled children. Overriding the selector on `LimnProbeElement` resolved all four probed points to the correct deepest node, at depth 3. **AppKit sends it exactly once**, to the element it already resolved from the pushed array, so the override walks the whole subtree rather than returning one level. The point arrives in screen space with a bottom-left origin — the same space `accessibilityFrame` answers in, so no flip of ours. It goes on our own class, so §13.16 stays withdrawn: nothing is installed on a class GLFW owns |
 | `accessibilityIdentifier` | the node id, as a string | stable across frames by §1.3 |
 | `accessibilityPerformPress`, `…Increment`, `…Decrement`, `…ShowMenu`, `…Pick`, `…Cancel`, `…Confirm` | `ActionFacet` | **press proven end to end**: an out-of-process client's `AXUIElementPerformAction(kAXPressAction)` arrived in Java on the main thread. AppKit's encoding is `B16@0:8`, so the return is a C `bool`. The other six are the same shape and are untested |
 | `accessibilityNumberOfCharacters`, `accessibilitySelectedText`, `accessibilitySelectedTextRange`, `accessibilityStringForRange:`, `accessibilityRangeForLine:`, `accessibilityInsertionPointLineNumber` | `TextFacet` | `NSRange` is UTF-16, which is `TextEditModel`'s unit exactly |
@@ -3189,17 +3189,52 @@ elision meet.
     AppKit hit-tested the spike's *one* element from its frame — whether it does the same through
     several levels of nested elements is the same probe run's second question, and implementing the
     selector is the fallback if it does not.
+
+    **The depth half is answered, and it took the fallback.** The phase 7 probe
+    (`scripts/a11y/macos/`) published three levels below the pushed array and an out-of-process
+    client walked all of them: `-accessibilityChildren` on our own class answers every level below
+    the root's children, so §2.2's "the top is pushed, everything below is pulled" is true **of the
+    walk**. It is false of hit-testing. Three points, each inside a different grandchild, all
+    resolved to the grandchild's *grandparent* — the level that was pushed — and pushing
+    `setAccessibilityChildren:` at every level as well changed nothing, which rules out the obvious
+    explanation that AppKit's default reads a stored array instead of sending the selector.
+    Implementing `accessibilityHitTest:` on our own element class resolved every probed point to
+    the correct deepest node. §2.2's row now carries the mechanics, including the one that decides
+    how the override is written: AppKit sends it **once**, so the override recurses to the bottom
+    itself rather than descending one level and being asked again. §13.16 stays withdrawn — the
+    override is on our class, not on GLFW's.
+
+    **The mutation half is still open**, and it is the half §5.3's per-frame publish rides on.
 22. **`accessibilityFocusedUIElement` has no proven home on macOS.** Our elements are not responders,
     so it is not obvious that AppKit will ask us at all, and the spike never moved focus. Posting
     `AXFocusedUIElementChanged` at application level *is* proven to be delivered; being able to answer
     "where am I" afterwards is not. The experiment is one probe run: move focus between two elements,
     read `AXFocusedUIElement` off the application element, and see whether it needs an implementation
     on the content view's class after all — which would reopen item 16 for exactly one selector.
-23. **No non-ASCII string has crossed the macOS boundary.** The guest runs a pt-BR system and every
-    name in the spike was ASCII. This ADR's entire naming model is `I18nString`s resolved under a
-    subtree locale, so a bridge that mangles UTF-8 into `NSString` breaks the feature rather than a
-    corner of it. The check is free and belongs in the first probe run: publish a name with an
-    astral character and a right-to-left one, and read both back from the client.
+
+    **One fact is in, and it sharpens the worry rather than settling it.** `NSAccessibilityElement`
+    does not declare `-accessibilityFocusedUIElement` at all; `NSView` does, with encoding
+    `@16@0:8`. So the selector genuinely lives on the responder side of the hierarchy, which is why
+    the probe reads its encoding by searching AppKit's classes rather than asking the one class our
+    elements descend from. Whether AppKit routes the question to an element of ours is the part the
+    run still owes.
+23. **~~No non-ASCII string has crossed the macOS boundary.~~ Closed by the phase 7 probe run.** The
+    guest runs a pt-BR system and every name in the spike was ASCII. This ADR's entire naming model
+    is `I18nString`s resolved under a subtree locale, so a bridge that mangles UTF-8 into `NSString`
+    breaks the feature rather than a corner of it. The probe published `Salvar 𝄞` (U+1D11E, a
+    surrogate pair in Java and four bytes in UTF-8) and `שלום עולם`, and an out-of-process client
+    read both back with **identical code points** — printed as scalars in both places, because the
+    glyphs are not evidence: an astral character that arrives as two replacement characters still
+    looks like text, and a reversed right-to-left string looks the same either way.
+
+    **What the control run adds is the part worth carrying forward.** The same probe run with the
+    names deliberately encoded as ISO-8859-1 — the mistake a bridge makes by writing `getBytes()`
+    and taking a default — did not produce mojibake. `stringWithUTF8String:` returns **nil** for
+    invalid UTF-8, so `Formulário` and `Rodapé` arrived as nodes with **no name at all**, while the
+    ASCII-only names passed. That is the failure mode to expect on this platform from an encoding
+    bug: not a garbled name, a missing one — which is worth knowing precisely because a missing name
+    is what §12.1's "every focusable node named" invariant is aimed at, and it would only catch this
+    if it asserted over the string the platform hands back rather than the one the toolkit holds.
 24. **The mechanism behind the 2 s cliff is not established.** The observation reproduces; the cause —
     whether the AX server stops forwarding to a process it has marked unresponsive, or the requests
     never reach the run-loop mode `glfwPollEvents` services — was not determined, and the failure
