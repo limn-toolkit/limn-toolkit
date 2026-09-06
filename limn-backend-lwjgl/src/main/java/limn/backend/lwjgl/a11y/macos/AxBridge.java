@@ -4,6 +4,7 @@ import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
+import limn.backend.lwjgl.a11y.PlatformBridge;
 import limn.graphics.Rect;
 
 import java.util.ArrayList;
@@ -38,7 +39,7 @@ import java.util.Set;
  * drains nothing</b> (§3.2): each would act on what the caller is holding. What it defers is owed to
  * the next ordinary frame, which the scene has already asked for.
  */
-public final class AxBridge implements AccessibilityBridge, AxElementClass.Source {
+public final class AxBridge extends PlatformBridge implements AxElementClass.Source {
 
     /**
      * Opens a bridge for a window, or answers {@link AccessibilityBridge#NONE} where AppKit is not
@@ -63,8 +64,6 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
     /** element pointer to node id: the recovery every implementation starts with. */
     private final Map<Long, Long> nodeIdByElement = new HashMap<>();
 
-    private Host host;
-    private AccessibleTree tree = AccessibleTree.EMPTY;
     private boolean listening;
     private boolean obligationsDeferred;
     private long[] pushed = new long[0];
@@ -143,7 +142,7 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
 
     @Override
     public void publish(AccessibleTree published, boolean reentrant) {
-        tree = published;
+        super.publish(published, reentrant);
         if (reentrant) {
             // The store is the whole of it. Releasing, re-pushing or draining here would act on the
             // objects AppKit is standing on, and on this platform that is a crash rather than a
@@ -173,25 +172,20 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
     }
 
     @Override
-    public void attach(Host newHost) {
-        // A scene can be bound over a live window and the outgoing host never learns it was, so the
-        // bridge is the only object that knows there was a tree to close. Every element is
-        // invalidated at once; an earlier draft released nothing here at all (§1.10, §5.3).
+    protected void invalidateEverythingVended() {
+        // Every element at once, and the record of what was pushed with them: an earlier draft
+        // released nothing on a rebind at all (§1.10, §5.3), and the pushed array would otherwise
+        // name objects that no longer exist.
         elements.empty();
         pushed = new long[0];
-        tree = AccessibleTree.EMPTY;
         obligationsDeferred = false;
-        host = newHost;
     }
 
     @Override
-    public void detach() {
-        elements.empty();
-        pushed = new long[0];
+    protected void releasePlatformHalf() {
+        // The content view is not ours and outlives this bridge, so what was pushed onto it is
+        // taken back rather than left pointing at released objects.
         if (objc != null) objc.msgVoid(contentView, "setAccessibilityChildren:", 0);
-        host = null;
-        tree = AccessibleTree.EMPTY;
-        obligationsDeferred = false;
         listening = false;
         if (elementClass != null) elementClass.free();
     }
@@ -205,13 +199,13 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
 
     @Override
     public long focusedElement() {
-        long focused = tree.focused();
-        if (focused == 0 || tree.indexOf(focused) < 0) {
+        long focused = tree().focused();
+        if (focused == 0 || tree().indexOf(focused) < 0) {
             focusedAnswers.add("none");
             return 0;
         }
         long element = elements.elementFor(focused);
-        focusedAnswers.add(focused + "=" + tree.find(focused).role()
+        focusedAnswers.add(focused + "=" + tree().find(focused).role()
                 + "@" + Long.toHexString(element));
         return element;
     }
@@ -220,17 +214,17 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
     public AccessibleNode nodeFor(long element) {
         Long nodeId = nodeIdByElement.get(element);
         if (nodeId == null) return null;
-        return tree.find(nodeId);
+        return tree().find(nodeId);
     }
 
     @Override
     public long[] childElementsOf(AccessibleNode node) {
-        int index = tree.indexOf(node.id());
+        int index = tree().indexOf(node.id());
         if (index < 0) return new long[0];
         List<Long> children = new ArrayList<>();
-        for (int child = tree.node(index).firstChild(); child != AccessibleNode.NONE;
-                child = tree.node(child).nextSibling()) {
-            children.add(elements.elementFor(tree.node(child).id()));
+        for (int child = tree().node(index).firstChild(); child != AccessibleNode.NONE;
+                child = tree().node(child).nextSibling()) {
+            children.add(elements.elementFor(tree().node(child).id()));
         }
         long[] answer = new long[children.size()];
         for (int i = 0; i < answer.length; i++) answer[i] = children.get(i);
@@ -239,13 +233,13 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
 
     @Override
     public long parentElementOf(AccessibleNode node) {
-        int index = tree.indexOf(node.id());
+        int index = tree().indexOf(node.id());
         if (index < 0) return contentView;
-        int parent = tree.node(index).parent();
+        int parent = tree().node(index).parent();
         // A child of the elided window root answers with the content view, because that is the
         // object AppKit was handed and the one it expects to get back.
         if (parent == AccessibleNode.NONE || parent == 0) return contentView;
-        return elements.elementFor(tree.node(parent).id());
+        return elements.elementFor(tree().node(parent).id());
     }
 
     // ---- the publish path ------------------------------------------------------------------------
@@ -264,8 +258,8 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
      * which §2.2 said until that run.
      */
     private void refreshFrames() {
-        for (int index = 1; index < tree.nodeCount(); index++) {
-            AccessibleNode node = tree.node(index);
+        for (int index = 1; index < tree().nodeCount(); index++) {
+            AccessibleNode node = tree().node(index);
             if (!elements.holds(node.id())) continue;
             applyFrame(node.id(), elements.elementFor(node.id()));
         }
@@ -280,13 +274,13 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
      * against the whole scene, because the content view is what it hangs from.
      */
     private void applyFrame(long nodeId, long element) {
-        int index = tree.indexOf(nodeId);
+        int index = tree().indexOf(nodeId);
         if (index <= 0) return;
-        AccessibleNode node = tree.node(index);
+        AccessibleNode node = tree().node(index);
         int parent = node.parent();
         Rect parentBounds = parent == AccessibleNode.NONE
-                ? new Rect(0, 0, tree.sceneWidth(), tree.sceneHeight())
-                : tree.node(parent).bounds();
+                ? new Rect(0, 0, tree().sceneWidth(), tree().sceneHeight())
+                : tree().node(parent).bounds();
         double[] parentSpace = AxFrames.inParentSpace(node.bounds(), parentBounds);
         if (objc != null) {
             objc.msgRect(element, "setAccessibilityFrameInParentSpace:", parentSpace);
@@ -354,8 +348,8 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
 
     /** §2.2's re-push: the root's children onto the content view, and only when they changed. */
     private void repushRootIfChanged() {
-        if (tree.nodeCount() == 0) return;
-        long[] now = childElementsOf(tree.root());
+        if (tree().nodeCount() == 0) return;
+        long[] now = childElementsOf(tree().root());
         if (Arrays.equals(now, pushed)) return;
         if (objc != null) {
             long array = objc.mutableArray();
@@ -364,16 +358,6 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
         }
         pushed = now;
         pushes++;
-    }
-
-    /** @return the snapshot every platform answer is read from; never {@code null}. */
-    AccessibleTree tree() {
-        return tree;
-    }
-
-    /** @return what the scene answers with, or {@code null} between a detach and an attach. */
-    Host host() {
-        return host;
     }
 
     /** @return whether a reentrant publish left work for the next ordinary frame. */
@@ -434,7 +418,7 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
     /** @return the node identifiers currently alive in the tree, for the reconciliation sweep. */
     Set<Long> liveNodeIds() {
         Set<Long> live = new HashSet<>();
-        for (int i = 0; i < tree.nodeCount(); i++) live.add(tree.node(i).id());
+        for (int i = 0; i < tree().nodeCount(); i++) live.add(tree().node(i).id());
         return live;
     }
 }

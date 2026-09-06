@@ -5,6 +5,7 @@ import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
+import limn.backend.lwjgl.a11y.PlatformBridge;
 import org.lwjgl.system.MemoryUtil;
 
 import java.util.ArrayList;
@@ -21,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Automation, which is every machine that is not Windows, so a cross-platform application can call
  * it unconditionally.
  *
- * <p><b>What lives here and which thread owns it</b>, from ADR&nbsp;039&nbsp;§3.4. The published
+ * <p><b>What lives here and which thread owns it</b>, from ADR&nbsp;039&nbsp;§3.4. The tree()
  * tree is a {@code volatile} field written by the user-interface thread and read by any RPC thread;
  * the registry is concurrent because an element is minted the first time a client navigates to a
  * node and up to three RPC threads may reach the same unvisited node at once; the listening gate is
@@ -35,13 +36,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * a screen reader. Phase 6 is finished when a client attaching to an idle window gets a tree and
  * NVDA reads the demo, and that run is the remaining work.
  */
-public final class UiaBridge implements AccessibilityBridge {
+public final class UiaBridge extends PlatformBridge {
 
     /** Written by the user-interface thread on publish, read by every RPC thread. */
-    private volatile AccessibleTree published = AccessibleTree.EMPTY;
 
     /** The host, for the verbs a client performs. Written on attach, read on RPC threads. */
-    private volatile Host host;
 
     /** Node identifier to element, and interface pointer back to it. */
     private final UiaElements elements = new UiaElements();
@@ -97,7 +96,7 @@ public final class UiaBridge implements AccessibilityBridge {
         return new UiaBridge(hwnd);
     }
 
-    /** @param nodeId a node from the published tree
+    /** @param nodeId a node from the tree() tree
      *  @return the object serving it, or {@code null} if the tree does not hold it. For tests. */
     UiaObject objectFor(long nodeId) {
         UiaElement element = elementOf(nodeId);
@@ -107,11 +106,6 @@ public final class UiaBridge implements AccessibilityBridge {
     /** @return how many nodes this bridge currently holds an element for */
     int elementCount() {
         return elements.size();
-    }
-
-    /** @return the snapshot as of now. For tests. */
-    AccessibleTree tree() {
-        return published;
     }
 
     /**
@@ -141,7 +135,7 @@ public final class UiaBridge implements AccessibilityBridge {
      */
     @Override
     public void publish(AccessibleTree tree, boolean reentrant) {
-        published = tree;
+        super.publish(tree, reentrant);
     }
 
     /**
@@ -194,7 +188,7 @@ public final class UiaBridge implements AccessibilityBridge {
      * case where this bridge frees a string it allocated.
      */
     private void raisePropertyChange(UiaElement element, AccessibleEvent event) {
-        AccessibleTree tree = published;
+        AccessibleTree tree = tree();
         int index = tree.indexOf(event.nodeId());
         AccessibleNode node = index < 0 ? null : tree.node(index);
         int propertyId = switch (event.type()) {
@@ -273,24 +267,8 @@ public final class UiaBridge implements AccessibilityBridge {
         }
     }
 
-    /**
-     * <p>Over a live host, the registry is emptied first: the elements it holds stand for a tree
-     * that is about to be replaced, and an element that outlived its host would answer about a node
-     * from someone else's window.
-     *
-     * @param newHost what to perform verbs through
-     */
     @Override
-    public void attach(Host newHost) {
-        emptyRegistry();
-        host = newHost;
-    }
-
-    @Override
-    public void detach() {
-        host = null;
-        published = AccessibleTree.EMPTY;
-        emptyRegistry();
+    protected void releasePlatformHalf() {
         // Our own root provider, and not the window's: the host provider is UI Automation's own
         // and every reference to it was handed over already.
         Uia.disconnectProvider(rootProviderForDisconnect);
@@ -311,7 +289,13 @@ public final class UiaBridge implements AccessibilityBridge {
      * That is a crash in this process rather than a leak, which is the better failure to have found
      * here.
      */
-    private void emptyRegistry() {
+    /**
+     * <p>Over a live host, the registry is emptied: the elements it holds stand for a tree that is
+     * about to be replaced, and an element that outlived its host would answer about a node from
+     * someone else's window.
+     */
+    @Override
+    protected void invalidateEverythingVended() {
         java.util.Set<UiaObject> distinct =
                 java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         distinct.addAll(objects.values());
@@ -325,7 +309,7 @@ public final class UiaBridge implements AccessibilityBridge {
      *
      * <p>The one place UI Automation is told this window has a provider at all. It is answered
      * synchronously, on the user-interface thread, inside the message — so the tree it hands over
-     * is the one already published, and nothing walks here.
+     * is the one already tree(), and nothing walks here.
      *
      * @param wparam the message's own
      * @param lparam the same
@@ -338,7 +322,7 @@ public final class UiaBridge implements AccessibilityBridge {
 
     /** @return the root node's element, minting it if this is the first ask, or {@code 0} */
     private long rootElement() {
-        AccessibleTree tree = published;
+        AccessibleTree tree = tree();
         // The simple interface, because that is what UiaReturnRawElementProvider is declared to
         // take -- and referenced, because UI Automation keeps it.
         if (tree.nodeCount() == 0) {
@@ -357,7 +341,7 @@ public final class UiaBridge implements AccessibilityBridge {
 
         @Override
         public AccessibleTree tree() {
-            return published;
+            return tree();
         }
 
         @Override
@@ -406,7 +390,7 @@ public final class UiaBridge implements AccessibilityBridge {
         /** <p>And the fragment <em>root</em> interface here, for the same reason. */
         @Override
         public long rootElement() {
-            AccessibleTree tree = published;
+            AccessibleTree tree = tree();
             return tree.nodeCount() == 0 ? 0
                     : handOver(tree.root().id(), UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT_ROOT);
         }
@@ -418,7 +402,7 @@ public final class UiaBridge implements AccessibilityBridge {
 
         @Override
         public boolean perform(long nodeId, Accessible.Action action, Accessible.Argument arg) {
-            Host current = host;
+            Host current = host();
             return current != null && current.perform(nodeId, action, arg);
         }
     };
@@ -458,11 +442,11 @@ public final class UiaBridge implements AccessibilityBridge {
      * queried for the toggle interface and one that queried for the fragment interface are holding
      * the same thing and can tell.
      *
-     * @param nodeId a node from the published tree
+     * @param nodeId a node from the tree() tree
      * @return its element, or {@code null} when the tree no longer holds that node
      */
     private UiaElement elementOf(long nodeId) {
-        AccessibleTree tree = published;
+        AccessibleTree tree = tree();
         int index = tree.indexOf(nodeId);
         if (index < 0) {
             return null;

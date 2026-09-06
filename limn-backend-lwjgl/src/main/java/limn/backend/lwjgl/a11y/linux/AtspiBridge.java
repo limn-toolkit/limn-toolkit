@@ -3,6 +3,7 @@ package limn.backend.lwjgl.a11y.linux;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
+import limn.backend.lwjgl.a11y.PlatformBridge;
 
 import java.io.IOException;
 
@@ -28,19 +29,18 @@ import java.io.IOException;
  *
  * <p><b>Three threads, and which one may do what is the whole of the concurrency design.</b> The
  * user-interface thread publishes snapshots and enqueues events and blocks on nothing. The reader
- * thread answers every inbound call from every client, computing each answer from the published
+ * thread answers every inbound call from every client, computing each answer from the tree()
  * snapshot, so it never touches a widget and never blocks. The writer thread performs every write.
  * A reply written from the reader thread would park the one thread serving every client the moment
  * a peer stopped draining, which a well-behaved client cannot even detect it is causing.
  */
-public final class AtspiBridge implements AccessibilityBridge {
+public final class AtspiBridge extends PlatformBridge {
 
     /** The session-bus object that says whether assistive technology is running. */
     private static final String STATUS_NAME = "org.a11y.Bus";
     private static final String STATUS_PATH = "/org/a11y/bus";
     private static final String STATUS_IFACE = "org.a11y.Status";
 
-    private volatile AccessibleTree published = AccessibleTree.EMPTY;
     private volatile Host host;
     private final boolean enabled;
     private volatile boolean embedded;
@@ -49,7 +49,7 @@ public final class AtspiBridge implements AccessibilityBridge {
 
     private AtspiBridge(boolean enabled, String applicationName) {
         this.enabled = enabled;
-        this.objects = new AtspiTree(() -> published, () -> host, applicationName);
+        this.objects = new AtspiTree(() -> tree(), () -> host, applicationName);
     }
 
     /**
@@ -157,14 +157,7 @@ public final class AtspiBridge implements AccessibilityBridge {
     }
 
     @Override
-    public void attach(Host newHost) {
-        this.host = newHost;
-    }
-
-    @Override
-    public void detach() {
-        this.host = null;
-        this.published = AccessibleTree.EMPTY;
+    protected void releasePlatformHalf() {
         DBus.Conn open = connection;
         connection = null;
         embedded = false;
@@ -179,8 +172,8 @@ public final class AtspiBridge implements AccessibilityBridge {
     public void publish(AccessibleTree tree, boolean reentrant) {
         // One volatile write, and it is the whole of what the reader thread reads. Reentrancy
         // costs nothing here because nothing is released, re-pushed or drained on this path:
-        // the tree that was published a moment ago is answered from until this one replaces it.
-        this.published = tree;
+        // the tree published a moment ago is answered from until this one replaces it.
+        super.publish(tree, reentrant);
     }
 
     @Override
@@ -207,18 +200,9 @@ public final class AtspiBridge implements AccessibilityBridge {
         }
     }
 
-    /** The object path an event's node is published at; node zero's is the application's. */
+    /** The object path an event's node is tree() at; node zero's is the application's. */
     private String pathOf(long nodeId) {
         return nodeId == 0 ? Atspi.PATH_ROOT : "/org/a11y/atspi/accessible/" + nodeId;
     }
 
-    /** @return the tree this bridge is currently answering from; never {@code null} */
-    AccessibleTree tree() {
-        return published;
-    }
-
-    /** @return the scene this bridge may ask to republish or to perform an action, or null */
-    Host host() {
-        return host;
-    }
 }
