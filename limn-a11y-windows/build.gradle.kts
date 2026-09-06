@@ -15,13 +15,32 @@ plugins {
     `java-library`
 }
 
+// The classifiers LWJGL publishes its core native under. The backend declares all six because it
+// is a library an application deploys anywhere; this one is a Windows bridge and ships two.
+//
+// The test runtime gets all six anyway, and that is not symmetry for its own sake. What the tests
+// here exercise is the machinery under the bridge -- libffi closures, a vtable, a call through a
+// function pointer -- and none of that is Windows-specific: a COM object is a structure whose
+// first field points at an array of function pointers, and that is arithmetic and a calling
+// convention. Being able to run it on whatever machine the repository is checked out on is the
+// difference between a layer that is tested and one that is only compiled.
+val lwjglNatives = listOf(
+    "natives-windows", "natives-windows-arm64",
+    "natives-macos", "natives-macos-arm64", "natives-linux", "natives-linux-arm64",
+)
+
 dependencies {
     api(project(":limn-toolkit"))
-    // For org.lwjgl.system: the JNI trampoline, the shared-library loader and MemoryStack. Not for
-    // GLFW -- the bridge is handed a window handle and never opens one.
+    // For org.lwjgl.system: the JNI trampoline, the libffi closures and the library loader. Not
+    // for GLFW -- the bridge is handed a window handle and never opens one.
     implementation(platform(libs.lwjgl.bom))
     implementation(libs.lwjgl.core)
+
+    val lwjglVersion = libs.versions.lwjgl.get()
+    lwjglNatives.take(2).forEach { runtimeOnly("org.lwjgl:lwjgl:$lwjglVersion:$it") }
+
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
+    lwjglNatives.forEach { testRuntimeOnly("org.lwjgl:lwjgl:$lwjglVersion:$it") }
 }
