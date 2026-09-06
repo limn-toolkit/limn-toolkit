@@ -82,6 +82,11 @@ class UiaFragmentProviderTest {
         }
 
         @Override
+        public boolean perform(long nodeId, Accessible.Action action, Accessible.Argument arg) {
+            return published.get().indexOf(nodeId) >= 0;
+        }
+
+        @Override
         public boolean requestFocus(long nodeId) {
             focusRequests.add(nodeId);
             return published.get().indexOf(nodeId) >= 0;

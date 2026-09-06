@@ -75,6 +75,26 @@ final class UiaCom {
         int invoke(long self, long out);
     }
 
+    /** {@code HRESULT f(void* this, double value)} — IRangeValueProvider's setter. */
+    interface PD extends CallbackI {
+
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PD.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_sint32,
+                        LibFFI.ffi_type_pointer, LibFFI.ffi_type_double));
+
+        @Override
+        default Callback.Descriptor getDescriptor() {
+            return DESCRIPTOR;
+        }
+
+        @Override
+        default void callback(long ret, long args) {
+            APIUtil.apiClosureRet(ret, invoke(argPointer(args, 0), argDouble(args, 1)));
+        }
+
+        int invoke(long self, double value);
+    }
+
     /** {@code HRESULT f(void* this, REFIID riid, void** out)} — QueryInterface, and only it. */
     interface PPP extends CallbackI {
 

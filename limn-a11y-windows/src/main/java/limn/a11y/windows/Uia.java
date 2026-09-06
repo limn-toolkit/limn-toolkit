@@ -32,6 +32,18 @@ final class Uia {
     private static final long CLIENTS_ARE_LISTENING =
             CORE == null ? 0L : address("UiaClientsAreListening");
 
+    /** {@code UiaReturnRawElementProvider(HWND, WPARAM, LPARAM, IRawElementProviderSimple*)}. */
+    private static final long RETURN_RAW_ELEMENT_PROVIDER =
+            CORE == null ? 0L : address("UiaReturnRawElementProvider");
+
+    /** {@code UiaRaiseAutomationEvent(IRawElementProviderSimple*, EVENTID)}. */
+    private static final long RAISE_AUTOMATION_EVENT =
+            CORE == null ? 0L : address("UiaRaiseAutomationEvent");
+
+    /** {@code UiaDisconnectProvider(IRawElementProviderSimple*)}. */
+    private static final long DISCONNECT_PROVIDER =
+            CORE == null ? 0L : address("UiaDisconnectProvider");
+
     private static SharedLibrary open() {
         try {
             return Library.loadNative(Uia.class, "limn.a11y.windows", "uiautomationcore");
@@ -55,7 +67,52 @@ final class Uia {
      *         needs resolved against it
      */
     static boolean isAvailable() {
-        return CORE != null && CLIENTS_ARE_LISTENING != 0L;
+        return CORE != null && CLIENTS_ARE_LISTENING != 0L
+                && RETURN_RAW_ELEMENT_PROVIDER != 0L && RAISE_AUTOMATION_EVENT != 0L;
+    }
+
+    /**
+     * Answers a window's {@code WM_GETOBJECT} with this bridge's root provider.
+     *
+     * @param hwnd     the window the message arrived for
+     * @param wparam   the message's own, passed straight back
+     * @param lparam   the same
+     * @param provider the root element's {@code IRawElementProviderSimple} pointer
+     * @return the {@code LRESULT} to return from the window procedure
+     */
+    static long returnRawElementProvider(long hwnd, long wparam, long lparam, long provider) {
+        if (!isAvailable()) {
+            return 0;
+        }
+        return JNI.invokePPPPP(hwnd, wparam, lparam, provider, RETURN_RAW_ELEMENT_PROVIDER);
+    }
+
+    /**
+     * Tells every listening client that something happened on an element.
+     *
+     * @param provider the element it happened to
+     * @param eventId  one of {@link UiaIds}' event ids
+     * @return the {@code HRESULT}
+     */
+    static int raiseAutomationEvent(long provider, int eventId) {
+        if (!isAvailable() || provider == 0) {
+            return UiaIds.S_OK;
+        }
+        return JNI.invokePI(provider, eventId, RAISE_AUTOMATION_EVENT);
+    }
+
+    /**
+     * Tells UI Automation to drop every client reference to a provider.
+     *
+     * <p>What a window does on its way out: without it a client holding an element for a window
+     * that has closed keeps this process's memory alive for as long as it likes.
+     *
+     * @param provider the element to disconnect, or {@code 0}
+     */
+    static void disconnectProvider(long provider) {
+        if (DISCONNECT_PROVIDER != 0 && provider != 0) {
+            JNI.invokePI(provider, DISCONNECT_PROVIDER);
+        }
     }
 
     /**

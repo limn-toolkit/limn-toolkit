@@ -81,6 +81,22 @@ final class UiaProvider {
          * @return whether the request was accepted, which is not whether the widget took it
          */
         boolean requestFocus(long nodeId);
+
+        /**
+         * Asks the toolkit to perform a verb, on the thread that owns the widget.
+         *
+         * <p><b>Accepted is not done.</b> The call returns as soon as the request is posted,
+         * because a client's thread must not wait on the user-interface thread — §3.1's rule — and
+         * because the widget performs it through its own private path with its own guards. What a
+         * client is told is that the request was understood.
+         *
+         * @param nodeId the node a client acted on
+         * @param action what it asked for
+         * @param arg    the value, where the verb takes one
+         * @return whether the request was accepted
+         */
+        boolean perform(long nodeId, limn.accessibility.Accessible.Action action,
+                        limn.accessibility.Accessible.Argument arg);
     }
 
     /**
