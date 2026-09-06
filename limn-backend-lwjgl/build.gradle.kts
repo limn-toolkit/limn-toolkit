@@ -105,13 +105,9 @@ tasks.named<Jar>("sourcesJar") {
 }
 
 
-// The two live probes, one per platform that has a native accessibility API to reach. Each is a
-// single runnable jar so a guest can be handed one file, and each is a TEST source because it is
-// not part of what an application gets: it opens a window, paints real widgets into it and stays
+// The three live probes, one per platform. Each is a single runnable jar so a guest can be handed
+// one file, and each is a TEST source because it is not part of what an application gets: it stays
 // alive to be read by a screen reader (ADR 039 §12.2).
-//
-// The third bridge needs no probe of its own: the Linux one is pure Java over unix sockets, and the
-// demo itself is what Orca reads.
 fun Project.registerProbeJar(platform: String, mainClass: String) {
     tasks.register<Jar>("${platform}ProbeJar") {
         description = "A runnable jar of the $platform accessibility probe, for a run on that guest."
@@ -129,3 +125,4 @@ fun Project.registerProbeJar(platform: String, mainClass: String) {
 
 registerProbeJar("macos", "limn.backend.lwjgl.a11y.macos.LiveProbe")
 registerProbeJar("windows", "limn.backend.lwjgl.a11y.windows.LiveProbe")
+registerProbeJar("linux", "limn.backend.lwjgl.a11y.linux.LiveProbe")

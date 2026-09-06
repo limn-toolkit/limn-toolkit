@@ -29,6 +29,9 @@ import java.util.function.Supplier;
  */
 final class AtspiTree {
 
+    /** {@code -Dlimn.a11y.linux.trace=true}: log every inbound call. Off by default and free. */
+    private static final boolean TRACE = Boolean.getBoolean("limn.a11y.linux.trace");
+
     /** Where a node's object path begins; the id follows. */
     private static final String NODE_PREFIX = "/org/a11y/atspi/accessible/";
 
@@ -91,6 +94,19 @@ final class AtspiTree {
      */
     DBus.Msg handle(DBus.Conn conn, DBus.Msg m) {
         String iface = m.iface == null ? "" : m.iface;
+        if (TRACE) {
+            // Every inbound call, so a desktop that refuses this application can be asked what it
+            // wanted rather than guessed at. Two of the three platforms have now produced a defect
+            // whose only symptom was silence, and a trace is what turns that into a question.
+            StringBuilder args = new StringBuilder();
+            for (Object arg : m.body) {
+                if (args.length() > 0) args.append(", ");
+                args.append(arg);
+            }
+            System.out.println("[atspi] " + m.path + "  " + iface + "." + m.member
+                    + "(" + args + ")");
+            System.out.flush();
+        }
         if (Atspi.PATH_CACHE.equals(m.path)) {
             return cache(m, iface);
         }
@@ -119,6 +135,9 @@ final class AtspiTree {
         if (Atspi.I_ACTION.equals(iface) && node != null) {
             return action(m, node);
         }
+        if (Atspi.I_APPLICATION.equals(iface) && root) {
+            return application(m);
+        }
         return null;
     }
 
@@ -130,6 +149,32 @@ final class AtspiTree {
      * are built from the same snapshot every other answer comes from, so the cache a client holds
      * and the answers it would get node by node cannot disagree.
      */
+    /**
+     * The application object's own methods, of which there is one that matters and it is newer than
+     * this bridge.
+     *
+     * <p><b>{@code GetApplicationBusAddress} is what at-spi2-core 2.56 and later ask before they
+     * will list an application, and answering nothing is not the same as answering "none".</b> On
+     * Fedora 44 with at-spi2-core 2.60 the registry read this bridge perfectly — over a hundred
+     * calls, a full {@code Cache.GetItems}, roles and states — and no {@code libatspi} client would
+     * list the application at all, Orca included. The clients ask this first; an unknown method is
+     * an error, and an application that errors here is one they drop. Ubuntu's 2.52 never asks, so
+     * the whole platform looked correct for a year of runs.
+     *
+     * <p>The empty string is the answer that means "I have no bus of my own; talk to me on the
+     * accessibility bus" — which is true, and is the whole of what this bridge wants. The feature it
+     * declines is an application vending a private bus for its own subtree.
+     *
+     * @param m the call
+     * @return its reply, or {@code null} for a member this object does not have
+     */
+    private DBus.Msg application(DBus.Msg m) {
+        if ("GetApplicationBusAddress".equals(m.member)) {
+            return DBus.Msg.ret(m, "s", "");
+        }
+        return null;
+    }
+
     private DBus.Msg cache(DBus.Msg m, String iface) {
         if (Atspi.I_PEER.equals(iface) && "Ping".equals(m.member)) {
             return DBus.Msg.ret(m, null);
@@ -206,6 +251,10 @@ final class AtspiTree {
         if ("Get".equals(m.member)) {
             Object value = all.get(String.valueOf(m.body[1]));
             if (value == null) {
+                if (TRACE) {
+                    System.out.println("[atspi]   REFUSED " + which + "." + m.body[1]);
+                    System.out.flush();
+                }
                 return DBus.Msg.err(m, "org.freedesktop.DBus.Error.InvalidArgs",
                         "no property " + which + "." + m.body[1]);
             }

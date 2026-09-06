@@ -68,8 +68,9 @@ public final class AtspiBridge extends PlatformBridge {
         if (on == null || !on) {
             return AccessibilityBridge.NONE;
         }
-        AtspiBridge bridge = new AtspiBridge(true, applicationName);
-        return bridge.connect() ? bridge : AccessibilityBridge.NONE;
+        // The bus is NOT joined here. See publish(): an application that registers before it has a
+        // tree is an application some desktops refuse to list.
+        return new AtspiBridge(true, applicationName);
     }
 
     /**
@@ -142,9 +143,43 @@ public final class AtspiBridge extends PlatformBridge {
         }
     }
 
+    /**
+     * The same bridge without asking the desktop whether accessibility is on, so that the rules
+     * above can be exercised on a machine that has no accessibility bus — which is most of them.
+     *
+     * <p>Package-private and not a way to install a bridge anywhere: it joins no bus until it is
+     * published to, and on a machine with none that attempt fails and leaves it unconnected.
+     *
+     * @return a bridge that believes the desktop said yes
+     */
+    static AtspiBridge withoutTheGate() {
+        return new AtspiBridge(true, "a test");
+    }
+
+    /** @return whether this bridge has joined the accessibility bus yet. For tests. */
+    boolean isOnTheBus() {
+        return connection != null;
+    }
+
+    /**
+     * @return how many times a publish has decided there was something worth registering. Counted
+     *         rather than inferred from the connection, because whether the attempt SUCCEEDS
+     *         depends on the machine and whether it is MADE does not — and the defect was never
+     *         making it at a moment when there was a tree
+     */
+    int joinAttempts() {
+        return joinAttempts;
+    }
+
+    private int joinAttempts;
+
     @Override
     public boolean isListening() {
-        return enabled && embedded;
+        // The desktop's own flag, and not "are we on the bus yet". This platform is the one that
+        // can be asked whether anything is reading, which is what §6 wants a gate to be — and
+        // making it depend on being embedded would be a cycle with no way in: the bus is joined on
+        // the first publish, and a scene publishes only when something is listening.
+        return enabled;
     }
 
     @Override
@@ -170,6 +205,19 @@ public final class AtspiBridge extends PlatformBridge {
 
     @Override
     public void publish(AccessibleTree tree, boolean reentrant) {
+        // Joined here rather than at construction, and only once there is something to show.
+        //
+        // Fedora 44 is what found this. Its at-spi2-core 2.60 registry reads an application AS IT
+        // REGISTERS -- role, name, a whole Cache.GetItems -- and an application that answers "no
+        // children" is one it never adds to the desktop: over a hundred inbound calls, a perfect
+        // conversation, and no libatspi client would list us, Orca included. Ubuntu's 2.52 adds
+        // first and reads later, so registering with an empty tree looked correct there for every
+        // run this bridge has ever had. Registering before there is a tree was always wrong; only
+        // one of the two desktops minded.
+        if (connection == null && tree.nodeCount() > 0) {
+            joinAttempts++;
+            connect();
+        }
         // One volatile write, and it is the whole of what the reader thread reads. Reentrancy
         // costs nothing here because nothing is released, re-pushed or drained on this path:
         // the tree published a moment ago is answered from until this one replaces it.
