@@ -39,8 +39,21 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 final class UiaObject {
 
-    /** What one interface contributes: its identity, and the slots after {@code IUnknown}'s. */
-    record Served(UiaInterfaces.Vtable iface, List<? extends CallbackI> ownSlots) {
+    /**
+     * What one interface contributes: its identity, and its slots <b>by name</b>.
+     *
+     * <p><b>By name and not in order, which is the whole point.</b> A vtable is an array of
+     * function pointers and the signatures repeat, so a list handed over in the wrong order is a
+     * silent misdispatch — the client calls what it believes is {@code get_ProviderOptions} and
+     * reaches {@code Navigate} with the arguments of the other. Keyed by name, the only thing that
+     * decides where a slot lands is {@link UiaInterfaces}' own list, which was read off a guest;
+     * a name that is not in it, or one that is missing, fails here and says which.
+     *
+     * @param iface    the interface being served
+     * @param ownSlots its members after {@code IUnknown}'s three, keyed by the names the guest
+     *                 reported
+     */
+    record Served(UiaInterfaces.Vtable iface, Map<String, ? extends CallbackI> ownSlots) {
     }
 
     private final Map<String, Long> byIid = new LinkedHashMap<>();
@@ -71,10 +84,21 @@ final class UiaObject {
             slots.add(queryInterface);
             slots.add(addRef);
             slots.add(release);
-            slots.addAll(one.ownSlots());
-            if (slots.size() != one.iface().slotCount()) {
-                throw new IllegalArgumentException(one.iface().name() + " needs "
-                        + one.iface().slotCount() + " slots and was given " + slots.size());
+            // The order comes from the table and from nowhere else.
+            for (String name : one.iface().slots()) {
+                CallbackI slot = one.ownSlots().get(name);
+                if (slot == null) {
+                    throw new IllegalArgumentException(one.iface().name() + " has no slot for "
+                            + name + ", which the guest reported at position "
+                            + (3 + one.iface().slots().indexOf(name)));
+                }
+                slots.add(slot);
+            }
+            for (String given : one.ownSlots().keySet()) {
+                if (!one.iface().slots().contains(given)) {
+                    throw new IllegalArgumentException(one.iface().name() + " was given a slot "
+                            + "named " + given + ", which it does not have: " + one.iface().slots());
+                }
             }
             long vtable = MemoryUtil.nmemAllocChecked((long) slots.size() * Pointer.POINTER_SIZE);
             for (int slot = 0; slot < slots.size(); slot++) {

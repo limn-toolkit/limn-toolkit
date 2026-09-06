@@ -79,6 +79,26 @@ class UiaProviderTest {
         public UiaStrings.Allocator strings() {
             return strings;
         }
+
+        @Override
+        public long int32Array(int[] values) {
+            return 0;
+        }
+
+        @Override
+        public long elementFor(long nodeId) {
+            return 0;
+        }
+
+        @Override
+        public long rootElement() {
+            return 0;
+        }
+
+        @Override
+        public boolean requestFocus(long nodeId) {
+            return false;
+        }
     };
 
     private final List<UiaObject> made = new ArrayList<>();
@@ -115,11 +135,19 @@ class UiaProviderTest {
         return object.pointer();
     }
 
-    /** Slots, counted from IUnknown's three, in the order the guest reported. */
-    private static final int GET_PROVIDER_OPTIONS = 3;
-    private static final int GET_PATTERN_PROVIDER = 4;
-    private static final int GET_PROPERTY_VALUE = 5;
-    private static final int GET_HOST_PROVIDER = 6;
+    /**
+     * Where each member sits, taken from the table the guest filled rather than written out: a
+     * case that hard-coded 5 for GetPropertyValue would agree with a vtable built the same wrong
+     * way.
+     */
+    private static int slotOf(String member) {
+        return 3 + UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE.slots().indexOf(member);
+    }
+
+    private static final int GET_PROVIDER_OPTIONS = slotOf("get_ProviderOptions");
+    private static final int GET_PATTERN_PROVIDER = slotOf("GetPatternProvider");
+    private static final int GET_PROPERTY_VALUE = slotOf("GetPropertyValue");
+    private static final int GET_HOST_PROVIDER = slotOf("get_HostRawElementProvider");
 
     private static int callOut(long element, int slot, long out) {
         return JNI.invokePPI(element, out, UiaCom.slotOf(element, slot));

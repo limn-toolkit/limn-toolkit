@@ -6,7 +6,9 @@ import org.lwjgl.system.JNI;
 import org.lwjgl.system.MemoryUtil;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -31,11 +33,11 @@ class UiaObjectTest {
     private static final int SLOT_ADD_REF = 1;
     private static final int SLOT_RELEASE = 2;
 
-    /** Enough slots to satisfy an interface, each answering nothing in particular. */
-    private static List<CallbackI> fillerFor(UiaInterfaces.Vtable iface) {
-        List<CallbackI> slots = new ArrayList<>();
-        for (int i = 0; i < iface.slots().size(); i++) {
-            slots.add((UiaCom.P) self -> UiaIds.S_OK);
+    /** Every slot an interface names, each answering nothing in particular. */
+    private static Map<String, CallbackI> fillerFor(UiaInterfaces.Vtable iface) {
+        Map<String, CallbackI> slots = new LinkedHashMap<>();
+        for (String name : iface.slots()) {
+            slots.put(name, (UiaCom.P) self -> UiaIds.S_OK);
         }
         return slots;
     }
@@ -255,14 +257,40 @@ class UiaObjectTest {
         }
     }
 
+    /**
+     * The check that makes a misdispatch impossible rather than unlikely: slots are placed by the
+     * name the guest reported, so one that is missing fails here and says which position it was
+     * meant to occupy, instead of leaving a hole a client falls into.
+     */
     @Test
-    void anInterfaceGivenTheWrongNumberOfSlotsIsRefusedRatherThanBuilt() {
+    void anInterfaceMissingASlotIsRefusedAndSaysWhichOne() {
+        Map<String, CallbackI> incomplete =
+                new LinkedHashMap<>(fillerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE));
+        incomplete.remove("GetPropertyValue");
         try {
             UiaObject.create(List.of(new UiaObject.Served(
-                    UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE, List.of())), () -> { });
-            throw new AssertionError("built a vtable with holes in it");
+                    UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE, incomplete)), () -> { });
+            throw new AssertionError("built a vtable with a hole in it");
         } catch (IllegalArgumentException refused) {
-            assertTrue(refused.getMessage().contains("IRawElementProviderSimple"), "names which");
+            assertTrue(refused.getMessage().contains("GetPropertyValue"), refused.getMessage());
+            assertTrue(refused.getMessage().contains("position 5"),
+                    "and says where it belonged, which is the guest's reading: "
+                            + refused.getMessage());
+        }
+    }
+
+    /** A name that is not in the interface is a slot nobody would ever call. */
+    @Test
+    void anInterfaceGivenASlotItDoesNotHaveIsRefused() {
+        Map<String, CallbackI> wrong =
+                new LinkedHashMap<>(fillerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE));
+        wrong.put("Navigate", (UiaCom.P) self -> UiaIds.S_OK);
+        try {
+            UiaObject.create(List.of(new UiaObject.Served(
+                    UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE, wrong)), () -> { });
+            throw new AssertionError("accepted a member of another interface");
+        } catch (IllegalArgumentException refused) {
+            assertTrue(refused.getMessage().contains("Navigate"), refused.getMessage());
         }
     }
 
