@@ -1,31 +1,41 @@
 package limn.a11y.windows;
 
-import limn.accessibility.Accessibility;
-import limn.accessibility.Accessible;
-import limn.accessibility.AccessibleNode;
-import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
-import limn.i18n.I18nString;
+import limn.components.Button;
+import limn.components.Checkbox;
+import limn.components.Label;
+import limn.concurrent.Ui;
+import limn.concurrent.UiRuntime;
+import limn.graphics.Canvas;
+import limn.scene.Scene;
+import limn.scene.layout.Column;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWNativeWin32;
 
-import java.util.Locale;
+import java.util.concurrent.Executors;
 
 /**
- * A real window on a real Windows machine, with this bridge behind it, so that a real client can
- * ask it for a tree.
+ * Real widgets, on a real window, read by a real screen reader.
  *
- * <p>Not a test: it does not assert, it stays alive. It exists because the one thing the module's
- * own cases cannot check is the conversation with UI Automation — whether the slot order read off
- * this guest is the order UI Automation actually calls, whether {@code WM_GETOBJECT} reaches this
- * bridge, whether a name written into a {@code VARIANT} arrives as a name. A client walking this
- * window answers all three at once, and nothing else does.
+ * <p>Not a test: it does not assert, it stays alive. It exists because the one thing this module's
+ * own cases cannot check is the conversation with UI Automation — whether {@code WM_GETOBJECT}
+ * reaches this bridge, whether the slot order read off the guest is the order UI Automation calls,
+ * and whether what is written into a {@code VARIANT} arrives as what it meant.
  *
- * <p>The tree is built by hand rather than by a scene, because what is under test is the bridge and
- * not the toolkit: three nodes, a name apiece, one of them pressable.
+ * <p><b>The tree comes from a scene and not from a builder.</b> An earlier version of this probe
+ * published a hand-made tree of three nodes, which tested the bridge and nothing under it — and the
+ * two defects the Linux run found with a live reader were both <em>under</em> it, in what a scene
+ * publishes rather than in what a bridge does with it. So this is a {@link Button} and a
+ * {@link Checkbox} in a {@link Scene}, walked by the toolkit's own pass, and the events a reader
+ * hears are the ones a real focus move and a real toggle raise.
+ *
+ * <p><b>The window is real and paints nothing.</b> UI Automation needs an HWND to attach a provider
+ * to, so GLFW opens one with no graphics context; the scene binds to a {@link ProbeWindow} instead,
+ * which is a {@code NativeWindow} that answers where that HWND sits and hands over this bridge. A
+ * probe that also rendered would be testing the backend, which is not what is in question here.
  *
  * <pre>
- * java -cp ... limn.a11y.windows.LiveProbe
+ * java -jar limn-a11y-windows-probe.jar
  * </pre>
  */
 public final class LiveProbe {
@@ -38,10 +48,6 @@ public final class LiveProbe {
      * @throws InterruptedException if the wait is cut short
      */
     public static void main(String[] args) throws InterruptedException {
-        UiaWindow.trace = line -> {
-            System.out.println("[wnd] " + line);
-            System.out.flush();
-        };
         System.out.println("uiautomationcore available: " + Uia.isAvailable());
         System.out.println("user32 available:           " + UiaWindow.isAvailable());
         System.out.println("oleaut32 available:         " + UiaStrings.isAvailable());
@@ -51,114 +57,83 @@ public final class LiveProbe {
             return;
         }
         GLFW.glfwWindowHint(GLFW.GLFW_CLIENT_API, GLFW.GLFW_NO_API);
-        long window = GLFW.glfwCreateWindow(480, 320, "Limn accessibility probe", 0, 0);
-        if (window == 0) {
+        long glfw = GLFW.glfwCreateWindow(480, 320, "Limn accessibility probe", 0, 0);
+        if (glfw == 0) {
             System.out.println("FAILED: glfwCreateWindow");
             return;
         }
-        long hwnd = GLFWNativeWin32.glfwGetWin32Window(window);
+        long hwnd = GLFWNativeWin32.glfwGetWin32Window(glfw);
         System.out.println("hwnd: " + Long.toHexString(hwnd));
 
         AccessibilityBridge bridge = UiaBridge.openIfEnabled(hwnd);
-        System.out.println("bridge: " + bridge.getClass().getSimpleName());
-        if (!(bridge instanceof UiaBridge live)) {
+        System.out.println("bridge: " + bridge.getClass().getSimpleName()
+                + "  listening=" + bridge.isListening());
+        if (bridge == AccessibilityBridge.NONE) {
             System.out.println("FAILED: no bridge for this window");
             return;
         }
-        live.publish(threeNodes(), false);
-        System.out.println("published " + live.tree().nodeCount() + " nodes; listening: "
-                + live.isListening());
-        System.out.println("READY");
-        System.out.flush();
 
-        GLFW.glfwShowWindow(window);
-        // Asking for the foreground repeatedly, because a screen reader announces what it is
-        // given: it speaks the focused element of the foreground window, and a window nobody
-        // brought forward is a window it never reaches.
-        long until = System.currentTimeMillis() + 180_000;
+        UiRuntime runtime = new UiRuntime(System::nanoTime, () -> { },
+                Executors.newFixedThreadPool(1));
+        runtime.bindToCurrentThread();
+        Ui.install(runtime);
+
+        Column root = new Column();
+        root.add(new Label("Limn accessibility probe"));
+        Button save = new Button("Save");
+        save.onAction(() -> System.out.println("*** Save pressed, through the toolkit's own path"));
+        root.add(save);
+        Checkbox wrap = new Checkbox(Checkbox.Variant.BOX, "Wrap lines");
+        wrap.onChange(on -> System.out.println("*** Wrap toggled to " + on));
+        root.add(wrap);
+
+        ProbeWindow window = new ProbeWindow();
+        window.accessibility = bridge;
+        int[] x = new int[1];
+        int[] y = new int[1];
+        GLFW.glfwGetWindowPos(glfw, x, y);
+        window.screenX = x[0];
+        window.screenY = y[0];
+        System.out.println("window at " + x[0] + "," + y[0]);
+
+        Scene scene = new Scene(root);
+        scene.bind(window);
+        // The window has the user's focus, which a real backend reports and a stub must say for
+        // itself: without it the tree is published by a window no client considers active. That is
+        // one of the two defects the Linux run found with a live reader.
+        scene.windowFocusChanged(true);
+        scene.inputBatchEnded();
+
+        GLFW.glfwShowWindow(glfw);
+        Canvas nothing = new NoCanvas();
+        long end = System.currentTimeMillis() + 180_000;
+        long nextStep = System.currentTimeMillis() + 12_000;
         long nextFocus = 0;
-        long moveTheKeyboard = System.currentTimeMillis() + 25_000;
-        long uncheckIt = System.currentTimeMillis() + 45_000;
-        boolean moved = false;
-        boolean unchecked = false;
-        while (System.currentTimeMillis() < until && !GLFW.glfwWindowShouldClose(window)) {
+        int step = 0;
+        while (System.currentTimeMillis() < end && !GLFW.glfwWindowShouldClose(glfw)) {
+            // Asking for the foreground, because a reader announces the window in front and one
+            // nobody brought forward is one it never reaches.
             if (System.currentTimeMillis() > nextFocus) {
-                GLFW.glfwFocusWindow(window);
+                GLFW.glfwFocusWindow(glfw);
                 nextFocus = System.currentTimeMillis() + 8_000;
             }
-            // Once, after the reader has settled on the button: move the keyboard to the check box
-            // and say so. A reader learns of a focus move from the event and not by asking, so
-            // this exercises the one path a client cannot prompt -- the path where the Linux run
-            // found its two defects.
-            if (!moved && System.currentTimeMillis() > moveTheKeyboard) {
-                moved = true;
-                live.publish(threeNodes(1002), false);
-                live.emit(limn.accessibility.AccessibleEvent.of(
-                        limn.accessibility.AccessibleEvent.Type.FOCUS_CHANGED, 1002));
-                System.out.println("moved the keyboard to the check box and raised FOCUS_CHANGED");
+            // And something moves every few seconds, so a listening reader has events to hear --
+            // raised by the scene from a real focus move and a real toggle, not published by hand.
+            if (System.currentTimeMillis() > nextStep) {
+                nextStep = System.currentTimeMillis() + 9_000;
+                switch (step++ % 3) {
+                    case 0 -> scene.requestFocus(save);
+                    case 1 -> scene.requestFocus(wrap);
+                    default -> wrap.setChecked(!wrap.isChecked());
+                }
+                System.out.println("--- step " + step + " ---");
                 System.out.flush();
             }
-            // And once more, later: change what the check box says about itself and raise the
-            // property change. A reader announces a state it was told moved; one that has to ask
-            // announces nothing, which is the difference this last path makes.
-            if (moved && !unchecked && System.currentTimeMillis() > uncheckIt) {
-                unchecked = true;
-                live.publish(threeNodes(1002, limn.accessibility.ToggleFacet.State.OFF), false);
-                live.emit(limn.accessibility.AccessibleEvent.state(
-                        1002, limn.accessibility.Accessible.State.CHECKED, false));
-                System.out.println("unchecked the box and raised STATE_CHANGED");
-                System.out.flush();
-            }
-            GLFW.glfwWaitEventsTimeout(0.2);
+            scene.renderFrame(nothing);
+            runtime.drain();
+            GLFW.glfwPollEvents();
+            Thread.sleep(16);
         }
-        System.out.println("DONE");
-    }
-
-    /** A window, a button and a check box, which is enough for a client to walk and read. */
-    private static AccessibleTree threeNodes() {
-        return threeNodes(1001);
-    }
-
-    /**
-     * @param focusedId which node holds the keyboard, so that a run can move it and hear the
-     *                  difference
-     * @return the tree
-     */
-    private static AccessibleTree threeNodes(long focusedId) {
-        return threeNodes(focusedId, limn.accessibility.ToggleFacet.State.ON);
-    }
-
-    /**
-     * @param focusedId which node holds the keyboard
-     * @param checked   what the check box says about itself
-     * @return the tree
-     */
-    private static AccessibleTree threeNodes(long focusedId,
-                                             limn.accessibility.ToggleFacet.State checked) {
-        Accessibility a = new Accessibility();
-        a.beginWalk(480, 320, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
-        a.role(Accessible.Role.WINDOW);
-        a.name(I18nString.literal("Limn accessibility probe"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-
-        a.begin(1001, 0, Locale.ENGLISH, 20, 40, 160, 40);
-        a.role(Accessible.Role.BUTTON);
-        a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
-        a.description(I18nString.literal("Writes the file"));
-        a.action(Accessible.Action.PRESS);
-        a.inherited(true, true, true, true, focusedId == 1001);
-        a.end();
-
-        a.begin(1002, 0, Locale.ENGLISH, 20, 100, 160, 24);
-        a.role(Accessible.Role.CHECK_BOX);
-        a.name(I18nString.literal("Wrap lines"), Accessible.NameFrom.CONTENT);
-        a.action(Accessible.Action.TOGGLE);
-        a.toggle(checked);
-        a.inherited(true, true, true, true, focusedId == 1002);
-        a.end();
-
-        a.end();
-        return a.publish(focusedId, 0, 0, 1f, true);
+        System.out.println("DONE; listening=" + bridge.isListening());
     }
 }
