@@ -1338,7 +1338,7 @@ is a latent crash in a caller that trusts the union.
 | Attribute / action / notification | Answered from | Note |
 | --- | --- | --- |
 | `accessibilityRole`, `accessibilitySubrole` | role | role constants resolve by `dlsym` on AppKit; `NSAccessibilityButtonRole` proven to dereference to `AXButton` |
-| `accessibilityRoleDescription` | localized from the role under the node's locale | AppKit's default is English-only |
+| `accessibilityRoleDescription` | localized from the role under the node's locale | **measured, and the reason is narrower than "AppKit's default is English-only"**: `NSAccessibilityRoleDescription()` localizes against the *calling process's* bundle localization, and a JVM launched from a jar has none — so on the phase 7 guest, whose entire desktop is pt-BR, VoiceOver said "checkbox", "text field" and "slider" in English while wrapping them in its own Portuguese ("Você está em um item do tipo campo de texto"). Deferring to AppKit is therefore not an option that works, on this or any non-English system, and the phrase has to be ours. It is **not yet implemented**: the catalog it needs does not exist, and the six roles §7 already degrades would want entries in it too |
 | `accessibilityTitle` / `accessibilityLabel` | name, chosen by `nameFrom` | Finding 5. `CONTENT` → title; anything else → label; **never both** |
 | `accessibilityHelp` | description | the tooltip lands here when it is not the name |
 | `accessibilityValue`, `accessibilityMinValue`, `accessibilityMaxValue` | `ValueFacet`; `ToggleFacet` as `@0`/`@1`/`@2`; **`TextFacet` as its text** | three facets share one attribute, which is why they are separate facets rather than one field. A text node with no `TextFacet`-sourced value is a field VoiceOver cannot read (§2.1) |
@@ -1535,6 +1535,29 @@ must **not** be sent: agreeing lets a peer send a message carrying a file descri
 | `ANNOUNCEMENT` | `UiaRaiseNotificationEvent` | `AnnouncementRequested` with a priority | `Event.Object` `Announcement` |
 
 The two blanks are the model being honest: nothing is invented to fill a cell.
+
+**An event is half a conversation, and the other half is a question this table does not name.**
+Three platforms, three live runs, and the same failure on two of them: a reader is told that
+something changed, it then asks a question of its own, and if nobody answers that question the
+event buys nothing at all. The silence is indistinguishable from never having posted.
+
+| Platform | What the reader asks after a focus event | Status |
+| --- | --- | --- |
+| Windows | `GetFocus` on `IRawElementProviderFragmentRoot` | answered from the start (phase 6) |
+| Linux | whether any window has `ACTIVE` | **the phase 5 defect**: Orca suppressed *every* announcement over a correct tree with correct events, because no window claimed to be active |
+| macOS | `accessibilityFocusedUIElement` | **the phase 7 defect**: VoiceOver stood on the first node and never moved, having been told each time that the focus had changed |
+
+So the rule is not "raise the event" but "raise the event and be able to answer what it invites",
+and the two are written in different files by different people. A reviewer of a fourth bridge
+should look for the question before looking for the event.
+
+**And the reason both defects survived so long is worth more than either of them.** Neither is
+visible on a widget that has a second thing to announce. On macOS the check box appeared to be
+followed correctly for four runs, because its *value* changed at the same moment its focus did and
+the value change was announced; the button was the only widget in the probe with nothing to say but
+its own name, and it was the only one that looked broken. A probe whose every step also changes a
+value cannot see this class of defect at all. §12.2's lab suites therefore drive focus and value
+**separately**, and a widget with no value is not a poor test case but the only one that works.
 
 ---
 
