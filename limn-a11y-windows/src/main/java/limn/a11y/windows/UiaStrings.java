@@ -55,6 +55,58 @@ final class UiaStrings {
     /** {@code SysFreeString(BSTR)}, for the strings this bridge frees rather than hands over. */
     private static final long SYS_FREE_STRING = OLEAUT == null ? 0L : address("SysFreeString");
 
+    /** {@code SafeArrayCreateVector(VARTYPE, LONG, ULONG)} — a runtime id's array. */
+    private static final long SAFE_ARRAY_CREATE_VECTOR =
+            OLEAUT == null ? 0L : address("SafeArrayCreateVector");
+
+    /** {@code SafeArrayAccessData(SAFEARRAY*, void**)} and its unlock. */
+    private static final long SAFE_ARRAY_ACCESS_DATA =
+            OLEAUT == null ? 0L : address("SafeArrayAccessData");
+
+    private static final long SAFE_ARRAY_UNACCESS_DATA =
+            OLEAUT == null ? 0L : address("SafeArrayUnaccessData");
+
+    /**
+     * A {@code SAFEARRAY} of 32-bit integers, which is the shape a runtime id travels in.
+     *
+     * <p>Owned by the caller from the moment it is returned, and freed by it with
+     * {@code SafeArrayDestroy} — the same ownership a {@code BSTR} has and the same reason it
+     * cannot be allocated any other way.
+     *
+     * <p><b>The one call site where the ABI leaks.</b> {@code SafeArrayCreateVector}'s first
+     * argument is a 16-bit {@code VARTYPE} and {@code JNI.invoke*} is named for pointer-sized and
+     * narrow arguments only, so there is no overload that spells it. It is passed as an int, which
+     * is what the calling convention does with a short anyway; ADR 039 §2.1 predicted this exact
+     * leak.
+     *
+     * @param values the integers to hand over
+     * @return the array, or {@code 0} on a machine with no {@code oleaut32}
+     */
+    static long int32Array(int[] values) {
+        if (SAFE_ARRAY_CREATE_VECTOR == 0 || SAFE_ARRAY_ACCESS_DATA == 0
+                || SAFE_ARRAY_UNACCESS_DATA == 0) {
+            return 0L;
+        }
+        long array = JNI.invokeP(UiaVariant.VT_I4, 0, values.length, SAFE_ARRAY_CREATE_VECTOR);
+        if (array == 0) {
+            return 0L;
+        }
+        long slot = MemoryUtil.nmemAllocChecked(8);
+        try {
+            if (JNI.invokePPI(array, slot, SAFE_ARRAY_ACCESS_DATA) != UiaIds.S_OK) {
+                return array; // created but not filled: an empty runtime id, never a wrong one
+            }
+            long data = MemoryUtil.memGetAddress(slot);
+            for (int i = 0; i < values.length; i++) {
+                MemoryUtil.memPutInt(data + (long) i * 4, values[i]);
+            }
+            JNI.invokePI(array, SAFE_ARRAY_UNACCESS_DATA);
+            return array;
+        } finally {
+            MemoryUtil.nmemFree(slot);
+        }
+    }
+
     private static SharedLibrary open() {
         try {
             return Library.loadNative(UiaStrings.class, "limn.a11y.windows", "oleaut32");

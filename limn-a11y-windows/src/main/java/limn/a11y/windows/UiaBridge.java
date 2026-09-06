@@ -48,9 +48,14 @@ public final class UiaBridge implements AccessibilityBridge {
     /** Interface pointer to the object behind it, for every pointer an element publishes. */
     private final Map<Long, UiaObject> objects = new ConcurrentHashMap<>();
 
-    /** The window this tree is drawn in, and the provider UI Automation made for it. */
+    /** The window this tree is drawn in. */
     private final long hwnd;
-    private volatile long hostProvider;
+
+    /** The last root provider handed to UI Automation, so detaching can disconnect it. */
+    private volatile long rootProviderForDisconnect;
+
+    /** The procedure this bridge put in front of the window's own, or {@code null}. */
+    private volatile UiaWindow attachedWindow;
 
     private UiaBridge(long hwnd) {
         this.hwnd = hwnd;
@@ -66,10 +71,14 @@ public final class UiaBridge implements AccessibilityBridge {
      * @return a bridge, or {@link AccessibilityBridge#NONE} on a machine with no UI Automation
      */
     public static AccessibilityBridge openIfEnabled(long hwnd) {
-        if (!Uia.isAvailable() || hwnd == 0) {
+        if (!Uia.isAvailable() || !UiaWindow.isAvailable() || hwnd == 0) {
             return AccessibilityBridge.NONE;
         }
-        return new UiaBridge(hwnd);
+        UiaBridge bridge = new UiaBridge(hwnd);
+        bridge.attachedWindow = UiaWindow.attach(hwnd, bridge);
+        // A window whose procedure could not be replaced is a window no client can ask, so there
+        // is nothing for this bridge to answer and no reason to make the scene walk for it.
+        return bridge.attachedWindow == null ? AccessibilityBridge.NONE : bridge;
     }
 
     /**
@@ -187,8 +196,15 @@ public final class UiaBridge implements AccessibilityBridge {
         host = null;
         published = AccessibleTree.EMPTY;
         emptyRegistry();
-        Uia.disconnectProvider(hostProvider);
-        hostProvider = 0;
+        // Our own root provider, and not the window's: the host provider is UI Automation's own
+        // and every reference to it was handed over already.
+        Uia.disconnectProvider(rootProviderForDisconnect);
+        rootProviderForDisconnect = 0;
+        UiaWindow window = attachedWindow;
+        if (window != null) {
+            window.detach();
+            attachedWindow = null;
+        }
     }
 
     /**
@@ -228,7 +244,14 @@ public final class UiaBridge implements AccessibilityBridge {
     /** @return the root node's element, minting it if this is the first ask, or {@code 0} */
     private long rootElement() {
         AccessibleTree tree = published;
-        return tree.nodeCount() == 0 ? 0 : context.elementFor(tree.root().id());
+        // The simple interface, because that is what UiaReturnRawElementProvider is declared to
+        // take -- and referenced, because UI Automation keeps it.
+        if (tree.nodeCount() == 0) {
+            return 0;
+        }
+        long provider = handOver(tree.root().id(), UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE);
+        rootProviderForDisconnect = provider;
+        return provider;
     }
 
     /**
@@ -244,17 +267,22 @@ public final class UiaBridge implements AccessibilityBridge {
 
         @Override
         public long patternProviderFor(long nodeId, int patternId) {
-            UiaInterfaces.Vtable iface = UiaPatternProviders.interfaceFor(patternId);
-            if (iface == null) {
-                return 0;
-            }
-            UiaElement element = elementOf(nodeId);
-            return element == null ? 0 : objects.get(element.pointer()).pointerFor(iface);
+            return handOver(nodeId, UiaPatternProviders.interfaceFor(patternId));
         }
 
+        /**
+         * <p>Asked for afresh every time, and never cached.
+         *
+         * <p>{@code UiaHostProviderFromHwnd} answers with a reference the caller owns, and the
+         * caller here is UI Automation, which releases it when it is done. Handing the same
+         * pointer over twice hands over a reference we no longer have — the second client to ask
+         * gets an object that has already been freed. That is not a subtle failure and it is not a
+         * slow one: the live run crashed on the second {@code WM_GETOBJECT}, in native code, with
+         * no Java frame to name.
+         */
         @Override
         public long hostProvider() {
-            return hostProvider;
+            return Uia.hostProviderFromHwnd(hwnd);
         }
 
         @Override
@@ -264,22 +292,28 @@ public final class UiaBridge implements AccessibilityBridge {
 
         @Override
         public long int32Array(int[] values) {
-            // Deliberately none until the SAFEARRAY allocation is written: a runtime id a client
-            // cannot read is a node it cannot cache, which costs it a re-walk. Handing over memory
-            // from the wrong allocator would cost it a crash.
-            return 0;
+            return UiaStrings.int32Array(values);
         }
 
+        /**
+         * <p><b>The fragment interface and not the object's primary one.</b> Every pointer a COM
+         * method returns has a declared type, and a client walking slot 5 of what it believes is
+         * {@code IRawElementProviderFragment} finds slot 5 of whatever vtable it was actually
+         * handed. Answering navigation with the simple interface is the same misdispatch the slot
+         * order was read to prevent, arriving through the other door -- and it is what the live run
+         * caught: every call answered S_OK and UI Automation refused the provider anyway.
+         */
         @Override
         public long elementFor(long nodeId) {
-            UiaElement element = elementOf(nodeId);
-            return element == null ? 0 : element.pointer();
+            return handOver(nodeId, UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT);
         }
 
+        /** <p>And the fragment <em>root</em> interface here, for the same reason. */
         @Override
         public long rootElement() {
             AccessibleTree tree = published;
-            return tree.nodeCount() == 0 ? 0 : elementFor(tree.root().id());
+            return tree.nodeCount() == 0 ? 0
+                    : handOver(tree.root().id(), UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT_ROOT);
         }
 
         @Override
@@ -293,6 +327,33 @@ public final class UiaBridge implements AccessibilityBridge {
             return current != null && current.perform(nodeId, action, arg);
         }
     };
+
+    /**
+     * One interface pointer of a node's element, counted for the caller.
+     *
+     * <p>Every pointer this bridge returns from a COM method is a reference the caller owns and
+     * will release, so it is counted here. Handing one over uncounted is an object freed while a
+     * client still holds it.
+     *
+     * @param nodeId the node
+     * @param iface  which of its interfaces, or {@code null} for none
+     * @return the pointer, already referenced, or {@code 0}
+     */
+    private long handOver(long nodeId, UiaInterfaces.Vtable iface) {
+        if (iface == null) {
+            return 0;
+        }
+        UiaElement element = elementOf(nodeId);
+        if (element == null) {
+            return 0;
+        }
+        UiaObject object = objects.get(element.pointer());
+        long pointer = object == null ? 0 : object.pointerFor(iface);
+        if (pointer != 0) {
+            object.addRef();
+        }
+        return pointer;
+    }
 
     /**
      * The element for a node, made once however many RPC threads ask at once.

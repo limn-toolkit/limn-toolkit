@@ -3,6 +3,7 @@ package limn.a11y.windows;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.JNI;
 import org.lwjgl.system.Library;
+import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.SharedLibrary;
 
 /**
@@ -39,6 +40,10 @@ final class Uia {
     /** {@code UiaRaiseAutomationEvent(IRawElementProviderSimple*, EVENTID)}. */
     private static final long RAISE_AUTOMATION_EVENT =
             CORE == null ? 0L : address("UiaRaiseAutomationEvent");
+
+    /** {@code UiaHostProviderFromHwnd(HWND, IRawElementProviderSimple**)}. */
+    private static final long HOST_PROVIDER_FROM_HWND =
+            CORE == null ? 0L : address("UiaHostProviderFromHwnd");
 
     /** {@code UiaDisconnectProvider(IRawElementProviderSimple*)}. */
     private static final long DISCONNECT_PROVIDER =
@@ -85,6 +90,30 @@ final class Uia {
             return 0;
         }
         return JNI.invokePPPPP(hwnd, wparam, lparam, provider, RETURN_RAW_ELEMENT_PROVIDER);
+    }
+
+    /**
+     * The provider UI Automation itself made for a window.
+     *
+     * <p><b>The root answers this and nothing else does</b>, and without it a fragment root is not
+     * hosted anywhere: UI Automation refuses the provider outright, which is what the live run
+     * found — every call answering S_OK and the registration failing anyway.
+     *
+     * @param hwnd the window
+     * @return its host provider, already referenced, or {@code 0}
+     */
+    static long hostProviderFromHwnd(long hwnd) {
+        if (HOST_PROVIDER_FROM_HWND == 0 || hwnd == 0) {
+            return 0;
+        }
+        long slot = MemoryUtil.nmemAllocChecked(8);
+        try {
+            MemoryUtil.memPutAddress(slot, 0);
+            JNI.invokePPI(hwnd, slot, HOST_PROVIDER_FROM_HWND);
+            return MemoryUtil.memGetAddress(slot);
+        } finally {
+            MemoryUtil.nmemFree(slot);
+        }
     }
 
     /**

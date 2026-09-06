@@ -151,6 +151,18 @@ final class UiaObject {
         return references.get();
     }
 
+    /**
+     * Counts a reference this bridge is about to hand a caller.
+     *
+     * <p>Every interface pointer returned from a COM method is a reference the caller owns and
+     * will release. Handing one over without counting it is a use-after-free waiting for the
+     * caller to be tidy: it releases what it was given, the count reaches zero early, and the
+     * object is freed while UI Automation still has it.
+     */
+    void addRef() {
+        references.incrementAndGet();
+    }
+
     private int query(long riid, long out) {
         if (out == 0) {
             // A caller that passed nowhere to write to. E_POINTER would be the letter of it; what

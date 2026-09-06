@@ -75,6 +75,31 @@ final class UiaCom {
         int invoke(long self, long out);
     }
 
+    /**
+     * {@code LRESULT f(HWND, UINT, WPARAM, LPARAM)} — a window procedure, which is the one
+     * callback here that is not a COM method and the one that returns a pointer.
+     */
+    interface WndProc extends CallbackI {
+
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(WndProc.class,
+                MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_uint32, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
+
+        @Override
+        default Callback.Descriptor getDescriptor() {
+            return DESCRIPTOR;
+        }
+
+        @Override
+        default void callback(long ret, long args) {
+            APIUtil.apiClosureRetP(ret, invoke(argPointer(args, 0), argInt(args, 1),
+                    argPointer(args, 2), argPointer(args, 3)));
+        }
+
+        long invoke(long hwnd, int message, long wparam, long lparam);
+    }
+
     /** {@code HRESULT f(void* this, double value)} — IRangeValueProvider's setter. */
     interface PD extends CallbackI {
 

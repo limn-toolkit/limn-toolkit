@@ -39,8 +39,28 @@ dependencies {
     val lwjglVersion = libs.versions.lwjgl.get()
     lwjglNatives.take(2).forEach { runtimeOnly("org.lwjgl:lwjgl:$lwjglVersion:$it") }
 
+    // For the live probe only: it opens a real window on the guest so that a real client can ask
+    // this bridge for a tree. Nothing in the module's own sources knows what GLFW is.
+    testImplementation(libs.lwjgl.glfw)
+    lwjglNatives.forEach { testRuntimeOnly("org.lwjgl:lwjgl-glfw:${libs.versions.lwjgl.get()}:$it") }
+
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
     lwjglNatives.forEach { testRuntimeOnly("org.lwjgl:lwjgl:$lwjglVersion:$it") }
+}
+
+// One jar with the probe, the module and everything either needs, so the guest can be handed a
+// single file. The probe is a test source because it is not part of what an application gets.
+tasks.register<Jar>("probeJar") {
+    description = "A runnable jar of LiveProbe and its dependencies, for a run on the Windows guest."
+    group = "verification"
+    archiveFileName.set("limn-a11y-windows-probe.jar")
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest { attributes("Main-Class" to "limn.a11y.windows.LiveProbe") }
+    from(sourceSets.main.get().output, sourceSets.test.get().output)
+    from(configurations.named("testRuntimeClasspath").map { classpath ->
+        classpath.filter { it.name.endsWith(".jar") }.map { zipTree(it) }
+    })
+    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "module-info.class")
 }
