@@ -41,6 +41,10 @@ final class Uia {
     private static final long RAISE_AUTOMATION_EVENT =
             CORE == null ? 0L : address("UiaRaiseAutomationEvent");
 
+    /** {@code UiaRaiseAutomationPropertyChangedEvent(provider, PROPERTYID, VARIANT, VARIANT)}. */
+    private static final long RAISE_PROPERTY_CHANGED =
+            CORE == null ? 0L : address("UiaRaiseAutomationPropertyChangedEvent");
+
     /** {@code UiaHostProviderFromHwnd(HWND, IRawElementProviderSimple**)}. */
     private static final long HOST_PROVIDER_FROM_HWND =
             CORE == null ? 0L : address("UiaHostProviderFromHwnd");
@@ -128,6 +132,29 @@ final class Uia {
             return UiaIds.S_OK;
         }
         return JNI.invokePI(provider, eventId, RAISE_AUTOMATION_EVENT);
+    }
+
+    /**
+     * Tells every listening client that one property of one element moved.
+     *
+     * <p><b>Two {@code VARIANT}s by value, which is where the ABI leaks again.</b> The declared
+     * signature takes them by value; a {@code VARIANT} is twenty-four bytes, and the calling
+     * convention on every architecture this ships to passes a structure that size by address. So
+     * what the machine sees is two pointers, and that is what is passed — the same reasoning
+     * {@code SafeArrayCreateVector}'s 16-bit first argument needed, and the second of the two
+     * places ADR 039 §2.1 said this would happen.
+     *
+     * @param provider   the element whose property moved
+     * @param propertyId which property
+     * @param before     a filled {@code VARIANT} holding the old value
+     * @param after      the same for the new one
+     * @return the {@code HRESULT}
+     */
+    static int raisePropertyChangedEvent(long provider, int propertyId, long before, long after) {
+        if (RAISE_PROPERTY_CHANGED == 0 || provider == 0) {
+            return UiaIds.S_OK;
+        }
+        return JNI.invokePPPI(provider, propertyId, before, after, RAISE_PROPERTY_CHANGED);
     }
 
     /**

@@ -78,7 +78,9 @@ public final class LiveProbe {
         long until = System.currentTimeMillis() + 180_000;
         long nextFocus = 0;
         long moveTheKeyboard = System.currentTimeMillis() + 25_000;
+        long uncheckIt = System.currentTimeMillis() + 45_000;
         boolean moved = false;
+        boolean unchecked = false;
         while (System.currentTimeMillis() < until && !GLFW.glfwWindowShouldClose(window)) {
             if (System.currentTimeMillis() > nextFocus) {
                 GLFW.glfwFocusWindow(window);
@@ -94,6 +96,17 @@ public final class LiveProbe {
                 live.emit(limn.accessibility.AccessibleEvent.of(
                         limn.accessibility.AccessibleEvent.Type.FOCUS_CHANGED, 1002));
                 System.out.println("moved the keyboard to the check box and raised FOCUS_CHANGED");
+                System.out.flush();
+            }
+            // And once more, later: change what the check box says about itself and raise the
+            // property change. A reader announces a state it was told moved; one that has to ask
+            // announces nothing, which is the difference this last path makes.
+            if (moved && !unchecked && System.currentTimeMillis() > uncheckIt) {
+                unchecked = true;
+                live.publish(threeNodes(1002, limn.accessibility.ToggleFacet.State.OFF), false);
+                live.emit(limn.accessibility.AccessibleEvent.state(
+                        1002, limn.accessibility.Accessible.State.CHECKED, false));
+                System.out.println("unchecked the box and raised STATE_CHANGED");
                 System.out.flush();
             }
             GLFW.glfwWaitEventsTimeout(0.2);
@@ -112,6 +125,16 @@ public final class LiveProbe {
      * @return the tree
      */
     private static AccessibleTree threeNodes(long focusedId) {
+        return threeNodes(focusedId, limn.accessibility.ToggleFacet.State.ON);
+    }
+
+    /**
+     * @param focusedId which node holds the keyboard
+     * @param checked   what the check box says about itself
+     * @return the tree
+     */
+    private static AccessibleTree threeNodes(long focusedId,
+                                             limn.accessibility.ToggleFacet.State checked) {
         Accessibility a = new Accessibility();
         a.beginWalk(480, 320, Locale.ENGLISH);
         a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
@@ -131,7 +154,7 @@ public final class LiveProbe {
         a.role(Accessible.Role.CHECK_BOX);
         a.name(I18nString.literal("Wrap lines"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.TOGGLE);
-        a.toggle(limn.accessibility.ToggleFacet.State.ON);
+        a.toggle(checked);
         a.inherited(true, true, true, true, focusedId == 1002);
         a.end();
 

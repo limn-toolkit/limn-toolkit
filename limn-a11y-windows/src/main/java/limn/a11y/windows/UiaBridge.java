@@ -5,6 +5,7 @@ import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
+import org.lwjgl.system.MemoryUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -163,18 +164,92 @@ public final class UiaBridge implements AccessibilityBridge {
             case TEXT_CHANGED -> UiaIds.TEXT_CHANGED;
             case TEXT_SELECTION_CHANGED -> UiaIds.TEXT_SELECTION_CHANGED;
             case INVALIDATED -> UiaIds.LAYOUT_INVALIDATED;
-            // The rest are property changes -- a name, a state, a value, a rectangle -- and UI
-            // Automation takes those through a different call, which carries the old value and the
-            // new one. Until that is built a client learns of them by asking again, on its own
-            // schedule, which costs it freshness and never correctness.
+            // The rest are property changes, which UI Automation takes through a call of its own.
             default -> 0;
         };
-        if (eventId == 0) {
+        UiaElement element = elements.peek(event.nodeId());
+        if (element == null) {
+            // Nothing has ever asked for this node, so no client is holding an element to be told
+            // about. It will read whatever is current the first time it does ask.
             return;
         }
-        UiaElement element = elements.peek(event.nodeId());
-        if (element != null) {
+        if (eventId != 0) {
             Uia.raiseAutomationEvent(element.pointer(), eventId);
+            return;
+        }
+        raisePropertyChange(element, event);
+    }
+
+    /**
+     * A property that moved, which UI Automation is told about with both values.
+     *
+     * <p><b>Which property depends on the node and not only on the event</b>: a value that moved is
+     * a number on a slider and a string in a text field, and the two are different properties to a
+     * client. A state that moved is whichever property carries that state — a check mark is the
+     * toggle pattern's, an enabled flag is the element's own — so a state this bridge has no
+     * property for is not raised rather than raised as something else.
+     *
+     * <p>Both values are written into {@code VARIANT}s allocated for the call and freed after it.
+     * A string among them is a {@code BSTR} the callee reads and does not keep, which is the one
+     * case where this bridge frees a string it allocated.
+     */
+    private void raisePropertyChange(UiaElement element, AccessibleEvent event) {
+        AccessibleTree tree = published;
+        int index = tree.indexOf(event.nodeId());
+        AccessibleNode node = index < 0 ? null : tree.node(index);
+        int propertyId = switch (event.type()) {
+            case NAME_CHANGED -> UiaIds.NAME;
+            case DESCRIPTION_CHANGED -> UiaIds.HELP_TEXT;
+            case VALUE_CHANGED -> node != null && node.value() != null
+                    ? UiaIds.RANGE_VALUE_VALUE : UiaIds.VALUE_VALUE;
+            case STATE_CHANGED -> switch (event.state()) {
+                case CHECKED, MIXED -> UiaIds.TOGGLE_STATE;
+                case ENABLED -> UiaIds.IS_ENABLED;
+                case SELECTED -> UiaIds.SELECTION_ITEM_IS_SELECTED;
+                case EXPANDED -> UiaIds.EXPAND_COLLAPSE_EXPAND_COLLAPSE_STATE;
+                case READ_ONLY -> UiaIds.VALUE_IS_READ_ONLY;
+                default -> 0;
+            };
+            // A rectangle that moved is not raised: UI Automation watches an HWND's own bounds and
+            // a client re-reads a fragment's when it needs them, so raising it per node would be a
+            // storm of events during every drag for something nobody asked to be told.
+            default -> 0;
+        };
+        if (propertyId == 0) {
+            return;
+        }
+        long before = MemoryUtil.nmemCallocChecked(1, UiaVariant.SIZE);
+        long after = MemoryUtil.nmemCallocChecked(1, UiaVariant.SIZE);
+        try {
+            java.nio.ByteBuffer oldOne = MemoryUtil.memByteBuffer(before, UiaVariant.SIZE);
+            java.nio.ByteBuffer newOne = MemoryUtil.memByteBuffer(after, UiaVariant.SIZE);
+            write(oldOne, event.oldValue());
+            write(newOne, event.newValue());
+            Uia.raisePropertyChangedEvent(element.pointer(), propertyId, before, after);
+            freeIfString(oldOne);
+            freeIfString(newOne);
+        } finally {
+            MemoryUtil.nmemFree(before);
+            MemoryUtil.nmemFree(after);
+        }
+    }
+
+    /** Writes one of the model's values into a variant, or leaves it empty for anything else. */
+    private void write(java.nio.ByteBuffer variant, Object value) {
+        if (value instanceof Boolean flag) {
+            UiaVariant.bool(variant, 0, flag);
+        } else if (value instanceof Number number) {
+            UiaVariant.r8(variant, 0, number.doubleValue());
+        } else if (value instanceof String text) {
+            UiaVariant.bstr(variant, 0, UiaStrings.system().allocate(text));
+        } else {
+            UiaVariant.empty(variant, 0);
+        }
+    }
+
+    private void freeIfString(java.nio.ByteBuffer variant) {
+        if (UiaVariant.tagOf(variant, 0) == UiaVariant.VT_BSTR) {
+            UiaStrings.free(variant.getLong(UiaVariant.PAYLOAD));
         }
     }
 
