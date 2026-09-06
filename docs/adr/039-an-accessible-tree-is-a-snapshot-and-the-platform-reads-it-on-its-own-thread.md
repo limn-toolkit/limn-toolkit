@@ -3341,15 +3341,22 @@ elision meet.
     *should* sound like. It will pass on a tree that is uniformly wrong in a way no invariant names.
     A recorded walk of two or three scenes, reviewed once by someone reading it aloud, is the cheap
     complement, and it is work rather than an assertion.
-27. **Whether a cross-window relation can name AppKit's own window object.** §2.2 elides the window
+27. **~~Whether a cross-window relation can name AppKit's own window object.~~ Closed by the phase 7
+    probe run: it can, and the fallback is not needed.** §2.2 elides the window
     root on macOS because AppKit already vends the window, and §1.11 drops any relation that resolves
     to a window root in the in-scene mounting — which leaves exactly one case: a *native* popup or
-    dialog whose `POPUP_FOR` names the owner window's root. The design answers it with the object
-    AppKit vends for that window, reached from the content view the bridge holds, and that is
-    reasoning rather than measurement: no relation of any kind has crossed this boundary yet. The
-    probe is one line in the existing walk — read `AXWindow` off the owner, hand it back as a relation
-    target, and see whether a client resolves it — and the fallback is already specified and costs
-    nothing this record promises: drop the relation and do not emit the mirror.
+    dialog whose `POPUP_FOR` names the owner window's root. The design answered it with the object
+    AppKit vends for that window, and that was reasoning rather than measurement: no relation of any
+    kind had crossed this boundary.
+
+    The probe hung `accessibilityLinkedUIElements` — the general relation attribute here, and the
+    one whose encoding the dump script records — on a button, with the window object as its single
+    target. An out-of-process client read the attribute, **followed it, and got back a working
+    element**: `linkedTo=[AXWindow'Limn phase 7 probe']`, resolved to its role and its title. The
+    provider handed over the raw `NSWindow` it holds and the client received an `AXUIElement` it
+    could query. What made this worth measuring rather than assuming is that presence and
+    resolvability are different facts, so the client resolves every target it is given and reports
+    the role it found rather than reporting that the attribute exists.
 
 ---
 

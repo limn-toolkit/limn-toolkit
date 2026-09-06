@@ -669,6 +669,37 @@ public final class AxProbe {
         log("    released '" + key + "'; the client's reference is now stale");
     }
 
+    /**
+     * §13.27: hands a node a relation whose target is <b>AppKit's own window object</b>, and lets a
+     * client try to resolve it.
+     *
+     * <p>This is the one case §2.2's elision leaves open. The window root is not vended here,
+     * because AppKit already vends the window; §1.11 drops any relation that resolves to a window
+     * root in the in-scene mounting; and what is left is a native popup or dialog whose
+     * {@code POPUP_FOR} names the owner window's root. The design answers that with the object
+     * AppKit vends for the window, and that was reasoning rather than measurement — no relation of
+     * any kind had crossed this boundary.
+     *
+     * <p>{@code accessibilityLinkedUIElements} is the general relation attribute on this platform
+     * and the one whose encoding the dump script records, so it is what the question is asked with:
+     * if a client cannot follow a link to the window object, no relation can name it and the
+     * fallback is to drop the relation and emit no mirror.
+     *
+     * @param key the node to hang the relation on
+     */
+    static void relate(String key) {
+        Node node = BY_KEY.get(key);
+        if (node == null || node.element == NULL) { log("!!! no such node: " + key); return; }
+        long array = msg(cls("NSMutableArray"), "array");
+        msgV(array, "addObject:", nsWindow);
+        msgV(node.element, "setAccessibilityLinkedUIElements:", msg(array, "retain"));
+        long readBack = msg(node.element, "accessibilityLinkedUIElements");
+        long count = readBack == NULL ? -1 : msg(readBack, "count");
+        log("    '" + key + "' AXLinkedUIElements <- [the NSWindow AppKit vends]  count=" + count
+                + " first=" + (count > 0
+                    ? ObjCRuntime.object_getClassName(msgIdx(readBack, "objectAtIndex:", 0)) : "-"));
+    }
+
     static Node parentOf(Node node, String key) {
         for (Node kid : node.kids) {
             if (kid.key.equals(key)) return node;
@@ -720,6 +751,7 @@ public final class AxProbe {
                 case "add" -> add(root, words[1], words[2]);
                 case "remove" -> remove(root, words[1]);
                 case "destroy" -> destroy(root, words[1]);
+                case "relation" -> relate(words[1]);
                 default -> log("!!! unknown command: " + command);
             }
         }

@@ -73,6 +73,16 @@ func walk(_ el: AXUIElement, _ depth: Int) {
     if !ident.isEmpty { line += " id='\(ident)'" }
     line += " \(frame)"
     if !actions.isEmpty { line += " actions=[\(actions)]" }
+    // §13.27: a relation is only worth publishing if a client can FOLLOW it, so this does not
+    // report that the attribute is present -- it resolves each target and reads its role back.
+    if let linked = attr(el, "AXLinkedUIElements") as? [AXUIElement], !linked.isEmpty {
+        let targets = linked.map { target -> String in
+            let role = str(attr(target, kAXRoleAttribute))
+            let title = str(attr(target, kAXTitleAttribute))
+            return role.isEmpty ? "<unresolvable>" : "\(role)'\(title)'"
+        }
+        line += " linkedTo=[\(targets.joined(separator: ", "))]"
+    }
     print(line)
     if depth >= maxDepth { return }
     // The menu bar is AppKit's and is hundreds of nodes wide on a localized system. It is not what
