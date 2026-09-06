@@ -2,12 +2,14 @@ package limn.a11y.macos;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -199,6 +201,77 @@ class AxBridgeTest {
         bridge.publish(AccessibleTree.EMPTY, false);
         assertNull(bridge.nodeFor(element),
                 "a client using a reference it held across a destruction is not an error");
+    }
+
+    @Test
+    void anEmittedEventWaitsForTheNextOrdinaryFrame() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(1);
+        bridge.publish(tree, false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+        assertEquals(1, bridge.queuedEvents(),
+                "every post is a cross-process call; emit is not the place to make one");
+        assertTrue(bridge.postedNotifications().isEmpty());
+        bridge.publish(tree, false);
+        assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"),
+                bridge.postedNotifications());
+    }
+
+    @Test
+    void aReentrantPublishPostsNothingAndKeepsTheEvents() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(1);
+        bridge.publish(tree, false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+        bridge.publish(tree, true);
+        assertTrue(bridge.postedNotifications().isEmpty(),
+                "a post from inside an AX callback re-enters the platform on our own objects (§3.2)");
+        assertEquals(1, bridge.queuedEvents(), "and the event is kept for the frame that follows");
+    }
+
+    @Test
+    void anEventNamingANodeNoClientHasAskedAboutIsPostedOnNothing() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(1);
+        bridge.publish(tree, false);
+        // 1002 is below the pushed level, so no element exists for it until something pulls.
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
+        bridge.publish(tree, false);
+        assertTrue(bridge.postedNotifications().isEmpty(),
+                "a notification about an object the platform has never seen reaches no registration");
+    }
+
+    @Test
+    void theEventsThisPlatformIsNotToldAreNotPosted() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(1);
+        bridge.publish(tree, false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, 1001));
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_OPENED, 1000));
+        bridge.publish(tree, false);
+        assertTrue(bridge.postedNotifications().isEmpty(),
+                "AppKit is already saying both, and ours would be a second copy of each");
+    }
+
+    @Test
+    void aCollapsedQueueSweepsTheRegistryAndForcesAFreshPush() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(2);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));
+        assertEquals(3, bridge.elementCount());
+
+        // A difference wider than the queue, then a tree those nodes are no longer in. The
+        // per-node destructions went with the collapse, so the sweep is the only thing that can
+        // release them.
+        for (int i = 0; i <= AxEvents.CAPACITY; i++) {
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
+        }
+        bridge.publish(AccessibleTree.EMPTY, false);
+        assertEquals(0, bridge.elementCount(),
+                "a collapse is exactly the burst whose per-node destructions were dropped");
+        assertEquals(0, bridge.pushedElements().length,
+                "and the array AppKit holds names elements that were just released");
     }
 
     @Test

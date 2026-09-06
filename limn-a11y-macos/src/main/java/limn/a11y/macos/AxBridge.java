@@ -72,6 +72,9 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
     private int pushes;
     /** The last parent-space box computed for each held node. For tests. */
     private final Map<Long, double[]> lastFrames = new HashMap<>();
+    private final AxEvents events = new AxEvents();
+    /** Every notification posted since this bridge opened. For tests and for the probe's log. */
+    private final List<String> posted = new ArrayList<>();
 
     private AxBridge(AxObjC objc, long contentView) {
         this.objc = objc;
@@ -141,6 +144,9 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
             return;
         }
         obligationsDeferred = false;
+        // The drain before the push and the frames, so that what a client is told to re-read is
+        // already there when it asks.
+        drain();
         // The push before the frames, because the push is what mints the root's children and a
         // node with no element has no box to set. The first run of this had them the other way
         // round and every element arrived as a zero-size rectangle at the origin -- which a walk
@@ -152,10 +158,9 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
 
     @Override
     public void emit(AccessibleEvent event) {
-        // Enqueue, never raise: a diff between two frames of a scrolling list can be hundreds of
-        // nodes wide and every raise is a cross-process call. The queue and its per-frame budget
-        // are the next increment; nothing is dropped silently in the meantime because nothing is
-        // yet promised.
+        // Enqueue, never post: every post is a cross-process call, and a difference between two
+        // frames can be hundreds of nodes wide.
+        events.add(event);
     }
 
     @Override
@@ -267,6 +272,64 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
         lastFrames.put(nodeId, parentSpace);
     }
 
+    /**
+     * Posts one frame's worth of events, and reconciles the registry when the queue collapsed.
+     *
+     * <p>Never from a reentrant publish: a post from inside an AX callback re-enters the platform
+     * while it is standing on our objects (§3.2). The queue keeps them for the ordinary frame the
+     * scene has already asked for.
+     *
+     * <p>A collapse is why the sweep is here rather than only on {@code NODE_DESTROYED}: the burst
+     * that overflowed the queue is exactly the one whose per-node destructions were dropped, so
+     * after one there is no list of what died — only the tree, and whatever the registry still
+     * holds (§13.9).
+     */
+    private void drain() {
+        boolean collapsing = events.willCollapse();
+        for (AccessibleEvent event : events.drain()) {
+            AxNotifications.Posting posting = AxNotifications.of(event.type());
+            // A null is a decision, not a gap: AppKit is already telling the client, or the event
+            // names the window root this bridge elides.
+            if (posting == null) continue;
+            long subject = posting.subject() == AxNotifications.Subject.APPLICATION
+                    ? applicationElement()
+                    : elementForEvent(event);
+            if (subject == 0) continue;
+            posted.add(posting.notificationSymbol());
+            if (objc != null) objc.post(subject, objc.constant(posting.notificationSymbol()));
+        }
+        if (collapsing) {
+            elements.reconcile(liveNodeIds());
+            // The pushed array may name elements that were just released, and comparing it against
+            // a fresh list would then hand AppKit a freed pointer. Forgetting it forces a re-push.
+            pushed = new long[0];
+        }
+    }
+
+    /**
+     * The element a per-node notification is posted on, or zero when there is none.
+     *
+     * <p>Zero for a node no client has ever asked about, which is the common case and is right: a
+     * notification about an object the platform has never seen is one no client is registered for.
+     */
+    private long elementForEvent(AccessibleEvent event) {
+        return elements.holds(event.nodeId()) ? elements.elementFor(event.nodeId()) : 0;
+    }
+
+    /**
+     * The process's application element, which is the only registration a focus change reaches —
+     * measured in the spike, where an observer on the element itself received nothing.
+     */
+    private long applicationElement() {
+        // Off AppKit, a number that stands for it, the way a synthetic element stands for an
+        // object: what is being exercised there is which subject an event chooses, and that is
+        // bookkeeping over a pointer nothing dereferences.
+        if (objc == null) return SYNTHETIC_APPLICATION;
+        return objc.msg(objc.cls("NSApplication"), "sharedApplication");
+    }
+
+    private static final long SYNTHETIC_APPLICATION = 0x1;
+
     /** §2.2's re-push: the root's children onto the content view, and only when they changed. */
     private void repushRootIfChanged() {
         if (tree.nodeCount() == 0) return;
@@ -294,6 +357,16 @@ public final class AxBridge implements AccessibilityBridge, AxElementClass.Sourc
     /** @return whether a reentrant publish left work for the next ordinary frame. */
     boolean obligationsDeferred() {
         return obligationsDeferred;
+    }
+
+    /** @return the notification symbols posted so far, in order. */
+    List<String> postedNotifications() {
+        return List.copyOf(posted);
+    }
+
+    /** @return how many events are waiting for the next frame. */
+    int queuedEvents() {
+        return events.size();
     }
 
     /** @return how many times the root's children have been pushed onto the content view. */
