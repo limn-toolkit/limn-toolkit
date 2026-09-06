@@ -67,6 +67,20 @@ final class AxElementClass {
         long focusedElement();
 
         /**
+         * Performs one verb on one node, through the scene.
+         *
+         * <p>It resolves nothing and waits for nothing: the identifier is checked against the
+         * published tree, the verb is posted, and the answer is whether it was <b>accepted</b> —
+         * never whether it is done. On this platform the calling thread is the user-interface
+         * thread, so a wait here would be an instant self-deadlock (§1.9).
+         *
+         * @param nodeId the node the message was sent to
+         * @param action the verb
+         * @return whether the scene took it
+         */
+        boolean perform(long nodeId, limn.accessibility.Accessible.Action action);
+
+        /**
          * Called on entry to every implementation below. §6's honest gate on this platform is
          * "someone has asked", and this is the ask: there is no {@code UiaClientsAreListening} here
          * and no registry to consult.
@@ -158,6 +172,49 @@ final class AxElementClass {
 
         installHitTest();
         installFocusedElement();
+        installActions();
+    }
+
+    /**
+     * The action selectors, and the gate that decides which of them each element offers.
+     *
+     * <p>The gate is not decoration. Every implementation here goes on one class, so every element
+     * responds to all of them, and AppKit builds the action list a client is shown out of what an
+     * object responds to — a button would advertise "increment" and a slider "show menu". So
+     * {@code isAccessibilitySelectorAllowed:} answers from the node's own {@code ActionFacet}, and
+     * the list becomes per node instead of per class.
+     */
+    private void installActions() {
+        for (String selector : AxActions.selectors()) {
+            addBool(selector, new BoolGetter() {
+                @Override public boolean invoke(long self, long cmd) {
+                    source.entered();
+                    AccessibleNode node = source.nodeFor(self);
+                    if (node == null) return false;
+                    Accessible.Action verb = AxActions.verbFor(node, selector);
+                    // False is "this element does not do that", which is the truth for a selector
+                    // the node never advertised -- and a client that got here anyway asked for
+                    // something the gate below already refused.
+                    return verb != null && source.perform(node.id(), verb);
+                }
+            });
+        }
+
+        SelectorGate gate = new SelectorGate() {
+            @Override public boolean invoke(long self, long cmd, long selector) {
+                source.entered();
+                AccessibleNode node = source.nodeFor(self);
+                if (node == null) return false;
+                String name = ObjCRuntime.sel_getName(selector);
+                // Only the action selectors are gated. Everything else this class implements is an
+                // attribute, and answering false for one of those would hide the node's name.
+                if (!AxActions.isActionSelector(name)) return true;
+                return AxActions.verbFor(node, name) != null;
+            }
+        };
+        callbacks.add(gate);
+        ObjCRuntime.class_addMethod(elementClass, objc.sel("isAccessibilitySelectorAllowed:"),
+                gate.address(), objc.encodingOf("isAccessibilitySelectorAllowed:"));
     }
 
     /**
@@ -369,6 +426,24 @@ final class AxElementClass {
 
     private abstract static class BoolGetter extends Callback implements BoolGetterI {
         protected BoolGetter() { super(BoolGetterI.DESCRIPTOR); }
+    }
+
+    /** {@code (id self, SEL _cmd, SEL) -> BOOL}, encoding {@code B24@0:8:16}. */
+    private interface SelectorGateI extends CallbackI {
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(SelectorGateI.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_uint8, LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
+        @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
+        @Override default void callback(long ret, long args) {
+            APIUtil.apiClosureRet(ret, invoke(memGetAddress(memGetAddress(args)),
+                    memGetAddress(memGetAddress(args + POINTER_SIZE)),
+                    memGetAddress(memGetAddress(args + 2L * POINTER_SIZE))));
+        }
+        boolean invoke(long self, long cmd, long selector);
+    }
+
+    private abstract static class SelectorGate extends Callback implements SelectorGateI {
+        protected SelectorGate() { super(SelectorGateI.DESCRIPTOR); }
     }
 
     /** {@code (id self, SEL _cmd, CGPoint) -> id}, encoding {@code @32@0:8{CGPoint=dd}16}. */

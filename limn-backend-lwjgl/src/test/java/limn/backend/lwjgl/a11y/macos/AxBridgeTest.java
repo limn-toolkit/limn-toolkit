@@ -327,6 +327,35 @@ class AxBridgeTest {
     }
 
     @Test
+    void anActionWithNoHostIsRefusedRatherThanDroppedSilently() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        bridge.publish(aNestedWindow(1), false);
+        assertFalse(bridge.perform(1002, Accessible.Action.PRESS),
+                "between a detach and an attach the scene that owned the widget is gone");
+    }
+
+    @Test
+    void anActionGoesStraightToTheHostAndAnswersWhatItAnswers() {
+        boolean[] asked = {false};
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        bridge.attach(new AccessibilityBridge.Host() {
+            @Override public void requestRepublish() { }
+            @Override public void requestRestamp() { }
+            @Override public AccessibleTree republishNow() { return AccessibleTree.EMPTY; }
+            @Override public boolean perform(long nodeId, Accessible.Action action,
+                                             Accessible.Argument arg) {
+                asked[0] = nodeId == 1002 && action == Accessible.Action.PRESS
+                        && arg == Accessible.Argument.NONE;
+                return asked[0];
+            }
+        });
+        bridge.publish(aNestedWindow(1), false);
+        assertTrue(bridge.perform(1002, Accessible.Action.PRESS));
+        assertTrue(asked[0], "the bridge resolves nothing itself; the scene re-checks every "
+                + "precondition on its own thread (§1.9)");
+    }
+
+    @Test
     void everyNodeInTheTreeIsCountedAsLiveForTheReconciliationSweep() {
         AxBridge bridge = AxBridge.withoutThePlatform();
         bridge.publish(aNestedWindow(2), false);

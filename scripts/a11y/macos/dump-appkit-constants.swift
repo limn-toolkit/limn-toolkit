@@ -83,6 +83,9 @@ let selectors = [
     "accessibilityRangeForLine:", "accessibilityInsertionPointLineNumber",
     "accessibilityLinkedUIElements", "setAccessibilityLinkedUIElements:",
     "isAccessibilityModal", "setAccessibilityModal:", "accessibilityWindow",
+    // The gate that decides which of the perform selectors an element actually OFFERS. Without it,
+    // installing the seven on one class makes every element advertise all seven.
+    "isAccessibilitySelectorAllowed:", "accessibilityActionNames", "accessibilityPerformRaise",
 ]
 
 // The classes worth asking, in the order a bridge would trust them. A selector's encoding is a fact

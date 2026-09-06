@@ -1,5 +1,6 @@
 package limn.backend.lwjgl.a11y.macos;
 
+import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
@@ -195,6 +196,15 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     @Override
     public void entered() {
         listening = true;
+    }
+
+    @Override
+    public boolean perform(long nodeId, Accessible.Action action) {
+        Host current = host();
+        // Between a detach and an attach there is nobody to ask, and refusing is the only honest
+        // answer: the scene that owned the widget is gone.
+        return current != null
+                && current.perform(nodeId, action, Accessible.Argument.NONE);
     }
 
     @Override
