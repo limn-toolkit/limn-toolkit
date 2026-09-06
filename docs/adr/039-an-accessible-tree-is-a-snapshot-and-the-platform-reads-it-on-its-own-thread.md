@@ -3252,9 +3252,29 @@ elision meet.
     once **per matching registration** on top of that. So the bridge releases and says nothing, and
     §2.2 and §2.4 now say so.
 
-    **The reentrancy half is still open**: with a client holding an element, drive a change that
-    makes `republishNow()` run inside an AX callback and confirm that nothing is released under the
-    caller and that the deferred release arrives on the next frame (§3.2).
+    **The reentrancy half is closed too, and it moves the rule's justification rather than the
+    rule.** Obeyed, the design does what it promises: a destruction driven from inside
+    `-accessibilityChildren` is refused under the caller, logged as deferred, and discharged on the
+    next ordinary frame, where it posts and releases. The walk that provoked it completes.
+
+    **Violated, it did not crash — in four shapes, none of them.** The rule was carried as "the one
+    that crashes if it is missed", and that is now an over-claim. Releasing was driven from inside a
+    live AX callback against, in order: an unrelated grandchild; a child of the node whose children
+    were being answered, which releases the `NSArray` that call is about to return; the same again
+    over three runs; and finally the **receiver of the running message itself**, so the callback
+    returned into a deallocated object. Every run completed the walk and exited normally.
+
+    **The reason is worth more than the result, because it is about this whole boundary.** An
+    out-of-process client never holds our pointer: an `AXUIElement` is a remote reference the AX
+    server resolves, which is exactly why the destruction half above got a clean `-25202` instead of
+    a crash. So the spike's "obvious crash vector" is obvious only for an *in-process* holder, and
+    everything this record has measured is out of process.
+
+    **The rule stays, and only its reason changes.** Releasing an object under a caller that holds
+    it is undefined, and "did not crash in four shapes" is not "is safe" — it is the same class of
+    claim §13.24 already refuses to let anyone build on. What must not survive is the sentence that
+    told a reader the consequence would be loud: it would be silent, and a bridge that violated this
+    would pass every run in this lab.
 21. **A macOS tree has never been mutated, nor been more than one element deep.** Adding and removing
     children is the operation a screen reader's world is made of, and the spike's `AXChildren` array
     was set once and never touched. Two things ride on this. §5.3's per-frame publish is verified on
@@ -3447,7 +3467,8 @@ and four of this phase's decisions are only as good as that generalises. Then th
 walk and the `setAccessibilityChildren:` push, which are the attach and the gate together, **with the
 re-push whenever the root's children change** (§2.2); lazy element allocation in a UI-thread-confined
 registry, and release on `UIElementDestroyed`, on a collapse's reconciliation and on `attach`/`detach`
-(§3.4, §5.3); **the reentrancy rule, which on this platform is the one that crashes if it is missed —
+(§3.4, §5.3); **the reentrancy rule, whose violation this lab could not make crash and which is
+therefore enforced by discipline rather than by a symptom (§13.20) —
 a publish from inside an AX callback releases nothing, re-pushes nothing and drains nothing** (§3.2);
 the notifications under their per-frame budget, focus posted at application level because that is the
 only registration it reaches; parent-space frames rather than a screen flip; and the encoding

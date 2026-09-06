@@ -414,6 +414,26 @@ public final class AxProbe {
                     return NULL;
                 }
                 childReads++;
+                if (armedReentrant != null && !node.kids.isEmpty()) {
+                    // §13.20's second half and §3.2's rule, driven from the one place it can be:
+                    // AppKit is on this stack, and the target is a child of the very node whose
+                    // children we are answering. That last part is the whole experiment. Destroying
+                    // some unrelated grandchild releases an array nobody is holding and proves
+                    // nothing; destroying a child of THIS node rebuilds THIS node's children array,
+                    // which releases the NSArray that is about to be the return value of the call
+                    // AppKit is inside. If the rule protects anything, it protects that.
+                    // probe.reentrantTarget=self is the strongest shape there is: it releases the
+                    // receiver of the message that is running, so the callback returns into an
+                    // object that has been deallocated under it.
+                    String key = "self".equals(System.getProperty("probe.reentrantTarget"))
+                            ? node.key : node.kids.get(0).key;
+                    armedReentrant = null;
+                    REENTRANT_GUARD = !UNSAFE_REENTRANT;
+                    log("*** reentrant publish: inside -accessibilityChildren of '" + node.key
+                            + "', destroying '" + key + "'  guard=" + REENTRANT_GUARD);
+                    destroy(treeRoot, key);
+                    REENTRANT_GUARD = false;
+                }
                 return node.childrenArray;
             }
         };
@@ -452,6 +472,7 @@ public final class AxProbe {
 
         // (c) the tree
         Node root = buildTree();
+        treeRoot = root;
         for (Node child : root.kids) materialise(child, contentView, elementClass);
         rebuildChildren(root, contentView);
         pushRoot(root);
@@ -472,6 +493,16 @@ public final class AxProbe {
             GLFW.glfwPollEvents();
             JNI.invokePV(iterPool, poolPop);
             if (drainCommands(commands, root)) break;
+            // The obligations a reentrant publish deferred, discharged on the next ordinary frame
+            // -- which is the whole of what §3.2 promises in exchange for deferring them.
+            if (!pendingDestroy.isEmpty()) {
+                List<String> owed = new ArrayList<>(pendingDestroy);
+                pendingDestroy.clear();
+                for (String key : owed) {
+                    log("    discharging deferred destroy of '" + key + "' on an ordinary frame");
+                    destroy(root, key);
+                }
+            }
             Thread.sleep(16);
             if (System.nanoTime() - lastBeat > 15_000_000_000L) {
                 lastBeat = System.nanoTime();
@@ -505,6 +536,19 @@ public final class AxProbe {
     /** True while an AX callback of ours is on the stack. §3.2's reentrancy flag, in miniature. */
     private static boolean REENTRANT_GUARD;
     private static final List<String> pendingDestroy = new ArrayList<>();
+    /** The node the next accessibility callback will try to destroy from under AppKit. */
+    private static String armedReentrant;
+    /** The root, so a callback can reach it; the callback is handed only an element. */
+    private static Node treeRoot;
+
+    /**
+     * Breaks §3.2 on purpose: releases from inside the callback instead of deferring.
+     *
+     * <p>On the other two platforms the equivalent mistake is a stale reading. Here the caller is
+     * standing on the object, so the expected outcome of a run with this set is that the process
+     * dies — and a rule whose violation has never been observed is a preference.
+     */
+    private static final boolean UNSAFE_REENTRANT = Boolean.getBoolean("probe.unsafeReentrant");
 
     private static int hitTests;
     private static int childReads;
@@ -752,6 +796,11 @@ public final class AxProbe {
                 case "remove" -> remove(root, words[1]);
                 case "destroy" -> destroy(root, words[1]);
                 case "relation" -> relate(words[1]);
+                case "reentrant" -> {
+                    armedReentrant = words[1];
+                    log("    armed: the next -accessibilityChildren will destroy its own first"
+                            + " child with AppKit on the stack (unsafe=" + UNSAFE_REENTRANT + ")");
+                }
                 default -> log("!!! unknown command: " + command);
             }
         }
