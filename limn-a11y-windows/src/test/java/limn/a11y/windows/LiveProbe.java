@@ -72,8 +72,16 @@ public final class LiveProbe {
         System.out.flush();
 
         GLFW.glfwShowWindow(window);
+        // Asking for the foreground repeatedly, because a screen reader announces what it is
+        // given: it speaks the focused element of the foreground window, and a window nobody
+        // brought forward is a window it never reaches.
         long until = System.currentTimeMillis() + 180_000;
+        long nextFocus = 0;
         while (System.currentTimeMillis() < until && !GLFW.glfwWindowShouldClose(window)) {
+            if (System.currentTimeMillis() > nextFocus) {
+                GLFW.glfwFocusWindow(window);
+                nextFocus = System.currentTimeMillis() + 8_000;
+            }
             GLFW.glfwWaitEventsTimeout(0.2);
         }
         System.out.println("DONE");
