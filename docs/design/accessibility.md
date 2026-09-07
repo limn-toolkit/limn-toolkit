@@ -89,7 +89,10 @@ widget's own source is the authority. The order that works:
    what is there — correcting §7's row wherever the two disagree.
 2. **Test headlessly.** Every focusable node named, no `UNKNOWN` role, bounds inside the clipping
    ancestor, ids stable across the mutations the widget performs on its own children, and a live
-   mutation case per public setter.
+   mutation case per public setter. A widget that starts describing itself differently also changes
+   a golden transcript in `limn-demo` (`AccessibleTranscriptTest`), and that change is read aloud
+   before it is accepted — the transcripts are the only reference answer for what the demo should
+   sound like.
 3. **Verify adversarially.** Someone reads the produced tree against the widget's code looking for
    the row that is still wrong: the operable control with no node, the box that is not where it is
    painted, the name that resolves to nothing. §7.2 is the standing list of what that has found.

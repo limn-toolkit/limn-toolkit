@@ -2353,17 +2353,25 @@ this one.
 **The mechanism that keeps the flag honest.** The dirty flag is a plain boolean store from funnels that
 already run, so it costs one store whether or not anything is listening. That is deliberate:
 maintaining it unconditionally means switching a bridge on mid-session needs no audit of what was
-missed, and one store is below the resolution of every allocation and frame test in the suite — a claim
-§12.1 turns into a measurement. The walk it triggers, by contrast, is paid only when something is
+missed, and one store is below the resolution of every allocation and frame test in the suite — which
+`AccessibleIdleCostTest` measures rather than claims, at a thousand stores before one frame (§12.1,
+§13.7). The walk it triggers, by contrast, is paid only when something is
 listening, which is why the flag is cheap and the comparison is where the care goes.
 
 **The one unconditional platform cost is the Windows WndProc subclass**, which makes every window
 message cross a Java frame that compares an int and forwards. The spike saw no perceptible latency and
-did not measure it. Before this ships, the existing benchmark harness runs on Windows with and without
-the subclass and the idle and animation keys are compared. If the cost is real, the fallback is to poll
-`UiaClientsAreListening()` and install the subclass only once it has been seen true — with the honest
-caveat that a client touching the window in the same instant the flag flips can miss its first
-`WM_GETOBJECT` and has to retry, so the measurement decides and §13 keeps it open.
+did not measure it; the benchmark did, on the Windows 11 guest on 2026-09-07 (§13.5), and the subclass
+alone sits inside the run-to-run noise of the 750-widget form — 0.27 ms against 0.21 ms per animated
+frame, idle CPU identical — so it stays unconditional, and the fallback that would have polled
+`UiaClientsAreListening()` and installed it only once seen true is not taken: its race, a client
+touching the window in the instant the flag flips and missing its first `WM_GETOBJECT`, buys nothing.
+**What is not free on that machine is the gate itself.** `UiaClientsAreListening()` answers true with no
+reader running whenever any process in the session holds a UI Automation event handler — seventeen
+did, the virtualization tools among them — and a true gate buys the walk on every damaged frame:
++0.6 ms per animated frame and +1.3 MB on the form above, with nothing listening that a person could
+hear. That is the "listening, nothing changed" state, paid by a machine nobody is reading; the walk is
+bounded and allocation-free exactly as this section says, but the honest gate on Windows is weaker
+than this section assumed, and the state it was written for is the rare one there.
 
 **Announcements are the exception to "nothing when nothing listens."** `Scene#announce` allocates a
 queue entry whether or not anyone is listening, because dropping it silently would make the
@@ -3036,7 +3044,8 @@ have.
 | Test | What it pins |
 | --- | --- |
 | `AccessibleCoverageTest` | reads the component source directories as declared Gradle inputs, finds every **transitive** `Widget` subclass — not the literal text `extends Widget` — and fails until each appears in §7's table with an expected role. A new widget cannot be added without saying what it is |
-| `AccessibleGalleryTest` | over every gallery entry, already rendered in both palettes: no node has role `UNKNOWN`, every focusable node has a non-empty name, no two nodes share an id, every node's bounds lie inside its nearest clipping ancestor's |
+| `AccessibleGalleryTest` | **does not exist** (found 2026-09-07, §13.26): this row described a test phase 4 never wrote. What it would assert — over every gallery entry, already rendered in both palettes: no node has role `UNKNOWN`, every focusable node has a non-empty name, no two nodes share an id, every node's bounds lie inside its nearest clipping ancestor's — is asserted per component by the coverage pipeline and gallery-wide by nothing. Kept as the row it should be, marked as the row it is not |
+| `AccessibleTranscriptTest` (`limn-demo`) | three demo scenes — `forms`, `components`, `kitchen-dialog` — built as `--scene` builds them, bound to a headless window and backend, settled over the gallery's warm-up frames under the fixed ruler and the English locale, and their published trees written as transcripts: one line per node in tree order, role, name with provenance, description, spoken states, facets, verbs and relations by line, **no bounds**. Compared against goldens somebody has read aloud, rewritten only under `-Dlimn.a11y.transcripts.update=true` and failing otherwise with the differing lines. The kitchen scene is two trees, host and modal window |
 | `AccessibleFocusOrderTest` | the invariant that keeps the tree honest: the published nodes carrying `FOCUSABLE`, in tree order, equal the sequence produced by repeated `focusTraverse` from nothing. Stated on that bit and not on `ENABLED`, which is a strictly larger set — every `Label`, `ScrollBar` and `Separator` is enabled and is not a tab stop (§1.13). Roving focus passes because only the holder is focusable, which is the same fact the tree reports |
 | `AccessibleMirroringTest` | in RTL, tree order is unchanged and bounds decrease in x. The tree is not sorted by geometry |
 | `AccessibleLocaleTest` | a subtree with a declared locale publishes its name in that language while the process locale is another, and a locale move re-resolves every name exactly once |
@@ -3056,7 +3065,7 @@ have.
 | `AccessibleWindowEventTest` | a bound scene raises `WINDOW_OPENED` and a closed one raises `WINDOW_CLOSED` — from inside `attach` and `detach`, which is asserted rather than assumed: the double records neither through `emit`, because neither arrives that way (§5.3) — and neither is derivable from a diff; and **a second scene bound over the same window** raises `WINDOW_CLOSED` for the first and `WINDOW_OPENED` for the second, leaving the bridge holding exactly one host — the case the outgoing scene never learns about |
 | `AccessibleActionTest` | every case drives `Host#perform` from a **non-UI thread**, which is the path a bridge actually takes (§1.9), and asserts that the double never resolves a node itself: an action on a disabled, hidden, detached or modal-shadowed node does nothing and says so; an id absent from the published tree is refused synchronously; a toggle fires the application's handler exactly once and never on a disabled checkbox; a `SET_VALUE` on a slider notifies, which the public setter does not; nothing anywhere replaces an application's listener |
 | `AccessibleSecretTest` | a password field that is not revealed never puts its text in a node — asserted over the *whole published tree*, name and description included, not just the facet, because the shaped line the offsets come from carries the secret as its `text()`; and its caret and selection offsets lie inside its published mask, over a secret containing an astral character, where the model's own offsets would not |
-| `AccessibleIdleCostTest` | with no bridge: zero describe calls, zero frame requests, zero bytes per frame under an `AllocationProbe` copy in `limn.scene` — including across a `setTooltip`, a `setFocusable` and a direct `invalidateAccessible()`, each of which sets the flag and buys nothing. With a live bridge and a clean tree: the same |
+| `AccessibleIdleCostTest` | with no bridge: zero describe calls, zero frame requests, zero bytes per frame under an `AllocationProbe` copy in `limn.scene` — including across a `setTooltip`, a `setFocusable` and a direct `invalidateAccessible()`, each of which sets the flag and buys nothing. With a live bridge and a clean tree: the same. And, measured rather than inferred (§13.7): the reference field becomes an object on the first declaration and never before, and a thousand flag stores through the damage funnel before a frame cost that frame zero bytes, zero describe calls and one `isListening()` |
 | `AccessibleInvalidateTest` | on an **idle** scene with a listening bridge — no frame pending, nothing repainting — a single `invalidateAccessible()` buys exactly one frame and that frame publishes the change, and so do `setTooltip` and `setFocusable` through it. The frame is bought through `scheduleFrame()` and not `requestRender()`, asserted the way `AccessibleWindowMoveTest` separates the two paths: nothing is damaged (§1.5, §5.2, §8) |
 | `AccessiblePublishCostTest` | a publish of an N-node tree allocates a bounded amount and walks each node once, counted the way the existing measure-count tests count measures; and a damaged-but-unchanged frame allocates zero (§6). The second half is the one that will catch a regression, and it has two known ways to break: the first facet built inside `onAccessibility` rather than written into the scratch columns (§1.1), and the first field whose *comparison* allocates — so the scene under test carries a `TextField` with text in it and a blinking caret, which fails the moment someone compares `text()` instead of `revision()`, **and a `Spinner`, which fails the moment someone formats a value text in the walk instead of taking the widget's cached one with its witness** (§1.1, §6) |
 | `AccessibleTickingValueTest` | a `VideoView` playing for a simulated minute publishes about sixty trees, not about three thousand six hundred: a value that advances on its own is published rounded, and the diff sees one change per second (§6) |
@@ -3163,16 +3172,48 @@ exception stays visible rather than becoming a habit.
    IDL. There is no runtime type-encoding oracle on Windows as there is on macOS. The mitigation is a
    small typed layer pairing each interface's call interface with its decode in one place, plus the golden
    client transcripts — and it stays a risk.
-5. **`UiaClientsAreListening()` per frame is unmeasured, and so is the WndProc subclass.** §6 names the
-   fallback for each and the race the subclass fallback carries. The measurements decide, and they happen
-   before this ships.
+5. **~~`UiaClientsAreListening()` per frame is unmeasured, and so is the WndProc subclass.~~ Closed
+   2026-09-07, by the measurement §6 named, and the number decided against the fallback.** On the
+   Windows 11 ARM64 guest, `Bench --bench on` — the 750-widget form with ten animating progress bars —
+   in three wirings, medians over three or four runs each: with no bridge at all
+   (`-Dlimn.accessibility=off`, the control this needed and did not have) the animation frame is
+   0.22 ms and idle CPU 2.0 %; with **the subclass alone** (`-Dlimn.bench.accessibility=subclass-only`:
+   the platform bridge opened, which installs the subclass, and the scene handed `NONE`) 0.27 ms and
+   2.1 %, the run-to-run spread on both sides being 0.16–0.27 ms and 1.7–2.7 %. Every window message
+   crossing a Java frame costs less than the noise, so the polling fallback and the first-`WM_GETOBJECT`
+   race it carries are not bought. `UiaClientsAreListening()` itself is 17 ns a call after warm-up
+   (median of ten batches of a hundred thousand; 60 ns cold), which is nothing per frame. **The
+   number worth keeping is the third one.** With the bridge simply attached, the animation frame was
+   0.94 ms — the walk, not the subclass — because on that guest the gate answers *true with no reader
+   running*: seventeen processes hold `uiautomationcore`, the Parallels control centre among them, and
+   UI Automation counts any of them as a client. The walk is §6's accepted cost and it behaved as §6
+   says, bounded and allocation-free; what the measurement corrects is the assumption that "nothing
+   listening" is the common state on Windows. It is not, and 0.7 ms per damaged frame at 750 widgets
+   is the cost an ordinary Windows desktop pays for a progress bar. The run also found what every live
+   run on the guest had been ending in: `UiaDisconnectProvider` was called after the registry had
+   freed the object it releases through, an access violation on every window close once a client had
+   asked for the root, which is why the benchmark's numbers — printed after the event loop returns —
+   had never been printed at all. The disconnect now comes first, and a test pins the order.
 6. **Two of three platforms have no CI coverage and will not get any.** Stated plainly rather than
    mitigated. The gate covers the toolkit half — the model, the tree, the events, the costs — which is
    where regressions will actually come from, because the bridges change rarely and the widgets change
    weekly.
-7. **The per-widget and per-frame costs are asserted but not yet measured.** One reference field and one
-   boolean store are below the resolution of every existing test, and "below the resolution" is a claim.
-   Two tests make it a measurement.
+7. **~~The per-widget and per-frame costs are asserted but not yet measured.~~ Closed 2026-09-07**, by
+   two measurements in `AccessibleIdleCostTest`, and the two tests that were already there were not
+   them: they measured a settled frame and a damaged frame under a bridge, and neither the field nor
+   the store. `theFieldBecomesAnObjectOnTheFirstDeclarationAndNeverBefore` measures the per-widget
+   cost by difference, interleaved and typical rather than least: a widget nobody described allocates
+   itself and nothing for the tree, the first declaration is where the field becomes an object, a
+   second and a third on the same widget add nothing, and re-declaring on a bound widget nobody
+   listens to allocates nothing and buys no frame.
+   `aThousandWidgetsDamagingThemselvesCostAFrameNothingWithNothingListening` measures the per-frame
+   cost at a scale no single-widget test reaches: a thousand flag stores through the damage funnel
+   before every frame, and the frame allocates zero bytes, enters no describe hook, and — with a
+   bridge attached that nobody listens to — asks the platform exactly one `isListening()` and tells it
+   nothing. Both were broken before they were believed: an eagerly allocated field failed the first at
+   "bare 216, declared 216"; removing the not-listening return from the publish step failed the second
+   with 62 describe calls per widget *while its allocation assertion still passed* — the walk allocates
+   nothing, which is why bytes alone were never the measurement.
 8. **Node identity churn.** The structural cause is fixed — §1.3 keys over the widget tree, so no
    ancestor's transparency verdict can re-key a subtree — and `AccessibleIdentityTest` guards it.
    What is left is the honest residue: an application that rebuilds its widget tree every frame mints
@@ -3438,12 +3479,23 @@ elision meet.
     The mitigation is phase 4's third step, adversarial verification per component, and it is
     labour rather than an assertion. Anyone tempted to skip it should read §7.2's list and ask which
     of those an invariant would have caught.
-26. **`AccessibleGalleryTest` runs against eighty scenes and has no reference answer.** It asserts
-    invariants — no `UNKNOWN` role, every focusable node named, unique ids, bounds inside the
-    clipping ancestor — and invariants are all it can assert, because nobody has said what the demo
-    *should* sound like. It will pass on a tree that is uniformly wrong in a way no invariant names.
-    A recorded walk of two or three scenes, reviewed once by someone reading it aloud, is the cheap
-    complement, and it is work rather than an assertion.
+26. **~~`AccessibleGalleryTest` runs against eighty scenes and has no reference answer.~~ Closed
+    2026-09-07, and the first half of the sentence was never true**: no test of that name exists in any
+    module — this record named it in three places and phase 4 never wrote it — so its invariants were
+    asserted gallery-wide by nothing, and there was not even a headless way to build a demo scene.
+    What closes the item is the complement it asked for. `AccessibleTranscriptTest` in `limn-demo`
+    builds `forms`, `components` and `kitchen-dialog` as `--scene` does, binds them to a window with no
+    platform behind it (`limn.demo.a11y`, the repository's first headless construction of a demo
+    scene), and compares a transcript of the published tree — one line per node in tree order: role,
+    name with provenance, description, spoken states, facets, verbs, relations by line, and no
+    rectangle — against a golden under `src/test/resources/limn/demo/a11y/` that was reviewed by being
+    read aloud. A golden is never rewritten silently: `-Dlimn.a11y.transcripts.update=true` is the one
+    switch, and without it a changed transcript fails with the differing lines. The first reading found
+    what no invariant names — focusable text areas, sliders and spin buttons with empty names beside
+    captions that name nothing, combo boxes named after their own value, a `PLACEHOLDER` provenance on
+    a field with no placeholder, a demo button class arriving as an empty group, a modal whose title is
+    heard twice — and those are §7.2's and the demo's to take. The gallery-wide invariant test stays
+    unwritten, and is now said to be rather than cited.
 27. **~~Whether a cross-window relation can name AppKit's own window object.~~ Closed by the phase 7
     probe run: it can, and the fallback is not needed.** §2.2 elides the window
     root on macOS because AppKit already vends the window, and §1.11 drops any relation that resolves
@@ -3522,7 +3574,8 @@ the component is not done until all three steps are:
 
 Together with the three names and the menu-model changes §8 lists. *Proves:* `AccessibleCoverageTest`
 and `AccessibleGalleryTest` — no `UNKNOWN` role anywhere, every focusable node named — and, per
-component, that its row is now true rather than plausible.
+component, that its row is now true rather than plausible. *(The second test was never written; §13.26
+records it, and the transcripts that closed that item are what stands in its place.)*
 
 **Phase 5 — the Linux bridge**, and `scripts/a11y/linux/` with it. The D-Bus client with the spike's
 golden vectors, **the reader and writer threads with the rule that neither performs the other's
