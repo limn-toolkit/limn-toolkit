@@ -39,8 +39,12 @@ final class AxEvents {
      */
     static final int CAPACITY = 64;
 
+    private static final System.Logger LOG = System.getLogger(AxEvents.class.getName());
+
     private final Deque<AccessibleEvent> queued = new ArrayDeque<>();
     private boolean collapsed;
+    /** How many times the queue has collapsed since it was made: the count §13.19's signal is. */
+    private int collapses;
 
     /**
      * @param event what happened
@@ -50,6 +54,14 @@ final class AxEvents {
         if (queued.size() >= CAPACITY) {
             queued.clear();
             collapsed = true;
+            collapses++;
+            // The signal the record asks for, and the only one there is: a collapse is correct in
+            // shape at any capacity, so nothing else about it says the number was set wrong. A
+            // WARNING and not a trace, because a bridge whose every frame collapses is telling a
+            // reader "re-read everything" sixty times a second and nobody would otherwise know.
+            LOG.log(System.Logger.Level.WARNING, "accessibility event queue collapsed: one frame's"
+                    + " difference carried more than " + CAPACITY + " events (collapse #"
+                    + collapses + "); the window is being re-read whole instead");
             return;
         }
         queued.add(event);
@@ -83,5 +95,13 @@ final class AxEvents {
     /** @return how many events are waiting; a collapsed queue holds none and means all of them. */
     int size() {
         return queued.size();
+    }
+
+    /**
+     * @return how many times this queue has collapsed, ever — the live run reads it at the end to
+     *         say whether the capacity held, which is the measurement §13.19 asks for
+     */
+    int collapses() {
+        return collapses;
     }
 }
