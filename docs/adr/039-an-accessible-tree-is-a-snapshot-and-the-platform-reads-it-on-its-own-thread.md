@@ -3363,7 +3363,8 @@ elision meet.
     snapshot AppKit holds and nothing re-derives it", demonstrated from both sides. It is also the
     exact shape of the bug this rule exists to prevent: an in-scene modal is a child of the root, so
     the failure a missing re-push produces is a dialog that opens and is never announced.
-22. **`accessibilityFocusedUIElement` has no proven home on macOS.** Our elements are not responders,
+22. **~~`accessibilityFocusedUIElement` has no proven home on macOS.~~ Closed: it has one, and it is
+    the content view.** Our elements are not responders,
     so it is not obvious that AppKit will ask us at all, and the spike never moved focus. Posting
     `AXFocusedUIElementChanged` at application level *is* proven to be delivered; being able to answer
     "where am I" afterwards is not. The experiment is one probe run: move focus between two elements,
@@ -3374,8 +3375,23 @@ elision meet.
     does not declare `-accessibilityFocusedUIElement` at all; `NSView` does, with encoding
     `@16@0:8`. So the selector genuinely lives on the responder side of the hierarchy, which is why
     the probe reads its encoding by searching AppKit's classes rather than asking the one class our
-    elements descend from. Whether AppKit routes the question to an element of ours is the part the
-    run still owes.
+    elements descend from.
+
+    **And AppKit does not route the question to an element of ours: it asked them zero times.** With
+    the selector installed on our element class alone, a full VoiceOver cycle entered it 0 times
+    while VoiceOver — told each time that the focus had changed — landed on the first element and
+    never moved. Installed on the content view instead it was entered 8 times in the same run, and
+    the answers alternate `BUTTON`, `CHECK_BOX` with the probe's own focus cycle. So item 16 reopens
+    for exactly one selector, as this item predicted — but **not** in the shape it was withdrawn in:
+    `class_addMethod` on `GLFWContentView` would change every window in the process, so the bridge
+    allocates a subclass *of* that class and re-points one instance's `isa` at it. The effect is one
+    view wide and GLFW's own class is left as it was found.
+
+    **What the same run settles about the actions**, which §2.2 could only claim for the spike's one
+    element: an out-of-process client finds the button by name, and `AXUIElementPerformAction`
+    arrives in Java as the widget's own `onAction`. The seven perform selectors are gated per node
+    by `isAccessibilitySelectorAllowed:`, so the button advertises `AXPress` and `AXConfirm` and
+    nothing else, and a node with no verb advertises none.
 23. **~~No non-ASCII string has crossed the macOS boundary.~~ Closed by the phase 7 probe run.** The
     guest runs a pt-BR system and every name in the spike was ASCII. This ADR's entire naming model
     is `I18nString`s resolved under a subtree locale, so a bridge that mangles UTF-8 into `NSString`
