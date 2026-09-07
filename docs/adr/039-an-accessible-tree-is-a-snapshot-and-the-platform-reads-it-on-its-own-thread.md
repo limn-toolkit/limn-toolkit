@@ -3194,6 +3194,23 @@ exception stays visible rather than becoming a habit.
    freed the object it releases through, an access violation on every window close once a client had
    asked for the root, which is why the benchmark's numbers — printed after the event loop returns —
    had never been printed at all. The disconnect now comes first, and a test pins the order.
+   **And the second half, the same evening: the gate can be per window.** He asked whether a true
+   flag with no reader meant Windows could not be on demand, and it had not been looked into — the
+   flag had simply been chosen. It is process-wide: true once *any* client in the session has
+   registered *any* handler, and seventeen had. What UI Automation offers per window is
+   `IRawElementProviderAdviseEvents` on the root, called with the event and its properties when a
+   client's subscription covers this window and again when it is withdrawn. Read off the guest
+   (§12.3), served on the root, counted; the reading was taken with the same drag probe twice: with
+   **no reader** running, the flag true, no client asked for one element and **nothing advised**;
+   with **NVDA** attached, one `AdviseEventAdded(AutomationFocusChanged)` arrived on an RPC thread
+   before the first frame. So "someone subscribed to this window" is a fact the bridge can know,
+   and it is false exactly where the flag is uselessly true. What it does not cover is a client that
+   reads and never subscribes — an inspector, a test harness polling the tree — which would see the
+   snapshot from its last `WM_GETOBJECT` and nothing newer. The gate's shape is therefore a
+   decision and not a finding: subscriptions alone, or subscriptions plus a short window after a
+   `WM_GETOBJECT`; the second serves the poller at the price of the time-based gate this record
+   refused for Orca, and it refused it because Orca subscribes and then waits, which is the case
+   the first shape covers. Open, with the reading in hand.
 6. **Two of three platforms have no CI coverage and will not get any.** Stated plainly rather than
    mitigated. The gate covers the toolkit half — the model, the tree, the events, the costs — which is
    where regressions will actually come from, because the bridges change rarely and the widgets change
