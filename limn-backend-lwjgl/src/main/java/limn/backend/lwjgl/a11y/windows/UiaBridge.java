@@ -119,6 +119,17 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
+     * @param nodeId a node
+     * @return whether a client has ever asked for it, so that an event on it reaches the platform
+     *         rather than returning at the top of {@link #emit}. A peek and never a mint: this is
+     *         what the live probe reads to tell a raise from a skip when it counts, and a probe
+     *         that minted elements while counting would be counting its own
+     */
+    boolean holdsElementFor(long nodeId) {
+        return elements.peek(nodeId) != null;
+    }
+
+    /**
      * <p>Asked once per frame on the user-interface thread. This is the whole of the cost a window
      * pays when nobody is reading it.
      */
