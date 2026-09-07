@@ -1,4 +1,4 @@
-package limn.backend.lwjgl.a11y.linux;
+package limn.backend.lwjgl.a11y;
 
 import limn.backend.AccessibilityBridge;
 import limn.backend.Backend;
@@ -13,10 +13,10 @@ import limn.backend.WindowInput;
 import java.util.List;
 
 /** A window that is not a window: the scene needs one to bind to, and this probe needs no pixels. */
-final class ProbeWindow implements NativeWindow {
+public final class ProbeWindow implements NativeWindow {
 
     /** Frames the scene has asked for: what an idle scene must stop adding to. */
-    int framesRequested;
+    public int framesRequested;
 
     private final boolean canPosition;
 
@@ -27,19 +27,19 @@ final class ProbeWindow implements NativeWindow {
      * publishes scene-local boxes plus the window's own origin and scale, and no headless test
      * could assert a real screen rectangle against two constants. Settable, so one can.
      */
-    int screenX;
-    int screenY;
-    float logicalToScreenFactor = 1;
+    public int screenX;
+    public int screenY;
+    public float logicalToScreenFactor = 1;
 
     /**
      * The bridge this window hands its scene. {@link AccessibilityBridge#NONE} unless a test sets
      * one, which is the answer that keeps every other component test free of the accessible walk:
      * with no bridge the scene never runs it.
      */
-    AccessibilityBridge accessibility = AccessibilityBridge.NONE;
+    public AccessibilityBridge accessibility = AccessibilityBridge.NONE;
 
     /** A window on a platform that places windows where it is told, which is most of them. */
-    ProbeWindow() {
+    public ProbeWindow() {
         this(true);
     }
 
@@ -48,7 +48,7 @@ final class ProbeWindow implements NativeWindow {
      *                    reproduces Wayland, where nothing outside a window can be lined up
      *                    with anything inside it
      */
-    ProbeWindow(boolean canPosition) {
+    public ProbeWindow(boolean canPosition) {
         this.canPosition = canPosition;
     }
 

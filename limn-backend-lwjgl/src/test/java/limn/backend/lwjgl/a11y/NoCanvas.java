@@ -1,4 +1,4 @@
-package limn.backend.lwjgl.a11y.linux;
+package limn.backend.lwjgl.a11y;
 
 import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
@@ -16,11 +16,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /** A canvas that draws nothing: the probe publishes a tree and paints no pixel. */
-final class NoCanvas implements limn.graphics.Canvas {
+public final class NoCanvas implements limn.graphics.Canvas {
     private final float width;
     private final float height;
 
-    NoCanvas() {
+    public NoCanvas() {
         this.width = 800;
         this.height = 600;
     }

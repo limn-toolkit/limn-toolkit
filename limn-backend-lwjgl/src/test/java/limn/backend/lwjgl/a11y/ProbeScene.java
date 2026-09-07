@@ -5,6 +5,7 @@ import limn.components.ButtonGroup;
 import limn.components.Checkbox;
 import limn.components.ComboBox;
 import limn.components.Label;
+import limn.components.ListView;
 import limn.components.PasswordField;
 import limn.components.ProgressBar;
 import limn.components.RadioButton;
@@ -14,7 +15,9 @@ import limn.components.Slider;
 import limn.components.TextField;
 import limn.scene.Scene;
 import limn.scene.Widget;
+import limn.i18n.I18nString;
 import limn.scene.layout.Column;
+import limn.scene.layout.SizedBox;
 
 import java.util.List;
 
@@ -38,6 +41,14 @@ import java.util.List;
  * but its own name — was silent. Nothing was being followed at all. A probe whose every step also
  * changes a value cannot see that class of defect, so {@code probe.cycle=value} drives the other
  * half separately.
+ *
+ * <p><b>Two more cycles exist for one count and not for reading.</b> ADR&nbsp;039 &sect;13.19 says
+ * the event queue's capacity is a policy with no measurement behind it, and names the measurement:
+ * how many events one frame's difference produces while a list scrolls and a slider is dragged,
+ * with a reader attached. {@code probe.cycle=scroll} pages the list by a viewport per tick and
+ * {@code probe.cycle=drag} moves the slider by one per tick, which is a drag sampled once per
+ * frame when the tick is short. The list is in the scene on every run so that the tree a reader
+ * hears is the same tree the count is taken over.
  */
 public final class ProbeScene {
 
@@ -47,7 +58,16 @@ public final class ProbeScene {
     private final Column root;
     private final Checkbox wrap;
     private final Slider volume;
+    private final ListView rows;
     private int step;
+
+    /** How many rows the list carries: enough that a page scroll realizes a new set every tick. */
+    public static final int ROWS = 300;
+    /** A row's box, fixed so that the list is the same shape with and without a font. */
+    static final float ROW_WIDTH = 240;
+    static final float ROW_HEIGHT = 32;
+    /** The viewport: five rows, so a page scroll releases one set and realizes another. */
+    static final float LIST_HEIGHT = 5 * ROW_HEIGHT;
 
     public ProbeScene() {
         root = new Column();
@@ -97,6 +117,36 @@ public final class ProbeScene {
 
         root.add(Separator.horizontal());
 
+        // Names held by the adapter, as the Adapter contract asks: a name built inside rowName
+        // would be a fresh object per realized row per frame and republish the tree every frame,
+        // which would make this count measure the probe rather than the toolkit.
+        I18nString[] names = new I18nString[ROWS];
+        for (int i = 0; i < ROWS; i++) {
+            names[i] = I18nString.literal("Linha " + (i + 1));
+        }
+        rows = new ListView(new ListView.Adapter() {
+            @Override
+            public int rowCount() {
+                return ROWS;
+            }
+
+            @Override
+            public Widget rowAt(int index) {
+                // A fixed-height box around the label, and not the label alone: with no font
+                // installed a label measures to nothing, and a list whose every row is zero
+                // points tall walks its anchor to the last row before the first frame — so the
+                // headless test that checks this cycle would read a list already scrolled to
+                // its end. The reader still hears the label; the box is what the row is tall by.
+                return new SizedBox(ROW_WIDTH, ROW_HEIGHT, new Label(names[index]));
+            }
+
+            @Override
+            public I18nString rowName(int index) {
+                return names[index];
+            }
+        });
+        root.add(new SizedBox(ROW_WIDTH, LIST_HEIGHT, rows));
+
         focusable = List.of(save, wrap, dark, name, secret, search, volume, format, daily, weekly);
     }
 
@@ -111,14 +161,23 @@ public final class ProbeScene {
      * @param scene the scene to move focus in
      */
     public void tick(Scene scene) {
-        if ("value".equals(System.getProperty("probe.cycle"))) {
-            wrap.setChecked(!wrap.isChecked());
-            volume.setValue((volume.value() + 10) % 100);
-        } else {
-            scene.requestFocus(focusable.get(step % focusable.size()));
+        String cycle = System.getProperty("probe.cycle", "focus");
+        switch (cycle) {
+            case "value" -> {
+                wrap.setChecked(!wrap.isChecked());
+                volume.setValue((volume.value() + 10) % 100);
+            }
+            case "scroll" -> rows.scrollBy(step % 2 == 0 ? LIST_HEIGHT : -LIST_HEIGHT);
+            case "drag" -> volume.setValue((volume.value() + 1) % 100);
+            default -> scene.requestFocus(focusable.get(step % focusable.size()));
         }
         step++;
         say("--- step " + step + " ---");
+    }
+
+    /** @return the list the scroll cycle pages, for a probe that wants to focus it first. */
+    public ListView rows() {
+        return rows;
     }
 
     /** @return how many steps have run. */
