@@ -249,7 +249,9 @@ class UiaBridgeTest {
         try {
             bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
             // What WM_GETOBJECT does: mints the root's element and remembers it for disconnect.
-            bridge.answerGetObject(0, -25);
+            // The two arguments are the message's own and are passed straight through to a
+            // platform call that is a no-op here; the window procedure checked them, not this.
+            bridge.answerGetObject(0, 0);
             assertEquals(1, bridge.elementCount(), "the root was asked for, so it exists");
             bridge.detach();
             String disconnect = trace.stream()
