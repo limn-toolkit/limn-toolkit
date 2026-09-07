@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -82,6 +83,28 @@ class AtspiTreeTest {
         m.iface = iface;
         m.member = member;
         return atspi.handle(null, m);
+    }
+
+    @Test
+    void aPingIsAnsweredOnAPathThatIsNeitherTheRootNorANode() {
+        // "/" is where the registry sends it, and it is neither the application root nor any node,
+        // so this used to fall through the path lookup and be answered with nothing at all.
+        //
+        // The consequence was invisible until at-spi2-core 2.60, which added "detect unresponsive
+        // applications, and do not expose them as children of the desktop". On Fedora 44 that made
+        // this application impossible for any client to see -- Orca included -- while the registry
+        // went on talking to it perfectly: hundreds of calls, a full Cache.GetItems, no error
+        // anywhere. Being hidden from the desktop's children is an omission, not a refusal, so
+        // nothing in the conversation says it happened. Ubuntu's 2.52 does not ping.
+        assertNotNull(call("/", Atspi.I_PEER, "Ping", null),
+                "an unanswered ping is an application the newer registry hides");
+        assertNotNull(call(Atspi.PATH_ROOT, Atspi.I_PEER, "Ping", null));
+    }
+
+    @Test
+    void anUnknownMemberOfPeerIsStillDeclined() {
+        assertNull(call("/", Atspi.I_PEER, "GetMachineId", null),
+                "answering a member we do not have would be worse than saying we have not got it");
     }
 
     @Test

@@ -3218,23 +3218,34 @@ exception stays visible rather than becoming a habit.
     now, and Fedora KDE on Wayland walks correctly and Orca speaks `'Save' 'botão.'` and
     `'Wrap lines' 'caixa de seleção não selecionada.'`.
 
-    **What is open is narrower and is a Wayland surface, not Fedora.** Three measurements, and the
-    middle one is the one to explain:
+    **And what looked like a Wayland problem was one unanswered ping.** It is worth setting out,
+    because the reasoning that nearly stopped at "Wayland" was reasonable and wrong. The
+    measurements were:
 
     | guest | window | listed by `libatspi` |
     | --- | --- | --- |
-    | Fedora 44 KDE, Wayland | none (the probe painted nothing) | yes |
+    | Fedora 44 KDE, Wayland | none | yes |
     | Fedora 44 KDE, Wayland | a real Wayland window | **no** |
     | Ubuntu 24.04 GNOME, X11 | a real X11 window | yes |
 
-    In the failing case the bridge is demonstrably on the bus, the registry makes 374 inbound calls
-    and refuses nothing, and the desktop's child count does not move. Two things are ruled out: it
-    is not the registration order, which the row above fixed and which the first line here exercises
-    on the same desktop; and it is not the tree, which the third line walks in full. **Forcing X11
-    on that guest is not an experiment that can be run**: window creation under XWayland blocks
-    before any code of ours, reproducibly. So this is recorded as measured rather than explained,
-    and the honest consequence today is that the Linux bridge is verified with a window on X11 and
-    without one on Wayland.
+    Which reads as a window-system fault and is not one. at-spi2-core **2.60.1** added *"detect
+    unresponsive applications, and do not expose them as children of the desktop"*, and it decides
+    that with `org.freedesktop.DBus.Peer.Ping` sent to `/`. This bridge resolved the object path
+    before it looked at the interface, and `/` is neither the application root nor any node — so
+    the ping fell through the lookup and was answered with nothing. Ubuntu's 2.52 does not ping.
+
+    **The symptom is the part worth remembering.** Being hidden from the desktop's children is an
+    omission, not a refusal: the registry went on talking to the application perfectly — 374
+    inbound calls, a full `Cache.GetItems`, roles, states, no error anywhere — while no client could
+    see it at all. Nothing in the conversation says what happened, which is why three runs pointed
+    at the window instead. The fix is four lines and `AtspiTreeTest` holds it; the general lesson is
+    §2.4's, again: what a platform asks *after* it is told something is where these live.
+
+    **Wayland accessibility itself is not the problem, and the search that settled this said so
+    first.** AT-SPI2 runs over D-Bus and is independent of the window system; Orca works on GNOME
+    and on Plasma 6 Wayland, and what is genuinely missing is wlroots compositors, which have no
+    AT-SPI2 integration at all. Nothing this record depends on is affected by that.
+
 16. **~~Adding methods to GLFW's content view class is designed and not proven.~~ Withdrawn**, by
     deleting the design that needed it. The re-run measured that `setAccessibilityChildren:` on the
     content view is sufficient on its own and that `accessibilityHitTest:` was never needed, so §2.2

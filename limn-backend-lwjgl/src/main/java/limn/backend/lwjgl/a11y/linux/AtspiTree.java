@@ -107,6 +107,23 @@ final class AtspiTree {
                     + "(" + args + ")");
             System.out.flush();
         }
+        // Before any path is resolved, because a ping is about the CONNECTION and not about an
+        // object: the registry sends it to "/", which is neither the application root nor a node,
+        // so the lookup below would refuse it.
+        //
+        // <b>That refusal is what made this application invisible on Fedora.</b> at-spi2-core 2.60
+        // added "detect unresponsive applications, and do not expose them as children of the
+        // desktop", and an unanswered ping is exactly what it detects. The symptom is peculiar
+        // enough to be worth writing down: the registry goes on talking to the application
+        // perfectly -- hundreds of calls, a full Cache.GetItems, no error anywhere -- while no
+        // client can see it at all, because being hidden from the desktop's children is not a
+        // refusal, it is an omission. Ubuntu's 2.52 does not ping, so this was invisible there.
+        if (Atspi.I_PEER.equals(iface)) {
+            if ("Ping".equals(m.member)) {
+                return DBus.Msg.ret(m, null);
+            }
+            return null;
+        }
         if (Atspi.PATH_CACHE.equals(m.path)) {
             return cache(m, iface);
         }
@@ -114,11 +131,6 @@ final class AtspiTree {
         AccessibleNode node = root ? null : nodeOf(m.path);
         if (!root && node == null) {
             return null;
-        }
-        if (Atspi.I_PEER.equals(iface)) {
-            if ("Ping".equals(m.member)) {
-                return DBus.Msg.ret(m, null);
-            }
         }
         if (Atspi.I_PROPS.equals(iface)) {
             return properties(m, root, node);
