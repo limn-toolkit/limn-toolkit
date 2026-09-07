@@ -3315,14 +3315,42 @@ exception stays visible rather than becoming a habit.
     file chooser, start a fresh client while the panel is up, and see whether it attaches. If it does
     not, the honest consequence is that a client attaching during a file dialog waits, which is what
     happens on the other two platforms anyway.
-19. **The event queue's capacity and the macOS per-frame notification budget are policies with no
-    measurement behind them.** §1.10 bounds both and collapses on overflow, which is correct in shape
-    at any number, but the numbers should come from two counts on the guests: how many events a real
-    diff produces while scrolling a list and dragging a slider with NVDA and VoiceOver attached, and
-    what one `UiaRaiseAutomationEvent` and one `NSAccessibilityPostNotification` cost. Until then the
-    initial capacity is set so that a full queue's drain fits inside the 8 ms budget at a
-    pessimistic per-raise cost, and the WARNING that budget already logs is the signal that it was
-    set wrong.
+19. **~~The event queue's capacity and the macOS per-frame notification budget are policies with no
+    measurement behind them.~~ Counted 2026-09-07, on both guests, with the reader attached.** The
+    probe gained a 300-row list and two cycles for it — paging the list by a viewport per tick,
+    moving the slider by one per tick, focus left alone — and a test-side wrapper that counts what
+    the scene hands the bridge between two publishes and times what the bridge does with it.
+    **Windows, NVDA attached:** 21 events per frame paging the list, of which 5 reach the platform
+    (the rest name rows no client had asked for and return at the bridge's first line, ~300 ns
+    each); 1 per frame dragging the slider; 27 on the first frame. No queue exists on Windows, so
+    the number a capacity would be judged by is small and was never the question there — what the
+    count found instead is §13.28, the raise that waits. It also found the slider silent: NVDA
+    spoke `'deslizante'` and no number for forty changes, because the bridge vended `Value` beside
+    `RangeValue` and answered it with `""`, which NVDA prefers to the number; with `Value` vended
+    only from a spoken form, NVDA says `'deslizante', '40'` and then `'41'` … `'53'`, one per tick.
+    A managed client subscribed to `RangeValue.Value` received no property-changed event in twelve
+    seconds of the same drag, while NVDA plainly did; recorded as an observation, not explained.
+    **macOS, VoiceOver's cursor on the widget being moved** (`LiveProbe -Dprobe.timing=true
+    -Dprobe.focus=…`, 100 ms tick, 40 frames): paging the list by its five-row viewport is 21 events a
+    frame — one `VALUE_CHANGED` on the list, then per row a `STRUCTURE_CHANGED` on the list, one on
+    the row, and a `NODE_DESTROYED` each for the row that left and its label, four per row plus one —
+    of which eleven post (`AXValueChanged` and ten `AXLayoutChanged`; destructions post nothing,
+    AppKit does); the dragged slider is one event and one post. The drain of that frame was 164 µs
+    at p50, 416 µs at p90, 1.67 ms at worst — 8 / 20 / 80 µs an event — and one
+    `NSAccessibilityPostNotification` alone is 375 ns at p50 and 459 ns at p99 with VoiceOver on,
+    83 / 125 ns with it off: the cost is the bookkeeping and the reader, not the post. No collapse in
+    any run. **`AxEvents.CAPACITY` is now 256**, and 64 was wrong by the count's own arithmetic: at
+    four events a row plus one, 64 is a fifteen-row page — an ordinary viewport — collapsing on
+    every scroll and re-reading the window each time; 256 is a sixty-row page whose full drain at a
+    pessimistic 30 µs an event, above the measured p90 with the reader on the list, is 7.7 ms,
+    inside the 8 ms this item set the budget by. The collapse now logs a WARNING, which this item
+    called the signal and which was silent. And the value half of the probe, never driven on any
+    guest, was: with the cursor placed once and only values moving, VoiceOver read
+    `verificado` / `desmarcado, Wrap lines, caixa de seleção` alternating and `50, controle
+    deslizante → 60 → 70 → …`, no focus event in the run — and with no cursor on the widget it read
+    the window title and nothing else, every notification posted. A reader speaks a changed value
+    where its cursor stands; the probe's rule is unchanged, drive focus and value separately, and
+    put the cursor where the value is.
 
 Items 20 to 24 replace the two macOS items this round closed. They are narrower, and each is a thing
 the spike's own "still unproven" section names — the spike published **one element, under one window,
@@ -3512,6 +3540,39 @@ elision meet.
     could query. What made this worth measuring rather than assuming is that presence and
     resolvability are different facts, so the client resolves every target it is given and reports
     the role it found rather than reporting that the attribute exists.
+    **A second shape of the destruction half, found by the §13.19 run on 2026-09-07 and fixed:**
+    closing a window with VoiceOver on was a SIGSEGV in `liblwjgl`. `Scene#windowClosed` detached
+    the bridge, which freed its libffi closures; `glfwDestroyWindow` then pumps the run loop, and
+    VoiceOver's `accessibilityFocusedUIElement` reached the content view still swizzled onto the
+    bridge's class and called a freed IMP. A detach now gives the content view its class back and
+    points every released element at `NSAccessibilityElement` *before* it frees anything; a test
+    pins that order, and with the free first it fails. Reproducible before the fix by any Limn
+    application closing a window under VoiceOver, so it was not a probe's problem.
+28. **The Windows bridge raises on the UI thread, and a raise waits for the reader.** Found by the
+    §13.19 count on 2026-09-07. §1.10 says handing over is not raising, on any of the three, and that
+    a bridge raising inline would spend the frame budget inside `UiaRaiseAutomationEvent`; the Windows
+    bridge nevertheless raises straight through from `emit`, on the belief — written in its own
+    javadoc — that the call returns without waiting for a client. With NVDA attached it does not:
+    `UiaRaiseAutomationPropertyChangedEvent` for a slider took **2.5 ms median, 16 ms max**, a row event
+    while paging a list 166 µs median with **one raise of 50 ms**, and `UiRuntime` logged "took 37 ms
+    (budget 8 ms)" — the call returns after the client's handler has run, and NVDA's handler calls back
+    into the provider before it returns. The count itself is small (21 events per frame paging a
+    300-row list, 5 of them reaching the platform; 1 per frame dragging a slider), so capacity is not
+    the Windows question and never was; **where** the raise happens is. The queue §1.10 asks for is
+    therefore still owed on Windows, and it is a threading change — a raise thread of the bridge's
+    own, with §3.4's answer for who owns the queue and what a raise may touch after the UI thread has
+    moved on — not a constant. Deferred to a pass of its own by decision on 2026-09-07; until then a
+    Limn window with NVDA attached spends up to a frame in a raise, which the slow-task warning
+    already reports and a user hears as a stutter under the reader, not as silence.
+29. **Paging a list destroys the row the reader's cursor is on.** Found by the same run on macOS.
+    VoiceOver was reading `Linha 1, item de lista`; the page scroll released that row, the bridge
+    posted nothing for it (correctly — AppKit posts `UIElementDestroyed` itself) and VoiceOver fell
+    back to `Você está atualmente em janela`, then to the scroll bar. The tree is truthful: the row
+    is gone. What a reader needs is for the row it stands on to stay alive across a scroll, or for
+    the list to move its selection with the page so that the cursor has somewhere to land — either
+    is the `ListView`'s decision and not the bridge's, and §11's "not list virtualization" did not
+    foresee the cursor case. Open; the keyboard user is unaffected, because the arrows scroll by
+    selection and a selected row is always realized.
 
 ---
 

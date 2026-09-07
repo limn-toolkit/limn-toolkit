@@ -160,9 +160,13 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
-     * <p>Raised straight through, on whichever thread the scene drained on. Every one of these is a
-     * call into UI Automation that returns without waiting for a client, which is why there is no
-     * queue between here and it on this platform.
+     * <p>Raised straight through, on whichever thread the scene drained on — which is the scene's
+     * user-interface thread. This was written on the belief that a raise returns without waiting for
+     * a client, and the belief is false: measured with NVDA attached (ADR&nbsp;039 &sect;13.28), a
+     * property-changed raise waits for the reader's handler and its calls back into this provider,
+     * 2.5&nbsp;ms median and one of 50&nbsp;ms. The bounded queue &sect;1.10 asks of every bridge is
+     * therefore still owed here, as a threading change of its own; until it lands, a raise can spend
+     * the frame budget, and the slow-task warning is what reports it.
      *
      * @param event what moved
      */
