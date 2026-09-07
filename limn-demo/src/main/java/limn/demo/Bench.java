@@ -1,5 +1,6 @@
 package limn.demo;
 
+import limn.backend.AccessibilityBridge;
 import limn.backend.Backend;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
@@ -21,6 +22,8 @@ import limn.scene.layout.Row;
 
 import java.lang.management.ManagementFactory;
 import java.util.Locale;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Limn half of the heavy-screen benchmark (see scripts/bench/SwingBench.java
@@ -76,6 +79,46 @@ final class Bench {
         }
     }
 
+    /**
+     * The system property that picks how this run is wired to the platform's accessibility, and
+     * its one value.
+     *
+     * <p>ADR&nbsp;039 &sect;6 asks what the Windows window-procedure subclass costs a process
+     * nobody is reading, and names the method: this benchmark with and without it. Without is
+     * {@code -Dlimn.accessibility=off}. But "with" is not the subclass alone on a machine whose
+     * {@code UiaClientsAreListening()} answers true with no reader running — the Windows guest
+     * does — because a listening gate buys the accessible walk on every damaged frame, and that
+     * walk is a different cost with a different owner. {@code subclass-only} separates them: the
+     * platform's bridge is opened, which is what installs the subclass, and the scene is then
+     * handed {@link AccessibilityBridge#NONE}, so the window procedure crosses Java on every
+     * message and nothing walks. A measurement mode of the harness, and nothing an application
+     * should copy.
+     */
+    static final String ACCESSIBILITY_PROPERTY = "limn.bench.accessibility";
+    static final String SUBCLASS_ONLY = "subclass-only";
+
+    /**
+     * Applies {@link #ACCESSIBILITY_PROPERTY}.
+     *
+     * @param mode    the property's value, or {@code null}
+     * @param open    opens the platform's bridge for the window, with whatever that installs
+     * @param install hands the window the bridge the scene will see
+     * @return whether the mode was applied
+     */
+    static boolean applyAccessibilityMode(String mode, Supplier<AccessibilityBridge> open,
+                                          Consumer<AccessibilityBridge> install) {
+        if (!SUBCLASS_ONLY.equals(mode)) {
+            return false;
+        }
+        // Opened for its side effect: the subclass is installed by the open and outlives the
+        // bridge's place in the window, since the window procedure holds it.
+        AccessibilityBridge opened = open.get();
+        System.out.println("BENCH accessibility=" + SUBCLASS_ONLY + " opened="
+                + opened.getClass().getSimpleName() + " listening=" + opened.isListening());
+        install.accept(AccessibilityBridge.NONE);
+        return true;
+    }
+
     static void run(boolean partialRendering) {
         System.out.println("BENCHPID " + ProcessHandle.current().pid());
         CpuSampler cpu = new CpuSampler();
@@ -86,6 +129,8 @@ final class Bench {
         try (Backend backend = new LwjglBackend()) {
             NativeWindow window = backend.createWindow(
                     new WindowConfig("LimnBench", 1100, 800, true, true));
+            applyAccessibilityMode(System.getProperty(ACCESSIBILITY_PROPERTY),
+                    window::accessibility, window::setAccessibility);
 
             ProgressBar[] topBars = new ProgressBar[TOP_BARS];
             Row top = new Row();
