@@ -10,6 +10,15 @@
 
 ---
 
+> **Amended 2026-09-06: this is now the ordinary path on a Wayland desktop, not the fallback.**
+> The backend used to prefer X11 whenever `DISPLAY` was set, which was chosen so that popups could
+> have windows of their own at absolute positions — and which sent every Wayland desktop through
+> XWayland, since XWayland sets `DISPLAY`. On Fedora 44 KDE that hangs the application before it
+> draws: GLFW's X11 backend waits for a `VisibilityNotify` on the window it has just mapped,
+> rootless XWayland never sends one, and other events keep arriving, so the wait never sleeps and
+> spins at 100% of a core. A Wayland session is used as a Wayland session now, and what this record
+> decided is what a user of one gets. Nothing here changes; it simply applies more often.
+
 ## 1. The problem, as it presented itself
 
 Three components draw outside their own frame: a dropdown's list, a menu cascade, a tooltip. All

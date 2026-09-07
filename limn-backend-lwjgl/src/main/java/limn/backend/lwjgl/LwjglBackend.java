@@ -208,12 +208,60 @@ public final class LwjglBackend implements Backend {
         if (isMacOs() || System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
             return;
         }
+        String waylandDisplay = System.getenv("WAYLAND_DISPLAY");
         String display = System.getenv("DISPLAY");
-        if (display != null && !display.isBlank() && glfwPlatformSupported(GLFW_PLATFORM_X11)) {
+        int chosen = platformForSession(waylandDisplay, display,
+                glfwPlatformSupported(GLFW_PLATFORM_WAYLAND), glfwPlatformSupported(GLFW_PLATFORM_X11));
+        if (chosen == GLFW_PLATFORM_WAYLAND) {
+            glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
+            LOG.log(Level.INFO, "windowing platform: Wayland on WAYLAND_DISPLAY={0} (this session is "
+                    + "Wayland; set {1}=x11 to go through XWayland instead)",
+                    waylandDisplay, PLATFORM_PROPERTY);
+        } else if (chosen == GLFW_PLATFORM_X11) {
             glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
-            LOG.log(Level.INFO, "windowing platform: X11 on DISPLAY={0} (Wayland cannot position "
-                    + "windows; set {1}=wayland to override)", display, PLATFORM_PROPERTY);
+            LOG.log(Level.INFO, "windowing platform: X11 on DISPLAY={0}", display);
         }
+    }
+
+    /**
+     * Which windowing platform a session asks for, given what its environment says.
+     *
+     * <p><b>A Wayland session is used as a Wayland session, and this used to be the other way
+     * round.</b> The rule was "X11 whenever {@code DISPLAY} is set", chosen so that popups could be
+     * given windows of their own at absolute positions, which Wayland does not allow. But XWayland
+     * sets {@code DISPLAY} on every Wayland desktop there is, so that rule routed all of them
+     * through XWayland — and on Fedora 44 KDE that hangs the application before it ever draws:
+     * GLFW's X11 backend waits for a {@code VisibilityNotify} on the window it just mapped, XWayland
+     * in rootless mode never sends one, and other events keep arriving, so the wait never sleeps. It
+     * spins at 100% of a core, inside {@code glfwCreateWindow} or inside {@code glfwShowWindow} if
+     * the window was created hidden — the map is what it waits on, wherever that happens.
+     *
+     * <p><b>What the old preference bought is already handled elsewhere.</b> ADR 028 decided, and
+     * implemented, that a popup on a platform with no absolute positioning is drawn inside the
+     * window that owns it, which is what {@code NativeWindow#supportsAbsolutePositioning()} is for.
+     * So the trade was a graceful degradation against an application that does not start, and it
+     * was made before the second half of that was known.
+     *
+     * <p>Pure and package-private so that the decision can be exercised without a session of any
+     * kind; {@link #selectPlatform()} is the part that reads the environment.
+     *
+     * @param waylandDisplay  {@code WAYLAND_DISPLAY}, or null
+     * @param display         {@code DISPLAY}, or null
+     * @param waylandSupported whether this GLFW build has the Wayland platform
+     * @param x11Supported     whether this GLFW build has the X11 platform
+     * @return the GLFW platform constant, or {@code 0} to let GLFW decide for itself
+     */
+    static int platformForSession(String waylandDisplay, String display,
+                                  boolean waylandSupported, boolean x11Supported) {
+        if (waylandDisplay != null && !waylandDisplay.isBlank() && waylandSupported) {
+            return GLFW_PLATFORM_WAYLAND;
+        }
+        // No WAYLAND_DISPLAY and a DISPLAY is a genuine X11 session, where X11 is not a fallback
+        // but the right answer -- and where popups do get windows of their own.
+        if (display != null && !display.isBlank() && x11Supported) {
+            return GLFW_PLATFORM_X11;
+        }
+        return 0;
     }
 
     /**
