@@ -54,6 +54,20 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 
+// The accessibility transcripts under src/test/resources/limn/demo/a11y/ are compared by
+// AccessibleTranscriptTest and rewritten only on request: `-Dlimn.a11y.transcripts.update=true`
+// reaches the daemon, and the tests run in a JVM of their own, so the switch is forwarded here
+// together with the directory the rewrite lands in. Forwarded only when set, so an absent switch
+// stays absent rather than becoming "" — and a test never learns the directory unless it may
+// write there.
+tasks.named<Test>("test") {
+    System.getProperty("limn.a11y.transcripts.update")?.let {
+        systemProperty("limn.a11y.transcripts.update", it)
+        systemProperty("limn.a11y.transcripts.dir",
+                layout.projectDirectory.dir("src/test/resources/limn/demo/a11y").asFile.absolutePath)
+    }
+}
+
 // A developer's `full` payload (encoders, for the writer scenes), from a sibling clone of
 // limn-ffmpeg-natives by convention or from -PlimnFfmpegNatives, ahead of the published player
 // payload on this module's classpath: main resources come before dependency jars, so the full
