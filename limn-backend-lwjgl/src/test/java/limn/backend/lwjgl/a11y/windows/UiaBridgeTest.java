@@ -3,6 +3,7 @@ package limn.backend.lwjgl.a11y.windows;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
+import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -266,5 +268,178 @@ class UiaBridgeTest {
         } finally {
             UiaWindow.trace = before;
         }
+    }
+
+    /** Waits up to two seconds for a trace line that satisfies {@code what}. */
+    private static String awaitTrace(java.util.List<String> trace,
+                                     java.util.function.Predicate<String> what) {
+        long deadline = System.nanoTime() + 2_000_000_000L;
+        while (System.nanoTime() < deadline) {
+            synchronized (trace) {
+                for (String line : trace) {
+                    if (what.test(line)) {
+                        return line;
+                    }
+                }
+            }
+            Thread.onSpinWait();
+        }
+        return null;
+    }
+
+    private static java.util.List<String> synchronizedTrace() {
+        return java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    }
+
+    /**
+     * §13.28: a raise waits for the reader's handler, so it may not run on the thread that
+     * handed the event over. The platform call is a no-op here; where it runs is what this pins.
+     */
+    @Test
+    void anEventIsRaisedOnTheBridgesOwnThreadAndNotTheOneThatEmittedIt() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.objectFor(1001);
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            String raised = awaitTrace(trace, line -> line.startsWith("raised FOCUS_CHANGED"));
+            assertNotNull(raised, "the event was never raised: " + trace);
+            assertTrue(raised.endsWith("on limn-a11y-uia-drain"),
+                    "raised on the emitting thread, which the reader would have parked: " + raised);
+            assertNotEquals(Thread.currentThread(), bridge.drainThreadForTests());
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    @Test
+    void aWindowNobodyEmitsForStartsNoThread() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.objectFor(1001);
+            assertNull(bridge.drainThreadForTests());
+        } finally {
+            bridge.detach();
+        }
+    }
+
+    @Test
+    void aDestroyedNodesElementIsReleasedOnTheDrainThread() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.objectFor(1001);
+            assertEquals(1, bridge.elementCount());
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, 1001));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("released element for destroyed node 1001")),
+                    "never released: " + trace);
+            assertEquals(0, bridge.elementCount());
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * §1.10: a collapse is a reconciliation. The registry is swept against the published tree
+     * before the client is told to re-read, so an element for a node that left in the swallowed
+     * burst is released rather than leaked.
+     */
+    @Test
+    void aCollapseSweepsElementsWhoseNodesHaveLeftAndInvalidatesTheRoot() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        // The trace consumer runs inside the drain thread's raise, so it is where a reader's
+        // slowness is stood in for: each raise takes a few milliseconds here, as it does with
+        // NVDA attached, and the producer runs ahead of it into the bound.
+        UiaWindow.trace = line -> {
+            trace.add(line);
+            if (line.startsWith("raised ")) {
+                try {
+                    Thread.sleep(2);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        };
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.objectFor(1000);
+            bridge.objectFor(1001);
+            // The button leaves: a tree with only the window. Its NODE_DESTROYED is among what
+            // the overflow swallows.
+            bridge.publish(aWindowWithout(), false);
+            for (int i = 0; i <= UiaEvents.CAPACITY + 8; i++) {
+                bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1000));
+            }
+            assertNotNull(awaitTrace(trace, l -> l.equals("collapse: swept 1 elements")),
+                    "the registry was not swept: " + trace);
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised INVALIDATED for node 1000")),
+                    "the root was not invalidated: " + trace);
+            assertEquals(1, bridge.collapses());
+            assertEquals(1, bridge.elementCount(), "the window's element stays; the button's went");
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * §3.4: the whole-registry empty runs after the drain thread has been stopped and joined, so
+     * the two removers never race and a raise in flight is not left holding a freed element.
+     */
+    @Test
+    void detachingStopsTheDrainBeforeItFreesAnything() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.objectFor(1001);
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised FOCUS_CHANGED")));
+            Thread drain = bridge.drainThreadForTests();
+            assertNotNull(drain);
+            bridge.detach();
+            assertFalse(drain.isAlive(), "the drain thread outlived the bridge");
+            java.util.List<String> lines;
+            synchronized (trace) {
+                lines = new java.util.ArrayList<>(trace);
+            }
+            int stopped = lines.indexOf("drain stopped");
+            int freed = -1;
+            for (int i = 0; i < lines.size(); i++) {
+                if (lines.get(i).startsWith("freed ")) {
+                    freed = i;
+                }
+            }
+            assertTrue(stopped >= 0, "the drain was never stopped: " + lines);
+            assertTrue(freed > stopped, "freed before the drain stopped: " + lines);
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            assertNull(bridge.drainThreadForTests(), "a late emit started a thread nobody stops");
+        } finally {
+            UiaWindow.trace = before;
+        }
+    }
+
+    private static AccessibleTree aWindowWithout() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
     }
 }

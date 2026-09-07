@@ -84,6 +84,15 @@ public final class LiveProbe {
                     // scene binds, because the bind is what hands the bridge its host.
                     tally = new EmitTally();
                     window.setAccessibility(new TimedBridge(real, tally, LiveProbe::say));
+                    // And the bridge's own trace, which is where a raise now reports how long
+                    // it took and on which thread: the emit the tally times is an enqueue
+                    // since §13.28, so the raise's cost is only visible from here.
+                    UiaWindow.trace = line -> {
+                        if (line.startsWith("raised ") || line.startsWith("collapse")
+                                || line.startsWith("released ") || line.startsWith("drain ")) {
+                            say("TRACE " + line);
+                        }
+                    };
                 } else {
                     say("nothing to time: the bridge is " + bridge.getClass().getName());
                 }

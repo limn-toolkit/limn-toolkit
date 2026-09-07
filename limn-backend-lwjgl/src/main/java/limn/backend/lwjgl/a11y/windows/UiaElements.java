@@ -128,4 +128,13 @@ final class UiaElements {
     int size() {
         return byNode.size();
     }
+
+    /**
+     * @return the node identifiers this bridge holds an element for, as they were at the moment
+     *         of asking: the drain thread's sweep walks this list and removes what the published
+     *         tree no longer has, and a node minted meanwhile is one the tree does have
+     */
+    List<Long> ids() {
+        return List.copyOf(byNode.keySet());
+    }
 }

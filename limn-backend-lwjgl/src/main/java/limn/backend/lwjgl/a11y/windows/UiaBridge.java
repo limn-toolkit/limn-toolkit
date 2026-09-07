@@ -57,6 +57,19 @@ public final class UiaBridge extends PlatformBridge {
     /** The procedure this bridge put in front of the window's own, or {@code null}. */
     private volatile UiaWindow attachedWindow;
 
+    /** What the user-interface thread has handed over and the drain thread has not yet raised. */
+    private final UiaEvents events = new UiaEvents();
+
+    /**
+     * The thread that raises, or {@code null} while nothing has been emitted since the last stop.
+     * Written by the user-interface thread only: started lazily by {@link #emit}, stopped and
+     * joined by the whole-registry empty, which is the one order §3.4 allows.
+     */
+    private Thread drain;
+
+    /** Set once the platform half is gone, so a late emit starts no thread nobody will stop. */
+    private volatile boolean closed;
+
     private UiaBridge(long hwnd) {
         this.hwnd = hwnd;
     }
@@ -118,6 +131,16 @@ public final class UiaBridge extends PlatformBridge {
         return elements.size();
     }
 
+    /** @return the drain thread while one is running, for tests. */
+    Thread drainThreadForTests() {
+        return drain;
+    }
+
+    /** @return how many times the queue has collapsed since this bridge opened (§13.19). */
+    int collapses() {
+        return events.collapses();
+    }
+
     /**
      * @param nodeId a node
      * @return whether a client has ever asked for it, so that an event on it reaches the platform
@@ -160,18 +183,119 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
-     * <p>Raised straight through, on whichever thread the scene drained on — which is the scene's
-     * user-interface thread. This was written on the belief that a raise returns without waiting for
-     * a client, and the belief is false: measured with NVDA attached (ADR&nbsp;039 &sect;13.28), a
-     * property-changed raise waits for the reader's handler and its calls back into this provider,
-     * 2.5&nbsp;ms median and one of 50&nbsp;ms. The bounded queue &sect;1.10 asks of every bridge is
-     * therefore still owed here, as a threading change of its own; until it lands, a raise can spend
-     * the frame budget, and the slow-task warning is what reports it.
+     * <p>Handed over, never raised here. This used to raise straight through on the thread the
+     * scene drained on — the user-interface thread — on the belief that a raise returns without
+     * waiting for a client, and the belief is false: measured with NVDA attached (ADR&nbsp;039
+     * &sect;13.28), a property-changed raise waits for the reader's handler and its calls back into
+     * this provider, 2.5&nbsp;ms median and one of 50&nbsp;ms, which is a frame's budget spent
+     * inside the platform. So this offers to the bounded queue &sect;1.10 asks of every bridge and
+     * returns, and {@link #raise} runs on a thread of this bridge's own, started the first time
+     * there is something to raise — a window nobody reads starts no thread.
      *
      * @param event what moved
      */
     @Override
     public void emit(AccessibleEvent event) {
+        if (closed) {
+            return;
+        }
+        events.offer(event);
+        if (drain == null) {
+            Thread thread = new Thread(this::drainLoop, "limn-a11y-uia-drain");
+            thread.setDaemon(true);
+            drain = thread;
+            thread.start();
+        }
+    }
+
+    /**
+     * The drain thread's whole life: take, raise, until stopped. A collapse marker is a sweep of
+     * the registry against the published tree — every element whose node has left is released,
+     * which is what the swallowed {@code NODE_DESTROYED}s would have done one by one (§1.10) —
+     * followed by one invalidate-everything raise on the root.
+     */
+    private void drainLoop() {
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                AccessibleEvent event = events.take();
+                if (event == UiaEvents.COLLAPSE) {
+                    sweepAndInvalidate();
+                } else {
+                    raise(event);
+                }
+            }
+        } catch (InterruptedException stopped) {
+            // The user-interface thread is emptying the registry and asked this thread to leave
+            // first. Whatever is still queued is about a tree that is going away with it.
+        }
+    }
+
+    /**
+     * Stops and joins the drain thread, on the user-interface thread, before the registry is
+     * touched by anyone else. A raise in flight is waited for: it holds an element the empty is
+     * about to free, and the platform is inside it.
+     */
+    private void stopDrain() {
+        Thread thread = drain;
+        if (thread == null) {
+            return;
+        }
+        drain = null;
+        thread.interrupt();
+        boolean interrupted = false;
+        while (true) {
+            try {
+                thread.join();
+                break;
+            } catch (InterruptedException e) {
+                interrupted = true;
+            }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+        }
+        java.util.function.Consumer<String> to = UiaWindow.trace;
+        if (to != null) {
+            to.accept("drain stopped");
+        }
+    }
+
+    private void sweepAndInvalidate() {
+        AccessibleTree tree = tree();
+        int swept = 0;
+        for (Long id : elements.ids()) {
+            if (tree.indexOf(id) < 0 && elements.remove(id)) {
+                swept++;
+            }
+        }
+        java.util.function.Consumer<String> to = UiaWindow.trace;
+        if (to != null) {
+            to.accept("collapse: swept " + swept + " elements");
+        }
+        if (tree.nodeCount() > 0) {
+            raise(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, tree.root().id()));
+        }
+    }
+
+    /**
+     * One event, raised on the drain thread.
+     *
+     * <p>{@code NODE_DESTROYED} raises nothing and releases this bridge's claim on the element: a
+     * client still holding it gets {@code UIA_E_ELEMENTNOTAVAILABLE} from then on, which is what
+     * §1.3 promises, and a client that never asked for it has nothing to release.
+     *
+     * @param event what moved
+     */
+    private void raise(AccessibleEvent event) {
+        if (event.type() == AccessibleEvent.Type.NODE_DESTROYED) {
+            if (elements.remove(event.nodeId())) {
+                java.util.function.Consumer<String> to = UiaWindow.trace;
+                if (to != null) {
+                    to.accept("released element for destroyed node " + event.nodeId());
+                }
+            }
+            return;
+        }
         int eventId = switch (event.type()) {
             case FOCUS_CHANGED -> UiaIds.AUTOMATION_FOCUS_CHANGED;
             case INVOKED -> UiaIds.INVOKE_INVOKED;
@@ -192,11 +316,18 @@ public final class UiaBridge extends PlatformBridge {
             // about. It will read whatever is current the first time it does ask.
             return;
         }
+        long started = System.nanoTime();
         if (eventId != 0) {
             Uia.raiseAutomationEvent(element.pointer(), eventId);
-            return;
+        } else {
+            raisePropertyChange(element, event);
         }
-        raisePropertyChange(element, event);
+        java.util.function.Consumer<String> to = UiaWindow.trace;
+        if (to != null) {
+            to.accept("raised " + event.type() + " for node " + event.nodeId() + " in "
+                    + (System.nanoTime() - started) / 1_000 + " us on "
+                    + Thread.currentThread().getName());
+        }
     }
 
     /**
@@ -294,6 +425,7 @@ public final class UiaBridge extends PlatformBridge {
 
     @Override
     protected void releasePlatformHalf() {
+        closed = true;
         // The root provider was disconnected by the registry empty that ran before this, which is
         // the only order that works: see disconnectRootProvider. What is left is the window.
         UiaWindow window = attachedWindow;
@@ -351,7 +483,10 @@ public final class UiaBridge extends PlatformBridge {
      */
     @Override
     protected void invalidateEverythingVended() {
-        // First, while every closure the platform may call back through is still there.
+        // The drain thread first, stopped and joined: it is the only other remover, and a raise
+        // in flight holds an element this is about to free (§3.4).
+        stopDrain();
+        // Then, while every closure the platform may call back through is still there.
         disconnectRootProvider();
         java.util.Set<UiaObject> distinct =
                 java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
