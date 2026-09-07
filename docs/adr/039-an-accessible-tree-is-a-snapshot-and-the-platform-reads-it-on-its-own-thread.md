@@ -3548,8 +3548,14 @@ elision meet.
     points every released element at `NSAccessibilityElement` *before* it frees anything; a test
     pins that order, and with the free first it fails. Reproducible before the fix by any Limn
     application closing a window under VoiceOver, so it was not a probe's problem.
-28. **The Windows bridge raises on the UI thread, and a raise waits for the reader.** Found by the
-    §13.19 count on 2026-09-07. §1.10 says handing over is not raising, on any of the three, and that
+28. **~~The Windows bridge raises on the UI thread, and a raise waits for the reader.~~ Closed
+    2026-09-07, the same day, by the queue and the drain thread §1.10 and §3.4 had described all
+    along**: `emit` offers to a bounded queue and `limn-a11y-uia-drain` raises; `NODE_DESTROYED`
+    releases on that thread, a collapse sweeps and invalidates, and the whole-registry empty stops
+    and joins it first. Same drag, same NVDA: the emit on the UI thread went from 2.5 ms median to
+    26 µs, the raises took their 1–3 ms on the drain thread, and the five budget warnings of the
+    inline run became one, which is the probe's own tick. What follows is the finding as it was
+    made. Found by the §13.19 count on 2026-09-07. §1.10 says handing over is not raising, on any of the three, and that
     a bridge raising inline would spend the frame budget inside `UiaRaiseAutomationEvent`; the Windows
     bridge nevertheless raises straight through from `emit`, on the belief — written in its own
     javadoc — that the call returns without waiting for a client. With NVDA attached it does not:
@@ -3561,9 +3567,8 @@ elision meet.
     the Windows question and never was; **where** the raise happens is. The queue §1.10 asks for is
     therefore still owed on Windows, and it is a threading change — a raise thread of the bridge's
     own, with §3.4's answer for who owns the queue and what a raise may touch after the UI thread has
-    moved on — not a constant. Deferred to a pass of its own by decision on 2026-09-07; until then a
-    Limn window with NVDA attached spends up to a frame in a raise, which the slow-task warning
-    already reports and a user hears as a stutter under the reader, not as silence.
+    moved on — not a constant. It was deferred to a pass of its own and then done the same day
+    when he asked for it; the line above says what the run showed.
 29. **Paging a list destroys the row the reader's cursor is on.** Found by the same run on macOS.
     VoiceOver was reading `Linha 1, item de lista`; the page scroll released that row, the bridge
     posted nothing for it (correctly — AppKit posts `UIElementDestroyed` itself) and VoiceOver fell

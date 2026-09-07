@@ -154,7 +154,7 @@ wiring anything. `setAccessibility` remains for an application installing its ow
 
 | | Reaches the platform by | Threads | Gate |
 | --- | --- | --- | --- |
-| **Windows** / UI Automation | COM through LWJGL's JNI trampoline and libffi; a WndProc subclass answering `WM_GETOBJECT` | the platform's, several at once, while the UI thread sleeps | `UiaClientsAreListening()` |
+| **Windows** / UI Automation | COM through LWJGL's JNI trampoline and libffi; a WndProc subclass answering `WM_GETOBJECT` | the platform's, several at once, while the UI thread sleeps; plus a drain thread of the bridge's own that raises, because a raise waits for the reader's handler | `UiaClientsAreListening()` |
 | **macOS** / NSAccessibility | the Objective-C runtime through LWJGL; a runtime `NSAccessibilityElement` subclass with libffi closures | every callback **is** the UI thread | something has asked; opened by the first-frame walk and the children push, which are the attach and the gate together |
 | **Linux** / AT-SPI2 | **no native code at all** — D-Bus over a unix socket, in pure Java | a reader thread that answers and never blocks, a writer thread that performs every write | `org.a11y.Status.IsEnabled` on the session bus |
 
@@ -245,6 +245,12 @@ rather than on a symptom.
 X11 alike, and `glfwGetX11Window` on a Wayland session answers `GLFW_PLATFORM_UNAVAILABLE` rather
 than zero. `nativeHandle()` switches on `glfwGetPlatform()`. Wayland has no window handle to give and
 answers zero, which is correct: AT-SPI2 is D-Bus and needs none.
+
+**A raise is not a fire-and-forget on Windows.** `UiaRaise*` returns after every subscribed
+client's handler has run, and NVDA's handler calls back into the provider before it returns —
+2.5 ms median, 50 ms once, on whatever thread raised. That is why the Windows bridge has a drain
+thread and `emit` only enqueues; anything that raises inline is spending the frame budget inside
+the reader.
 
 **Wayland accessibility is fine.** It is the reasonable guess and it is wrong. AT-SPI2 is
 window-system independent, and Orca works on GNOME and Plasma 6 under Wayland. What genuinely lacks
