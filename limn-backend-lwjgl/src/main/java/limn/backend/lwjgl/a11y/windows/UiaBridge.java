@@ -279,14 +279,44 @@ public final class UiaBridge extends PlatformBridge {
 
     @Override
     protected void releasePlatformHalf() {
-        // Our own root provider, and not the window's: the host provider is UI Automation's own
-        // and every reference to it was handed over already.
-        Uia.disconnectProvider(rootProviderForDisconnect);
-        rootProviderForDisconnect = 0;
+        // The root provider was disconnected by the registry empty that ran before this, which is
+        // the only order that works: see disconnectRootProvider. What is left is the window.
         UiaWindow window = attachedWindow;
         if (window != null) {
             window.detach();
             attachedWindow = null;
+        }
+    }
+
+    /**
+     * Tells UI Automation to drop the root provider, <b>while the object behind it is still
+     * alive.</b>
+     *
+     * <p>{@code UiaDisconnectProvider} is not a note to a table: it releases every reference the
+     * platform holds on the provider, and a release is a call through the object's own vtable —
+     * {@code Release} is one of the closures this bridge made. Freeing the registry first and
+     * disconnecting after therefore hands the platform a pointer whose closures are gone, and the
+     * call lands in freed trampoline memory: an access violation in the message pump on every
+     * window close, which is how every live run on the guest ended once a client had asked for
+     * the root, benchmark included. The base class empties the registry before it releases the
+     * platform half, so the disconnect belongs at the top of the empty and not in the release.
+     *
+     * <p>Our own root provider, and not the window's: the host provider is UI Automation's own
+     * and every reference to it was handed over already.
+     */
+    private void disconnectRootProvider() {
+        long provider = rootProviderForDisconnect;
+        if (provider != 0) {
+            rootProviderForDisconnect = 0;
+            // Whether the registry still holds the object behind the pointer, read before the
+            // call: the trace says so, and the test that pins this order reads the trace.
+            boolean alive = objects.containsKey(provider);
+            Uia.disconnectProvider(provider);
+            java.util.function.Consumer<String> to = UiaWindow.trace;
+            if (to != null) {
+                to.accept("disconnected root provider 0x" + Long.toHexString(provider)
+                        + " alive=" + alive);
+            }
         }
     }
 
@@ -306,12 +336,18 @@ public final class UiaBridge extends PlatformBridge {
      */
     @Override
     protected void invalidateEverythingVended() {
+        // First, while every closure the platform may call back through is still there.
+        disconnectRootProvider();
         java.util.Set<UiaObject> distinct =
                 java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         distinct.addAll(objects.values());
         objects.clear();
         elements.empty();
         distinct.forEach(UiaObject::free);
+        java.util.function.Consumer<String> to = UiaWindow.trace;
+        if (to != null) {
+            to.accept("freed " + distinct.size() + " objects");
+        }
     }
 
     /**

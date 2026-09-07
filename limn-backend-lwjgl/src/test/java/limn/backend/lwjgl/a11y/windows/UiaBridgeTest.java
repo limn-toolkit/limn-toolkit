@@ -234,4 +234,35 @@ class UiaBridgeTest {
             bridge.detach();
         }
     }
+
+    @Test
+    void theRootProviderIsDisconnectedBeforeTheRegistryFreesIt() {
+        // UiaDisconnectProvider releases the platform's references, and a release is a call
+        // through the object's own vtable -- closures this bridge made. Freed first, the call
+        // lands in freed trampoline memory: an access violation on every window close once a
+        // client had asked for the root, which is how the benchmark and two probe runs ended on
+        // the guest. The platform call is a no-op here; the order is what this pins.
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = new java.util.ArrayList<>();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            // What WM_GETOBJECT does: mints the root's element and remembers it for disconnect.
+            bridge.answerGetObject(0, -25);
+            assertEquals(1, bridge.elementCount(), "the root was asked for, so it exists");
+            bridge.detach();
+            String disconnect = trace.stream()
+                    .filter(line -> line.startsWith("disconnected root provider"))
+                    .findFirst()
+                    .orElse(null);
+            assertNotNull(disconnect, "the root provider was never disconnected: " + trace);
+            assertTrue(disconnect.endsWith("alive=true"),
+                    "disconnected after the closures it calls through were freed: " + trace);
+            assertTrue(trace.stream().anyMatch(line -> line.startsWith("freed 1 objects")),
+                    "the registry was never emptied: " + trace);
+        } finally {
+            UiaWindow.trace = before;
+        }
+    }
 }
