@@ -1592,13 +1592,16 @@ follow are immediate and synchronous: the spike recorded 160 provider calls on t
 `UiaReturnRawElementProvider` itself — `get_ProviderOptions`, `get_HostRawElementProvider`,
 `Navigate(Parent)`, a `QueryInterface` burst — before that function returned.
 
-So the `WM_GETOBJECT` handler calls `Host#republishNow()` before it returns the root provider. It is
-allowed to: the message arrives on the UI thread inside the pump, 10 times out of 10, which is the
-same permission and the same argument macOS has (§1.1). The build walks and publishes and does not
-lay out, so it cannot re-enter layout from inside a native message handler. From the next frame
-onward `UiaClientsAreListening()` is true and the ordinary per-frame publish takes over; the flag
-starts set and is cleared only by a publish, so the first frame after an attach always publishes even
-if nothing has changed since. A republish requested from an RPC thread (`Host#requestRepublish()`)
+~~So the `WM_GETOBJECT` handler calls `Host#republishNow()` before it returns the root provider.~~
+**Measured false on 2026-09-07, and the opposite is what works.** The handler was allowed to publish
+there — the message arrives on the UI thread inside the pump — but a reader cannot take it: the
+publish diffs the priming tree against the live one and its events are raised while the reader is
+still inside its own call for the root, and NVDA then announced the window and never anything in
+it. A publish merely *requested* for the next frame did the same. What reads every value is the
+handler that hands over the tree it already has — the priming publish (§5.3) is a truthful tree —
+and opens the gate (`noteAsked`), so that the first frame something moves publishes and raises it
+outside anyone's call. From then on the per-window gate below decides; the flag it replaced
+"starts set and is cleared only by a publish" no longer, because the walk is no longer the flag's. A republish requested from an RPC thread (`Host#requestRepublish()`)
 goes the asynchronous way, because by then a tree exists and one frame of staleness is the trade
 §1.1 already made.
 
@@ -1772,7 +1775,7 @@ three platforms genuinely differ:
 | the whole-registry empty on `attach`-over-a-live-host and on `detach` | the **UI thread**, after the drain thread has been stopped and joined, so the two never race | the UI thread | drop the facade's tree reference; nothing else |
 | the outbound event queue | bounded; producer the UI thread, single consumer the drain thread | bounded; the UI thread at both ends, under a per-frame budget (§1.10) | bounded **signals only**; producers the UI thread and the reader thread, single consumer the writer thread (§3.3) |
 | the last-pushed root child array | — | the UI thread, compared and re-pushed in the frame step (§5.3) | — |
-| the listening gate | no state: `UiaClientsAreListening()` is asked once per frame on the UI thread | a `volatile boolean` set the first time one of our implementations is entered — which is the UI thread either way | a `volatile boolean` written by the reader thread on `Socket.Embed` and on `PropertiesChanged`, read by the UI thread |
+| the listening gate | `UiaClientsAreListening()` asked once per frame on the UI thread, plus this window's own: a subscription count written by RPC threads through the root's `AdviseEventAdded`/`Removed`, and an ask stamp plus an owed-event flag written by the UI thread inside `WM_GETOBJECT` and cleared by the drain thread on the first raise that reaches a held element (§13.5) | a `volatile boolean` set the first time one of our implementations is entered — which is the UI thread either way | a `volatile boolean` written by the reader thread on `Socket.Embed` and on `PropertiesChanged`, read by the UI thread |
 | the process-wide window table (§2.3) | — | — | copy-on-write; **written by the UI thread** at a facade's `attach`/`detach`, read by the reader thread on every `root` query |
 | the pre-marshalled `Cache.GetItems` body | — | — | **the reader thread alone** builds and holds it; a `volatile long` publish counter written by the UI thread is what invalidates it |
 | D-Bus serials and the socket | — | — | the **writer thread** performs every write and assigns every signal serial; the reader thread performs every read; neither does the other's (§3.3) |
@@ -2284,7 +2287,11 @@ therefore never causes a walk. Per widget: one nullable reference field, never r
 GNOME session with accessibility off, a macOS process no client has queried. Per frame: one
 `isListening()` call that reaches the platform, and then nothing.
 
-- **Windows:** `UiaClientsAreListening()`, one native call per frame per window.
+- **Windows:** `UiaClientsAreListening()` for its negative only — false means nobody in the session
+  listens to anything — and, when it is true, this window's own two facts: a client's event
+  subscription covering it, told through `IRawElementProviderAdviseEvents` on the root, or a client
+  having asked for it through `WM_GETOBJECT`, which is owed one event and then a short window
+  (§13.5, measured 2026-09-07). One native call per frame per window, plus two volatile reads.
 - **macOS:** a boolean the bridge sets the first time any implementation on its own element class is
   entered — `accessibilityChildren`, `accessibilityTitle`, `accessibilityRole`, any of them. There is
   no equivalent of `UiaClientsAreListening` — `AXIsProcessTrusted()` answers whether *we* may act as a
@@ -3210,7 +3217,21 @@ exception stays visible rather than becoming a habit.
    decision and not a finding: subscriptions alone, or subscriptions plus a short window after a
    `WM_GETOBJECT`; the second serves the poller at the price of the time-based gate this record
    refused for Orca, and it refused it because Orca subscribes and then waits, which is the case
-   the first shape covers. Open, with the reading in hand.
+   the first shape covers. **Decided the same evening, the second shape, and built:** a subscription
+   covering this window, or an ask — any `WM_GETOBJECT`, whichever object it names, because a reader
+   announces a new foreground window by MSAA before it looks by UI Automation — which is owed one
+   event and then two seconds. The owed event is what closed a circle the two-second window alone
+   had opened: NVDA asks for the root three times when a window appears, reads a tree with nothing
+   focused, and moves only on an event it can hear; a timer that closed before the first focus moved
+   kept it at the window title forever. Measured, interleaved with the same benchmark and no reader:
+   **the bridge attached now costs what no bridge costs**, 0.11 ms an animated frame and 0.8 % idle
+   CPU on both sides, where the flag-gated walk had cost 0.8 ms. And with NVDA, the VM's window in
+   front of the host's: `'Limn accessibility probe', 'janela'`, `'deslizante', '41'`, `'42'` …
+   `'79'`, one per tick. Two things the runs found beside the gate: a publish inside the ask, sync or
+   requested, silences NVDA for good (§3.1, corrected); and every run made with the VM window behind
+   another on the host was worthless, because Parallels then holds the guest's foreground with
+   `prl_cc_fgproxy` and a reader follows the foreground — which is not a bridge fact and is in the
+   lab notes rather than here.
 6. **Two of three platforms have no CI coverage and will not get any.** Stated plainly rather than
    mitigated. The gate covers the toolkit half — the model, the tree, the events, the costs — which is
    where regressions will actually come from, because the bridges change rarely and the widgets change
@@ -3345,8 +3366,13 @@ exception stays visible rather than becoming a habit.
     spoke `'deslizante'` and no number for forty changes, because the bridge vended `Value` beside
     `RangeValue` and answered it with `""`, which NVDA prefers to the number; with `Value` vended
     only from a spoken form, NVDA says `'deslizante', '40'` and then `'41'` … `'53'`, one per tick.
-    A managed client subscribed to `RangeValue.Value` received no property-changed event in twelve
-    seconds of the same drag, while NVDA plainly did; recorded as an observation, not explained.
+    A managed client subscribed to `RangeValue.Value` appeared to receive no property-changed
+    event in twelve seconds of the same drag, while NVDA plainly did; explained the same evening,
+    and the fault was the instrument's — a PowerShell script block registered as a UI Automation
+    event handler is invoked on a thread with no runspace and never runs. The same subscription
+    through a compiled C# delegate received six events in twelve seconds, the last
+    `RangeValue.Value 48 → 49`, and its `AdviseEventAdded` / `AdviseEventRemoved` bracketed it on
+    the root (§13.5).
     **macOS, VoiceOver's cursor on the widget being moved** (`LiveProbe -Dprobe.timing=true
     -Dprobe.focus=…`, 100 ms tick, 40 frames): paging the list by its five-row viewport is 21 events a
     frame — one `VALUE_CHANGED` on the list, then per row a `STRUCTURE_CHANGED` on the list, one on
