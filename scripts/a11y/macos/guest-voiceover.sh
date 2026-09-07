@@ -20,7 +20,9 @@ EXTRA=("$@")
 LOG=$HERE/liveprobe.log
 
 pkill -f 'limn-a11y-macos-probe.jar' 2>/dev/null
-rm -f "$HERE"/vo-*.png
+# Only the numbered captures: vo-strip-<run>.png copies kept beside them are the point of a run,
+# and the first glob here (vo-*.png) took five of them with it on 2026-09-07.
+rm -f "$HERE"/vo-[0-9]*.png
 sleep 1
 
 sudo launchctl asuser 501 /Users/activities/jdk21/Contents/Home/bin/java -XstartOnFirstThread \
