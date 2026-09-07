@@ -1,6 +1,9 @@
 package limn.scene;
 
 import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleEvent;
+import limn.accessibility.AccessibleTree;
+import limn.backend.AccessibilityBridge;
 import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.i18n.I18nString;
@@ -27,6 +30,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * — set their flag and buy no frame; a frame renders byte for byte what it did before; and an
  * announcement made into a process with no reader is still queued, still bounded, and still costs
  * no frame.
+ *
+ * <p>Two of the costs are stated per widget and per frame, and each has a test that measures it
+ * rather than a frame test that happens not to see it. Per widget, the whole memory cost of the
+ * tree is one nullable reference, and it becomes an object on the first thing an application
+ * declares and never before. Per frame, the dirty flag is a boolean store from every damage funnel,
+ * and a thousand widgets storing it on every frame cost that frame no memory, no describe call and
+ * no question to the platform beyond the one it is owed.
  */
 class AccessibleIdleCostTest {
 
@@ -148,5 +158,157 @@ class AccessibleIdleCostTest {
         long least = AllocationProbe.leastAllocatedBy(() -> scene.renderFrame(surface), 60);
 
         assertEquals(0, least, "a settled tree costs nothing to confirm as settled");
+    }
+
+    // ------------------------------------------------------------- §6, measured
+
+    /** A widget that counts how often it is asked to describe itself, and never says anything. */
+    private static final class Counted extends Widget {
+        int describes;
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            return constraints.constrain(10, 10);
+        }
+
+        @Override
+        protected void onAccessibility(limn.accessibility.Accessibility a) {
+            describes++;
+        }
+    }
+
+    /** A bridge nobody listens to, that counts every question and every statement it receives. */
+    private static final class Deaf implements AccessibilityBridge {
+        int listeningAsked;
+        int published;
+        int emitted;
+
+        @Override
+        public boolean isListening() {
+            listeningAsked++;
+            return false;
+        }
+
+        @Override
+        public void publish(AccessibleTree tree, boolean reentrant) {
+            published++;
+        }
+
+        @Override
+        public void emit(AccessibleEvent event) {
+            emitted++;
+        }
+    }
+
+    /** Where the probes park what they built, so the compiler cannot elide the allocation. */
+    private Widget keep;
+
+    /**
+     * The per-widget cost: one nullable reference, and an object only on the first declaration.
+     *
+     * <p>Measured by difference, interleaved and typical rather than least, because two numbers
+     * are being compared. A widget nobody described allocates itself and nothing for the tree; the
+     * first thing an application declares about it costs one object; the second declaration costs
+     * nothing more, which is what makes it one object and not one per setter; and re-declaring on a
+     * widget that is already in a bound scene nobody is listening to allocates nothing and buys no
+     * frame.
+     */
+    @Test
+    void theFieldBecomesAnObjectOnTheFirstDeclarationAndNeverBefore() {
+        Assumptions.assumeTrue(AllocationProbe.isSupported(),
+                "this virtual machine does not count per-thread allocation");
+
+        long[] bareAndDeclared = AllocationProbe.typicalAllocatedByEach(
+                () -> keep = new Box(),
+                () -> {
+                    Box declared = new Box();
+                    declared.setAccessibleRole(Accessible.Role.BUTTON);
+                    keep = declared;
+                }, 61);
+        assertTrue(bareAndDeclared[1] > bareAndDeclared[0],
+                "the first declaration is where the field becomes an object: bare "
+                        + bareAndDeclared[0] + ", declared " + bareAndDeclared[1]);
+
+        long[] onceAndTwice = AllocationProbe.typicalAllocatedByEach(
+                () -> {
+                    Box once = new Box();
+                    once.setAccessibleRole(Accessible.Role.BUTTON);
+                    keep = once;
+                },
+                () -> {
+                    Box twice = new Box();
+                    twice.setAccessibleRole(Accessible.Role.BUTTON);
+                    twice.setAccessibleRole(Accessible.Role.CHECK_BOX);
+                    twice.setAccessibleIgnored(false);
+                    keep = twice;
+                }, 61);
+        assertEquals(onceAndTwice[0], onceAndTwice[1],
+                "one object for every declaration, not one per declaration");
+
+        box.setAccessibleRole(Accessible.Role.BUTTON); // the object now exists on the bound widget
+        window.frameRequests = 0;
+        long redeclared = AllocationProbe.leastAllocatedBy(
+                () -> box.setAccessibleRole(Accessible.Role.BUTTON), 60);
+        assertEquals(0, redeclared,
+                "a declaration on a widget that already carries the object is a store");
+        assertEquals(0, window.frameRequests, "and nothing is listening, so it buys no frame");
+    }
+
+    /**
+     * The per-frame cost: the boolean store on every damage funnel, at a scale no single-widget
+     * test reaches.
+     *
+     * <p>A thousand widgets damage themselves before every frame, so the flag is stored a thousand
+     * times through the funnel every repaint goes through, and the frame that follows is measured
+     * three ways. It allocates nothing. It describes nobody: the hook is not entered once on any of
+     * the thousand, with no bridge and with a bridge nobody listens to alike. And with that bridge
+     * attached it asks the platform exactly one question per frame, which is the one §6 says it may,
+     * and tells it nothing.
+     */
+    @Test
+    void aThousandWidgetsDamagingThemselvesCostAFrameNothingWithNothingListening() {
+        Assumptions.assumeTrue(AllocationProbe.isSupported(),
+                "this virtual machine does not count per-thread allocation");
+        AccessibleTestBase.Group root = new AccessibleTestBase.Group();
+        Counted[] many = new Counted[1000];
+        for (int i = 0; i < many.length; i++) {
+            many[i] = new Counted();
+            root.add(many[i]);
+        }
+        scene = new Scene(root, nanos::get);
+        window = new RecordingWindow();
+        scene.bind(window);
+        NoopCanvas surface = new NoopCanvas(200, 200);
+        scene.renderFrame(surface);
+        Runnable damagedFrame = () -> {
+            for (int i = 0; i < many.length; i++) {
+                many[i].invalidate();
+            }
+            scene.renderFrame(surface);
+        };
+
+        long least = AllocationProbe.leastAllocatedBy(damagedFrame, 60);
+        assertEquals(0, least,
+                "a thousand flag stores through the damage funnel must cost the frame no memory");
+        for (Counted widget : many) {
+            assertEquals(0, widget.describes, "no bridge: nobody may be asked to describe itself");
+        }
+
+        Deaf deaf = new Deaf();
+        window.accessibility = deaf;
+        scene.bind(window);
+        scene.renderFrame(surface);
+        deaf.listeningAsked = 0;
+
+        least = AllocationProbe.leastAllocatedBy(damagedFrame, 60);
+        assertEquals(0, least, "a bridge nobody listens to changes nothing about that");
+        assertEquals(61, deaf.listeningAsked,
+                "one question per frame, the warm-up frame included, and no more");
+        assertEquals(0, deaf.published, "and no tree");
+        assertEquals(0, deaf.emitted, "and no event");
+        for (Counted widget : many) {
+            assertEquals(0, widget.describes,
+                    "a bridge nobody listens to: nobody may be asked to describe itself");
+        }
     }
 }
