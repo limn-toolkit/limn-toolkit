@@ -311,8 +311,15 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * holds (§13.9).
      */
     private void drain() {
+        // Timed, because §13.19's macOS half is "what does one frame's drain cost with a reader
+        // attached", and the drain is the only part of a publish that is a cross-process call.
+        // Two nanoTime reads per frame is the whole price of being able to answer that from the
+        // probe's own log rather than by subtracting a quiet frame from a busy one.
+        long started = System.nanoTime();
+        int postedNow = 0;
         boolean collapsing = events.willCollapse();
-        for (AccessibleEvent event : events.drain()) {
+        List<AccessibleEvent> drained = events.drain();
+        for (AccessibleEvent event : drained) {
             AxNotifications.Posting posting = AxNotifications.of(event.type());
             // A null is a decision, not a gap: AppKit is already telling the client, or the event
             // names the window root this bridge elides.
@@ -322,6 +329,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                     : elementForEvent(event);
             if (subject == 0) continue;
             posted.add(posting.notificationSymbol());
+            postedNow++;
             if (objc != null) objc.post(subject, objc.constant(posting.notificationSymbol()));
         }
         if (collapsing) {
@@ -330,6 +338,33 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             // a fresh list would then hand AppKit a freed pointer. Forgetting it forces a re-push.
             pushed = new long[0];
         }
+        lastDrainNanos = System.nanoTime() - started;
+        lastDrainDrained = drained.size();
+        lastDrainPosted = postedNow;
+    }
+
+    private long lastDrainNanos;
+    private int lastDrainDrained;
+    private int lastDrainPosted;
+
+    /** @return how long the last ordinary publish spent draining, in nanoseconds; the §13.19 cost. */
+    long lastDrainNanos() {
+        return lastDrainNanos;
+    }
+
+    /** @return how many events the last drain took off the queue, one when it had collapsed. */
+    int lastDrainDrained() {
+        return lastDrainDrained;
+    }
+
+    /** @return how many of those reached the platform as a notification. */
+    int lastDrainPosted() {
+        return lastDrainPosted;
+    }
+
+    /** @return how many times the queue has collapsed since this bridge opened (§13.19's signal). */
+    int collapses() {
+        return events.collapses();
     }
 
     /**

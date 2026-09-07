@@ -39,6 +39,15 @@ import java.util.List;
  * <pre>
  * java -XstartOnFirstThread -jar limn-a11y-macos-probe.jar
  * </pre>
+ *
+ * <p><b>{@code -Dprobe.timing=true} is the §13.19 run.</b> The platform's bridge is opened the way
+ * an application would open it and installed behind a {@link TimingBridge} through
+ * {@code NativeWindow#setAccessibility}, so that every publish is a sample: how many events the
+ * scene emitted in that frame, what the publish cost, what its drain cost and how many
+ * notifications reached AppKit. Every tick prints the samples since the last one and the run ends
+ * with the summary; with {@code -Dprobe.cycle=scroll} or {@code drag} and a short
+ * {@code -Dprobe.tickMs} that is the count the record asks for, taken with VoiceOver attached.
+ * {@code -Dprobe.steps} is how many ticks to run, forty when unsaid.
  */
 public final class LiveProbe {
 
@@ -73,13 +82,25 @@ public final class LiveProbe {
                     + (nsWindow == 0 ? "   !!! zero: the backend has not been taught this platform" : ""));
             // Not installed here any more: the backend opens the platform's bridge on the first
             // ask, so this probe exercises the same path an application does rather than a shortcut
-            // only a probe knows about.
-            AccessibilityBridge bridge = window.accessibility();
+            // only a probe knows about. The timing run is the one exception, and it uses the other
+            // half of the same seam: it opens the platform's bridge itself, puts the instrument in
+            // front of it and hands the pair to the window, which is exactly what an application
+            // installing a bridge of its own does.
+            TimingBridge timing = null;
+            AccessibilityBridge bridge;
+            if (Boolean.getBoolean("probe.timing")) {
+                timing = new TimingBridge(AxBridge.openIfEnabled(nsWindow));
+                window.setAccessibility(timing);
+                bridge = timing.inner();
+            } else {
+                bridge = window.accessibility();
+            }
             // Kept typed as well, because the probe prints what the bridge is holding and the two
             // questions a run must separate are "does the scene describe what it painted" and
             // "does the platform reach what the bridge vends".
             AxBridge ax = bridge instanceof AxBridge opened ? opened : null;
             System.out.println("bridge: " + bridge.getClass().getSimpleName()
+                    + (timing == null ? "" : " behind TimingBridge")
                     + "  listening=" + bridge.isListening()
                     + "  needsPrimingPublish=" + bridge.needsPrimingPublish()
                     + (bridge == AccessibilityBridge.NONE
@@ -98,9 +119,12 @@ public final class LiveProbe {
             // A reader needs time to finish a phrase before the next one starts, and a run needs to
             // reach every widget: those pull opposite ways, so the interval is a knob.
             int tickMs = Integer.getInteger("probe.tickMs", 6_000);
+            int steps = Integer.getInteger("probe.steps", 40);
             int[] step = {0};
             int[] lastPosted = {0};
             int[] lastEmitted = {0};
+            int[] lastSample = {0};
+            TimingBridge measured = timing;
             Runnable[] tick = new Runnable[1];
             tick[0] = () -> {
                 // The foreground first, every time. A reader announces the focused element of the
@@ -135,8 +159,26 @@ public final class LiveProbe {
                             + all.subList(Math.min(lastPosted[0], all.size()), all.size()));
                     lastPosted[0] = all.size();
                 }
+                if (measured != null) {
+                    // One line per publish since the last tick: the frame's event count, what the
+                    // publish cost and what its drain cost. A tick faster than the software-GL
+                    // frame puts two ticks into one frame, and that shows here as one sample with
+                    // both ticks' events in it -- which is the honest per-frame figure.
+                    for (TimingBridge.Sample sample : measured.samplesSince(lastSample[0])) {
+                        System.out.println("    sample #" + sample.number()
+                                + " events=" + sample.events()
+                                + " publish=" + sample.publishNanos() / 1_000 + "us"
+                                + " drain=" + sample.drainNanos() / 1_000 + "us"
+                                + " posted=" + sample.posted()
+                                + (sample.reentrant() ? " (reentrant)" : ""));
+                    }
+                    lastSample[0] = measured.samples().size();
+                    if (ax != null) {
+                        System.out.println("    collapses so far: " + ax.collapses());
+                    }
+                }
                 System.out.flush();
-                if (probe.steps() < 40) {
+                if (probe.steps() < steps) {
                     Ui.postDelayed(tick[0], tickMs);
                 } else {
                     window.close();
@@ -146,6 +188,9 @@ public final class LiveProbe {
 
 
             backend.runEventLoop();
+            if (measured != null) {
+                System.out.print(measured.summary());
+            }
             System.out.println("DONE");
         }
     }

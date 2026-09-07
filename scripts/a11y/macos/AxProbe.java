@@ -53,7 +53,9 @@ import static org.lwjgl.system.Pointer.POINTER_SIZE;
  * <p>Java 17 API only. MUST run with {@code -XstartOnFirstThread}.
  *
  * <p>System properties: {@code probe.seconds} (default 300), {@code probe.commands} (a file the
- * driver appends commands to; the probe truncates it after each read).
+ * driver appends commands to; the probe truncates it after each read), and
+ * {@code probe.timing=true} for §13.19's cost half -- N timed {@code NSAccessibilityPostNotification}
+ * calls a few seconds after READY, see {@link #timePosts}.
  */
 public final class AxProbe {
 
@@ -488,9 +490,21 @@ public final class AxProbe {
 
         long deadline = System.nanoTime() + seconds * 1_000_000_000L;
         long lastBeat = System.nanoTime();
+        // §13.19's other half: what one post costs. Timed a few seconds after READY rather than
+        // at once, so that a reader that attaches when the window comes to the front -- VoiceOver
+        // registers its observers on the application when it becomes frontmost -- is attached
+        // when the posts are counted. A post with nobody registered is a cheaper thing than the
+        // one the record wants priced.
+        long timingAt = Boolean.getBoolean("probe.timing")
+                ? System.nanoTime() + Integer.getInteger("probe.timingAfter", 5) * 1_000_000_000L
+                : Long.MAX_VALUE;
         while (!GLFW.glfwWindowShouldClose(window) && System.nanoTime() < deadline) {
             long iterPool = JNI.invokeP(poolPush);
             GLFW.glfwPollEvents();
+            if (System.nanoTime() >= timingAt) {
+                timingAt = Long.MAX_VALUE;
+                timePosts(root);
+            }
             JNI.invokePV(iterPool, poolPop);
             if (drainCommands(commands, root)) break;
             // The obligations a reentrant publish deferred, discharged on the next ordinary frame
@@ -531,6 +545,55 @@ public final class AxProbe {
             }
         }
         return node.element;
+    }
+
+    /**
+     * §13.19, the cost half: what one {@code NSAccessibilityPostNotification} costs, measured as N
+     * posts of {@code NSAccessibilityValueChangedNotification} on one element the tree already
+     * vends, after a warm-up, each timed on its own so that the distribution and not only the mean
+     * is on record.
+     *
+     * <p>The notification name is read off AppKit by {@code dlsym}, like every other constant here
+     * (§12.3). The element is the root's first child: one that was pushed onto the content view, so
+     * a client that walked the window has seen it and may be registered on it -- a post on an
+     * element nobody has seen is a post the AX server has nobody to forward to, which is a cheaper
+     * thing than the one being priced.
+     *
+     * <p>{@code probe.timingN} is N, ten thousand when unsaid; {@code probe.timingWarmup} the
+     * warm-up count, one thousand when unsaid.
+     */
+    static void timePosts(Node root) {
+        int n = Integer.getInteger("probe.timingN", 10_000);
+        int warmup = Integer.getInteger("probe.timingWarmup", 1_000);
+        long valueChanged = roleConstant("NSAccessibilityValueChangedNotification");
+        Node target = root.kids.get(0);
+        log("---- §13.19 post timing: " + warmup + " warm-up posts, then " + n + " timed posts of '"
+                + javaString(valueChanged) + "' on '" + target.key + "' (element=0x"
+                + Long.toHexString(target.element) + ") ----");
+        for (int i = 0; i < warmup; i++) {
+            JNI.invokePPV(target.element, valueChanged, postNotification);
+        }
+        long[] samples = new long[n];
+        long wallStart = System.nanoTime();
+        for (int i = 0; i < n; i++) {
+            long t0 = System.nanoTime();
+            JNI.invokePPV(target.element, valueChanged, postNotification);
+            samples[i] = System.nanoTime() - t0;
+        }
+        long wall = System.nanoTime() - wallStart;
+        long[] sorted = samples.clone();
+        Arrays.sort(sorted);
+        long sum = 0;
+        for (long sample : samples) sum += sample;
+        log("post ns: min=" + sorted[0]
+                + " p50=" + sorted[n / 2]
+                + " p90=" + sorted[(int) (n * 0.9)]
+                + " p99=" + sorted[(int) (n * 0.99)]
+                + " max=" + sorted[n - 1]
+                + " mean=" + (sum / n)
+                + "  (" + n + " posts in " + wall / 1_000_000 + " ms wall, "
+                + (wall / n) + " ns per post end to end)");
+        log("---- post timing done ----");
     }
 
     /** True while an AX callback of ours is on the stack. §3.2's reentrancy flag, in miniature. */
