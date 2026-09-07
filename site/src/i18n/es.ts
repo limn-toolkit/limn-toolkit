@@ -137,9 +137,9 @@ export const es: Catalog = {
   "home.limits.scripts.heading": "Solo texto horizontal",
   "home.limits.scripts.body":
     "El árabe, el hebreo, el devanagari y el tailandés se componen allí donde se dibuje texto, la disposición se refleja a lo largo de un eje heredado de derecha a izquierda, y los dígitos, el orden y las mayúsculas siguen al idioma — los paquetes ar y he se publican, con una negrita para cada escritura. Lo que no hay es escritura vertical: ni columnas de arriba abajo, ni un segundo eje que atraviese la disposición. Las líneas se cortan; no se justifican.",
-  "home.limits.a11y.heading": "Sin puente para lectores de pantalla",
+  "home.limits.a11y.heading": "Lectores de pantalla, con límites",
   "home.limits.a11y.body":
-    "La navegación con teclado y los anillos de foco están completos, pero nada se expone a las API de accesibilidad de la plataforma. Si un lector de pantalla tiene que funcionar, este todavía no es el kit para esa aplicación.",
+    "Una ventana se publica en UI Automation, NSAccessibility y AT-SPI2, así que NVDA, VoiceOver y Orca leen una interfaz de Limn en el idioma en que está dibujada. El texto se lee y se escribe entero, así que la revisión carácter a carácter y el enrutado del cursor braille quedan degradados; una lista publica las filas que ha realizado; y los ajustes de accesibilidad del sistema — alto contraste, movimiento reducido, escala de texto — no se exponen.",
   "home.limits.version.heading": "Anterior a 1.0",
   "home.limits.version.body":
     "La API todavía se mueve entre versiones, y OpenGL es la única vía de renderizado. Fija tu versión y lee las notas de publicación.",

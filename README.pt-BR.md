@@ -204,6 +204,12 @@ dentro do campo, e a edição anda por cluster de grafema.
   </picture>
 </p>
 
+**Lido em voz alta, nesses mesmos idiomas.** Uma janela se publica na UI Automation no Windows, na
+NSAccessibility no macOS e no AT-SPI2 no Linux, então NVDA, VoiceOver e Orca descrevem uma interface
+Limn sem que a sua aplicação escreva uma linha de código de plataforma. Os nomes são os mesmos
+`I18nString`s que a interface desenha, e o toolkit carrega a sua própria palavra para cada papel em
+cada idioma que publica — porque duas das três plataformas não dizem nenhuma.
+
 **Vídeo e 3D também são widgets.** Um viewport 3D com materiais fisicamente corretos e um player de
 vídeo, compostos como widgets comuns: uma scroll view os recorta, uma pilha desenha por cima e ambos
 participam do layout como um rótulo participa.
@@ -248,8 +254,12 @@ terceira semana é pior do que lê-las agora.
   pode sobrescrever. O toolkit nunca infere essa direção do locale, porque uma janela em hebraico
   costuma conter uma ilha da esquerda para a direita, então as duas são declaradas separadamente.
   Escrita vertical (o mongol, a forma vertical de CJK) não é suportada.
-- **Sem ponte para leitores de tela.** A navegação por teclado e os anéis de foco estão completos,
-  mas nada é exposto às APIs de acessibilidade da plataforma.
+- **Leitores de tela funcionam, e três coisas que eles ainda não fazem.** Windows, macOS e Linux
+  recebem cada um a sua API nativa de acessibilidade — UI Automation, NSAccessibility, AT-SPI2 — e
+  NVDA, VoiceOver e Orca leem uma janela Limn, no idioma em que a interface está. O texto é lido e
+  escrito inteiro, então a revisão caractere a caractere e o roteamento do cursor braille ficam
+  degradados; uma lista publica as linhas que realizou, não todas; e as configurações de
+  acessibilidade do sistema — alto contraste, movimento reduzido, escala de texto — não são expostas.
 - **Pré-1.0.** A API ainda se move entre releases, e OpenGL é o único caminho de renderização. Fixe
   a sua versão e leia as notas de release.
 

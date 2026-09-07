@@ -209,6 +209,12 @@ Les méthodes de saisie composent dans le champ, et l’édition avance par grou
   </picture>
 </p>
 
+**Lu à voix haute, dans ces mêmes langues.** Une fenêtre se publie dans UI Automation sous Windows,
+NSAccessibility sous macOS et AT-SPI2 sous Linux : NVDA, VoiceOver et Orca décrivent une interface
+Limn sans que votre application écrive une ligne de code spécifique à la plateforme. Les noms sont
+les mêmes `I18nString` que ceux que l’interface dessine, et le toolkit porte son propre mot pour
+chaque rôle dans chaque langue qu’il livre — parce que deux des trois plateformes n’en disent aucun.
+
 **La vidéo et la 3D sont aussi des widgets.** Une vue 3D à matériaux physiquement réalistes et un
 lecteur vidéo, composés comme des widgets ordinaires : une vue défilante les rogne, une pile
 dessine par-dessus, et ils participent à la mise en page comme un libellé.
@@ -254,8 +260,13 @@ découvrir la troisième semaine est pire que les lire maintenant.
   locale, parce qu’une fenêtre en hébreu contient généralement un îlot de gauche à droite ; les deux
   se déclarent donc séparément. L’écriture verticale (le mongol, la forme verticale du CJC) n’est
   pas prise en charge.
-- **Pas de pont vers les lecteurs d’écran.** La navigation au clavier et les anneaux de focus sont
-  complets, mais rien n’est exposé aux API d’accessibilité de la plateforme.
+- **Les lecteurs d’écran fonctionnent, et trois choses qu’ils ne peuvent pas encore faire.**
+  Windows, macOS et Linux reçoivent chacun leur API d’accessibilité native — UI Automation,
+  NSAccessibility, AT-SPI2 —, si bien que NVDA, VoiceOver et Orca lisent une fenêtre Limn, dans la
+  langue de l’interface. Le texte est lu et écrit d’un bloc : la revue caractère par caractère et le
+  routage du curseur braille sont donc dégradés ; une liste publie les lignes qu’elle a réalisées et
+  non toutes ; et les réglages d’accessibilité du système — contraste élevé, animations réduites,
+  échelle de texte — ne sont pas exposés.
 - **Avant la 1.0.** L’API bouge encore d’une version à l’autre, et OpenGL est le seul chemin de
   rendu. Figez votre version et lisez les notes de publication.
 

@@ -137,9 +137,9 @@ export const fr: Catalog = {
   "home.limits.scripts.heading": "Texte horizontal seulement",
   "home.limits.scripts.body":
     "L’arabe, l’hébreu, le devanagari et le thaï sont façonnés partout où du texte est dessiné, la mise en page se met en miroir le long d’un axe hérité de droite à gauche, et les chiffres, le tri et la casse suivent la langue — les paquets ar et he sont publiés, avec un gras pour chaque écriture. Ce qui manque, c’est l’écriture verticale : pas de colonnes de haut en bas, pas de second axe traversant la mise en page. Les lignes se coupent ; elles ne sont pas justifiées.",
-  "home.limits.a11y.heading": "Pas de pont vers les lecteurs d’écran",
+  "home.limits.a11y.heading": "Les lecteurs d’écran, et leurs limites",
   "home.limits.a11y.body":
-    "La navigation au clavier et les anneaux de focus sont complets, mais rien n’est exposé aux API d’accessibilité de la plateforme. Si un lecteur d’écran doit fonctionner, ce n’est pas encore la bonne boîte à outils pour cette application.",
+    "Une fenêtre se publie dans UI Automation, NSAccessibility et AT-SPI2 : NVDA, VoiceOver et Orca lisent une interface Limn dans la langue où elle est dessinée. Le texte est lu et écrit d’un bloc, si bien que la revue caractère par caractère et le routage du curseur braille sont dégradés ; une liste publie les lignes qu’elle a réalisées ; et les réglages d’accessibilité du système — contraste élevé, animations réduites, échelle de texte — ne sont pas exposés.",
   "home.limits.version.heading": "Avant la 1.0",
   "home.limits.version.body":
     "L’API bouge encore d’une version à l’autre, et OpenGL est le seul chemin de rendu. Figez votre version et lisez les notes de publication.",

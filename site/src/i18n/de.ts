@@ -137,9 +137,9 @@ export const de: Catalog = {
   "home.limits.scripts.heading": "Nur horizontaler Text",
   "home.limits.scripts.body":
     "Arabisch, Hebräisch, Devanagari und Thai werden überall geformt, wo Text gezeichnet wird, das Layout spiegelt sich entlang einer vererbten Rechts-nach-links-Achse, und Ziffern, Sortierung und Groß-/Kleinschreibung folgen der Sprache — die Bündel ar und he werden ausgeliefert, mit einem Bold für jede Schrift. Was fehlt, ist vertikales Schreiben: keine Spalten von oben nach unten, keine zweite Achse durch das Layout. Zeilen brechen um; Blocksatz gibt es nicht.",
-  "home.limits.a11y.heading": "Keine Screenreader-Brücke",
+  "home.limits.a11y.heading": "Screenreader, mit Kanten",
   "home.limits.a11y.body":
-    "Tastaturnavigation und Fokusringe sind vollständig, aber nichts wird an die Barrierefreiheits-APIs der Plattform gemeldet. Wenn ein Screenreader funktionieren muss, ist dies für diese Anwendung noch nicht das richtige Toolkit.",
+    "Ein Fenster veröffentlicht sich an UI Automation, NSAccessibility und AT-SPI2, sodass NVDA, VoiceOver und Orca eine Limn-Oberfläche in der Sprache vorlesen, in der sie gezeichnet ist. Text wird als Ganzes gelesen und gesetzt, deshalb sind zeichenweises Durchgehen und das Routing des Braille-Cursors eingeschränkt; eine Liste veröffentlicht die realisierten Zeilen; und die Barrierefreiheits-Einstellungen des Systems — hoher Kontrast, reduzierte Bewegung, Textskalierung — werden gar nicht gemeldet.",
   "home.limits.version.heading": "Vor 1.0",
   "home.limits.version.body":
     "Die API bewegt sich zwischen Releases noch, und OpenGL ist der einzige Renderpfad. Pinnen Sie Ihre Version und lesen Sie die Release Notes.",

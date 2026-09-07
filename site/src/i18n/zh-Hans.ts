@@ -133,9 +133,9 @@ export const zhHans: Catalog = {
   "home.limits.scripts.heading": "仅横排文字",
   "home.limits.scripts.body":
     "阿拉伯文、希伯来文、天城文与泰文在任何绘制文字的地方都会正确塑形，版面沿一条可继承的从右向左轴镜像，数字、排序与大小写都跟随语言——ar 与 he 的翻译照常发布，每种文字都配有粗体。这里没有的是竖排：没有自上而下的栏，也没有贯穿布局的第二条轴。行会折断，但不做两端对齐。",
-  "home.limits.a11y.heading": "没有屏幕阅读器桥接",
+  "home.limits.a11y.heading": "屏幕阅读器，以及它的边界",
   "home.limits.a11y.body":
-    "键盘导航与焦点环是完整的，但没有向平台的无障碍 API 暴露任何内容。如果屏幕阅读器必须可用，这个工具包目前还不适合那样的应用。",
+    "窗口会把自己发布到 UI Automation、NSAccessibility 与 AT-SPI2，于是 NVDA、VoiceOver 与 Orca 都能按界面绘制所用的语言朗读一个 Limn 界面。文本是整体读写的，因此逐字符复查与盲文光标定位会受限；列表只公开已实体化的行；而系统层面的无障碍设置——高对比度、减少动态效果、文字缩放——完全没有暴露。",
   "home.limits.version.heading": "1.0 之前",
   "home.limits.version.body":
     "API 在版本之间仍会变动，而 OpenGL 是唯一的渲染路径。请锁定版本并阅读发行说明。",

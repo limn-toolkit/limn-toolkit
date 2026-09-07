@@ -207,6 +207,13 @@ Eingabemethoden komponieren im Feld selbst, und die Bearbeitung bewegt sich in G
   </picture>
 </p>
 
+**Vorgelesen, in denselben Sprachen.** Ein Fenster veröffentlicht sich unter Windows an UI
+Automation, unter macOS an NSAccessibility und unter Linux an AT-SPI2, sodass NVDA, VoiceOver und
+Orca eine Limn-Oberfläche beschreiben, ohne dass Ihre Anwendung eine Zeile plattformspezifischen
+Code schreibt. Die Namen sind dieselben `I18nString`s, die die Oberfläche zeichnet, und das Toolkit
+bringt sein eigenes Wort für jede Rolle in jeder ausgelieferten Sprache mit — weil zwei der drei
+Plattformen keines nennen.
+
 **Video und 3D sind auch nur Widgets.** Ein physikalisch basierter 3D-Viewport und ein Videoplayer,
 zusammengesetzt wie gewöhnliche Widgets: eine Scroll-Ansicht beschneidet sie, ein Stapel zeichnet
 darüber, und sie nehmen am Layout teil wie eine Beschriftung.
@@ -252,8 +259,13 @@ entdecken ist schlimmer, als sie jetzt zu lesen.
   ein hebräisches Fenster meist eine von links nach rechts gelesene Insel enthält; die beiden werden
   daher getrennt deklariert. Vertikale Schrift (Mongolisch, die vertikale Form von CJK) wird nicht
   unterstützt.
-- **Keine Screenreader-Brücke.** Tastaturnavigation und Fokusringe sind vollständig, aber nichts
-  wird an die Barrierefreiheits-APIs der Plattform gemeldet.
+- **Screenreader funktionieren, und drei Dinge, die sie noch nicht können.** Windows, macOS und
+  Linux bekommen jeweils ihre native Barrierefreiheits-API — UI Automation, NSAccessibility,
+  AT-SPI2 —, so dass NVDA, VoiceOver und Orca ein Limn-Fenster vorlesen, in der Sprache der
+  Oberfläche. Text wird als Ganzes gelesen und gesetzt, deshalb sind zeichenweises Durchgehen und
+  das Routing des Braille-Cursors eingeschränkt; eine Liste veröffentlicht die realisierten Zeilen
+  und nicht alle; und die Barrierefreiheits-Einstellungen des Systems — hoher Kontrast, reduzierte
+  Bewegung, System-Textskalierung — werden gar nicht gemeldet.
 - **Vor 1.0.** Die API bewegt sich zwischen Releases noch, und OpenGL ist der einzige Renderpfad.
   Pinnen Sie Ihre Version und lesen Sie die Release Notes.
 

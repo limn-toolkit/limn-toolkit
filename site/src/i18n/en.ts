@@ -115,9 +115,9 @@ export const en = {
   "home.limits.scripts.heading": "Horizontal text only",
   "home.limits.scripts.body":
     "Arabic, Hebrew, Devanagari and Thai shape wherever text is drawn, layout mirrors under an inherited right-to-left axis, and digits, ordering and case follow the language — the ar and he bundles ship, with a Bold for every script. What is not here is vertical writing: no top-to-bottom columns, no second axis through layout. Lines break; they are not justified.",
-  "home.limits.a11y.heading": "No screen-reader bridge",
+  "home.limits.a11y.heading": "Screen readers, with edges",
   "home.limits.a11y.body":
-    "Keyboard navigation and focus rings are complete, but nothing is exposed to the platform's accessibility APIs. If a screen reader has to work, this is not the toolkit for that application yet.",
+    "A window publishes itself to UI Automation, NSAccessibility and AT-SPI2, so NVDA, VoiceOver and Orca read a Limn interface in the language it is drawn in. Text is read and set whole, so review by character and braille cursor routing are degraded; a list publishes the rows it has realized; and the system accessibility settings — high contrast, reduced motion, a text scale — are not surfaced at all.",
   "home.limits.version.heading": "Pre-1.0",
   "home.limits.version.body":
     "The API still moves between releases, and OpenGL is the only rendering path. Pin your version and read the release notes.",

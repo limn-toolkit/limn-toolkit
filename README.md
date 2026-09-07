@@ -199,6 +199,12 @@ grapheme cluster.
   </picture>
 </p>
 
+**Read aloud, in those same languages.** A window publishes itself to UI Automation on Windows,
+NSAccessibility on macOS and AT-SPI2 on Linux, so NVDA, VoiceOver and Orca describe a Limn
+interface without your application writing a line of platform code. Names are the same
+`I18nString`s the interface draws, and the toolkit carries its own word for every role in every
+language it ships — because two of the three platforms will not say one.
+
 **Video and 3D are widgets too.** A physically based 3D viewport and a video player composite like
 any other widget: a scroll view clips them, a stack draws over them, and they take part in layout
 the way a label does.
@@ -242,8 +248,12 @@ three is worse than reading them now.
   axis each subtree can override. The toolkit never infers that direction from the locale,
   because a Hebrew window usually holds a left-to-right island, so the two are declared
   separately. Vertical writing (Mongolian, the vertical form of CJK) is not supported.
-- **No screen reader bridge.** Keyboard navigation and focus rings are complete, but nothing is
-  exposed to the platform's accessibility APIs.
+- **Screen readers work, and three things they cannot do yet.** Windows, macOS and Linux each get
+  their native accessibility API — UI Automation, NSAccessibility, AT-SPI2 — so NVDA, VoiceOver and
+  Orca read a Limn window, in the language the interface is in. Text is read and set whole, so
+  review by character and braille cursor routing are degraded; a list publishes the rows it has
+  realized rather than all of them; and the system accessibility settings — high contrast, reduced
+  motion, a system text scale — are not surfaced at all.
 - **Before 1.0.** The API still moves between releases, and OpenGL is the only rendering path.
   Pin your version and read the release notes.
 

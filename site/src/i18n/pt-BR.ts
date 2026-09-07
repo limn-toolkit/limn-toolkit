@@ -135,9 +135,9 @@ export const ptBR: Catalog = {
   "home.limits.scripts.heading": "Somente texto horizontal",
   "home.limits.scripts.body":
     "O árabe, o hebraico, o devanágari e o tailandês têm shaping onde quer que haja texto, o leiaute é espelhado por um eixo herdado da direita para a esquerda, e dígitos, ordenação e maiúsculas seguem o idioma — os pacotes ar e he são publicados, com um Bold para cada escrita. O que não existe é escrita vertical: nada de colunas de cima para baixo, nenhum segundo eixo atravessando o leiaute. Linhas quebram; não são justificadas.",
-  "home.limits.a11y.heading": "Sem ponte para leitores de tela",
+  "home.limits.a11y.heading": "Leitores de tela, com limites",
   "home.limits.a11y.body":
-    "A navegação por teclado e os anéis de foco estão completos, mas nada é exposto às APIs de acessibilidade da plataforma. Se um leitor de tela precisa funcionar, este ainda não é o toolkit para essa aplicação.",
+    "Uma janela se publica na UI Automation, na NSAccessibility e no AT-SPI2, então NVDA, VoiceOver e Orca leem uma interface Limn no idioma em que ela é desenhada. O texto é lido e escrito inteiro, então a revisão caractere a caractere e o roteamento do cursor braille ficam degradados; uma lista publica as linhas que realizou; e as configurações de acessibilidade do sistema — alto contraste, movimento reduzido, escala de texto — não são expostas.",
   "home.limits.version.heading": "Pré-1.0",
   "home.limits.version.body":
     "A API ainda se move entre releases, e OpenGL é o único caminho de renderização. Fixe a sua versão e leia as notas de release.",

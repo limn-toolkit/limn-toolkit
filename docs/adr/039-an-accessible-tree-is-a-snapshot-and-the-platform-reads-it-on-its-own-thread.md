@@ -1,6 +1,7 @@
 # ADR 039. An accessible tree is a snapshot, and the platform reads it on its own thread
 
-- **Status:** Proposed, 2026-09-04; §14's phases 1 to 3 implemented 2026-09-04. Closes the "No screen reader
+- **Status:** Accepted, 2026-09-04; **implemented 2026-09-07** — all of §14, the three bridges live
+  and read by NVDA, VoiceOver and Orca on the four guests. Closes the "No screen reader
   bridge" bullet the README carries in ten languages, and delivers ADR 006 §5's promise that
   accessibility labels are `I18nString`s. The work is a new `limn.accessibility` package, four
   hooks on `Widget`, one `default` member on `NativeWindow`, three bridges — **in

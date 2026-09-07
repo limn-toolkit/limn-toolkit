@@ -206,6 +206,12 @@ entrada componen dentro del campo y la edición avanza por grupos de grafemas.
   </picture>
 </p>
 
+**Leído en voz alta, en esos mismos idiomas.** Una ventana se publica en UI Automation en Windows,
+en NSAccessibility en macOS y en AT-SPI2 en Linux, así que NVDA, VoiceOver y Orca describen una
+interfaz de Limn sin que tu aplicación escriba una línea de código de plataforma. Los nombres son
+los mismos `I18nString` que dibuja la interfaz, y el toolkit lleva su propia palabra para cada rol
+en cada idioma que publica — porque dos de las tres plataformas no dicen ninguna.
+
 **El vídeo y el 3D también son widgets.** Una vista 3D con materiales físicamente realistas y un
 reproductor de vídeo, compuestos como widgets corrientes: una vista con desplazamiento los recorta,
 una pila dibuja encima y ambos participan en la disposición igual que una etiqueta.
@@ -249,8 +255,13 @@ tercera semana es peor que leerlas ahora.
   subárbol puede anular. El kit nunca infiere esa dirección de la configuración regional, porque una
   ventana en hebreo suele contener una isla de izquierda a derecha, así que las dos se declaran por
   separado. La escritura vertical (el mongol, la forma vertical de CJK) no se admite.
-- **Sin puente para lectores de pantalla.** La navegación con teclado y los anillos de foco están
-  completos, pero nada se expone a las API de accesibilidad de la plataforma.
+- **Los lectores de pantalla funcionan, y tres cosas que todavía no pueden hacer.** Windows, macOS
+  y Linux reciben cada uno su API de accesibilidad nativa — UI Automation, NSAccessibility, AT-SPI2
+  —, así que NVDA, VoiceOver y Orca leen una ventana de Limn, en el idioma en que está la interfaz.
+  El texto se lee y se escribe entero, así que la revisión carácter a carácter y el enrutado del
+  cursor braille quedan degradados; una lista publica las filas que ha realizado, no todas; y los
+  ajustes de accesibilidad del sistema — alto contraste, movimiento reducido, escala de texto — no
+  se exponen.
 - **Anterior a 1.0.** La API todavía se mueve entre versiones, y OpenGL es la única vía de
   renderizado. Fija tu versión y lee las notas de publicación.
 
