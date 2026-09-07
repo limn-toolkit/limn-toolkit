@@ -499,4 +499,128 @@ class UiaBridgeTest {
             org.lwjgl.system.MemoryUtil.nmemFree(array);
         }
     }
+
+    /**
+     * The gate is per window (§13.5): the process-wide flag keeps its negative, and its positive
+     * is decided by a subscription covering this window or a recent ask for its root.
+     */
+    @Test
+    void theGateIsThisWindowsOwnTwoFactsOnceTheSessionFlagIsTrue() {
+        long now = 10_000_000_000L;
+        long never = Long.MIN_VALUE / 2;
+        assertFalse(UiaBridge.listening(false, 3, now, now),
+                "nobody in the session listens to anything, whatever this window thinks");
+        assertFalse(UiaBridge.listening(true, 0, never, now),
+                "the flag alone is seventeen processes and no reader");
+        assertTrue(UiaBridge.listening(true, 1, never, now),
+                "a subscription covering this window");
+        assertTrue(UiaBridge.listening(true, 0, now - 1_000_000_000L, now),
+                "asked for the root a second ago, by something that never subscribed");
+        assertFalse(UiaBridge.listening(true, 0, now - 3_000_000_000L, now),
+                "asked three seconds ago and never again: the poller has gone");
+    }
+
+    @Test
+    void answeringGetObjectStampsTheAskOnTheBridgesClock() {
+        long[] nanos = {5_000_000_000L};
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234, () -> nanos[0]);
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            assertTrue(bridge.lastAskedForTests() < 0, "nobody has asked yet");
+            bridge.noteAsked();
+            assertEquals(5_000_000_000L, bridge.lastAskedForTests(),
+                    "any WM_GETOBJECT is a client entering, whatever object it named");
+            nanos[0] += 500_000_000L;
+            bridge.answerGetObject(0, 0);
+            assertEquals(5_500_000_000L, bridge.lastAskedForTests(), "and so is the UIA root ask");
+            nanos[0] -= 500_000_000L;
+            nanos[0] += 1_000_000_000L;
+            assertTrue(UiaBridge.listening(true, bridge.advisedEvents(),
+                    bridge.lastAskedForTests(), nanos[0]), "still within the window");
+            nanos[0] += 2_000_000_000L;
+            assertFalse(UiaBridge.listening(true, bridge.advisedEvents(),
+                    bridge.lastAskedForTests(), nanos[0]), "and now outside it");
+        } finally {
+            bridge.detach();
+        }
+    }
+
+    /**
+     * A reader that looked at the window and then waited must hear the next change however long
+     * it takes: NVDA asks when a window appears and moves only on an event it can hear, so a gate
+     * that closed on a timer before the first focus moved kept NVDA at the window title forever.
+     */
+    @Test
+    void anAskIsOwedOneEventHoweverLongItTakesAndThenTheWindowCloses() {
+        long[] nanos = {5_000_000_000L};
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234, () -> nanos[0]);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.noteAsked();
+            nanos[0] += 60_000_000_000L;
+            assertTrue(UiaBridge.listening(true, 0, bridge.lastAskedForTests(), nanos[0],
+                    bridge.owesAnEvent()), "a minute later and still owed");
+            bridge.objectFor(1001);
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised FOCUS_CHANGED")));
+            assertFalse(bridge.owesAnEvent(), "paid");
+            assertFalse(UiaBridge.listening(true, 0, bridge.lastAskedForTests(), nanos[0],
+                    bridge.owesAnEvent()), "and with no subscription and no fresh ask, closed");
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    @Test
+    void anEventForANodeNobodyHoldsPaysNothing() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.noteAsked();
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            // Give the drain a moment; nothing to await, since nothing is traced for a skip.
+            try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            assertTrue(bridge.owesAnEvent(), "a change nobody could hear is not the one owed");
+        } finally {
+            bridge.detach();
+        }
+    }
+
+    /**
+     * A client's ask hands over the tree the bridge has and publishes nothing, requests nothing.
+     * Measured with NVDA: a publish inside the ask, and even one requested for the next frame,
+     * left it announcing the window and never anything in it; the tree it already had, plus the
+     * gate the ask opens, read every value.
+     */
+    @Test
+    void answeringGetObjectHandsOverWhatItHasAndTouchesTheHostNotAtAll() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        int[] requested = {0};
+        int[] publishedNow = {0};
+        AccessibleTree priming = aWindowWith(Accessible.Role.BUTTON, true);
+        AccessibilityBridge.Host host = new AccessibilityBridge.Host() {
+            @Override public void requestRepublish() { requested[0]++; }
+            @Override public void requestRestamp() { }
+            @Override public AccessibleTree republishNow() {
+                publishedNow[0]++;
+                return priming;
+            }
+            @Override public boolean perform(long nodeId, Accessible.Action action,
+                                             Accessible.Argument arg) { return false; }
+        };
+        try {
+            bridge.attach(host);
+            bridge.publish(priming, false);
+            bridge.answerGetObject(0, 0);
+            assertEquals(0, requested[0], "nothing requested inside the reader's call");
+            assertEquals(0, publishedNow[0], "and nothing published there either");
+            assertEquals(1, bridge.elementCount(), "the root handed over is the tree it had");
+        } finally {
+            bridge.detach();
+        }
+    }
 }

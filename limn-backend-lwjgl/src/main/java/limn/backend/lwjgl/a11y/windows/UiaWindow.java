@@ -108,6 +108,13 @@ final class UiaWindow {
         UiaCom.WndProc procedure = (window, message, wparam, lparam) -> {
             if (message == WM_GETOBJECT) {
                 say("WM_GETOBJECT lparam=" + lparam + " (as int " + (int) lparam + ")");
+                // Whatever it asks for -- the UI Automation root, or MSAA's OBJID_CLIENT, which
+                // is what a reader sends first when a window comes to the foreground -- a client
+                // is entering through this window, and the gate opens for it (§13.5). Measured:
+                // NVDA announces the foreground by MSAA and looks inside by UI Automation only
+                // after a focus event it can hear, which a closed gate never raises. This is
+                // what breaks that circle.
+                bridge.noteAsked();
             }
             if (message == WM_GETOBJECT && (int) lparam == UIA_ROOT_OBJECT_ID) {
                 long answer = bridge.answerGetObject(wparam, lparam);

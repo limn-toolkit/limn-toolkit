@@ -87,13 +87,11 @@ public final class LiveProbe {
                     // And the bridge's own trace, which is where a raise now reports how long
                     // it took and on which thread: the emit the tally times is an enqueue
                     // since §13.28, so the raise's cost is only visible from here.
-                    UiaWindow.trace = line -> {
-                        if (line.startsWith("raised ") || line.startsWith("collapse")
-                                || line.startsWith("released ") || line.startsWith("drain ")
-                                || line.startsWith("advise ")) {
-                            say("TRACE " + line);
-                        }
-                    };
+                    // Every line, stamped: a reader's own log is timestamped, and the question
+                    // a live run answers is what we said at the moment the reader asked.
+                    long started = System.nanoTime();
+                    UiaWindow.trace = line -> say("TRACE +"
+                            + (System.nanoTime() - started) / 1_000_000 + "ms " + line.strip());
                 } else {
                     say("nothing to time: the bridge is " + bridge.getClass().getName());
                 }
@@ -129,6 +127,9 @@ public final class LiveProbe {
                     }
                 }
                 probe.tick(scene);
+                if (timing && bridge instanceof UiaBridge real) {
+                    say("GATE listening=" + real.isListening() + " advised=" + real.advisedEvents());
+                }
                 if (probe.steps() < 40) {
                     Ui.postDelayed(tick[0], tickMs);
                 } else {

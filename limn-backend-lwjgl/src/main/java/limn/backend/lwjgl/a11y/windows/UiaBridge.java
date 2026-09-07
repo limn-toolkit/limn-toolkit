@@ -77,8 +77,32 @@ public final class UiaBridge extends PlatformBridge {
     private final java.util.concurrent.atomic.AtomicInteger advised =
             new java.util.concurrent.atomic.AtomicInteger();
 
-    private UiaBridge(long hwnd) {
+    /**
+     * How long after a client's {@code WM_GETOBJECT} this window counts as read by someone who
+     * never subscribed. Two seconds: an inspector or a test harness re-enters through the window
+     * when it re-finds it, and a walk paid for two seconds after each of those is the price of
+     * showing such a client a current tree rather than the one from its last ask.
+     */
+    static final long ASKED_WINDOW_NANOS = 2_000_000_000L;
+
+    /** When a client last asked this window for its root, on {@link #clock}'s scale; never, at first. */
+    private volatile long lastAskedNanos = Long.MIN_VALUE / 2;
+
+    /**
+     * Whether a client has asked and has not yet been told of a change. Set by every ask, cleared
+     * by the first raise that reaches an element a client holds — so a reader that looked at this
+     * window and then waited hears the next thing that happens in it, however long that takes,
+     * and decides on that whether to subscribe. Measured on the guest: NVDA asks for the root
+     * three times when a window appears, hears nothing if the gate closes before the focus first
+     * moves, and subscribes once it has followed one focus event.
+     */
+    private volatile boolean owedAnEvent;
+
+    private final java.util.function.LongSupplier clock;
+
+    private UiaBridge(long hwnd, java.util.function.LongSupplier clock) {
         this.hwnd = hwnd;
+        this.clock = clock;
     }
 
     /**
@@ -94,7 +118,7 @@ public final class UiaBridge extends PlatformBridge {
         if (!Uia.isAvailable() || !UiaWindow.isAvailable() || hwnd == 0) {
             return AccessibilityBridge.NONE;
         }
-        UiaBridge bridge = new UiaBridge(hwnd);
+        UiaBridge bridge = new UiaBridge(hwnd, System::nanoTime);
         bridge.attachedWindow = UiaWindow.attach(hwnd, bridge);
         // A window whose procedure could not be replaced is a window no client can ask, so there
         // is nothing for this bridge to answer and no reason to make the scene walk for it.
@@ -113,7 +137,17 @@ public final class UiaBridge extends PlatformBridge {
      * @return a bridge
      */
     static UiaBridge withoutTheGate(long hwnd) {
-        return new UiaBridge(hwnd);
+        return new UiaBridge(hwnd, System::nanoTime);
+    }
+
+    /** The same, on a clock a test moves. */
+    static UiaBridge withoutTheGate(long hwnd, java.util.function.LongSupplier clock) {
+        return new UiaBridge(hwnd, clock);
+    }
+
+    /** @return when a client last asked for the root, on the clock's scale; for tests. */
+    long lastAskedForTests() {
+        return lastAskedNanos;
     }
 
     /** @param nodeId a node from the tree() tree
@@ -165,12 +199,51 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
-     * <p>Asked once per frame on the user-interface thread. This is the whole of the cost a window
-     * pays when nobody is reading it.
+     * <p>Asked once per frame on the user-interface thread, and answered <b>per window</b>.
+     *
+     * <p>{@code UiaClientsAreListening()} alone was the gate until 2026-09-07, and it is
+     * process-wide: true once any client in the session holds any event handler, which on the
+     * Windows 11 guest was seventeen processes with no reader among them — so every window paid
+     * the walk on every damaged frame for nobody (ADR&nbsp;039 &sect;13.5). It keeps its honest
+     * half here, the negative: when it is false nobody is listening to anything. When it is true,
+     * what decides is this window's own two facts — whether a client's event subscription covers
+     * it, which UI Automation says through {@code IRawElementProviderAdviseEvents} on the root and
+     * says again when the subscription is withdrawn; and whether a client asked for the root through
+     * {@code WM_GETOBJECT} within the last {@link #ASKED_WINDOW_NANOS}, which is the one thing a
+     * client that reads without ever subscribing does. Measured on the guest: with no reader the
+     * flag was true and neither fact held; with NVDA attached the subscription arrived before the
+     * first frame.
      */
     @Override
     public boolean isListening() {
-        return Uia.clientsAreListening();
+        return listening(Uia.clientsAreListening(), advised.get(), lastAskedNanos,
+                clock.getAsLong(), owedAnEvent);
+    }
+
+    /**
+     * The gate's decision, as a function of the four facts so that a machine with no UI
+     * Automation can still pin it.
+     *
+     * @param anyoneInTheSession the process-wide flag, whose {@code false} is the reliable half
+     * @param standing           how many client subscriptions cover this window
+     * @param askedNanos         when a client last asked for the root
+     * @param now                the clock
+     * @return whether a frame of this window is worth a walk
+     */
+    static boolean listening(boolean anyoneInTheSession, int standing, long askedNanos, long now) {
+        return listening(anyoneInTheSession, standing, askedNanos, now, false);
+    }
+
+    /**
+     * @param owedAnEvent whether a client asked and has not yet been told of one change
+     * @return whether a frame of this window is worth a walk
+     */
+    static boolean listening(boolean anyoneInTheSession, int standing, long askedNanos, long now,
+                             boolean owedAnEvent) {
+        if (!anyoneInTheSession) {
+            return false;
+        }
+        return standing > 0 || owedAnEvent || now - askedNanos < ASKED_WINDOW_NANOS;
     }
 
     /**
@@ -334,6 +407,9 @@ public final class UiaBridge extends PlatformBridge {
         } else {
             raisePropertyChange(element, event);
         }
+        // The one change a client that asked was owed. From here it is its subscription, or a
+        // fresh ask, that keeps this window read.
+        owedAnEvent = false;
         java.util.function.Consumer<String> to = UiaWindow.trace;
         if (to != null) {
             to.accept("raised " + event.type() + " for node " + event.nodeId() + " in "
@@ -524,8 +600,31 @@ public final class UiaBridge extends PlatformBridge {
      * @return the {@code LRESULT} for the window procedure to return
      */
     public long answerGetObject(long wparam, long lparam) {
+        noteAsked();
+        // And NOTHING is published or requested here. §3.1 first said to publish inside this
+        // message, before the root is handed over; measured with NVDA on 2026-09-07, a publish
+        // inside the ask — and, in a second run, one merely requested for the next frame — left
+        // the reader announcing the window and never anything in it, while the same build that
+        // handed over the tree it already had and let the gate do the rest read every value. The
+        // priming publish is a truthful tree; the ask opens the gate (noteAsked), and the first
+        // frame something moves publishes and raises it, outside anyone's call.
         long root = rootElement();
         return root == 0 ? 0 : Uia.returnRawElementProvider(hwnd, wparam, lparam, root);
+    }
+
+    /**
+     * A client asked this window for something — any {@code WM_GETOBJECT}, whichever object it
+     * named. For the next {@link #ASKED_WINDOW_NANOS} this window is read, even by a client that
+     * never subscribes to anything. User-interface thread, inside the message.
+     */
+    public void noteAsked() {
+        lastAskedNanos = clock.getAsLong();
+        owedAnEvent = true;
+    }
+
+    /** @return whether a client asked and has not yet heard a change; for tests. */
+    boolean owesAnEvent() {
+        return owedAnEvent;
     }
 
     /** @return the root node's element, minting it if this is the first ask, or {@code 0} */
