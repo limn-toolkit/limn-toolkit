@@ -32,12 +32,35 @@ final class AxEvents {
     /**
      * How many events one frame's difference may carry before it is collapsed.
      *
-     * <p>A policy, not a measurement, and §13.19 says so: the number that would justify itself is
-     * a count of what a real difference produces while a reader is attached, taken on the guest. It
-     * is set so that a full queue's drain fits inside the frame budget at a pessimistic cost per
-     * post, and the warning below is the signal that it was set wrong.
+     * <p>Set from §13.19's two measurements rather than from the 8 ms rule alone, which is what it
+     * was until they existed. Taken on the macOS 26.6.2 guest (192.168.64.2, 2026-09-07, the
+     * software-GL window, VoiceOver attached and reading), with the live probe's
+     * {@code -Dprobe.timing=true -Dprobe.cycle=scroll} and {@code drag} at a 100 ms tick:
+     *
+     * <ul>
+     * <li><b>The count.</b> Paging a list by its five-row viewport is <b>21 events a frame</b>, every
+     * frame, forty frames running: one {@code VALUE_CHANGED} for the list, and per row shown one
+     * {@code STRUCTURE_CHANGED} on the list, one on the row, and a {@code NODE_DESTROYED} each for
+     * the row that left and its label — four per row plus one. Eleven of the 21 become a
+     * notification (the value and the ten layout changes; destructions post nothing here). A
+     * dragged slider is one event a frame, one notification.</li>
+     * <li><b>The cost.</b> That frame's drain — the whole of the bridge's cross-process work —
+     * with VoiceOver's cursor on the list being paged: 164 µs at p50, 416 µs at p90, 1.67 ms at
+     * the worst of the 21-event frames; per event 8 µs, 20 µs and 80 µs. With the cursor elsewhere
+     * in the window it was 130 µs at the median. One {@code NSAccessibilityPostNotification} by itself is
+     * 375 ns at p50 and 459 ns at p99 with VoiceOver on, 83 ns and 125 ns with it off (10,000
+     * timed posts each, AxProbe), so the drain's cost is the bookkeeping around the post and what
+     * the reader does with it, and not the post.</li>
+     * </ul>
+     *
+     * <p>Sixty-four was therefore a page of fifteen rows, and a fifteen-row viewport is an ordinary
+     * list: at 64 every page of it collapsed, and a collapse re-reads the whole window. 256 is a
+     * page of sixty rows — a tall window's worth — and its worst drain at a pessimistic 30 µs an
+     * event (above the p90 measured with the reader on the list) is 7.7 ms, inside the 8 ms
+     * budget the rule was written against. The warning below remains the signal that a difference
+     * wider than this exists in some scene, and the number to revisit when it fires.
      */
-    static final int CAPACITY = 64;
+    static final int CAPACITY = 256;
 
     private static final System.Logger LOG = System.getLogger(AxEvents.class.getName());
 

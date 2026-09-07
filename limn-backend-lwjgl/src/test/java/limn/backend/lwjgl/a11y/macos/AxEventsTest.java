@@ -113,4 +113,17 @@ class AxEventsTest {
             logger.removeHandler(capture);
         }
     }
+    @Test
+    void theCapacityIsThePageTheGuestCountedInsideTheBudgetTheGuestTimed() {
+        // §13.19's macOS half, measured 2026-09-07 on the guest with VoiceOver reading the list:
+        // paging a five-row viewport is 21 events a frame, four per row plus one, so the queue
+        // must carry a page of a tall window's list without collapsing...
+        assertTrue(AxEvents.CAPACITY >= 60 * 4 + 1,
+                "a page of sixty rows at four events a row plus one is " + (60 * 4 + 1)
+                        + " events, and 64 collapsed on every page of an ordinary fifteen-row list");
+        // ...and its full drain must still fit the frame budget at a per-event cost well above
+        // the 20 us measured at p90 with the reader on the list.
+        assertTrue(AxEvents.CAPACITY * 30_000L <= 8_000_000L,
+                "a full queue at a pessimistic 30 us an event must drain inside 8 ms");
+    }
 }
