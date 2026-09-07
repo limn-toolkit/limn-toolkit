@@ -24,10 +24,35 @@ import org.lwjgl.system.Platform;
  *
  * <p>A platform with no bridge, or a window with no native handle, answers
  * {@link AccessibilityBridge#NONE}, whose every member is a constant.
+ *
+ * <p><b>An application can refuse accessibility for its whole process</b> with the system property
+ * {@code -Dlimn.accessibility=off}, and every window it opens then answers {@code NONE} before any
+ * platform is asked. Be clear about what that is: it is not a performance setting, it is a
+ * decision that a blind user of this application gets nothing — no window a screen reader can
+ * enter, no control it can name, no focus it can follow, no value it can read — with no symptom
+ * on the machine but silence, the same silence phase 6 spent a week removing. The one honest use
+ * is a measurement: ADR&nbsp;039&nbsp;§6 asks what the Windows window-procedure subclass costs a
+ * process nobody is reading, and the only way to run a benchmark <em>without</em> that subclass
+ * is to not open the bridge that installs it. A kiosk or an embedded surface that genuinely has
+ * no user should still prefer letting the platform decide, because the gate each bridge reads
+ * costs it nothing until something is listening.
  */
 public final class Bridges {
 
+    /** The property, whose one recognised value is {@code off}. */
+    public static final String PROPERTY = "limn.accessibility";
+
     private Bridges() {
+    }
+
+    /**
+     * @return whether this process has refused accessibility with {@code -Dlimn.accessibility=off}.
+     *         Read on every open and never cached, so a test can set and clear it; a process sets
+     *         it once on its command line and the cost of reading it again is one map lookup per
+     *         window, once
+     */
+    public static boolean refusedByApplication() {
+        return "off".equals(System.getProperty(PROPERTY));
     }
 
     /**
@@ -45,6 +70,12 @@ public final class Bridges {
      * @return a bridge for this platform, or {@link AccessibilityBridge#NONE}
      */
     public static AccessibilityBridge openFor(long nativeHandle, String applicationName) {
+        if (refusedByApplication()) {
+            // Before the switch on the platform, so that a refusing process never loads
+            // uiautomationcore, never subclasses a window procedure and never opens a socket: the
+            // refusal is what the measurement above is measuring against.
+            return AccessibilityBridge.NONE;
+        }
         try {
             return switch (Platform.get()) {
                 case WINDOWS -> UiaBridge.openIfEnabled(nativeHandle);
