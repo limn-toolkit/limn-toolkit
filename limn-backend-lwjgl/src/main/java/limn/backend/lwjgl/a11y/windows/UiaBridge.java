@@ -70,6 +70,13 @@ public final class UiaBridge extends PlatformBridge {
     /** Set once the platform half is gone, so a late emit starts no thread nobody will stop. */
     private volatile boolean closed;
 
+    /**
+     * How many event subscriptions covering this window are standing: added minus removed. The
+     * spike's reading for §13.5's second half; not yet a gate.
+     */
+    private final java.util.concurrent.atomic.AtomicInteger advised =
+            new java.util.concurrent.atomic.AtomicInteger();
+
     private UiaBridge(long hwnd) {
         this.hwnd = hwnd;
     }
@@ -139,6 +146,11 @@ public final class UiaBridge extends PlatformBridge {
     /** @return how many times the queue has collapsed since this bridge opened (§13.19). */
     int collapses() {
         return events.collapses();
+    }
+
+    /** @return how many client event subscriptions cover this window right now. */
+    int advisedEvents() {
+        return advised.get();
     }
 
     /**
@@ -597,6 +609,17 @@ public final class UiaBridge extends PlatformBridge {
         }
 
         @Override
+        public void eventAdvised(int eventId, int[] propertyIds, boolean added) {
+            int now = added ? advised.incrementAndGet() : advised.decrementAndGet();
+            java.util.function.Consumer<String> to = UiaWindow.trace;
+            if (to != null) {
+                to.accept("advise " + (added ? "added" : "removed") + " event " + eventId
+                        + " properties " + java.util.Arrays.toString(propertyIds)
+                        + " standing=" + now + " on " + Thread.currentThread().getName());
+            }
+        }
+
+        @Override
         public boolean perform(long nodeId, Accessible.Action action, Accessible.Argument arg) {
             Host current = host();
             return current != null && current.perform(nodeId, action, arg);
@@ -658,6 +681,10 @@ public final class UiaBridge extends PlatformBridge {
             if (isRoot) {
                 served.add(new UiaObject.Served(UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT_ROOT,
                         UiaProvider.fragmentRootSlots(context)));
+                // The root alone, because it is where UI Automation looks for it: a client's
+                // subscription covers a window, and the window is what the root stands for.
+                served.add(new UiaObject.Served(UiaInterfaces.ADVISE_EVENTS,
+                        UiaProvider.adviseEventsSlots(context)));
             }
             for (int patternId : PATTERNS) {
                 if (!UiaPatterns.supports(tree, node, patternId)) {

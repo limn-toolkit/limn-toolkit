@@ -31,6 +31,8 @@ class UiaInterfacesTest {
      * {@code scripts/a11y/windows/dump-uia-interfaces.ps1}'s companion reading.
      */
     private static final Map<String, String> AS_THE_GUEST_LAID_THEM_OUT = Map.ofEntries(
+            Map.entry("a407b27b-0f6d-4427-9292-473c7bf93258",
+                    "7bb207a46d0f27449292473c7bf93258"),
             Map.entry("d6dd68d1-86fd-4332-8666-9abedea2d24c",
                     "d168ddd6fd86324386669abedea2d24c"),
             Map.entry("f7063da8-8359-439c-9297-bbc5299a7d87",
@@ -138,6 +140,8 @@ class UiaInterfacesTest {
         assertEquals(List.of("SetValue", "get_Value", "get_IsReadOnly"),
                 UiaInterfaces.VALUE_PROVIDER.slots(),
                 "the setter comes first, which is not where anyone would have guessed it");
+        assertEquals(List.of("AdviseEventAdded", "AdviseEventRemoved"),
+                UiaInterfaces.ADVISE_EVENTS.slots());
     }
 
     @Test

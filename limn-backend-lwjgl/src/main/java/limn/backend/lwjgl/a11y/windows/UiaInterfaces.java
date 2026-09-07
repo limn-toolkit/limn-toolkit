@@ -115,6 +115,16 @@ final class UiaInterfaces {
             List.of("Move", "Resize", "Rotate", "get_CanMove", "get_CanResize", "get_CanRotate"));
 
     /** {@code IUnknown} itself, which every one of the above begins with. */
+    /**
+     * The one interface that is about the client and not about a node: UI Automation calls it on
+     * the <b>root</b> when a client subscribes to events that cover this window, and again when it
+     * unsubscribes. Read off the guest on 2026-09-07, for ADR&nbsp;039 &sect;13.5's second half —
+     * whether a gate can be per window rather than per process.
+     */
+    static final Vtable ADVISE_EVENTS = new Vtable(
+            "IRawElementProviderAdviseEvents", "a407b27b-0f6d-4427-9292-473c7bf93258",
+            List.of("AdviseEventAdded", "AdviseEventRemoved"));
+
     static final Vtable UNKNOWN = new Vtable(
             "IUnknown", "00000000-0000-0000-c000-000000000046", List.of());
 
@@ -124,7 +134,7 @@ final class UiaInterfaces {
             RAW_ELEMENT_PROVIDER_FRAGMENT_ROOT, INVOKE_PROVIDER, TOGGLE_PROVIDER,
             RANGE_VALUE_PROVIDER, VALUE_PROVIDER, SELECTION_PROVIDER, SELECTION_ITEM_PROVIDER,
             EXPAND_COLLAPSE_PROVIDER, SCROLL_PROVIDER, SCROLL_ITEM_PROVIDER, WINDOW_PROVIDER,
-            TRANSFORM_PROVIDER);
+            TRANSFORM_PROVIDER, ADVISE_EVENTS);
 
     /**
      * Turns a canonically spelled identifier into the sixteen bytes a {@code QueryInterface}

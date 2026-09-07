@@ -83,6 +83,22 @@ final class UiaProvider {
         boolean requestFocus(long nodeId);
 
         /**
+         * A client subscribed to, or unsubscribed from, an event that covers this window.
+         *
+         * <p>The one thing UI Automation tells a provider about its <em>clients</em>, and the only
+         * per-window answer to "is anyone reading this" the platform has: the process-wide
+         * {@code UiaClientsAreListening()} is true on an ordinary desktop with no reader (ADR 039
+         * §13.5). Called on an RPC thread.
+         *
+         * @param eventId     which event, in {@link UiaIds}' numbering
+         * @param propertyIds for a property-changed subscription, which properties; empty otherwise
+         * @param added       {@code true} on subscribe, {@code false} on unsubscribe
+         */
+        default void eventAdvised(int eventId, int[] propertyIds, boolean added) {
+            // A context that is not a bridge has no clients to be told about.
+        }
+
+        /**
          * Asks the toolkit to perform a verb, on the thread that owns the widget.
          *
          * <p><b>Accepted is not done.</b> The call returns as soon as the request is posted,
@@ -158,6 +174,57 @@ final class UiaProvider {
                 (UiaCom.PDDP) (self, x, y, out) -> elementFromPoint(x, y, out, context),
                 "GetFocus",
                 (UiaCom.PP) (self, out) -> focus(out, context));
+    }
+
+    /**
+     * The root's {@code IRawElementProviderAdviseEvents}: both slots take the event and a
+     * {@code SAFEARRAY} of property identifiers, which is decoded here and never kept.
+     *
+     * @param context who is told
+     * @return the slots, ready to be handed to {@link UiaObject}
+     */
+    static Map<String, CallbackI> adviseEventsSlots(Context context) {
+        return Map.of(
+                "AdviseEventAdded",
+                (UiaCom.PIP) (self, eventId, properties) -> {
+                    context.eventAdvised(eventId, int32sOf(properties), true);
+                    return UiaIds.S_OK;
+                },
+                "AdviseEventRemoved",
+                (UiaCom.PIP) (self, eventId, properties) -> {
+                    context.eventAdvised(eventId, int32sOf(properties), false);
+                    return UiaIds.S_OK;
+                });
+    }
+
+    /**
+     * Reads a one-dimensional {@code SAFEARRAY} of 32-bit integers.
+     *
+     * <p>The layout is the Win32 one on a 64-bit process: {@code cDims} (2 bytes),
+     * {@code fFeatures} (2), {@code cbElements} (4), {@code cLocks} (4), padding (4),
+     * {@code pvData} (8), then one {@code SAFEARRAYBOUND} of {@code cElements} (4) and
+     * {@code lLbound} (4). Anything that is not one dimension of four-byte elements is answered
+     * as empty rather than read as if it were.
+     */
+    static int[] int32sOf(long safeArray) {
+        if (safeArray == 0) {
+            return new int[0];
+        }
+        int dims = MemoryUtil.memGetShort(safeArray) & 0xFFFF;
+        int elementSize = MemoryUtil.memGetInt(safeArray + 4);
+        if (dims != 1 || elementSize != 4) {
+            return new int[0];
+        }
+        long data = MemoryUtil.memGetAddress(safeArray + 16);
+        int count = MemoryUtil.memGetInt(safeArray + 24);
+        if (data == 0 || count < 0 || count > 4096) {
+            return new int[0];
+        }
+        int[] values = new int[count];
+        for (int i = 0; i < count; i++) {
+            values[i] = MemoryUtil.memGetInt(data + 4L * i);
+        }
+        return values;
     }
 
     private static int navigate(long nodeId, int direction, long out, Context context) {

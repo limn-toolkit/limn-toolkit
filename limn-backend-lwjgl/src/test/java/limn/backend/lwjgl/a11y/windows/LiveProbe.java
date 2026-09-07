@@ -89,7 +89,8 @@ public final class LiveProbe {
                     // since §13.28, so the raise's cost is only visible from here.
                     UiaWindow.trace = line -> {
                         if (line.startsWith("raised ") || line.startsWith("collapse")
-                                || line.startsWith("released ") || line.startsWith("drain ")) {
+                                || line.startsWith("released ") || line.startsWith("drain ")
+                                || line.startsWith("advise ")) {
                             say("TRACE " + line);
                         }
                     };

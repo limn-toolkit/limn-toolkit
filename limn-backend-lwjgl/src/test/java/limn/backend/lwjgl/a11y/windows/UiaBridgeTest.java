@@ -442,4 +442,61 @@ class UiaBridgeTest {
         a.end();
         return a.publish(0, 0, 0, 1f, true);
     }
+
+    /**
+     * The spike for §13.5's second half: the root, and only the root, tells UI Automation it can
+     * be told who subscribes, and what it is told is counted. Whether a reader's subscription
+     * actually reaches it is the guest's to answer, not this test's.
+     */
+    @Test
+    void theRootAloneServesAdviseEventsAndCountsWhatItIsTold() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            UiaObject root = bridge.objectFor(1000);
+            UiaObject button = bridge.objectFor(1001);
+            assertNotEquals(0, root.pointerFor(UiaInterfaces.ADVISE_EVENTS),
+                    "the root is where a client's subscription lands");
+            assertEquals(0, button.pointerFor(UiaInterfaces.ADVISE_EVENTS),
+                    "a child is not a window and is not advised");
+            assertEquals(0, bridge.advisedEvents());
+
+            java.util.Map<String, org.lwjgl.system.CallbackI> slots =
+                    UiaProvider.adviseEventsSlots(bridge.contextForTests());
+            UiaCom.PIP added = (UiaCom.PIP) slots.get("AdviseEventAdded");
+            UiaCom.PIP removed = (UiaCom.PIP) slots.get("AdviseEventRemoved");
+            assertEquals(UiaIds.S_OK, added.invoke(0, UiaIds.AUTOMATION_FOCUS_CHANGED, 0));
+            assertEquals(UiaIds.S_OK, added.invoke(0, UiaIds.AUTOMATION_FOCUS_CHANGED, 0));
+            assertEquals(2, bridge.advisedEvents(), "two subscriptions stand");
+            assertEquals(UiaIds.S_OK, removed.invoke(0, UiaIds.AUTOMATION_FOCUS_CHANGED, 0));
+            assertEquals(1, bridge.advisedEvents(), "one was withdrawn");
+        } finally {
+            bridge.detach();
+        }
+    }
+
+    @Test
+    void aSafeArrayOfPropertyIdentifiersIsReadAndAnythingElseIsEmpty() {
+        // One dimension, four-byte elements, three values: the shape a property-changed
+        // subscription hands over. Laid out by hand in native memory exactly as Win32 does.
+        long array = org.lwjgl.system.MemoryUtil.nmemCallocChecked(1, 32);
+        long data = org.lwjgl.system.MemoryUtil.nmemCallocChecked(3, 4);
+        try {
+            org.lwjgl.system.MemoryUtil.memPutShort(array, (short) 1);
+            org.lwjgl.system.MemoryUtil.memPutInt(array + 4, 4);
+            org.lwjgl.system.MemoryUtil.memPutAddress(array + 16, data);
+            org.lwjgl.system.MemoryUtil.memPutInt(array + 24, 3);
+            org.lwjgl.system.MemoryUtil.memPutInt(data, UiaIds.RANGE_VALUE_VALUE);
+            org.lwjgl.system.MemoryUtil.memPutInt(data + 4, UiaIds.TOGGLE_STATE);
+            org.lwjgl.system.MemoryUtil.memPutInt(data + 8, UiaIds.NAME);
+            assertEquals(java.util.List.of(UiaIds.RANGE_VALUE_VALUE, UiaIds.TOGGLE_STATE, UiaIds.NAME),
+                    java.util.Arrays.stream(UiaProvider.int32sOf(array)).boxed().toList());
+            org.lwjgl.system.MemoryUtil.memPutShort(array, (short) 2);
+            assertEquals(0, UiaProvider.int32sOf(array).length, "two dimensions is not this shape");
+            assertEquals(0, UiaProvider.int32sOf(0).length, "and no array is no properties");
+        } finally {
+            org.lwjgl.system.MemoryUtil.nmemFree(data);
+            org.lwjgl.system.MemoryUtil.nmemFree(array);
+        }
+    }
 }

@@ -37,7 +37,8 @@ $wanted = @(
     'IScrollProvider',
     'IScrollItemProvider',
     'IWindowProvider',
-    'ITransformProvider'
+    'ITransformProvider',
+    'IRawElementProviderAdviseEvents'
 )
 
 foreach ($name in $wanted) {
