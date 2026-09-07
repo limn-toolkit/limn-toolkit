@@ -3246,6 +3246,17 @@ exception stays visible rather than becoming a habit.
     and on Plasma 6 Wayland, and what is genuinely missing is wlroots compositors, which have no
     AT-SPI2 integration at all. Nothing this record depends on is affected by that.
 
+    **And testing this combination found one defect that is not this record's at all**, which is
+    the argument for a guest per desktop rather than per operating system. Forcing the X11 platform
+    on that guest hangs the application before it draws — GLFW's X11 backend waits for a
+    `VisibilityNotify` on the window it has just mapped, rootless XWayland never sends one, and
+    other events keep arriving so the wait never sleeps: a spin at 100% of a core, in
+    `glfwCreateWindow` or in `glfwShowWindow` if the window was created hidden, because the map is
+    what it waits on. It was reached by default, because the backend preferred X11 whenever
+    `DISPLAY` was set and XWayland always sets it. **Any** Limn application on that desktop hung at
+    startup, with no assistive technology involved. A Wayland session takes the Wayland platform now
+    (ADR 028).
+
 16. **~~Adding methods to GLFW's content view class is designed and not proven.~~ Withdrawn**, by
     deleting the design that needed it. The re-run measured that `setAccessibilityChildren:` on the
     content view is sufficient on its own and that `accessibilityHitTest:` was never needed, so §2.2
