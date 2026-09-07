@@ -98,14 +98,36 @@ class UiaPatternsTest {
         assertTrue(vends(box, UiaIds.TOGGLE_PATTERN));
     }
 
+    /**
+     * Measured, not reasoned: on the Windows guest a slider that vended both patterns was read by
+     * NVDA as "slider" and nothing else, because NVDA prefers Value's string when both exist and
+     * the string was "" -- while RangeValue answered 41, 42, 44, 45 correctly the whole time.
+     */
     @Test
-    void aSliderVendsBothValuePatternsBecauseItHasANumberAndAText() {
+    void aSliderVendsRangeValueAloneBecauseItsValueHasNoSpokenForm() {
         AccessibleNode slider = publish(Accessible.Role.SLIDER,
                 a -> a.value(42, 0, 100, 1, false));
 
         assertTrue(vends(slider, UiaIds.RANGE_VALUE_PATTERN), "a number with bounds");
-        assertTrue(vends(slider, UiaIds.VALUE_PATTERN),
-                "and the same facet is what a client reads the spoken form from");
+        assertFalse(vends(slider, UiaIds.VALUE_PATTERN),
+                "a Value pattern answering \"\" is what a reader speaks instead of the number");
+    }
+
+    @Test
+    void aSpinnerVendsBothBecauseItsValueHasASpokenForm() {
+        AccessibleNode spinner = publish(Accessible.Role.SPIN_BUTTON,
+                a -> { a.value(450, 0, 1440, 1, false); a.valueText("07:30", 1); });
+
+        assertTrue(vends(spinner, UiaIds.RANGE_VALUE_PATTERN), "the number");
+        assertTrue(vends(spinner, UiaIds.VALUE_PATTERN), "and the form the user sees");
+    }
+
+    @Test
+    void anEmptySpokenFormIsNoSpokenForm() {
+        AccessibleNode node = publish(Accessible.Role.SLIDER,
+                a -> { a.value(1, 0, 2, 1, false); a.valueText("", 1); });
+
+        assertFalse(vends(node, UiaIds.VALUE_PATTERN));
     }
 
     /**

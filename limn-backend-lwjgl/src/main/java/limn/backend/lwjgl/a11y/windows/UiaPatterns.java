@@ -58,9 +58,18 @@ final class UiaPatterns {
                 return node.value() != null;
 
             case UiaIds.VALUE_PATTERN:
-                // Both, for the reason in this class's javadoc. The text facet's contribution is
-                // what keeps four widgets from vending nothing at all.
-                return node.value() != null || node.text() != null;
+                // The text facet, for the reason in this class's javadoc: its contribution is what
+                // keeps four widgets from vending nothing at all. And the value facet ONLY when it
+                // carries a spoken form -- a spinner's "07:30", a combo's item -- never for the
+                // bare number a slider or a progress bar publishes. NVDA prefers Value's string to
+                // RangeValue's number when a control vends both, and measured on the guest
+                // (2026-09-07, ADR 039 §13.19) a slider vending both answered Value with "" and
+                // was announced as "slider" with no value at all, while RangeValue read 41, 42,
+                // 44, 45 correctly the whole time. A pattern with nothing to say is worse than
+                // its absence here.
+                return node.text() != null
+                        || (node.value() != null && node.value().text() != null
+                            && !node.value().text().isEmpty());
 
             case UiaIds.SELECTION_PATTERN:
                 return node.selection() != null;
