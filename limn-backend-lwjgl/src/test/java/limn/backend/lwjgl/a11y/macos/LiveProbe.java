@@ -10,6 +10,7 @@ import limn.backend.lwjgl.LwjglBackend;
 import limn.backend.lwjgl.a11y.ProbeScene;
 import limn.concurrent.Ui;
 import limn.scene.Scene;
+import limn.scene.Widget;
 
 import java.util.List;
 
@@ -48,6 +49,16 @@ import java.util.List;
  * with the summary; with {@code -Dprobe.cycle=scroll} or {@code drag} and a short
  * {@code -Dprobe.tickMs} that is the count the record asks for, taken with VoiceOver attached.
  * {@code -Dprobe.steps} is how many ticks to run, forty when unsaid.
+ *
+ * <p><b>{@code -Dprobe.focus=<n>|list} puts the keyboard on one widget before a cycle that does not
+ * move it.</b> VoiceOver speaks a value that changed only when its cursor is on the thing that
+ * changed: the first scroll, drag and value runs on the guest posted every notification and the
+ * caption panel showed the window's title and nothing else, because the cursor had stayed where
+ * it landed. A number is an index into the focus cycle's order (6 is the slider, 1 the check
+ * box), {@code list} is the list the scroll cycle pages, and the move happens once, three seconds
+ * before the first tick, so the reader has landed by the time anything changes. Focus and value
+ * are still driven separately, which is the rule the check box taught (§2.4): the focus moves
+ * once and then only values move.
  */
 public final class LiveProbe {
 
@@ -120,6 +131,14 @@ public final class LiveProbe {
             // reach every widget: those pull opposite ways, so the interval is a knob.
             int tickMs = Integer.getInteger("probe.tickMs", 6_000);
             int steps = Integer.getInteger("probe.steps", 40);
+            Widget first = firstFocus(probe, System.getProperty("probe.focus"));
+            if (first != null) {
+                Ui.postDelayed(() -> {
+                    window.focus();
+                    scene.requestFocus(first);
+                    System.out.println("--- focus first: " + first.getClass().getSimpleName() + " ---");
+                }, 1_000);
+            }
             int[] step = {0};
             int[] lastPosted = {0};
             int[] lastEmitted = {0};
@@ -192,6 +211,27 @@ public final class LiveProbe {
                 System.out.print(measured.summary());
             }
             System.out.println("DONE");
+        }
+    }
+
+    /**
+     * The widget a run puts the keyboard on before its cycle starts, or none.
+     *
+     * @param probe the scene the cycle runs in
+     * @param which {@code null} or empty for none, {@code list} for the list the scroll cycle
+     *              pages, or an index into the focus cycle's order
+     * @return the widget, or {@code null} when nothing was asked for
+     * @throws IllegalArgumentException for anything else, because a run that silently focused
+     *         nothing would be read as a reader that says nothing about a value
+     */
+    static Widget firstFocus(ProbeScene probe, String which) {
+        if (which == null || which.isEmpty()) return null;
+        if (which.equals("list")) return probe.rows();
+        try {
+            return probe.focusable.get(Integer.parseInt(which));
+        } catch (NumberFormatException | IndexOutOfBoundsException wrong) {
+            throw new IllegalArgumentException("-Dprobe.focus=" + which + ": 'list' or 0.."
+                    + (probe.focusable.size() - 1), wrong);
         }
     }
 
