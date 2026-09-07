@@ -92,12 +92,17 @@ final class AxElementClass {
     private final AxObjC objc;
     private final Source source;
     private final long elementClass;
+    /** {@code NSAccessibilityElement}: what a released element is pointed back at. */
+    private final long superclass;
     private final List<Callback> callbacks = new ArrayList<>();
+    /** The one view whose isa was re-pointed, and the class it had before; zero until then. */
+    private long swizzledView;
+    private long viewClassBefore;
 
     AxElementClass(AxObjC objc, Source source, String className) {
         this.objc = objc;
         this.source = source;
-        long superclass = objc.cls("NSAccessibilityElement");
+        this.superclass = objc.cls("NSAccessibilityElement");
         if (superclass == NULL) {
             throw new IllegalStateException("no NSAccessibilityElement: this is not AppKit");
         }
@@ -116,7 +121,44 @@ final class AxElementClass {
         return objc.msg(objc.msg(elementClass, "alloc"), "init");
     }
 
-    /** Frees every libffi closure. After this the class must never be messaged again. */
+    /**
+     * Points one of this class's instances back at {@code NSAccessibilityElement}, so that whatever
+     * still holds it after we let go gets AppKit's own empty answers and never a closure of ours.
+     *
+     * <p>This is what makes {@link #free()} safe, and the window-close run with VoiceOver attached
+     * is why it exists: an element the bridge has released is not an element nobody will ever
+     * message again. The class adds no instance variables, so the layout is the superclass's and
+     * the re-point is exact.
+     *
+     * @param element an instance this class minted
+     */
+    void demote(long element) {
+        ObjCRuntime.object_setClass(element, superclass);
+    }
+
+    /**
+     * Gives the content view its own class back, undoing {@link #installFocusedElementOnView}.
+     *
+     * <p>Without this, the view keeps answering {@code accessibilityFocusedUIElement} through a
+     * closure {@link #free()} is about to release — and VoiceOver asks that question while the
+     * window is being destroyed, which {@code glfwDestroyWindow} pumps the run loop for. Measured
+     * on the guest: a SIGSEGV inside liblwjgl at the end of the first scroll run, from
+     * {@code _NSAccessibilityEntryPointValueForAttribute} under {@code glfwDestroyWindow}.
+     */
+    void restoreView() {
+        if (swizzledView == NULL) return;
+        ObjCRuntime.object_setClass(swizzledView, viewClassBefore);
+        swizzledView = NULL;
+    }
+
+    /**
+     * Frees every libffi closure.
+     *
+     * <p>Only after every instance was {@link #demote(long) demoted} and the view
+     * {@link #restoreView() restored}: a closure is an IMP on a class, and freeing it while any
+     * object still dispatches to that class is a crash the next time a client asks — which on this
+     * platform is the moment the window goes away, not never.
+     */
     void free() {
         callbacks.forEach(Callback::free);
         callbacks.clear();
@@ -301,6 +343,8 @@ final class AxElementClass {
         ObjCRuntime.class_addMethod(subclass, objc.sel("accessibilityFocusedUIElement"),
                 body.address(), objc.encodingOf("accessibilityFocusedUIElement"));
         ObjCRuntime.objc_registerClassPair(subclass);
+        this.swizzledView = contentView;
+        this.viewClassBefore = viewClass;
         ObjCRuntime.object_setClass(contentView, subclass);
     }
 

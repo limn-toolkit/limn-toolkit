@@ -79,6 +79,8 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     private final List<String> focusedAnswers = new ArrayList<>();
     /** Every event the scene handed this bridge. For the live run's log. */
     private final List<String> emitted = new ArrayList<>();
+    /** What a detach did to the platform's objects, in order. For the test that guards the order. */
+    private final List<String> teardown = new ArrayList<>();
 
     private AxBridge(AxObjC objc, long contentView) {
         this.objc = objc;
@@ -109,6 +111,12 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
 
             @Override public void release(long element) {
                 nodeIdByElement.remove(element);
+                // Demoted before it is released, because AppKit hands a vended element to a client
+                // by reference and our release is not the client's: whatever still holds it must
+                // land on NSAccessibilityElement's own answers, not on a closure of ours that the
+                // detach is about to free.
+                if (elementClass != null) elementClass.demote(element);
+                teardown.add("element demoted");
                 if (objc != null) objc.msg(element, "release");
             }
         });
@@ -185,10 +193,19 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     @Override
     protected void releasePlatformHalf() {
         // The content view is not ours and outlives this bridge, so what was pushed onto it is
-        // taken back rather than left pointing at released objects.
+        // taken back rather than left pointing at released objects -- its children, and its class.
+        // The order is the point: every element has been demoted by now (invalidateEverythingVended
+        // runs first), the view goes back to GLFW's class here, and only then may the closures go.
+        // VoiceOver asks the view for its focused element while glfwDestroyWindow pumps the run
+        // loop, after this bridge has detached; with the closures freed first that ask was a
+        // SIGSEGV inside liblwjgl, seen at the end of the first scroll run on the guest.
         if (objc != null) objc.msgVoid(contentView, "setAccessibilityChildren:", 0);
+        teardown.add("children taken back");
         listening = false;
+        if (elementClass != null) elementClass.restoreView();
+        teardown.add("view restored");
         if (elementClass != null) elementClass.free();
+        teardown.add("closures freed");
     }
 
     // ---- what an implementation asks ------------------------------------------------------------
@@ -428,6 +445,11 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     /** @return how many times AppKit asked the content view where the focus is (§13.22). */
     int focusedElementAsksOnView() {
         return elementClass == null ? 0 : elementClass.focusedElementAsksOnView();
+    }
+
+    /** @return what detaching did to the platform's objects, in the order it did it. */
+    List<String> teardown() {
+        return List.copyOf(teardown);
     }
 
     /** @return the notification symbols posted so far, in order. */

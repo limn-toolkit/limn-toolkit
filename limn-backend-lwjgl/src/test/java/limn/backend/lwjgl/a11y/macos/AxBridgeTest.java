@@ -216,6 +216,28 @@ class AxBridgeTest {
     }
 
     @Test
+    void detachingDemotesEveryElementAndRestoresTheViewBeforeItFreesTheClosures() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(2);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));
+        assertEquals(3, bridge.elementCount());
+        bridge.detach();
+        List<String> teardown = bridge.teardown();
+        // Every element first: a client that still holds one must land on NSAccessibilityElement's
+        // own answers, because the closures it would otherwise reach are about to be freed.
+        assertEquals(List.of("element demoted", "element demoted", "element demoted"),
+                teardown.subList(0, 3), "each of the three minted elements is demoted, and before "
+                        + "anything else goes");
+        // Then the view, then -- and only then -- the closures. VoiceOver asks the content view
+        // where the focus is while glfwDestroyWindow pumps the run loop, which is after this
+        // detach; the closure that answered was freed, and the ask was a SIGSEGV in liblwjgl.
+        assertEquals(List.of("children taken back", "view restored", "closures freed"),
+                teardown.subList(3, teardown.size()),
+                "the view gets its class back before the closure behind it is freed");
+    }
+
+    @Test
     void aMessageToAnElementWhoseNodeIsGoneAnswersNothingRatherThanFailing() {
         AxBridge bridge = AxBridge.withoutThePlatform();
         AccessibleTree tree = aNestedWindow(1);
