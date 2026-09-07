@@ -126,3 +126,12 @@ fun Project.registerProbeJar(platform: String, mainClass: String) {
 registerProbeJar("macos", "limn.backend.lwjgl.a11y.macos.LiveProbe")
 registerProbeJar("windows", "limn.backend.lwjgl.a11y.windows.LiveProbe")
 registerProbeJar("linux", "limn.backend.lwjgl.a11y.linux.LiveProbe")
+
+// `DesignNoteTest` reads `docs/design/accessibility.md`, which nothing else in the build looks at:
+// without this, editing the note alone leaves the task up to date and the gate stale-green — the
+// one state a rot check must not have.
+tasks.test {
+    inputs.file(rootProject.file("docs/design/accessibility.md"))
+            .withPropertyName("accessibilityDesignNote")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+}

@@ -35,6 +35,7 @@ documentation and a guarantee.
 
 | File | Covers |
 | --- | --- |
+| [accessibility.md](accessibility.md) | `limn.accessibility` and the three bridges: the snapshot model, the four widget hooks, transparent vs ignored, what a publish costs when nothing listens, the constants rule, and the traps a green suite cannot see |
 | [background-work.md](background-work.md) | `Ui.post`, `Ui.async`, `Ui.work`: which to reach for, what is ordered and what is not, the discard trap, the rule a loader obeys |
 | [size-axis.md](size-axis.md) | ControlSize, SizeTokens, Strokes: locked vs tabled, the density floor, the constructor trap |
 | [direction-axis.md](direction-axis.md) | LayoutDirection: why mirroring is a placement decision and never a transform, the shared host link, the two epochs, what a direction does to a held value, where a horizontal scroll starts, what deliberately does not mirror |
