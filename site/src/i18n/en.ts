@@ -46,15 +46,13 @@ export const en = {
   // system. `note` carries {{version}}, filled in at build time like the guides are.
   "home.try.heading": "Try it now",
   "home.try.body":
-    "The kitchen sink and the theme editor, straight from Maven Central: nothing to clone, and nothing to install but jbang, which fetches a JDK if you have none. What downloads is the toolkit, the fonts and the native libraries of this machine, not the other five platforms'.",
+    "The demo and the theme editor, straight from Maven Central. Nothing to clone; jbang fetches a JDK if you have none.",
   "home.try.osLabel": "Operating system",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
   "home.try.windows": "Windows",
   "home.try.demoComment": "the kitchen sink",
   "home.try.editorComment": "the theme editor",
-  "home.try.note":
-    "<code>-XstartOnFirstThread</code> is macOS-only, and a JVM given it anywhere else refuses to start. The aliases run the newest release; to pin one, name the coordinate: <code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>. Offline, the demo is also <a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">one file attached to every release</a>.",
 
   "home.install.eyebrow": "Five minutes",
   "home.install.heading": "One dependency and a main method",
@@ -62,7 +60,7 @@ export const en = {
     "No markup language, no annotation processor, no build plugin. Add the backend, which brings the toolkit with it, write plain Java, and you have a window.",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
-  "home.install.macos":
+  "home.try.macosNote":
     "On macOS the JVM needs <code>-XstartOnFirstThread</code>. It is the one platform quirk you will meet on day one, so it is here rather than three clicks deep.",
   "home.install.more": "Read the install guide",
 
@@ -105,7 +103,7 @@ export const en = {
 
   "home.languages.heading": "In your users' languages",
   "home.languages.body":
-    "Text is measured with the same advances it is drawn with, and the font fallback runs per character, so Latin, Greek, Cyrillic and CJK mix in one string without you choosing a face. Arabic, Hebrew, Devanagari and Thai shape wherever text is drawn, and direction is an axis a subtree inherits: a Hebrew window mirrors — rows, insets, scrollbars, arrow keys — and can still hold a left-to-right code pane. Input methods compose inside the field, editing moves by grapheme cluster, and digits, ordering and case follow the language.",
+    "Latin, Greek, Cyrillic and CJK mix in one string, and the right font is picked per character. Arabic, Hebrew, Devanagari and Thai are shaped correctly — joined forms, ligatures, marks — and a right-to-left language mirrors the whole window: rows, insets, scrollbars, arrow keys. Input methods compose inside the field, and editing moves by grapheme cluster.",
   "home.languages.alt":
     "The same screen captured in Japanese, Simplified Chinese, Korean and Russian, quilted into one window.",
   "home.languages.link": "Read the text guide",
@@ -113,7 +111,7 @@ export const en = {
 
   "home.accessibility.heading": "Read aloud, in those same languages",
   "home.accessibility.body":
-    "A window publishes itself to UI Automation on Windows, NSAccessibility on macOS and AT-SPI2 on Linux, so NVDA, VoiceOver and Orca describe a Limn interface without your application writing a line of platform code. Names are the same I18nStrings the interface draws, and the toolkit carries its own word for every role in every language it ships. A caption names its control with one call; states, values, verbs and focus are published for you.",
+    "NVDA, VoiceOver and Orca read a Limn window through each platform's own accessibility API, with no platform code in your application. Every control is announced with its role, its name and its state, in the language the interface is displayed in. Naming a control is one call.",
   "home.accessibility.link": "Read the accessibility guide",
   "home.accessibility.caption":
     "The form above, as a screen reader is told about it, captured during this build.",

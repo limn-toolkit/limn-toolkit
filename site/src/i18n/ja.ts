@@ -65,15 +65,13 @@ export const ja: Catalog = {
 
   "home.try.heading": "今すぐ試す",
   "home.try.body":
-    "キッチンシンクとテーマエディタを、Maven Central からそのまま。クローンするものはなく、入れるものも jbang だけです。JDK がなければ、それも取ってきます。ダウンロードされるのはツールキットとフォント、そしてこのマシンのネイティブライブラリだけで、ほかの 5 つのプラットフォームの分は来ません。",
+    "デモとテーマエディターを、Maven Central から直接。クローン不要。JDK がなければ jbang が取得します。",
   "home.try.osLabel": "オペレーティングシステム",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
   "home.try.windows": "Windows",
   "home.try.demoComment": "キッチンシンク",
   "home.try.editorComment": "テーマエディタ",
-  "home.try.note":
-    "<code>-XstartOnFirstThread</code> は macOS 専用で、ほかの OS の JVM は受け取ると起動を拒みます。エイリアスは最新リリースを起動します。バージョンを固定するには座標を書いてください: <code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>。ネットワークがなければ、デモは<a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">リリースごとに添付された 1 ファイル</a>としても手に入ります。",
 
   "home.install.eyebrow": "5 分",
   "home.install.heading": "依存 1 つと main メソッド",
@@ -81,7 +79,7 @@ export const ja: Catalog = {
     "マークアップ言語も、アノテーションプロセッサーも、ビルドプラグインもありません。ツールキットを連れてくるバックエンドを追加して素の Java を書けば、ウィンドウができます。",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
-  "home.install.macos":
+  "home.try.macosNote":
     "macOS では JVM に <code>-XstartOnFirstThread</code> が必要です。初日に必ず出会う唯一のプラットフォーム固有の癖なので、3 クリック先ではなくここに書いてあります。",
   "home.install.more": "インストールガイドを読む",
 
@@ -124,7 +122,7 @@ export const ja: Catalog = {
 
   "home.languages.heading": "ユーザーの言語で",
   "home.languages.body":
-    "テキストは描画に使うのと同じ送り幅で計測され、フォントのフォールバックは文字ごとに働くので、ラテン文字・ギリシャ文字・キリル文字・CJK がひとつの文字列に混在しても書体を選ぶ必要はありません。アラビア文字、ヘブライ文字、デーヴァナーガリー、タイ文字はテキストが描かれるところならどこでも整形され、方向はサブツリーが継承する軸です。ヘブライ語のウィンドウは行・余白・スクロールバー・矢印キーまで鏡像になり、その中に左から右のコードペインを置くこともできます。入力メソッドはフィールド内で変換し、編集は書記素クラスター単位で進み、数字・並び順・大文字小文字は言語に従います。",
+    "ラテン文字・ギリシャ文字・キリル文字・CJK がひとつの文字列に混在し、適切なフォントが文字ごとに選ばれます。アラビア文字、ヘブライ文字、デーヴァナーガリー、タイ文字は正しく整形され（連結形、合字、結合記号）、右から左へ書く言語ではウィンドウ全体が鏡像になります：行、余白、スクロールバー、矢印キー。入力メソッドはフィールド内で変換し、編集は書記素単位で進みます。",
   "home.languages.alt":
     "同じ画面を日本語・簡体中国語・韓国語・ロシア語で撮影し、一つの窓に継ぎ合わせたもの。",
   "home.languages.link": "テキストのガイドを読む",
@@ -132,7 +130,7 @@ export const ja: Catalog = {
 
   "home.accessibility.heading": "同じ言語で、読み上げられる",
   "home.accessibility.body":
-    "ウィンドウは Windows では UI Automation、macOS では NSAccessibility、Linux では AT-SPI2 に自らを公開するので、NVDA・VoiceOver・Orca は、アプリケーションがプラットフォームのコードを一行も書かずに Limn のインターフェースを説明します。名前はインターフェースが描くのと同じ I18nString で、ツールキットは出荷するすべての言語で各ロールの言葉を自前で持っています。キャプションは一回の呼び出しでコントロールに名前を与え、状態・値・動作・フォーカスはツールキットが公開します。",
+    "NVDA・VoiceOver・Orca は各プラットフォーム自身のアクセシビリティ API を通して Limn のウィンドウを読み上げます。アプリケーションにプラットフォーム固有のコードは不要です。各コントロールは、インターフェースの表示言語で、ロール・名前・状態とともに読み上げられます。コントロールに名前を付けるのは呼び出しひとつです。",
   "home.accessibility.link": "アクセシビリティガイドを読む",
   "home.accessibility.caption":
     "上のフォームを、スクリーンリーダーに伝えられるとおりに。このビルド中に取得。",

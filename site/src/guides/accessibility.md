@@ -40,9 +40,14 @@ control's name:
 
 {% snippet guide:a11y-labelled %}
 
+```java
+form.add(labelled(new I18nString("account.email", "Email"), email, email));
+```
+
 That is the whole idiom, and the form above uses it for every field: a screen reader says
-"Email, text field" and not "text field". The name is read at publish, so a caption whose text
-changes with the language renames what it labels.
+"Email, text field" and not "text field". The caption is an `I18nString`, like every text a
+component takes, and the name is read at publish: when the language changes, the caption and
+the name it gives change together.
 
 A control with no caption takes a name directly:
 
@@ -51,7 +56,7 @@ Slider volume = new Slider(0, 100);
 volume.setAccessibleName(new I18nString("player.volume", "Volume"));
 
 ScrollView chapters = new ScrollView(list);
-chapters.setAccessibleName("Chapters");
+chapters.setAccessibleName(new I18nString("library.chapters", "Chapters"));
 ```
 
 An icon-only button that has a tooltip is already named by it. A search field is named by its

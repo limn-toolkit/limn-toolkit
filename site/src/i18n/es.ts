@@ -66,15 +66,13 @@ export const es: Catalog = {
 
   "home.try.heading": "Pruébalo ahora",
   "home.try.body":
-    "El escaparate y el editor de temas, directamente desde Maven Central: nada que clonar, y nada que instalar salvo jbang, que también descarga un JDK si no tienes ninguno. Lo que se descarga es el toolkit, las fuentes y las bibliotecas nativas de esta máquina, no las de las otras cinco plataformas.",
+    "La demo y el editor de temas, directo desde Maven Central. Nada que clonar; jbang descarga un JDK si no tienes ninguno.",
   "home.try.osLabel": "Sistema operativo",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
   "home.try.windows": "Windows",
   "home.try.demoComment": "el escaparate",
   "home.try.editorComment": "el editor de temas",
-  "home.try.note":
-    "<code>-XstartOnFirstThread</code> es solo de macOS, y una JVM que lo reciba en cualquier otro sistema se niega a arrancar. Los alias ejecutan la versión más reciente; para fijar una, nombra la coordenada: <code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>. Sin red, la demo también es <a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">un solo archivo adjunto a cada versión</a>.",
 
   "home.install.eyebrow": "Cinco minutos",
   "home.install.heading": "Una dependencia y un método main",
@@ -82,7 +80,7 @@ export const es: Catalog = {
     "Sin lenguaje de marcado, sin procesador de anotaciones, sin complemento de compilación. Añade el backend, que trae el kit consigo, escribe Java normal y ya tienes una ventana.",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
-  "home.install.macos":
+  "home.try.macosNote":
     "En macOS la JVM necesita <code>-XstartOnFirstThread</code>. Es la única peculiaridad de plataforma con la que te toparás el primer día, así que está aquí y no a tres clics de distancia.",
   "home.install.more": "Leer la guía de instalación",
 
@@ -126,7 +124,7 @@ export const es: Catalog = {
 
   "home.languages.heading": "En los idiomas de tus usuarios",
   "home.languages.body":
-    "El texto se mide con los mismos avances con los que se dibuja, y el fallback de fuentes se ejecuta por carácter, así que latino, griego, cirílico y CJK se mezclan en una misma cadena sin que elijas una fuente. Árabe, hebreo, devanagari y tailandés se modelan dondequiera que haya texto, y la dirección es un eje que el subárbol hereda: una ventana en hebreo se refleja — filas, márgenes, barras de desplazamiento, flechas — y aún puede contener un panel de código de izquierda a derecha. Los métodos de entrada componen dentro del campo, la edición avanza por grupo de grafemas, y dígitos, ordenación y mayúsculas siguen al idioma.",
+    "Latino, griego, cirílico y CJK se mezclan en una misma cadena, y la fuente correcta se elige por carácter. Árabe, hebreo, devanagari y tailandés se dibujan con la forma correcta — letras unidas, ligaduras, diacríticos — y un idioma de derecha a izquierda refleja toda la ventana: filas, márgenes, barras de desplazamiento, flechas. Los métodos de entrada componen dentro del campo, y la edición avanza por grafema.",
   "home.languages.alt":
     "La misma pantalla capturada en japonés, chino simplificado, coreano y ruso, unida en una sola ventana.",
   "home.languages.link": "Lee la guía de texto",
@@ -135,7 +133,7 @@ export const es: Catalog = {
 
   "home.accessibility.heading": "Leído en voz alta, en esos mismos idiomas",
   "home.accessibility.body":
-    "Una ventana se publica en UI Automation en Windows, NSAccessibility en macOS y AT-SPI2 en Linux, así que NVDA, VoiceOver y Orca describen una interfaz Limn sin que tu aplicación escriba una línea de código de plataforma. Los nombres son las mismas I18nStrings que la interfaz dibuja, y el toolkit trae su propia palabra para cada rol en cada idioma que distribuye. Una etiqueta nombra su control con una llamada; estados, valores, verbos y foco se publican por ti.",
+    "NVDA, VoiceOver y Orca leen una ventana Limn a través de la API de accesibilidad de cada plataforma, sin código de plataforma en tu aplicación. Cada control se anuncia con su rol, su nombre y su estado, en el idioma en que se muestra la interfaz. Nombrar un control es una llamada.",
   "home.accessibility.link": "Lee la guía de accesibilidad",
   "home.accessibility.caption":
     "El formulario de arriba, tal como se lo cuentan a un lector de pantalla, capturado durante esta compilación.",

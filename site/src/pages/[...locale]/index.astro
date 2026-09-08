@@ -10,7 +10,7 @@
 import Page from "../../layouts/Page.astro";
 import Figure from "../../components/Figure.astro";
 import Screenshot from "../../components/Screenshot.astro";
-import { fillVersion, limnVersion } from "../../lib/version.mjs";
+import { limnVersion } from "../../lib/version.mjs";
 import CodeBlock from "../../components/CodeBlock.astro";
 import { localeRoutes, messages } from "../../i18n";
 import { localePath, type Locale } from "../../lib/i18n";
@@ -59,7 +59,6 @@ const systems = [
   { id: "linux", label: msg("home.try.linux"), code: aliases("") },
   { id: "windows", label: msg("home.try.windows"), code: aliases("") },
 ] as const;
-const tryNote = fillVersion(msg("home.try.note"));
 
 // The components row shows a handful of widgets rather than one, because "a set" is the
 // claim it is making. Picked for variety of shape, not for importance.
@@ -159,7 +158,9 @@ if (reader.length === 0) {
       <div class="try__copy">
         <h2>{msg("home.try.heading")}</h2>
         <p>{msg("home.try.body")}</p>
-        <p class="try__note"><Fragment set:html={tryNote} /></p>
+        <aside class="note">
+          <Fragment set:html={msg("home.try.macosNote")} />
+        </aside>
       </div>
       <div class="try__tabs" role="group" aria-label={msg("home.try.osLabel")}>
         {
@@ -199,9 +200,6 @@ if (reader.length === 0) {
       <div class="install">
         <div class="install__copy">
           <p class="lede">{msg("home.install.body")}</p>
-          <aside class="note">
-            <Fragment set:html={msg("home.install.macos")} />
-          </aside>
           <a class="arrow" href={`${base}docs/install/`}>{msg("home.install.more")}</a>
         </div>
         <div class="install__code">
@@ -432,11 +430,6 @@ if (reader.length === 0) {
     margin-block-start: 0.75rem;
     max-inline-size: 46ch;
     color: var(--limn-text-muted);
-  }
-
-  .try__note {
-    font-size: var(--text-sm);
-    line-height: 1.65;
   }
 
   .try__tabs {

@@ -575,8 +575,9 @@ public final class AccessibilityGallery {
         // #region guide:a11y-image
         ImageView logo = new ImageView(BLANK_PICTURE).setFit(ImageView.Fit.CONTAIN)
                 .setPreferredSize(96, 64);
-        logo.setAccessibleName("Limn logo");
-        logo.setAccessibleDescription("A monogram on a rounded square");
+        logo.setAccessibleName(new I18nString("about.logo", "Limn logo"));
+        logo.setAccessibleDescription(new I18nString("about.logoDescription",
+                "A monogram on a rounded square"));
         page.add(logo);
         Label caption = new Label("Illustration repeated by the caption beside it");
         ImageView decorative = new ImageView(BLANK_PICTURE).setPreferredSize(48, 48);
@@ -666,7 +667,12 @@ public final class AccessibilityGallery {
      * names nothing (§1.7).
      */
     private static Widget labelled(String caption, Widget control) {
-        return labelled(caption, control, control);
+        return labelled(I18nString.literal(caption), control, control);
+    }
+
+    /** The same, for a caption this gallery never translates. */
+    private static Widget labelled(String caption, Widget control, Widget placed) {
+        return labelled(I18nString.literal(caption), control, placed);
     }
 
     /**
@@ -674,7 +680,7 @@ public final class AccessibilityGallery {
      * the label must point at the control and not at the box around it.
      */
     // #region guide:a11y-labelled
-    private static Widget labelled(String caption, Widget control, Widget placed) {
+    static Widget labelled(I18nString caption, Widget control, Widget placed) {
         Column column = new Column();
         column.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
         column.add(new Label(caption).setLabelFor(control));

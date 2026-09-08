@@ -66,15 +66,13 @@ export const de: Catalog = {
 
   "home.try.heading": "Jetzt ausprobieren",
   "home.try.body":
-    "Die Auslage und der Theme-Editor, direkt von Maven Central: nichts zu klonen, und nichts zu installieren außer jbang, das auch ein JDK holt, wenn Sie keines haben. Heruntergeladen werden das Toolkit, die Schriften und die nativen Bibliotheken dieser Maschine, nicht die der anderen fünf Plattformen.",
+    "Die Demo und der Theme-Editor, direkt aus Maven Central. Nichts zu klonen; jbang lädt ein JDK, falls keines da ist.",
   "home.try.osLabel": "Betriebssystem",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
   "home.try.windows": "Windows",
   "home.try.demoComment": "die Auslage",
   "home.try.editorComment": "der Theme-Editor",
-  "home.try.note":
-    "<code>-XstartOnFirstThread</code> gibt es nur unter macOS, und eine JVM, die es anderswo bekommt, startet nicht. Die Aliasse starten die neueste Version; um eine festzunageln, nennen Sie die Koordinate: <code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>. Ohne Netz gibt es die Demo auch als <a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">eine Datei an jedem Release</a>.",
 
   "home.install.eyebrow": "Fünf Minuten",
   "home.install.heading": "Eine Abhängigkeit und eine main-Methode",
@@ -82,7 +80,7 @@ export const de: Catalog = {
     "Keine Auszeichnungssprache, kein Annotation Processor, kein Build-Plugin. Das Backend hinzufügen, das das Toolkit mitbringt, einfaches Java schreiben, und Sie haben ein Fenster.",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
-  "home.install.macos":
+  "home.try.macosNote":
     "Unter macOS braucht die JVM <code>-XstartOnFirstThread</code>. Das ist die eine Plattform-Eigenheit, die Ihnen am ersten Tag begegnet; deshalb steht sie hier und nicht drei Klicks tiefer.",
   "home.install.more": "Installationsanleitung lesen",
 
@@ -126,7 +124,7 @@ export const de: Catalog = {
 
   "home.languages.heading": "In den Sprachen Ihrer Nutzer",
   "home.languages.body":
-    "Text wird mit denselben Vorschüben gemessen, mit denen er gezeichnet wird, und der Schrift-Fallback läuft pro Zeichen: Lateinisch, Griechisch, Kyrillisch und CJK mischen sich in einer Zeichenkette, ohne dass Sie eine Schrift wählen. Arabisch, Hebräisch, Devanagari und Thai werden überall geformt, wo Text gezeichnet wird, und die Richtung ist eine Achse, die ein Teilbaum erbt: ein hebräisches Fenster spiegelt sich — Zeilen, Ränder, Bildlaufleisten, Pfeiltasten — und kann trotzdem einen Code-Bereich von links nach rechts enthalten. Eingabemethoden komponieren im Feld, die Bearbeitung bewegt sich nach Graphem-Clustern, und Ziffern, Sortierung und Groß- und Kleinschreibung folgen der Sprache.",
+    "Lateinisch, Griechisch, Kyrillisch und CJK mischen sich in einer Zeichenkette, und die passende Schrift wird pro Zeichen gewählt. Arabisch, Hebräisch, Devanagari und Thai werden korrekt geformt — verbundene Buchstaben, Ligaturen, diakritische Zeichen — und eine von rechts nach links laufende Sprache spiegelt das ganze Fenster: Zeilen, Ränder, Bildlaufleisten, Pfeiltasten. Eingabemethoden komponieren im Feld, und die Bearbeitung bewegt sich nach Graphemen.",
   "home.languages.alt":
     "Derselbe Bildschirm, aufgenommen auf Japanisch, vereinfachtem Chinesisch, Koreanisch und Russisch, zu einem Fenster zusammengesetzt.",
   "home.languages.link": "Zum Text-Leitfaden",
@@ -135,7 +133,7 @@ export const de: Catalog = {
 
   "home.accessibility.heading": "Vorgelesen, in denselben Sprachen",
   "home.accessibility.body":
-    "Ein Fenster veröffentlicht sich an UI Automation unter Windows, NSAccessibility unter macOS und AT-SPI2 unter Linux, sodass NVDA, VoiceOver und Orca eine Limn-Oberfläche beschreiben, ohne dass Ihre Anwendung eine Zeile Plattformcode schreibt. Namen sind dieselben I18nStrings, die die Oberfläche zeichnet, und das Toolkit bringt sein eigenes Wort für jede Rolle in jeder Sprache mit, die es ausliefert. Eine Beschriftung benennt ihr Steuerelement mit einem Aufruf; Zustände, Werte, Aktionen und Fokus werden für Sie veröffentlicht.",
+    "NVDA, VoiceOver und Orca lesen ein Limn-Fenster über die Barrierefreiheits-API der jeweiligen Plattform, ohne Plattformcode in Ihrer Anwendung. Jedes Steuerelement wird mit Rolle, Name und Zustand angesagt, in der Sprache, in der die Oberfläche angezeigt wird. Ein Steuerelement zu benennen ist ein Aufruf.",
   "home.accessibility.link": "Zum Leitfaden zur Barrierefreiheit",
   "home.accessibility.caption":
     "Das Formular oben, so wie es einem Screenreader mitgeteilt wird, aufgenommen während dieses Builds.",

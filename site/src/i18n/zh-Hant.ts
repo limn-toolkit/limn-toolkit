@@ -64,15 +64,13 @@ export const zhHant: Catalog = {
 
   "home.try.heading": "立刻試試",
   "home.try.body":
-    "陳列和主題編輯器，直接來自 Maven Central：沒有什麼要複製，也沒有什麼要裝，除了 jbang；你要是沒有 JDK，它連 JDK 一起取來。下載的是工具組、字型，以及這台機器的原生程式庫，另外五個平台的不會下載。",
+    "示範與主題編輯器，直接來自 Maven Central。無需複製；沒有 JDK 時 jbang 會自動取得。",
   "home.try.osLabel": "作業系統",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
   "home.try.windows": "Windows",
   "home.try.demoComment": "陳列",
   "home.try.editorComment": "主題編輯器",
-  "home.try.note":
-    "<code>-XstartOnFirstThread</code> 只有 macOS 認得，別的系統上的 JVM 收到它會拒絕啟動。別名跑的是最新發行版；想固定某個版本，就寫座標：<code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>。沒有網路時，展示程式也是<a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">附在每次發行裡的一個檔案</a>。",
 
   "home.install.eyebrow": "五分鐘",
   "home.install.heading": "一個相依套件和一個 main 方法",
@@ -80,7 +78,7 @@ export const zhHant: Catalog = {
     "沒有標記語言，沒有註解處理器，沒有建置外掛。加上後端，它會把工具組一起帶來，寫普通的 Java，你就有了一個視窗。",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
-  "home.install.macos":
+  "home.try.macosNote":
     "在 macOS 上，JVM 需要 <code>-XstartOnFirstThread</code>。這是你第一天就會遇到的唯一平台怪癖，所以它寫在這裡，而不是三次點擊之外。",
   "home.install.more": "閱讀安裝指南",
 
@@ -123,7 +121,7 @@ export const zhHant: Catalog = {
 
   "home.languages.heading": "用你的使用者的語言",
   "home.languages.body":
-    "文字以繪製時相同的字距度量，字型回退逐字進行，因此拉丁、希臘、西里爾與中日韓文字混在同一個字串裡也無需你挑選字體。阿拉伯文、希伯來文、天城文和泰文在任何繪製文字的地方都會被塑形，而方向是子樹繼承的一條軸：希伯來語視窗整體鏡像——列、邊距、捲軸、方向鍵——同時仍能容納一塊由左至右的程式碼窗格。輸入法在欄位內組字，編輯按字素簇移動，數字、排序和大小寫跟隨語言。",
+    "拉丁、希臘、西里爾與中日韓文字可混在同一個字串裡，字型逐字選擇。阿拉伯文、希伯來文、天城文和泰文會被正確塑形——連寫、合字、附加符號——由右至左的語言則讓整個視窗鏡像：列、邊距、捲軸、方向鍵。輸入法在欄位內組字，編輯按字素移動。",
   "home.languages.alt":
     "同一個介面分別用日語、簡體中文、韓語與俄語擷取，拼接成一個視窗。",
   "home.languages.link": "閱讀文字指南",
@@ -131,7 +129,7 @@ export const zhHant: Catalog = {
 
   "home.accessibility.heading": "用同樣的語言，讀出來",
   "home.accessibility.body":
-    "視窗把自己發布到 Windows 的 UI Automation、macOS 的 NSAccessibility 和 Linux 的 AT-SPI2，因此 NVDA、VoiceOver 和 Orca 無需你的應用程式寫一行平台程式碼就能描述 Limn 介面。名稱就是介面繪製所用的同一批 I18nString，工具組為它交付的每種語言裡的每個角色都自帶用詞。一個標題一次呼叫就為控制項命名；狀態、數值、動作和焦點由工具組代為發布。",
+    "NVDA、VoiceOver 和 Orca 透過各平台自己的無障礙 API 讀取 Limn 視窗，你的應用程式無需任何平台程式碼。每個控制項都以介面所用的語言，連同角色、名稱和狀態被朗讀。為控制項命名只需一次呼叫。",
   "home.accessibility.link": "閱讀無障礙指南",
   "home.accessibility.caption":
     "上面的表單，正如螢幕閱讀器被告知的那樣，在本次建置中擷取。",

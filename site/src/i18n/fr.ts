@@ -66,15 +66,13 @@ export const fr: Catalog = {
 
   "home.try.heading": "Essayez tout de suite",
   "home.try.body":
-    "La vitrine et l’éditeur de thèmes, directement depuis Maven Central : rien à cloner, et rien à installer sinon jbang, qui télécharge aussi un JDK si vous n’en avez pas. Ce qui se télécharge, c’est le toolkit, les polices et les bibliothèques natives de cette machine, pas celles des cinq autres plateformes.",
+    "La démo et l’éditeur de thèmes, directement depuis Maven Central. Rien à cloner ; jbang télécharge un JDK si vous n’en avez pas.",
   "home.try.osLabel": "Système d’exploitation",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
   "home.try.windows": "Windows",
   "home.try.demoComment": "la vitrine",
   "home.try.editorComment": "l’éditeur de thèmes",
-  "home.try.note":
-    "<code>-XstartOnFirstThread</code> n’existe que sur macOS, et une JVM qui le reçoit ailleurs refuse de démarrer. Les alias lancent la version la plus récente ; pour en figer une, nommez la coordonnée : <code>jbang io.github.limn-toolkit:limn-demo:{{version}}</code>. Sans réseau, la démo existe aussi en <a href=\"https://github.com/limn-toolkit/limn-toolkit/releases/latest\">un seul fichier joint à chaque version</a>.",
 
   "home.install.eyebrow": "Cinq minutes",
   "home.install.heading": "Une dépendance et une méthode main",
@@ -82,7 +80,7 @@ export const fr: Catalog = {
     "Pas de langage de balisage, pas de processeur d’annotations, pas de greffon de build. Ajoutez le backend, qui apporte la boîte à outils avec lui, écrivez du Java ordinaire, et vous avez une fenêtre.",
   "home.install.gradleLabel": "build.gradle.kts",
   "home.install.helloLabel": "Main.java",
-  "home.install.macos":
+  "home.try.macosNote":
     "Sur macOS, la JVM a besoin de <code>-XstartOnFirstThread</code>. C’est la seule particularité de plateforme que vous rencontrerez dès le premier jour : elle est donc ici, et non à trois clics de profondeur.",
   "home.install.more": "Lire le guide d’installation",
 
@@ -126,7 +124,7 @@ export const fr: Catalog = {
 
   "home.languages.heading": "Dans les langues de vos utilisateurs",
   "home.languages.body":
-    "Le texte est mesuré avec les mêmes avances que celles avec lesquelles il est dessiné, et le repli de police s’applique caractère par caractère : latin, grec, cyrillique et CJC se mêlent dans une même chaîne sans que vous choisissiez une fonte. L’arabe, l’hébreu, la devanagari et le thaï sont façonnés partout où du texte est dessiné, et la direction est un axe que le sous-arbre hérite : une fenêtre en hébreu se reflète — lignes, marges, barres de défilement, flèches — et peut encore contenir un volet de code de gauche à droite. Les méthodes de saisie composent dans le champ, l’édition avance par groupe de graphèmes, et chiffres, tri et casse suivent la langue.",
+    "Latin, grec, cyrillique et CJC se mêlent dans une même chaîne, et la bonne police est choisie caractère par caractère. L’arabe, l’hébreu, la devanagari et le thaï sont façonnés correctement — lettres liées, ligatures, diacritiques — et une langue de droite à gauche reflète toute la fenêtre : lignes, marges, barres de défilement, flèches. Les méthodes de saisie composent dans le champ, et l’édition avance par graphème.",
   "home.languages.alt":
     "Le même écran capturé en japonais, chinois simplifié, coréen et russe, assemblé en une seule fenêtre.",
   "home.languages.link": "Lire le guide du texte",
@@ -135,7 +133,7 @@ export const fr: Catalog = {
 
   "home.accessibility.heading": "Lu à voix haute, dans ces mêmes langues",
   "home.accessibility.body":
-    "Une fenêtre se publie auprès de UI Automation sous Windows, de NSAccessibility sous macOS et d’AT-SPI2 sous Linux : NVDA, VoiceOver et Orca décrivent une interface Limn sans que votre application n’écrive une ligne de code de plate-forme. Les noms sont les mêmes I18nStrings que l’interface dessine, et la bibliothèque porte son propre mot pour chaque rôle dans chaque langue qu’elle livre. Une légende nomme son contrôle en un appel ; états, valeurs, verbes et focus sont publiés pour vous.",
+    "NVDA, VoiceOver et Orca lisent une fenêtre Limn par l’API d’accessibilité de chaque plate-forme, sans code de plate-forme dans votre application. Chaque contrôle est annoncé avec son rôle, son nom et son état, dans la langue d’affichage de l’interface. Nommer un contrôle, c’est un appel.",
   "home.accessibility.link": "Lire le guide d’accessibilité",
   "home.accessibility.caption":
     "Le formulaire ci-dessus, tel qu’un lecteur d’écran en est informé, capturé pendant cette compilation.",
