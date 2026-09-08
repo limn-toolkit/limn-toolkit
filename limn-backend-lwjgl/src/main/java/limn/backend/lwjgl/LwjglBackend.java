@@ -5,6 +5,7 @@ import limn.backend.CrashPhase;
 import limn.backend.Crashes;
 import limn.backend.Cursor;
 import limn.backend.NativeWindow;
+import limn.backend.Platform;
 import limn.backend.WindowConfig;
 import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
@@ -213,7 +214,7 @@ public final class LwjglBackend implements Backend {
             LOG.log(Level.WARNING, "{0}=''{1}'' is not x11, wayland or any; ignoring it",
                     PLATFORM_PROPERTY, requested);
         }
-        if (isMacOs() || isWindows(System.getProperty("os.name", ""))) {
+        if (Platform.current().isMacOs() || Platform.current().isWindows()) {
             return;
         }
         String waylandDisplay = System.getenv("WAYLAND_DISPLAY");
@@ -300,20 +301,8 @@ public final class LwjglBackend implements Backend {
                 && glfwGetPlatform() != GLFW_PLATFORM_WAYLAND;
     }
 
-    private static boolean isMacOs() {
-        return isMacOs(System.getProperty("os.name", ""));
-    }
-
-    private static boolean isMacOs(String osName) {
-        return osName.toLowerCase(java.util.Locale.ROOT).contains("mac");
-    }
-
-    private static boolean isWindows(String osName) {
-        return osName.toLowerCase(java.util.Locale.ROOT).contains("win");
-    }
-
     private static String startupAdvice() {
-        return startupAdvice(System.getProperty("os.name", ""), System.getenv("DISPLAY"),
+        return startupAdvice(Platform.current().os(), System.getenv("DISPLAY"),
                 System.getenv("WAYLAND_DISPLAY"));
     }
 
@@ -334,13 +323,13 @@ public final class LwjglBackend implements Backend {
      *
      * @return advice beginning with its own separator, or an empty string where none applies
      */
-    static String startupAdvice(String osName, String display, String waylandDisplay) {
-        if (isMacOs(osName)) {
+    static String startupAdvice(Platform.Os os, String display, String waylandDisplay) {
+        if (os == Platform.Os.MACOS) {
             return "; on macOS the JVM must run with -XstartOnFirstThread";
         }
         // Windows selects the one platform it has without consulting either variable, so their
         // absence there is the normal case and says nothing about why GLFW refused.
-        if (isWindows(osName)) {
+        if (os == Platform.Os.WINDOWS) {
             return "";
         }
         if (isUnset(display) && isUnset(waylandDisplay)) {

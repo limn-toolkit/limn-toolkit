@@ -4,7 +4,7 @@ import limn.backend.AccessibilityBridge;
 import limn.backend.lwjgl.a11y.linux.AtspiBridge;
 import limn.backend.lwjgl.a11y.macos.AxBridge;
 import limn.backend.lwjgl.a11y.windows.UiaBridge;
-import org.lwjgl.system.Platform;
+import limn.backend.Platform;
 
 /**
  * Picks the accessibility bridge for the machine this window is on, or none.
@@ -77,9 +77,9 @@ public final class Bridges {
             return AccessibilityBridge.NONE;
         }
         try {
-            return switch (Platform.get()) {
+            return switch (Platform.current().os()) {
                 case WINDOWS -> UiaBridge.openIfEnabled(nativeHandle);
-                case MACOSX -> AxBridge.openIfEnabled(nativeHandle);
+                case MACOS -> AxBridge.openIfEnabled(nativeHandle);
                 // The one that needs no handle: it addresses nodes by object path over a socket and
                 // never touches the window.
                 case LINUX -> AtspiBridge.openIfEnabled(applicationName);

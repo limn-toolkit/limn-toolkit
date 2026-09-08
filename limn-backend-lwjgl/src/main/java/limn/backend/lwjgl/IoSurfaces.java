@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.backend.Platform;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.libffi.FFICIF;
@@ -77,7 +78,7 @@ final class IoSurfaces {
 
     static {
         String problem = null;
-        if (!System.getProperty("os.name", "").startsWith("Mac")) {
+        if (!Platform.current().isMacOs()) {
             problem = "IOSurface is a macOS interface";
         } else {
             try {

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
+import limn.backend.Platform;
 
 /**
  * Finds and loads the native library the FFmpeg decoder needs, and answers whether it is there.
@@ -195,30 +196,27 @@ public final class FfmpegLibrary {
 
     /** @return {@code macos-aarch64} and the like: the directory this machine's build lives in */
     public static String platform() {
-        return platformFor(System.getProperty("os.name", ""), System.getProperty("os.arch", ""));
+        return platformFor(Platform.current());
     }
 
     /**
-     * The directory name for a given {@code os.name} and {@code os.arch}.
+     * The directory name for a given platform: the family's short name and the JVM's
+     * architecture, joined by a hyphen.
      *
-     * <p>Note which architecture is being asked about: <b>the JVM's, never the machine's.</b> An
-     * x86_64 JVM under Rosetta on an Apple Silicon Mac reports {@code os.arch=x86_64} and can load
-     * only an x86_64 library; asking the machine would find arm64, hand the JVM a library it
-     * cannot map, and produce an UnsatisfiedLinkError that names no cause. The same holds for a
-     * 32-bit JVM on a 64-bit Windows install.
+     * <p>{@link Platform} is what settles that the architecture is <b>the JVM's, never the
+     * machine's</b> — an x86_64 JVM under Rosetta can load only an x86_64 library — and what folds
+     * {@code arm64} and {@code aarch64} into one spelling. What is decided here is only the
+     * vocabulary of the directory names, and that anything that is not macOS or Windows looks in
+     * the Linux build: the BSDs are not a platform this payload is built for, and "no library for
+     * linux-x86_64" is a truer report there than a directory name nobody ships.
      */
-    static String platformFor(String osName, String osArch) {
-        String name = osName.toLowerCase(java.util.Locale.ROOT);
-        String os = name.contains("mac") || name.contains("darwin") ? "macos"
-                : name.contains("win") ? "windows"
-                : "linux";
-        String machine = osArch.toLowerCase(java.util.Locale.ROOT);
-        String arch = switch (machine) {
-            case "x86_64", "amd64" -> "x86_64";
-            case "aarch64", "arm64" -> "aarch64";
-            default -> machine;
+    static String platformFor(Platform platform) {
+        String os = switch (platform.os()) {
+            case MACOS -> "macos";
+            case WINDOWS -> "windows";
+            default -> "linux";
         };
-        return os + "-" + arch;
+        return os + "-" + platform.arch();
     }
 
     // ------------------------------------------------------------------ the three routes

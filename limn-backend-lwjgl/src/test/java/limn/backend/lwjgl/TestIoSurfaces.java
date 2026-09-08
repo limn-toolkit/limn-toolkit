@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.backend.Platform;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.libffi.FFICIF;
@@ -49,7 +50,7 @@ final class TestIoSurfaces {
 
     /** @return whether a pixel buffer can be created here at all */
     static boolean isAvailable() {
-        if (!System.getProperty("os.name", "").startsWith("Mac")) {
+        if (!Platform.current().isMacOs()) {
             return false;
         }
         return frameworks() && IoSurfaces.isAvailable();

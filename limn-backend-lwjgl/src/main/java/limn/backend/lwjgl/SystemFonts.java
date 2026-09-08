@@ -1,6 +1,6 @@
 package limn.backend.lwjgl;
 
-import org.lwjgl.system.Platform;
+import limn.backend.Platform;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -62,8 +62,8 @@ final class SystemFonts {
 
     private static List<Path> fontDirectories() {
         String home = System.getProperty("user.home", "");
-        return switch (Platform.get()) {
-            case MACOSX -> List.of(
+        return switch (Platform.current().os()) {
+            case MACOS -> List.of(
                     Path.of("/System/Library/Fonts"),
                     Path.of("/Library/Fonts"),
                     Path.of(home, "Library/Fonts"));

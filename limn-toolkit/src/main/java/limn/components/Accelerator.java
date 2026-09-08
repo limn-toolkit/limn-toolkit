@@ -1,8 +1,8 @@
 package limn.components;
 
+import limn.backend.Platform;
 import limn.input.Keys;
 
-import java.util.Locale;
 
 /**
  * A keyboard shortcut for a {@link MenuItem}: one key plus the modifier mask that must be
@@ -42,12 +42,12 @@ public record Accelerator(int key, int modifiers) {
             Keys.MOD_SHIFT | Keys.MOD_CONTROL | Keys.MOD_ALT | Keys.MOD_SUPER;
 
     /**
-     * The one platform test in the toolkit's menu system. Everything per-platform an
-     * accelerator does (which modifier {@link #command} means, and how {@link #display}
-     * spells the mask) is a function of this field, so there is exactly one place to change
-     * when a platform is added and no second answer to drift from it.
+     * The one platform test in the toolkit's menu system, read from {@link Platform} so that it
+     * is the same answer every other module gives. Everything per-platform an accelerator does
+     * (which modifier {@link #command} means, and how {@link #display} spells the mask) is a
+     * function of this field.
      */
-    private static final boolean MAC = isMac(System.getProperty("os.name", ""));
+    private static final boolean MAC = Platform.current().isMacOs();
 
     /**
      * @param key       a {@link Keys} key code: the physical key, so {@code Keys.S} and
@@ -153,11 +153,6 @@ public record Accelerator(int key, int modifiers) {
             out.append("Meta+");
         }
         return out.append(keyName(key, false)).toString();
-    }
-
-    /** The platform test itself, as a pure function of {@code os.name} so both branches are testable. */
-    static boolean isMac(String osName) {
-        return osName.toLowerCase(Locale.ROOT).contains("mac");
     }
 
     /**

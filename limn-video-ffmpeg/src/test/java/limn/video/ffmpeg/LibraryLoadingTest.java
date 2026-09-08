@@ -1,5 +1,6 @@
 package limn.video.ffmpeg;
 
+import limn.backend.Platform;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -41,20 +42,20 @@ class LibraryLoadingTest {
 
     @Test
     void theDirectoryNameFollowsTheJvmAndNotTheMachine() {
-        assertEquals("macos-aarch64", FfmpegLibrary.platformFor("Mac OS X", "aarch64"));
-        assertEquals("linux-x86_64", FfmpegLibrary.platformFor("Linux", "amd64"));
-        assertEquals("windows-x86_64", FfmpegLibrary.platformFor("Windows 11", "amd64"));
-        assertEquals("windows-aarch64", FfmpegLibrary.platformFor("Windows 11", "aarch64"));
+        assertEquals("macos-aarch64", FfmpegLibrary.platformFor(Platform.of("Mac OS X", "aarch64")));
+        assertEquals("linux-x86_64", FfmpegLibrary.platformFor(Platform.of("Linux", "amd64")));
+        assertEquals("windows-x86_64", FfmpegLibrary.platformFor(Platform.of("Windows 11", "amd64")));
+        assertEquals("windows-aarch64", FfmpegLibrary.platformFor(Platform.of("Windows 11", "aarch64")));
 
         // The case this project actually hit, and the reason the JVM is asked rather than the
         // machine: an x86_64 JDK under Rosetta on an Apple Silicon Mac. `uname -m` says arm64 and
         // os.arch says x86_64, and the library that can be loaded is the one os.arch names.
-        assertEquals("macos-x86_64", FfmpegLibrary.platformFor("Mac OS X", "x86_64"));
+        assertEquals("macos-x86_64", FfmpegLibrary.platformFor(Platform.of("Mac OS X", "x86_64")));
 
         // aarch64 and arm64 are one machine under two names, and Java's spelling wins because the
         // loader is what has to find the directory.
-        assertEquals(FfmpegLibrary.platformFor("Linux", "aarch64"),
-                FfmpegLibrary.platformFor("Linux", "arm64"));
+        assertEquals(FfmpegLibrary.platformFor(Platform.of("Linux", "aarch64")),
+                FfmpegLibrary.platformFor(Platform.of("Linux", "arm64")));
     }
 
     @Test
@@ -127,7 +128,8 @@ class LibraryLoadingTest {
     void aBuildWithNoNativeForThisPlatformReportsItAndDoesNotThrow() throws Exception {
         // A class loader over the compiled classes but NOT the payload jars: exactly what an
         // application that added no natives-<os>-<arch> classifier sees.
-        try (URLClassLoader isolated = new URLClassLoader(new URL[] {classesLocation()},
+        try (URLClassLoader isolated = new URLClassLoader(
+                new URL[] {classesLocation(), toolkitLocation()},
                 ClassLoader.getPlatformClassLoader())) {
             Class<?> library = isolated.loadClass(FfmpegLibrary.class.getName());
             Object available = library.getMethod("isAvailable").invoke(null);
@@ -183,7 +185,7 @@ class LibraryLoadingTest {
             org.junit.jupiter.api.Assumptions.assumeFalse(canWriteInto(locked),
                     "this JVM can write to a directory marked read-only");
             String failure = loadIsolatedWith(FfmpegLibrary.CACHE_PROPERTY, locked.toString(),
-                    classesLocation(), resourcesLocation());
+                    classesLocation(), toolkitLocation(), resourcesLocation());
             // Only meaningful where this build actually carries a native to extract; where it does
             // not, the earlier "no native for this platform" answer is the one that comes back,
             // and it is equally non-throwing.
@@ -378,7 +380,8 @@ class LibraryLoadingTest {
     /** @return the isolated loader's {@code failure()}, having asserted it did not load or throw */
     private String loadIsolatedWith(String property, String value, URL... classpath)
             throws Exception {
-        URL[] urls = classpath.length > 0 ? classpath : new URL[] {classesLocation()};
+        URL[] urls = classpath.length > 0 ? classpath
+                : new URL[] {classesLocation(), toolkitLocation()};
         String previous = System.getProperty(property);
         System.setProperty(property, value);
         try (URLClassLoader isolated = new URLClassLoader(urls,
@@ -398,6 +401,16 @@ class LibraryLoadingTest {
 
     private static URL classesLocation() {
         return FfmpegLibrary.class.getProtectionDomain().getCodeSource().getLocation();
+    }
+
+    /**
+     * The toolkit's classes, which the loader reads {@link Platform} from. The isolation these
+     * tests want is from the PAYLOAD jars, never from the toolkit: an application always has both
+     * modules, and a loader that saw the decoder without its dependency would be testing a
+     * classpath nobody runs.
+     */
+    private static URL toolkitLocation() {
+        return Platform.class.getProtectionDomain().getCodeSource().getLocation();
     }
 
     /** Where the natives would be, if this build has any. */

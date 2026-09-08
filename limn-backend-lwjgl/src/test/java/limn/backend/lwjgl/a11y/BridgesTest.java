@@ -26,7 +26,7 @@ class BridgesTest {
         // on, which is a property of the machine and not of this code.
         AccessibilityBridge bridge = Bridges.openFor(0, "a test");
         assertNotNull(bridge, "there is always a bridge object, even when it is NONE");
-        if (org.lwjgl.system.Platform.get() != org.lwjgl.system.Platform.LINUX) {
+        if (!limn.backend.Platform.current().isLinux()) {
             assertSame(AccessibilityBridge.NONE, bridge);
         }
     }
@@ -85,7 +85,7 @@ class BridgesTest {
             // one, and on Linux whatever the desktop says, which is the machine's and not asserted.
             AccessibilityBridge bridge = Bridges.openFor(0, "a test");
             assertNotNull(bridge);
-            if (org.lwjgl.system.Platform.get() != org.lwjgl.system.Platform.LINUX) {
+            if (!limn.backend.Platform.current().isLinux()) {
                 assertSame(AccessibilityBridge.NONE, bridge);
             }
         }

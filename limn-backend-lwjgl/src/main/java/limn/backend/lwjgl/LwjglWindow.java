@@ -16,7 +16,7 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
-import org.lwjgl.system.Platform;
+import limn.backend.Platform;
 
 import java.lang.System.Logger.Level;
 import java.nio.ByteBuffer;
@@ -489,7 +489,7 @@ final class LwjglWindow implements NativeWindow {
      * legitimate answer and a bridge that gets one will decline to open.
      *
      * <p><b>Asked of the WINDOWING platform and not of the operating system</b>, which is not the
-     * same question on Linux and used not to be distinguished here. {@code Platform.get()} answers
+     * same question on Linux and used not to be distinguished here. {@code Platform.current()} answers
      * LINUX for a Wayland session as readily as for an X11 one, and
      * {@code glfwGetX11Window} on a Wayland session is not zero but an error —
      * {@code GLFW_PLATFORM_UNAVAILABLE, "X11: Platform not initialized"}. That went unnoticed while
@@ -934,7 +934,7 @@ final class LwjglWindow implements NativeWindow {
         if (destroyed || icons == null || icons.length == 0) {
             return;
         }
-        if (Platform.get() == Platform.MACOSX) {
+        if (MACOS) {
             return; // macOS windows have no per-window icon (the app bundle's is used)
         }
         // Icon pixels go on the heap, not the MemoryStack: a 256px RGBA icon
@@ -1419,8 +1419,7 @@ final class LwjglWindow implements NativeWindow {
         }
     }
 
-    private static final boolean MACOS =
-            System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac");
+    private static final boolean MACOS = Platform.current().isMacOs();
     // NSFloatingWindowLevel (GLFW's always-on-top) sits at 3, below the Dock
     // (kCGDockWindowLevel 20) and the menu bar (kCGMainMenuWindowLevel 24). To
     // cover them we jump to NSPopUpMenuWindowLevel (101): clear above both, still

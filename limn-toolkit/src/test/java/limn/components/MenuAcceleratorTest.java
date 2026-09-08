@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.backend.Platform;
 import limn.input.Keys;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -308,11 +309,8 @@ class MenuAcceleratorTest extends ComponentTestBase {
 
     @Test
     void theCommandFormIsThePlatformsOwnModifier() {
-        assertEquals(Accelerator.isMac(System.getProperty("os.name", ""))
+        assertEquals(Platform.current().isMacOs()
                 ? Keys.MOD_SUPER : Keys.MOD_CONTROL, Accelerator.commandModifier());
-        assertTrue(Accelerator.isMac("Mac OS X"));
-        assertFalse(Accelerator.isMac("Windows 11"));
-        assertFalse(Accelerator.isMac("Linux"));
     }
 
     @Test

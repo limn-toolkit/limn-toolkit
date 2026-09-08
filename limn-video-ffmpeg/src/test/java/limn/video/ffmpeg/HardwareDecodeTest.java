@@ -1,5 +1,6 @@
 package limn.video.ffmpeg;
 
+import limn.backend.Platform;
 import limn.video.PixelFormat;
 import limn.video.VideoFrame;
 import limn.video.VideoStreamSource;
@@ -58,7 +59,7 @@ class HardwareDecodeTest {
     @Test
     void theAcceleratorsTheConfigureLineNamesAreTheOnesTheLibraryHolds() {
         FfmpegTests.requireLibrary();
-        assumeTrue(System.getProperty("os.name", "").startsWith("Mac"),
+        assumeTrue(Platform.current().isMacOs(),
                 "VideoToolbox is an Apple framework; Windows and Linux acceleration is phase 6b");
 
         // Tier 2, and it exists because --enable-videotoolbox switches on the FRAMEWORK and not one

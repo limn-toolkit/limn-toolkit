@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.backend.Platform;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -67,7 +68,7 @@ class PlatformSelectionTest {
      */
     @Test
     void aLinuxWithNoDisplayServerIsToldWhichVariablesWereEmpty() {
-        String advice = LwjglBackend.startupAdvice("Linux", null, null);
+        String advice = LwjglBackend.startupAdvice(Platform.Os.LINUX, null, null);
 
         assertTrue(advice.contains("DISPLAY"), advice);
         assertTrue(advice.contains("WAYLAND_DISPLAY"), advice);
@@ -77,8 +78,8 @@ class PlatformSelectionTest {
     /** A session exists, so its absence is not the reason and saying so would send a reader off. */
     @Test
     void aLinuxWithASessionIsToldNothingAboutIt() {
-        assertEquals("", LwjglBackend.startupAdvice("Linux", ":0", null));
-        assertEquals("", LwjglBackend.startupAdvice("Linux", null, "wayland-0"));
+        assertEquals("", LwjglBackend.startupAdvice(Platform.Os.LINUX, ":0", null));
+        assertEquals("", LwjglBackend.startupAdvice(Platform.Os.LINUX, null, "wayland-0"));
     }
 
     /**
@@ -88,13 +89,13 @@ class PlatformSelectionTest {
      */
     @Test
     void windowsIsNeverToldToExportADisplay() {
-        assertEquals("", LwjglBackend.startupAdvice("Windows 11", null, null));
+        assertEquals("", LwjglBackend.startupAdvice(Platform.Os.WINDOWS, null, null));
     }
 
     /** macOS keeps the advice it always had: there, an unstarted GLFW is a thread, not a session. */
     @Test
     void macOsIsToldAboutTheFirstThread() {
-        assertTrue(LwjglBackend.startupAdvice("Mac OS X", null, null)
+        assertTrue(LwjglBackend.startupAdvice(Platform.Os.MACOS, null, null)
                 .contains("-XstartOnFirstThread"));
     }
 }

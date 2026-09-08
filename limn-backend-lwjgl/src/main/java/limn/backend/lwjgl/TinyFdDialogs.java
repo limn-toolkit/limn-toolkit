@@ -3,7 +3,7 @@ package limn.backend.lwjgl;
 import limn.backend.FileDialogs;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.system.Platform;
+import limn.backend.Platform;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
 import java.io.File;
@@ -145,7 +145,7 @@ final class TinyFdDialogs implements FileDialogs {
      */
     private static MacFilterPatterns.Bounded bound(String title, Path initial) {
         String location = initialPath(initial);
-        return Platform.get() == Platform.WINDOWS
+        return Platform.current().isWindows()
                 ? new MacFilterPatterns.Bounded(title, location)
                 : MacFilterPatterns.fit(title, location);
     }
@@ -167,7 +167,7 @@ final class TinyFdDialogs implements FileDialogs {
             return null;
         }
         List<String> patterns = filter.patterns();
-        if (Platform.get() == Platform.MACOSX) {
+        if (Platform.current().isMacOs()) {
             // macOS reads each pattern minus a leading "*." and matches the
             // dialog's type list by UTI, not filename: patterns too short to
             // strip are dropped first (a bare "*" voids the whole filter), then

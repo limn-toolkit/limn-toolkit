@@ -8,7 +8,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.lwjgl.system.Platform;
+import limn.backend.Platform;
 
 import java.util.List;
 import java.util.Set;
@@ -77,7 +77,7 @@ class SystemFontCatalogTest {
             assertTrue(enumerated.containsAll(atStartup), "and take none of them away");
             Set<String> distinct = new java.util.HashSet<>(enumerated);
             assertTrue(distinct.size() == enumerated.size(), "a family is listed once: " + enumerated);
-            if (Platform.get() == Platform.MACOSX) {
+            if (Platform.current().isMacOs()) {
                 // Two faces every macOS ships in /System/Library/Fonts, one of them a .ttc: the
                 // names a designer looks for first, and the two file shapes the parser must read.
                 assertTrue(enumerated.contains("Helvetica Neue"), "Helvetica Neue in " + enumerated);
