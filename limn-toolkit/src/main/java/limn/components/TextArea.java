@@ -16,7 +16,6 @@ import limn.graphics.TextRuler;
 import limn.i18n.I18n;
 import limn.input.Keys;
 import limn.scene.Constraints;
-import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.CharEvent;
@@ -396,10 +395,6 @@ public class TextArea extends Widget {
         return Math.max(0, width() - 2 * t.fieldPadH() - gutters.verticalStrip());
     }
 
-    /** Whether this area reads right to left. Resolve it once per pass. */
-    private boolean isRtl() {
-        return layoutDirection() == LayoutDirection.RTL;
-    }
 
     /**
      * Physical left edge of the text column: the pad, plus the vertical bar's strip when that
@@ -408,7 +403,7 @@ public class TextArea extends Widget {
      * takes and never which side takes it, so the side is resolved here.
      */
     private float columnLeft(SizeTokens t) {
-        return t.fieldPadH() + (isRtl() ? gutters.verticalStrip() : 0);
+        return t.fieldPadH() + (isRightToLeft() ? gutters.verticalStrip() : 0);
     }
 
     /**
@@ -421,7 +416,7 @@ public class TextArea extends Widget {
      * {@link ScrollView} uses: zero is the leading edge and the offset is a distance travelled.
      */
     private float contentOriginX(SizeTokens t) {
-        return isRtl()
+        return isRightToLeft()
                 ? columnLeft(t) + viewWidth(t) - contentWidth(t) + scrollX
                 : columnLeft(t) - scrollX;
     }
@@ -443,7 +438,7 @@ public class TextArea extends Widget {
      * text column, so that edge is the column's own right edge.
      */
     private float rowOriginX(ShapedText row, SizeTokens t) {
-        return isRtl() ? contentWidth(t) - row.metrics().width() : 0;
+        return isRightToLeft() ? contentWidth(t) - row.metrics().width() : 0;
     }
 
     private float viewHeight(SizeTokens t) {
@@ -695,7 +690,7 @@ public class TextArea extends Widget {
         float hLen = Math.max(0, reserved ? width() - gutters.verticalStrip() : width() - t);
         // The vertical bar sits on the side reading ends on, and the horizontal one starts
         // after whatever strip that leaves, so the clear corner square is on the bar's own side.
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
         vBar.measure(Constraints.tight(t, vLen));
         vBar.layoutBox(rtl ? 0 : width() - t, 0, t, vLen);
         hBar.measure(Constraints.tight(hLen, t));
@@ -1537,7 +1532,7 @@ public class TextArea extends Widget {
             wanted = cx;
         }
         if (wanted != view) {
-            scrollX = isRtl() ? contentWidth(t) - viewWidth(t) - wanted : wanted;
+            scrollX = isRightToLeft() ? contentWidth(t) - viewWidth(t) - wanted : wanted;
         }
         if (cy + lineHeight - scrollY > viewHeight(t)) {
             scrollY = cy + lineHeight - viewHeight(t);

@@ -18,7 +18,6 @@ import limn.graphics.TextMetrics;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.Insets;
-import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -292,7 +291,7 @@ final class ControlSizeAuditScene {
                     ? row.targets + " targets, all pass"
                     : row.targets + " targets, " + row.belowFloor + " short";
             TextMetrics m = canvas.measureText(text, t.label());
-            float x = layoutDirection() == LayoutDirection.RTL ? 0 : width() - m.width();
+            float x = isRightToLeft() ? 0 : width() - m.width();
             // Optical centring on the row: the visual middle of a line of text is the middle of
             // its ink box, which sits above the baseline by (ascent - descent) / 2.
             canvas.drawText(text, x, centreY + (m.ascent() - m.descent()) / 2,
@@ -302,7 +301,7 @@ final class ControlSizeAuditScene {
         /** The page total, plus the worst measured extent per offending component. */
         private void drawFooter(Canvas canvas, Theme theme, SizeTokens t, Tally page) {
             TextMetrics ref = canvas.measureText("0", t.label());
-            boolean rtl = layoutDirection() == LayoutDirection.RTL;
+            boolean rtl = isRightToLeft();
             float top = height() - 2 * ref.lineHeight();
             canvas.drawLine(0, top - t.spacingSmall(), width(), top - t.spacingSmall(),
                     Strokes.HAIRLINE, theme.outline);

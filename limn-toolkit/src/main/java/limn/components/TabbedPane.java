@@ -14,7 +14,6 @@ import limn.i18n.I18nString;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.scene.Constraints;
-import limn.scene.LayoutDirection;
 import limn.scene.Scrollable;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -369,7 +368,7 @@ public class TabbedPane extends Widget {
         scrollOffset = target;
         // The strip's own direction, resolved once here: these are its children and its
         // coordinates, and the run it laid out has to move the way it was placed.
-        float shift = strip.isRtl() ? applied : -applied;
+        float shift = strip.isRightToLeft() ? applied : -applied;
         // Shift the headers NOW: revealInView re-reads coordinates between
         // nested scrollables in one pass (the Scrollable contract); deferring
         // to the next layout hands an outer scroller a rect a content-width off.
@@ -426,10 +425,6 @@ public class TabbedPane extends Widget {
         return stripHeight(Theme.current().tokensFor(this));
     }
 
-    /** Whether this pane reads right to left. Resolve it once per pass, and never in a field. */
-    private boolean isRtl() {
-        return layoutDirection() == LayoutDirection.RTL;
-    }
 
     @Override
     protected Size onMeasure(Constraints constraints) {
@@ -493,7 +488,7 @@ public class TabbedPane extends Widget {
         // Resolved once for the whole pass: the three controls and the viewport between them are
         // one strip of items, and two resolutions that disagreed inside one layout would put a
         // chevron on top of the tabs it is meant to sit beside.
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
         if (overflowing) {
             // Shrink the controls, never drop them. Dropping two of the three below a width
             // threshold made the viewport NON-MONOTONE in the pane's width: at MEDIUM a 137pt
@@ -553,7 +548,7 @@ public class TabbedPane extends Widget {
             float right = header.x() + header.width() - t.tabPadH() / 2;
             // The STRIP's direction, because these are the strip's coordinates: it is the widget
             // that placed the header this pair is measured from.
-            boolean stripRtl = strip.isRtl();
+            boolean stripRtl = strip.isRightToLeft();
             // The two transitions hold physical edges across frames, and (tab, direction) is the
             // whole of their key. A direction change relocates every header at once, so it snaps
             // like a scroll does; animating it would slide the indicator across the entire
@@ -729,10 +724,6 @@ public class TabbedPane extends Widget {
      */
     private final class TabStrip extends Widget implements Scrollable {
 
-        /** Whether the strip reads right to left. Resolve it once per pass. */
-        private boolean isRtl() {
-            return layoutDirection() == LayoutDirection.RTL;
-        }
 
         /** Scrolls the minimum so the rect (in strip coordinates) becomes visible. */
         @Override
@@ -752,7 +743,7 @@ public class TabbedPane extends Widget {
             // left the headers sit further right as the offset grows, so the same physical
             // displacement is the opposite change of offset. One sign, and the arithmetic above is
             // untouched.
-            scrollStripBy(isRtl() ? -dx : dx);
+            scrollStripBy(isRightToLeft() ? -dx : dx);
         }
 
         @Override
@@ -771,7 +762,7 @@ public class TabbedPane extends Widget {
             //
             // Resolved once for the whole run: two resolutions that disagreed inside one layout
             // would place a header against one edge and its neighbour against the other.
-            boolean rtl = isRtl();
+            boolean rtl = isRightToLeft();
             float cursor;
             if (overflowing) {
                 cursor = -scrollOffset;
@@ -952,10 +943,6 @@ public class TabbedPane extends Widget {
             });
         }
 
-        /** Whether this control reads right to left. Resolve it once per pass. */
-        private boolean isRtl() {
-            return layoutDirection() == LayoutDirection.RTL;
-        }
 
         @Override
         protected Size onMeasure(Constraints constraints) {
@@ -988,7 +975,7 @@ public class TabbedPane extends Widget {
             // these two name the start and the end of the tab order, and the start is on the right
             // in a right-to-left strip. A sign on the x offsets about the button's own centre,
             // which does not move; the LIST chevron points down and is not a site.
-            float toEnd = isRtl() ? -1 : 1;
+            float toEnd = isRightToLeft() ? -1 : 1;
             switch (kind) {
                 case PREV -> {
                     canvas.drawLine(cx + toEnd * s / 2, cy - s, cx - toEnd * s / 2, cy, pen, ink);
@@ -1158,10 +1145,6 @@ public class TabbedPane extends Widget {
             setCursor(Cursor.POINTER);
         }
 
-        /** Whether this tab reads right to left. Resolve it once per pass. */
-        private boolean isRtl() {
-            return layoutDirection() == LayoutDirection.RTL;
-        }
 
         /**
          * Horizontal room the icon claims, its gap to the label included: one expression so
@@ -1219,7 +1202,7 @@ public class TabbedPane extends Widget {
             // The icon+label block is centred, so the block's own left edge is a centre and does
             // not move. What mirrors is the order of the two things inside it: the icon takes the
             // slot reading starts from, which is the block's right end in a right-to-left tab.
-            boolean rtl = isRtl();
+            boolean rtl = isRightToLeft();
             float blockLeft = (width() - contentW) / 2;
             float textLeft = rtl ? blockLeft : blockLeft + advance;
             if (icon != null) {
@@ -1374,7 +1357,7 @@ public class TabbedPane extends Widget {
             // pointer, and right to left that tab is the next one in order rather than the
             // previous one. Home and End are not this: they name the ends of the tab ORDER, and
             // stay the first and the last tab in both directions.
-            boolean rtl = isRtl();
+            boolean rtl = isRightToLeft();
             int visualLeft = rtl ? index + 1 : index - 1;
             int visualRight = rtl ? index - 1 : index + 1;
             switch (event.key()) {

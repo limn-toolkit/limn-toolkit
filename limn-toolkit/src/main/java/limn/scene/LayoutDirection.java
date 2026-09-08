@@ -1,5 +1,7 @@
 package limn.scene;
 
+import limn.graphics.ShapedText;
+
 import limn.concurrent.Ui;
 
 import java.util.Locale;
@@ -81,6 +83,19 @@ public enum LayoutDirection {
     /** @return whether this is {@link #RTL}, for the {@code dir == RTL} tests that fill widgets */
     public boolean isRightToLeft() {
         return this == RTL;
+    }
+
+    /**
+     * What a line with no strong character falls back to in a tree that reads this way: the
+     * shaper's base for {@link ShapedText.Direction#of}. A fallback and never an imposition
+     * &mdash; a Latin caption in a right-to-left tree still reads left to right, because a strong
+     * character already decided it. This is the one place that says which text direction a
+     * layout direction implies; {@code Widget.neutralBase()} reads it for the widget's own.
+     *
+     * @return {@link ShapedText.Direction#RTL} for {@link #RTL}, else {@link ShapedText.Direction#LTR}
+     */
+    public ShapedText.Direction neutralBase() {
+        return this == RTL ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
     }
 
     private static volatile LayoutDirection processDefault = LTR;

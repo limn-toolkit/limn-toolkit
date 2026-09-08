@@ -713,7 +713,7 @@ public class MediaControls extends Widget {
 
         @Override
         void paintGlyph(Canvas canvas, float x, float y, float box, Color glyphInk) {
-            boolean rtl = layoutDirection() == LayoutDirection.RTL;
+            boolean rtl = isRightToLeft();
             // Horizontal mirror of a fraction of the box, so every mark below is written once.
             float leftEdge = x;
             float px0 = rtl ? leftEdge + box * (1 - 0.05f) : leftEdge + box * 0.05f;

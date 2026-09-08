@@ -502,7 +502,7 @@ public class ComboBox extends Widget {
         popupWindow = parent.backend().createWindow(WindowConfig.popup(popupWidth, popupHeight));
         parent.registerChildPopup(popupWindow); // parent close ⇒ popup close
         popupStep = controlSize();
-        popupRtl = isRtl();
+        popupRtl = isRightToLeft();
 
         popupPanel = new PopupPanel();
         // Before the scene binds: binding measures the panel, and a panel that resolved the
@@ -557,14 +557,6 @@ public class ComboBox extends Widget {
 
     // ----------------------------------------------------------- field visual
 
-    /**
-     * Whether this combo reads right to left. Resolve it <b>once per pass</b> into a local and
-     * never in a constructor: this one is read from {@code onMeasure} and {@code onPaint}, where
-     * the field has a parent and the answer is the one the interface around it gives.
-     */
-    private boolean isRtl() {
-        return layoutDirection() == LayoutDirection.RTL;
-    }
 
     /**
      * What a label with no strong character of its own falls back to, given the direction the
@@ -576,10 +568,6 @@ public class ComboBox extends Widget {
      * character still decides for itself, which is why a Latin item in a right-to-left combo
      * still reads left to right.
      */
-    private static ShapedText.Direction neutralBase(boolean rtl) {
-        return rtl ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
-    }
-
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.current().tokensFor(this);
@@ -589,7 +577,7 @@ public class ComboBox extends Widget {
             // the tree it is running over.
             Ui.post(this::close);
         }
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
         if (open && popupWindow != null && popupRtl != rtl) {
             // Not deferred, and not a close: this touches the popup window's own tree and not
             // the one being measured, and the window keeps its size (the field measures the
@@ -636,7 +624,7 @@ public class ComboBox extends Widget {
         Font font = t.body();
         // One resolution for the whole pass: the label, the clip that keeps it off the chevron
         // and the chevron's own gutter have to agree about which side reading starts on.
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
         Color fill = !isEnabled() ? theme.disabledFill
                 : theme.surface.lerp(theme.surfaceRaised, open ? 1f : hover.value());
         canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
@@ -662,7 +650,7 @@ public class ComboBox extends Widget {
         // and falls back to left-to-right for a string with no strong character of its own.
         // Costs nothing extra: the string overload shapes through the same ruler memo.
         ShapedText line = textRuler().shape(label, font,
-                ShapedText.Direction.of(label, neutralBase(rtl)));
+                ShapedText.Direction.of(label, neutralBase()));
         // drawText places the LEFT edge of the run's box for either base direction — a
         // right-to-left run fills the same box from the other end rather than growing leftwards
         // — so aligning to the edge reading starts from is choosing x, and choosing it takes
@@ -1072,7 +1060,7 @@ public class ComboBox extends Widget {
             // The field's direction and not the overlay's, for the reason the tokens are the
             // field's: this list belongs to the combo, and the overlay is only the layer it is
             // drawn on. Resolved once for the pass.
-            boolean rtl = ComboBox.this.isRtl();
+            boolean rtl = ComboBox.this.isRightToLeft();
             float gap = t.popupGap();
             // Read after the root has been laid out: the scene lays overlays out last, which is
             // what makes the field's scene position current here rather than one frame stale.
@@ -1306,7 +1294,7 @@ public class ComboBox extends Widget {
          * all.
          */
         private boolean isRtl() {
-            return ComboBox.this.isRtl();
+            return ComboBox.this.isRightToLeft();
         }
 
         /**

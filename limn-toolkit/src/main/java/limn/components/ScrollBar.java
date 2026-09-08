@@ -8,7 +8,6 @@ import limn.backend.Cursor;
 import limn.graphics.Canvas;
 import limn.input.Keys;
 import limn.scene.Constraints;
-import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.MouseEvent;
@@ -142,16 +141,6 @@ public class ScrollBar extends Widget {
         return orientation == Orientation.VERTICAL;
     }
 
-    /**
-     * The resolved direction of this bar's subtree. Read <b>once</b> at the top of a pass —
-     * {@code onPaint}, or one arm of {@link #onMouseEvent} — and handed down as a parameter,
-     * never re-read inside the geometry it feeds: a press resolves the thumb rectangle and the
-     * paging sign from the same answer, and two answers inside one event would page away from
-     * the thumb the pointer just missed.
-     */
-    private boolean isRtl() {
-        return layoutDirection() == LayoutDirection.RTL;
-    }
 
     /**
      * Whether this bar's own axis mirrors. Only a horizontal bar has a reading direction; a
@@ -379,7 +368,7 @@ public class ScrollBar extends Widget {
         if (op < 0.02f) {
             return;
         }
-        boolean rtl = isRtl(); // once for this paint, then handed down
+        boolean rtl = isRightToLeft(); // once for this paint, then handed down
         float[] t = thumbRect(rtl);
         float radius = Math.min(t[2], t[3]) / 2;
         float alpha = (dragging ? 0.9f : hoverBar ? 0.75f : 0.5f) * op;
@@ -411,7 +400,7 @@ public class ScrollBar extends Widget {
                 if (event.button() != Keys.MOUSE_LEFT) {
                     return;
                 }
-                boolean rtl = isRtl(); // once for this press, then handed down
+                boolean rtl = isRightToLeft(); // once for this press, then handed down
                 float pos = vertical() ? sceneToLocalY(event.y()) : sceneToLocalX(event.x());
                 float[] t = thumbRect(rtl);
                 float thumbStart = vertical() ? t[1] : t[0];
@@ -434,7 +423,7 @@ public class ScrollBar extends Widget {
             }
             case DRAG -> {
                 if (dragging) {
-                    boolean rtl = isRtl(); // once for this drag step, then handed down
+                    boolean rtl = isRightToLeft(); // once for this drag step, then handed down
                     float pos = vertical() ? sceneToLocalY(event.y()) : sceneToLocalX(event.x());
                     float travel = Math.max(1, trackLength() - thumbLength());
                     // The algebraic inverse of thumbStart, so it has to invert with it: mirror

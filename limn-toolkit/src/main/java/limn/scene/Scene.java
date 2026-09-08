@@ -2775,7 +2775,7 @@ public final class Scene implements WindowInput {
     private limn.graphics.ShapedText tooltipLine(limn.graphics.Font font) {
         String text = tooltipText;
         limn.graphics.ShapedText.Direction neutral =
-                tooltipDirection() == LayoutDirection.RTL
+                tooltipDirection().isRightToLeft()
                         ? limn.graphics.ShapedText.Direction.RTL
                         : limn.graphics.ShapedText.Direction.LTR;
         return textRuler().shape(text, font,
@@ -2898,7 +2898,7 @@ public final class Scene implements WindowInput {
         // The panel grows away from the pointer on the side reading starts from, and is held
         // inside the window on whichever edge it would otherwise leave. Horizontally this is the
         // twin of the vertical flip below: the offset that clears the cursor, then the clamp.
-        float x = tooltipDirection() == LayoutDirection.RTL
+        float x = tooltipDirection().isRightToLeft()
                 ? Math.max(4, mouseX - 12 - w)
                 : Math.min(mouseX + 12, width - w - 4);
         float y = mouseY + 20;
@@ -2930,7 +2930,7 @@ public final class Scene implements WindowInput {
         canvas.drawRoundRect(x + 0.5f, y + 0.5f, w - 1, h - 1, style.radius(), 1, style.border());
         // Inside the pad on the side reading starts from; the panel was sized from this very
         // line, so the two pads are equal and the run fills what is between them.
-        float textX = tooltipDirection() == LayoutDirection.RTL
+        float textX = tooltipDirection().isRightToLeft()
                 ? x + w - style.padH() - line.metrics().width()
                 : x + style.padH();
         canvas.drawText(line, textX, y + (h - fm.height()) / 2 + fm.ascent(), style.text());

@@ -262,20 +262,6 @@ public class SegmentedControl extends Widget {
         return edge;
     }
 
-    /**
-     * The shaper's fallback for a label that has no strong character of its own: this control's
-     * own reading direction, which is the direction of the interface around the label.
-     *
-     * <p>Resolved by the caller and handed in, never read here and never in a constructor, for
-     * the reason every axis in this toolkit is: a value captured before the tree is complete is
-     * permanently wrong, and two resolutions inside one pass measure one geometry and paint
-     * another.
-     */
-    private static ShapedText.Direction neutralBase(LayoutDirection direction) {
-        return direction == LayoutDirection.RTL
-                ? ShapedText.Direction.RTL
-                : ShapedText.Direction.LTR;
-    }
 
     /**
      * Physical left edge of the strip-logical span {@code [start, end)}: the one place the
@@ -377,7 +363,7 @@ public class SegmentedControl extends Widget {
         // The row and the direction are each resolved once here and handed down. The measure
         // cache is keyed on the resolved direction, so the size returned has to be a function of
         // the one this pass read, and never of a second reading of it.
-        float[] edge = edges(t, neutralBase(layoutDirection()));
+        float[] edge = edges(t, neutralBase());
         float lineHeight = textRuler().measure("Hg", t.body()).lineHeight();
         return constraints.constrain(edge[segments.size()], t.resolvedHeight(lineHeight));
     }
@@ -395,8 +381,8 @@ public class SegmentedControl extends Widget {
         // the two agree because neither is held across a change: a change of direction is a
         // relayout followed by a repaint.
         LayoutDirection direction = layoutDirection();
-        boolean rtl = direction == LayoutDirection.RTL;
-        bounds = edges(t, neutralBase(direction));
+        boolean rtl = direction.isRightToLeft();
+        bounds = edges(t, direction.neutralBase());
 
         // The track takes what the segments need and no more, centred in the box it was given.
         // A parent that stretches its children (a column with STRETCH, which is the common
@@ -463,7 +449,7 @@ public class SegmentedControl extends Widget {
         // the cells land, and which gutter each chevron is drawn in. The track, the border, the
         // clip and the focus ring are all symmetric about the track's centre and take no branch.
         LayoutDirection direction = layoutDirection();
-        boolean rtl = direction == LayoutDirection.RTL;
+        boolean rtl = direction.isRightToLeft();
         canvas.fillRoundRect(trackLeft, 0, trackWidth, height(), t.radiusMedium(), theme.surface);
         canvas.drawRoundRect(trackLeft + Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
                 trackWidth - 2 * Strokes.HALF_PIXEL_INSET, height() - 2 * Strokes.HALF_PIXEL_INSET,
@@ -489,7 +475,7 @@ public class SegmentedControl extends Widget {
         Font font = t.body();
         TextRuler ruler = textRuler();
         TextMetrics fm = ruler.measure("Hg", font);
-        ShapedText.Direction neutral = neutralBase(direction);
+        ShapedText.Direction neutral = direction.neutralBase();
         for (int i = 0; i < segments.size(); i++) {
             float cellLeft = cellLeft(rtl, bounds[i], bounds[i + 1]);
             float cellWidth = bounds[i + 1] - bounds[i];
@@ -651,7 +637,7 @@ public class SegmentedControl extends Widget {
         // One resolution for the whole hook, beside the paint's and the hit test's and for the
         // same reason they give: two resolutions that disagreed inside one pass would describe a
         // segment at its neighbour's rectangle.
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         float content = bounds == null ? 0 : bounds[segments.size()];
         float max = maxScrollOffset();
         boolean scrollable = overflowing && max > 0;
@@ -790,7 +776,7 @@ public class SegmentedControl extends Widget {
         // The pointer arrives PHYSICAL and stays that way. The reflection lives in the two
         // functions that turn an x into a strip coordinate or a gutter, and applying it here as
         // well would flip every branch below a second time.
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         float lx = sceneToLocalX(event.x());
         switch (event.type()) {
             case MOVE, ENTER -> {
@@ -852,7 +838,7 @@ public class SegmentedControl extends Widget {
         // Left selects the segment drawn on the left, which is the previous one reading left to
         // right and the next one reading right to left. A key that stayed logical would move the
         // selection away from the pointer, and the control would disagree with itself.
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         switch (event.key()) {
             case Keys.LEFT -> {
                 choose(rtl ? selected + 1 : selected - 1);

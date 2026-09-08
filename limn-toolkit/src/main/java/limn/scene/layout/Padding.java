@@ -89,6 +89,6 @@ public class Padding extends Widget {
      * has to take it. {@link #onMeasure} needs nothing, because it sums the two.
      */
     private float leadingInset() {
-        return layoutDirection() == limn.scene.LayoutDirection.RTL ? insets.right() : insets.left();
+        return isRightToLeft() ? insets.right() : insets.left();
     }
 }

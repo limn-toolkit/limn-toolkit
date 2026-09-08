@@ -15,7 +15,6 @@ import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
-import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -361,10 +360,6 @@ public class ColorPickerButton extends Widget {
      * <p>Takes the resolved direction rather than reading it again, so that one paint cannot
      * place the caption for one direction and shape it for the other.
      */
-    private static ShapedText.Direction neutralBase(boolean rtl) {
-        return rtl ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
-    }
-
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.current().tokensFor(this);
@@ -398,7 +393,7 @@ public class ColorPickerButton extends Widget {
         // The one resolution of the direction in this pass. The chip and the caption are a
         // single decision in two statements, and two reads that disagreed would put the chip on
         // one side of the button with its caption on the other.
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
 
         // Secondary-button chrome: the control is a button, and the colour is its value.
         // Filling the whole face with the colour instead would make hover and pressed
@@ -421,7 +416,7 @@ public class ColorPickerButton extends Widget {
         if (!caption.isEmpty()) {
             Font font = t.body();
             ShapedText line = textRuler().shape(caption, font,
-                    ShapedText.Direction.of(caption, neutralBase(rtl)));
+                    ShapedText.Direction.of(caption, neutralBase()));
             TextMetrics metrics = line.metrics();
             // drawText places a line by its LEFT edge whichever way the line itself runs, so
             // the caption's leading x is expressed as one: the chip's advance in from the

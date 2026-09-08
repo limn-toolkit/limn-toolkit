@@ -10,7 +10,6 @@ import limn.graphics.Color;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
-import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -254,7 +253,7 @@ public class Slider extends Widget {
         SizeTokens t = theme.tokensFor(this);
         boolean enabled = isEnabled();
         // One resolution for the whole frame, exactly as the token row is resolved once here.
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         float cy = height() / 2;
         float left = trackLeft(t);
         float tw = trackWidth(t);
@@ -306,7 +305,7 @@ public class Slider extends Widget {
         // must agree with the frame the user aimed at, and that only holds if both read one row
         // and one direction.
         SizeTokens t = Theme.current().tokensFor(this);
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         switch (event.type()) {
             case ENTER -> {
                 pointerInside = true;
@@ -355,7 +354,7 @@ public class Slider extends Widget {
             return;
         }
         // Resolved once for this key press, like the token row in the pointer path.
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         boolean handled = true;
         // Left and Right name a side of the track, so they follow the direction; Up and Down name
         // a vertical side, which mirroring does not touch, and they shared an arm with the

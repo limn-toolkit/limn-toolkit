@@ -904,6 +904,18 @@ public abstract class Widget {
     }
 
     /**
+     * Whether this widget reads right to left: {@link #layoutDirection()} is {@code RTL}. The
+     * test every mirrored pass makes, here once rather than as a private method in each widget.
+     * Read it where {@code layoutDirection()} may be read: in a pass or an event handler, never
+     * in a constructor.
+     *
+     * @return whether the resolved direction is right to left
+     */
+    public final boolean isRightToLeft() {
+        return layoutDirection().isRightToLeft();
+    }
+
+    /**
      * One link of the resolution chain, and {@link #resolveControlSize()}'s chain exactly: the
      * same order, for the same reason. The scene default is consulted <b>before</b> the host
      * link because every hosted root (a combo popup panel, a menu surface, a dialog panel) has a
@@ -1288,9 +1300,7 @@ public abstract class Widget {
      * never in a constructor or a field initializer.
      */
     protected final limn.graphics.ShapedText.Direction neutralBase() {
-        return layoutDirection() == LayoutDirection.RTL
-                ? limn.graphics.ShapedText.Direction.RTL
-                : limn.graphics.ShapedText.Direction.LTR;
+        return layoutDirection().neutralBase();
     }
 
     /**
@@ -1299,6 +1309,13 @@ public abstract class Widget {
      * rest. This is <b>the</b> way for a widget to get a line. Hold the result (see
      * {@code ShapedText.matches} for the idiom), take the natural width from the line's own
      * metrics, and hand the line itself to the canvas.
+     *
+     * <p>A chart is the widget this matters most to, and the reason is worth keeping in view:
+     * its chrome is application data that is very often entirely neutral &mdash; a series named
+     * {@code 2024}, a tooltip row reading {@code 3.5}, a category called {@code Q1}. Not one of
+     * those has a strong character, so the first-strong rule has nothing to decide with and the
+     * fallback decides all of it, and the fallback is the direction of the interface, which only
+     * the widget knows. A series named {@code Vendas} is unaffected, because its V already decided.
      *
      * <p>The alternatives quietly drop the direction: {@code Canvas.drawText(String, …)} and
      * {@code TextRuler.measure} carry no base, so they resolve every all-neutral string &mdash;

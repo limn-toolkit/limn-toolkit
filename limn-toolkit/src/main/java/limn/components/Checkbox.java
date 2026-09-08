@@ -195,9 +195,8 @@ public class Checkbox extends Widget {
      *             Two resolutions inside one pass could shape the label one way and place it the
      *             other, which is a label drawn over its own indicator.
      */
-    private ShapedText labelLine(SizeTokens t, ShapedText.Direction base) {
-        String label = text.get();
-        return textRuler().shape(label, t.body(), ShapedText.Direction.of(label, base));
+    private ShapedText labelLine(SizeTokens t) {
+        return shapeText(text.get(), t.body());
     }
 
     @Override
@@ -206,7 +205,7 @@ public class Checkbox extends Widget {
         SizeTokens t = theme.tokensFor(this);
         // Sized from the line the paint will draw, so the column this row reserves and the ink
         // that lands in it are one number rather than two answers to the same question.
-        TextMetrics metrics = labelLine(t, neutralBase()).metrics();
+        TextMetrics metrics = labelLine(t).metrics();
         float width = indicatorWidth(t)
                 + (text.get().isEmpty() ? 0 : t.gapLabel() + metrics.width());
         float height = Math.max(indicatorHeight(t), metrics.lineHeight());
@@ -239,7 +238,7 @@ public class Checkbox extends Widget {
             // a strong character outranks the fallback. What the fallback decides is the label
             // with no strong character of its own -- a count, a year, a bare number -- which is
             // the one case the string cannot answer and the surrounding interface can.
-            ShapedText line = labelLine(t, neutral);
+            ShapedText line = labelLine(t);
             TextMetrics metrics = line.metrics();
             Color ink = isEnabled() ? theme.text : theme.disabledText;
             // The label starts where reading starts, one gap past the indicator. Reading right to
@@ -287,7 +286,7 @@ public class Checkbox extends Widget {
             return super.baselineOffset();
         }
         SizeTokens t = Theme.current().tokensFor(this);
-        TextMetrics metrics = labelLine(t, neutralBase()).metrics();
+        TextMetrics metrics = labelLine(t).metrics();
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
 

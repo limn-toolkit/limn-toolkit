@@ -16,7 +16,6 @@ import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
-import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -202,10 +201,6 @@ public class Button extends Widget {
         return caption;
     }
 
-    /** Whether this button reads right to left. Resolve it once per pass, into a local. */
-    private boolean isRtl() {
-        return layoutDirection() == LayoutDirection.RTL;
-    }
 
     @Override
     protected Size onMeasure(Constraints constraints) {
@@ -288,7 +283,7 @@ public class Button extends Widget {
         // Resolved ONCE for the whole pass. Which end of the block the icon takes and which end
         // the caption takes are two answers to one question, and two resolutions that disagreed
         // inside one paint would draw the caption over the icon.
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
 
         float advance = iconAdvance(t);
         float block = advance + metrics.width();

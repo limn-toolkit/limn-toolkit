@@ -9,7 +9,6 @@ import limn.graphics.Font;
 import limn.graphics.ShapedText;
 import limn.scene.Constraints;
 import limn.scene.FrameMetrics;
-import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -143,7 +142,7 @@ public final class PerfFooter extends Widget {
         // Resolved once for the whole paint: cards, alignment and chart anchors
         // must agree about the direction or a card would right-align its text
         // over a chart that stayed on the right.
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         drawRow(canvas, rowFrame, pad, pad, width() - 2 * pad, rowH, rtl);
         drawRow(canvas, rowProcess, pad, pad + rowH + gap, width() - 2 * pad, rowH, rtl);
     }

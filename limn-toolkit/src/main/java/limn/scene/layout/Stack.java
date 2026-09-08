@@ -84,7 +84,7 @@ public class Stack extends Widget {
         Constraints loose = Constraints.loose(width(), height());
         // Resolved once for the whole pass, and only the horizontal switch consults it: the
         // vertical one has no reading order to follow.
-        boolean rtl = layoutDirection() == limn.scene.LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         for (Widget child : children()) {
             if (!child.isVisible()) {
                 continue;

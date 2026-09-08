@@ -18,7 +18,6 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.input.Keys;
 import limn.scene.Constraints;
-import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.CharEvent;
@@ -573,10 +572,6 @@ public class TextField extends Widget {
         return trailingIcon == null ? t.fieldPadH() : trailingWidth(t);
     }
 
-    /** Whether this field reads right to left. Resolve it once per pass. */
-    private boolean isRtl() {
-        return layoutDirection() == LayoutDirection.RTL;
-    }
 
     /**
      * Physical left edge of the text area: the leading inset reading left to right, and the
@@ -585,7 +580,7 @@ public class TextField extends Widget {
      * the hit test cannot disagree about which side is which.
      */
     private float contentLeft(SizeTokens t) {
-        return isRtl() ? trailingInset(t) : leadingInset(t);
+        return isRightToLeft() ? trailingInset(t) : leadingInset(t);
     }
 
     /**
@@ -600,7 +595,7 @@ public class TextField extends Widget {
      */
     private float originX(SizeTokens t, float lineWidth) {
         float left = contentLeft(t);
-        return isRtl() ? left + innerWidth(t) - lineWidth + scrollX : left - scrollX;
+        return isRightToLeft() ? left + innerWidth(t) - lineWidth + scrollX : left - scrollX;
     }
 
     /**
@@ -614,7 +609,7 @@ public class TextField extends Widget {
 
     /** Physical left edge of the trailing button's region; it sits on the trailing side. */
     private float trailingRegionX(SizeTokens t) {
-        return isRtl() ? 0 : width() - trailingWidth(t);
+        return isRightToLeft() ? 0 : width() - trailingWidth(t);
     }
 
     @Override
@@ -692,7 +687,7 @@ public class TextField extends Widget {
             wanted = cursorX;
         }
         if (wanted != view) {
-            scrollX = isRtl() ? lineWidth - inner - wanted : wanted;
+            scrollX = isRightToLeft() ? lineWidth - inner - wanted : wanted;
         }
         clampScrollX(t);
     }
@@ -736,7 +731,7 @@ public class TextField extends Widget {
 
         // Resolved once for the whole pass: the leading icon, the trailing button, the clip, the
         // selection band, the text and the caret all compose from this one answer.
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
 
         Color fill = isEnabled() ? theme.surface : theme.disabledFill;
         canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);

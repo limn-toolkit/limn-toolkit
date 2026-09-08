@@ -17,7 +17,6 @@ import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.scene.Constraints;
-import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.CharEvent;
@@ -610,7 +609,7 @@ public class Spinner extends Widget {
             wanted = caret;
         }
         if (wanted != view) {
-            editScrollX = isRtl() ? total - visible - wanted : wanted;
+            editScrollX = isRightToLeft() ? total - visible - wanted : wanted;
         }
         editScrollX = Math.max(0, Math.min(editScrollX, Math.max(0, total - visible)));
     }
@@ -718,32 +717,7 @@ public class Spinner extends Widget {
 
     // --------------------------------------------------------------- geometry
 
-    /**
-     * Whether this spinner reads right to left. Resolved inside the pass that asks and never
-     * held: the direction is inherited, so it can change under a widget that is already laid out.
-     */
-    private boolean isRtl() {
-        return layoutDirection() == LayoutDirection.RTL;
-    }
 
-    /**
-     * One line of this spinner's own text, shaped for the paragraph it reads in: the value, either
-     * field of a clock face, and the colon between them all come through here, so the width a
-     * width is taken from is always the width of the line that is drawn.
-     *
-     * <p>{@code base} is passed in rather than resolved here so that one pass resolves it once.
-     * The first-strong rule still decides everything a strong character can decide — it is applied
-     * on the way through — and the fallback reaches only a string that has none, which for this
-     * widget is the ordinary case rather than the exotic one: a formatted number is entirely
-     * neutral.
-     *
-     * <p>Not held in a field. The ruler memoizes shaping, so asking twice inside one pass costs
-     * one shaping; a field would need a key carrying the direction, and would hold a zero-width
-     * line for any spinner first shaped while it was detached from a scene.
-     */
-    private ShapedText shapedFor(String text, Font font, ShapedText.Direction base) {
-        return textRuler().shape(text, font, ShapedText.Direction.of(text, base));
-    }
 
     /**
      * The value area's width: the whole box less the stepper column. A magnitude and not a
@@ -762,7 +736,7 @@ public class Spinner extends Widget {
      * disagree about which side is which.
      */
     private float valueLeft(SizeTokens t) {
-        return isRtl() ? t.spinnerButtonW() : 0;
+        return isRightToLeft() ? t.spinnerButtonW() : 0;
     }
 
     /**
@@ -772,7 +746,7 @@ public class Spinner extends Widget {
      */
     private float runOriginX(SizeTokens t, float runWidth) {
         float pad = t.spacingMedium();
-        return isRtl() ? valueLeft(t) + valueWidth(t) - pad - runWidth : pad;
+        return isRightToLeft() ? valueLeft(t) + valueWidth(t) - pad - runWidth : pad;
     }
 
     /**
@@ -787,7 +761,7 @@ public class Spinner extends Widget {
      * a screenshot and wrong in every click.
      */
     private float editOriginX(SizeTokens t, float textWidth) {
-        return isRtl()
+        return isRightToLeft()
                 ? runOriginX(t, textWidth) + editScrollX
                 : runOriginX(t, textWidth) - editScrollX;
     }
@@ -799,7 +773,7 @@ public class Spinner extends Widget {
      * know about a direction.
      */
     private float editViewStart(float textWidth, float visible) {
-        return isRtl() ? textWidth - visible - editScrollX : editScrollX;
+        return isRightToLeft() ? textWidth - visible - editScrollX : editScrollX;
     }
 
     /**
@@ -809,7 +783,7 @@ public class Spinner extends Widget {
     private int regionAt(SizeTokens t, float localX, float localY) {
         // The value area ends at the stepper column reading left to right, and begins at it
         // reading right to left: one boundary, named from the side it is on.
-        boolean inValue = isRtl() ? localX >= valueLeft(t) : localX < valueWidth(t);
+        boolean inValue = isRightToLeft() ? localX >= valueLeft(t) : localX < valueWidth(t);
         if (inValue) {
             return 0;
         }
@@ -847,9 +821,8 @@ public class Spinner extends Widget {
         // a measurement has nowhere to put a base direction, so a box sized that way and a value
         // painted from a shaped line would be answering two different questions. The extremes are
         // shaped for this spinner's own direction, exactly as the value it will draw is.
-        ShapedText.Direction base = neutralBase();
-        TextMetrics atMin = shapedFor(format(min), t.body(), base).metrics();
-        TextMetrics atMax = shapedFor(format(max), t.body(), base).metrics();
+        TextMetrics atMin = shapeText(format(min), t.body()).metrics();
+        TextMetrics atMax = shapeText(format(max), t.body()).metrics();
         float valueWidth = Math.max(atMin.width(), atMax.width());
         float needed = pad + valueWidth + pad + t.spinnerButtonW();
         // spinnerWidth stays a floor, so narrow ranges keep the step's preferred size.
@@ -898,15 +871,14 @@ public class Spinner extends Widget {
         }
         // Resolved ONCE for this pass and handed to every line it shapes: two resolutions inside
         // one paint would draw the three fields of a clock face against two different paragraphs.
-        ShapedText.Direction base = neutralBase();
         if (mode == Mode.TIME) {
             formatted(); // fills the two field strings below
             // Three lines rather than one, because they are three draws: the two fields are
             // highlighted independently and the colon is drawn in a different ink. Each carries
             // its own width, so the run is composed from the widths of the things in it.
-            ShapedText hh = shapedFor(formattedHours, font, base);
-            ShapedText colon = shapedFor(":", font, base);
-            ShapedText mm = shapedFor(formattedMinutes, font, base);
+            ShapedText hh = shapeText(formattedHours, font);
+            ShapedText colon = shapeText(":", font);
+            ShapedText mm = shapeText(formattedMinutes, font);
             float hhW = hh.metrics().width();
             float colonW = colon.metrics().width();
             float mmW = mm.metrics().width();
@@ -931,7 +903,7 @@ public class Spinner extends Widget {
         } else {
             // The one place a spinner's value is a string with no strong character and no
             // structure around it, so the fallback is the whole of what decides its direction.
-            ShapedText shown = shapedFor(text(), font, base);
+            ShapedText shown = shapeText(text(), font);
             canvas.drawText(shown, runOriginX(t, shown.metrics().width()), baseline, ink);
         }
     }
@@ -976,7 +948,7 @@ public class Spinner extends Widget {
     }
 
     private void paintButtons(Canvas canvas, Theme theme, SizeTokens t, boolean enabled) {
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
         // The stepper column sits on the side reading ends on, so reading right to left it is the
         // LEFT column: its own left edge is the box's, and the seam it shares with the value is
         // its right edge. The seam is not the column's left edge in both directions; drawing it
@@ -1108,10 +1080,9 @@ public class Spinner extends Widget {
         formatted(); // the same two strings the paint measured, rather than a second rendering
         // Shaped for this spinner's own direction, so the boundary a click is compared against is
         // composed from the same widths the paint composed the run's origin from.
-        ShapedText.Direction base = neutralBase();
-        float hhColonW = shapedFor(formattedHours, font, base).metrics().width()
-                + shapedFor(":", font, base).metrics().width();
-        float mmW = shapedFor(formattedMinutes, font, base).metrics().width();
+        float hhColonW = shapeText(formattedHours, font).metrics().width()
+                + shapeText(":", font).metrics().width();
+        float mmW = shapeText(formattedMinutes, font).metrics().width();
         // Measured from the run's own origin, which is where the paint put it. The comparison
         // does not flip with it: inside a run of digits the hours stay left of the minutes, which
         // is the same reason Left and Right do not swap the two fields.
@@ -1168,7 +1139,7 @@ public class Spinner extends Widget {
         // Right raises the value reading left to right and lowers it reading right to left, the
         // same mirror a horizontal slider takes: the low end is on the side reading starts from,
         // and a stepper whose arrows disagreed with the rail beside it would be worse than either.
-        int rightStep = isRtl() ? -1 : 1;
+        int rightStep = isRightToLeft() ? -1 : 1;
         switch (event.key()) {
             case Keys.UP -> nudgeFromKey(1, event.modifiers());
             case Keys.DOWN -> nudgeFromKey(-1, event.modifiers());
@@ -1466,7 +1437,7 @@ public class Spinner extends Widget {
         SizeTokens t = Theme.current().tokensFor(this);
         float w = Math.max(0, width());
         float columnW = Math.min(t.spinnerButtonW(), w);
-        float columnX = isRtl() ? 0 : w - columnW;
+        float columnX = isRightToLeft() ? 0 : w - columnW;
         float mid = height() / 2;
         a.child(UP_BUTTON);
         a.bounds(columnX, 0, columnW, mid);

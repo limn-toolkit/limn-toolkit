@@ -18,7 +18,6 @@ import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
-import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.MouseEvent;
@@ -691,7 +690,7 @@ public abstract class Chart extends Widget {
 
     /** Recomputes the title/legend/plot split. For a subclass laying out in {@code onLayout}. */
     protected final void updateRegions() {
-        layoutRegions(tokens(), isRtl());
+        layoutRegions(tokens(), isRightToLeft());
     }
 
     /**
@@ -797,58 +796,13 @@ public abstract class Chart extends Widget {
         return Theme.current().tokensFor(this);
     }
 
-    /**
-     * Whether this chart reads right to left. Called exactly once at the top of a paint, an
-     * overlay paint, a region pass or a pointer pass, and the answer is threaded down from
-     * there: a paint and a hit test that resolved the direction separately could disagree, and
-     * a legend whose swatches are painted on one side and hit-tested on the other is the one
-     * bug this widget must not have.
-     *
-     * <p>Never a field and never resolved in a constructor. A chart is normally built and
-     * filled before it joins a scene, so a direction captured while it still had no parent
-     * would be the process default for the rest of its life, with no path to recovery.
-     */
-    private boolean isRtl() {
-        return layoutDirection() == LayoutDirection.RTL;
-    }
 
     /** Measures a single line with the layout ruler (agrees with what {@code drawText} draws). */
     protected final TextMetrics measure(String text, Font font) {
         return textRuler().measure(text, font);
     }
 
-    /**
-     * One line of the chart's own chrome &mdash; a title, a legend name, a tooltip row &mdash;
-     * shaped for the paragraph this chart reads in, so that the width a box is sized from is the
-     * width of the line that box will hold.
-     *
-     * <p><b>Why a chart is the widget this matters most to.</b> Its chrome is application data
-     * that is very often entirely neutral: a series named {@code 2024}, a tooltip row reading
-     * {@code 3.5}, a category called {@code Q1}. Not one of those has a strong character, so the
-     * first-strong rule has nothing to decide with and the fallback decides all of it &mdash; and
-     * the fallback is the direction of the interface, which only the widget knows. A series named
-     * {@code Vendas} is unaffected, because its V already decided.
-     *
-     * <p>{@code base} is passed in rather than resolved here so that one pass resolves it once:
-     * the layout walk that sizes the legend and the paint that fills it must be answering for the
-     * same paragraph, or the boxes and the names in them come from two different shapings.
-     *
-     * <p>Not held. The ruler memoizes shaping, which is what makes this affordable for a widget
-     * that rebuilds its chrome every frame of an animation &mdash; the case {@code TextRuler}
-     * names when it says an implementation is expected to memoize.
-     */
-    private ShapedText shaped(String text, Font font, ShapedText.Direction base) {
-        return textRuler().shape(text, font, ShapedText.Direction.of(text, base));
-    }
 
-    /**
-     * What a piece of chart chrome with no strong character falls back to, from a direction the
-     * caller has already resolved for its pass. A method rather than a ternary at six call sites
-     * so that "which enum names this side" is answered in one place.
-     */
-    private static ShapedText.Direction baseFor(boolean rtl) {
-        return rtl ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
-    }
 
     private static final String ELLIPSIS = "…";
 
@@ -868,12 +822,11 @@ public abstract class Chart extends Widget {
         if (text.isEmpty()) {
             return text;
         }
-        ShapedText.Direction base = baseFor(isRtl());
-        ShapedText line = shaped(text, font, base);
+        ShapedText line = shapeText(text, font);
         if (line.metrics().width() <= maxWidth) {
             return text;
         }
-        float ellipsisWidth = shaped(ELLIPSIS, font, base).metrics().width();
+        float ellipsisWidth = shapeText(ELLIPSIS, font).metrics().width();
         if (ellipsisWidth > maxWidth) {
             return "";
         }
@@ -881,7 +834,7 @@ public abstract class Chart extends Widget {
         String shown = text.substring(0, cut) + ELLIPSIS;
         // fitEnd said where to cut against the uncut shaping; the kept prefix beside an ellipsis
         // can join or kern a hair wider. Zero or one iteration for Latin.
-        while (cut > 0 && shaped(shown, font, base).metrics().width() > maxWidth) {
+        while (cut > 0 && shapeText(shown, font).metrics().width() > maxWidth) {
             cut = line.caretIndex(line.caretOrdinal(cut) - 1);
             shown = text.substring(0, cut) + ELLIPSIS;
         }
@@ -919,7 +872,7 @@ public abstract class Chart extends Widget {
     protected void onPaint(Canvas canvas) {
         Theme theme = Theme.current();
         SizeTokens t = tokens();
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
         if (background != null) {
             canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), background);
         }
@@ -936,7 +889,7 @@ public abstract class Chart extends Widget {
             // Shaped once: the edge a mirrored title is placed from is the width of this very
             // line, and it is this line that is drawn. The baseline still comes from the full
             // heading's vertical metrics, which ellipsizing cannot move.
-            ShapedText line = shaped(shown, font, baseFor(rtl));
+            ShapedText line = shapeText(shown, font);
             float titleX = rtl
                     ? width() - t.spacingMedium() - line.metrics().width()
                     : t.spacingMedium();
@@ -950,7 +903,7 @@ public abstract class Chart extends Widget {
 
     @Override
     protected void onPaintOverlay(Canvas canvas) {
-        paintTooltip(canvas, tokens(), Theme.current(), isRtl());
+        paintTooltip(canvas, tokens(), Theme.current(), isRightToLeft());
     }
 
     // ---------------------------------------------------------------- regions
@@ -969,7 +922,6 @@ public abstract class Chart extends Widget {
     private void layoutRegions(SizeTokens t, boolean rtl) {
         // Resolved once for the whole walk and handed to every line it shapes: the boxes this
         // leaves behind are what the paint fills, so the two have to size from one paragraph.
-        ShapedText.Direction base = baseFor(rtl);
         float pad = t.spacingSmall();
         float x = pad;
         float y = pad;
@@ -1005,7 +957,7 @@ public abstract class Chart extends Widget {
                     float maxWidth = 0;
                     for (LegendEntry e : entries) {
                         maxWidth = Math.max(maxWidth,
-                                swatch + t.gapIcon() + shaped(e.text(), font, base).metrics().width());
+                                swatch + t.gapIcon() + shapeText(e.text(), font).metrics().width());
                     }
                     legendWidth = Math.min(maxWidth, w * 0.4f);
                     legendHeight = entries.size() * (rowHeight + t.spacingSmall());
@@ -1027,7 +979,7 @@ public abstract class Chart extends Widget {
                     float lineWidth = 0;
                     for (LegendEntry e : entries) {
                         float entryWidth =
-                                swatch + t.gapIcon() + shaped(e.text(), font, base).metrics().width();
+                                swatch + t.gapIcon() + shapeText(e.text(), font).metrics().width();
                         if (lineWidth > 0 && lineWidth + gap + entryWidth > w) {
                             rows++;
                             lineWidth = entryWidth;
@@ -1073,14 +1025,13 @@ public abstract class Chart extends Widget {
         // The row's own resolution, from the direction its caller already resolved: an entry
         // measured for one paragraph and wrapped against widths taken for another would break the
         // row at a point the paint does not agree with.
-        ShapedText.Direction base = baseFor(rtl);
         int rowStart = 0;
         float rowWidth = 0;
         float rowY = legendY;
         for (int i = 0; i <= entries.size(); i++) {
             float entryWidth = i < entries.size()
                     ? swatch + t.gapIcon()
-                            + shaped(entries.get(i).text(), font, base).metrics().width()
+                            + shapeText(entries.get(i).text(), font).metrics().width()
                     : 0;
             boolean wraps = i == entries.size()
                     || (rowWidth > 0 && rowWidth + gap + entryWidth > available);
@@ -1089,7 +1040,7 @@ public abstract class Chart extends Widget {
                 float consumed = 0;
                 for (int j = rowStart; j < i; j++) {
                     float itemWidth = swatch + t.gapIcon()
-                            + shaped(entries.get(j).text(), font, base).metrics().width();
+                            + shapeText(entries.get(j).text(), font).metrics().width();
                     setBox(j, rtl ? rowLeft + rowWidth - consumed - itemWidth : rowLeft + consumed,
                             rowY, itemWidth, rowHeight);
                     consumed += itemWidth + gap;
@@ -1154,7 +1105,6 @@ public abstract class Chart extends Widget {
         Font font = t.label();
         float swatch = swatchSize(font);
         // One resolution for the whole legend, the same one layoutRegions sized these boxes with.
-        ShapedText.Direction base = baseFor(rtl);
         for (int i = 0; i < entries.size(); i++) {
             LegendEntry entry = entries.get(i);
             float x = legendBoxes[i * 4];
@@ -1163,7 +1113,7 @@ public abstract class Chart extends Widget {
             float h = legendBoxes[i * 4 + 3];
             // The line the box was sized from and the line this row draws: one value, so a name
             // cannot be placed against a width nothing on the screen has.
-            ShapedText line = shaped(entry.text(), font, base);
+            ShapedText line = shapeText(entry.text(), font);
             TextMetrics m = line.metrics();
             float swatchY = y + (h - swatch) / 2;
             float radius = swatch * 0.3f;
@@ -1216,14 +1166,13 @@ public abstract class Chart extends Widget {
         // The panel is sized from the lines it will hold. A tooltip row is the most reliably
         // neutral string a chart draws -- a name that is a year, a value that is a number -- so
         // sizing it without the fallback sizes a different line than the one painted below.
-        ShapedText.Direction base = baseFor(rtl);
         float panelWidth = heading.isEmpty() ? 0
-                : shaped(heading, headingFont, base).metrics().width();
+                : shapeText(heading, headingFont).metrics().width();
         for (ChartPoint row : rows) {
             float width = swatch + t.gapIcon()
-                    + shaped(rowName(row), rowFont, base).metrics().width();
+                    + shapeText(rowName(row), rowFont).metrics().width();
             if (tooltipFormat == null) {
-                width += gap + shaped(tooltipRowValue(row), rowFont, base).metrics().width();
+                width += gap + shapeText(tooltipRowValue(row), rowFont).metrics().width();
             }
             panelWidth = Math.max(panelWidth, width);
         }
@@ -1263,14 +1212,14 @@ public abstract class Chart extends Widget {
                     panelWidth - 1, panelHeight - 1, t.radiusSmall(), Strokes.BORDER, theme.outline);
             float y = py + padV;
             if (!heading.isEmpty()) {
-                ShapedText line = shaped(heading, headingFont, base);
+                ShapedText line = shapeText(heading, headingFont);
                 TextMetrics m = line.metrics();
                 float headingX = rtl ? px + panelWidth - padH - m.width() : px + padH;
                 canvas.drawText(line, headingX, y + m.ascent(), theme.text);
                 y += headingHeight;
             }
             for (ChartPoint row : rows) {
-                ShapedText nameLine = shaped(rowName(row), rowFont, base);
+                ShapedText nameLine = shapeText(rowName(row), rowFont);
                 TextMetrics m = nameLine.metrics();
                 float swatchY = y + (rowHeight - swatch) / 2;
                 float swatchX = rtl ? px + panelWidth - padH - swatch : px + padH;
@@ -1285,7 +1234,7 @@ public abstract class Chart extends Widget {
                 if (tooltipFormat == null) {
                     // The value is the row's far column, so it swaps sides with the name in the
                     // same pass; separately they would collide.
-                    ShapedText valueLine = shaped(tooltipRowValue(row), rowFont, base);
+                    ShapedText valueLine = shapeText(tooltipRowValue(row), rowFont);
                     float valueWidth = valueLine.metrics().width();
                     float valueX = rtl ? px + padH : px + panelWidth - padH - valueWidth;
                     canvas.drawText(valueLine, valueX, baseline, theme.text);
@@ -1345,7 +1294,7 @@ public abstract class Chart extends Widget {
     }
 
     private void updatePointer(float localX, float localY) {
-        layoutRegions(tokens(), isRtl());
+        layoutRegions(tokens(), isRightToLeft());
         pointerX = localX;
         pointerY = localY;
 

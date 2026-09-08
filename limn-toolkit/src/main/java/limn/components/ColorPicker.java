@@ -13,7 +13,6 @@ import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.Insets;
-import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -1144,7 +1143,7 @@ public final class ColorPicker extends Widget {
             // sweep and the thumb are one picture, and two resolutions that disagreed
             // inside one paint would draw value zero at one end and rest the thumb on the
             // other. The clip and the outline below span the box and know no direction.
-            boolean rtl = layoutDirection() == LayoutDirection.RTL;
+            boolean rtl = isRightToLeft();
             float rail = t.colorRailH();
             float top = (h - rail) / 2;
             float radius = Math.min(rail / 2, t.radiusSmall());
@@ -1176,7 +1175,7 @@ public final class ColorPicker extends Widget {
             // and mean the same thing on any page. That is why the two arms are split
             // apart rather than swapped: swapping them wholesale would invert the
             // vertical half too, which nothing asked for.
-            boolean rtl = layoutDirection() == LayoutDirection.RTL;
+            boolean rtl = isRightToLeft();
             float unit = unitFraction();
             float step = (event.modifiers() & Keys.MOD_SHIFT) != 0 ? 10 * unit : unit;
             switch (event.key()) {
@@ -1241,7 +1240,7 @@ public final class ColorPicker extends Widget {
             // The inverse of thumbCentreX, resolved once for this event: the pointer
             // arrives as a physical x, and the direction is what turns it back into a
             // distance travelled from the end the range starts at.
-            boolean rtl = layoutDirection() == LayoutDirection.RTL;
+            boolean rtl = isRightToLeft();
             float local = sceneToLocalX(event.x());
             float along = rtl ? width() - local : local;
             moveTo(clamp01((along - travelInset(t)) / travelWidth(t)));
@@ -2024,7 +2023,7 @@ public final class ColorPicker extends Widget {
             // is a sentence, and a sentence that ran backwards would say the new colour
             // was the one being compared against. The checkerboard under both halves is
             // a texture and stays where it is.
-            boolean rtl = layoutDirection() == LayoutDirection.RTL;
+            boolean rtl = isRightToLeft();
             canvas.fillRect(rtl ? w / 2 : 0, 0, w / 2, h, original);
             canvas.fillRect(rtl ? 0 : w / 2, 0, w / 2, h, color());
             canvas.restore();

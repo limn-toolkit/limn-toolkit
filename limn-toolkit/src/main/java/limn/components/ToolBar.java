@@ -157,7 +157,7 @@ public class ToolBar extends Widget {
         // onMeasure deliberately does not read it — that pass sums a width (pad + items + gaps
         // + pad), which is the same number in either direction, and a measure that mirrored
         // would only make the two passes disagree about how wide the bar is.
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         for (Widget item : children()) {
             Size s = item.measure(Constraints.loose(width(), innerH));
             float cy = pad + (innerH - s.height()) / 2;

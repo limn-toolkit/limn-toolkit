@@ -305,10 +305,6 @@ public class Label extends Widget {
         return paragraph;
     }
 
-    /** Whether this label reads right to left. Resolve it once per pass, into a local. */
-    private boolean isRtl() {
-        return layoutDirection() == LayoutDirection.RTL;
-    }
 
     /** Room the text itself gets: the box less the icon and its gap. */
     private float textWidth(SizeTokens t, Font f) {
@@ -609,7 +605,7 @@ public class Label extends Widget {
         // Resolved ONCE for the whole pass. The icon's side, the text region's left edge and the
         // alignment offset inside that region are three answers to one question, and two
         // resolutions that disagreed inside one paint would draw the text under the icon.
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
         float iconBox = icon == null ? 0 : iconBox(t, f);
         float iconSpace = icon == null ? 0 : iconBox + t.gapLabel();
         // Physical left edge of the text region. The icon gutter is on the side reading starts

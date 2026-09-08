@@ -206,7 +206,7 @@ public class ScrollView extends Widget implements Scrollable {
         // content: left to right the content sits at -offsetX and right to left at
         // viewportWidth() - childWidth + offsetX, so the same physical displacement is the
         // opposite change of offset. One sign flip, and the arithmetic above is untouched.
-        if (dx != 0 && layoutDirection() == limn.scene.LayoutDirection.RTL) {
+        if (dx != 0 && isRightToLeft()) {
             dx = -dx;
         }
         if (dx != 0 || dy != 0) {
@@ -282,7 +282,7 @@ public class ScrollView extends Widget implements Scrollable {
         // The vertical bar sits on the side reading ends on, and the horizontal one starts
         // after whatever strip that leaves, so the clear corner square is on the bar's own side
         // in both directions rather than always on the right.
-        boolean rtl = layoutDirection() == limn.scene.LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         if (vBar != null) {
             vBar.measure(Constraints.tight(t, vLen));
             vBar.layoutBox(rtl ? 0 : width() - t, 0, t, vLen);
@@ -308,7 +308,7 @@ public class ScrollView extends Widget implements Scrollable {
      * here, where the bar is placed.
      */
     private float viewportLeft() {
-        return layoutDirection() == limn.scene.LayoutDirection.RTL ? gutters.verticalStrip() : 0;
+        return isRightToLeft() ? gutters.verticalStrip() : 0;
     }
 
     /**
@@ -325,7 +325,7 @@ public class ScrollView extends Widget implements Scrollable {
      * would slide every right-to-left layout under the scrollbar.
      */
     private float contentOriginX(float childWidth) {
-        return layoutDirection() == limn.scene.LayoutDirection.RTL
+        return isRightToLeft()
                 ? viewportLeft() + viewportWidth() - childWidth + offsetX
                 : -offsetX;
     }

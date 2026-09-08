@@ -11,7 +11,6 @@ import limn.graphics.TextMetrics;
 import limn.i18n.I18n;
 import limn.input.Keys;
 import limn.scene.Constraints;
-import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -328,10 +327,6 @@ public final class MenuBar extends Widget {
         return -1;
     }
 
-    /** Whether this strip reads right to left. Resolve it once per pass. */
-    private boolean isRtl() {
-        return layoutDirection() == LayoutDirection.RTL;
-    }
 
     @Override
     protected Size onMeasure(Constraints constraints) {
@@ -370,7 +365,7 @@ public final class MenuBar extends Widget {
         TextMetrics fm = textRuler().measure("Hg", font);
         float chip = t.menuBarChipInset();
         // One resolution for the whole pass, beside the row, for the same reason.
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
         float cursor = 0;
         for (int i = 0; i < entries.size(); i++) {
             float w = titleWidth(i, t);
@@ -414,7 +409,7 @@ public final class MenuBar extends Widget {
         // One resolution of each axis for the whole event: the title a press lands on must be
         // the title the last paint drew there.
         SizeTokens t = Theme.current().tokensFor(this);
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
         switch (event.type()) {
             case MOVE, ENTER -> {
                 int i = titleAt(sceneToLocalX(event.x()), t, rtl);
@@ -466,7 +461,7 @@ public final class MenuBar extends Widget {
                 // is the NEXT one in declaration order, so the key is flipped here — once, and
                 // in the same breath as the dropdown's own arrows, which PopupMenu flips for
                 // itself: the callbacks wired between the two mean previous/next and stay put.
-                boolean towardsLeading = (event.key() == Keys.LEFT) != isRtl();
+                boolean towardsLeading = (event.key() == Keys.LEFT) != isRightToLeft();
                 hoverIndex = towardsLeading
                         ? (hoverIndex <= 0 ? n - 1 : hoverIndex - 1)
                         : (hoverIndex + 1) % n;
@@ -642,7 +637,7 @@ public final class MenuBar extends Widget {
         // direction through the anchor link below (a PopupMenu is parentless, being a native
         // window's scene root or an overlay, so the tree walk cannot reach us any other way).
         SizeTokens t = Theme.current().tokensFor(this);
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
         int n = entries.size();
         openIndex = index;
         hoverIndex = index;
@@ -760,7 +755,7 @@ public final class MenuBar extends Widget {
         // the same reason they give: two resolutions that disagree inside one pass describe a
         // title at its neighbour's rectangle.
         SizeTokens t = Theme.current().tokensFor(this);
-        boolean rtl = isRtl();
+        boolean rtl = isRightToLeft();
         int current = openIndex >= 0 ? openIndex : (isFocused() ? hoverIndex : -1);
         boolean showing = isShowingDropdown();
         float cursor = 0;

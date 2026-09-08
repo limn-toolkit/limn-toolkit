@@ -8,7 +8,6 @@ import limn.graphics.Canvas;
 import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
-import limn.scene.LayoutDirection;
 import limn.scene.Scrollable;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -471,7 +470,7 @@ public class ListView extends Widget implements Scrollable {
         // One resolution for the whole pass, as the axis requires: placeDown runs twice below
         // whenever the over-scroll retry fires, and the bar's side and the row origin are two
         // halves of one answer. Two resolutions that disagreed would put the rows under the bar.
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         // Settle the strip first: every row below is measured and placed into what
         // it leaves, so a reserved bar narrows the rows instead of covering them.
         // The estimate is what the bar itself reports, and it does not move with

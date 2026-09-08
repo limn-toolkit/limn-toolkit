@@ -4,7 +4,6 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.input.Keys;
 import limn.scene.Constraints;
-import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -149,7 +148,7 @@ public final class ContextMenus {
         }
         // Resolved once, after the fallback has chosen which widget the menu drops from, and in
         // an event-driven call rather than at construction: this runs with the tree complete.
-        boolean rtl = from.layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = from.isRightToLeft();
         float cornerX = rtl ? from.localToSceneX() + from.width() : from.localToSceneX();
         new PopupMenu(menu).showAt(from, cornerX, from.localToSceneY() + from.height());
     }
@@ -291,7 +290,7 @@ public final class ContextMenus {
             if (menu == null || menu.items().isEmpty()) {
                 return false;
             }
-            boolean rtl = layoutDirection() == LayoutDirection.RTL;
+            boolean rtl = isRightToLeft();
             showAt(this, menu, rtl ? width() : 0, height());
             return true;
         }

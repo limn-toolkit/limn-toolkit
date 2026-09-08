@@ -9,7 +9,6 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.input.Keys;
 import limn.scene.Constraints;
-import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
@@ -236,7 +235,7 @@ public final class SplitPane extends Widget {
      * where the drag would not put it.
      */
     private boolean mirrored() {
-        return horizontal() && layoutDirection() == LayoutDirection.RTL;
+        return horizontal() && isRightToLeft();
     }
 
     /**

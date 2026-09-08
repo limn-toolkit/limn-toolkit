@@ -371,7 +371,7 @@ public abstract class Flex extends Widget {
         // the cross placement that reflects: CrossAlignment.START on a column of labels means
         // the edge reading starts from, and leaving it physical pins a whole form's text to the
         // left inside a right-to-left interface.
-        boolean horizontal = layoutDirection() == limn.scene.LayoutDirection.RTL;
+        boolean horizontal = isRightToLeft();
         boolean rtl = !vertical && horizontal;
         boolean mirrorCross = vertical && horizontal;
         // The cursor is a LOGICAL distance along the main axis, which the placement below

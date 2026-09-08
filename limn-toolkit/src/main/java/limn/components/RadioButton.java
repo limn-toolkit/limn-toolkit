@@ -408,7 +408,7 @@ public class RadioButton extends Widget {
         // arms and not two: a horizontal key sharing an arm with a vertical one cannot mirror
         // without dragging the vertical axis around with it, and a group laid out in a column
         // would then walk backwards for nothing.
-        boolean rtl = layoutDirection() == LayoutDirection.RTL;
+        boolean rtl = isRightToLeft();
         switch (event.key()) {
             case Keys.UP -> stepSelection(event, -1);
             case Keys.DOWN -> stepSelection(event, 1);

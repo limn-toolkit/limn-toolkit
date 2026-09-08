@@ -13,7 +13,6 @@ import limn.graphics.Font;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18nString;
-import limn.scene.LayoutDirection;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -362,7 +361,7 @@ public abstract class CartesianChart extends Chart {
         SizeTokens t = tokens();
         // Resolved once for the whole pass, before anything that reads it. Two resolutions
         // inside one frame is how the grid ends up mirrored and the marks standing on it do not.
-        rtl = layoutDirection() == LayoutDirection.RTL;
+        rtl = isRightToLeft();
         resolveScale();
         layoutPlot(t, x, y, w, h);
         if (plotWidth <= 1 || plotHeight <= 1) {
@@ -777,7 +776,7 @@ public abstract class CartesianChart extends Chart {
         // rectangle the frame was drawn with; anything else would report a different bar than
         // the one aimed at, and a direction resolved on one path and not the other would report
         // the bar mirrored about the middle of the plot.
-        rtl = layoutDirection() == LayoutDirection.RTL;
+        rtl = isRightToLeft();
         resolveScale();
         layoutPlot(tokens(), contentLeft(), contentTop(), contentBoxWidth(), contentBoxHeight());
         if (plotWidth <= 0 || plotHeight <= 0) {
