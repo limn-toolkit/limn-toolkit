@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
+import limn.components.text.CodePoints;
 import limn.components.text.TextAccessibility;
 import limn.components.text.TextEditModel;
 import limn.concurrent.Ui;
@@ -1130,7 +1131,7 @@ public class TextField extends Widget {
     @Override
     protected void onPreedit(PreeditEvent event) {
         preedit = event.text();
-        preeditCaret = codePointToChar(preedit, event.caret());
+        preeditCaret = CodePoints.charIndex(preedit, event.caret());
         computeFocusedBlock(event);
         ensureCursorVisible();
         resetBlink();
@@ -1151,18 +1152,10 @@ public class TextField extends Widget {
         for (int i = 0; i < focused; i++) {
             cpStart += blocks[i];
         }
-        preeditFocusStart = codePointToChar(preedit, cpStart);
-        preeditFocusEnd = codePointToChar(preedit, cpStart + blocks[focused]);
+        preeditFocusStart = CodePoints.charIndex(preedit, cpStart);
+        preeditFocusEnd = CodePoints.charIndex(preedit, cpStart + blocks[focused]);
     }
 
-    /** @return the char offset in {@code text} of code-point index {@code cpIndex} */
-    private static int codePointToChar(String text, int cpIndex) {
-        if (cpIndex <= 0) {
-            return 0;
-        }
-        int total = text.codePointCount(0, text.length());
-        return cpIndex >= total ? text.length() : text.offsetByCodePoints(0, cpIndex);
-    }
 
     /**
      * The caret's box in this widget's <b>own</b> coordinates, written into {@code out} as x, y,

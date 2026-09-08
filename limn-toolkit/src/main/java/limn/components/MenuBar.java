@@ -118,10 +118,7 @@ public final class MenuBar extends Widget {
 
     /** {@link #addMenu(String, char, Menu)} with a title that follows the UI language. */
     public MenuBar addMenu(limn.i18n.I18nString title, char mnemonic, Menu menu) {
-        if (mnemonic != 0 && !Character.isLetterOrDigit(mnemonic)) {
-            throw new IllegalArgumentException("a mnemonic must be a letter or a digit: " + mnemonic);
-        }
-        char letter = mnemonic == 0 ? 0 : Character.toUpperCase(mnemonic);
+        char letter = MenuInk.checkedMnemonic(mnemonic);
         // A letter and a digit are their own key codes (Keys.A is 'A', Keys.NUM_0 is '0'), and the
         // check above has already refused everything else, so the uppercased letter is a legal
         // accelerator key and the validator below it cannot reject one.

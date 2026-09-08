@@ -406,7 +406,7 @@ class LabelTest extends ComponentTestBase {
         ShapedText rtl = RULER.shape(HEBREW + "abcdef", f);
         assertEquals(ShapedText.Direction.RTL, rtl.baseDirection(), "first strong char is Hebrew");
 
-        ShapedText shown = Label.ellipsize(rtl, 55, RULER);
+        ShapedText shown = RULER.ellipsize(rtl, 55);
         assertEquals(HEBREW + "a" + "…", shown.text(),
                 "cut in logical order: the last five characters go, wherever they were drawn");
         assertEquals(50, shown.metrics().width(), 1e-3);
@@ -417,7 +417,7 @@ class LabelTest extends ComponentTestBase {
         // left-to-right paragraph cuts the same number of characters and draws the ellipsis at
         // the other end of the line.
         ShapedText ltr = RULER.shape("abcdef" + HEBREW, f);
-        ShapedText shownLtr = Label.ellipsize(ltr, 55, RULER);
+        ShapedText shownLtr = RULER.ellipsize(ltr, 55);
         assertEquals("abcd…", shownLtr.text());
         assertEquals(40, shownLtr.selection(4, 5).get(0).x0(), 1e-3);
     }

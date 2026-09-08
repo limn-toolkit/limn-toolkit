@@ -190,10 +190,7 @@ public final class MenuItem {
         if (kind == Kind.SEPARATOR) {
             throw new IllegalStateException("a separator cannot carry a mnemonic");
         }
-        if (value != 0 && !Character.isLetterOrDigit(value)) {
-            throw new IllegalArgumentException("a mnemonic must be a letter or a digit: " + value);
-        }
-        this.mnemonic = value == 0 ? 0 : Character.toUpperCase(value);
+        this.mnemonic = MenuInk.checkedMnemonic(value);
         return this;
     }
 
@@ -204,16 +201,7 @@ public final class MenuItem {
      * changed with the UI language.
      */
     public int mnemonicIndex() {
-        String text = label();
-        if (mnemonic == 0 || text == null) {
-            return -1;
-        }
-        for (int i = 0; i < text.length(); i++) {
-            if (Character.toUpperCase(text.charAt(i)) == mnemonic) {
-                return i;
-            }
-        }
-        return -1;
+        return MenuInk.mnemonicIndex(label(), mnemonic);
     }
 
     // -------------------------------------------------------------- internal

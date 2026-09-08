@@ -104,8 +104,6 @@ public class Label extends Widget {
      */
     public enum Role { BODY, LABEL, TITLE }
 
-    private static final String ELLIPSIS = "…";
-
     private I18nString text;
     private limn.graphics.Icon icon;
     // What the icon MEANS, not where it goes: its side is this widget's decision and turns around
@@ -320,7 +318,7 @@ public class Label extends Widget {
         lines.clear();
         ShapedText shown = paragraph(ruler, f);
         if (overflow == Overflow.ELLIPSIS && shown.metrics().width() > textWidth) {
-            shown = ellipsize(shown, textWidth, ruler);
+            shown = ruler.ellipsize(shown, textWidth);
         }
         lines.add(shown);
     }
@@ -681,46 +679,6 @@ public class Label extends Widget {
         canvas.restore();
     }
 
-    /**
-     * {@code line} cut in <b>logical</b> order to fit {@code available}, with a real-measured
-     * ellipsis appended and the whole thing re-shaped so it draws in <b>visual</b> order.
-     *
-     * <p>The cut and the draw are two different orders and the split is the point. The characters
-     * dropped are the logically last ones, whatever end of the line they were drawn at; the
-     * ellipsis is then logically last, so in a right-to-left paragraph it renders on the visual
-     * <em>left</em>. There is no branch for that anywhere here, and there must not be one: it
-     * falls out of shaping the concatenation instead of positioning two pieces.
-     *
-     * <p><b>The base direction travels with every re-shape here</b>, taken from {@code line}
-     * itself because this is static and has no widget to ask. It has to: {@code …} is wholly
-     * neutral and a cut prefix can be too, so re-shaping either without the base lets the
-     * first-strong rule fall back to left to right and measures the budget in one direction while
-     * the paragraph is read in the other.
-     *
-     * @param line      the shaped whole line, wider than {@code available}; its
-     *                  {@linkplain ShapedText#baseDirection() base} is the one the cut is shaped
-     *                  for
-     * @param available room the text gets, in logical points
-     * @param ruler     the ruler that shaped {@code line} and re-shapes the cut
-     * @return the line as it will be drawn; the lone ellipsis when nothing fits beside it
-     */
-    static ShapedText ellipsize(ShapedText line, float available, TextRuler ruler) {
-        Font font = line.font();
-        ShapedText.Direction base = line.baseDirection();
-        float ellipsisWidth = ruler.shape(ELLIPSIS, font, base).metrics().width();
-        int cut = line.fitEnd(0, available - ellipsisWidth);
-        ShapedText shown = ruler.shape(line.text().substring(0, cut) + ELLIPSIS, font, base);
-        // fitEnd said WHERE to cut, against the budget of the UNCUT shaping. Re-shaping the kept
-        // prefix beside an ellipsis can join, ligate or kern differently and come out a hair
-        // wider than the budget promised, and a Label that overflows its box by a hair is a Label
-        // whose ellipsis is clipped. Zero or one iteration for Latin; the loop exists for the
-        // scripts where a cut changes the forms on both sides of it.
-        while (shown.metrics().width() > available && cut > 0) {
-            cut = line.caretIndex(line.caretOrdinal(cut) - 1);
-            shown = ruler.shape(line.text().substring(0, cut) + ELLIPSIS, font, base);
-        }
-        return shown;
-    }
 
     /**
      * Greedy line breaking over one shaping of the paragraph, at the opportunities

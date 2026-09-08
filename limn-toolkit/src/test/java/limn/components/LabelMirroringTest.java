@@ -316,7 +316,7 @@ class LabelMirroringTest extends ComponentTestBase {
     void anEllipsisOfWhollyNeutralTextIsShapedAtTheLinesOwnBase() {
         Font f = Font.of(12);
         ShapedText line = RULER.shape("12345678", f, ShapedText.Direction.RTL);
-        ShapedText shown = Label.ellipsize(line, 55, RULER);
+        ShapedText shown = RULER.ellipsize(line, 55);
 
         assertEquals("1234…", shown.text(), "cut in logical order: 55pt less the ellipsis");
         assertEquals(ShapedText.Direction.RTL, shown.baseDirection());
@@ -330,7 +330,7 @@ class LabelMirroringTest extends ComponentTestBase {
     void anEllipsisOfWhollyNeutralTextIsUnchangedReadingLeftToRight() {
         Font f = Font.of(12);
         ShapedText line = RULER.shape("12345678", f, ShapedText.Direction.LTR);
-        ShapedText shown = Label.ellipsize(line, 55, RULER);
+        ShapedText shown = RULER.ellipsize(line, 55);
 
         assertEquals("1234…", shown.text());
         assertEquals(ShapedText.Direction.LTR, shown.baseDirection());

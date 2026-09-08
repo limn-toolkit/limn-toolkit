@@ -14,6 +14,7 @@ import limn.graphics.Font;
 import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
+import limn.graphics.TextRuler;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.input.Keys;
@@ -805,7 +806,6 @@ public abstract class Chart extends Widget {
 
 
 
-    private static final String ELLIPSIS = "…";
 
     /**
      * {@code text} shortened with an ellipsis until it fits {@code maxWidth}, or
@@ -827,19 +827,10 @@ public abstract class Chart extends Widget {
         if (line.metrics().width() <= maxWidth) {
             return text;
         }
-        float ellipsisWidth = shapeText(ELLIPSIS, font).metrics().width();
-        if (ellipsisWidth > maxWidth) {
+        if (shapeText(TextRuler.ELLIPSIS, font).metrics().width() > maxWidth) {
             return "";
         }
-        int cut = line.fitEnd(0, maxWidth - ellipsisWidth);
-        String shown = text.substring(0, cut) + ELLIPSIS;
-        // fitEnd said where to cut against the uncut shaping; the kept prefix beside an ellipsis
-        // can join or kern a hair wider. Zero or one iteration for Latin.
-        while (cut > 0 && shapeText(shown, font).metrics().width() > maxWidth) {
-            cut = line.caretIndex(line.caretOrdinal(cut) - 1);
-            shown = text.substring(0, cut) + ELLIPSIS;
-        }
-        return shown;
+        return textRuler().ellipsize(line, maxWidth).text();
     }
 
     // ------------------------------------------------------------- lifecycle

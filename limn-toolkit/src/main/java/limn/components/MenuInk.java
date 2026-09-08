@@ -24,6 +24,22 @@ final class MenuInk {
     private static final float UNDERLINE_DROP = 1.5f;
 
     /**
+     * The mnemonic a menu title or item may carry, checked and folded to the upper case every
+     * comparison is made in: a letter or a digit, or zero for none. MenuBar and MenuItem each
+     * wrote the check; the rule is one.
+     *
+     * @param value what the application passed
+     * @return the mnemonic as held, upper-cased; zero for none
+     * @throws IllegalArgumentException if it is neither a letter nor a digit
+     */
+    static char checkedMnemonic(char value) {
+        if (value != 0 && !Character.isLetterOrDigit(value)) {
+            throw new IllegalArgumentException("a mnemonic must be a letter or a digit: " + value);
+        }
+        return value == 0 ? 0 : Character.toUpperCase(value);
+    }
+
+    /**
      * @return the index in {@code text} of the first case-insensitive occurrence of
      *         {@code mnemonic}, or {@code -1} when there is no mnemonic, no text, or no occurrence
      */

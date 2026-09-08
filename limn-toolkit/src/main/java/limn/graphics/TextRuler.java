@@ -13,6 +13,9 @@ import java.text.BreakIterator;
 @FunctionalInterface
 public interface TextRuler {
 
+    /** HORIZONTAL ELLIPSIS, U+2026: what {@link #ellipsize} appends where it cuts. */
+    String ELLIPSIS = "\u2026";
+
     /**
      * A ruler that measures everything as zero: what a detached widget gets, and what
      * {@link TextRulers} serves before a backend installs a real one.
@@ -229,6 +232,35 @@ public interface TextRuler {
             }
         }
         return builder.build();
+    }
+
+    /**
+     * Cuts a shaped line to {@code available} points and ends it with an ellipsis, re-shaping
+     * the kept prefix beside it through this ruler.
+     *
+     * <p>{@link ShapedText#fitEnd} says <em>where</em> to cut, against the budget of the uncut
+     * shaping. Re-shaping the kept prefix beside an ellipsis can join, ligate or kern differently
+     * and come out a hair wider than the budget promised, and a label that overflows its box by a
+     * hair is a label whose ellipsis is clipped. So the cut retreats one caret position at a time
+     * until the re-shaped line fits: zero or one iteration for Latin, and the loop exists for the
+     * scripts where a cut changes the forms on both sides of it. Label and Chart each carried this
+     * loop; it belongs to the ruler that does the shaping.
+     *
+     * @param line      the uncut line, shaped by this ruler
+     * @param available the width it must fit in, in logical points
+     * @return the line as it will be drawn; the lone ellipsis when nothing fits beside it
+     */
+    default ShapedText ellipsize(ShapedText line, float available) {
+        Font font = line.font();
+        ShapedText.Direction base = line.baseDirection();
+        float ellipsisWidth = shape(ELLIPSIS, font, base).metrics().width();
+        int cut = line.fitEnd(0, available - ellipsisWidth);
+        ShapedText shown = shape(line.text().substring(0, cut) + ELLIPSIS, font, base);
+        while (shown.metrics().width() > available && cut > 0) {
+            cut = line.caretIndex(line.caretOrdinal(cut) - 1);
+            shown = shape(line.text().substring(0, cut) + ELLIPSIS, font, base);
+        }
+        return shown;
     }
 
     /**
