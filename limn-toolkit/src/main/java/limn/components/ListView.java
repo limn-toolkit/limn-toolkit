@@ -48,6 +48,13 @@ import java.util.function.IntConsumer;
  * direction the scroll realized them in — which is what makes a Tab through those row buttons, and
  * the reading order an assistive technology is given, agree with the list on screen.
  *
+ * <p><b>The row holding the keyboard focus is realized for as long as it holds it</b>, wherever a
+ * scroll has taken the viewport: it stays mounted in data order, laid out outside the viewport,
+ * unpainted and unreachable by the pointer, and published to an assistive technology as the list
+ * item it is, not showing. A screen reader whose cursor follows the focus onto a row is otherwise
+ * left standing on a node a page scroll deleted. Every other row outside the viewport goes back
+ * to the adapter, and so does that one the moment the focus leaves it or the data is refreshed.
+ *
  * <p><b>Size steps propagate rather than being imposed.</b> Rows are adapter-supplied
  * widgets in this list's subtree, so they resolve the {@link limn.scene.ControlSize}
  * themselves and {@code list.setControlSize(SMALL)} shortens them because <em>they</em>
@@ -274,7 +281,9 @@ public class ListView extends Widget implements Scrollable {
         // Unmount every row: a mounted cell is bound to the OLD datum at its
         // index and layout reuses mounted cells without consulting the adapter,
         // so without this the visible viewport is exactly what never refreshes.
-        recycleExcept(0, 0);
+        // Every row, the one holding the keyboard focus included: it is bound to a datum
+        // that may no longer exist, and the focus falls back to the list as it always did.
+        recycleExcept(0, 0, 0);
         markNeedsLayout();
         invalidate();
         if (selectedIndex >= count) {
@@ -484,7 +493,7 @@ public class ListView extends Widget implements Scrollable {
 
         int count = adapter.rowCount();
         if (count == 0) {
-            recycleExcept(0, 0);
+            recycleExcept(0, 0, 0);
             anchorIndex = 0;
             anchorTop = 0;
             return;
@@ -500,9 +509,10 @@ public class ListView extends Widget implements Scrollable {
             anchorTop += h - bottom;
             normalizeUp(w);
             normalizeDown(count, w);
-            placeDown(count, rowX, w, h);
+            bottom = placeDown(count, rowX, w, h);
         }
-        recycleExcept(placedFrom, placedTo);
+        recycleExcept(placedFrom, placedTo, count);
+        placeKeptOutside(rowX, w, bottom);
         updateAverageHeight();
         vBar.refresh();
         if (pendingEnsureVisible >= 0) {
@@ -592,22 +602,45 @@ public class ListView extends Widget implements Scrollable {
         mountedCount++;
     }
 
-    /** Recycles every mounted row outside {@code [from, toExclusive)}, keeping the rest in order. */
-    private void recycleExcept(int from, int toExclusive) {
+    /**
+     * Recycles every mounted row outside {@code [from, toExclusive)}, keeping the rest in order —
+     * except the one row that holds the keyboard focus, which stays mounted while its index is
+     * still below {@code count}.
+     *
+     * <p>A scroll used to release that row with the others and move the focus up to the list,
+     * and the keyboard user never noticed: the arrows move by selection, and the selected row is
+     * always realized. A screen reader user did. A reader whose cursor follows the keyboard focus
+     * onto a focusable row — VoiceOver's does — was standing on that row when a Page Down released
+     * it, and with the node gone from the tree the reader fell back to "you are currently in a
+     * window" (ADR 039 §13.29). So the row the keyboard is in is kept alive, in data order, with
+     * its widget and its focus untouched; {@link #placeKeptOutside} puts it where it is, which is
+     * outside the viewport. It is released by the first pass that finds it outside the run and no
+     * longer holding the focus, or by any pass that releases everything.
+     *
+     * <p>{@code count} is the adapter's row count as the caller read it, and {@code 0} means
+     * spare nothing: {@link #refresh} unmounts every cell because each is bound to a datum the
+     * adapter may have replaced, and a row whose index the adapter no longer has is not a row.
+     *
+     * @param from        the first row to keep
+     * @param toExclusive one past the last row to keep
+     * @param count       the row count a spared row's index must be below
+     */
+    private void recycleExcept(int from, int toExclusive, int count) {
         int kept = 0;
         for (int i = 0; i < mountedCount; i++) {
             int row = mountedRows[i];
             Widget cell = mountedCells[i];
-            if (row >= from && row < toExclusive) {
+            boolean inRun = row >= from && row < toExclusive;
+            boolean hasFocus = !inRun && containsFocus(cell);
+            if (inRun || (hasFocus && row < count)) {
                 mountedRows[kept] = row;
                 mountedCells[kept] = cell;
                 kept++;
                 continue;
             }
-            boolean hadFocus = containsFocus(cell);
             remove(cell);
             adapter.recycle(cell);
-            if (hadFocus) {
+            if (hasFocus) {
                 requestFocus();
             }
         }
@@ -615,6 +648,49 @@ public class ListView extends Widget implements Scrollable {
             mountedCells[i] = null; // the adapter owns it now; holding a reference would pin it
         }
         mountedCount = kept;
+    }
+
+    /**
+     * Lays out every mounted row outside the placed run — the focused row a scroll spared —
+     * wholly outside the viewport, on the side of the run its index lies, at the distance the
+     * scroll estimate puts it.
+     *
+     * <p>It has to be placed, not left: {@link #ensureVisible}'s far jump moves the anchor and
+     * not the cells, so a spared row left at its last box could sit inside the viewport on top of
+     * the row now bound there, be painted, and take the click. The estimate is the one every
+     * scroll number is built from, so the row is where the thumb says it is. Above the run the
+     * row's <b>bottom</b> edge is placed, at or above the anchor's top (which is at or above
+     * zero once normalized); below it the row's top edge, at or below where the walk ended (which
+     * is at or below the viewport's bottom whenever a row is left below it). Both put the whole
+     * box outside {@code [0, height)}, whatever the row's own height, which is what keeps
+     * {@link #paintChildren} from painting a feather of it, {@link #hitTest} from reaching it,
+     * and {@code isShowing()} answering no.
+     *
+     * @param rowX   the row origin this pass resolved
+     * @param w      the row width this pass resolved
+     * @param bottom the y {@link #placeDown} ended at
+     */
+    private void placeKeptOutside(float rowX, float w, float bottom) {
+        if (mountedCount == placedTo - placedFrom) {
+            return; // the common frame: nothing is mounted outside the run
+        }
+        float avg = avgRowHeight(tokens());
+        for (int i = 0; i < mountedCount; i++) {
+            int row = mountedRows[i];
+            if (row >= placedFrom && row < placedTo) {
+                continue;
+            }
+            float h = measuredHeight(row, w);
+            float y = row < placedFrom
+                    ? anchorTop - (placedFrom - 1 - row) * avg - h
+                    : bottom + (row - placedTo) * avg;
+            mountedCells[i].layoutBox(rowX, y, w, h);
+        }
+    }
+
+    /** Whether {@code index} is in the run the last layout placed, which is the viewport's. */
+    private boolean isPlaced(int index) {
+        return index >= placedFrom && index < placedTo;
     }
 
     /** The cell currently bound to a row, or {@code null} when that row is not realized. */
@@ -662,7 +738,10 @@ public class ListView extends Widget implements Scrollable {
             pendingEnsureVisible = index;
             return;
         }
-        Widget cell = cellFor(index);
+        // A spared focused row outside the run is mounted at an estimated box, and a scroll by
+        // that estimate can stop short of it under uneven heights; it takes the far jump below,
+        // which is exact, and the layout that follows finds its cell already mounted.
+        Widget cell = isPlaced(index) ? cellFor(index) : null;
         if (cell != null) {
             float top = cell.y();
             float bottom = top + cell.height();
@@ -709,6 +788,12 @@ public class ListView extends Widget implements Scrollable {
             canvas.clipRect(0, 0, width(), height());
             for (Widget child : children()) {
                 if (child == vBar) {
+                    continue;
+                }
+                if (child.y() >= height() || child.y() + child.height() <= 0) {
+                    // A row wholly outside the viewport: the focused row a scroll spared. Its
+                    // own clip test would let it paint a feather's worth, and a focused button
+                    // draws its ring outside its box, which is a ring on the row now at the edge.
                     continue;
                 }
                 canvas.save();
