@@ -120,27 +120,23 @@ export const ptBR: Catalog = {
   "home.themes.alt":
     "A mesma tela densa de controles renderizada sete vezes lado a lado, cada faixa em uma paleta, um passo de tamanho e uma tipografia diferentes.",
 
+  "home.everyone.eyebrow": "Para todo mundo",
+  "home.everyone.heading": "Todas as línguas, e todos os leitores de tela",
+
   "home.languages.heading": "Nos idiomas dos seus usuários",
   "home.languages.body":
-    "O texto é medido com os mesmos avanços com que é desenhado, e o fallback de fonte roda caractere a caractere, então latino, grego, cirílico e CJK se misturam em uma mesma string sem você escolher tipografia. Os métodos de entrada compõem dentro do campo, e a edição anda por cluster de grafema, então marcas combinantes e emoji de várias partes nunca são partidos ao meio. E a direita para a esquerda não é só shaping: a direção é um eixo que a subárvore herda, então uma janela em hebraico se espelha — e ainda pode conter um painel de código da esquerda para a direita.",
+    "O texto é medido com os mesmos avanços com que é desenhado, e o fallback de fontes roda por caractere, então latino, grego, cirílico e CJK se misturam numa mesma string sem que você escolha uma face. Árabe, hebraico, devanágari e tailandês são modelados onde quer que haja texto, e a direção é um eixo que a subárvore herda: uma janela em hebraico se espelha — linhas, margens, barras de rolagem, setas — e ainda pode conter um painel de código da esquerda para a direita. Os métodos de entrada compõem dentro do campo, a edição avança por agrupamento de grafemas, e dígitos, ordenação e caixa seguem o idioma.",
   "home.languages.alt":
     "A mesma tela capturada em japonês, chinês simplificado, coreano e russo, costurada em uma única janela.",
   "home.languages.link": "Leia o guia de texto",
   "home.languages.caption": "A mesma tela, capturada em quatro idiomas durante este build.",
 
-  "home.limits.eyebrow": "Antes de se comprometer",
-  "home.limits.heading": "O que o Limn não faz",
-  "home.limits.body":
-    "Todo toolkit troca alguma coisa. Estas são as trocas, ditas de saída, porque descobri-las na terceira semana é pior do que lê-las agora.",
-  "home.limits.scripts.heading": "Somente texto horizontal",
-  "home.limits.scripts.body":
-    "O árabe, o hebraico, o devanágari e o tailandês têm shaping onde quer que haja texto, o leiaute é espelhado por um eixo herdado da direita para a esquerda, e dígitos, ordenação e maiúsculas seguem o idioma — os pacotes ar e he são publicados, com um Bold para cada escrita. O que não existe é escrita vertical: nada de colunas de cima para baixo, nenhum segundo eixo atravessando o leiaute. Linhas quebram; não são justificadas.",
-  "home.limits.a11y.heading": "Leitores de tela, com limites",
-  "home.limits.a11y.body":
-    "Uma janela se publica na UI Automation, na NSAccessibility e no AT-SPI2, então NVDA, VoiceOver e Orca leem uma interface Limn no idioma em que ela é desenhada. O texto é lido e escrito inteiro, então a revisão caractere a caractere e o roteamento do cursor braille ficam degradados; uma lista publica as linhas que realizou; e as configurações de acessibilidade do sistema — alto contraste, movimento reduzido, escala de texto — não são expostas.",
-  "home.limits.version.heading": "Pré-1.0",
-  "home.limits.version.body":
-    "A API ainda se move entre releases, e OpenGL é o único caminho de renderização. Fixe a sua versão e leia as notas de release.",
+  "home.accessibility.heading": "Lido em voz alta, nessas mesmas línguas",
+  "home.accessibility.body":
+    "Uma janela se publica no UI Automation no Windows, no NSAccessibility no macOS e no AT-SPI2 no Linux, então NVDA, VoiceOver e Orca descrevem uma interface Limn sem que sua aplicação escreva uma linha de código de plataforma. Os nomes são as mesmas I18nStrings que a interface desenha, e o toolkit traz sua própria palavra para cada papel em cada idioma que distribui. Uma legenda nomeia seu controle com uma chamada; estados, valores, verbos e foco são publicados por conta do toolkit.",
+  "home.accessibility.link": "Leia o guia de acessibilidade",
+  "home.accessibility.caption":
+    "O formulário acima, como um leitor de tela o ouve, capturado durante este build.",
 
   "home.closing.heading": "Uma janela na tela em cinco minutos",
   "home.closing.body":

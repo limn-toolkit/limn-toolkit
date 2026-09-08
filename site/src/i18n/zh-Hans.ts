@@ -118,27 +118,23 @@ export const zhHans: Catalog = {
   "home.themes.alt":
     "同一个控件密集的界面并排渲染七次，每一条都用不同的配色、尺寸档位和字体。",
 
+  "home.everyone.eyebrow": "为每一个人",
+  "home.everyone.heading": "每一种语言，每一种屏幕阅读器",
+
   "home.languages.heading": "用你的用户的语言",
   "home.languages.body":
-    "文本用与绘制相同的步进量来度量，字体回退逐字符进行，所以拉丁文、希腊文、西里尔文和中日韩文可以混在同一个字符串里，而你无需选择字体。输入法在字段内完成组字，编辑按字素簇移动，因此组合符号和多段式表情永远不会被切开。从右向左也不只是塑形：方向是子树继承的一条轴，所以希伯来语窗口会镜像——其中仍可以放一块从左向右的代码面板。",
+    "文本以绘制时相同的字距度量，字体回退逐字进行，因此拉丁、希腊、西里尔与中日韩文字混在同一个字符串里也无需你挑选字体。阿拉伯文、希伯来文、天城文和泰文在任何绘制文字的地方都会被塑形，而方向是子树继承的一条轴：希伯来语窗口整体镜像——行、边距、滚动条、方向键——同时仍能容纳一块从左到右的代码窗格。输入法在字段内组字，编辑按字素簇移动，数字、排序和大小写跟随语言。",
   "home.languages.alt":
     "同一个界面分别用日语、简体中文、韩语和俄语截取，拼接成一个窗口。",
   "home.languages.link": "阅读文本指南",
   "home.languages.caption": "同一个界面，在本次构建中以四种语言截取。",
 
-  "home.limits.eyebrow": "在你投入之前",
-  "home.limits.heading": "Limn 做不到的事",
-  "home.limits.body":
-    "任何工具包都有取舍。这些就是取舍，先说清楚，因为到第三周才发现，比现在读到要糟糕得多。",
-  "home.limits.scripts.heading": "仅横排文字",
-  "home.limits.scripts.body":
-    "阿拉伯文、希伯来文、天城文与泰文在任何绘制文字的地方都会正确塑形，版面沿一条可继承的从右向左轴镜像，数字、排序与大小写都跟随语言——ar 与 he 的翻译照常发布，每种文字都配有粗体。这里没有的是竖排：没有自上而下的栏，也没有贯穿布局的第二条轴。行会折断，但不做两端对齐。",
-  "home.limits.a11y.heading": "屏幕阅读器，以及它的边界",
-  "home.limits.a11y.body":
-    "窗口会把自己发布到 UI Automation、NSAccessibility 与 AT-SPI2，于是 NVDA、VoiceOver 与 Orca 都能按界面绘制所用的语言朗读一个 Limn 界面。文本是整体读写的，因此逐字符复查与盲文光标定位会受限；列表只公开已实体化的行；而系统层面的无障碍设置——高对比度、减少动态效果、文字缩放——完全没有暴露。",
-  "home.limits.version.heading": "1.0 之前",
-  "home.limits.version.body":
-    "API 在版本之间仍会变动，而 OpenGL 是唯一的渲染路径。请锁定版本并阅读发行说明。",
+  "home.accessibility.heading": "用同样的语言，读出来",
+  "home.accessibility.body":
+    "窗口把自己发布到 Windows 的 UI Automation、macOS 的 NSAccessibility 和 Linux 的 AT-SPI2，因此 NVDA、VoiceOver 和 Orca 无需你的应用写一行平台代码就能描述 Limn 界面。名称就是界面绘制所用的同一批 I18nString，工具包为它交付的每种语言里的每个角色都自带用词。一个标题一次调用就为控件命名；状态、数值、动作和焦点由工具包代为发布。",
+  "home.accessibility.link": "阅读无障碍指南",
+  "home.accessibility.caption":
+    "上面的表单，正如屏幕阅读器被告知的那样，在本次构建中捕获。",
 
   "home.closing.heading": "五分钟，让窗口出现在屏幕上",
   "home.closing.body":

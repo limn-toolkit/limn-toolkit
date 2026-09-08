@@ -91,16 +91,37 @@ const features = [
     alt: "The Limn 3D viewport",
     caption: msg("home.features.media.caption"),
   },
-  {
-    keys: "home.languages",
-    href: `${base}docs/text-and-languages/`,
-    images: languages.images,
-    alt: msg("home.languages.alt"),
-    caption: msg("home.languages.caption"),
-  },
 ] as const;
 
-const limits = ["scripts", "a11y", "version"] as const;
+// The reader panel: what a screen reader is told about the form shown above, from the
+// transcript the capture wrote beside its picture (one line per node, in reading order). Parsed
+// only enough to typeset: the role and the name are the phrase a reader speaks first; where the
+// name came from and the states follow, muted. Values and verbs are left out, because the panel
+// shows what is heard on arrival and not everything the node offers.
+const READER_LINES = 14;
+const reader = ((shot("form") as { transcript?: string[] }).transcript ?? [])
+  .filter((line) => !line.startsWith("=="))
+  .map((line) => {
+    const numbered = line.match(/^\s*\d+(\s+)(.*)$/);
+    const depth = numbered ? Math.max(0, Math.floor((numbered[1].length - 1) / 2)) : 0;
+    const phrase = numbered ? numbered[2] : line;
+    const named = phrase.match(/^([^"]+?) "((?:[^"\\]|\\.)*)"\s*(.*)$/);
+    if (!named) {
+      return { depth, role: phrase, name: "", from: "", states: "" };
+    }
+    const tail = named[3];
+    const from = tail.match(/^\(([^)]*)\)/)?.[1] ?? "";
+    const states = tail.match(/\[([^\]]*)\]/)?.[1] ?? "";
+    return { depth, role: named[1], name: named[2], from, states };
+  })
+  .filter((line) => line.role !== "window")
+  .slice(0, READER_LINES);
+if (reader.length === 0) {
+  // The capture writes the transcript beside the picture; a form with nothing to read is a
+  // capture that did not run, and a home page that hid the panel would ship that silently.
+  throw new Error("home: the form showcase carries no transcript; re-run pnpm build:gallery");
+}
+
 ---
 
 <Page locale={locale} titleKey="home.title" descriptionKey="home.description">
@@ -247,6 +268,62 @@ const limits = ["scripts", "a11y", "version"] as const;
     </div>
   </section>
 
+  <section class="section" id="everyone">
+    <div class="wrap">
+      <p class="eyebrow">{msg("home.everyone.eyebrow")}</p>
+      <h2 class="heading-rule"><span>{msg("home.everyone.heading")}</span></h2>
+      <div class="features">
+        <article class="feature">
+          <div class="feature__copy">
+            <h3>{msg("home.languages.heading")}</h3>
+            <p>{msg("home.languages.body")}</p>
+            <a class="arrow" href={`${base}docs/text-and-languages/`}>
+              {msg("home.languages.link")}
+            </a>
+          </div>
+          <Figure
+            images={languages.images}
+            alt={msg("home.languages.alt")}
+            caption={msg("home.languages.caption")}
+            base={base}
+          />
+        </article>
+
+        <article class="feature">
+          <div class="feature__copy">
+            <h3>{msg("home.accessibility.heading")}</h3>
+            <p>{msg("home.accessibility.body")}</p>
+            <a class="arrow" href={`${base}docs/accessibility/`}>
+              {msg("home.accessibility.link")}
+            </a>
+          </div>
+          <figure class="figure">
+            <div class="plate">
+              <ol class="reader" aria-label={msg("home.accessibility.caption")}>
+                {
+                  reader.map((line) => (
+                    <li style={`--depth: ${line.depth}`}>
+                      <span class="reader__role">{line.role}</span>
+                      {line.name && <span class="reader__name">“{line.name}”</span>}
+                      {
+                        (line.from || line.states) && (
+                          <span class="reader__rest">
+                            {[line.from, line.states].filter(Boolean).join(" · ")}
+                          </span>
+                        )
+                      }
+                    </li>
+                  ))
+                }
+              </ol>
+            </div>
+            <figcaption class="plate__caption">{msg("home.accessibility.caption")}</figcaption>
+          </figure>
+        </article>
+      </div>
+    </div>
+  </section>
+
   <section class="section">
     <div class="wrap">
       <article class="themes">
@@ -278,23 +355,6 @@ const limits = ["scripts", "a11y", "version"] as const;
     </div>
   </section>
 
-  <section class="section">
-    <div class="wrap">
-      <p class="eyebrow">{msg("home.limits.eyebrow")}</p>
-      <h2 class="heading-rule"><span>{msg("home.limits.heading")}</span></h2>
-      <p class="lede">{msg("home.limits.body")}</p>
-      <ul class="limits">
-        {
-          limits.map((key) => (
-            <li>
-              <h3>{msg(`home.limits.${key}.heading` as never)}</h3>
-              <p>{msg(`home.limits.${key}.body` as never)}</p>
-            </li>
-          ))
-        }
-      </ul>
-    </div>
-  </section>
 
   <section class="section">
     <div class="wrap">
@@ -514,8 +574,40 @@ const limits = ["scripts", "a11y", "version"] as const;
     }
   }
 
-  .feature h2 {
+  .feature h2,
+  .feature h3 {
     font-size: var(--text-2xl);
+  }
+
+  /* The reader panel: a transcript typeset as a list, indented by depth in the tree. */
+  .reader {
+    margin: 0;
+    padding: 0.35rem 0.5rem;
+    list-style: none;
+    font-family: var(--mono);
+    font-size: var(--text-sm);
+    line-height: 1.8;
+  }
+
+  .reader li {
+    padding-inline-start: calc(var(--depth, 0) * 1.1rem);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .reader__role {
+    color: var(--limn-primary);
+  }
+
+  .reader__name {
+    margin-inline-start: 0.4em;
+  }
+
+  .reader__rest {
+    margin-inline-start: 0.6em;
+    color: var(--limn-text-muted);
+    font-size: var(--text-xs);
   }
 
   .feature p {
@@ -573,34 +665,6 @@ const limits = ["scripts", "a11y", "version"] as const;
     margin-block: 1rem 1.5rem;
     max-inline-size: 42ch;
     color: var(--limn-text-muted);
-  }
-
-
-  /* ---------------------------------------------------------------- limits */
-
-  .limits {
-    display: grid;
-    gap: 1.75rem;
-    margin-block-start: 2.5rem;
-    padding: 0;
-    list-style: none;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
-  }
-
-  .limits li {
-    padding-block-start: 1.25rem;
-    border-block-start: 1px solid var(--rule);
-  }
-
-  .limits h3 {
-    font-size: var(--text-lg);
-  }
-
-  .limits p {
-    margin-block-start: 0.65rem;
-    color: var(--limn-text-muted);
-    font-size: var(--text-sm);
-    line-height: 1.7;
   }
 
   /* --------------------------------------------------------------- closing */

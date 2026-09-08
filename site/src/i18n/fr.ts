@@ -121,28 +121,24 @@ export const fr: Catalog = {
   "home.themes.alt":
     "Le même écran dense de contrôles rendu sept fois côte à côte, chaque bande dans une palette, un pas de taille et une police différents.",
 
+  "home.everyone.eyebrow": "Pour tout le monde",
+  "home.everyone.heading": "Toutes les langues, et tous les lecteurs d’écran",
+
   "home.languages.heading": "Dans les langues de vos utilisateurs",
   "home.languages.body":
-    "Le texte est mesuré avec les mêmes avances que celles de son tracé, et le repli de police se fait caractère par caractère. Latin, grec, cyrillique et CJC se mélangent donc dans une même chaîne sans que vous choisissiez de fonte. Les méthodes de saisie composent dans le champ, et l’édition avance par groupe de graphèmes : les signes combinants et les émojis en plusieurs parties ne sont jamais coupés. Et droite-à-gauche ne se limite pas au façonnage : la direction est un axe qu’un sous-arbre hérite, si bien qu’une fenêtre en hébreu se met en miroir — tout en pouvant contenir un panneau de code de gauche à droite.",
+    "Le texte est mesuré avec les mêmes avances que celles avec lesquelles il est dessiné, et le repli de police s’applique caractère par caractère : latin, grec, cyrillique et CJC se mêlent dans une même chaîne sans que vous choisissiez une fonte. L’arabe, l’hébreu, la devanagari et le thaï sont façonnés partout où du texte est dessiné, et la direction est un axe que le sous-arbre hérite : une fenêtre en hébreu se reflète — lignes, marges, barres de défilement, flèches — et peut encore contenir un volet de code de gauche à droite. Les méthodes de saisie composent dans le champ, l’édition avance par groupe de graphèmes, et chiffres, tri et casse suivent la langue.",
   "home.languages.alt":
     "Le même écran capturé en japonais, chinois simplifié, coréen et russe, assemblé en une seule fenêtre.",
   "home.languages.link": "Lire le guide du texte",
   "home.languages.caption":
     "Le même écran, capturé en quatre langues pendant cette compilation.",
 
-  "home.limits.eyebrow": "Avant de vous engager",
-  "home.limits.heading": "Ce que Limn ne fait pas",
-  "home.limits.body":
-    "Toute boîte à outils échange quelque chose. Voici ces échanges, annoncés d’emblée, parce que les découvrir la troisième semaine est pire que les lire maintenant.",
-  "home.limits.scripts.heading": "Texte horizontal seulement",
-  "home.limits.scripts.body":
-    "L’arabe, l’hébreu, le devanagari et le thaï sont façonnés partout où du texte est dessiné, la mise en page se met en miroir le long d’un axe hérité de droite à gauche, et les chiffres, le tri et la casse suivent la langue — les paquets ar et he sont publiés, avec un gras pour chaque écriture. Ce qui manque, c’est l’écriture verticale : pas de colonnes de haut en bas, pas de second axe traversant la mise en page. Les lignes se coupent ; elles ne sont pas justifiées.",
-  "home.limits.a11y.heading": "Les lecteurs d’écran, et leurs limites",
-  "home.limits.a11y.body":
-    "Une fenêtre se publie dans UI Automation, NSAccessibility et AT-SPI2 : NVDA, VoiceOver et Orca lisent une interface Limn dans la langue où elle est dessinée. Le texte est lu et écrit d’un bloc, si bien que la revue caractère par caractère et le routage du curseur braille sont dégradés ; une liste publie les lignes qu’elle a réalisées ; et les réglages d’accessibilité du système — contraste élevé, animations réduites, échelle de texte — ne sont pas exposés.",
-  "home.limits.version.heading": "Avant la 1.0",
-  "home.limits.version.body":
-    "L’API bouge encore d’une version à l’autre, et OpenGL est le seul chemin de rendu. Figez votre version et lisez les notes de publication.",
+  "home.accessibility.heading": "Lu à voix haute, dans ces mêmes langues",
+  "home.accessibility.body":
+    "Une fenêtre se publie auprès de UI Automation sous Windows, de NSAccessibility sous macOS et d’AT-SPI2 sous Linux : NVDA, VoiceOver et Orca décrivent une interface Limn sans que votre application n’écrive une ligne de code de plate-forme. Les noms sont les mêmes I18nStrings que l’interface dessine, et la bibliothèque porte son propre mot pour chaque rôle dans chaque langue qu’elle livre. Une légende nomme son contrôle en un appel ; états, valeurs, verbes et focus sont publiés pour vous.",
+  "home.accessibility.link": "Lire le guide d’accessibilité",
+  "home.accessibility.caption":
+    "Le formulaire ci-dessus, tel qu’un lecteur d’écran en est informé, capturé pendant cette compilation.",
 
   "home.closing.heading": "Une fenêtre à l’écran en cinq minutes",
   "home.closing.body":

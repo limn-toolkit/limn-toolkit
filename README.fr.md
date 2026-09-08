@@ -247,29 +247,6 @@ application charge avec `ThemeFormat`.
 | `limn-theme-editor` | l’écran qui compose un thème, intégrable dans votre application |
 | `limn-fonts-all` | les fontes pan-CJC et emoji couleur (26 Mo qu’une application qui ne les dessine jamais ne devrait pas porter), plus le reste des replis, dans les versions avec lesquelles cette publication a été testée — chaque fonte est un artefact à part entière, versionné avec la fonte |
 
-## Avant de vous engager
-
-Toute boîte à outils échange quelque chose. Voici ces échanges, annoncés d’emblée, parce que les
-découvrir la troisième semaine est pire que les lire maintenant.
-
-- **De droite à gauche, c’est une ligne que vous écrivez, pas quelque chose que la langue
-  implique.** L’arabe, l’hébreu, le devanagari et le thaï prennent forme partout où du texte est
-  dessiné, et `scene.setLayoutDirection(LayoutDirection.RTL)` met en miroir toute l’interface —
-  rangées, marges intérieures, alignement, barres de défilement, popups, touches fléchées — comme un
-  axe que chaque sous-arbre peut redéfinir. La boîte à outils n’infère jamais cette direction de la
-  locale, parce qu’une fenêtre en hébreu contient généralement un îlot de gauche à droite ; les deux
-  se déclarent donc séparément. L’écriture verticale (le mongol, la forme verticale du CJC) n’est
-  pas prise en charge.
-- **Les lecteurs d’écran fonctionnent, et trois choses qu’ils ne peuvent pas encore faire.**
-  Windows, macOS et Linux reçoivent chacun leur API d’accessibilité native — UI Automation,
-  NSAccessibility, AT-SPI2 —, si bien que NVDA, VoiceOver et Orca lisent une fenêtre Limn, dans la
-  langue de l’interface. Le texte est lu et écrit d’un bloc : la revue caractère par caractère et le
-  routage du curseur braille sont donc dégradés ; une liste publie les lignes qu’elle a réalisées et
-  non toutes ; et les réglages d’accessibilité du système — contraste élevé, animations réduites,
-  échelle de texte — ne sont pas exposés.
-- **Avant la 1.0.** L’API bouge encore d’une version à l’autre, et OpenGL est le seul chemin de
-  rendu. Figez votre version et lisez les notes de publication.
-
 ## Documentation
 
 Le [site](https://limn-toolkit.github.io/limn-toolkit) est la documentation : un

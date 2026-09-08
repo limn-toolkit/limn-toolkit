@@ -19,7 +19,10 @@ makes the control fill the column instead of shrinking to fit its own text.
 {% snippet guide:form-field %}
 
 Use it for every control that takes a value: text fields, password fields, combo boxes and
-spinners all behave the same way here.
+spinners all behave the same way here. The `setLabelFor` call is the one line that is not
+layout: it makes the caption the control's *name*, so a screen reader says "Email, text field"
+rather than "text field". A caption that merely sits above a field names nothing, and
+[Accessibility](/docs/accessibility/) says why.
 
 ## The controls
 

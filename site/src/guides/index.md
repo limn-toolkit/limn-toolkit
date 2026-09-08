@@ -24,7 +24,9 @@ first, and both carry a complete worked example with the screenshot it produces.
 ## Making it yours
 
 [Theming](/docs/theming/) is colour, shape and density, including building a palette of your own and letting your users build one. [Text and languages](/docs/text-and-languages/)
-is what to do when your users are not all reading English. [Images and media](/docs/images-and-media/)
+is what to do when your users are not all reading English, and [Accessibility](/docs/accessibility/)
+is what a screen reader says about your window and the one call that makes it say the right
+thing. [Images and media](/docs/images-and-media/)
 covers pictures, video and the 3D viewport.
 
 ## Shipping

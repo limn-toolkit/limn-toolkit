@@ -242,27 +242,6 @@ Mesma flag do macOS de cima. O que ele salva é dado puro, que a sua aplicação
 | `limn-theme-editor` | a tela que cria um tema, embutível na sua aplicação |
 | `limn-fonts-all` | as tipografias pan-CJK e de emoji colorido (26 MB que uma aplicação que nunca as desenha não deveria carregar), mais o resto dos fallbacks, nas versões com que este release foi testado — cada tipografia é um artefato próprio, que muda de versão junto com a fonte |
 
-## Antes de se comprometer com ele
-
-Todo toolkit troca alguma coisa. Estas são as trocas, ditas de saída, porque descobri-las na
-terceira semana é pior do que lê-las agora.
-
-- **Da direita para a esquerda é uma linha que você escreve, não algo que o idioma implica.** O
-  árabe, o hebraico, o devanágari e o tailandês tomam forma onde quer que se desenhe texto, e
-  `scene.setLayoutDirection(LayoutDirection.RTL)` espelha a interface inteira — linhas, recuos,
-  alinhamento, barras de rolagem, menus suspensos, teclas de seta — como um eixo que cada subárvore
-  pode sobrescrever. O toolkit nunca infere essa direção do locale, porque uma janela em hebraico
-  costuma conter uma ilha da esquerda para a direita, então as duas são declaradas separadamente.
-  Escrita vertical (o mongol, a forma vertical de CJK) não é suportada.
-- **Leitores de tela funcionam, e três coisas que eles ainda não fazem.** Windows, macOS e Linux
-  recebem cada um a sua API nativa de acessibilidade — UI Automation, NSAccessibility, AT-SPI2 — e
-  NVDA, VoiceOver e Orca leem uma janela Limn, no idioma em que a interface está. O texto é lido e
-  escrito inteiro, então a revisão caractere a caractere e o roteamento do cursor braille ficam
-  degradados; uma lista publica as linhas que realizou, não todas; e as configurações de
-  acessibilidade do sistema — alto contraste, movimento reduzido, escala de texto — não são expostas.
-- **Pré-1.0.** A API ainda se move entre releases, e OpenGL é o único caminho de renderização. Fixe
-  a sua versão e leia as notas de release.
-
 ## Documentação
 
 O [site](https://limn-toolkit.github.io/limn-toolkit) é a documentação: um

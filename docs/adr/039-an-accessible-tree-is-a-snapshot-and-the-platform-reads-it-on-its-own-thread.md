@@ -3765,7 +3765,17 @@ the one thing every client in the spike is not.
 **Phase 8 — the documentation.** `docs/design/accessibility.md` with the contributor's background and
 the traps; the `docs/adr/README.md` row moved to its implemented status — the row itself lands with
 this record, not here; the "what you get" paragraph in `README.md`; and the "no screen reader bridge"
-bullet, which has to be rewritten in ten README files, in their own languages.
+bullet, which has to be rewritten in ten README files, in their own languages. *Then removed,
+2026-09-08, with the whole "before you commit to it" section around it and the website's copy of
+it, by the owner's decision that none of its three entries is a pending item any more — vertical
+writing is not on the road map, and what a screen reader cannot yet do is in §11, the design
+note and the guide, where a contributor or an application developer looks for it. In their place
+the website's home gained a section of its own for languages and screen readers, whose evidence is
+a transcript the capture writes beside every showcase picture — `Gallery` keeps the tree each
+window's scene published and writes `Transcript.of` it at the still, the manifest promises the
+file like a picture, and the guide gained `{% transcript <id> %}` and an accessibility page. The
+guide's own worked examples are held to the gallery's four invariants, which found the form's
+validated field and the layout's list and segmented control nameless.*
 
 ---
 

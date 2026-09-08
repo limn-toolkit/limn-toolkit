@@ -1,0 +1,111 @@
+---
+title: "Accessibility"
+description: "What a screen reader says about a Limn window on Windows, macOS and Linux, the one call that names a control, and how to check a screen before anyone hears it."
+---
+
+## What you get without doing anything
+
+A Limn window publishes itself to the platform's own accessibility API: UI Automation on
+Windows, NSAccessibility on macOS and AT-SPI2 on Linux. NVDA, VoiceOver and Orca read it the
+way they read a native application, and your program contains no platform code for that: the
+backend opens the bridge the first time anything asks, and there is nothing to install or
+register.
+
+Every widget describes itself. A button is a button, a check box says whether it is checked, a
+slider says its value and its range, a text field says what it holds and where the caret is, a
+list says how many rows it has and which one is selected, a dialog says it is modal and what it
+blocks. Focus moves are announced as they happen, and a value that changes under the keyboard
+is spoken from where the cursor stands.
+
+The names are the same `I18nString`s the interface draws, so a screen reader speaks your
+application in the language it is displayed in. The word for each *role* — "button", "check
+box", "slider" — is the toolkit's own, in every language it ships, because two of the three
+platforms will not supply one for a process that is not theirs.
+
+This is the form from the [forms guide](/docs/forms/), and beneath it what a screen reader
+is told about it. Both were produced by the same build that rendered this page.
+
+{% shot form "The form, in the light palette." %}
+
+{% transcript form %}
+
+Each line is one node in reading order: its role, its name in quotes and where the name came
+from, the states a reader would mention, the value, and the verbs it offers.
+
+## Name every control
+
+A caption above a field is a layout fact. It names nothing, because proximity is an accident
+of layout and a tree built from it says confident wrong things. One call makes the caption the
+control's name:
+
+{% snippet guide:a11y-labelled %}
+
+That is the whole idiom, and the form above uses it for every field: a screen reader says
+"Email, text field" and not "text field". The name is read at publish, so a caption whose text
+changes with the language renames what it labels.
+
+A control with no caption takes a name directly:
+
+```java
+Slider volume = new Slider(0, 100);
+volume.setAccessibleName(new I18nString("player.volume", "Volume"));
+
+ScrollView chapters = new ScrollView(list);
+chapters.setAccessibleName("Chapters");
+```
+
+An icon-only button that has a tooltip is already named by it. A search field is named by its
+placeholder. A dialog is named by its title, a tab by its label, a list row by what the row
+draws or, for rows the adapter has not built, by what `Adapter#rowName` answers.
+
+Some things have a name and want a description as well, which a reader speaks after the name
+when asked for more: a picture, a 3D viewport, a control whose purpose the name alone does not
+carry.
+
+{% snippet guide:a11y-image %}
+
+A picture that the text beside it already describes is decoration. Mark it ignored, and it
+leaves the tree entirely; leave it unmarked and it is published as an image with no name, on
+purpose, so that a check like the one below finds it and the decision is yours.
+
+## Dialogs, popups and long lists
+
+A dialog is published as a dialog with its title as its name, and while a modal one is open
+nothing behind it is operable: every control the modal blocks is published disabled, and the
+reader is told which window is the modal. A native dialog blocks its owner the same way.
+
+A popup — a combo box's list, a context menu, a menu bar's menu — is described where it
+actually lives: a translucent window of its own where the platform has one, and inside the
+scene where it does not. Either way the reader hears it open, reads its items, and hears it
+close.
+
+A list publishes its true row count and the rows it has realized, which is what makes a
+million-row list cost what twenty do under a screen reader as well as on screen. The row the
+keyboard is in stays realized across a page scroll, so a reader standing on it is not dropped
+to the window; arrow keys move the selection, and the selected row is always realized.
+
+## Check a screen before anyone hears it
+
+The demo module carries a gallery of every component labelled the way this page describes,
+and a test that holds every entry to four rules in both palettes: no node with an unknown role,
+no focusable node without a name, no two nodes with one identity, and no node showing outside
+what should clip it. The gallery is also a window you can open and read with a screen reader:
+
+```
+./gradlew :limn-demo:accessibilityGallery
+```
+
+The transcript above is the other tool. It is what the demo's `Transcript` writes for a
+published tree — one line per node, no rectangles — and the demo keeps three of them as golden
+files, so a change that renames a control or drops a state fails a test before it reaches a
+reader. A transcript is short enough to read aloud, and reading it aloud is the review that
+finds what no rule names: a field named after its own value, a caption that captions nothing.
+
+## The edges
+
+Text is read and set whole. A reader can hear a field's contents and its caret, and a text
+field takes a value; review by character and braille cursor routing inside a field are not
+supported. A list publishes the rows it has realized rather than all of them, so a reader's
+own list navigation stops at what is on screen. The system accessibility settings — high
+contrast, reduced motion, a system text scale — are not surfaced to the toolkit; a theme
+built for high contrast is [yours to make](/docs/theming/), and the toolkit applies it.

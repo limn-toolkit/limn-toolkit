@@ -100,27 +100,23 @@ export const en = {
   "home.themes.alt":
     "The same dense screen of controls rendered seven times side by side, each strip in a different palette, size step and typeface.",
 
+  "home.everyone.eyebrow": "For everyone",
+  "home.everyone.heading": "Every language, and every screen reader",
+
   "home.languages.heading": "In your users' languages",
   "home.languages.body":
-    "Text is measured with the same advances it is drawn with, and the font fallback runs per character, so Latin, Greek, Cyrillic and CJK mix in one string without you choosing a face. Input methods compose inside the field, and editing moves by grapheme cluster, so combining marks and multi-part emoji are never split. Right to left is not just shaping: direction is an axis a subtree inherits, so a Hebrew window mirrors — and can still hold a left-to-right code pane.",
+    "Text is measured with the same advances it is drawn with, and the font fallback runs per character, so Latin, Greek, Cyrillic and CJK mix in one string without you choosing a face. Arabic, Hebrew, Devanagari and Thai shape wherever text is drawn, and direction is an axis a subtree inherits: a Hebrew window mirrors — rows, insets, scrollbars, arrow keys — and can still hold a left-to-right code pane. Input methods compose inside the field, editing moves by grapheme cluster, and digits, ordering and case follow the language.",
   "home.languages.alt":
     "The same screen captured in Japanese, Simplified Chinese, Korean and Russian, quilted into one window.",
   "home.languages.link": "Read the text guide",
   "home.languages.caption": "The same screen, captured in four languages during this build.",
 
-  "home.limits.eyebrow": "Before you commit",
-  "home.limits.heading": "What Limn does not do",
-  "home.limits.body":
-    "Every toolkit trades something. These are the trades, stated up front, because finding them out in week three is worse than reading them now.",
-  "home.limits.scripts.heading": "Horizontal text only",
-  "home.limits.scripts.body":
-    "Arabic, Hebrew, Devanagari and Thai shape wherever text is drawn, layout mirrors under an inherited right-to-left axis, and digits, ordering and case follow the language — the ar and he bundles ship, with a Bold for every script. What is not here is vertical writing: no top-to-bottom columns, no second axis through layout. Lines break; they are not justified.",
-  "home.limits.a11y.heading": "Screen readers, with edges",
-  "home.limits.a11y.body":
-    "A window publishes itself to UI Automation, NSAccessibility and AT-SPI2, so NVDA, VoiceOver and Orca read a Limn interface in the language it is drawn in. Text is read and set whole, so review by character and braille cursor routing are degraded; a list publishes the rows it has realized; and the system accessibility settings — high contrast, reduced motion, a text scale — are not surfaced at all.",
-  "home.limits.version.heading": "Pre-1.0",
-  "home.limits.version.body":
-    "The API still moves between releases, and OpenGL is the only rendering path. Pin your version and read the release notes.",
+  "home.accessibility.heading": "Read aloud, in those same languages",
+  "home.accessibility.body":
+    "A window publishes itself to UI Automation on Windows, NSAccessibility on macOS and AT-SPI2 on Linux, so NVDA, VoiceOver and Orca describe a Limn interface without your application writing a line of platform code. Names are the same I18nStrings the interface draws, and the toolkit carries its own word for every role in every language it ships. A caption names its control with one call; states, values, verbs and focus are published for you.",
+  "home.accessibility.link": "Read the accessibility guide",
+  "home.accessibility.caption":
+    "The form above, as a screen reader is told about it, captured during this build.",
 
   "home.closing.heading": "A window on screen in five minutes",
   "home.closing.body":

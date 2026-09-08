@@ -121,28 +121,24 @@ export const de: Catalog = {
   "home.themes.alt":
     "Derselbe dichte Bildschirm mit Steuerelementen, siebenmal nebeneinander gerendert, jeder Streifen in einer anderen Palette, Größenstufe und Schrift.",
 
+  "home.everyone.eyebrow": "Für alle",
+  "home.everyone.heading": "Jede Sprache, und jeder Screenreader",
+
   "home.languages.heading": "In den Sprachen Ihrer Nutzer",
   "home.languages.body":
-    "Text wird mit denselben Vorschüben gemessen, mit denen er gezeichnet wird, und der Schrift-Fallback läuft pro Zeichen, so mischen sich Latein, Griechisch, Kyrillisch und CJK in einer Zeichenkette, ohne dass Sie eine Schrift wählen. Eingabemethoden komponieren im Feld selbst, und die Bearbeitung bewegt sich in Graphem-Clustern, sodass kombinierende Zeichen und mehrteilige Emoji nie zerteilt werden. Rechts nach links ist mehr als Formung: die Richtung ist eine Achse, die ein Teilbaum erbt — ein hebräisches Fenster spiegelt sich und kann trotzdem eine links-nach-rechts gesetzte Codeansicht enthalten.",
+    "Text wird mit denselben Vorschüben gemessen, mit denen er gezeichnet wird, und der Schrift-Fallback läuft pro Zeichen: Lateinisch, Griechisch, Kyrillisch und CJK mischen sich in einer Zeichenkette, ohne dass Sie eine Schrift wählen. Arabisch, Hebräisch, Devanagari und Thai werden überall geformt, wo Text gezeichnet wird, und die Richtung ist eine Achse, die ein Teilbaum erbt: ein hebräisches Fenster spiegelt sich — Zeilen, Ränder, Bildlaufleisten, Pfeiltasten — und kann trotzdem einen Code-Bereich von links nach rechts enthalten. Eingabemethoden komponieren im Feld, die Bearbeitung bewegt sich nach Graphem-Clustern, und Ziffern, Sortierung und Groß- und Kleinschreibung folgen der Sprache.",
   "home.languages.alt":
     "Derselbe Bildschirm, aufgenommen auf Japanisch, vereinfachtem Chinesisch, Koreanisch und Russisch, zu einem Fenster zusammengesetzt.",
   "home.languages.link": "Zum Text-Leitfaden",
   "home.languages.caption":
     "Dieselbe Oberfläche, während dieses Builds in vier Sprachen aufgenommen.",
 
-  "home.limits.eyebrow": "Bevor Sie sich festlegen",
-  "home.limits.heading": "Was Limn nicht kann",
-  "home.limits.body":
-    "Jedes Toolkit tauscht etwas ein. Das sind die Tauschgeschäfte, vorab genannt; sie in Woche drei zu entdecken ist schlimmer, als sie jetzt zu lesen.",
-  "home.limits.scripts.heading": "Nur horizontaler Text",
-  "home.limits.scripts.body":
-    "Arabisch, Hebräisch, Devanagari und Thai werden überall geformt, wo Text gezeichnet wird, das Layout spiegelt sich entlang einer vererbten Rechts-nach-links-Achse, und Ziffern, Sortierung und Groß-/Kleinschreibung folgen der Sprache — die Bündel ar und he werden ausgeliefert, mit einem Bold für jede Schrift. Was fehlt, ist vertikales Schreiben: keine Spalten von oben nach unten, keine zweite Achse durch das Layout. Zeilen brechen um; Blocksatz gibt es nicht.",
-  "home.limits.a11y.heading": "Screenreader, mit Kanten",
-  "home.limits.a11y.body":
-    "Ein Fenster veröffentlicht sich an UI Automation, NSAccessibility und AT-SPI2, sodass NVDA, VoiceOver und Orca eine Limn-Oberfläche in der Sprache vorlesen, in der sie gezeichnet ist. Text wird als Ganzes gelesen und gesetzt, deshalb sind zeichenweises Durchgehen und das Routing des Braille-Cursors eingeschränkt; eine Liste veröffentlicht die realisierten Zeilen; und die Barrierefreiheits-Einstellungen des Systems — hoher Kontrast, reduzierte Bewegung, Textskalierung — werden gar nicht gemeldet.",
-  "home.limits.version.heading": "Vor 1.0",
-  "home.limits.version.body":
-    "Die API bewegt sich zwischen Releases noch, und OpenGL ist der einzige Renderpfad. Pinnen Sie Ihre Version und lesen Sie die Release Notes.",
+  "home.accessibility.heading": "Vorgelesen, in denselben Sprachen",
+  "home.accessibility.body":
+    "Ein Fenster veröffentlicht sich an UI Automation unter Windows, NSAccessibility unter macOS und AT-SPI2 unter Linux, sodass NVDA, VoiceOver und Orca eine Limn-Oberfläche beschreiben, ohne dass Ihre Anwendung eine Zeile Plattformcode schreibt. Namen sind dieselben I18nStrings, die die Oberfläche zeichnet, und das Toolkit bringt sein eigenes Wort für jede Rolle in jeder Sprache mit, die es ausliefert. Eine Beschriftung benennt ihr Steuerelement mit einem Aufruf; Zustände, Werte, Aktionen und Fokus werden für Sie veröffentlicht.",
+  "home.accessibility.link": "Zum Leitfaden zur Barrierefreiheit",
+  "home.accessibility.caption":
+    "Das Formular oben, so wie es einem Screenreader mitgeteilt wird, aufgenommen während dieses Builds.",
 
   "home.closing.heading": "In fünf Minuten ein Fenster auf dem Bildschirm",
   "home.closing.body":

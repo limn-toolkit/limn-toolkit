@@ -246,29 +246,6 @@ Dieselbe macOS-Option wie oben. Was er speichert, sind schlichte Daten, die Ihre
 | `limn-theme-editor` | der Bildschirm, der ein Theme erstellt, einbettbar in Ihre Anwendung |
 | `limn-fonts-all` | die Pan-CJK- und Farb-Emoji-Schriften (26 MB, die eine Anwendung, die sie nie zeichnet, nicht tragen sollte), dazu die übrigen Fallbacks, in den Versionen, mit denen dieses Release getestet wurde — jede Schrift ein eigenes Artefakt, dessen Version der Schrift folgt |
 
-## Bevor Sie sich festlegen
-
-Jedes Toolkit tauscht etwas ein. Das sind die Tauschgeschäfte, vorab genannt; sie in Woche drei zu
-entdecken ist schlimmer, als sie jetzt zu lesen.
-
-- **Von rechts nach links ist eine Zeile, die Sie schreiben, nicht etwas, das die Sprache
-  impliziert.** Arabisch, Hebräisch, Devanagari und Thai werden überall geformt, wo Text gezeichnet
-  wird, und `scene.setLayoutDirection(LayoutDirection.RTL)` spiegelt die ganze Oberfläche — Zeilen,
-  Innenabstände, Ausrichtung, Bildlaufleisten, Popups, Pfeiltasten — als eine Achse, die jeder
-  Teilbaum überschreiben kann. Das Toolkit leitet diese Richtung nie aus dem Gebietsschema ab, weil
-  ein hebräisches Fenster meist eine von links nach rechts gelesene Insel enthält; die beiden werden
-  daher getrennt deklariert. Vertikale Schrift (Mongolisch, die vertikale Form von CJK) wird nicht
-  unterstützt.
-- **Screenreader funktionieren, und drei Dinge, die sie noch nicht können.** Windows, macOS und
-  Linux bekommen jeweils ihre native Barrierefreiheits-API — UI Automation, NSAccessibility,
-  AT-SPI2 —, so dass NVDA, VoiceOver und Orca ein Limn-Fenster vorlesen, in der Sprache der
-  Oberfläche. Text wird als Ganzes gelesen und gesetzt, deshalb sind zeichenweises Durchgehen und
-  das Routing des Braille-Cursors eingeschränkt; eine Liste veröffentlicht die realisierten Zeilen
-  und nicht alle; und die Barrierefreiheits-Einstellungen des Systems — hoher Kontrast, reduzierte
-  Bewegung, System-Textskalierung — werden gar nicht gemeldet.
-- **Vor 1.0.** Die API bewegt sich zwischen Releases noch, und OpenGL ist der einzige Renderpfad.
-  Pinnen Sie Ihre Version und lesen Sie die Release Notes.
-
 ## Dokumentation
 
 Die [Website](https://limn-toolkit.github.io/limn-toolkit) ist die Dokumentation: eine

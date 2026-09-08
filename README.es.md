@@ -243,28 +243,6 @@ La misma opción de macOS de arriba. Lo que guarda son datos planos, que tu apli
 | `limn-theme-editor` | la pantalla que crea un tema, incorporable en tu aplicación |
 | `limn-fonts-all` | las tipografías pan-CJK y de emojis a color (26 MB que una aplicación que nunca las dibuja no debería cargar), más el resto de los respaldos, en las versiones con las que se probó esta publicación — cada tipografía es un artefacto propio que cambia de versión con la fuente |
 
-## Antes de comprometerte
-
-Todo kit renuncia a algo. Estas son las renuncias, dichas de entrada, porque descubrirlas en la
-tercera semana es peor que leerlas ahora.
-
-- **De derecha a izquierda es una línea que escribes, no algo que el idioma implique.** El árabe, el
-  hebreo, el devanagari y el tailandés toman forma allí donde se dibuje texto, y
-  `scene.setLayoutDirection(LayoutDirection.RTL)` refleja toda la interfaz — filas, márgenes,
-  alineación, barras de desplazamiento, menús emergentes, teclas de flecha — como un eje que cada
-  subárbol puede anular. El kit nunca infiere esa dirección de la configuración regional, porque una
-  ventana en hebreo suele contener una isla de izquierda a derecha, así que las dos se declaran por
-  separado. La escritura vertical (el mongol, la forma vertical de CJK) no se admite.
-- **Los lectores de pantalla funcionan, y tres cosas que todavía no pueden hacer.** Windows, macOS
-  y Linux reciben cada uno su API de accesibilidad nativa — UI Automation, NSAccessibility, AT-SPI2
-  —, así que NVDA, VoiceOver y Orca leen una ventana de Limn, en el idioma en que está la interfaz.
-  El texto se lee y se escribe entero, así que la revisión carácter a carácter y el enrutado del
-  cursor braille quedan degradados; una lista publica las filas que ha realizado, no todas; y los
-  ajustes de accesibilidad del sistema — alto contraste, movimiento reducido, escala de texto — no
-  se exponen.
-- **Anterior a 1.0.** La API todavía se mueve entre versiones, y OpenGL es la única vía de
-  renderizado. Fija tu versión y lee las notas de publicación.
-
 ## Documentación
 
 El [sitio web](https://limn-toolkit.github.io/limn-toolkit) es la documentación: una

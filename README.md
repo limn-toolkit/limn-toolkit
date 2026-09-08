@@ -237,26 +237,6 @@ Same macOS flag as above. What it saves is plain data, which your application lo
 | `limn-theme-editor` | the screen that authors a theme, embeddable in your application |
 | `limn-fonts-all` | the pan-CJK and colour-emoji faces (26 MB an app that never draws them should not carry), plus the rest of the fallbacks, at the versions this release was tested with — each face an artifact of its own that versions with the font |
 
-## Before you commit to it
-
-Every toolkit trades something. These are the trades, said early, because finding them in week
-three is worse than reading them now.
-
-- **Right to left is a line you write, not something the language implies.** Arabic, Hebrew,
-  Devanagari and Thai shape wherever text is drawn, and `scene.setLayoutDirection(LayoutDirection.RTL)`
-  mirrors the whole interface — rows, insets, alignment, scrollbars, popups, arrow keys — as an
-  axis each subtree can override. The toolkit never infers that direction from the locale,
-  because a Hebrew window usually holds a left-to-right island, so the two are declared
-  separately. Vertical writing (Mongolian, the vertical form of CJK) is not supported.
-- **Screen readers work, and three things they cannot do yet.** Windows, macOS and Linux each get
-  their native accessibility API — UI Automation, NSAccessibility, AT-SPI2 — so NVDA, VoiceOver and
-  Orca read a Limn window, in the language the interface is in. Text is read and set whole, so
-  review by character and braille cursor routing are degraded; a list publishes the rows it has
-  realized rather than all of them; and the system accessibility settings — high contrast, reduced
-  motion, a system text scale — are not surfaced at all.
-- **Before 1.0.** The API still moves between releases, and OpenGL is the only rendering path.
-  Pin your version and read the release notes.
-
 ## Documentation
 
 The [website](https://limn-toolkit.github.io/limn-toolkit) is the documentation: an

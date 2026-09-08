@@ -121,28 +121,24 @@ export const es: Catalog = {
   "home.themes.alt":
     "La misma pantalla densa de controles renderizada siete veces en paralelo, cada franja con una paleta, un paso de tamaño y una tipografía distintos.",
 
+  "home.everyone.eyebrow": "Para todos",
+  "home.everyone.heading": "Todos los idiomas, y todos los lectores de pantalla",
+
   "home.languages.heading": "En los idiomas de tus usuarios",
   "home.languages.body":
-    "El texto se mide con los mismos avances con los que se dibuja, y el respaldo de fuentes funciona carácter a carácter, así que latino, griego, cirílico y CJK se mezclan en una misma cadena sin que elijas tipografía. Los métodos de entrada componen dentro del campo y la edición avanza por grupos de grafemas, de modo que las marcas combinantes y los emojis de varias partes nunca se parten. Y derecha a izquierda no es solo composición: la dirección es un eje que un subárbol hereda, así que una ventana en hebreo se refleja — y aún puede contener un panel de código de izquierda a derecha.",
+    "El texto se mide con los mismos avances con los que se dibuja, y el fallback de fuentes se ejecuta por carácter, así que latino, griego, cirílico y CJK se mezclan en una misma cadena sin que elijas una fuente. Árabe, hebreo, devanagari y tailandés se modelan dondequiera que haya texto, y la dirección es un eje que el subárbol hereda: una ventana en hebreo se refleja — filas, márgenes, barras de desplazamiento, flechas — y aún puede contener un panel de código de izquierda a derecha. Los métodos de entrada componen dentro del campo, la edición avanza por grupo de grafemas, y dígitos, ordenación y mayúsculas siguen al idioma.",
   "home.languages.alt":
     "La misma pantalla capturada en japonés, chino simplificado, coreano y ruso, unida en una sola ventana.",
   "home.languages.link": "Lee la guía de texto",
   "home.languages.caption":
     "La misma pantalla, capturada en cuatro idiomas durante esta compilación.",
 
-  "home.limits.eyebrow": "Antes de comprometerte",
-  "home.limits.heading": "Lo que Limn no hace",
-  "home.limits.body":
-    "Todo kit renuncia a algo. Estas son las renuncias, dichas de entrada, porque descubrirlas en la tercera semana es peor que leerlas ahora.",
-  "home.limits.scripts.heading": "Solo texto horizontal",
-  "home.limits.scripts.body":
-    "El árabe, el hebreo, el devanagari y el tailandés se componen allí donde se dibuje texto, la disposición se refleja a lo largo de un eje heredado de derecha a izquierda, y los dígitos, el orden y las mayúsculas siguen al idioma — los paquetes ar y he se publican, con una negrita para cada escritura. Lo que no hay es escritura vertical: ni columnas de arriba abajo, ni un segundo eje que atraviese la disposición. Las líneas se cortan; no se justifican.",
-  "home.limits.a11y.heading": "Lectores de pantalla, con límites",
-  "home.limits.a11y.body":
-    "Una ventana se publica en UI Automation, NSAccessibility y AT-SPI2, así que NVDA, VoiceOver y Orca leen una interfaz de Limn en el idioma en que está dibujada. El texto se lee y se escribe entero, así que la revisión carácter a carácter y el enrutado del cursor braille quedan degradados; una lista publica las filas que ha realizado; y los ajustes de accesibilidad del sistema — alto contraste, movimiento reducido, escala de texto — no se exponen.",
-  "home.limits.version.heading": "Anterior a 1.0",
-  "home.limits.version.body":
-    "La API todavía se mueve entre versiones, y OpenGL es la única vía de renderizado. Fija tu versión y lee las notas de publicación.",
+  "home.accessibility.heading": "Leído en voz alta, en esos mismos idiomas",
+  "home.accessibility.body":
+    "Una ventana se publica en UI Automation en Windows, NSAccessibility en macOS y AT-SPI2 en Linux, así que NVDA, VoiceOver y Orca describen una interfaz Limn sin que tu aplicación escriba una línea de código de plataforma. Los nombres son las mismas I18nStrings que la interfaz dibuja, y el toolkit trae su propia palabra para cada rol en cada idioma que distribuye. Una etiqueta nombra su control con una llamada; estados, valores, verbos y foco se publican por ti.",
+  "home.accessibility.link": "Lee la guía de accesibilidad",
+  "home.accessibility.caption":
+    "El formulario de arriba, tal como se lo cuentan a un lector de pantalla, capturado durante esta compilación.",
 
   "home.closing.heading": "Una ventana en pantalla en cinco minutos",
   "home.closing.body":

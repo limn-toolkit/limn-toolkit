@@ -103,6 +103,7 @@ export default defineConfig({
           items: [
             { slug: "docs/theming" },
             { slug: "docs/text-and-languages" },
+            { slug: "docs/accessibility" },
             { slug: "docs/images-and-media" },
           ],
         },

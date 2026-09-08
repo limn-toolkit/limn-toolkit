@@ -195,14 +195,6 @@ macOS 的开关和上面一样。它存下来的是纯数据，你的应用用 `
 | `limn-theme-editor` | 编写主题的那个界面，可以嵌入你的应用 |
 | `limn-fonts-all` | 泛中日韩字体与彩色表情符号字体（一个从不绘制它们的应用不该背上的 26 兆字节），加上其余的回退字体，各自固定在本次发布测试过的版本——每个字体都是独立的一个构件，版本跟着字体走 |
 
-## 在你投入之前
-
-任何工具包都有取舍。这些就是取舍，先说清楚，因为到第三周才发现，比现在读到要糟糕得多。
-
-- **从右向左是你写下的一行代码，而不是语言暗示的东西。** 阿拉伯文、希伯来文、天城文与泰文在任何绘制文字的地方都会正确成形，而 `scene.setLayoutDirection(LayoutDirection.RTL)` 会把整个界面——行、内边距、对齐、滚动条、弹出菜单、方向键——作为一条每个子树都可以覆盖的轴来镜像。工具包从不从区域设置推断这个方向，因为希伯来文窗口里通常有一块从左到右的孤岛，所以两者分开声明。不支持竖排书写（蒙古文、中日韩文的竖排形式）。
-- **屏幕阅读器可以用了，但还有三件事做不到。** Windows、macOS 与 Linux 各自接上了平台原生的无障碍 API —— UI Automation、NSAccessibility、AT-SPI2，NVDA、VoiceOver 与 Orca 都能按界面所用的语言朗读 Limn 窗口。文本是整体读写的，因此逐字符复查与盲文光标定位会受限；列表只公开已实体化的行；而系统层面的无障碍设置——高对比度、减少动态效果、系统文字缩放——完全没有暴露。
-- **1.0 之前。** API 在版本之间仍会变动，而 OpenGL 是唯一的渲染路径。请锁定版本并阅读发行说明。
-
 ## 文档
 
 [网站](https://limn-toolkit.github.io/limn-toolkit)就是文档：一份以能跑起来的程序收尾的[安装指南](https://limn-toolkit.github.io/limn-toolkit/docs/install/)，一个[组件画廊](https://limn-toolkit.github.io/limn-toolkit/components/)——里面每一张图都是那次构建期间由工具包渲染的——以及完整的 [API 参考](https://limn-toolkit.github.io/limn-toolkit/api/)。
