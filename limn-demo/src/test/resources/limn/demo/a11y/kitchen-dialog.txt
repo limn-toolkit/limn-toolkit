@@ -188,8 +188,8 @@
 187     label "Thai — sara am is one code point and two glyphs" [hidden, offscreen]
 188     label "น้ำ   ปิ่น   ภาษาไทย" [hidden, offscreen]
 189     label "Editable — click into it, drag a selection, walk it with the arrows" [hidden, offscreen]
-190     text field "" (placeholder) [hidden, offscreen, has-popup, editable] text="مرحبا Limn UI 2026 العربية" caret=26 actions: show menu
-191     text field "" (placeholder) [hidden, offscreen, has-popup, editable] text="שלום Limn UI 2026" caret=17 actions: show menu
+190     text field "" [hidden, offscreen, has-popup, editable] text="مرحبا Limn UI 2026 العربية" caret=26 actions: show menu
+191     text field "" [hidden, offscreen, has-popup, editable] text="שלום Limn UI 2026" caret=17 actions: show menu
 192     label "Pinned locale — the right pair declares Arabic; the window's language moves only the left" [hidden, offscreen]
 193     label "Notifications" [hidden, offscreen]
 194     spin button "" [hidden, offscreen] value=42 [0..100 step 1] "42" actions: increment, decrement

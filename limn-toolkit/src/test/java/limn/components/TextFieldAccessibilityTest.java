@@ -281,6 +281,35 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(byPlaceholder.id(), explicit.id(), "a name is not a rebuild");
     }
 
+    /**
+     * A field with no placeholder has no name, and its provenance says so. The hook hands the
+     * placeholder over whether or not one is set, because an unset one is the empty string and
+     * names nothing; what it must not do is leave {@code PLACEHOLDER} on a node that was named
+     * by nothing, which is what the kitchen sink's transcript read as {@code text field ""
+     * (placeholder)} — a claim about where a name came from, on a node that has none. §1.7 says
+     * the provenance decides which attribute one platform publishes the name in, and there is
+     * nothing to publish.
+     */
+    @Test
+    void anEmptyNameCarriesNoProvenance() {
+        bindField();
+
+        AccessibleNode unnamed = fieldNode();
+        assertEquals("", unnamed.name(), describe(tree()));
+        assertEquals(Accessible.NameFrom.CONTENT, unnamed.nameFrom(),
+                "no placeholder, so nothing was named by one" + describe(tree()));
+
+        field.setPlaceholder("Your name");
+        frame();
+        assertEquals(Accessible.NameFrom.PLACEHOLDER, fieldNode().nameFrom(), describe(tree()));
+
+        field.setPlaceholder("");
+        frame();
+        assertEquals("", fieldNode().name(), describe(tree()));
+        assertEquals(Accessible.NameFrom.CONTENT, fieldNode().nameFrom(),
+                "cleared, the provenance goes with the name" + describe(tree()));
+    }
+
     @Test
     void aTooltipAloneNamesTheFieldWithItsOwnProvenance() {
         bindField();

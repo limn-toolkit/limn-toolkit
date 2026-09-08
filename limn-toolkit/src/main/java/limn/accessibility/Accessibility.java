@@ -331,6 +331,15 @@ public final class Accessibility {
      * <p>Resolved under the node's own language, once, and carried over unresolved on every
      * later frame where the string, the language and the translation epoch are all unchanged.
      *
+     * <p><b>A name that resolves to nothing carries no provenance.</b> A widget hands over the
+     * string it holds whether or not the application filled it — a text field's placeholder is
+     * {@link I18nString#EMPTY} until one is set — and the empty string names nothing, which is
+     * what lets the walk's own defaults still land. The provenance has to follow the same rule,
+     * or the node says it was named by a placeholder it does not have: a fact about where
+     * nothing came from, which one platform would then act on by choosing an attribute for it.
+     * So an empty name is published with the default, {@link Accessible.NameFrom#CONTENT},
+     * whatever the caller said, and the caller's provenance is kept only for a name that exists.
+     *
      * @param source the widget's own string; {@code null} clears the name
      * @param from   where the name came from, which decides which attribute one platform
      *               publishes it in
@@ -339,11 +348,11 @@ public final class Accessibility {
     public void name(I18nString source, Accessible.NameFrom from) {
         Objects.requireNonNull(from, "from");
         Slot s = slot();
-        s.nameFrom = from;
         s.nameWitness = 0;
         if (source == null) {
             s.nameSource = null;
             s.nameText = "";
+            s.nameFrom = Accessible.NameFrom.CONTENT;
             return;
         }
         Locale locale = s.locale;
@@ -355,12 +364,13 @@ public final class Accessibility {
             s.nameLocale = old.nameLocale;
             s.nameEpoch = old.nameEpoch;
             s.nameText = old.nameText;
-            return;
+        } else {
+            s.nameSource = source;
+            s.nameLocale = locale;
+            s.nameEpoch = epoch;
+            s.nameText = source.get();
         }
-        s.nameSource = source;
-        s.nameLocale = locale;
-        s.nameEpoch = epoch;
-        s.nameText = source.get();
+        s.nameFrom = s.nameText.isEmpty() ? Accessible.NameFrom.CONTENT : from;
     }
 
     /**
@@ -381,6 +391,9 @@ public final class Accessibility {
      * cached and therefore has no source to compare. Building the string inside the describe hook
      * instead leaves the node correct and makes every damaged frame allocate.
      *
+     * <p>An empty string carries no provenance, for the reason {@link #name(I18nString,
+     * Accessible.NameFrom)} gives.
+     *
      * @param cached  the string the widget is holding; {@code null} clears the name
      * @param witness a value that changes whenever {@code cached} does, and is otherwise
      *                meaningless
@@ -390,12 +403,12 @@ public final class Accessibility {
     public void name(String cached, long witness, Accessible.NameFrom from) {
         Objects.requireNonNull(from, "from");
         Slot s = slot();
-        s.nameFrom = from;
         s.nameSource = null;
         s.nameWitness = witness;
         s.nameLocale = s.locale;
         s.nameEpoch = I18n.epoch();
         s.nameText = cached == null ? "" : cached;
+        s.nameFrom = s.nameText.isEmpty() ? Accessible.NameFrom.CONTENT : from;
     }
 
     /**
