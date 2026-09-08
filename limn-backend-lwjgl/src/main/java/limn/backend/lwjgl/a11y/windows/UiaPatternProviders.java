@@ -67,7 +67,7 @@ final class UiaPatternProviders {
                         context.perform(nodeId, Accessible.Action.TOGGLE,
                                 Accessible.Argument.NONE)));
                 slots.put("get_ToggleState", (UiaCom.PP) (self, out) -> {
-                    AccessibleNode node = nodeOf(nodeId, context);
+                    AccessibleNode node = context.tree().find(nodeId);
                     if (node == null || node.toggle() == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
@@ -88,7 +88,7 @@ final class UiaPatternProviders {
                         context.perform(nodeId, Accessible.Action.SET_TEXT,
                                 new Accessible.Argument.OfText(bstrOf(text)))));
                 slots.put("get_Value", (UiaCom.PP) (self, out) -> {
-                    AccessibleNode node = nodeOf(nodeId, context);
+                    AccessibleNode node = context.tree().find(nodeId);
                     if (node == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
@@ -101,7 +101,7 @@ final class UiaPatternProviders {
                     return UiaIds.S_OK;
                 });
                 slots.put("get_IsReadOnly", (UiaCom.PP) (self, out) -> {
-                    AccessibleNode node = nodeOf(nodeId, context);
+                    AccessibleNode node = context.tree().find(nodeId);
                     if (node == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
@@ -125,7 +125,7 @@ final class UiaPatternProviders {
                 // step moves, which is what its keyboard does.
                 slots.put("get_LargeChange", number(nodeId, context, node -> node.value().step()));
                 slots.put("get_IsReadOnly", (UiaCom.PP) (self, out) -> {
-                    AccessibleNode node = nodeOf(nodeId, context);
+                    AccessibleNode node = context.tree().find(nodeId);
                     if (node == null || node.value() == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
@@ -143,7 +143,7 @@ final class UiaPatternProviders {
                         context.perform(nodeId, Accessible.Action.COLLAPSE,
                                 Accessible.Argument.NONE)));
                 slots.put("get_ExpandCollapseState", (UiaCom.PP) (self, out) -> {
-                    AccessibleNode node = nodeOf(nodeId, context);
+                    AccessibleNode node = context.tree().find(nodeId);
                     if (node == null || node.expand() == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
@@ -165,7 +165,7 @@ final class UiaPatternProviders {
                         context.perform(nodeId, Accessible.Action.DESELECT,
                                 Accessible.Argument.NONE)));
                 slots.put("get_IsSelected", (UiaCom.PP) (self, out) -> {
-                    AccessibleNode node = nodeOf(nodeId, context);
+                    AccessibleNode node = context.tree().find(nodeId);
                     if (node == null || node.selectionItem() == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
@@ -175,15 +175,15 @@ final class UiaPatternProviders {
                 });
                 slots.put("get_SelectionContainer", (UiaCom.PP) (self, out) -> {
                     AccessibleTree tree = context.tree();
-                    int index = tree.indexOf(nodeId);
-                    if (index < 0) {
+                    AccessibleNode item = tree.find(nodeId);
+                    if (item == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
                     // The nearest ancestor that carries a selection, which is the list or the group
                     // this item belongs to. Not simply the parent: a row inside a padding inside a
                     // list would name the padding.
                     long container = 0;
-                    for (int at = tree.node(index).parent(); at != AccessibleNode.NONE;
+                    for (int at = item.parent(); at != AccessibleNode.NONE;
                             at = tree.node(at).parent()) {
                         if (tree.node(at).selection() != null) {
                             container = context.elementFor(tree.node(at).id());
@@ -210,7 +210,7 @@ final class UiaPatternProviders {
     private static CallbackI number(long nodeId, UiaProvider.Context context,
                                     java.util.function.ToDoubleFunction<AccessibleNode> of) {
         return (UiaCom.PP) (self, out) -> {
-            AccessibleNode node = nodeOf(nodeId, context);
+            AccessibleNode node = context.tree().find(nodeId);
             if (node == null || node.value() == null) {
                 return UiaIds.E_ELEMENT_NOT_AVAILABLE;
             }
@@ -219,11 +219,6 @@ final class UiaPatternProviders {
         };
     }
 
-    private static AccessibleNode nodeOf(long nodeId, UiaProvider.Context context) {
-        AccessibleTree tree = context.tree();
-        int index = tree.indexOf(nodeId);
-        return index < 0 ? null : tree.node(index);
-    }
 
     /**
      * @param wasAccepted whether the scene took the request

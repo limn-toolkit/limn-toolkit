@@ -162,15 +162,13 @@ final class UiaRoles {
     /**
      * @param role a role the toolkit publishes
      * @return its UI Automation control type
-     * @throws IllegalArgumentException if the role has no reading, which the constants test makes
-     *                                  unreachable
+     *         For a role with no reading, which the constants test keeps from shipping, the
+     *         platform's own {@code Custom}: the same answer the other two platforms give for a
+     *         gap, and never an exception inside a provider a client is calling
      */
     static int of(Accessible.Role role) {
         Integer type = TYPE.get(role);
-        if (type == null) {
-            throw new IllegalArgumentException("no UI Automation control type for " + role);
-        }
-        return type;
+        return type == null ? UiaIds.CONTROL_CUSTOM : type;
     }
 
     /**

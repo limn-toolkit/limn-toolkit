@@ -251,7 +251,7 @@ final class UiaProvider {
             return UiaIds.E_NO_INTERFACE;
         }
         MemoryUtil.memPutAddress(out, 0);
-        if (context.tree().indexOf(nodeId) < 0) {
+        if (context.tree().find(nodeId) == null) {
             return UiaIds.E_ELEMENT_NOT_AVAILABLE;
         }
         MemoryUtil.memPutAddress(out, context.int32Array(UiaFragment.runtimeId(nodeId)));
@@ -269,9 +269,9 @@ final class UiaProvider {
         }
         double[] box = {0, 0, 0, 0};
         AccessibleTree tree = context.tree();
-        int index = tree.indexOf(nodeId);
-        if (index >= 0) {
-            box = UiaFragment.boundingRectangle(tree, tree.node(index));
+        AccessibleNode node = tree.find(nodeId);
+        if (node != null) {
+            box = UiaFragment.boundingRectangle(tree, node);
         }
         for (int i = 0; i < 4; i++) {
             MemoryUtil.memPutDouble(out + (long) i * 8, box[i]);
@@ -355,11 +355,11 @@ final class UiaProvider {
         }
         MemoryUtil.memPutAddress(out, 0);
         AccessibleTree tree = context.tree();
-        int index = tree.indexOf(nodeId);
-        if (index < 0) {
+        AccessibleNode node = tree.find(nodeId);
+        if (node == null) {
             return UiaIds.E_ELEMENT_NOT_AVAILABLE;
         }
-        if (!UiaPatterns.supports(tree, tree.node(index), patternId)) {
+        if (!UiaPatterns.supports(tree, node, patternId)) {
             return UiaIds.S_OK;
         }
         MemoryUtil.memPutAddress(out, context.patternProviderFor(nodeId, patternId));
@@ -377,12 +377,10 @@ final class UiaProvider {
         }
         ByteBuffer variant = MemoryUtil.memByteBuffer(out, UiaVariant.SIZE);
         UiaVariant.empty(variant, 0);
-        AccessibleTree tree = context.tree();
-        int index = tree.indexOf(nodeId);
-        if (index < 0) {
+        AccessibleNode node = context.tree().find(nodeId);
+        if (node == null) {
             return UiaIds.E_ELEMENT_NOT_AVAILABLE;
         }
-        AccessibleNode node = tree.node(index);
         Object value = UiaProperties.valueOf(node, propertyId);
         if (value instanceof Boolean flag) {
             UiaVariant.bool(variant, 0, flag);

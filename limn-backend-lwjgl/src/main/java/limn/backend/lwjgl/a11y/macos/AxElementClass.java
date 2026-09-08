@@ -177,10 +177,13 @@ final class AxElementClass {
     }
 
     private void install() {
-        addId("accessibilityRole", get(node ->
-                objc.constant(AxRoles.of(node.role()).roleSymbol())));
+        addId("accessibilityRole", get(node -> {
+            AxRoles.Mapping mapping = AxRoles.of(node.role());
+            return objc.constant(mapping == null ? "NSAccessibilityUnknownRole" : mapping.roleSymbol());
+        }));
         addId("accessibilitySubrole", get(node -> {
-            String subrole = AxRoles.of(node.role()).subroleSymbol();
+            AxRoles.Mapping mapping = AxRoles.of(node.role());
+            String subrole = mapping == null ? null : mapping.subroleSymbol();
             return subrole == null ? NULL : objc.constant(subrole);
         }));
 

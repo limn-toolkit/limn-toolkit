@@ -110,13 +110,11 @@ final class AxNotifications {
 
     /**
      * @param type the event
-     * @return how this platform is told, or {@code null} when it is deliberately not told at all
+     * @return how this platform is told, or {@code null} when it is not told: by a row that says
+     *         so, or by a type with no row, which the coverage test keeps from shipping and which
+     *         at run time is the silence every platform answers a gap with
      */
     static Posting of(AccessibleEvent.Type type) {
-        if (!BY_TYPE.containsKey(type)) {
-            throw new IllegalStateException("no macOS decision for " + type
-                    + "; an event type needs a row here, including a row that says 'nothing'");
-        }
         return BY_TYPE.get(type);
     }
 

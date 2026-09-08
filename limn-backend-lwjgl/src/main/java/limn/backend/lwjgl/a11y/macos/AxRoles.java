@@ -142,16 +142,13 @@ final class AxRoles {
 
     /**
      * @param role the toolkit's role
-     * @return how this platform is told about it; never {@code null}, because the enum is closed and
-     *         {@link AxRolesTest} refuses a build in which it is not covered
+     * @return how this platform is told about it, or {@code null} for a role with no row here.
+     *         {@link AxRolesTest} refuses a build in which one exists, so at run time this is the
+     *         same answer the other two platforms give for the same gap: the platform's own
+     *         "unknown", never an exception in a callback the platform is standing on
      */
     static Mapping of(Accessible.Role role) {
-        Mapping mapping = BY_ROLE.get(role);
-        if (mapping == null) {
-            throw new IllegalStateException("no macOS mapping for " + role
-                    + "; §1.12 requires a row here before a role is added");
-        }
-        return mapping;
+        return BY_ROLE.get(role);
     }
 
     /** Every symbol this table names, for the test that checks them against AppKit's own export list. */

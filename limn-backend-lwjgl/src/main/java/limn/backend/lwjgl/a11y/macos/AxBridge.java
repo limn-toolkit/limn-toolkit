@@ -228,13 +228,13 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     @Override
     public long focusedElement() {
         long focused = tree().focused();
-        if (focused == 0 || tree().indexOf(focused) < 0) {
+        AccessibleNode node = focused == 0 ? null : tree().find(focused);
+        if (node == null) {
             focusedAnswers.add("none");
             return 0;
         }
         long element = elements.elementFor(focused);
-        focusedAnswers.add(focused + "=" + tree().find(focused).role()
-                + "@" + Long.toHexString(element));
+        focusedAnswers.add(focused + "=" + node.role() + "@" + Long.toHexString(element));
         return element;
     }
 
@@ -247,23 +247,17 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
 
     @Override
     public long[] childElementsOf(AccessibleNode node) {
-        int index = tree().indexOf(node.id());
-        if (index < 0) return new long[0];
-        List<Long> children = new ArrayList<>();
-        for (int child = tree().node(index).firstChild(); child != AccessibleNode.NONE;
-                child = tree().node(child).nextSibling()) {
-            children.add(elements.elementFor(tree().node(child).id()));
-        }
+        List<AccessibleNode> children = tree().children(node);
         long[] answer = new long[children.size()];
-        for (int i = 0; i < answer.length; i++) answer[i] = children.get(i);
+        for (int i = 0; i < answer.length; i++) answer[i] = elements.elementFor(children.get(i).id());
         return answer;
     }
 
     @Override
     public long parentElementOf(AccessibleNode node) {
-        int index = tree().indexOf(node.id());
-        if (index < 0) return contentView;
-        int parent = tree().node(index).parent();
+        AccessibleNode live = tree().find(node.id());
+        if (live == null) return contentView;
+        int parent = live.parent();
         // A child of the elided window root answers with the content view, because that is the
         // object AppKit was handed and the one it expects to get back.
         if (parent == AccessibleNode.NONE || parent == 0) return contentView;

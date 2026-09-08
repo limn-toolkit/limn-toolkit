@@ -1,5 +1,7 @@
 package limn.accessibility;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -118,6 +120,49 @@ public final class AccessibleTree {
     public AccessibleNode find(long id) {
         int index = indexOf(id);
         return index == AccessibleNode.NONE ? null : nodes[index];
+    }
+
+    /**
+     * The children of a node, in order, walked along the sibling links. Resolved through the
+     * node's identifier rather than its links directly, so a node held from an earlier snapshot
+     * answers with its children in <em>this</em> one, or with none when it is gone.
+     *
+     * @param node a node of this tree or of an earlier one
+     * @return its children in this tree, first to last; empty when it has none or is not here
+     */
+    public List<AccessibleNode> children(AccessibleNode node) {
+        int index = indexOf(node.id());
+        if (index == AccessibleNode.NONE) {
+            return List.of();
+        }
+        List<AccessibleNode> out = new ArrayList<>();
+        for (int child = nodes[index].firstChild(); child != AccessibleNode.NONE;
+                child = nodes[child].nextSibling()) {
+            out.add(nodes[child]);
+        }
+        return out;
+    }
+
+    /**
+     * Where a node sits among its siblings.
+     *
+     * @param node a node of this tree or of an earlier one
+     * @return its position under its parent, from zero; {@code -1} for the root, which has no
+     *         siblings, and for a node that is not in this tree
+     */
+    public int indexInParent(AccessibleNode node) {
+        int index = indexOf(node.id());
+        if (index == AccessibleNode.NONE || nodes[index].parent() == AccessibleNode.NONE) {
+            return -1;
+        }
+        int at = 0;
+        for (int child = nodes[nodes[index].parent()].firstChild(); child != AccessibleNode.NONE;
+                child = nodes[child].nextSibling(), at++) {
+            if (child == index) {
+                return at;
+            }
+        }
+        return -1;
     }
 
     /**

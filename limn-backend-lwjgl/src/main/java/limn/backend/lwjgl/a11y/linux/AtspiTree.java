@@ -209,7 +209,7 @@ final class AtspiTree {
             items.add(new Object[] {
                     refOf(node.id()).toStruct(), rootRef().toStruct(),
                     parentRef(tree, node).toStruct(),
-                    indexInParent(tree, node), childrenOf(tree, node).size(),
+                    indexInParent(tree, node), tree.children(node).size(),
                     new ArrayList<>(interfacesOf(false, node)),
                     node.name(), roleOf(node), node.description(),
                     Atspi.stateWords(statesOf(node)),
@@ -237,19 +237,12 @@ final class AtspiTree {
         };
     }
 
-    /** Where {@code node} sits among its siblings, which the cache item carries. */
-    private int indexInParent(AccessibleTree tree, AccessibleNode node) {
-        int parent = node.parent();
-        if (parent < 0) {
-            return 0;
-        }
-        List<AccessibleNode> siblings = childrenOf(tree, tree.node(parent));
-        for (int i = 0; i < siblings.size(); i++) {
-            if (siblings.get(i).id() == node.id()) {
-                return i;
-            }
-        }
-        return -1;
+    /**
+     * Where {@code node} sits among its siblings, which the cache item carries. The tree's own
+     * root answers {@code 0}: on this platform it is the application object's one child.
+     */
+    private static int indexInParent(AccessibleTree tree, AccessibleNode node) {
+        return node.parent() < 0 ? 0 : tree.indexInParent(node);
     }
 
     // ------------------------------------------------------------------ org.freedesktop.DBus.Properties
@@ -318,7 +311,7 @@ final class AtspiTree {
         out.put("Name", new DBus.Variant("s", node.name()));
         out.put("Description", new DBus.Variant("s", node.description()));
         out.put("Parent", new DBus.Variant("(so)", parentRef(tree, node).toStruct()));
-        out.put("ChildCount", new DBus.Variant("i", childrenOf(tree, node).size()));
+        out.put("ChildCount", new DBus.Variant("i", tree.children(node).size()));
         out.put("Locale", new DBus.Variant("s",
                 node.locale() == null ? "" : node.locale().toLanguageTag()));
         out.put("AccessibleId", new DBus.Variant("s", Long.toString(node.id())));
@@ -343,17 +336,6 @@ final class AtspiTree {
         return refOf(tree.node(parent).id());
     }
 
-    private List<AccessibleNode> childrenOf(AccessibleTree tree, AccessibleNode node) {
-        List<AccessibleNode> out = new ArrayList<>();
-        int index = tree.indexOf(node.id());
-        for (int i = 0; i < tree.nodeCount(); i++) {
-            if (tree.node(i).parent() == index) {
-                out.add(tree.node(i));
-            }
-        }
-        return out;
-    }
-
     // ------------------------------------------------------------------ org.a11y.atspi.Accessible
 
     private DBus.Msg accessible(DBus.Msg m, boolean root, AccessibleNode node) {
@@ -366,7 +348,7 @@ final class AtspiTree {
                         kids.add(refOf(tree.node(0).id()).toStruct());
                     }
                 } else {
-                    for (AccessibleNode k : childrenOf(tree, node)) {
+                    for (AccessibleNode k : tree.children(node)) {
                         kids.add(refOf(k.id()).toStruct());
                     }
                 }
@@ -376,7 +358,7 @@ final class AtspiTree {
                 int i = ((Number) m.body[0]).intValue();
                 List<AccessibleNode> kids = root
                         ? (tree.nodeCount() > 0 ? List.of(tree.node(0)) : List.<AccessibleNode>of())
-                        : childrenOf(tree, node);
+                        : tree.children(node);
                 DBus.Ref ref = i >= 0 && i < kids.size() ? refOf(kids.get(i).id()) : nullRef();
                 return DBus.Msg.ret(m, "(so)", (Object) ref.toStruct());
             }
@@ -384,18 +366,7 @@ final class AtspiTree {
                 if (root) {
                     return DBus.Msg.ret(m, "i", -1);
                 }
-                int parent = node.parent();
-                if (parent < 0) {
-                    return DBus.Msg.ret(m, "i", 0);
-                }
-                List<AccessibleNode> siblings = childrenOf(tree, tree.node(parent));
-                int at = -1;
-                for (int i = 0; i < siblings.size(); i++) {
-                    if (siblings.get(i).id() == node.id()) {
-                        at = i;
-                    }
-                }
-                return DBus.Msg.ret(m, "i", at);
+                return DBus.Msg.ret(m, "i", indexInParent(tree, node));
             }
             case "GetRole":
                 return DBus.Msg.ret(m, "u", root ? Atspi.ROLE_APPLICATION : roleOf(node));
