@@ -257,6 +257,11 @@ public class ColorPickerButton extends Widget {
         picker.setAlphaEnabled(alphaEnabled);
         picker.setInitialColor(before);
         picker.onChange(this::change);
+        // The picker is the dialog's focus stop, and a picker names itself from nowhere: no
+        // application can reach this one to caption it, so it takes the dialog's title, by
+        // reference, and a reader landing in the dialog hears the same words the title bar
+        // carries rather than a colour chooser called nothing.
+        picker.setAccessibleName(dialogTitle);
 
         Dialog dialog = new Dialog(dialogTitle, I18nString.EMPTY);
         // A TokenBox, not a SizedBox: the width is a size token, and a number read here

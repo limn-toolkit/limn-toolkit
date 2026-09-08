@@ -482,6 +482,45 @@ class ColorPickerButtonAccessibilityTest extends AccessibleComponentTestBase {
                 "one fact, one home" + describe(tree()));
     }
 
+    /**
+     * The picker the dialog raises is where the keyboard lands, and it is a focusable node with
+     * no name of its own — §7.2's picker row records that "the one place in the toolkit that
+     * builds a picker names the dialog around it and never the picker". Found by the gallery-wide
+     * invariant test: a reader landing in the dialog heard a colour chooser called nothing. It
+     * takes the dialog's title, by reference, so the name is the same string a translator moves
+     * and a language change re-resolves it with the dialog's own.
+     */
+    @Test
+    void thePickerTheDialogRaisesIsNamedByTheDialogsTitleAndFollowsItsLanguage() {
+        bindWellThatCanOpen();
+        well.setDialogTitle(CAPTION);
+        well.openPicker();
+        frame();
+        settleTheDialog();
+
+        AccessibleNode picker = node(Accessible.Role.COLOR_CHOOSER);
+        assertTrue(picker.has(Accessible.State.FOCUSABLE),
+                "the picker is the dialog's own focus stop, which is why it must be named"
+                        + describe(tree()));
+        assertEquals("Accent", picker.name(),
+                "the picker is named by the title the application gave its dialog"
+                        + describe(tree()));
+        assertEquals(Accessible.NameFrom.EXPLICIT, picker.nameFrom(),
+                "set on the widget the way an application would, since no application can reach "
+                        + "a picker this button builds" + describe(tree()));
+        assertEquals(picker.name(), node(Accessible.Role.DIALOG).name(),
+                "one string for the dialog and the control inside it" + describe(tree()));
+
+        well.setLocale(BRAZILIAN);
+        frame();
+        limn.i18n.I18n.addBundle(TRANSLATED);
+        frame();
+
+        assertEquals("Destaque", node(Accessible.Role.COLOR_CHOOSER).name(),
+                "the title is handed over by reference, so the picker's name follows the "
+                        + "language exactly as the dialog's does" + describe(tree()));
+    }
+
     @Test
     void aPressWhileThePickerIsUpRaisesNoSecondDialogAndAcknowledgesNothing() throws Exception {
         bindWellThatCanOpen();

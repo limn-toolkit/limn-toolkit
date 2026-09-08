@@ -80,15 +80,10 @@ class AccessibleGalleryTest {
     /**
      * Entries whose failure is a defect another step already owns, so that the test stays green
      * while it is fixed elsewhere and red the moment it is fixed and this set is not emptied.
-     * Keyed by entry name; the value says which defect and where it is owed.
+     * Keyed by entry name; the value says which defect and where it is owed. <b>Empty</b>: the
+     * one entry it held, the nameless picker a colour well raises, was fixed in the widget.
      */
-    private static final Map<String, String> KNOWN_UNTIL_FIXED = Map.of(
-            // The picker ColorPickerButton#openPicker raises is focusable, takes the focus, and
-            // has no name: §7.2's ColorPicker row records that "the one place in the toolkit that
-            // builds a picker names the dialog around it and never the picker". The toolkit's to
-            // fix, in ColorPickerButton, with ColorPickerButtonAccessibilityTest pinning it.
-            "Colour picker button, open",
-            "the raised picker is focusable and nameless; owed by ColorPickerButton#openPicker");
+    private static final Map<String, String> KNOWN_UNTIL_FIXED = Map.of();
 
     /** The two palettes, each a fresh theme so a build never sees the other's tokens. */
     enum Palette {
