@@ -99,12 +99,20 @@ public final class LwjglBackend implements Backend {
     private volatile boolean terminated;
 
     public LwjglBackend() {
-        GLFWErrorCallback.createPrint(System.err).set();
         selectPlatform();
         if (!glfwInit()) {
-            throw new IllegalStateException("glfwInit() failed"
-                    + (isMacOs() ? ": on macOS the JVM must run with -XstartOnFirstThread" : ""));
+            // GLFW's own description, read back the way the window-creation failure reads it
+            // (LwjglWindow): "glfwInit() failed" alone names the call and not the reason, and
+            // this is the one line anybody debugging a machine that will not start ever sees.
+            throw new IllegalStateException("glfwInit() failed: " + GraphicsProbe.lastError()
+                    + startupAdvice());
         }
+        // AFTER init, and the only error it can miss is the one above, which is read back into
+        // that message instead. Installed earlier it printed the init failure a second time, as
+        // a native stack trace through glfwInit — which is what --gl-info looked like it had
+        // crashed with on a machine that simply has no display server. Errors from here on have
+        // nowhere else to surface, so they keep the callback.
+        GLFWErrorCallback.createPrint(System.err).set();
         uiRuntime = UiRuntime.create(this::wakeLoop);
         uiRuntime.bindToCurrentThread();
         Ui.install(uiRuntime);
@@ -205,7 +213,7 @@ public final class LwjglBackend implements Backend {
             LOG.log(Level.WARNING, "{0}=''{1}'' is not x11, wayland or any; ignoring it",
                     PLATFORM_PROPERTY, requested);
         }
-        if (isMacOs() || System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+        if (isMacOs() || isWindows(System.getProperty("os.name", ""))) {
             return;
         }
         String waylandDisplay = System.getenv("WAYLAND_DISPLAY");
@@ -293,7 +301,79 @@ public final class LwjglBackend implements Backend {
     }
 
     private static boolean isMacOs() {
-        return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac");
+        return isMacOs(System.getProperty("os.name", ""));
+    }
+
+    private static boolean isMacOs(String osName) {
+        return osName.toLowerCase(java.util.Locale.ROOT).contains("mac");
+    }
+
+    private static boolean isWindows(String osName) {
+        return osName.toLowerCase(java.util.Locale.ROOT).contains("win");
+    }
+
+    private static String startupAdvice() {
+        return startupAdvice(System.getProperty("os.name", ""), System.getenv("DISPLAY"),
+                System.getenv("WAYLAND_DISPLAY"));
+    }
+
+    /**
+     * What to try after {@code glfwInit} refused, appended to GLFW's own description of what
+     * happened.
+     *
+     * <p>GLFW says what failed and never what to do about it, and neither of the two things that
+     * stop it starting is a programming error: a macOS JVM on the wrong thread, and a shell with
+     * no desktop session attached to it. The second is the one that reaches a CI log or an SSH
+     * transcript, and there {@code GLFW_PLATFORM_UNAVAILABLE} — "Failed to detect any supported
+     * platform" — reads like a broken build rather than like a machine that simply has no display
+     * server. Naming the two variables it went on turns it back into a fact about the machine.
+     *
+     * <p>Package-private, and taking the environment rather than reading it, for the test: this is
+     * a string nothing in the program consumes, so a wrong one is not a failure anywhere — it is
+     * advice that reaches a person exactly once, on the machine where it is already too late.
+     *
+     * @return advice beginning with its own separator, or an empty string where none applies
+     */
+    static String startupAdvice(String osName, String display, String waylandDisplay) {
+        if (isMacOs(osName)) {
+            return "; on macOS the JVM must run with -XstartOnFirstThread";
+        }
+        // Windows selects the one platform it has without consulting either variable, so their
+        // absence there is the normal case and says nothing about why GLFW refused.
+        if (isWindows(osName)) {
+            return "";
+        }
+        if (isUnset(display) && isUnset(waylandDisplay)) {
+            return "; neither DISPLAY nor WAYLAND_DISPLAY is set, so this machine has no display "
+                    + "server and no window can be opened on it (run it under xvfb-run to give it "
+                    + "one, as scripts/screenshot.sh does)";
+        }
+        return "";
+    }
+
+    private static boolean isUnset(String variable) {
+        return variable == null || variable.isBlank();
+    }
+
+    /**
+     * The graphics report for a machine where this backend could not be constructed at all, which
+     * {@link #graphicsInfo()} cannot answer because there is no instance to ask it of.
+     *
+     * <p>It carries the one thing that is knowable before {@code glfwInit}: the version string of
+     * the GLFW that is loaded, which lists the platforms that {@code libglfw} was BUILT with. On
+     * the failure this exists for that is exactly the useful contrast — a library naming Wayland
+     * and X11 next to a machine running neither is a headless machine, not a broken library. The
+     * platform is reported as none, because failing to select one is what happened.
+     *
+     * @param failure why the backend could not be constructed; becomes
+     *                {@link limn.backend.GraphicsInfo#failure()}
+     */
+    public static limn.backend.GraphicsInfo startupFailure(String failure) {
+        // glfwGetVersionString is one of the handful of GLFW calls documented to work before
+        // initialization, and after a failed one. glfwGetPlatform is NOT: asking it here would
+        // raise GLFW_NOT_INITIALIZED, printing a second error over the first one.
+        return limn.backend.GraphicsInfo.unavailable("none selected", glfwGetVersionString(),
+                failure);
     }
 
     /**

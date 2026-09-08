@@ -49,7 +49,7 @@ class GlInfoTest {
         try {
             available = assertDoesNotThrow(() -> GlInfo.run(() -> {
                 throw new IllegalStateException("glfwInit() failed: no supported platform");
-            }));
+            }, GlInfo::startFailure));
         } finally {
             System.setOut(out);
         }
@@ -66,7 +66,7 @@ class GlInfoTest {
                         "glfwInit() failed: Failed to detect any supported platform")), null);
 
         assertTrue(text.contains("No graphics context."), text);
-        assertTrue(text.contains("The window library did not start"),
+        assertTrue(text.contains(GlInfo.NO_GLFW),
                 "a reader has to be able to tell this machine from one whose driver refused a "
                         + "window, and the exit status is the same for both: " + text);
         assertTrue(text.contains("Failed to detect any supported platform"),
