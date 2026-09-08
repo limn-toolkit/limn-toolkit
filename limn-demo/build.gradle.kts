@@ -134,7 +134,7 @@ tasks.named<ProcessResources>("processResources") {
     }
 }
 
-val isMacOs = System.getProperty("os.name").lowercase().contains("mac")
+val isMacOs = rootProject.extra["hostIsMacOs"] as Boolean
 
 // Both site tasks are deliberately NOT wired into `check` or into any assemble path: the
 // site is a consumer of this repository, not a module of it, and `./gradlew check` has to

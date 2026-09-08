@@ -66,9 +66,10 @@ tasks.named<Jar>("jar") {
     }
 }
 
+val hostIsMacOs: Boolean by rootProject.extra
 tasks.named<JavaExec>("run") {
     // GLFW and Cocoa need the event loop on the process's first thread.
-    if (System.getProperty("os.name").startsWith("Mac")) {
+    if (hostIsMacOs) {
         jvmArgs("-XstartOnFirstThread")
     }
     if (JavaVersion.current().majorVersion.toInt() >= 24) {

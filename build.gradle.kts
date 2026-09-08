@@ -29,6 +29,11 @@ val nextVersion = java.util.Properties().apply {
     file("versions.properties").inputStream().use { load(it) }
 }.getProperty("limn-toolkit") ?: throw GradleException("versions.properties names no limn-toolkit version")
 
+// Whether this build is running on a Mac, asked once for the three scripts that pass
+// -XstartOnFirstThread to a JVM they start: GLFW and Cocoa need the event loop on the process's
+// first thread, and no other JVM recognizes the flag.
+extra["hostIsMacOs"] = System.getProperty("os.name").lowercase().contains("mac")
+
 allprojects {
     group = "io.github.limn-toolkit"
     version = (findProperty("limnVersion") as String?) ?: "$nextVersion-SNAPSHOT"

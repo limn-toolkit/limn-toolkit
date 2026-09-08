@@ -88,8 +88,9 @@ dependencies {
 // own thread check throws, which the harness turns into a skipped test rather
 // than the SIGABRT Cocoa would raise if that check were ever disabled. macOS
 // only: no other JVM recognizes the flag, and one given it refuses to start.
+val hostIsMacOs: Boolean by rootProject.extra
 tasks.withType<Test>().configureEach {
-    if (System.getProperty("os.name").lowercase().contains("mac")) {
+    if (hostIsMacOs) {
         jvmArgs("-XstartOnFirstThread")
     }
 }
