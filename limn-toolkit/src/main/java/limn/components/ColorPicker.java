@@ -8,8 +8,8 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.LinearGradient;
 import limn.graphics.RoundRect;
-import limn.i18n.I18n;
 import limn.i18n.I18nString;
+import limn.i18n.LanguageWitness;
 import limn.input.Keys;
 import limn.math.Scalars;
 import limn.scene.Constraints;
@@ -26,7 +26,6 @@ import limn.scene.layout.Row;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -2111,19 +2110,17 @@ public final class ColorPicker extends Widget {
          * @return the name this node publishes, rebuilt only when it would differ
          */
         private String spoken() {
-            Locale locale = I18n.locale();
+            boolean languageMoved = spokenLanguage.moved();
             if (spoken == null || spokenHue != hue || spokenSaturation != saturation
                     || spokenValue != value || spokenAlpha != alpha
                     || spokenAlphaEnabled != alphaEnabled || !original.equals(spokenOriginal)
-                    || spokenEpoch != I18n.epoch() || !locale.equals(spokenLocale)) {
+                    || languageMoved) {
                 spokenHue = hue;
                 spokenSaturation = saturation;
                 spokenValue = value;
                 spokenAlpha = alpha;
                 spokenAlphaEnabled = alphaEnabled;
                 spokenOriginal = original;
-                spokenEpoch = I18n.epoch();
-                spokenLocale = locale;
                 spoken = ColorPickerStrings.SWATCH.format(color().toHex(), original.toHex());
                 spokenRevision++;
             }
@@ -2144,7 +2141,6 @@ public final class ColorPicker extends Widget {
         private float spokenAlpha;
         private boolean spokenAlphaEnabled;
         private Color spokenOriginal;
-        private long spokenEpoch;
-        private Locale spokenLocale;
+        private final LanguageWitness spokenLanguage = new LanguageWitness();
     }
 }

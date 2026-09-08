@@ -8,7 +8,7 @@ import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
-import limn.i18n.I18n;
+import limn.i18n.LanguageWitness;
 import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Size;
@@ -20,7 +20,6 @@ import limn.video.VideoStreamSource;
 import limn.video.VideoSurface;
 import limn.video.VideoSurfaces;
 
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -754,8 +753,7 @@ public class VideoView extends Widget {
     private String positionText;
     /** Never a real second, so the first ask builds. */
     private long positionTextSeconds = -1;
-    private long positionTextEpoch;
-    private Locale positionTextLocale;
+    private final LanguageWitness positionLanguage = new LanguageWitness();
     private long positionRevision;
 
     /**
@@ -775,12 +773,9 @@ public class VideoView extends Widget {
      * @return the same string until one of the three parts of that key moves
      */
     private String positionText(long seconds) {
-        Locale locale = I18n.locale();
-        if (positionText == null || seconds != positionTextSeconds
-                || I18n.epoch() != positionTextEpoch || !locale.equals(positionTextLocale)) {
+        boolean languageMoved = positionLanguage.moved();
+        if (positionText == null || seconds != positionTextSeconds || languageMoved) {
             positionTextSeconds = seconds;
-            positionTextEpoch = I18n.epoch();
-            positionTextLocale = locale;
             // The transport's own formatter and not a second copy of it, so that the tree and the
             // bar cannot drift into two renderings of one time.
             positionText = MediaControls.clock(seconds * 1_000_000L);

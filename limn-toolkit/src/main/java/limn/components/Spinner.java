@@ -7,6 +7,7 @@ import limn.backend.Cursor;
 import limn.components.text.TextEditModel;
 import limn.concurrent.Ui;
 import limn.i18n.I18n;
+import limn.i18n.LanguageWitness;
 import limn.i18n.NumberingSystem;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -294,12 +295,9 @@ public class Spinner extends Widget {
      * uses them and cached nowhere.
      */
     private String formatted() {
-        Locale locale = I18n.locale();
-        if (formattedText == null || formattedFrom != value || formattedEpoch != I18n.epoch()
-                || !locale.equals(formattedLocale)) {
+        boolean languageMoved = formattedLanguage.moved();
+        if (formattedText == null || formattedFrom != value || languageMoved) {
             formattedFrom = value;
-            formattedEpoch = I18n.epoch();
-            formattedLocale = locale;
             formattedText = format(value);
             formattedRevision++;
             if (mode == Mode.TIME) {
@@ -337,8 +335,7 @@ public class Spinner extends Widget {
 
     /** {@code NaN} until the first render, and never equal to a value, so the first call builds. */
     private double formattedFrom = Double.NaN;
-    private long formattedEpoch;
-    private Locale formattedLocale;
+    private final LanguageWitness formattedLanguage = new LanguageWitness();
     private String formattedText;
     private String formattedHours;
     private String formattedMinutes;
