@@ -10,10 +10,6 @@ import static org.lwjgl.opengl.GL33C.GL_LINEAR;
 import static org.lwjgl.opengl.GL33C.GL_R8;
 import static org.lwjgl.opengl.GL33C.GL_RED;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE_2D;
-import static org.lwjgl.opengl.GL33C.GL_TEXTURE_MAG_FILTER;
-import static org.lwjgl.opengl.GL33C.GL_TEXTURE_MIN_FILTER;
-import static org.lwjgl.opengl.GL33C.GL_TEXTURE_WRAP_S;
-import static org.lwjgl.opengl.GL33C.GL_TEXTURE_WRAP_T;
 import static org.lwjgl.opengl.GL33C.GL_UNPACK_ALIGNMENT;
 import static org.lwjgl.opengl.GL33C.GL_UNSIGNED_BYTE;
 import static org.lwjgl.opengl.GL33C.glBindTexture;
@@ -21,7 +17,6 @@ import static org.lwjgl.opengl.GL33C.glDeleteTextures;
 import static org.lwjgl.opengl.GL33C.glGenTextures;
 import static org.lwjgl.opengl.GL33C.glPixelStorei;
 import static org.lwjgl.opengl.GL33C.glTexImage2D;
-import static org.lwjgl.opengl.GL33C.glTexParameteri;
 import static org.lwjgl.opengl.GL33C.glTexSubImage2D;
 
 /**
@@ -68,10 +63,7 @@ final class GlyphAtlas implements AutoCloseable {
         Page() {
             texture = glGenTextures();
             glBindTexture(GL_TEXTURE_2D, texture);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            Gl.sample2D(GL_LINEAR, GL_CLAMP_TO_EDGE);
             // Zero-initialize: padding texels are sampled by LINEAR filtering
             // and must be transparent, not driver garbage.
             java.nio.ByteBuffer zeros = MemoryUtil.memCalloc(PAGE_SIZE * PAGE_SIZE);

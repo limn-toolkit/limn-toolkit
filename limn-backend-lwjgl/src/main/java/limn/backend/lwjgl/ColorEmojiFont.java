@@ -71,7 +71,7 @@ final class ColorEmojiFont implements AutoCloseable {
 
     /** Parses {@code bytes} as a color-bitmap font, or {@code null} if unusable. */
     static ColorEmojiFont fromBytes(byte[] bytes, String source) {
-        ByteBuffer data = MemoryUtil.memAlloc(bytes.length).put(bytes).flip();
+        ByteBuffer data = OffHeap.copyOf(bytes);
         try {
             if (!ColorBitmaps.present(data, 0)) {
                 MemoryUtil.memFree(data);

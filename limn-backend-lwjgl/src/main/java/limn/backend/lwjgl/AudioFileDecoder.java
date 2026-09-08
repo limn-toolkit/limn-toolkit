@@ -155,10 +155,8 @@ final class AudioFileDecoder implements AudioDecoder {
     // ------------------------------------------------------------------ OGG
 
     private static AudioClip decodeOgg(byte[] bytes) {
-        ByteBuffer encoded = MemoryUtil.memAlloc(bytes.length);
+        ByteBuffer encoded = OffHeap.copyOf(bytes);
         try {
-            encoded.put(bytes);
-            encoded.flip();
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 java.nio.IntBuffer error = stack.mallocInt(1);
                 long decoder = stb_vorbis_open_memory(encoded, error, null);
@@ -405,8 +403,7 @@ final class AudioFileDecoder implements AudioDecoder {
 
         OggStreamSource(java.nio.file.Path file) {
             byte[] bytes = limn.io.Resources.bytes(file, "Ogg stream");
-            encoded = MemoryUtil.memAlloc(bytes.length);
-            encoded.put(bytes).flip();
+            encoded = OffHeap.copyOf(bytes);
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 java.nio.IntBuffer error = stack.mallocInt(1);
                 handle = stb_vorbis_open_memory(encoded, error, null);

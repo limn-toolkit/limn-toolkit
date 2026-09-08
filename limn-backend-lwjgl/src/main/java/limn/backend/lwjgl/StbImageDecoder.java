@@ -18,9 +18,8 @@ final class StbImageDecoder implements ImageDecoder {
 
     @Override
     public Image decode(byte[] fileBytes) {
-        ByteBuffer encoded = MemoryUtil.memAlloc(fileBytes.length);
+        ByteBuffer encoded = OffHeap.copyOf(fileBytes);
         try {
-            encoded.put(fileBytes).flip();
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 IntBuffer width = stack.mallocInt(1);
                 IntBuffer height = stack.mallocInt(1);

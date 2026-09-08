@@ -450,9 +450,8 @@ public final class LwjglBackend implements Backend {
         long handle;
         // Pixel data goes on the heap, not the MemoryStack: cursor images are
         // usually tiny, but nothing bounds them. GLFW copies before returning.
-        java.nio.ByteBuffer pixels = org.lwjgl.system.MemoryUtil.memAlloc(image.pixels().length);
+        java.nio.ByteBuffer pixels = OffHeap.copyOf(image.pixels());
         try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
-            pixels.put(image.pixels()).flip();
             org.lwjgl.glfw.GLFWImage glfwImage = org.lwjgl.glfw.GLFWImage.malloc(stack);
             glfwImage.set(image.width(), image.height(), pixels);
             handle = org.lwjgl.glfw.GLFW.glfwCreateCursor(

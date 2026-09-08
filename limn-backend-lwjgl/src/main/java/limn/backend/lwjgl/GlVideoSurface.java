@@ -293,10 +293,7 @@ final class GlVideoSurface implements VideoSurface {
         // and is replaced every frame, so a mip chain would be rebuilt sixty
         // times a second to be sampled at level 0 anyway. The accepted cost is
         // that heavily minified video aliases where a still image would not.
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_LINEAR);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_LINEAR);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_S, GL33C.GL_CLAMP_TO_EDGE);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_T, GL33C.GL_CLAMP_TO_EDGE);
+        Gl.sample2D(GL33C.GL_LINEAR, GL33C.GL_CLAMP_TO_EDGE);
 
         framebuffer = GL33C.glGenFramebuffers();
         GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, framebuffer);
@@ -307,11 +304,7 @@ final class GlVideoSurface implements VideoSurface {
         // thrown with this surface's FBO still bound would send the rest of the
         // window's 2D geometry into it.
         GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
-        if (status != GL33C.GL_FRAMEBUFFER_COMPLETE) {
-            deleteGl();
-            throw new IllegalStateException(
-                    "video FBO incomplete: 0x" + Integer.toHexString(status));
-        }
+        Gl.requireFramebufferComplete(status, "video", this::deleteGl);
     }
 
     /**
@@ -346,10 +339,7 @@ final class GlVideoSurface implements VideoSurface {
                 pictureFormat.planeWidth(plane, width), pictureFormat.planeHeight(plane, height),
                 0, twoComponent ? GL33C.GL_RG : GL33C.GL_RED,
                 deep ? GL33C.GL_UNSIGNED_SHORT : GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_S, GL33C.GL_CLAMP_TO_EDGE);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_T, GL33C.GL_CLAMP_TO_EDGE);
+        Gl.sample2D(GL33C.GL_NEAREST, GL33C.GL_CLAMP_TO_EDGE);
         return texture;
     }
 

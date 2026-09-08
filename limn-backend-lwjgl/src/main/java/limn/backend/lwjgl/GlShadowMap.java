@@ -24,10 +24,7 @@ final class GlShadowMap {
         GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, depthTexture);
         GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_DEPTH_COMPONENT24, size, size, 0,
                 GL33C.GL_DEPTH_COMPONENT, GL33C.GL_UNSIGNED_INT, (ByteBuffer) null);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_S, GL33C.GL_CLAMP_TO_EDGE);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_T, GL33C.GL_CLAMP_TO_EDGE);
+        Gl.sample2D(GL33C.GL_NEAREST, GL33C.GL_CLAMP_TO_EDGE);
 
         fbo = GL33C.glGenFramebuffers();
         GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
@@ -35,11 +32,7 @@ final class GlShadowMap {
                 GL33C.GL_TEXTURE_2D, depthTexture, 0);
         GL33C.glDrawBuffer(GL33C.GL_NONE); // depth-only: no color buffer
         GL33C.glReadBuffer(GL33C.GL_NONE);
-        int status = GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER);
-        if (status != GL33C.GL_FRAMEBUFFER_COMPLETE) {
-            dispose();
-            throw new IllegalStateException("shadow FBO incomplete: 0x" + Integer.toHexString(status));
-        }
+        Gl.requireFramebufferComplete("shadow", this::dispose);
         GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, 0);
         GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
     }

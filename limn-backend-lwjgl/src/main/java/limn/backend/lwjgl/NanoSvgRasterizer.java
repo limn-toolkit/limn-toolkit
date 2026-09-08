@@ -24,8 +24,7 @@ final class NanoSvgRasterizer implements SvgRasterizer {
     public Image rasterize(byte[] svgBytes, int pixelSize) {
         int box = Math.max(1, pixelSize);
         // NanoSVG parses destructively and needs a NUL-terminated copy of the text.
-        ByteBuffer input = memAlloc(svgBytes.length + 1);
-        input.put(svgBytes).put((byte) 0).flip();
+        ByteBuffer input = OffHeap.copyOfNulTerminated(svgBytes);
         NSVGImage svg;
         try (MemoryStack stack = MemoryStack.stackPush()) {
             svg = NanoSVG.nsvgParse(input, stack.ASCII("px"), 96f);

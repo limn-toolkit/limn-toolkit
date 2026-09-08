@@ -54,10 +54,7 @@ final class GlBackdrop {
                 GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
         // LINEAR: a refracted sample lands between texels by construction. CLAMP_TO_EDGE is a
         // second line of defence behind the shader's own clamp to the copied region.
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_LINEAR);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_LINEAR);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_S, GL33C.GL_CLAMP_TO_EDGE);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_T, GL33C.GL_CLAMP_TO_EDGE);
+        Gl.sample2D(GL33C.GL_LINEAR, GL33C.GL_CLAMP_TO_EDGE);
     }
 
     /** What the perf monitor should show for this canvas's backdrop copy (nothing until one). */

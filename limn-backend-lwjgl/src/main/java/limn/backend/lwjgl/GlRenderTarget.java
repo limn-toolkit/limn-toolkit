@@ -61,10 +61,7 @@ final class GlRenderTarget implements RenderTarget {
         // internal format.
         GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA16F, width, height, 0,
                 GL33C.GL_RGBA, GL33C.GL_HALF_FLOAT, (ByteBuffer) null);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_LINEAR);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_LINEAR);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_S, GL33C.GL_CLAMP_TO_EDGE);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_T, GL33C.GL_CLAMP_TO_EDGE);
+        Gl.sample2D(GL33C.GL_LINEAR, GL33C.GL_CLAMP_TO_EDGE);
         GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                 GL33C.GL_TEXTURE_2D, colorTex, 0);
 
@@ -97,11 +94,7 @@ final class GlRenderTarget implements RenderTarget {
     }
 
     private void requireComplete(String which) {
-        int status = GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER);
-        if (status != GL33C.GL_FRAMEBUFFER_COMPLETE) {
-            deleteGl();
-            throw new IllegalStateException("3D " + which + " FBO incomplete: 0x" + Integer.toHexString(status));
-        }
+        Gl.requireFramebufferComplete("3D " + which, this::deleteGl);
     }
 
     /** The FBO 3D content renders into (multisample when MSAA is on). */
@@ -187,10 +180,7 @@ final class GlRenderTarget implements RenderTarget {
         GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, tex);
         GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA16F, bloomWidthPx(), bloomHeightPx(),
                 0, GL33C.GL_RGBA, GL33C.GL_HALF_FLOAT, (ByteBuffer) null);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_LINEAR);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_LINEAR);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_S, GL33C.GL_CLAMP_TO_EDGE);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_T, GL33C.GL_CLAMP_TO_EDGE);
+        Gl.sample2D(GL33C.GL_LINEAR, GL33C.GL_CLAMP_TO_EDGE);
         GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                 GL33C.GL_TEXTURE_2D, tex, 0);
         requireComplete("bloom");

@@ -165,7 +165,7 @@ final class StbFont implements AutoCloseable {
 
     /** Uploads {@code bytes} to native memory and initializes face {@code index}. */
     private static StbFont fromBytes(byte[] bytes, int index, String name, String source) {
-        ByteBuffer data = MemoryUtil.memAlloc(bytes.length).put(bytes).flip();
+        ByteBuffer data = OffHeap.copyOf(bytes);
         int face = Math.max(0, index);
         // The offset lookup is required even for face 0: in a .ttc collection
         // byte 0 holds the 'ttcf' header, not the face (plain .ttf returns 0).

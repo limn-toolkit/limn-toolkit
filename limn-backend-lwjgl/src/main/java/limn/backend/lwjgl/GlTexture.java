@@ -33,9 +33,8 @@ final class GlTexture implements GpuTexture {
         id = GL33C.glGenTextures();
         GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, id);
         GL33C.glPixelStorei(GL33C.GL_UNPACK_ALIGNMENT, 1);
-        ByteBuffer pixels = MemoryUtil.memAlloc(data.rgba8().length);
+        ByteBuffer pixels = OffHeap.copyOf(data.rgba8());
         try {
-            pixels.put(data.rgba8()).flip();
             GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
         } finally {

@@ -943,8 +943,7 @@ final class LwjglWindow implements NativeWindow {
             GLFWImage.Buffer images = GLFWImage.malloc(icons.length, stack);
             for (int i = 0; i < icons.length; i++) {
                 limn.graphics.Image icon = icons[i];
-                ByteBuffer pixels = MemoryUtil.memAlloc(icon.pixels().length);
-                pixels.put(icon.pixels()).flip();
+                ByteBuffer pixels = OffHeap.copyOf(icon.pixels());
                 pixelBuffers.add(pixels);
                 images.get(i).set(icon.width(), icon.height(), pixels);
             }

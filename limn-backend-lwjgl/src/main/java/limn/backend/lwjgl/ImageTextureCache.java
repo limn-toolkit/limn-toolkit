@@ -17,8 +17,6 @@ import static org.lwjgl.opengl.GL33C.GL_RGBA8;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE_2D;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE_MAG_FILTER;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE_MIN_FILTER;
-import static org.lwjgl.opengl.GL33C.GL_TEXTURE_WRAP_S;
-import static org.lwjgl.opengl.GL33C.GL_TEXTURE_WRAP_T;
 import static org.lwjgl.opengl.GL33C.GL_UNPACK_ALIGNMENT;
 import static org.lwjgl.opengl.GL33C.glGenerateMipmap;
 import static org.lwjgl.opengl.GL33C.GL_UNSIGNED_BYTE;
@@ -83,10 +81,7 @@ final class ImageTextureCache implements AutoCloseable {
         }
         int texture = glGenTextures();
         glBindTexture(GL_TEXTURE_2D, texture);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        Gl.sample2D(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR, GL_CLAMP_TO_EDGE);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         byte[] rgba = image.pixels();
         ByteBuffer buffer = MemoryUtil.memAlloc(rgba.length);
