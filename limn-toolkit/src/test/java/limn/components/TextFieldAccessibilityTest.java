@@ -219,12 +219,16 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(node.has(Accessible.State.READ_ONLY), describe(tree()));
         assertFalse(node.has(Accessible.State.MULTI_LINE), describe(tree()));
         assertFalse(node.has(Accessible.State.INVALID), describe(tree()));
-        assertTrue(node.has(Accessible.State.HAS_POPUP),
-                "the Cut/Copy/Paste menu, which the row is silent about" + describe(tree()));
+        assertFalse(node.has(Accessible.State.HAS_POPUP),
+                "a context menu is a verb and not a state: HAS_POPUP says activating the control "
+                        + "opens something, which is a combo box or a menu button and not a field "
+                        + "that also has Cut and Paste on a right click" + describe(tree()));
         assertTrue(node.has(Accessible.State.FOCUSABLE),
                 "focusable from its constructor" + describe(tree()));
         assertTrue(node.has(Accessible.State.ENABLED), describe(tree()));
-        assertTrue(node.actions().has(Accessible.Action.SHOW_MENU), describe(tree()));
+        assertTrue(node.actions().has(Accessible.Action.SHOW_MENU),
+                "the Cut/Copy/Paste menu, which the row is silent about, and the only route a "
+                        + "reader has to it" + describe(tree()));
         assertTrue(node.actions().has(Accessible.Action.FOCUS),
                 "the two the walk adds for every focusable widget" + describe(tree()));
         assertTrue(node.actions().has(Accessible.Action.SCROLL_INTO_VIEW), describe(tree()));

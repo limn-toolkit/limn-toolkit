@@ -2,14 +2,14 @@
  1 window "Limn UI: forms" (explicit) [active] window non-modal normal
  2   label "Form"
  3   label "Name"
- 4   text field "Type your name" (placeholder) [focusable, has-popup, editable] text="" caret=0 actions: show menu, scroll into view, focus
+ 4   text field "Type your name" (placeholder) [focusable, editable] text="" caret=0 actions: show menu, scroll into view, focus
  5   label "Password"
- 6   password field "Password" (placeholder) [focusable, has-popup, editable, password] text="•••••••••" caret=9 actions: show menu, scroll into view, focus
+ 6   password field "Password" (placeholder) [focusable, editable, password] text="•••••••••" caret=9 actions: show menu, scroll into view, focus
  7   switch "reveal" [focusable] toggle=off actions: toggle, scroll into view, focus
  8   label "Favorite theme (the popup is a translucent window)"
  9   combo box "Limn dark" [focusable, has-popup] value=0 [0..4 step 1] "Limn dark" collapsed actions: expand, scroll into view, focus
 10   label "Notes"
-11   text area "" [focusable, has-popup, editable, multi-line] text="The TextArea navigates across lines with the arrow keys (sticky column), selects with Shift+arrows and mouse, and copies/pastes through the clipboard.\nLong lines like this one (with no automatic wrapping) exercise the draggable horizontal scrollbar, while many lines exercise the vertical one.\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8: scroll down here with the wheel or by dragging the thumb." caret=394 lines=8 scroll h=0% view 33% actions: show menu, scroll into view, focus
+11   text area "" [focusable, editable, multi-line] text="The TextArea navigates across lines with the arrow keys (sticky column), selects with Shift+arrows and mouse, and copies/pastes through the clipboard.\nLong lines like this one (with no automatic wrapping) exercise the draggable horizontal scrollbar, while many lines exercise the vertical one.\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8: scroll down here with the wheel or by dragging the thumb." caret=394 lines=8 scroll h=0% view 33% actions: show menu, scroll into view, focus
 12     scroll bar "" [horizontal] value=0 [0..1004 step 496] actions: increment, decrement
 13   label "Interact with the form…"
 14   label "Flex floors"

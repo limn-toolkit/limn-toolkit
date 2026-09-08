@@ -2434,9 +2434,10 @@ public class TextArea extends Widget {
         // five-way vocabulary into it loses the distinction the vocabulary exists to draw.
         a.state(Accessible.State.INVALID, validation == TextField.Validation.ERROR);
         // The area raises the Cut/Copy/Paste/Select All menu from the pointer and from the
-        // keyboard, so the node owes both halves of that fact. Without them a reader has no route
-        // to any of those four operations at all.
-        a.state(Accessible.State.HAS_POPUP);
+        // keyboard, and without the verb a reader has no route to any of those four operations at
+        // all. The verb alone, and not HAS_POPUP, for the reason TextField's hook gives: the state
+        // says activating the control opens something, and a context menu is an operation the
+        // node offers, not what it is.
         // The single-argument form; the variable-argument one allocates an array per call. FOCUS
         // and SCROLL_INTO_VIEW arrive free from the walk, and the two paging verbs belong to the
         // ScrollBar children, which declare them on their own nodes.

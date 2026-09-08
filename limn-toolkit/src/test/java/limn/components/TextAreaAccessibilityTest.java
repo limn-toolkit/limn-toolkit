@@ -264,8 +264,9 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
                 "a fact about the model this widget holds and about Enter, not about wrapping"
                         + describe(tree()));
         assertFalse(node.has(Accessible.State.INVALID), describe(tree()));
-        assertTrue(node.has(Accessible.State.HAS_POPUP),
-                "the Cut/Copy/Paste menu, which the row is silent about" + describe(tree()));
+        assertFalse(node.has(Accessible.State.HAS_POPUP),
+                "a context menu is a verb and not a state; see TextFieldAccessibilityTest"
+                        + describe(tree()));
         assertTrue(node.has(Accessible.State.FOCUSABLE),
                 "focusable from its constructor" + describe(tree()));
         assertTrue(node.has(Accessible.State.ENABLED), describe(tree()));

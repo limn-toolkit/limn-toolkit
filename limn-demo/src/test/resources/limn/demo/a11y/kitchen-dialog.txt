@@ -30,9 +30,9 @@
  29   button "All tabs" (tooltip) [has-popup] actions: press, show menu
  30   scroll pane "Form" (label) scroll none | labelled by #14 "Form"
  31     label "Name"
- 32     text field "Type your name" (placeholder) [focusable, has-popup, editable] text="" caret=0 actions: show menu, scroll into view, focus
+ 32     text field "Type your name" (placeholder) [focusable, editable] text="" caret=0 actions: show menu, scroll into view, focus
  33     label "Password"
- 34     password field "Password" (placeholder) [focusable, has-popup, editable, password] text="•••••••••" caret=9 actions: show menu, scroll into view, focus
+ 34     password field "Password" (placeholder) [focusable, editable, password] text="•••••••••" caret=9 actions: show menu, scroll into view, focus
  35     switch "reveal" [focusable] toggle=off actions: toggle, scroll into view, focus
  36     label "Favorite theme"
  37     combo box "Limn dark" [focusable, has-popup] value=0 [0..3 step 1] "Limn dark" collapsed actions: expand, scroll into view, focus
@@ -45,7 +45,7 @@
  44     label "A long text demonstrating ellipsis truncation measured with real glyphs" [hidden, offscreen]
  45     label "Multiline TextArea" [hidden, offscreen]
  46     switch "Soft wrap" [hidden, offscreen] toggle=off actions: toggle
- 47     text area "" [hidden, offscreen, has-popup, editable, multi-line] text="The TextArea scrolls on both axes with draggable scrollbars, navigates across lines with the arrow keys (sticky column), selects with Shift+arrows and mouse.\nLine 2\nLine 3: scroll down with the wheel or by dragging the thumb.\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9, the end of the text." caret=289 lines=9 scroll v=0% view 0% h=0% view 0% actions: show menu
+ 47     text area "" [hidden, offscreen, editable, multi-line] text="The TextArea scrolls on both axes with draggable scrollbars, navigates across lines with the arrow keys (sticky column), selects with Shift+arrows and mouse.\nLine 2\nLine 3: scroll down with the wheel or by dragging the thumb.\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9, the end of the text." caret=289 lines=9 scroll v=0% view 0% h=0% view 0% actions: show menu
  48       scroll bar "" [hidden, offscreen, vertical] value=0 [0..108] actions: increment, decrement
  49       scroll bar "" [hidden, offscreen, horizontal] value=0 [0..1570] actions: increment, decrement
  50   scroll pane "Actions" (label) [hidden, offscreen] scroll none | labelled by #16 "Actions"
@@ -188,8 +188,8 @@
 187     label "Thai — sara am is one code point and two glyphs" [hidden, offscreen]
 188     label "น้ำ   ปิ่น   ภาษาไทย" [hidden, offscreen]
 189     label "Editable — click into it, drag a selection, walk it with the arrows" [hidden, offscreen]
-190     text field "" [hidden, offscreen, has-popup, editable] text="مرحبا Limn UI 2026 العربية" caret=26 actions: show menu
-191     text field "" [hidden, offscreen, has-popup, editable] text="שלום Limn UI 2026" caret=17 actions: show menu
+190     text field "" [hidden, offscreen, editable] text="مرحبا Limn UI 2026 العربية" caret=26 actions: show menu
+191     text field "" [hidden, offscreen, editable] text="שלום Limn UI 2026" caret=17 actions: show menu
 192     label "Pinned locale — the right pair declares Arabic; the window's language moves only the left" [hidden, offscreen]
 193     label "Notifications" [hidden, offscreen]
 194     spin button "" [hidden, offscreen] value=42 [0..100 step 1] "42" actions: increment, decrement
@@ -211,7 +211,7 @@
 210     heading "Tabler icons: the whole pack, virtualized" [hidden, offscreen]
 211     label "Every icon of an opt-in module that nothing else depends on. The list mounts only the rows on screen, so scrolling the catalogue rasterizes what you can see and no more. Names are checked by the compiler through one enum per upstream category; this row is TablerSystem.SEARCH." [hidden, offscreen]
 212     label "TablerSystem.SEARCH" [hidden, offscreen]
-213     search field "Search…" (placeholder) [hidden, offscreen, has-popup, editable] text="" caret=0 actions: press, show menu
+213     search field "Search…" (placeholder) [hidden, offscreen, editable] text="" caret=0 actions: press, show menu
 214       button "Clear" [hidden, offscreen] actions: press
 215     label "5130 icons · tinted from the theme, so they follow light and dark" [hidden, offscreen]
 216     list "" [hidden, offscreen] selection=single scroll v=0% view 0%

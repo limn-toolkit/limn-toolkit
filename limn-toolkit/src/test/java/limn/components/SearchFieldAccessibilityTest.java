@@ -146,7 +146,10 @@ class SearchFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node.has(Accessible.State.EDITABLE),
                 "inherited, and the case that fails first if super stops being called"
                         + describe(tree()));
-        assertTrue(node.has(Accessible.State.HAS_POPUP), describe(tree()));
+        assertFalse(node.has(Accessible.State.HAS_POPUP),
+                "a context menu is a verb and not a state; see TextFieldAccessibilityTest"
+                        + describe(tree()));
+        assertTrue(node.actions().has(Accessible.Action.SHOW_MENU), describe(tree()));
         assertTrue(node.has(Accessible.State.FOCUSABLE), describe(tree()));
         assertTrue(node.has(Accessible.State.ENABLED), describe(tree()));
         assertFalse(node.has(Accessible.State.MULTI_LINE),

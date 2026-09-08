@@ -1441,9 +1441,12 @@ public class TextField extends Widget {
         // declared relation.
         a.state(Accessible.State.INVALID, validation == Validation.ERROR);
         // The field raises the Cut/Copy/Paste/Select All menu from the pointer and from the
-        // keyboard, so the node owes both halves of that fact. Without them a reader has no route
-        // to any of those four operations at all.
-        a.state(Accessible.State.HAS_POPUP);
+        // keyboard, and without the verb a reader has no route to any of those four operations at
+        // all. The verb alone, and NOT HAS_POPUP: that state says activating the control opens
+        // something -- a combo box, a menu bar's title, a button that drops a picker -- and the
+        // one bridge that maps the bit (AT-SPI's STATE_HAS_POPUP) hands a reader exactly that
+        // claim about every plain field in the interface; the macOS probe run read it off the
+        // tree and flagged it. A context menu is an operation the node offers, not what it is.
         // The single-argument form; the variable-argument one allocates an array per call. FOCUS
         // and SCROLL_INTO_VIEW arrive free from the walk. No PRESS: pressing a text field is not an
         // activation, and the caret placement a click performs has no verb in the vocabulary.

@@ -440,7 +440,9 @@ class PasswordFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node.has(Accessible.State.EDITABLE),
                 "masked is not read-only: the text can be typed into either way" + describe(tree()));
         assertFalse(node.has(Accessible.State.READ_ONLY), describe(tree()));
-        assertTrue(node.has(Accessible.State.HAS_POPUP), describe(tree()));
+        assertFalse(node.has(Accessible.State.HAS_POPUP),
+                "a context menu is a verb and not a state; see TextFieldAccessibilityTest"
+                        + describe(tree()));
         assertTrue(node.actions().has(Accessible.Action.SHOW_MENU),
                 "the only route a reader has to Paste and Select All; Cut and Copy are greyed by "
                         + "the field's own clipboard rule and not by hiding the menu"
