@@ -2450,7 +2450,7 @@ and mixing them up is how a design document becomes untrustworthy in both direct
 | `ComboBox` | `COMBO_BOX` | `ExpandFacet`, `HAS_POPUP`, `ValueFacet` text = the selected item | — | the options are **not** here; see the next row |
 | ↳ `ComboBox.PopupPanel` | `LIST` | `SelectionFacet` with an active descendant | one `LIST_ITEM` per option, keyed by index, `SELECTED` on the chosen one | described in the scene it lives in, so its bounds are right in both mountings (§1.11) |
 | ↳ `ComboBox.ScenePopup` | transparent | | | the overlay wrapper |
-| `ListView` | `LIST` | `SelectionFacet` with an active descendant, `ScrollFacet` | — | rows are real pooled widgets mounted directly (Finding 14); `onAccessibilityChild` gives each mounted row `LIST_ITEM`, `SELECTED`, its data index as position in set, `rowCount()` as size of set, and **its data index as the identity key** (§1.3), which is what keeps a recycled cell from carrying row 3's identifier to row 9. **Corrected:** a row also needs `ActionFacet{PRESS}` mapped onto `ListView#activate()` — Enter activates the selected row and fires `onActivate`, and a row published with `SELECTED` and no verb is a list a screen reader user can move through and cannot use. Unmounted rows are not published (§11) |
+| `ListView` | `LIST` | `SelectionFacet` with an active descendant, `ScrollFacet` | — | rows are real pooled widgets mounted directly (Finding 14); `onAccessibilityChild` gives each mounted row `LIST_ITEM`, `SELECTED`, its data index as position in set, `rowCount()` as size of set, and **its data index as the identity key** (§1.3), which is what keeps a recycled cell from carrying row 3's identifier to row 9. **Corrected:** a row also needs `ActionFacet{PRESS}` mapped onto `ListView#activate()` — Enter activates the selected row and fires `onActivate`, and a row published with `SELECTED` and no verb is a list a screen reader user can move through and cannot use. Unmounted rows are not published (§11); a scroll never unrealizes the row holding the keyboard focus, which is published with its box outside the list's and without `SHOWING`, as the half-off row already is (§13.29) |
 | `TabbedPane` | transparent | | | the pane itself is scaffolding |
 | ↳ `TabStrip` | `TAB_LIST` | `SelectionFacet` | — | |
 | ↳ `TabHeader` | `TAB` | `SelectionItemFacet`, `ActionFacet{SELECT}` | — | name from the tab's own `I18nString` title, `nameFrom=CONTENT`. It is a private inner widget of `TabbedPane`, so it reads that title from inside its own package and needs no new accessor for this ADR — ADR 040 needs one for a different reason (§9) |
@@ -2975,6 +2975,9 @@ Each item says what a blind user loses, because a deferral without that sentence
   works; insert-at-range does not. `TextEditModel` sanitizes a single-line value — every newline becomes
   a space — so a bridge echoing a set must re-read the text rather than assume the round trip.
 - **Not list virtualization.** A list reports its true row count and publishes only realized rows.
+  One exception, from §13.29: the row holding the keyboard focus stays realized until the focus
+  leaves it, so a reader whose cursor follows the focus is not dropped to the window by a page; a
+  reader's cursor on a row that holds no focusable widget is still not protected.
   *Cost:* arrow-key navigation works, because moving the selection scrolls and realizes; jumping to an
   arbitrary row through the reader's own list navigation does not. Publishing every index instead would
   hand the reader thousands of anonymous items with no name and no bounds, and rebuild them all on every
@@ -3612,7 +3615,27 @@ elision meet.
     own, with §3.4's answer for who owns the queue and what a raise may touch after the UI thread has
     moved on — not a constant. It was deferred to a pass of its own and then done the same day
     when he asked for it; the line above says what the run showed.
-29. **Paging a list destroys the row the reader's cursor is on.** Found by the same run on macOS.
+29. **~~Paging a list destroys the row the reader's cursor is on.~~ Closed 2026-09-07, in the
+    `ListView` and not the bridge.** The row holding the keyboard focus is no longer recycled by a
+    scroll or a page that moves it out of the viewport: `recycleExcept` spares the one mounted cell
+    that `containsFocus`, it stays in `children()` in data order with its widget and its focus
+    untouched, and `placeKeptOutside` lays it out wholly outside the viewport at the distance the
+    scroll estimate puts it — so it is not painted, takes no click, and is published as the
+    `LIST_ITEM` it is, with its box outside the list's and without `SHOWING`, which is what §1.2
+    already says of a scroll pane's content and what this widget's own half-off-the-top row already
+    did; no state or role was added. `ensureVisible` treats it as unrealized and takes the exact
+    jump. It is released by the first realization pass that finds it outside the run without the
+    focus, by `refresh()` and by an emptied adapter, which still release everything and drop the
+    focus to the list as before; every other row is recycled exactly as it was.
+    `ListViewFocusedRowTest` drives Page Down through the scene's key path with the focus in row
+    one's button and asserts all of it against the published tree. **What remains:** the protection
+    is the keyboard focus's, not the reader's cursor's — a reader standing on a row that holds no
+    focusable widget is still not protected, because the toolkit cannot see where a reader's cursor
+    is; §11 says so now. Two costs are kept: the spared row's box is an estimate under uneven
+    heights, so a Shift+Tab that lands back on it is revealed by that estimate rather than exactly
+    (an arrow key then reveals by selection, which is exact); and a Tab out of the kept row goes to
+    the first realized row after it, as it always did across unrealized rows. What follows is the
+    finding as it was made. Found by the same run on macOS.
     VoiceOver was reading `Linha 1, item de lista`; the page scroll released that row, the bridge
     posted nothing for it (correctly — AppKit posts `UIElementDestroyed` itself) and VoiceOver fell
     back to `Você está atualmente em janela`, then to the scroll bar. The tree is truthful: the row

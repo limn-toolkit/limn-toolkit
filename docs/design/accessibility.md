@@ -108,7 +108,9 @@ Ids are minted over the **widget tree**, never over the published tree, and surv
 that keeps its id across a mutation is a node a reader keeps its cursor on; a node that gets a new
 one is a node the reader treats as newly created, which sounds like the interface flickering. This
 is why a list that recycles rows must key its rows by their *content*, and why the identity tests
-mutate a tree and assert what did **not** change.
+mutate a tree and assert what did **not** change. It is also why a list that recycles must not
+recycle the row the keyboard is in: a reader whose cursor follows the focus is standing on that
+node, and a scroll that deletes it drops the reader to the window.
 
 ## How a frame publishes
 
