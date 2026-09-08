@@ -297,31 +297,59 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
 
         assertEquals("", card().description(), describe(tree()));
         assertEquals(List.of(), nodesOf(Accessible.Role.LABEL),
-                "the heading is the only text in the body" + describe(tree()));
-        assertEquals(1, nodesOf(Accessible.Role.HEADING).size(), describe(tree()));
+                "no message, so no text in the body at all" + describe(tree()));
+        assertEquals(List.of(), nodesOf(Accessible.Role.HEADING),
+                "and the title is the card's name, not a heading" + describe(tree()));
+    }
+
+    /**
+     * The title is heard once, as the dialog's name, and not again as a heading under it.
+     *
+     * <p>The card paints its title as the first line of its body, the way a title bar paints a
+     * window's caption, and the {@code DIALOG} node already carries that string as its name —
+     * which is the attribute every platform reads a dialog's title from. A {@code HEADING} child
+     * with the same string is the same fact twice: a reader entering the dialog says the name,
+     * then reads the body and says it again, which is what the kitchen sink's transcript was
+     * heard doing. So the painted title is the rendering of the dialog's own name and is not a
+     * node, the way a title bar's caption is not a text element inside the dialog it captions;
+     * the string exists in the tree exactly once, on the node that is the dialog.
+     */
+    @Test
+    void theTitleIsTheDialogsNameOnceAndNeverAHeadingUnderIt() {
+        bindNative(cancelAndOk());
+
+        assertEquals(title(), card().name(), describe(tree()));
+        assertEquals(List.of(), nodesOf(Accessible.Role.HEADING),
+                "the painted title is the dialog's name, not a second node" + describe(tree()));
+        int carryingTheTitle = 0;
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            AccessibleNode each = tree().node(i);
+            if (each.name().equals(title()) && each.role() != Accessible.Role.WINDOW) {
+                carryingTheTitle++;
+            }
+        }
+        assertEquals(1, carryingTheTitle,
+                "one node inside the window says the title, and it is the dialog" + describe(tree()));
     }
 
     /**
      * Everything the dialog holds hangs under its node, at whatever depth the scaffolding leaves
-     * it, in the order a user reads it: the heading, the message, the content, the buttons.
+     * it, in the order a user reads it: the message, the content, the buttons. The title is not
+     * among them, because it is the card's own name and not a child.
      *
      * <p>Asserted as descendants and never as direct children, so the scroll view's step can put
      * a node between the card and its body without a line here changing.
      */
     @Test
-    void theHeadingTheMessageTheContentAndTheButtonsAreItsDescendantsInReadingOrder() {
+    void theMessageTheContentAndTheButtonsAreItsDescendantsInReadingOrder() {
         bindNative(cancelAndOk().setContent(new Field("Name")));
 
         AccessibleNode card = card();
-        AccessibleNode heading = node(Accessible.Role.HEADING);
-        assertEquals(title(), heading.name(),
-                "the heading carries the same string as the card" + describe(tree()));
-        for (AccessibleNode each : List.of(heading, node(message()), node("Name"),
+        for (AccessibleNode each : List.of(node(message()), node("Name"),
                 node("Cancel"), node("OK"))) {
             assertTrue(isDescendantOf(each, card),
                     each.name() + " hangs under the dialog" + describe(tree()));
         }
-        assertTrue(indexOf(title()) < indexOf(message()), describe(tree()));
         assertTrue(indexOf(message()) < indexOf("Name"), describe(tree()));
         assertTrue(indexOf("Name") < indexOf("Cancel"), describe(tree()));
         assertTrue(indexOf("Cancel") < indexOf("OK"), describe(tree()));
@@ -557,8 +585,6 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
 
         assertEquals(hebrew, card().locale(), describe(tree()));
         assertEquals(titleIn(hebrew), card().name(), describe(tree()));
-        assertEquals(titleIn(hebrew), node(Accessible.Role.HEADING).name(),
-                "and the heading agrees with it");
     }
 
     // ---------------------------------------------------------------------------------- cost

@@ -247,9 +247,8 @@
 1 window "Dialog: window-modal" (explicit) [active] window modal normal
 2   dialog "Dialog: window-modal" desc "This is a window-modal dialog. Choose an option." actions: cancel
 3     scroll pane "" scroll none
-4       heading "Dialog: window-modal"
-5       label "This is a window-modal dialog. Choose an option."
-6       combo box "Limn dark" [focusable, focused, has-popup] value=0 [0..3 step 1] "Limn dark" collapsed actions: expand, scroll into view, focus
-7       button "Actions menu" [focusable] actions: press, scroll into view, focus
-8     button "Cancel" [focusable] actions: press, scroll into view, focus
-9     button "OK" [focusable, default] actions: press, scroll into view, focus
+4       label "This is a window-modal dialog. Choose an option."
+5       combo box "Limn dark" [focusable, focused, has-popup] value=0 [0..3 step 1] "Limn dark" collapsed actions: expand, scroll into view, focus
+6       button "Actions menu" [focusable] actions: press, scroll into view, focus
+7     button "Cancel" [focusable] actions: press, scroll into view, focus
+8     button "OK" [focusable, default] actions: press, scroll into view, focus

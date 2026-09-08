@@ -190,7 +190,13 @@ public final class Dialog {
         // a MEDIUM title with no error and no obvious cause).
         body = new TokenColumn(Tokens.Role.MEDIUM);
         body.crossAlignment(Flex.CrossAlignment.STRETCH);
-        body.add(new Label(title).setRole(Label.Role.TITLE));
+        Label heading = new Label(title).setRole(Label.Role.TITLE);
+        // The painted title is the rendering of the dialog's own name, the way a title bar's
+        // caption is, and the DIALOG node carries that string where every platform reads a
+        // dialog's title from. As a node of its own it was the same fact twice: a reader entering
+        // the dialog said the name, then read the body and said it again. See DialogPanel's hook.
+        heading.setAccessibleIgnored(true);
+        body.add(heading);
         if (this.message != null) {
             body.add(new Label(this.message).setWrap(true).setMuted(true));
         }
@@ -989,10 +995,15 @@ public final class Dialog {
          * <p>The name is the dialog's own painted text, handed over by reference, so a frame that
          * damaged the card and changed nothing about it allocates nothing to say so; its
          * provenance is {@code CONTENT} because that is what one platform reads as a dialog's
-         * title. The heading below carries the same string and is not declared as a label for
-         * this node, since a relation would say what the name already says. The message goes
-         * over the same way, from the field the constructor kept, and a dialog built without one
-         * publishes no description rather than resolving a string to find out it is empty.
+         * title. The heading the card paints carries the same string and is <b>not a node</b>:
+         * the constructor marks it ignored, because it is the rendering of this node's own name
+         * — a title bar's caption, drawn inside the card — and published beside the name it was
+         * the one fact twice, said by a reader on entering the dialog and again on reading its
+         * body. Not a {@code LABELLED_BY} relation either, which would keep the second node and
+         * move the name's provenance to {@code LABEL}, which is the other attribute on that
+         * platform. The message goes over the same way, from the field the constructor kept, and
+         * a dialog built without one publishes no description rather than resolving a string to
+         * find out it is empty.
          *
          * <p>What is deliberately not declared. Not {@code MODAL}: in scene the walk puts it on
          * the layer that owns input, one level up, and a second bit here would announce one fact
