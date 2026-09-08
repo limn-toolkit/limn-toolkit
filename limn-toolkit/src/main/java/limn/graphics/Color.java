@@ -1,5 +1,7 @@
 package limn.graphics;
 
+import limn.math.Scalars;
+
 /**
  * Immutable straight-alpha RGBA color, channels in {@code [0..1]}.
  *
@@ -15,10 +17,10 @@ public record Color(float r, float g, float b, float a) implements Paint {
     public static final Color WHITE = new Color(1f, 1f, 1f, 1f);
 
     public Color {
-        r = clamp(r);
-        g = clamp(g);
-        b = clamp(b);
-        a = clamp(a);
+        r = Scalars.clamp01(r);
+        g = Scalars.clamp01(g);
+        b = Scalars.clamp01(b);
+        a = Scalars.clamp01(a);
     }
 
     /** Opaque color from a {@code 0xRRGGBB} value. */
@@ -39,7 +41,7 @@ public record Color(float r, float g, float b, float a) implements Paint {
 
     /** Linear interpolation between this color and {@code other} at {@code t} in [0..1]. */
     public Color lerp(Color other, float t) {
-        float k = clamp(t);
+        float k = Scalars.clamp01(t);
         return new Color(
                 r + (other.r - r) * k,
                 g + (other.g - g) * k,
@@ -68,8 +70,8 @@ public record Color(float r, float g, float b, float a) implements Paint {
      */
     public static Color hsv(float hue, float saturation, float value, float alpha) {
         float h = ((hue % 360f) + 360f) % 360f / 60f;
-        float s = clamp(saturation);
-        float v = clamp(value);
+        float s = Scalars.clamp01(saturation);
+        float v = Scalars.clamp01(value);
         int sector = (int) Math.floor(h);
         float f = h - sector;
         float p = v * (1 - s);
@@ -129,9 +131,9 @@ public record Color(float r, float g, float b, float a) implements Paint {
      * will not match a press.
      */
     public static Color cmyk(float cyan, float magenta, float yellow, float key, float alpha) {
-        float k = clamp(key);
-        return new Color((1 - clamp(cyan)) * (1 - k), (1 - clamp(magenta)) * (1 - k),
-                (1 - clamp(yellow)) * (1 - k), alpha);
+        float k = Scalars.clamp01(key);
+        return new Color((1 - Scalars.clamp01(cyan)) * (1 - k), (1 - Scalars.clamp01(magenta)) * (1 - k),
+                (1 - Scalars.clamp01(yellow)) * (1 - k), alpha);
     }
 
     /** Cyan, magenta, yellow and key in [0,1]: the inverse of {@link #cmyk}. */
@@ -249,10 +251,6 @@ public record Color(float r, float g, float b, float a) implements Paint {
     }
 
     private static int byteOf(float channel) {
-        return Math.round(clamp(channel) * 255f);
-    }
-
-    private static float clamp(float v) {
-        return Math.min(1f, Math.max(0f, v));
+        return Math.round(Scalars.clamp01(channel) * 255f);
     }
 }

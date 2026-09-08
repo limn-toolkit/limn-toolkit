@@ -12,6 +12,7 @@ import java.util.function.DoubleConsumer;
 
 import limn.backend.CrashPhase;
 import limn.backend.Crashes;
+import limn.math.Scalars;
 
 /**
  * A description of background work, built up and then started once. The body
@@ -333,7 +334,7 @@ public final class Work<T> {
                 // queue a runnable a frame for the whole run, for nothing.
                 return;
             }
-            double clamped = Double.isNaN(fraction) ? 0 : Math.min(1, Math.max(0, fraction));
+            double clamped = Scalars.clamp01(fraction);
             latestProgress.set(Double.doubleToRawLongBits(clamped));
             if (progressQueued.compareAndSet(false, true)) {
                 runtime.post(progressDelivery);

@@ -11,6 +11,7 @@ import limn.components.Viewport3D;
 import limn.graphics.BlendMode;
 import limn.math.Mat4;
 import limn.math.Quat;
+import limn.math.Scalars;
 import limn.math.Transform3D;
 import limn.math.Vec3;
 import limn.math.Vec4;
@@ -646,7 +647,7 @@ final class Viewport3DScene {
                 // A wipe travelling across the surface rather than a global fade, which
                 // is the whole reason the weight is per-vertex and not a uniform.
                 float phase = (float) x / cells;
-                params[v * 4] = clamp01(0.5f + 0.5f * (float) Math.sin(t * 0.9f - phase * 3.1f));
+                params[v * 4] = Scalars.clamp01(0.5f + 0.5f * (float) Math.sin(t * 0.9f - phase * 3.1f));
                 // The second stream: the burning edge runs from red at one corner to
                 // white at the other. Purely to have both custom streams live in one
                 // draw, which is the state that breaks (see surfaceMaterial).
@@ -658,9 +659,6 @@ final class Viewport3DScene {
         }
     }
 
-    private static float clamp01(float v) {
-        return v < 0f ? 0f : Math.min(v, 1f);
-    }
 
     /** A 2×2 sheet of four flat colours, enough to see which cell is being sampled. */
     private static TextureData spriteSheet(int size) {
@@ -701,7 +699,7 @@ final class Viewport3DScene {
                     v += amplitude * maskNoise(x, y, step, octave);
                     amplitude *= 0.5f;
                 }
-                byte level = (byte) Math.round(clamp01(v) * 255f);
+                byte level = (byte) Math.round(Scalars.clamp01(v) * 255f);
                 int i = (y * size + x) * 4;
                 rgba[i] = level;
                 rgba[i + 1] = level;
@@ -718,8 +716,8 @@ final class Viewport3DScene {
         }
         int gx = x / step;
         int gy = y / step;
-        float fx = smoothFraction((x % step) / (float) step);
-        float fy = smoothFraction((y % step) / (float) step);
+        float fx = Scalars.smoothstep((x % step) / (float) step);
+        float fy = Scalars.smoothstep((y % step) / (float) step);
         float a = maskHash(gx, gy, salt);
         float b = maskHash(gx + 1, gy, salt);
         float c = maskHash(gx, gy + 1, salt);
@@ -727,9 +725,6 @@ final class Viewport3DScene {
         return (a + (b - a) * fx) + ((c + (d - c) * fx) - (a + (b - a) * fx)) * fy;
     }
 
-    private static float smoothFraction(float t) {
-        return t * t * (3f - 2f * t);
-    }
 
     private static float maskHash(int x, int y, int salt) {
         int h = x * 0x27D4EB2D ^ y * 0x165667B1 ^ salt * 0x9E3779B1;

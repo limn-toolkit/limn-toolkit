@@ -38,7 +38,26 @@ public record Rect(float x, float y, float width, float height) {
 
     /** Whether the point is inside, taking the left and top edges and excluding right and bottom. */
     public boolean contains(float px, float py) {
-        return px >= x && px < right() && py >= y && py < bottom();
+        return contains(x, y, width, height, px, py);
+    }
+
+    /**
+     * {@link #contains(float, float)} for a box held as four numbers rather than a
+     * {@code Rect}: the same rule, taking the left and top edges and excluding right and
+     * bottom, so a hit test written over loose coordinates cannot drift from the one written
+     * over a rect. A far edge that is inclusive in one widget and exclusive in the next is a
+     * pixel that two neighbours both claim.
+     *
+     * @param x      the box's left edge
+     * @param y      the box's top edge
+     * @param width  the box's width
+     * @param height the box's height
+     * @param px     the point's x
+     * @param py     the point's y
+     * @return whether the point is inside the box
+     */
+    public static boolean contains(float x, float y, float width, float height, float px, float py) {
+        return px >= x && px < x + width && py >= y && py < y + height;
     }
 
     /** @return the intersection with {@code other} (a zero-sized rect if disjoint) */

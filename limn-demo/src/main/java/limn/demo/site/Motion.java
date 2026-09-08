@@ -1,5 +1,6 @@
 package limn.demo.site;
 
+import limn.math.Scalars;
 import limn.scene.Widget;
 
 import java.util.ArrayList;
@@ -361,7 +362,8 @@ final class Motion {
         /** The frame this step is on. */
         private Frame play(Step current) {
             if (current instanceof Step.Glide glide) {
-                float t = ease((within + 1f) / glide.frames());
+                // Smoothstep: zero velocity at both ends, which makes the glide read as a hand.
+                float t = Scalars.smoothstep((within + 1f) / glide.frames());
                 x = fromX + (toX - fromX) * t;
                 y = fromY + (toY - fromY) * t;
             } else if (current instanceof Step.Button button) {
@@ -511,9 +513,5 @@ final class Motion {
                     widget.localToSceneY(), widget.width(), widget.height());
         }
 
-        /** Smoothstep: zero velocity at both ends, which makes the glide read as a hand. */
-        private static float ease(float t) {
-            return t * t * (3 - 2 * t);
-        }
     }
 }

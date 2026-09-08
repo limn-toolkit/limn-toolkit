@@ -13,6 +13,7 @@ import limn.components.Theme;
 import limn.components.ToolBar;
 import limn.graphics.Color;
 import limn.graphics.Image;
+import limn.math.Scalars;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -245,7 +246,7 @@ public final class LayoutExample {
     }
 
     private static int mix(int from, int to, float t) {
-        return Math.round(from + (to - from) * t);
+        return Math.round(Scalars.lerp(from, to, t));
     }
 
     /** The shell on a canvas, for the capture the guide page shows. */

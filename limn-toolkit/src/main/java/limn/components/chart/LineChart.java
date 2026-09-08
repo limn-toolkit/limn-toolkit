@@ -11,6 +11,7 @@ import limn.graphics.LinearGradient;
 import limn.graphics.Path2D;
 
 import java.util.List;
+import limn.math.Scalars;
 
 /**
  * Lines, with optional filled areas and markers.
@@ -228,8 +229,8 @@ public class LineChart extends CartesianChart {
             // Catmull-Rom through the points, converted to a cubic. The neighbours outside
             // the run are clamped to its ends, which keeps the first and last segments from
             // curling away from data that does not exist.
-            int prev = clamp(i - step, first, last);
-            int after = clamp(next + step, first, last);
+            int prev = Scalars.clamp(i - step, first, last);
+            int after = Scalars.clamp(next + step, first, last);
             float f = tension / 3f;
             float c1x = xs[i] + (xs[next] - xs[prev]) * f;
             float c1y = ys[i] + (ys[next] - ys[prev]) * f;
@@ -239,9 +240,6 @@ public class LineChart extends CartesianChart {
         }
     }
 
-    private static int clamp(int value, int low, int high) {
-        return Math.max(low, Math.min(high, value));
-    }
 
     // --------------------------------------------------------------- painting
 

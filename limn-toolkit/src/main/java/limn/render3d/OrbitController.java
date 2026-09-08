@@ -1,5 +1,6 @@
 package limn.render3d;
 
+import limn.math.Scalars;
 import limn.math.Vec3;
 
 /**
@@ -24,7 +25,7 @@ public final class OrbitController implements CameraController {
         this.camera = camera;
         Vec3 offset = camera.eye().sub(camera.target());
         radius = Math.max(1e-3f, offset.length());
-        elevation = (float) Math.asin(clamp(offset.y() / radius, -1, 1));
+        elevation = (float) Math.asin(Scalars.clamp(offset.y() / radius, -1, 1));
         azimuth = (float) Math.atan2(offset.x(), offset.z());
     }
 
@@ -38,13 +39,13 @@ public final class OrbitController implements CameraController {
     @Override
     public void drag(float dx, float dy) {
         azimuth -= dx * dragSensitivity;
-        elevation = clamp(elevation + dy * dragSensitivity, -MAX_ELEVATION, MAX_ELEVATION);
+        elevation = Scalars.clamp(elevation + dy * dragSensitivity, -MAX_ELEVATION, MAX_ELEVATION);
         apply();
     }
 
     @Override
     public void zoom(float amount) {
-        radius = clamp(radius * (float) Math.exp(-amount * 0.1f), minRadius, maxRadius);
+        radius = Scalars.clamp(radius * (float) Math.exp(-amount * 0.1f), minRadius, maxRadius);
         apply();
     }
 
@@ -57,7 +58,4 @@ public final class OrbitController implements CameraController {
         camera.eye(camera.target().add(dir.mul(radius)));
     }
 
-    private static float clamp(float v, float lo, float hi) {
-        return Math.max(lo, Math.min(hi, v));
-    }
 }

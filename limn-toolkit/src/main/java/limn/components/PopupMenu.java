@@ -11,11 +11,13 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Path2D;
+import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18nString;
 import limn.input.Keys;
+import limn.math.Scalars;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.LayoutDirection;
@@ -818,14 +820,17 @@ public final class PopupMenu {
             float leading = rtl ? anchorX + anchorW - col.w : anchorX;
             float trailing = rtl ? anchorX : anchorX + anchorW - col.w;
             boolean overflows = rtl ? leading < boundsX : leading + col.w > boundsX + boundsW;
-            col.x = clamp(overflows ? trailing : leading, boundsX, boundsX + boundsW - col.w);
+            // A zero-sized bounds makes hi < lo, which Scalars.clamp answers with lo: a pure
+            // backstop, since Column#fit shrinks the column to the bounds first, so a column that
+            // does not fit is made to fit instead of being pinned at lo and left overflowing.
+            col.x = Scalars.clamp(overflows ? trailing : leading, boundsX, boundsX + boundsW - col.w);
 
             float y = anchorY + anchorH; // drop below the anchor
             if (y + col.visibleH > boundsY + boundsH) {
                 float above = anchorY - col.visibleH; // flip above
                 y = above >= boundsY ? above : boundsY + boundsH - col.visibleH;
             }
-            col.y = clamp(y, boundsY, boundsY + boundsH - col.visibleH);
+            col.y = Scalars.clamp(y, boundsY, boundsY + boundsH - col.visibleH);
             col.clampScroll();
         }
 
@@ -846,7 +851,7 @@ public final class PopupMenu {
                     ? parent.x + parent.w - Strokes.SUBMENU_OVERLAP
                     : parent.x - col.w + Strokes.SUBMENU_OVERLAP;
             boolean overflows = rtl ? trailing < boundsX : trailing + col.w > boundsX + boundsW;
-            col.x = clamp(overflows ? leading : trailing, boundsX, boundsX + boundsW - col.w);
+            col.x = Scalars.clamp(overflows ? leading : trailing, boundsX, boundsX + boundsW - col.w);
 
             // Align its first row with the parent item: SUBMENU_Y_ALIGN follows menuPadV and
             // has no token of its own.
@@ -854,18 +859,8 @@ public final class PopupMenu {
             if (y + col.visibleH > boundsY + boundsH) {
                 y = boundsY + boundsH - col.visibleH;
             }
-            col.y = clamp(y, boundsY, boundsY + boundsH - col.visibleH);
+            col.y = Scalars.clamp(y, boundsY, boundsY + boundsH - col.visibleH);
             col.clampScroll();
-        }
-
-        /**
-         * Clamps into {@code [lo, hi]}. The {@code hi < lo} branch is now a pure backstop for a
-         * degenerate (zero-sized) bounds: {@link Column#fit} shrinks the column to the bounds
-         * first, so a column that does not fit is made to fit instead of being pinned at
-         * {@code lo} and left overflowing.
-         */
-        private float clamp(float v, float lo, float hi) {
-            return Math.max(lo, Math.min(hi < lo ? lo : hi, v));
         }
 
         /** @return {minX, minY, maxX, maxY} over all open columns (layout space). */
@@ -1096,7 +1091,7 @@ public final class PopupMenu {
         private int[] hit(float lx, float ly) {
             for (int c = cols.size() - 1; c >= 0; c--) { // topmost (deepest) column wins
                 Column col = cols.get(c);
-                if (lx >= col.x && lx < col.x + col.w && ly >= col.y && ly < col.y + col.visibleH) {
+                if (Rect.contains(col.x, col.y, col.w, col.visibleH, lx, ly)) {
                     int item = col.itemAt(ly - col.y);
                     return new int[]{c, item};
                 }
@@ -1169,7 +1164,7 @@ public final class PopupMenu {
         private Column columnAt(float lx, float ly) {
             for (int c = cols.size() - 1; c >= 0; c--) {
                 Column col = cols.get(c);
-                if (lx >= col.x && lx < col.x + col.w && ly >= col.y && ly < col.y + col.visibleH) {
+                if (Rect.contains(col.x, col.y, col.w, col.visibleH, lx, ly)) {
                     return col;
                 }
             }

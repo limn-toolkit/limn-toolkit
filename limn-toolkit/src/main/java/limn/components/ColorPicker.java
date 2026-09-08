@@ -11,6 +11,7 @@ import limn.graphics.RoundRect;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.input.Keys;
+import limn.math.Scalars;
 import limn.scene.Constraints;
 import limn.scene.Insets;
 import limn.scene.Size;
@@ -542,8 +543,8 @@ public final class ColorPicker extends Widget {
      * own.
      */
     private void moveField(float s, float v) {
-        saturation = clamp01(s);
-        value = clamp01(v);
+        saturation = Scalars.clamp01(s);
+        value = Scalars.clamp01(v);
         changed();
     }
 
@@ -572,9 +573,6 @@ public final class ColorPicker extends Widget {
         event.consume();
     }
 
-    private static float clamp01(float v) {
-        return v < 0 ? 0 : Math.min(1f, v);
-    }
 
     // --- accessibility -------------------------------------------------------
 
@@ -717,7 +715,7 @@ public final class ColorPicker extends Widget {
                 Spinner spinner = fields.get(channel);
                 double span = spinner.max() - spinner.min();
                 return span <= 0 ? 0
-                        : clamp01((float) ((spinner.value() - spinner.min()) / span));
+                        : Scalars.clamp01((float) ((spinner.value() - spinner.min()) / span));
             }
 
             /** One of the spinner's own units: 1 of 255 reds, 1 of 360 degrees. */
@@ -912,8 +910,8 @@ public final class ColorPicker extends Widget {
                     return false;
                 }
                 switch (action) {
-                    case INCREMENT -> moveTo(clamp01(fraction() + unitFraction()));
-                    case DECREMENT -> moveTo(clamp01(fraction() - unitFraction()));
+                    case INCREMENT -> moveTo(Scalars.clamp01(fraction() + unitFraction()));
+                    case DECREMENT -> moveTo(Scalars.clamp01(fraction() - unitFraction()));
                     case SET_VALUE -> {
                         if (!(arg instanceof Accessible.Argument.OfValue of)
                                 || !Double.isFinite(of.value())) {
@@ -922,7 +920,7 @@ public final class ColorPicker extends Widget {
                         Spinner spinner = fields.get(channel);
                         double span = spinner.max() - spinner.min();
                         moveTo(span <= 0 ? 0
-                                : clamp01((float) ((of.value() - spinner.min()) / span)));
+                                : Scalars.clamp01((float) ((of.value() - spinner.min()) / span)));
                     }
                     default -> {
                         return false;
@@ -1179,14 +1177,14 @@ public final class ColorPicker extends Widget {
             float unit = unitFraction();
             float step = (event.modifiers() & Keys.MOD_SHIFT) != 0 ? 10 * unit : unit;
             switch (event.key()) {
-                case Keys.LEFT -> moveTo(clamp01(fraction() + (rtl ? step : -step)));
-                case Keys.RIGHT -> moveTo(clamp01(fraction() + (rtl ? -step : step)));
-                case Keys.DOWN -> moveTo(clamp01(fraction() - step));
-                case Keys.UP -> moveTo(clamp01(fraction() + step));
+                case Keys.LEFT -> moveTo(Scalars.clamp01(fraction() + (rtl ? step : -step)));
+                case Keys.RIGHT -> moveTo(Scalars.clamp01(fraction() + (rtl ? -step : step)));
+                case Keys.DOWN -> moveTo(Scalars.clamp01(fraction() - step));
+                case Keys.UP -> moveTo(Scalars.clamp01(fraction() + step));
                 // Page, Home and End name the value and never a side of the screen, so
                 // they are the same key in both directions.
-                case Keys.PAGE_DOWN -> moveTo(clamp01(fraction() - 10 * unit));
-                case Keys.PAGE_UP -> moveTo(clamp01(fraction() + 10 * unit));
+                case Keys.PAGE_DOWN -> moveTo(Scalars.clamp01(fraction() - 10 * unit));
+                case Keys.PAGE_UP -> moveTo(Scalars.clamp01(fraction() + 10 * unit));
                 case Keys.HOME -> moveTo(0);
                 case Keys.END -> moveTo(1);
                 default -> {
@@ -1243,7 +1241,7 @@ public final class ColorPicker extends Widget {
             boolean rtl = isRightToLeft();
             float local = sceneToLocalX(event.x());
             float along = rtl ? width() - local : local;
-            moveTo(clamp01((along - travelInset(t)) / travelWidth(t)));
+            moveTo(Scalars.clamp01((along - travelInset(t)) / travelWidth(t)));
             event.consume();
         }
     }
@@ -1257,7 +1255,7 @@ public final class ColorPicker extends Widget {
 
         @Override
         protected float fraction() {
-            return clamp01(alpha);
+            return Scalars.clamp01(alpha);
         }
 
         /** One percent, which is what the number beside it counts in. */
@@ -1392,14 +1390,14 @@ public final class ColorPicker extends Widget {
                 return false;
             }
             switch (action) {
-                case INCREMENT -> moveTo(clamp01(fraction() + unitFraction()));
-                case DECREMENT -> moveTo(clamp01(fraction() - unitFraction()));
+                case INCREMENT -> moveTo(Scalars.clamp01(fraction() + unitFraction()));
+                case DECREMENT -> moveTo(Scalars.clamp01(fraction() - unitFraction()));
                 case SET_VALUE -> {
                     if (!(arg instanceof Accessible.Argument.OfValue of)
                             || !Double.isFinite(of.value())) {
                         return false;
                     }
-                    moveTo(clamp01((float) (of.value() / 100.0)));
+                    moveTo(Scalars.clamp01((float) (of.value() / 100.0)));
                 }
                 default -> {
                     return false;
@@ -1525,7 +1523,7 @@ public final class ColorPicker extends Widget {
                     return false;
                 }
                 float h = Math.max(1, ramp.height());
-                apply.accept(clamp01(ramp.sceneToLocalY(event.y()) / h));
+                apply.accept(Scalars.clamp01(ramp.sceneToLocalY(event.y()) / h));
                 event.consume();
                 return true;
             }

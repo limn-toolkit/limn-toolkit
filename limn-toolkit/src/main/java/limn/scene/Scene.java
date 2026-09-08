@@ -9,6 +9,7 @@ import limn.graphics.Color;
 import limn.graphics.GpuSurface;
 import limn.graphics.Rect;
 import limn.input.Keys;
+import limn.math.Scalars;
 import limn.scene.event.CharEvent;
 import limn.scene.event.PreeditEvent;
 import limn.scene.event.FileDropEvent;
@@ -2961,7 +2962,7 @@ public final class Scene implements WindowInput {
         if (scrimAlpha > 0.001f) {
             // Ease the linear time-ramp so the dim glides in/out instead of
             // marching at a constant rate.
-            float eased = smoothstep(scrimAlpha / SCRIM_MAX_ALPHA) * SCRIM_MAX_ALPHA;
+            float eased = Scalars.smoothstep(scrimAlpha / SCRIM_MAX_ALPHA) * SCRIM_MAX_ALPHA;
             canvas.fillRect(0, 0, canvas.width(), canvas.height(),
                     Color.rgba(0x000000, eased));
         }
@@ -3046,7 +3047,7 @@ public final class Scene implements WindowInput {
         }
         winFadeElapsed += dt;
         float t = winFadeSeconds > 0 ? (float) Math.min(1.0, winFadeElapsed / winFadeSeconds) : 1f;
-        winFadeCurrent = winFadeFrom + (winFadeTarget - winFadeFrom) * smoothstep(t);
+        winFadeCurrent = winFadeFrom + (winFadeTarget - winFadeFrom) * Scalars.smoothstep(t);
         w.setOpacity(winFadeCurrent);
         w.requestFrame();
         if (t >= 1f) {
@@ -3145,12 +3146,6 @@ public final class Scene implements WindowInput {
     public Runnable observeWindowClosed(Runnable observer) {
         windowCloseObservers.add(Objects.requireNonNull(observer, "observer"));
         return () -> windowCloseObservers.remove(observer);
-    }
-
-    /** Smooth (ease-in-out) 0→1 ramp shared by the modal scrim and window fades. */
-    private static float smoothstep(float t) {
-        float x = Math.max(0f, Math.min(1f, t));
-        return x * x * (3f - 2f * x);
     }
 
     /** Runs measure/layout when dirty or resized (public for headless tests/embedding). */

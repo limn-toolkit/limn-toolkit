@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.math.Scalars;
 import limn.math.Vec3;
 import limn.sound.AudioBus;
 import limn.sound.AudioClip;
@@ -119,7 +120,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
 
     @Override
     public synchronized Playback play(AudioClip clip, float gain, boolean loop) {
-        return play(clip, PlayOptions.DEFAULTS.withGain(clamp01(gain)).withLoop(loop));
+        return play(clip, PlayOptions.DEFAULTS.withGain(Scalars.clamp01(gain)).withLoop(loop));
     }
 
     @Override
@@ -160,13 +161,13 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
 
     @Override
     public synchronized void setMasterGain(float gain) {
-        masterGain = clamp01(gain);
+        masterGain = Scalars.clamp01(gain);
         refreshGains();
     }
 
     @Override
     public synchronized void setBusGain(AudioBus bus, float gain) {
-        busGains.put(bus, clamp01(gain));
+        busGains.put(bus, Scalars.clamp01(gain));
         refreshGains();
     }
 
@@ -221,7 +222,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
 
     private float effectiveGain(float playGain, AudioBus bus) {
         float busGain = busGains.getOrDefault(bus, 1f);
-        return clamp01(playGain) * busGain * masterGain;
+        return Scalars.clamp01(playGain) * busGain * masterGain;
     }
 
     /** Re-applies {@code play × bus × master} to everything currently sounding. */
@@ -390,7 +391,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
 
     private synchronized void setGain(Voice voice, int token, float gain) {
         if (initialized && voice.generation == token) {
-            voice.playGain = clamp01(gain);
+            voice.playGain = Scalars.clamp01(gain);
             alSourcef(voice.source, AL_GAIN, effectiveGain(voice.playGain, voice.bus));
         }
     }
@@ -447,12 +448,6 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
 
     private synchronized boolean canSeek(Voice voice, int token) {
         return initialized && voice.generation == token && isActive(voice.source);
-    }
-
-    private static float clamp01(float value) {
-        // NaN must not leak into PlayOptions validation or AL_GAIN: treat as 0
-        // (the legacy 3-arg play() promised never to throw).
-        return Float.isNaN(value) ? 0f : Math.max(0f, Math.min(1f, value));
     }
 
     private static float clampPitch(float pitch) {
@@ -1141,7 +1136,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         public void setGain(float gain) {
             synchronized (OpenAlAudio.this) {
                 if (!stream.finished && initialized) {
-                    stream.playGain = clamp01(gain);
+                    stream.playGain = Scalars.clamp01(gain);
                     alSourcef(stream.source, AL_GAIN,
                             effectiveGain(stream.playGain, stream.bus));
                 }

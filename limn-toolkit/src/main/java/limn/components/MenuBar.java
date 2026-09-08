@@ -6,6 +6,7 @@ import limn.backend.Cursor;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18n;
@@ -679,7 +680,7 @@ public final class MenuBar extends Widget {
             bx += w.x();
             by += w.y();
         }
-        return sceneX >= bx && sceneX < bx + width() && sceneY >= by && sceneY < by + height();
+        return Rect.contains(bx, by, width(), height(), sceneX, sceneY);
     }
 
     private void closeMenu() {

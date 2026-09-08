@@ -11,6 +11,7 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18n;
@@ -1355,7 +1356,7 @@ public abstract class Chart extends Widget {
             float by = legendBoxes[i * 4 + 1];
             float bw = legendBoxes[i * 4 + 2];
             float bh = legendBoxes[i * 4 + 3];
-            if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
+            if (Rect.contains(bx, by, bw, bh, x, y)) {
                 return i;
             }
         }

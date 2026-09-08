@@ -1,5 +1,6 @@
 package limn.render3d;
 
+import limn.math.Scalars;
 import limn.math.Vec3;
 
 /**
@@ -25,7 +26,7 @@ public final class FlyController implements CameraController {
         Vec3 forward = camera.target().sub(camera.eye());
         distance = Math.max(1e-3f, forward.length());
         Vec3 dir = forward.normalize();
-        pitch = (float) Math.asin(clamp(dir.y(), -1, 1));
+        pitch = (float) Math.asin(Scalars.clamp(dir.y(), -1, 1));
         yaw = (float) Math.atan2(dir.x(), dir.z());
     }
 
@@ -38,7 +39,7 @@ public final class FlyController implements CameraController {
     @Override
     public void drag(float dx, float dy) {
         yaw -= dx * lookSensitivity;
-        pitch = clamp(pitch - dy * lookSensitivity, -MAX_PITCH, MAX_PITCH);
+        pitch = Scalars.clamp(pitch - dy * lookSensitivity, -MAX_PITCH, MAX_PITCH);
         camera.target(camera.eye().add(forward().mul(distance)));
     }
 
@@ -53,7 +54,4 @@ public final class FlyController implements CameraController {
         return new Vec3(cp * (float) Math.sin(yaw), (float) Math.sin(pitch), cp * (float) Math.cos(yaw));
     }
 
-    private static float clamp(float v, float lo, float hi) {
-        return Math.max(lo, Math.min(hi, v));
-    }
 }
