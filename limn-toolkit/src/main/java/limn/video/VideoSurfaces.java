@@ -1,8 +1,8 @@
 package limn.video;
 
+import limn.backend.Installed;
 import limn.concurrent.Ui;
 
-import java.util.Objects;
 
 /**
  * Video-surface facade + install-at-startup SPI (the same inversion as the image, audio and 3D
@@ -38,26 +38,25 @@ public final class VideoSurfaces {
         VideoSurface createSurface();
     }
 
-    private static volatile Provider provider;
+    private static final Installed<Provider> PROVIDER = new Installed<>(
+            "no VideoSurfaces provider. Is the backend started?");
 
     private VideoSurfaces() {
     }
 
     /** Installs the backend's provider. Called once at startup, before any surface is created. */
     public static void install(Provider newProvider) {
-        provider = Objects.requireNonNull(newProvider, "newProvider");
+        PROVIDER.install(newProvider);
     }
 
     /** Removes the provider if it is still {@code expected}, so a late teardown cannot clear a newer one. */
     public static void uninstall(Provider expected) {
-        if (provider == expected) {
-            provider = null;
-        }
+        PROVIDER.uninstall(expected);
     }
 
     /** @return whether a backend provider is installed (false when running headless) */
     public static boolean isAvailable() {
-        return provider != null;
+        return PROVIDER.isInstalled();
     }
 
     /**
@@ -72,10 +71,6 @@ public final class VideoSurfaces {
      */
     public static VideoSurface create() {
         Ui.checkUiThread();
-        Provider active = provider;
-        if (active == null) {
-            throw new IllegalStateException("no VideoSurfaces provider. Is the backend started?");
-        }
-        return active.createSurface();
+        return PROVIDER.require().createSurface();
     }
 }

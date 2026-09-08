@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import limn.backend.Installed;
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
 import limn.io.Resources;
@@ -20,7 +21,7 @@ import limn.io.Resources;
  *
  * <p>Each rasterized {@link Image} is cached and its identity is the GPU texture
  * key, so reusing one {@code SvgIcon} reuses a single texture per size across the
- * whole UI. Rasterization needs the backend running (the rasterizer is installed
+ * whole UI. Rasterization needs the backend running (the RASTERIZER.current() is installed
  * at startup); call {@link #image()} during setup to warm the cache if desired.
  *
  * <p><b>An instance is confined to the UI thread</b>: the size cache is a plain
@@ -46,7 +47,8 @@ public final class SvgIcon implements Icon {
     // that paints two steps at once, which is the coexistence case the feature exists for.
     private static final int MAX_CACHED_SIZES = 16;
 
-    private static volatile SvgRasterizer rasterizer;
+    private static final Installed<SvgRasterizer> RASTERIZER = new Installed<>(
+            "no SvgRasterizer installed. Is the backend started?");
 
     private final byte[] svg;
     private final Map<Integer, Image> bySize = new LinkedHashMap<>(16, 0.75f, true) {
@@ -81,23 +83,21 @@ public final class SvgIcon implements Icon {
         return new SvgIcon(Resources.bytes(SvgIcon.class, path, "SVG"));
     }
 
-    // --------------------------------------------------------- rasterizer SPI
+    // --------------------------------------------------------- RASTERIZER.current() SPI
 
-    /** Installs the backend rasterizer (called by the backend at startup). */
+    /** Installs the backend RASTERIZER.current() (called by the backend at startup). */
     public static void installRasterizer(SvgRasterizer newRasterizer) {
-        rasterizer = Objects.requireNonNull(newRasterizer, "rasterizer");
+        RASTERIZER.install(newRasterizer);
     }
 
-    /** Removes the rasterizer if it is still {@code expected}, so a late teardown cannot clear a newer one. */
+    /** Removes the RASTERIZER.current() if it is still {@code expected}, so a late teardown cannot clear a newer one. */
     public static void uninstallRasterizer(SvgRasterizer expected) {
-        if (rasterizer == expected) {
-            rasterizer = null;
-        }
+        RASTERIZER.uninstall(expected);
     }
 
     /** Whether SVG icons can be rasterized at all; without one they draw nothing. */
     public static boolean isRasterizerInstalled() {
-        return rasterizer != null;
+        return RASTERIZER.isInstalled();
     }
 
     // ---------------------------------------------------------------- render
@@ -151,7 +151,7 @@ public final class SvgIcon implements Icon {
      *
      * <p>Cancelling stops the delivery, not the work: if the rasterize had already finished, the
      * bitmap is still folded into the cache; it is paid for either way, and the next paint at that
-     * size may as well have it. A failure (no installed rasterizer, malformed SVG) reaches
+     * size may as well have it. A failure (no installed RASTERIZER.current(), malformed SVG) reaches
      * {@code onFailure} on the UI thread; nothing is thrown from here.
      *
      * @param pixelSize target extent in device pixels; values below 1 are treated as 1
@@ -221,10 +221,6 @@ public final class SvgIcon implements Icon {
     }
 
     private static SvgRasterizer requireRasterizer() {
-        SvgRasterizer active = rasterizer;
-        if (active == null) {
-            throw new IllegalStateException("no SvgRasterizer installed. Is the backend started?");
-        }
-        return active;
+        return RASTERIZER.require();
     }
 }

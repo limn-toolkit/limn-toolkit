@@ -2,7 +2,8 @@ package limn.graphics;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
+import limn.backend.Installed;
+import limn.concurrent.ChangeListeners;
 
 /**
  * Process-wide font configuration (mirrors the {@link TextRulers} / {@code Ui}
@@ -11,7 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * {@linkplain #defaultFamily() default family} that {@link Font#DEFAULT_FAMILY}
  * resolves to, so an application can switch its UI font at runtime.
  *
- * <p>Both the catalog becoming available (system-font enumeration finishes) and
+ * <p>Both the CATALOG.current() becoming available (system-font enumeration finishes) and
  * a default-family change notify {@linkplain #addChangeListener listeners} on
  * the calling thread; scenes subscribe to re-layout, and the backend's font
  * store subscribes to drop its resolution cache. Mutators are meant to be called
@@ -19,37 +20,35 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public final class Fonts {
 
-    private static volatile FontCatalog catalog = FontCatalog.EMPTY;
-    private static volatile FontLoader loader = FontLoader.UNAVAILABLE;
+    private static final Installed<FontCatalog> CATALOG = new Installed<>(FontCatalog.EMPTY,
+            "no FontCatalog installed. Is the backend started?");
+    private static final Installed<FontLoader> LOADER = new Installed<>(FontLoader.UNAVAILABLE,
+            "no FontLoader installed. Is the backend started?");
     private static volatile String defaultFamily = Font.DEFAULT_FAMILY;
-    private static final CopyOnWriteArrayList<Runnable> listeners = new CopyOnWriteArrayList<>();
+    private static final ChangeListeners listeners = new ChangeListeners();
 
     private Fonts() {
     }
 
-    /** Installs the backend's catalog (e.g. once system-font enumeration completes). */
+    /** Installs the backend's CATALOG.current() (e.g. once system-font enumeration completes). */
     public static void installCatalog(FontCatalog newCatalog) {
-        catalog = newCatalog == null ? FontCatalog.EMPTY : newCatalog;
-        notifyListeners();
+        CATALOG.install(newCatalog == null ? FontCatalog.EMPTY : newCatalog);
+        listeners.fire();
     }
 
     /** Resets to {@link FontCatalog#EMPTY} (backend shutdown). */
     public static void uninstallCatalog(FontCatalog current) {
-        if (catalog == current) {
-            catalog = FontCatalog.EMPTY;
-        }
+        CATALOG.uninstall(current);
     }
 
-    /** Installs the backend's file loader (backend startup). */
+    /** Installs the backend's file LOADER.current() (backend startup). */
     public static void installLoader(FontLoader newLoader) {
-        loader = newLoader == null ? FontLoader.UNAVAILABLE : newLoader;
+        LOADER.install(newLoader == null ? FontLoader.UNAVAILABLE : newLoader);
     }
 
     /** Resets to {@link FontLoader#UNAVAILABLE} (backend shutdown). */
     public static void uninstallLoader(FontLoader current) {
-        if (loader == current) {
-            loader = FontLoader.UNAVAILABLE;
-        }
+        LOADER.uninstall(current);
     }
 
     /**
@@ -74,21 +73,21 @@ public final class Fonts {
      * @throws IllegalArgumentException      if the file carries no usable face
      */
     public static String load(java.nio.file.Path file) {
-        String family = loader.load(Objects.requireNonNull(file, "file"));
-        notifyListeners();
+        String family = LOADER.current().load(Objects.requireNonNull(file, "file"));
+        listeners.fire();
         return family;
     }
 
     /**
      * @return the available families (bundled + system), or empty when headless. Reads no file and
-     *         does not block. It is the installed catalog's current answer, which may be a partial
+     *         does not block. It is the installed CATALOG.current()'s current answer, which may be a partial
      *         one: a backend that enumerates the operating system does so in the background and
-     *         installs a fuller catalog when it finishes. Rebuild a family list from
+     *         installs a fuller CATALOG.current() when it finishes. Rebuild a family list from
      *         {@linkplain #addChangeListener a change listener} rather than reading this once at
      *         startup and trusting it.
      */
     public static List<String> available() {
-        return catalog.families();
+        return CATALOG.current().families();
     }
 
     /** @return the family {@link Font#DEFAULT_FAMILY} currently resolves to */
@@ -122,12 +121,12 @@ public final class Fonts {
             return;
         }
         defaultFamily = value;
-        notifyListeners();
+        listeners.fire();
     }
 
-    /** Subscribes to catalog/default-family changes (idempotent per instance). */
+    /** Subscribes to CATALOG.current()/default-family changes (idempotent per instance). */
     public static void addChangeListener(Runnable listener) {
-        listeners.addIfAbsent(Objects.requireNonNull(listener, "listener"));
+        listeners.add(listener);
     }
 
     /** Unsubscribes; no-op when it was never registered. */
@@ -135,9 +134,5 @@ public final class Fonts {
         listeners.remove(listener);
     }
 
-    private static void notifyListeners() {
-        for (Runnable listener : listeners) {
-            listener.run();
-        }
-    }
+
 }

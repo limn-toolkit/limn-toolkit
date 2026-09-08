@@ -1,7 +1,7 @@
 package limn.render3d;
 
-import java.util.Objects;
 import java.util.function.Consumer;
+import limn.backend.Installed;
 
 /**
  * Facade + install-at-startup SPI for the 3D backend, the same inversion pattern
@@ -45,26 +45,25 @@ public final class Graphics3D {
         void renderDemoScene(RenderTarget target, double timeSeconds);
     }
 
-    private static volatile Provider provider;
+    private static final Installed<Provider> PROVIDER = new Installed<>(
+            "no Graphics3D provider. Is the backend started?");
 
     private Graphics3D() {
     }
 
     /** Installs the backend's 3D provider. Called once at startup, before any viewport renders. */
     public static void install(Provider newProvider) {
-        provider = Objects.requireNonNull(newProvider, "provider");
+        PROVIDER.install(newProvider);
     }
 
     /** Removes the provider if it is still {@code expected}, so a late teardown cannot clear a newer one. */
     public static void uninstall(Provider expected) {
-        if (provider == expected) {
-            provider = null;
-        }
+        PROVIDER.uninstall(expected);
     }
 
     /** Whether a backend provider is installed (false when running headless). */
     public static boolean isAvailable() {
-        return provider != null;
+        return PROVIDER.isInstalled();
     }
 
     /** Creates a target with {@code samples}× MSAA (clamped to what the GPU supports). */
@@ -105,10 +104,6 @@ public final class Graphics3D {
     }
 
     private static Provider active() {
-        Provider p = provider;
-        if (p == null) {
-            throw new IllegalStateException("no Graphics3D provider. Is the backend started?");
-        }
-        return p;
+        return PROVIDER.require();
     }
 }

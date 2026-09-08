@@ -1,9 +1,9 @@
 package limn.scene;
 
+import limn.concurrent.ChangeListeners;
 import limn.concurrent.Ui;
 
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The size step of a control: a deliberate, hand-tuned design axis, <b>not</b> a scale
@@ -83,7 +83,7 @@ public enum ControlSize {
      * subscribes in its constructor, so unbound (headless) scenes hear it too.
      * Mirrors {@link limn.graphics.Fonts#addChangeListener}.
      */
-    private static final CopyOnWriteArrayList<Runnable> LISTENERS = new CopyOnWriteArrayList<>();
+    private static final ChangeListeners LISTENERS = new ChangeListeners();
 
     /** @return the step used where nothing in the tree and no scene declares one */
     public static ControlSize processDefault() {
@@ -104,14 +104,12 @@ public enum ControlSize {
         }
         processDefault = size;
         Widget.bumpControlSizeEpoch();
-        for (Runnable listener : LISTENERS) {
-            listener.run();
-        }
+        LISTENERS.fire();
     }
 
     /** Subscribes to process-default changes (idempotent per instance). */
     public static void addChangeListener(Runnable listener) {
-        LISTENERS.addIfAbsent(Objects.requireNonNull(listener, "listener"));
+        LISTENERS.add(listener);
     }
 
     /** Unsubscribes; no-op when it was never registered. */

@@ -1,5 +1,6 @@
 package limn.i18n;
 
+import limn.concurrent.ChangeListeners;
 import limn.concurrent.Ui;
 
 import java.text.Collator;
@@ -53,7 +54,7 @@ public final class I18n {
 
     /** Newest first: the last bundle registered gets the first chance at a key. */
     private static final CopyOnWriteArrayList<StringBundle> BUNDLES = new CopyOnWriteArrayList<>();
-    private static final CopyOnWriteArrayList<Runnable> LISTENERS = new CopyOnWriteArrayList<>();
+    private static final ChangeListeners LISTENERS = new ChangeListeners();
 
     /**
      * Every key ever declared, in declaration order; see {@link #declaredKeys()}.
@@ -358,7 +359,7 @@ public final class I18n {
 
     /** Subscribes to language changes (idempotent per instance). */
     public static void addChangeListener(Runnable listener) {
-        LISTENERS.addIfAbsent(Objects.requireNonNull(listener, "listener"));
+        LISTENERS.add(listener);
     }
 
     /** Unsubscribes; no-op when it was never registered. */
@@ -509,9 +510,7 @@ public final class I18n {
 
     private static void invalidate() {
         epoch++;
-        for (Runnable listener : LISTENERS) {
-            listener.run();
-        }
+        LISTENERS.fire();
     }
 
     /**

@@ -1,6 +1,6 @@
 package limn.graphics;
 
-import java.util.Objects;
+import limn.backend.Installed;
 
 /**
  * Process-wide {@link TextRuler} registry, installed by the running backend
@@ -13,25 +13,24 @@ import java.util.Objects;
  */
 public final class TextRulers {
 
-    private static volatile TextRuler installed = TextRuler.NONE;
+    private static final Installed<TextRuler> INSTALLED = new Installed<>(TextRuler.NONE,
+            "no TextRuler installed. Is the backend started?");
 
     private TextRulers() {
     }
 
     /** Installs the backend's ruler (called once at backend startup). */
     public static void install(TextRuler ruler) {
-        installed = Objects.requireNonNull(ruler, "ruler");
+        INSTALLED.install(ruler);
     }
 
     /** Resets to {@link TextRuler#NONE} (backend shutdown). */
     public static void uninstall(TextRuler ruler) {
-        if (installed == ruler) {
-            installed = TextRuler.NONE;
-        }
+        INSTALLED.uninstall(ruler);
     }
 
     /** @return the installed ruler (never null; {@link TextRuler#NONE} without a backend) */
     public static TextRuler get() {
-        return installed;
+        return INSTALLED.current();
     }
 }

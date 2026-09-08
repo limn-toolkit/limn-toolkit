@@ -1,5 +1,6 @@
 package limn.scene;
 
+import limn.concurrent.ChangeListeners;
 import limn.graphics.ShapedText;
 
 import limn.concurrent.Ui;
@@ -7,7 +8,6 @@ import limn.concurrent.Ui;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The direction a subtree lays out in: an inherited design axis, <b>not</b> a transform and
@@ -105,7 +105,7 @@ public enum LayoutDirection {
      * its constructor, so unbound (headless) scenes hear it too. Mirrors
      * {@link ControlSize#addChangeListener}.
      */
-    private static final CopyOnWriteArrayList<Runnable> LISTENERS = new CopyOnWriteArrayList<>();
+    private static final ChangeListeners LISTENERS = new ChangeListeners();
 
     /** @return the direction used where nothing in the tree and no scene declares one */
     public static LayoutDirection processDefault() {
@@ -126,14 +126,12 @@ public enum LayoutDirection {
         }
         processDefault = direction;
         Widget.bumpLayoutDirectionEpoch();
-        for (Runnable listener : LISTENERS) {
-            listener.run();
-        }
+        LISTENERS.fire();
     }
 
     /** Subscribes to process-default changes (idempotent per instance). */
     public static void addChangeListener(Runnable listener) {
-        LISTENERS.addIfAbsent(Objects.requireNonNull(listener, "listener"));
+        LISTENERS.add(listener);
     }
 
     /** Unsubscribes; no-op when it was never registered. */

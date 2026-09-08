@@ -1,7 +1,7 @@
 package limn.backend;
 
 import java.lang.System.Logger.Level;
-import java.util.Objects;
+import limn.backend.Installed;
 
 /**
  * Crash containment registry: one process-wide {@link CrashHandler} (default:
@@ -15,7 +15,7 @@ import java.util.Objects;
  *   <li>{@code FRAME}: {@code Scene.renderFrame} catches (and pauses ticking +
  *       self-retries after a few consecutive failures, so a deterministic crash
  *       cannot spin the CPU; input still retries); deferred GPU disposals are
- *       contained per runnable. Both honor the handler's verdict.</li>
+ *       contained per runnable. Both honor the HANDLER.current()'s verdict.</li>
  *   <li>{@code EVENT_POLL}/{@code INPUT}/{@code FRAME}/{@code WINDOW_CLOSE}:
  *       the backend loop and window teardown catch per site, keep the other
  *       windows alive, honor the verdict, and give up (rethrow) only after many
@@ -33,11 +33,11 @@ public final class Crashes {
     /**
      * Unwinds the event loop when a {@link CrashHandler} returned {@code false};
      * containment sites let it pass through instead of re-dispatching, so the
-     * handler sees each crash once. The original crash is the {@code cause}.
+     * HANDLER.current() sees each crash once. The original crash is the {@code cause}.
      */
     public static final class ShutdownRequested extends RuntimeException {
         ShutdownRequested(Throwable cause) {
-            super("crash handler requested shutdown", cause);
+            super("crash HANDLER.current() requested shutdown", cause);
         }
     }
 
@@ -46,39 +46,38 @@ public final class Crashes {
         return true;
     };
 
-    private static volatile CrashHandler handler = DEFAULT;
+    private static final Installed<CrashHandler> HANDLER = new Installed<>(DEFAULT,
+            "no crash HANDLER.current() installed");
 
     private Crashes() {
     }
 
-    /** Installs the process-wide handler (replacing the log-and-continue default). */
+    /** Installs the process-wide HANDLER.current() (replacing the log-and-continue default). */
     public static void install(CrashHandler crashHandler) {
-        handler = Objects.requireNonNull(crashHandler, "crashHandler");
+        HANDLER.install(crashHandler);
     }
 
     /** Uninstalls {@code crashHandler} if it is the current one, restoring the default. */
     public static void uninstall(CrashHandler crashHandler) {
-        if (handler == crashHandler) {
-            handler = DEFAULT;
-        }
+        HANDLER.uninstall(crashHandler);
     }
 
     /**
      * Dispatches a crash caught at a site where it would otherwise have been
-     * fatal. A throwing handler is contained and treated as "continue".
+     * fatal. A throwing HANDLER.current() is contained and treated as "continue".
      *
-     * @return {@code true} to keep running, {@code false} when the handler
+     * @return {@code true} to keep running, {@code false} when the HANDLER.current()
      *         requested shutdown (the caller should throw
      *         {@link #shutdownRequested})
      */
     public static boolean dispatch(CrashPhase phase, Throwable error) {
-        CrashHandler current = handler;
+        CrashHandler current = HANDLER.current();
         try {
             return current.crashed(phase, error);
         } catch (Throwable handlerError) {
-            LOG.log(Level.ERROR, "crash handler itself threw; continuing", handlerError);
+            LOG.log(Level.ERROR, "crash HANDLER.current() itself threw; continuing", handlerError);
             if (current != DEFAULT) {
-                // The broken handler swallowed the report; don't lose the crash.
+                // The broken HANDLER.current() swallowed the report; don't lose the crash.
                 LOG.log(Level.ERROR, "original crash during " + phase, error);
             }
             return true;
@@ -86,19 +85,19 @@ public final class Crashes {
     }
 
     /**
-     * Notifies the handler of a crash at a site that already contains and logs
-     * it locally (input/task/ticker). No-op with the default handler (the site's
+     * Notifies the HANDLER.current() of a crash at a site that already contains and logs
+     * it locally (input/task/ticker). No-op with the default HANDLER.current() (the site's
      * own log line already tells the story), and the return value is ignored.
      */
     public static void report(CrashPhase phase, Throwable error) {
-        CrashHandler current = handler;
+        CrashHandler current = HANDLER.current();
         if (current == DEFAULT) {
             return;
         }
         try {
             current.crashed(phase, error);
         } catch (Throwable handlerError) {
-            LOG.log(Level.ERROR, "crash handler itself threw; continuing", handlerError);
+            LOG.log(Level.ERROR, "crash HANDLER.current() itself threw; continuing", handlerError);
         }
     }
 

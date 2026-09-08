@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 
+import limn.backend.Installed;
 import limn.concurrent.SharedLoads;
 import limn.concurrent.Work;
 import limn.io.Resources;
@@ -42,7 +43,8 @@ import limn.io.Resources;
  */
 public final class Images {
 
-    private static volatile ImageDecoder decoder;
+    private static final Installed<ImageDecoder> DECODER = new Installed<>(
+            "No ImageDecoder installed: start a Backend before loading images.");
 
     private static final java.util.concurrent.CopyOnWriteArrayList<ImageEncoder> encoders =
             new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -58,19 +60,17 @@ public final class Images {
 
     /** Installs the backend decoder (called once at backend startup). */
     public static void installDecoder(ImageDecoder newDecoder) {
-        decoder = Objects.requireNonNull(newDecoder, "newDecoder");
+        DECODER.install(newDecoder);
     }
 
     /** Uninstalls {@code candidate} if it is the installed decoder (backend shutdown). */
     public static void uninstallDecoder(ImageDecoder candidate) {
-        if (decoder == candidate) {
-            decoder = null;
-        }
+        DECODER.uninstall(candidate);
     }
 
     /** @return whether a decoder is installed (i.e. a backend is running) */
     public static boolean isDecoderInstalled() {
-        return decoder != null;
+        return DECODER.isInstalled();
     }
 
     /**
@@ -402,11 +402,6 @@ public final class Images {
     }
 
     private static ImageDecoder require() {
-        ImageDecoder current = decoder;
-        if (current == null) {
-            throw new IllegalStateException(
-                    "No ImageDecoder installed: start a Backend before loading images.");
-        }
-        return current;
+        return DECODER.require();
     }
 }

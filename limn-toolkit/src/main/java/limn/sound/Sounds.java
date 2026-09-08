@@ -2,6 +2,7 @@ package limn.sound;
 
 import java.nio.file.Path;
 import java.util.Objects;
+import limn.backend.Installed;
 import limn.concurrent.SharedLoads;
 import limn.io.Resources;
 
@@ -25,42 +26,40 @@ import limn.io.Resources;
  */
 public final class Sounds {
 
-    private static volatile AudioEngine engine;
-    private static volatile AudioDecoder decoder;
+    private static final Installed<AudioEngine> ENGINE = new Installed<>(
+            "No AudioEngine installed: start a Backend before playing audio.");
+    private static final Installed<AudioDecoder> DECODER = new Installed<>(
+            "No AudioDecoder installed: start a Backend before loading audio.");
 
     private Sounds() {
     }
 
     // ------------------------------------------------------------- install
 
-    /** Installs the backend audio engine (called once at backend startup). */
+    /** Installs the backend audio ENGINE.current() (called once at backend startup). */
     public static void installEngine(AudioEngine newEngine) {
-        engine = Objects.requireNonNull(newEngine, "newEngine");
+        ENGINE.install(newEngine);
     }
 
-    /** Uninstalls {@code candidate} if it is the installed engine (backend shutdown). */
+    /** Uninstalls {@code candidate} if it is the installed ENGINE.current() (backend shutdown). */
     public static void uninstallEngine(AudioEngine candidate) {
-        if (engine == candidate) {
-            engine = null;
-        }
+        ENGINE.uninstall(candidate);
     }
 
     /** Installs the backend audio decoder (called once at backend startup). */
     public static void installDecoder(AudioDecoder newDecoder) {
-        decoder = Objects.requireNonNull(newDecoder, "newDecoder");
+        DECODER.install(newDecoder);
     }
 
     /** Uninstalls {@code candidate} if it is the installed decoder (backend shutdown). */
     public static void uninstallDecoder(AudioDecoder candidate) {
-        if (decoder == candidate) {
-            decoder = null;
-        }
+        DECODER.uninstall(candidate);
     }
 
     /**
-     * Whether an engine is installed and an audio device is available.
+     * Whether an ENGINE.current() is installed and an audio device is available.
      *
-     * <p><b>The first call may open the audio device</b>: an engine is allowed to defer loading the
+     * <p><b>The first call may open the audio device</b>: an ENGINE.current() is allowed to defer loading the
      * platform audio library and waking the default output until something asks, and that costs
      * tens to hundreds of milliseconds, longer when the output is asleep or on a Bluetooth link.
      * It blocks the calling thread for that time, so on the UI thread it is a visible freeze.
@@ -70,7 +69,7 @@ public final class Sounds {
      * @return whether something played now would be heard
      */
     public static boolean isAvailable() {
-        AudioEngine current = engine;
+        AudioEngine current = ENGINE.current();
         return current != null && current.isAvailable();
     }
 
@@ -93,8 +92,8 @@ public final class Sounds {
      * say so in their names: {@link #loadShared} and {@link #fromResourceShared} are running
      * before the caller sees them.
      *
-     * <p>Idempotent and cheap after the first time (the engine opens the device once), and it
-     * never fails: a machine with no audio device, and a process with no engine installed, both
+     * <p>Idempotent and cheap after the first time (the ENGINE.current() opens the device once), and it
+     * never fails: a machine with no audio device, and a process with no ENGINE.current() installed, both
      * deliver {@code false} rather than failing, matching the best-effort silence {@link #play}
      * gives. It reports no progress: waking a device has no fraction anyone can compute. Nothing
      * it produces holds a resource, so it carries no disposer and needs none.
@@ -227,7 +226,7 @@ public final class Sounds {
      */
     public static Playback play(AudioClip clip, float gain, boolean loop) {
         Objects.requireNonNull(clip, "clip");
-        AudioEngine current = engine;
+        AudioEngine current = ENGINE.current();
         return current == null ? Playback.NONE : current.play(clip, gain, loop);
     }
 
@@ -240,20 +239,20 @@ public final class Sounds {
     public static Playback play(AudioClip clip, PlayOptions options) {
         Objects.requireNonNull(clip, "clip");
         Objects.requireNonNull(options, "options");
-        AudioEngine current = engine;
+        AudioEngine current = ENGINE.current();
         return current == null ? Playback.NONE : current.play(clip, options);
     }
 
     /**
      * Streams the audio file at {@code file}, in whatever formats the installed
-     * {@link AudioDecoder} can stream: decoded incrementally on the engine's streaming thread, so
+     * {@link AudioDecoder} can stream: decoded incrementally on the ENGINE.current()'s streaming thread, so
      * a long music track costs ring buffers instead of a whole decoded clip on the heap.
      * The conventional music setup is
      * {@code DEFAULTS.withBus(AudioBus.MUSIC).withPriority(HIGH).withLoop(true)}.
      *
      * <p><b>Getting a stream started is not incremental, even though playing it is.</b> This call
      * opens the file, and a decoder is allowed to read it whole to be able to seek in it and to
-     * decode a first frame to learn the format; the engine then decodes the first buffers before
+     * decode a first frame to learn the format; the ENGINE.current() then decodes the first buffers before
      * the sound starts. On a several-megabyte track that is a read of every byte plus a decode, all
      * on the calling thread, which for the "start the music as the scene appears" call is the UI
      * thread. Use {@link #streamAsync} there; this form suits a caller already on a worker thread.
@@ -261,7 +260,7 @@ public final class Sounds {
     public static Playback stream(Path file, PlayOptions options) {
         Objects.requireNonNull(file, "file");
         Objects.requireNonNull(options, "options");
-        AudioEngine current = engine;
+        AudioEngine current = ENGINE.current();
         if (current == null || !current.isAvailable()) {
             return Playback.NONE; // nothing was opened, so there is nothing to close
         }
@@ -284,7 +283,7 @@ public final class Sounds {
      * <p>Returned <b>unstarted</b> and already carrying a disposer, so a caller cannot leak by
      * forgetting one: register {@code onSuccess}/{@code onFailure}/{@code deliverIf} and call
      * {@code start()}. Cancelling the job, or refusing the delivery, stops the stream and closes
-     * the file; a cancel that arrives before the engine has admitted the track means nothing ever
+     * the file; a cancel that arrives before the ENGINE.current() has admitted the track means nothing ever
      * sounds, and one that arrives after it means a fraction of a second does. Replacing the
      * disposer with one of your own removes that guarantee.
      *
@@ -293,7 +292,7 @@ public final class Sounds {
      *
      * <p>Everything expensive happens in the body (waking the audio device, the file read, the
      * priming decode), and the handle is produced there too, so it is already playing by the time
-     * it is delivered. With no engine, no audio device, or a file the decoder will not stream, the
+     * it is delivered. With no ENGINE.current(), no audio device, or a file the decoder will not stream, the
      * body completes with {@link Playback#NONE} or fails; neither leaves a file open.
      *
      * @param file    the track, opened on the worker pool
@@ -306,7 +305,7 @@ public final class Sounds {
         Objects.requireNonNull(file, "file");
         Objects.requireNonNull(options, "options");
         return limn.concurrent.Ui.<Playback>work(progress -> {
-            AudioEngine current = engine;
+            AudioEngine current = ENGINE.current();
             if (current == null || !current.isAvailable()) {
                 return Playback.NONE; // nothing was opened, so there is nothing to close
             }
@@ -336,28 +335,28 @@ public final class Sounds {
      * exception.</b> The caller must not close it afterwards and must not hand it to anything else:
      * a source closed twice is a decoder torn down under a streaming thread still reading it. That
      * holds when playback ends, when it is {@linkplain Playback#stop() stopped}, and equally when
-     * nothing ever sounds: no engine installed, no audio device, a channel count that is neither
+     * nothing ever sounds: no ENGINE.current() installed, no audio device, a channel count that is neither
      * mono nor stereo, a full admission queue, or a source that yields no frames at all. Every one
      * of those returns {@link Playback#NONE}, and in every one of them the source has been closed
      * before this returns.
      *
      * <p>Which thread does the closing is not the caller's to assume: it is this thread when the
-     * stream never starts, and the engine's streaming thread once it has. Implementations of
+     * stream never starts, and the ENGINE.current()'s streaming thread once it has. Implementations of
      * {@link AudioStreamSource#close()} are documented idempotent and must tolerate either.
      *
-     * <p>The engine's streaming thread pulls frames from here on, so the source must not be touched
+     * <p>The ENGINE.current()'s streaming thread pulls frames from here on, so the source must not be touched
      * by the caller after this call. Safe to call from any thread.
      *
      * <p>No asynchronous form of its own, deliberately: whoever holds an open source opened it
      * somewhere, and that somewhere is where the background work belongs ({@link #streamAsync}
      * for a file, or the caller's own worker for a source demultiplexed out of something else).
-     * It is not free, though: the engine primes several device buffers before returning, which is
+     * It is not free, though: the ENGINE.current() primes several device buffers before returning, which is
      * a decode of the first fraction of a second on <em>this</em> thread. Calling it on the UI
      * thread with a source that was opened elsewhere is the one shape that still stalls a frame.
      *
      * @param source  the open source, whose {@link AudioStreamSource#channels()} and
      *                {@link AudioStreamSource#sampleRate()} are read once at admission
-     * @param options gain, bus, priority and whether the engine rewinds at the end of data via
+     * @param options gain, bus, priority and whether the ENGINE.current() rewinds at the end of data via
      *                {@link AudioStreamSource#reset()}
      * @return a handle to the started stream, or {@link Playback#NONE} when nothing sounds
      * @throws NullPointerException if either argument is null, in which case nothing is closed
@@ -366,9 +365,9 @@ public final class Sounds {
     public static Playback stream(AudioStreamSource source, PlayOptions options) {
         Objects.requireNonNull(source, "source");
         Objects.requireNonNull(options, "options");
-        AudioEngine current = engine;
+        AudioEngine current = ENGINE.current();
         if (current == null || !current.isAvailable()) {
-            // Ownership transferred at the call, so the no-engine path owes the close that
+            // Ownership transferred at the call, so the no-ENGINE.current() path owes the close that
             // playStream would otherwise have done. Unguarded: a close that throws is a bug in
             // the source, and swallowing it here is how it would stay one.
             source.close();
@@ -383,7 +382,7 @@ public final class Sounds {
      * reads nothing, and a volume slider that took effect a frame later would feel broken.
      */
     public static void setMasterGain(float gain) {
-        AudioEngine current = engine;
+        AudioEngine current = ENGINE.current();
         if (current != null) {
             current.setMasterGain(gain);
         }
@@ -392,7 +391,7 @@ public final class Sounds {
     /** Sets {@code bus}'s volume in [0..1], applied live to its playbacks; see {@link #setMasterGain}. */
     public static void setBusGain(AudioBus bus, float gain) {
         Objects.requireNonNull(bus, "bus");
-        AudioEngine current = engine;
+        AudioEngine current = ENGINE.current();
         if (current != null) {
             current.setBusGain(bus, gain);
         }
@@ -406,18 +405,13 @@ public final class Sounds {
      */
     public static void setListener(limn.math.Vec3 position,
                                    limn.math.Vec3 forward, limn.math.Vec3 up) {
-        AudioEngine current = engine;
+        AudioEngine current = ENGINE.current();
         if (current != null) {
             current.setListener(position, forward, up);
         }
     }
 
     private static AudioDecoder requireDecoder() {
-        AudioDecoder current = decoder;
-        if (current == null) {
-            throw new IllegalStateException(
-                    "No AudioDecoder installed: start a Backend before loading audio.");
-        }
-        return current;
+        return DECODER.require();
     }
 }
