@@ -41,7 +41,6 @@ public final class AtspiBridge extends PlatformBridge {
     private static final String STATUS_PATH = "/org/a11y/bus";
     private static final String STATUS_IFACE = "org.a11y.Status";
 
-    private volatile Host host;
     private final boolean enabled;
     private volatile boolean embedded;
     private volatile DBus.Conn connection;
@@ -49,7 +48,10 @@ public final class AtspiBridge extends PlatformBridge {
 
     private AtspiBridge(boolean enabled, String applicationName) {
         this.enabled = enabled;
-        this.objects = new AtspiTree(() -> tree(), () -> host, applicationName);
+        // Both suppliers read the superclass's fields through its accessors. A field of the same
+        // name declared here would shadow the one attach() writes and never be assigned, which is
+        // what once made every DoAction on this platform answer false.
+        this.objects = new AtspiTree(this::tree, this::host, applicationName);
     }
 
     /**
@@ -154,6 +156,11 @@ public final class AtspiBridge extends PlatformBridge {
      */
     static AtspiBridge withoutTheGate() {
         return new AtspiBridge(true, "a test");
+    }
+
+    /** @return the object-path handler a client's calls are answered by. For tests. */
+    AtspiTree objects() {
+        return objects;
     }
 
     /** @return whether this bridge has joined the accessibility bus yet. For tests. */

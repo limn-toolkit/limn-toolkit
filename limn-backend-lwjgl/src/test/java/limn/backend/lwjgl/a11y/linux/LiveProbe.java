@@ -14,7 +14,9 @@ import limn.scene.Scene;
  * backend opened.
  *
  * <p>Not a test: it does not assert, it stays alive. Point Orca at it, or
- * {@code scripts/a11y/linux/walk-the-probe.py}.
+ * {@code scripts/a11y/linux/walk-the-probe.py} to read what it publishes and
+ * {@code scripts/a11y/linux/press-the-probe.py} to press its Save button from outside and see
+ * "Save pressed" appear here.
  *
  * <p><b>It used to paint nothing</b>, on the reasoning that an accessible tree needs no pixels —
  * which is true and was still the wrong shape. It is the second of the three shapes the Windows run
