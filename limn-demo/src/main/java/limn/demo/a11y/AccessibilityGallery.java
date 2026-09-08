@@ -1,0 +1,798 @@
+package limn.demo.a11y;
+
+import limn.backend.Backend;
+import limn.backend.NativeWindow;
+import limn.backend.WindowConfig;
+import limn.backend.lwjgl.LwjglBackend;
+import limn.accessibility.Accessible;
+import limn.accessibility.Accessible.Role;
+import limn.components.Button;
+import limn.components.ButtonGroup;
+import limn.components.Checkbox;
+import limn.components.ColorPicker;
+import limn.components.ColorPickerButton;
+import limn.components.ComboBox;
+import limn.components.ContextMenus;
+import limn.components.Dialog;
+import limn.components.DisplayMode;
+import limn.components.ImageView;
+import limn.components.Label;
+import limn.components.ListView;
+import limn.components.MediaControls;
+import limn.components.Menu;
+import limn.components.MenuBar;
+import limn.components.PasswordField;
+import limn.components.PopupMenu;
+import limn.components.ProgressBar;
+import limn.components.RadioButton;
+import limn.components.ScrollBar;
+import limn.components.ScrollView;
+import limn.components.SearchField;
+import limn.components.SegmentedControl;
+import limn.components.Separator;
+import limn.components.Slider;
+import limn.components.Spinner;
+import limn.components.SplitPane;
+import limn.components.TabbedPane;
+import limn.components.TextArea;
+import limn.components.TextField;
+import limn.components.Theme;
+import limn.components.ToolBar;
+import limn.components.VideoView;
+import limn.components.Viewport3D;
+import limn.components.chart.BarChart;
+import limn.components.chart.ChartSeries;
+import limn.components.chart.DonutChart;
+import limn.components.chart.LineChart;
+import limn.concurrent.Ui;
+import limn.graphics.Canvas;
+import limn.graphics.Color;
+import limn.graphics.Icon;
+import limn.graphics.Image;
+import limn.i18n.I18nString;
+import limn.scene.Constraints;
+import limn.scene.Insets;
+import limn.scene.Scene;
+import limn.scene.Size;
+import limn.scene.Widget;
+import limn.scene.layout.Column;
+import limn.scene.layout.Expanded;
+import limn.scene.layout.Flex;
+import limn.scene.layout.Padding;
+import limn.scene.layout.Row;
+import limn.scene.layout.SizedBox;
+
+import java.util.List;
+import java.util.function.Supplier;
+
+/**
+ * Every component with an accessibility surface, each in a small scene built the way a screen
+ * reader user would find <em>correct</em>: every focusable control named the way the toolkit
+ * intends — a caption bound with {@link Label#setLabelFor}, an application name on a picture, a
+ * tooltip on an icon-only button, a title on a dialog — and nothing copied from the kitchen
+ * sink, which is a showcase of what the widgets look like and not of what they say.
+ *
+ * <p>It is a reference in two directions. {@code AccessibleGalleryTest} in this module's tests
+ * renders every entry headlessly in both palettes and asserts ADR 039 §12.1's four gallery-wide
+ * invariants over the published trees, and asserts that every toolkit class overriding an
+ * accessibility hook has an entry here — so a component cannot gain an accessible surface without
+ * a scene that shows it used right. And {@link #main} opens the same entries in a real window
+ * with a picker, so a reader on a guest can be pointed at exactly the scene the test read.
+ *
+ * <p>An entry names the classes it <b>covers</b>: the components whose hooks the scene exercises.
+ * That list is what the completeness test matches against the toolkit's sources, and it holds
+ * only classes that declare a hook — {@code ButtonGroup}, {@code Menu} and {@code MenuItem} are
+ * models with no node of their own and are not listed, though the scenes use them.
+ */
+public final class AccessibilityGallery {
+
+    /**
+     * An entry built: the root widget, and what to do once it has been laid out — open the
+     * combo, show the dialog, drop the menu — which cannot happen before a first frame gave the
+     * anchor a box. {@code afterFirstFrame} runs on the UI thread with the root bound to a scene.
+     *
+     * @param root           the scene's root widget
+     * @param afterFirstFrame what to do after the first frame; a no-op for a static entry
+     */
+    public record Built(Widget root, Runnable afterFirstFrame) {
+
+        /** A static entry: nothing to open. */
+        public Built(Widget root) {
+            this(root, () -> { });
+        }
+    }
+
+    /**
+     * One named scene.
+     *
+     * @param name      what the entry is called, in the picker and in a failure message
+     * @param covers    the component classes whose accessibility hooks the scene exercises
+     * @param publishes the roles the scene promises to put in the tree — what makes a cover
+     *                  claim checkable: an entry that says it shows an open menu and publishes
+     *                  no {@code MENU} has shown nothing, and the invariants alone would pass it
+     * @param factory   builds the scene afresh each time, so a palette or a locale set before
+     *                  the call is what the scene is built under
+     */
+    public record Entry(String name, List<Class<?>> covers, List<Accessible.Role> publishes,
+                        Supplier<Built> factory) {
+
+        /** @return a fresh build of this entry */
+        public Built build() {
+            return factory.get();
+        }
+    }
+
+    /** The picker's width in the runnable window, in points. */
+    private static final float PICKER_WIDTH = 240;
+
+    /** The runnable window, in logical points. */
+    private static final int WIDTH = 960;
+    private static final int HEIGHT = 640;
+
+    /**
+     * A transparent square, for every control that wants an icon: what the icon looks like is
+     * not an accessible fact, and a real glyph would drag a rasteriser into a headless test.
+     */
+    private static final Icon BLANK_ICON = (pixels, dark) ->
+            new Image(pixels, pixels, new byte[pixels * pixels * 4]);
+
+    /** A transparent picture, for the same reason. */
+    private static final Image BLANK_PICTURE = new Image(16, 16, new byte[16 * 16 * 4]);
+
+    private AccessibilityGallery() {
+    }
+
+    /** @return every entry, in the order the picker lists them */
+    public static List<Entry> entries() {
+        return List.of(
+                new Entry("Labels and headings", List.of(Label.class),
+                        List.of(Role.LABEL, Role.HEADING),
+                        AccessibilityGallery::labels),
+                new Entry("Buttons", List.of(Button.class),
+                        List.of(Role.BUTTON),
+                        AccessibilityGallery::buttons),
+                new Entry("Check boxes and switches", List.of(Checkbox.class),
+                        List.of(Role.CHECK_BOX, Role.SWITCH),
+                        AccessibilityGallery::checkboxes),
+                new Entry("Radio buttons in a group", List.of(RadioButton.class),
+                        List.of(Role.RADIO_GROUP, Role.RADIO_BUTTON),
+                        AccessibilityGallery::radios),
+                new Entry("Segmented control", List.of(SegmentedControl.class),
+                        List.of(Role.RADIO_GROUP, Role.RADIO_BUTTON),
+                        AccessibilityGallery::segmented),
+                new Entry("Sliders", List.of(Slider.class),
+                        List.of(Role.SLIDER),
+                        AccessibilityGallery::sliders),
+                new Entry("Spinners", List.of(Spinner.class),
+                        List.of(Role.SPIN_BUTTON),
+                        AccessibilityGallery::spinners),
+                new Entry("Progress bars", List.of(ProgressBar.class),
+                        List.of(Role.PROGRESS_BAR),
+                        AccessibilityGallery::progress),
+                new Entry("Text field with a placeholder", List.of(TextField.class),
+                        List.of(Role.TEXT_FIELD),
+                        AccessibilityGallery::textFieldWithPlaceholder),
+                new Entry("Text field with a value", List.of(TextField.class),
+                        List.of(Role.TEXT_FIELD, Role.BUTTON),
+                        AccessibilityGallery::textFieldWithValue),
+                new Entry("Password field", List.of(PasswordField.class),
+                        List.of(Role.PASSWORD_FIELD, Role.SWITCH),
+                        AccessibilityGallery::passwordField),
+                new Entry("Search field", List.of(SearchField.class),
+                        List.of(Role.SEARCH_FIELD),
+                        AccessibilityGallery::searchField),
+                new Entry("Text area", List.of(TextArea.class, ScrollBar.class),
+                        List.of(Role.TEXT_AREA, Role.SCROLL_BAR),
+                        AccessibilityGallery::textArea),
+                new Entry("Combo box, closed", List.of(ComboBox.class),
+                        List.of(Role.COMBO_BOX),
+                        () -> comboBox(false)),
+                new Entry("Combo box, open", List.of(ComboBox.class),
+                        List.of(Role.COMBO_BOX, Role.LIST, Role.LIST_ITEM),
+                        () -> comboBox(true)),
+                new Entry("List view with rows", List.of(ListView.class, ScrollBar.class),
+                        List.of(Role.LIST, Role.LIST_ITEM, Role.SCROLL_BAR),
+                        AccessibilityGallery::listView),
+                new Entry("Tabbed pane", List.of(TabbedPane.class),
+                        List.of(Role.TAB_LIST, Role.TAB, Role.TAB_PANEL),
+                        AccessibilityGallery::tabbedPane),
+                new Entry("Menu bar", List.of(MenuBar.class),
+                        List.of(Role.MENU_BAR, Role.MENU_ITEM),
+                        AccessibilityGallery::menuBar),
+                new Entry("Context menu region", List.of(ContextMenus.class),
+                        List.of(Role.GROUP),
+                        AccessibilityGallery::contextRegion),
+                new Entry("Popup menu, open", List.of(PopupMenu.class),
+                        List.of(Role.MENU, Role.MENU_ITEM),
+                        AccessibilityGallery::popupMenu),
+                new Entry("Dialog, in its own window", List.of(Dialog.class),
+                        List.of(Role.DIALOG),
+                        () -> dialog(false)),
+                new Entry("Dialog, in the scene", List.of(Dialog.class),
+                        List.of(Role.DIALOG),
+                        () -> dialog(true)),
+                new Entry("Scroll view with offscreen content",
+                        List.of(ScrollView.class, ScrollBar.class),
+                        List.of(Role.SCROLL_PANE, Role.SCROLL_BAR),
+                        AccessibilityGallery::scrollView),
+                new Entry("Split pane", List.of(SplitPane.class),
+                        List.of(Role.SPLIT_PANE, Role.SPLITTER),
+                        AccessibilityGallery::splitPane),
+                new Entry("Separators", List.of(Separator.class),
+                        List.of(Role.SEPARATOR),
+                        AccessibilityGallery::separators),
+                new Entry("Tool bar", List.of(ToolBar.class),
+                        List.of(Role.TOOL_BAR, Role.BUTTON, Role.SEPARATOR),
+                        AccessibilityGallery::toolBar),
+                new Entry("Image with a description", List.of(ImageView.class),
+                        List.of(Role.IMAGE),
+                        AccessibilityGallery::images),
+                new Entry("Video with its controls", List.of(VideoView.class, MediaControls.class),
+                        List.of(Role.VIDEO, Role.TOOL_BAR),
+                        AccessibilityGallery::video),
+                new Entry("3D viewport", List.of(Viewport3D.class),
+                        List.of(Role.CANVAS),
+                        AccessibilityGallery::viewport),
+                new Entry("Colour picker", List.of(ColorPicker.class),
+                        List.of(Role.COLOR_CHOOSER, Role.SLIDER, Role.TAB_LIST),
+                        AccessibilityGallery::colorPicker),
+                new Entry("Colour picker button, closed", List.of(ColorPickerButton.class),
+                        List.of(Role.BUTTON),
+                        () -> colorPickerButton(false)),
+                new Entry("Colour picker button, open",
+                        List.of(ColorPickerButton.class, ColorPicker.class, Dialog.class),
+                        List.of(Role.BUTTON, Role.DIALOG, Role.COLOR_CHOOSER),
+                        () -> colorPickerButton(true)),
+                new Entry("Charts", List.of(BarChart.class, LineChart.class, DonutChart.class),
+                        List.of(Role.CHART, Role.CHART_SERIES),
+                        AccessibilityGallery::charts));
+    }
+
+    /**
+     * @param name an entry's name
+     * @return the entry
+     * @throws IllegalArgumentException when no entry has that name
+     */
+    public static Entry entry(String name) {
+        for (Entry entry : entries()) {
+            if (entry.name().equals(name)) {
+                return entry;
+            }
+        }
+        throw new IllegalArgumentException("no gallery entry named \"" + name + "\"");
+    }
+
+    // ------------------------------------------------------------------------------ the entries
+
+    private static Built labels() {
+        Column page = page();
+        page.add(new Label("Account").setRole(Label.Role.TITLE));
+        page.add(new Label("A heading is a label with the title role; a reader offers it as a "
+                + "landmark to jump to.").setWrap(true));
+        page.add(new Label("Secondary text").setMuted(true));
+        return new Built(page);
+    }
+
+    private static Built buttons() {
+        Column page = page();
+        page.add(new Button("Save"));
+        page.add(new Button("Discard").setSecondary(true));
+        // Icon only: the tooltip is what a reader hears, so an icon-only button always has one.
+        Button iconOnly = new Button("").setIcon(BLANK_ICON);
+        iconOnly.setTooltip("Refresh");
+        page.add(iconOnly);
+        Button disabled = new Button("Publish");
+        disabled.setEnabled(false);
+        page.add(disabled);
+        return new Built(page);
+    }
+
+    private static Built checkboxes() {
+        Column page = page();
+        page.add(new Checkbox(Checkbox.Variant.BOX, "Send me a copy"));
+        page.add(new Checkbox(Checkbox.Variant.BOX, "Remember this device").setChecked(true));
+        page.add(new Checkbox(Checkbox.Variant.SWITCH, "Notifications"));
+        page.add(new Checkbox(Checkbox.Variant.SWITCH, "Dark mode").setChecked(true));
+        Checkbox locked = new Checkbox(Checkbox.Variant.BOX, "Managed by your organisation")
+                .setChecked(true);
+        locked.setEnabled(false);
+        page.add(locked);
+        return new Built(page);
+    }
+
+    private static Built radios() {
+        Column page = page();
+        RadioButton small = new RadioButton("Small");
+        RadioButton medium = new RadioButton("Medium");
+        RadioButton large = new RadioButton("Large");
+        new ButtonGroup().add(small).add(medium).add(large).setSelectedIndex(1);
+        // The column holding the members is what the caption names, and a named column is a
+        // node; saying what kind is what makes a reader announce "Size, radio group".
+        Column group = new Column();
+        group.gap(6);
+        group.add(small);
+        group.add(medium);
+        group.add(large);
+        group.setAccessibleRole(Role.RADIO_GROUP);
+        page.add(labelled("Size", group));
+        return new Built(page);
+    }
+
+    private static Built segmented() {
+        Column page = page();
+        page.add(labelled("Period",
+                new SegmentedControl(List.of("Day", "Week", "Month")).setSelectedIndex(0)));
+        // Narrow enough to overflow, so the two chevrons and a scrolled-away segment are on show.
+        // The slot sits in a row of its own, because the page column would stretch it to the
+        // page's width; and the caption is bound to the control, not to the box around it.
+        SegmentedControl wide = new SegmentedControl(List.of(
+                "January", "February", "March", "April", "May", "June"));
+        Row slot = new Row();
+        slot.add(new SizedBox(160, SizedBox.UNSET, wide));
+        page.add(labelled("Month, overflowing its slot", wide, slot));
+        return new Built(page);
+    }
+
+    private static Built sliders() {
+        Column page = page();
+        page.add(labelled("Volume", new Slider(0, 100).setValue(30)));
+        page.add(labelled("Brightness, in steps", new Slider(0, 10).setStep(1).setValue(5)));
+        Slider locked = new Slider(0, 100).setValue(40);
+        locked.setEnabled(false);
+        page.add(labelled("Contrast, locked", locked));
+        return new Built(page);
+    }
+
+    private static Built spinners() {
+        Column page = page();
+        page.add(labelled("Quantity", new Spinner(0, 99, 1).setValue(1)));
+        page.add(labelled("Opacity", new Spinner(0, 1, 0.25).setValue(0.5)));
+        page.add(labelled("Departure", Spinner.time().setValue(7 * 60 + 30)));
+        return new Built(page);
+    }
+
+    private static Built progress() {
+        Column page = page();
+        page.add(labelled("Upload", new ProgressBar().setProgress(0.4f)));
+        page.add(labelled("Connecting", new ProgressBar().setIndeterminate(true)));
+        return new Built(page);
+    }
+
+    private static Built textFieldWithPlaceholder() {
+        Column page = page();
+        TextField name = new TextField().setPlaceholder("First and last name");
+        page.add(labelled("Name", name));
+        return new Built(page);
+    }
+
+    private static Built textFieldWithValue() {
+        Column page = page();
+        TextField email = new TextField().setText("ada@example.com");
+        page.add(labelled("Email", email));
+        // A trailing button is an operable control, so it is given a name of its own.
+        TextField city = new TextField().setText("Lisbon");
+        city.setTrailingButton(BLANK_ICON, I18nString.literal("Clear city"), () -> city.setText(""));
+        page.add(labelled("City", city));
+        TextField code = new TextField().setText("12345").setValidation(TextField.Validation.ERROR);
+        page.add(labelled("Postal code", code));
+        return new Built(page);
+    }
+
+    private static Built passwordField() {
+        Column page = page();
+        PasswordField password = new PasswordField();
+        password.setText("correct horse");
+        Checkbox reveal = new Checkbox(Checkbox.Variant.SWITCH, "Show password");
+        reveal.onChange(password::setRevealed);
+        Row row = new Row();
+        row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
+        row.add(Expanded.of(password, 1));
+        row.add(reveal);
+        page.add(labelled("Password", password, row));
+        return new Built(page);
+    }
+
+    private static Built searchField() {
+        Column page = page();
+        SearchField search = new SearchField();
+        search.setText("invoices");
+        page.add(labelled("Search", search));
+        return new Built(page);
+    }
+
+    private static Built textArea() {
+        Column page = page();
+        TextArea notes = new TextArea();
+        notes.setText("""
+                Line one of the notes.
+                Line two, which is long enough that it runs past the right edge of the field \
+                and gives the horizontal bar something to do.
+                Line three.
+                Line four.
+                Line five.
+                Line six.
+                Line seven.
+                Line eight.""");
+        page.add(labelled("Notes", notes, new SizedBox(SizedBox.UNSET, 120, notes)));
+        return new Built(page);
+    }
+
+    private static Built comboBox(boolean open) {
+        Column page = page();
+        ComboBox combo = new ComboBox(List.of("Portuguese", "English", "French", "German"));
+        combo.setSelectedIndex(1);
+        page.add(labelled("Language", combo));
+        return new Built(page, open ? combo::open : () -> { });
+    }
+
+    private static Built listView() {
+        Column page = page();
+        ListView list = new ListView(new Rows(
+                "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas", "Pyrenees",
+                "Rockies", "Urals", "Zagros"));
+        list.setSelectedIndex(2);
+        page.add(labelled("Mountain ranges", list, new SizedBox(SizedBox.UNSET, 160, list)));
+        return new Built(page);
+    }
+
+    private static Built tabbedPane() {
+        Column page = page();
+        TabbedPane tabs = new TabbedPane();
+        Column general = new Column();
+        general.gap(8);
+        general.add(new Checkbox(Checkbox.Variant.SWITCH, "Open at login"));
+        tabs.addTab("General", general);
+        Column privacy = new Column();
+        privacy.gap(8);
+        privacy.add(new Checkbox(Checkbox.Variant.BOX, "Share usage statistics"));
+        tabs.addTab("Privacy", privacy);
+        tabs.addTab("About", new Label("Version 1.0").setWrap(true));
+        page.add(new SizedBox(SizedBox.UNSET, 200, tabs));
+        return new Built(page);
+    }
+
+    private static Built menuBar() {
+        Column page = page();
+        Menu file = new Menu();
+        file.addItem("New", () -> { });
+        file.addItem("Open…", () -> { });
+        file.addSeparator();
+        file.addItem("Quit", () -> { });
+        Menu view = new Menu();
+        view.addCheck("Status bar", true, shown -> { });
+        MenuBar bar = new MenuBar();
+        bar.addMenu("File", 'F', file);
+        bar.addMenu("View", 'V', view);
+        page.add(bar);
+        page.add(new Label("Alt or F10 moves to the menu bar.").setMuted(true));
+        return new Built(page);
+    }
+
+    private static Built contextRegion() {
+        Column page = page();
+        Widget region = ContextMenus.attach(
+                new Label("Right-click, or press the menu key, for options").setWrap(true),
+                AccessibilityGallery::editingMenu);
+        region.setAccessibleName("Draft");
+        page.add(region);
+        return new Built(page);
+    }
+
+    private static Built popupMenu() {
+        Column page = page();
+        Button anchor = new Button("Options");
+        page.add(anchor);
+        return new Built(page, () -> new PopupMenu(editingMenu()).showAnchored(anchor,
+                anchor.localToSceneX(), anchor.localToSceneY(), anchor.width(), anchor.height()));
+    }
+
+    private static Menu editingMenu() {
+        Menu menu = new Menu();
+        menu.addItem("Cut", () -> { });
+        menu.addItem("Copy", () -> { });
+        menu.addItem("Paste", () -> { });
+        menu.addSeparator();
+        Menu transform = new Menu();
+        transform.addItem("Upper case", () -> { });
+        transform.addItem("Lower case", () -> { });
+        menu.addSubmenu("Transform", transform);
+        return menu;
+    }
+
+    private static Built dialog(boolean inScene) {
+        Column page = page();
+        Button opener = new Button("Discard draft…");
+        page.add(opener);
+        return new Built(page, () -> {
+            Dialog dialog = new Dialog("Discard the draft?",
+                    "The text you typed will be lost. This cannot be undone.")
+                    .addButton("Keep", "keep")
+                    .addPrimaryButton("Discard", "discard")
+                    .setCancelResult("keep");
+            if (inScene) {
+                dialog.setDisplayMode(DisplayMode.IN_SCENE);
+            }
+            dialog.show(opener);
+        });
+    }
+
+    private static Built scrollView() {
+        Column page = page();
+        Column tall = new Column();
+        tall.gap(8).crossAlignment(Flex.CrossAlignment.STRETCH);
+        for (int i = 1; i <= 24; i++) {
+            tall.add(new Button("Chapter " + i));
+        }
+        ScrollView scroll = new ScrollView(tall);
+        scroll.setAccessibleName("Chapters");
+        page.add(new SizedBox(SizedBox.UNSET, 180, scroll));
+        return new Built(page);
+    }
+
+    private static Built splitPane() {
+        Column page = page();
+        Column left = new Column();
+        left.gap(8);
+        left.add(new Label("Folders").setRole(Label.Role.TITLE));
+        left.add(new Button("Inbox"));
+        Column right = new Column();
+        right.gap(8);
+        right.add(new Label("Messages").setRole(Label.Role.TITLE));
+        right.add(new Button("Reply"));
+        SplitPane split = SplitPane.horizontal(pad(left), pad(right)).setRatio(0.35f)
+                .setDividerFocusable(true);
+        page.add(new SizedBox(SizedBox.UNSET, 200, split));
+        return new Built(page);
+    }
+
+    private static Built separators() {
+        Column page = page();
+        page.add(new Label("Above the rule"));
+        page.add(Separator.horizontal());
+        page.add(new Label("Below the rule"));
+        Row row = new Row();
+        row.gap(12);
+        row.add(new Label("Left"));
+        row.add(Separator.vertical());
+        row.add(new Label("Right"));
+        page.add(new SizedBox(SizedBox.UNSET, 32, row));
+        return new Built(page);
+    }
+
+    private static Built toolBar() {
+        Column page = page();
+        ToolBar bar = new ToolBar();
+        bar.addItem(iconButton("Bold"));
+        bar.addItem(iconButton("Italic"));
+        bar.addSeparator();
+        bar.addItem(iconButton("Insert link"));
+        page.add(bar);
+        return new Built(page);
+    }
+
+    private static Built images() {
+        Column page = page();
+        ImageView logo = new ImageView(BLANK_PICTURE).setFit(ImageView.Fit.CONTAIN)
+                .setPreferredSize(96, 64);
+        logo.setAccessibleName("Limn logo");
+        logo.setAccessibleDescription("A monogram on a rounded square");
+        page.add(logo);
+        Label caption = new Label("Illustration repeated by the caption beside it");
+        ImageView decorative = new ImageView(BLANK_PICTURE).setPreferredSize(48, 48);
+        // A picture the text beside it already describes is decoration, and is left out.
+        decorative.setAccessibleIgnored(true);
+        Row row = new Row();
+        row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
+        row.add(decorative);
+        row.add(caption);
+        page.add(row);
+        return new Built(page);
+    }
+
+    private static Built video() {
+        Column page = page();
+        VideoView video = new VideoView().setPreferredSize(320, 180).setControlsVisible(true);
+        video.setAccessibleName("Sample clip");
+        page.add(video);
+        return new Built(page);
+    }
+
+    private static Built viewport() {
+        Column page = page();
+        Viewport3D viewport = new Viewport3D().setPreferredSize(320, 200);
+        viewport.setAccessibleName("Model preview");
+        viewport.setAccessibleDescription("A cube; drag to orbit, scroll to zoom");
+        page.add(viewport);
+        return new Built(page);
+    }
+
+    private static Built colorPicker() {
+        Column page = page();
+        ColorPicker picker = new ColorPicker().setColor(Color.rgb(0x22C55E));
+        picker.setAccessibleName("Accent colour");
+        page.add(picker);
+        return new Built(page);
+    }
+
+    private static Built colorPickerButton(boolean open) {
+        Column page = page();
+        ColorPickerButton button = new ColorPickerButton(Color.rgb(0xF59E0B));
+        button.setText("Highlight");
+        button.setDialogTitle(I18nString.literal("Highlight colour"));
+        page.add(button);
+        return new Built(page, open ? button::openPicker : () -> { });
+    }
+
+    private static Built charts() {
+        Column page = page();
+        BarChart bars = new BarChart();
+        bars.setTitle("Revenue by quarter");
+        bars.setLabels("Q1", "Q2", "Q3", "Q4");
+        bars.addSeries(ChartSeries.of("Direct", 120, 145, 132, 168));
+        bars.addSeries(ChartSeries.of("Partner", 80, 92, 105, 99));
+        page.add(new SizedBox(SizedBox.UNSET, 160, bars));
+        LineChart lines = new LineChart();
+        lines.setTitle("Latency");
+        lines.setLabels("00", "06", "12", "18");
+        lines.addSeries(ChartSeries.of("p50", 24, 26, 30, 27));
+        lines.addSeries(ChartSeries.of("p99", 62, 71, 88, 74));
+        page.add(new SizedBox(SizedBox.UNSET, 160, lines));
+        DonutChart donut = new DonutChart();
+        donut.setTitle("Traffic sources");
+        donut.setLabels("Direct", "Search", "Social");
+        donut.addSeries(ChartSeries.of("Sessions", 42, 31, 27));
+        page.add(new SizedBox(SizedBox.UNSET, 160, donut));
+        return new Built(page);
+    }
+
+    // ------------------------------------------------------------------------------ the helpers
+
+    /** A page: a padded column that stretches its rows, which is what every entry sits in. */
+    private static Column page() {
+        Column column = new Column();
+        column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
+        return column;
+    }
+
+    private static Widget pad(Widget content) {
+        return new Padding(Insets.all(12), content);
+    }
+
+    /**
+     * A caption above a control, with the caption declared as the control's label: this is the
+     * one idiom the gallery exists to show, because a caption that merely sits above a field
+     * names nothing (§1.7).
+     */
+    private static Widget labelled(String caption, Widget control) {
+        return labelled(caption, control, control);
+    }
+
+    /**
+     * The same, where the control sits inside a wrapper — a sized box, a row with a switch — and
+     * the label must point at the control and not at the box around it.
+     */
+    private static Widget labelled(String caption, Widget control, Widget placed) {
+        Column column = new Column();
+        column.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
+        column.add(new Label(caption).setLabelFor(control));
+        column.add(placed);
+        return column;
+    }
+
+    /** An icon-only button, named by its tooltip, which is what an icon-only button always has. */
+    private static Button iconButton(String name) {
+        Button button = new Button("").setIcon(BLANK_ICON).setSecondary(true);
+        button.setTooltip(name);
+        return button;
+    }
+
+    /**
+     * Rows that paint their own text and declare nothing, which is the flagship list case: the
+     * name a reader hears comes from {@link ListView.Adapter#rowName}, handed back by reference.
+     */
+    private static final class Rows implements ListView.Adapter {
+        private final String[] texts;
+        private final I18nString[] names;
+        private final Cell[] cells;
+
+        Rows(String... texts) {
+            this.texts = texts;
+            this.names = new I18nString[texts.length];
+            for (int i = 0; i < texts.length; i++) {
+                this.names[i] = I18nString.literal(texts[i]);
+            }
+            this.cells = new Cell[texts.length];
+        }
+
+        @Override
+        public int rowCount() {
+            return names.length;
+        }
+
+        @Override
+        public Widget rowAt(int index) {
+            if (cells[index] == null) {
+                cells[index] = new Cell(texts[index]);
+            }
+            return cells[index];
+        }
+
+        @Override
+        public I18nString rowName(int index) {
+            return names[index];
+        }
+    }
+
+    /** A row that paints a string and says nothing about itself; the list names it. */
+    private static final class Cell extends Widget {
+        private final String text;
+
+        Cell(String text) {
+            this.text = text;
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            return constraints.constrain(constraints.maxWidth(), 28);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            Theme theme = Theme.current();
+            canvas.drawText(text, 12, height() / 2 + 5, theme.body, theme.text);
+        }
+    }
+
+    // ------------------------------------------------------------------------------ the window
+
+    /**
+     * Opens the gallery in a real window: the entries down the left in a list, the chosen one on
+     * the right. For pointing a screen reader at one entry on a guest, and nothing more.
+     *
+     * <p>Run from the demo's runtime classpath — {@code ./gradlew :limn-demo:accessibilityGallery},
+     * or {@code java -cp limn-demo-all.jar limn.demo.a11y.AccessibilityGallery} on a machine
+     * holding the release jar; on macOS the JVM needs {@code -XstartOnFirstThread}, as the demo
+     * does. An entry's name as the one argument opens the window on that entry.
+     *
+     * @param args optionally the name of the entry to open on
+     */
+    public static void main(String[] args) {
+        List<Entry> entries = entries();
+        int initial = 0;
+        if (args.length > 0) {
+            initial = entries.indexOf(entry(String.join(" ", args)));
+        }
+        try (Backend backend = new LwjglBackend()) {
+            NativeWindow window = backend.createWindow(
+                    WindowConfig.of("Limn accessibility gallery", WIDTH, HEIGHT));
+
+            Column holder = new Column();
+            holder.crossAlignment(Flex.CrossAlignment.STRETCH);
+            ListView picker = new ListView(new Rows(
+                    entries.stream().map(Entry::name).toArray(String[]::new)));
+            picker.setAccessibleName("Entries");
+            Row root = new Row();
+            root.crossAlignment(Flex.CrossAlignment.STRETCH);
+            root.add(new SizedBox(PICKER_WIDTH, SizedBox.UNSET, picker));
+            root.add(Expanded.of(new ScrollView(pad(holder)), 1));
+
+            Scene scene = new Scene(root);
+            picker.onSelect(index -> show(holder, entries.get(index)));
+            picker.setSelectedIndex(initial);
+            scene.bind(window);
+            window.show();
+            backend.runEventLoop();
+        }
+    }
+
+    /** Replaces what the holder shows with a fresh build of {@code entry}, and opens it. */
+    private static void show(Column holder, Entry entry) {
+        for (Widget old : List.copyOf(holder.children())) {
+            holder.remove(old);
+        }
+        Built built = entry.build();
+        holder.add(built.root());
+        // One frame later, so the entry has a box to anchor a popup or a dialog to.
+        Ui.postDelayed(built.afterFirstFrame(), 100);
+    }
+}

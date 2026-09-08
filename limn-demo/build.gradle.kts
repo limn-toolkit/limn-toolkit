@@ -176,6 +176,23 @@ tasks.register<JavaExec>("exportThemeTokens") {
     args("site/src/styles/tokens.generated.css")
 }
 
+// The accessibility gallery (limn.demo.a11y.AccessibilityGallery): the scenes
+// AccessibleGalleryTest reads headlessly, opened in a real window with a picker so a screen
+// reader on a guest can be pointed at one of them. Not wired into `check`: the test is.
+tasks.register<JavaExec>("accessibilityGallery") {
+    group = "verification"
+    description = "Opens the accessibility gallery in a window; an entry's name as the argument opens on it."
+    mainClass.set("limn.demo.a11y.AccessibilityGallery")
+    classpath = sourceSets["main"].runtimeClasspath
+    workingDir = rootDir
+    if (isMacOs) {
+        jvmArgs("-XstartOnFirstThread")
+    }
+    if (JavaVersion.current().majorVersion.toInt() >= 24) {
+        jvmArgs("--enable-native-access=ALL-UNNAMED")
+    }
+}
+
 application {
     mainClass.set("limn.demo.Main")
     // Do not set -XstartOnFirstThread in applicationDefaultJvmArgs: the value would

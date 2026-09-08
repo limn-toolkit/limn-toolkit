@@ -5,16 +5,20 @@ import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 import limn.backend.Backend;
 import limn.backend.Clipboard;
+import limn.backend.Display;
 import limn.backend.FrameCallback;
 import limn.backend.FrameInfo;
 import limn.backend.GpuRenderer;
 import limn.backend.NativeWindow;
+import limn.backend.Resolution;
+import limn.backend.ScreenRect;
 import limn.backend.WindowInput;
 import limn.graphics.Canvas;
 import limn.graphics.Image;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -123,7 +127,27 @@ public final class HeadlessWindow implements NativeWindow {
         return bridge;
     }
 
+    /**
+     * A display exactly the size of this window, at scale one. A native popup menu refuses to
+     * open on a window with no display at all, since its work area is what the cascade is kept
+     * inside; a combo's popup and a dialog tolerate its absence. So the display is answered, and
+     * it is this window's own rectangle, which is the only screen a headless window has.
+     */
+    private final Display display = new Display() {
+        @Override public String id() { return "headless"; }
+        @Override public String name() { return "Headless display"; }
+        @Override public boolean isPrimary() { return true; }
+        @Override public Resolution currentResolution() { return new Resolution(width, height); }
+        @Override public List<Resolution> availableResolutions() {
+            return List.of(currentResolution());
+        }
+        @Override public ScreenRect bounds() { return new ScreenRect(0, 0, width, height); }
+        @Override public ScreenRect workArea() { return bounds(); }
+        @Override public float contentScale() { return 1; }
+    };
+
     @Override public AccessibilityBridge accessibility() { return bridge; }
+    @Override public Display display() { return display; }
     @Override public String title() { return title; }
     @Override public void setTitle(String newTitle) { }
     @Override public float logicalWidth() { return width; }
