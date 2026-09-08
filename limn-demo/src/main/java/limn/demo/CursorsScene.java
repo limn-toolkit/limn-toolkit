@@ -102,12 +102,12 @@ final class CursorsScene {
         disabled.setEnabled(false);
         Row controls = new Row();
         controls.gap(16).crossAlignment(Flex.CrossAlignment.START);
-        controls.add(labelled("Button", new Button("Save")));
-        controls.add(labelled("Checkbox", new Checkbox(Checkbox.Variant.BOX, "I agree")));
-        controls.add(labelled("ComboBox", new ComboBox(List.of("One", "Two", "Three"))));
-        controls.add(labelled("Field (I-beam)", new TextField().setPreferredWidth(150)
+        controls.add(Labelled.below("Button", new Button("Save")));
+        controls.add(Labelled.below("Checkbox", new Checkbox(Checkbox.Variant.BOX, "I agree")));
+        controls.add(Labelled.below("ComboBox", new ComboBox(List.of("One", "Two", "Three"))));
+        controls.add(Labelled.below("Field (I-beam)", new TextField().setPreferredWidth(150)
                 .setPlaceholder("Type…")));
-        controls.add(labelled("Disabled (arrow)", disabled));
+        controls.add(Labelled.below("Disabled (arrow)", disabled));
         column.add(controls);
 
         return new ScrollView(column);
@@ -117,13 +117,6 @@ final class CursorsScene {
         return new Label(text).setFont(Theme.current().title);
     }
 
-    private static Widget labelled(String caption, Widget content) {
-        Column column = new Column();
-        column.gap(6).crossAlignment(Flex.CrossAlignment.START);
-        column.add(content);
-        column.add(new Label(caption).setMuted(true));
-        return column;
-    }
 
     /** A row of equal-width cursor tiles. */
     private static Row cursorRow(Widget... tiles) {

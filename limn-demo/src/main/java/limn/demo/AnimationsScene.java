@@ -119,8 +119,8 @@ final class AnimationsScene {
         column.add(heading("Bouncing balls"));
         Row balls = new Row();
         balls.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
-        balls.add(Expanded.of(labelled("Bounce", new BallDrop(Easing.BOUNCE, Color.rgb(0x4C8DFF))), 1));
-        balls.add(Expanded.of(labelled("Rubber", new BallDrop(Easing.RUBBER, Color.rgb(0xF0997B))), 1));
+        balls.add(Expanded.of(Labelled.below("Bounce", new BallDrop(Easing.BOUNCE, Color.rgb(0x4C8DFF)), Flex.CrossAlignment.STRETCH), 1));
+        balls.add(Expanded.of(Labelled.below("Rubber", new BallDrop(Easing.RUBBER, Color.rgb(0xF0997B)), Flex.CrossAlignment.STRETCH), 1));
         column.add(balls);
 
         // --- DVD logo + color transition ---------------------------------
@@ -196,13 +196,6 @@ final class AnimationsScene {
         return new Label(text).setRole(Label.Role.TITLE);
     }
 
-    private static Widget labelled(String label, Widget content) {
-        Column column = new Column();
-        column.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(content);
-        column.add(new Label(label).setMuted(true));
-        return column;
-    }
 
     // ------------------------------------------------------------- widgets
 

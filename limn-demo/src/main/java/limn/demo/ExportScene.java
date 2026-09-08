@@ -60,8 +60,8 @@ final class ExportScene {
 
         Row pair = new Row();
         pair.gap(16).crossAlignment(Flex.CrossAlignment.START);
-        pair.add(labelled("Source Image", source));
-        pair.add(labelled("Encoded → decoded", decoded));
+        pair.add(Labelled.above("Source Image", source, new SizedBox(220, 150, source)));
+        pair.add(Labelled.above("Encoded → decoded", decoded, new SizedBox(220, 150, decoded)));
         column.add(pair);
         column.add(status);
 
@@ -113,13 +113,6 @@ final class ExportScene {
         return new ScrollView(column);
     }
 
-    private static Widget labelled(String caption, ImageView view) {
-        Column column = new Column();
-        column.gap(6);
-        column.add(new Label(caption).setMuted(true));
-        column.add(new SizedBox(220, 150, view));
-        return column;
-    }
 
     /** Encodes, decodes, shows both, and says what the trip cost and whether anything changed. */
     private static void roundTrip(Image original, ImageView sourceView, ImageView decodedView,

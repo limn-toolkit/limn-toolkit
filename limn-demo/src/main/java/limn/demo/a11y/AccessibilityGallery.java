@@ -45,6 +45,7 @@ import limn.components.chart.ChartSeries;
 import limn.components.chart.DonutChart;
 import limn.components.chart.LineChart;
 import limn.concurrent.Ui;
+import limn.demo.Labelled;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Icon;
@@ -314,13 +315,13 @@ public final class AccessibilityGallery {
         group.add(medium);
         group.add(large);
         group.setAccessibleRole(Role.RADIO_GROUP);
-        page.add(labelled("Size", group));
+        page.add(Labelled.above("Size", group));
         return new Built(page);
     }
 
     private static Built segmented() {
         Column page = page();
-        page.add(labelled("Period",
+        page.add(Labelled.above("Period",
                 new SegmentedControl(List.of("Day", "Week", "Month")).setSelectedIndex(0)));
         // Narrow enough to overflow, so the two chevrons and a scrolled-away segment are on show.
         // The slot sits in a row of its own, because the page column would stretch it to the
@@ -329,52 +330,52 @@ public final class AccessibilityGallery {
                 "January", "February", "March", "April", "May", "June"));
         Row slot = new Row();
         slot.add(new SizedBox(160, SizedBox.UNSET, wide));
-        page.add(labelled("Month, overflowing its slot", wide, slot));
+        page.add(Labelled.above("Month, overflowing its slot", wide, slot));
         return new Built(page);
     }
 
     private static Built sliders() {
         Column page = page();
-        page.add(labelled("Volume", new Slider(0, 100).setValue(30)));
-        page.add(labelled("Brightness, in steps", new Slider(0, 10).setStep(1).setValue(5)));
+        page.add(Labelled.above("Volume", new Slider(0, 100).setValue(30)));
+        page.add(Labelled.above("Brightness, in steps", new Slider(0, 10).setStep(1).setValue(5)));
         Slider locked = new Slider(0, 100).setValue(40);
         locked.setEnabled(false);
-        page.add(labelled("Contrast, locked", locked));
+        page.add(Labelled.above("Contrast, locked", locked));
         return new Built(page);
     }
 
     private static Built spinners() {
         Column page = page();
-        page.add(labelled("Quantity", new Spinner(0, 99, 1).setValue(1)));
-        page.add(labelled("Opacity", new Spinner(0, 1, 0.25).setValue(0.5)));
-        page.add(labelled("Departure", Spinner.time().setValue(7 * 60 + 30)));
+        page.add(Labelled.above("Quantity", new Spinner(0, 99, 1).setValue(1)));
+        page.add(Labelled.above("Opacity", new Spinner(0, 1, 0.25).setValue(0.5)));
+        page.add(Labelled.above("Departure", Spinner.time().setValue(7 * 60 + 30)));
         return new Built(page);
     }
 
     private static Built progress() {
         Column page = page();
-        page.add(labelled("Upload", new ProgressBar().setProgress(0.4f)));
-        page.add(labelled("Connecting", new ProgressBar().setIndeterminate(true)));
+        page.add(Labelled.above("Upload", new ProgressBar().setProgress(0.4f)));
+        page.add(Labelled.above("Connecting", new ProgressBar().setIndeterminate(true)));
         return new Built(page);
     }
 
     private static Built textFieldWithPlaceholder() {
         Column page = page();
         TextField name = new TextField().setPlaceholder("First and last name");
-        page.add(labelled("Name", name));
+        page.add(Labelled.above("Name", name));
         return new Built(page);
     }
 
     private static Built textFieldWithValue() {
         Column page = page();
         TextField email = new TextField().setText("ada@example.com");
-        page.add(labelled("Email", email));
+        page.add(Labelled.above("Email", email));
         // A trailing button is an operable control, so it is given a name of its own.
         TextField city = new TextField().setText("Lisbon");
         city.setTrailingButton(BLANK_ICON, I18nString.literal("Clear city"), () -> city.setText(""));
-        page.add(labelled("City", city));
+        page.add(Labelled.above("City", city));
         TextField code = new TextField().setText("12345").setValidation(TextField.Validation.ERROR);
-        page.add(labelled("Postal code", code));
+        page.add(Labelled.above("Postal code", code));
         return new Built(page);
     }
 
@@ -388,7 +389,7 @@ public final class AccessibilityGallery {
         row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(Expanded.of(password, 1));
         row.add(reveal);
-        page.add(labelled("Password", password, row));
+        page.add(Labelled.above("Password", password, row));
         return new Built(page);
     }
 
@@ -396,7 +397,7 @@ public final class AccessibilityGallery {
         Column page = page();
         SearchField search = new SearchField();
         search.setText("invoices");
-        page.add(labelled("Search", search));
+        page.add(Labelled.above("Search", search));
         return new Built(page);
     }
 
@@ -413,7 +414,7 @@ public final class AccessibilityGallery {
                 Line six.
                 Line seven.
                 Line eight.""");
-        page.add(labelled("Notes", notes, new SizedBox(SizedBox.UNSET, 120, notes)));
+        page.add(Labelled.above("Notes", notes, new SizedBox(SizedBox.UNSET, 120, notes)));
         return new Built(page);
     }
 
@@ -421,7 +422,7 @@ public final class AccessibilityGallery {
         Column page = page();
         ComboBox combo = new ComboBox(List.of("Portuguese", "English", "French", "German"));
         combo.setSelectedIndex(1);
-        page.add(labelled("Language", combo));
+        page.add(Labelled.above("Language", combo));
         return new Built(page, open ? combo::open : () -> { });
     }
 
@@ -431,7 +432,7 @@ public final class AccessibilityGallery {
                 "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas", "Pyrenees",
                 "Rockies", "Urals", "Zagros"));
         list.setSelectedIndex(2);
-        page.add(labelled("Mountain ranges", list, new SizedBox(SizedBox.UNSET, 160, list)));
+        page.add(Labelled.above("Mountain ranges", list, new SizedBox(SizedBox.UNSET, 160, list)));
         return new Built(page);
     }
 
@@ -661,33 +662,6 @@ public final class AccessibilityGallery {
         return new Padding(Insets.all(12), content);
     }
 
-    /**
-     * A caption above a control, with the caption declared as the control's label: this is the
-     * one idiom the gallery exists to show, because a caption that merely sits above a field
-     * names nothing (§1.7).
-     */
-    private static Widget labelled(String caption, Widget control) {
-        return labelled(I18nString.literal(caption), control, control);
-    }
-
-    /** The same, for a caption this gallery never translates. */
-    private static Widget labelled(String caption, Widget control, Widget placed) {
-        return labelled(I18nString.literal(caption), control, placed);
-    }
-
-    /**
-     * The same, where the control sits inside a wrapper — a sized box, a row with a switch — and
-     * the label must point at the control and not at the box around it.
-     */
-    // #region guide:a11y-labelled
-    static Widget labelled(I18nString caption, Widget control, Widget placed) {
-        Column column = new Column();
-        column.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(new Label(caption).setLabelFor(control));
-        column.add(placed);
-        return column;
-    }
-    // #endregion
 
     /** An icon-only button, named by its tooltip, which is what an icon-only button always has. */
     private static Button iconButton(String name) {

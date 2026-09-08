@@ -62,10 +62,10 @@ final class ControlsScene {
         disabledSpinner.setEnabled(false);
         Row spinners = new Row();
         spinners.gap(24).crossAlignment(Flex.CrossAlignment.START);
-        spinners.add(labelled("Quantity (0–99)", new Spinner(0, 99, 1).setValue(1)));
-        spinners.add(labelled("Fraction (step 0.25)", new Spinner(0, 1, 0.25).setValue(0.5)));
-        spinners.add(labelled("Time (HH:MM)", Spinner.time().setValue(7 * 60 + 30)));
-        spinners.add(labelled("Disabled", disabledSpinner));
+        spinners.add(Labelled.below("Quantity (0–99)", new Spinner(0, 99, 1).setValue(1)));
+        spinners.add(Labelled.below("Fraction (step 0.25)", new Spinner(0, 1, 0.25).setValue(0.5)));
+        spinners.add(Labelled.below("Time (HH:MM)", Spinner.time().setValue(7 * 60 + 30)));
+        spinners.add(Labelled.below("Disabled", disabledSpinner));
         column.add(spinners);
 
         return new ScrollView(column);
@@ -89,11 +89,4 @@ final class ControlsScene {
         return column;
     }
 
-    private static Widget labelled(String caption, Widget control) {
-        Column column = new Column();
-        column.gap(6).crossAlignment(Flex.CrossAlignment.START);
-        column.add(control);
-        column.add(new Label(caption).setMuted(true));
-        return column;
-    }
 }
