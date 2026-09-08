@@ -384,16 +384,9 @@ public final class GltfModel {
         };
     }
 
+    /** The exact inverse of the shader's piecewise {@code srgbToLinear}, alpha untouched. */
     private static Vec4 srgbFromLinear(Vec4 linear) {
-        return new Vec4(linearToSrgb(linear.x()), linearToSrgb(linear.y()),
-                linearToSrgb(linear.z()), linear.w());
-    }
-
-    /** Exact inverse of the shader's piecewise {@code srgbToLinear}. */
-    private static float linearToSrgb(float linear) {
-        float clamped = Math.max(0f, Math.min(1f, linear));
-        return clamped <= 0.0031308f
-                ? clamped * 12.92f
-                : 1.055f * (float) Math.pow(clamped, 1.0 / 2.4) - 0.055f;
+        return new Vec4(ColorSpace.linearToSrgb(linear.x()), ColorSpace.linearToSrgb(linear.y()),
+                ColorSpace.linearToSrgb(linear.z()), linear.w());
     }
 }

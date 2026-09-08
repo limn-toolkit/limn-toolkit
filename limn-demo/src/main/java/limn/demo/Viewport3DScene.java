@@ -9,6 +9,7 @@ import limn.components.Slider;
 import limn.components.Theme;
 import limn.components.Viewport3D;
 import limn.graphics.BlendMode;
+import limn.graphics.Color;
 import limn.math.Mat4;
 import limn.math.Quat;
 import limn.math.Scalars;
@@ -330,7 +331,7 @@ final class Viewport3DScene {
 
     /** One component of a unit normal, [-1,1] → an unsigned byte. */
     private static byte encodeNormal(float component) {
-        return (byte) Math.round((component * 0.5f + 0.5f) * 255f);
+        return (byte) Color.toByte(component * 0.5f + 0.5f);
     }
 
     /** Standalone normal-mapping scene (also a section of the showcase). */
@@ -699,7 +700,7 @@ final class Viewport3DScene {
                     v += amplitude * maskNoise(x, y, step, octave);
                     amplitude *= 0.5f;
                 }
-                byte level = (byte) Math.round(Scalars.clamp01(v) * 255f);
+                byte level = (byte) Color.toByte(v);
                 int i = (y * size + x) * 4;
                 rgba[i] = level;
                 rgba[i + 1] = level;

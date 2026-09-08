@@ -143,6 +143,20 @@ final class GlslCodegen {
 
     // ------------------------------------------------------- fixed framework
 
+    /**
+     * The sRGB decode as GLSL, the same piecewise curve as {@code Color.srgbToLinear} with the
+     * same 0.04045 threshold. One text, spliced into every fragment shader that decodes an
+     * authored colour, so the CPU reference and the shaders cannot drift: the 3D surface
+     * shaders take it here and the debug-line shader in {@code Gl3DContext} takes the same.
+     */
+    static final String SRGB_TO_LINEAR = """
+            vec3 srgbToLinear(vec3 c) {
+                vec3 lo = c / 12.92;
+                vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4));
+                return mix(lo, hi, step(vec3(0.04045), c));
+            }
+            """;
+
     private static final String FRAG_BANNER = """
             // GENERATED from the neutral shader IR by GlslCodegen. Do not edit by hand.
             // PORTABILITY RULE (ADR 001): GLSL 330 ∩ GLSL ES 3.00 subset. Metallic-roughness
@@ -205,11 +219,7 @@ final class GlslCodegen {
 
             out vec4 o_color;
 
-            vec3 srgbToLinear(vec3 c) {
-                vec3 lo = c / 12.92;
-                vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4));
-                return mix(lo, hi, step(vec3(0.04045), c));
-            }
+            """ + SRGB_TO_LINEAR + """
 
             float distributionGGX(float NdotH, float roughness) {
                 float a = roughness * roughness;

@@ -955,7 +955,7 @@ public final class Theme {
         }
 
         private static float round(float channel) {
-            return Math.round(channel * 255f) / 255f;
+            return Color.toByte(channel) / 255f;
         }
 
         /**

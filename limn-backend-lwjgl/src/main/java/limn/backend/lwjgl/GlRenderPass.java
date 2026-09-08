@@ -2,7 +2,6 @@ package limn.backend.lwjgl;
 
 import limn.math.Mat4;
 import limn.math.Vec3;
-import limn.render3d.ColorSpace;
 import limn.render3d.Environment;
 import limn.render3d.GpuMesh;
 import limn.render3d.IrradianceSh;
@@ -79,8 +78,7 @@ final class GlRenderPass implements RenderPass {
         // The clear is a color writer like the six programs: the target is linear
         // premultiplied (ADR 004), the caller's color is authored sRGB with
         // straight alpha, so decode and premultiply on the way in.
-        GL33C.glClearColor(ColorSpace.srgbToLinear(r) * a, ColorSpace.srgbToLinear(g) * a,
-                ColorSpace.srgbToLinear(b) * a, a);
+        GlColors.clearLinearPremultiplied(r, g, b, a);
         GL33C.glClear(GL33C.GL_COLOR_BUFFER_BIT | GL33C.GL_DEPTH_BUFFER_BIT);
         return this;
     }

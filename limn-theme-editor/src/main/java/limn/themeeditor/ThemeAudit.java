@@ -308,7 +308,7 @@ public final class ThemeAudit {
      * other everything the dialog is covering.
      */
     private static void veil(List<Finding> into, Theme theme) {
-        int steps = Math.round(Theme.Token.SCRIM.read(theme).a() * 255);
+        int steps = Color.toByte(Theme.Token.SCRIM.read(theme).a());
         if (steps < VEIL_FAINTEST) {
             into.add(new Finding(Level.WARNING, Theme.Token.SCRIM, null, Metric.ALPHA,
                     Bound.AT_LEAST, percentOf(steps), percentOf(VEIL_FAINTEST)));

@@ -38,35 +38,16 @@ class ThemeContrastTest {
         return Theme.builtins();
     }
 
-    /** WCAG 2.1 relative luminance. */
-    private static double luminance(Color color) {
-        return 0.2126 * channel(color.r()) + 0.7152 * channel(color.g()) + 0.0722 * channel(color.b());
-    }
 
-    private static double channel(float value) {
-        return value <= 0.03928f ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
-    }
-
-    private static double contrast(Color a, Color b) {
-        double la = luminance(a);
-        double lb = luminance(b);
-        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-    }
-
-    /** CIE L*, so one bar describes a perceptual step at either end of the range. */
-    private static double lightness(Color color) {
-        double y = luminance(color);
-        return y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y;
-    }
 
     private static void atLeast(double bar, Color foreground, Color background, String what) {
-        double actual = contrast(foreground, background);
+        double actual = Color.contrastRatio(foreground, background);
         assertTrue(actual >= bar, what + ": " + String.format("%.2f", actual)
                 + ":1, below the " + bar + ":1 it was solved for");
     }
 
     private static void stepsApart(double bar, Color a, Color b, String what) {
-        double actual = Math.abs(lightness(a) - lightness(b));
+        double actual = Math.abs(a.lightness() - b.lightness());
         assertTrue(actual >= bar, what + ": " + String.format("%.1f", actual)
                 + " L*, below the " + bar + " it was solved for");
     }
@@ -152,7 +133,7 @@ class ThemeContrastTest {
     @MethodSource("palettes")
     void disabledTextIsDimmedWithoutDisappearing(Theme theme) {
         atLeast(2, theme.disabledText, theme.surface, "disabled text on a card");
-        assertTrue(contrast(theme.disabledText, theme.surface) < contrast(theme.textMuted, theme.surface),
+        assertTrue(Color.contrastRatio(theme.disabledText, theme.surface) < Color.contrastRatio(theme.textMuted, theme.surface),
                 "disabled text must be dimmer than muted text, or the two states look alike");
     }
 
@@ -205,7 +186,7 @@ class ThemeContrastTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void theModeFlagAgreesWithTheCanvas(Theme theme) {
-        assertTrue(theme.dark == (luminance(theme.background) < 0.2),
+        assertTrue(theme.dark == (theme.background.relativeLuminance() < 0.2),
                 theme.name + ": the dark flag disagrees with the canvas it ships");
     }
 }

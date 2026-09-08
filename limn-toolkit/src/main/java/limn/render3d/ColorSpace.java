@@ -1,5 +1,7 @@
 package limn.render3d;
 
+import limn.graphics.Color;
+
 /**
  * How the channel values of a color or texture are encoded. Authoring happens in
  * {@link #SRGB} (what image editors and hex colors give you); lighting must run in
@@ -20,14 +22,14 @@ public enum ColorSpace {
     /** Physically linear. Lighting math and render targets accumulate here. */
     LINEAR;
 
-    /** Decodes one sRGB-encoded channel in [0,1] to linear light. */
+    /** Decodes one sRGB-encoded channel in [0,1] to linear light; {@link Color#srgbToLinear}. */
     public static float srgbToLinear(float c) {
-        return c <= 0.04045f ? c / 12.92f : (float) Math.pow((c + 0.055) / 1.055, 2.4);
+        return (float) Color.srgbToLinear(c);
     }
 
-    /** Encodes one linear-light channel in [0,1] back to sRGB (the display OETF). */
+    /** Encodes one linear-light channel back to sRGB (the display OETF); {@link Color#linearToSrgb}. */
     public static float linearToSrgb(float c) {
-        return c <= 0.0031308f ? c * 12.92f : (float) (1.055 * Math.pow(c, 1.0 / 2.4) - 0.055);
+        return (float) Color.linearToSrgb(c);
     }
 
     /**

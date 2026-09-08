@@ -106,21 +106,7 @@ public final class ThemeTokens {
     }
 
     private static void token(StringBuilder b, String name, Color c) {
-        b.append("  --limn-").append(name).append(": ").append(hex(c)).append(";\n");
-    }
-
-    /**
-     * {@code #rrggbb}, or {@code #rrggbbaa} when the tone is not opaque. Every palette tone
-     * is opaque today; the alpha branch is here so that a translucent one added later is
-     * exported rather than silently flattened to its RGB.
-     */
-    static String hex(Color c) {
-        String rgb = String.format("#%02X%02X%02X", channel(c.r()), channel(c.g()), channel(c.b()));
-        return c.a() >= 1f ? rgb : rgb + String.format("%02X", channel(c.a()));
-    }
-
-    private static int channel(float value) {
-        return Math.round(Math.max(0f, Math.min(1f, value)) * 255f);
+        b.append("  --limn-").append(name).append(": ").append(c.toHex()).append(";\n");
     }
 
     private static String px(float value) {

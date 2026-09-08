@@ -151,8 +151,8 @@ public record Color(float r, float g, float b, float a) implements Paint {
 
     /** {@code "#RRGGBB"}, or {@code "#RRGGBBAA"} when not fully opaque. */
     public String toHex() {
-        String rgb = String.format("#%02X%02X%02X", byteOf(r), byteOf(g), byteOf(b));
-        return a >= 1f ? rgb : rgb + String.format("%02X", byteOf(a));
+        String rgb = String.format("#%02X%02X%02X", toByte(r), toByte(g), toByte(b));
+        return a >= 1f ? rgb : rgb + String.format("%02X", toByte(a));
     }
 
     /**
@@ -208,7 +208,7 @@ public record Color(float r, float g, float b, float a) implements Paint {
      * ({@code backdrop.lerp(this, this.a())}) and ask that colour.
      */
     public double relativeLuminance() {
-        return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b);
+        return 0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b);
     }
 
     /**
@@ -245,12 +245,44 @@ public record Color(float r, float g, float b, float a) implements Paint {
         return y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y;
     }
 
-    /** One sRGB channel undone back to linear light, per WCAG 2.1. */
-    private static double linearize(float channel) {
-        return channel <= 0.03928f ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+    // ------------------------------------------------------ transfer function
+    //
+    // The sRGB piecewise curve (IEC 61966-2-1), once, for everything that needs it: the
+    // luminance above, the 3D pipeline's CPU reference (ColorSpace delegates here), a glTF
+    // material's authored colour. It used to be here twice with two thresholds, WCAG's older
+    // 0.03928 and the standard's 0.04045; they differ by a third of a code value and the
+    // standard's is the one the shaders use, so it is the one.
+
+    /**
+     * Decodes one sRGB-encoded channel in {@code [0,1]} to linear light.
+     *
+     * @param channel the encoded value
+     * @return the linear value
+     */
+    public static double srgbToLinear(double channel) {
+        return channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
     }
 
-    private static int byteOf(float channel) {
+    /**
+     * Encodes one linear-light channel back to sRGB, the display's OETF. The input is held to
+     * {@code [0,1]} first: a value past white encodes as white, and a negative one as black.
+     *
+     * @param linear the linear value
+     * @return the encoded value, in {@code [0,1]}
+     */
+    public static double linearToSrgb(double linear) {
+        double c = linear < 0 ? 0 : linear > 1 ? 1 : linear;
+        return c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1.0 / 2.4) - 0.055;
+    }
+
+    /**
+     * A unit channel as the byte a file or a framebuffer holds: clamped to {@code [0,1]},
+     * scaled to {@code 0..255} and rounded to nearest.
+     *
+     * @param channel the value
+     * @return {@code 0..255}
+     */
+    public static int toByte(float channel) {
         return Math.round(Scalars.clamp01(channel) * 255f);
     }
 }

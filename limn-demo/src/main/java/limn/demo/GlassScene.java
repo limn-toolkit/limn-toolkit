@@ -195,9 +195,9 @@ final class GlassScene {
                     g = 1 - g;
                     b = 1 - b;
                 }
-                pixels[at] = (byte) Math.round(r * 255);
-                pixels[at + 1] = (byte) Math.round(g * 255);
-                pixels[at + 2] = (byte) Math.round(b * 255);
+                pixels[at] = (byte) Color.toByte(r);
+                pixels[at + 1] = (byte) Color.toByte(g);
+                pixels[at + 2] = (byte) Color.toByte(b);
                 pixels[at + 3] = (byte) 255;
             }
         }

@@ -741,9 +741,9 @@ final class CubeGadget {
         for (int f = 0; f < 6; f++) {
             int cellX = (f % 3) * CELL;
             int cellY = (f / 3) * CELL;
-            int rgb = FACE_RGB[f];
+            Color face = Color.rgb(FACE_RGB[f]);
             fillRect(px, cellX, cellY, CELL, CELL,
-                    (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+                    Color.toByte(face.r()), Color.toByte(face.g()), Color.toByte(face.b()));
             drawNumber(px, cellX, cellY, number);
         }
         return new limn.render3d.TextureData(ATLAS_W, ATLAS_H, px, limn.render3d.ColorSpace.SRGB);

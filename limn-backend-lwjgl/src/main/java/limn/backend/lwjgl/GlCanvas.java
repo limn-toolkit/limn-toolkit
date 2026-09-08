@@ -18,14 +18,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.lwjgl.opengl.GL33C.GL_DST_COLOR;
-import static org.lwjgl.opengl.GL33C.GL_ONE;
-import static org.lwjgl.opengl.GL33C.GL_ONE_MINUS_SRC_ALPHA;
-import static org.lwjgl.opengl.GL33C.GL_ZERO;
 import static org.lwjgl.opengl.GL33C.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL33C.GL_STENCIL_BUFFER_BIT;
 import static org.lwjgl.opengl.GL33C.glClear;
-import static org.lwjgl.opengl.GL33C.glClearColor;
 
 /**
  * OpenGL implementation of {@link Canvas}: applies the state stack (transform,
@@ -251,7 +246,7 @@ final class GlCanvas implements Canvas {
         // the previous frame's last draw must not clip it (an empty flush above
         // issues no state calls, so the stale scissor would still be armed).
         org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
-        glClearColor(color.r() * color.a(), color.g() * color.a(), color.b() * color.a(), color.a());
+        GlColors.clearPremultiplied(color);
         glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     }
 
@@ -276,7 +271,7 @@ final class GlCanvas implements Canvas {
         // translucent popup framebuffers, which no blended fill can produce.
         org.lwjgl.opengl.GL33C.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
         org.lwjgl.opengl.GL33C.glScissor(x0, fbHeight - y1, x1 - x0, y1 - y0);
-        glClearColor(color.r() * color.a(), color.g() * color.a(), color.b() * color.a(), color.a());
+        GlColors.clearPremultiplied(color);
         glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
         // The next batch flush re-arms the damage scissor from its own state.
         org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);

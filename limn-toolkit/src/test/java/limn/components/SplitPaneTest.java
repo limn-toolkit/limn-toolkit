@@ -303,8 +303,8 @@ class SplitPaneTest extends ComponentTestBase {
     }
 
     /** Relative luminance: "lighter" over a ramp toward white, which HSV value is not. */
-    private static float lightness(Color c) {
-        return 0.2126f * c.r() + 0.7152f * c.g() + 0.0722f * c.b();
+    private static double lightness(Color c) {
+        return c.lightness();
     }
 
     /** Records the divider's line; it is the only line the scene paints. */

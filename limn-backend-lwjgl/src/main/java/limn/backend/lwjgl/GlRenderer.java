@@ -15,7 +15,6 @@ import static org.lwjgl.opengl.GL33C.GL_RGBA;
 import static org.lwjgl.opengl.GL33C.GL_STENCIL_BUFFER_BIT;
 import static org.lwjgl.opengl.GL33C.GL_UNSIGNED_BYTE;
 import static org.lwjgl.opengl.GL33C.glClear;
-import static org.lwjgl.opengl.GL33C.glClearColor;
 import static org.lwjgl.opengl.GL33C.glPixelStorei;
 import static org.lwjgl.opengl.GL33C.glReadBuffer;
 import static org.lwjgl.opengl.GL33C.glReadPixels;
@@ -174,7 +173,7 @@ final class GlRenderer implements GpuRenderer {
         // A damage scissor from a previous frame's last draw must not clip a
         // whole-framebuffer clear.
         org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
-        glClearColor(red * alpha, green * alpha, blue * alpha, alpha);
+        GlColors.clearPremultiplied(red, green, blue, alpha);
         glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     }
 

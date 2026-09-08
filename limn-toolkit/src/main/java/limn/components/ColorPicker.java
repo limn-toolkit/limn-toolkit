@@ -935,9 +935,9 @@ public final class ColorPicker extends Widget {
         void read(Color color) {
             switch (format) {
                 case RGB -> {
-                    fields.get(0).setValue(Math.round(color.r() * 255));
-                    fields.get(1).setValue(Math.round(color.g() * 255));
-                    fields.get(2).setValue(Math.round(color.b() * 255));
+                    fields.get(0).setValue(Color.toByte(color.r()));
+                    fields.get(1).setValue(Color.toByte(color.g()));
+                    fields.get(2).setValue(Color.toByte(color.b()));
                 }
                 case HSV -> {
                     // From the widget's own hue and saturation, not the colour's:

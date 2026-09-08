@@ -7,11 +7,9 @@ import limn.math.Quat;
 import limn.math.Vec3;
 import limn.math.Vec4;
 import limn.render3d.Camera;
-import limn.render3d.ColorSpace;
 import limn.render3d.Environment;
 import limn.render3d.GpuMesh;
 import limn.render3d.GpuTexture;
-import limn.render3d.IrradianceSh;
 import limn.render3d.Light;
 import limn.render3d.Material;
 import limn.render3d.MeshData;
@@ -23,7 +21,6 @@ import limn.render3d.Sampler;
 import limn.render3d.TextureData;
 import limn.render3d.VertexAttribute;
 import limn.render3d.shader.StandardSurface;
-import limn.render3d.shader.SurfaceOutputs;
 import limn.render3d.shader.TargetProfile;
 import org.lwjgl.opengl.GL33C;
 import org.lwjgl.system.MemoryUtil;
@@ -1364,11 +1361,7 @@ final class Gl3DContext {
             // SRC_ALPHA blend), so alpha is untouched and nothing premultiplies.
             in vec4 v_color;
             out vec4 fragColor;
-            vec3 srgbToLinear(vec3 c) {
-                vec3 lo = c / 12.92;
-                vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4));
-                return mix(lo, hi, step(vec3(0.04045), c));
-            }
+            """ + GlslCodegen.SRGB_TO_LINEAR + """
             void main() {
                 fragColor = vec4(srgbToLinear(v_color.rgb), v_color.a);
             }
@@ -1464,8 +1457,7 @@ final class Gl3DContext {
             GL33C.glDisable(GL33C.GL_CULL_FACE);
             GL33C.glDisable(GL33C.GL_SCISSOR_TEST); // 2D damage scissor must not clip this pass
             // Authored sRGB, decoded on write: the target is linear (ADR 004).
-            GL33C.glClearColor(ColorSpace.srgbToLinear(0.13f), ColorSpace.srgbToLinear(0.15f),
-                    ColorSpace.srgbToLinear(0.20f), 1.0f);
+            GlColors.clearLinearPremultiplied(0.13f, 0.15f, 0.20f, 1.0f);
             GL33C.glClear(GL33C.GL_COLOR_BUFFER_BIT | GL33C.GL_DEPTH_BUFFER_BIT);
 
             float aspect = (float) target.widthPx() / target.heightPx();

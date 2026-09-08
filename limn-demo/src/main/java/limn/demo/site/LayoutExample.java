@@ -13,7 +13,6 @@ import limn.components.Theme;
 import limn.components.ToolBar;
 import limn.graphics.Color;
 import limn.graphics.Image;
-import limn.math.Scalars;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -227,16 +226,17 @@ public final class LayoutExample {
     private static Widget swatch(String from, String to) {
         int width = 96;
         int height = 64;
-        int a = (int) Long.parseLong(from, 16);
-        int b = (int) Long.parseLong(to, 16);
+        Color a = Color.fromHex(from);
+        Color b = Color.fromHex(to);
         byte[] pixels = new byte[width * height * 4];
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 float t = (x / (float) (width - 1) + y / (float) (height - 1)) / 2f;
                 int i = (y * width + x) * 4;
-                pixels[i] = (byte) mix((a >> 16) & 255, (b >> 16) & 255, t);
-                pixels[i + 1] = (byte) mix((a >> 8) & 255, (b >> 8) & 255, t);
-                pixels[i + 2] = (byte) mix(a & 255, b & 255, t);
+                Color mixed = a.lerp(b, t);
+                pixels[i] = (byte) Color.toByte(mixed.r());
+                pixels[i + 1] = (byte) Color.toByte(mixed.g());
+                pixels[i + 2] = (byte) Color.toByte(mixed.b());
                 pixels[i + 3] = (byte) 0xFF;
             }
         }
@@ -245,9 +245,6 @@ public final class LayoutExample {
                 .setPreferredSize(600, 86);
     }
 
-    private static int mix(int from, int to, float t) {
-        return Math.round(Scalars.lerp(from, to, t));
-    }
 
     /** The shell on a canvas, for the capture the guide page shows. */
     public static Scene scene() {

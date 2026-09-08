@@ -1,6 +1,7 @@
 package limn.backend.lwjgl;
 
 import limn.backend.RenderStats;
+import limn.graphics.Color;
 import limn.render3d.ColorSpace;
 import limn.render3d.RenderTarget;
 import org.lwjgl.opengl.GL33C;
@@ -226,7 +227,7 @@ final class GlRenderTarget implements RenderTarget {
     }
 
     private static byte quantize(float unitValue) {
-        return (byte) Math.round(Math.min(1f, Math.max(0f, unitValue)) * 255f);
+        return (byte) Color.toByte(unitValue);
     }
 
     /**
