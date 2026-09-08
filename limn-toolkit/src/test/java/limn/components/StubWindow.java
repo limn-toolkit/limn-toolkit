@@ -111,7 +111,10 @@ class StubWindow implements NativeWindow {
     /** Whether this window claims to be an active modal, as a dialog's own native window is. */
     boolean modal;
 
-    @Override public boolean isModalBlocked() { return false; }
+    /** Whether this window claims a native modal is open over it, as a dialog's owner does. */
+    boolean modalBlocked;
+
+    @Override public boolean isModalBlocked() { return modalBlocked; }
     @Override public boolean isModal() { return modal; }
     @Override public void registerChildPopup(NativeWindow child, PopupKind kind) { }
     @Override public void unregisterChildPopup(NativeWindow child) { }

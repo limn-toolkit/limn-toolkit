@@ -11,6 +11,7 @@ import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.scene.layout.Column;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -377,6 +378,60 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of(), nodesWith(Accessible.State.FOCUSABLE), describe(tree()));
         assertEquals(Accessible.Role.DIALOG, card().role(),
                 "nothing to focus, and still a dialog" + describe(tree()));
+    }
+
+    /**
+     * The window a native dialog blocks publishes the block: every node in it loses
+     * {@code ENABLED} and {@code FOCUSABLE} while the modal is up, and gets both back when it
+     * closes, exactly as §1.13 already does for what lies under an in-scene modal.
+     *
+     * <p>What §1.13 says is that gating actuation is not enough — a reader offered a whole
+     * interface of enabled, focusable controls has each invocation refused with no way to say
+     * why. That was true of the owner of a <em>native</em> dialog until this case: the walk
+     * cleared the two bits only for what lay outside the scene's own input root, and a window
+     * whose backend says {@code isModalBlocked()} has no input root at all. The kitchen sink's
+     * transcript read {@code (blocked by a modal)} in its header and {@code [focusable]} on every
+     * control underneath, which is the tree disagreeing with the keyboard. The nodes stay in the
+     * tree, {@code VISIBLE} and {@code SHOWING}, because they are on screen and a user may still
+     * want to read what is behind the dialog. The window node loses {@code ENABLED} too, which is
+     * what a Win32 owner disabled by its modal reports and what GTK's modal grab does to a frame.
+     */
+    @Test
+    void theWindowANativeDialogBlocksPublishesNothingOperable() {
+        Column background = new Column();
+        background.add(new Label("fundo"));
+        background.add(new Field("Name"));
+        bind(background);
+        assertTrue(node("Name").has(Accessible.State.ENABLED), "sanity" + describe(tree()));
+        assertTrue(node("Name").has(Accessible.State.FOCUSABLE), "sanity" + describe(tree()));
+
+        window.modalBlocked = true;
+        scene.requestRender();
+        frame();
+
+        assertEquals(List.of(), nodesWith(Accessible.State.ENABLED),
+                "nothing in a blocked window may be operated, the window included"
+                        + describe(tree()));
+        assertEquals(List.of(), nodesWith(Accessible.State.FOCUSABLE),
+                "and nothing in it is a tab stop, which is what the keyboard says"
+                        + describe(tree()));
+        assertTrue(node("Name").has(Accessible.State.VISIBLE),
+                "but it is still on screen" + describe(tree()));
+        assertTrue(node("Name").has(Accessible.State.SHOWING), describe(tree()));
+        assertTrue(node("fundo").has(Accessible.State.SHOWING), describe(tree()));
+        assertEquals(List.of(), nodesWith(Accessible.State.MODAL),
+                "the modal is the other window's fact, not this one's" + describe(tree()));
+        assertFalse(tree().node(0).window().modal(),
+                "the owner is blocked by a modal and is not one" + describe(tree()));
+
+        window.modalBlocked = false;
+        scene.requestRender();
+        frame();
+
+        assertTrue(node("Name").has(Accessible.State.ENABLED),
+                "the dialog closed, and the owner is operable again" + describe(tree()));
+        assertTrue(node("Name").has(Accessible.State.FOCUSABLE), describe(tree()));
+        assertTrue(tree().node(0).has(Accessible.State.ENABLED), describe(tree()));
     }
 
     // ------------------------------------------------------------------------------ the verb

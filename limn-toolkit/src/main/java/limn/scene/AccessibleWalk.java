@@ -134,10 +134,20 @@ final class AccessibleWalk {
             // this record exists to prevent and the one nothing headless can see.
             builder.state(Accessible.State.ACTIVE);
         }
-        builder.inherited(true, true, true, false, false);
+        // §1.13, for the native case: a window whose backend says a modal is open over it has no
+        // layer that owns input at all, so nothing in it is reachable and nothing in it -- the
+        // window node included, which is what a Win32 owner disabled by its dialog reports and
+        // what a GTK modal grab does to a frame -- is published ENABLED or FOCUSABLE. The in-scene
+        // rule below clears the same two bits for what lies outside the top overlay; without this
+        // one the owner of a native dialog offered a reader a whole interface of operable
+        // controls and §1.9's gate refused every invocation with no way to say why. The nodes
+        // stay, VISIBLE and SHOWING, because they are on screen. The scrim that the block fades
+        // in and out is what re-walks the tree when the bit moves.
+        boolean blocked = window != null && window.isModalBlocked();
+        builder.inherited(!blocked, true, true, false, false);
 
         Widget top = scene.topOverlay();
-        walkWidget(scene, root, null, 0, true, true, top == null);
+        walkWidget(scene, root, null, 0, true, true, top == null && !blocked);
         List<Widget> overlays = scene.overlays();
         for (int i = 0; i < overlays.size(); i++) {
             Widget overlay = overlays.get(i);
@@ -157,7 +167,7 @@ final class AccessibleWalk {
                     at = at.parent() != null ? at.parent() : at.inheritanceHost()) {
                 hostEnabled &= at.isEnabled();
             }
-            walkWidget(scene, overlay, null, 0, hostEnabled, true, overlay == top);
+            walkWidget(scene, overlay, null, 0, hostEnabled, true, overlay == top && !blocked);
         }
         builder.end();
         count = builder.nodeCount();

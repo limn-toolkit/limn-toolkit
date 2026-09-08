@@ -1,248 +1,248 @@
 == window "Limn kitchen sink" (blocked by a modal) ==
-  1 window "Limn kitchen sink" (explicit) window non-modal normal
-  2   menu bar "Menu bar" [focusable, horizontal] selection=single actions: scroll into view, focus key="F10"
-  3     menu item "File" [has-popup] item 1 of 3 unselected collapsed actions: show menu
-  4     menu item "Edit" [has-popup] item 2 of 3 unselected collapsed actions: show menu
-  5     menu item "View" [has-popup] item 3 of 3 unselected collapsed actions: show menu
-  6   heading "Limn UI: Kitchen Sink"
-  7   button "Load data" [focusable] actions: press, scroll into view, focus
-  8   progress bar "" [hidden, offscreen, read-only, horizontal] value=0 [0..100] read-only
-  9   combo box "English" [focusable, has-popup] value=0 [0..21 step 1] "English" collapsed actions: expand, scroll into view, focus
- 10   combo box "LTR" [focusable, has-popup] value=0 [0..1 step 1] "LTR" collapsed actions: expand, scroll into view, focus
- 11   combo box "MEDIUM" [focusable, has-popup] value=2 [0..4 step 1] "MEDIUM" collapsed actions: expand, scroll into view, focus
- 12   combo box "Dark" [focusable, has-popup] value=1 [0..14 step 1] "Dark" collapsed actions: expand, scroll into view, focus
- 13   tab list "" [horizontal] selection=single required scroll h=0% view 60%
- 14     tab "Form" [focusable, selected] item 1 of 13 selected actions: press, select, scroll into view, focus | controller for #30 "Form"
- 15     tab "Text" item 2 of 13 unselected actions: press, select | controller for #40 "Text"
- 16     tab "Actions" item 3 of 13 unselected actions: press, select | controller for #50 "Actions"
- 17     tab "Menus" item 4 of 13 unselected actions: press, select | controller for #72 "Menus"
- 18     tab "List" item 5 of 13 unselected actions: press, select | controller for #78 "List"
- 19     tab "Controls" item 6 of 13 unselected actions: press, select | controller for #81 "Controls"
- 20     tab "3D" item 7 of 13 unselected actions: press, select | controller for #111 "3D"
- 21     tab "Video" item 8 of 13 unselected actions: press, select | controller for #120 "Video"
- 22     tab "Charts" item 9 of 13 unselected actions: press, select | controller for #149 "Charts"
- 23     tab "Scripts" [offscreen] item 10 of 13 unselected actions: press, select | controller for #170 "Scripts"
- 24     tab "Icons" [offscreen] item 11 of 13 unselected actions: press, select | controller for #209 "Icons"
- 25     tab "Files" [offscreen] item 12 of 13 unselected actions: press, select | controller for #219 "Files"
- 26     tab "About" [offscreen] item 13 of 13 unselected actions: press, select | controller for #236 "About"
+  1 window "Limn kitchen sink" (explicit) [disabled] window non-modal normal
+  2   menu bar "Menu bar" [disabled, horizontal] selection=single
+  3     menu item "File" [disabled, has-popup] item 1 of 3 unselected collapsed actions: show menu
+  4     menu item "Edit" [disabled, has-popup] item 2 of 3 unselected collapsed actions: show menu
+  5     menu item "View" [disabled, has-popup] item 3 of 3 unselected collapsed actions: show menu
+  6   heading "Limn UI: Kitchen Sink" [disabled]
+  7   button "Load data" [disabled] actions: press
+  8   progress bar "" [disabled, hidden, offscreen, read-only, horizontal] value=0 [0..100] read-only
+  9   combo box "English" [disabled, has-popup] value=0 [0..21 step 1] "English" collapsed actions: expand
+ 10   combo box "LTR" [disabled, has-popup] value=0 [0..1 step 1] "LTR" collapsed actions: expand
+ 11   combo box "MEDIUM" [disabled, has-popup] value=2 [0..4 step 1] "MEDIUM" collapsed actions: expand
+ 12   combo box "Dark" [disabled, has-popup] value=1 [0..14 step 1] "Dark" collapsed actions: expand
+ 13   tab list "" [disabled, horizontal] selection=single required scroll h=0% view 60%
+ 14     tab "Form" [disabled, selected] item 1 of 13 selected actions: press, select | controller for #30 "Form"
+ 15     tab "Text" [disabled] item 2 of 13 unselected actions: press, select | controller for #40 "Text"
+ 16     tab "Actions" [disabled] item 3 of 13 unselected actions: press, select | controller for #50 "Actions"
+ 17     tab "Menus" [disabled] item 4 of 13 unselected actions: press, select | controller for #72 "Menus"
+ 18     tab "List" [disabled] item 5 of 13 unselected actions: press, select | controller for #78 "List"
+ 19     tab "Controls" [disabled] item 6 of 13 unselected actions: press, select | controller for #81 "Controls"
+ 20     tab "3D" [disabled] item 7 of 13 unselected actions: press, select | controller for #111 "3D"
+ 21     tab "Video" [disabled] item 8 of 13 unselected actions: press, select | controller for #120 "Video"
+ 22     tab "Charts" [disabled] item 9 of 13 unselected actions: press, select | controller for #149 "Charts"
+ 23     tab "Scripts" [disabled, offscreen] item 10 of 13 unselected actions: press, select | controller for #170 "Scripts"
+ 24     tab "Icons" [disabled, offscreen] item 11 of 13 unselected actions: press, select | controller for #209 "Icons"
+ 25     tab "Files" [disabled, offscreen] item 12 of 13 unselected actions: press, select | controller for #219 "Files"
+ 26     tab "About" [disabled, offscreen] item 13 of 13 unselected actions: press, select | controller for #236 "About"
  27   button "Previous tabs" (tooltip) [disabled] actions: press
- 28   button "Next tabs" (tooltip) actions: press
- 29   button "All tabs" (tooltip) [has-popup] actions: press, show menu
- 30   scroll pane "Form" (label) scroll none | labelled by #14 "Form"
- 31     label "Name"
- 32     text field "Type your name" (placeholder) [focusable, editable] text="" caret=0 actions: show menu, scroll into view, focus
- 33     label "Password"
- 34     password field "Password" (placeholder) [focusable, editable, password] text="•••••••••" caret=9 actions: show menu, scroll into view, focus
- 35     switch "reveal" [focusable] toggle=off actions: toggle, scroll into view, focus
- 36     label "Favorite theme"
- 37     combo box "Limn dark" [focusable, has-popup] value=0 [0..3 step 1] "Limn dark" collapsed actions: expand, scroll into view, focus
- 38     check box "Notifications" [focusable, checked] toggle=on actions: toggle, scroll into view, focus
- 39     switch "Airplane mode" [focusable] toggle=off actions: toggle, scroll into view, focus
- 40   tab panel "Text" (label) [hidden, offscreen] | labelled by #15 "Text"
- 41     label "Measured ellipsis at 3 widths" [hidden, offscreen]
- 42     label "A long text demonstrating ellipsis truncation measured with real glyphs" [hidden, offscreen]
- 43     label "A long text demonstrating ellipsis truncation measured with real glyphs" [hidden, offscreen]
- 44     label "A long text demonstrating ellipsis truncation measured with real glyphs" [hidden, offscreen]
- 45     label "Multiline TextArea" [hidden, offscreen]
- 46     switch "Soft wrap" [hidden, offscreen] toggle=off actions: toggle
- 47     text area "" [hidden, offscreen, editable, multi-line] text="The TextArea scrolls on both axes with draggable scrollbars, navigates across lines with the arrow keys (sticky column), selects with Shift+arrows and mouse.\nLine 2\nLine 3: scroll down with the wheel or by dragging the thumb.\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9, the end of the text." caret=289 lines=9 scroll v=0% view 0% h=0% view 0% actions: show menu
- 48       scroll bar "" [hidden, offscreen, vertical] value=0 [0..108] actions: increment, decrement
- 49       scroll bar "" [hidden, offscreen, horizontal] value=0 [0..1570] actions: increment, decrement
- 50   scroll pane "Actions" (label) [hidden, offscreen] scroll none | labelled by #16 "Actions"
- 51     label "Buttons (primary, secondary, icon, disabled)" [hidden, offscreen]
- 52     button "Save" [hidden, offscreen] actions: press
- 53     button "Download" [hidden, offscreen] actions: press
+ 28   button "Next tabs" (tooltip) [disabled] actions: press
+ 29   button "All tabs" (tooltip) [disabled, has-popup] actions: press, show menu
+ 30   scroll pane "Form" (label) [disabled] scroll none | labelled by #14 "Form"
+ 31     label "Name" [disabled]
+ 32     text field "Type your name" (placeholder) [disabled, editable] text="" caret=0 actions: show menu
+ 33     label "Password" [disabled]
+ 34     password field "Password" (placeholder) [disabled, editable, password] text="•••••••••" caret=9 actions: show menu
+ 35     switch "reveal" [disabled] toggle=off actions: toggle
+ 36     label "Favorite theme" [disabled]
+ 37     combo box "Limn dark" [disabled, has-popup] value=0 [0..3 step 1] "Limn dark" collapsed actions: expand
+ 38     check box "Notifications" [disabled, checked] toggle=on actions: toggle
+ 39     switch "Airplane mode" [disabled] toggle=off actions: toggle
+ 40   tab panel "Text" (label) [disabled, hidden, offscreen] | labelled by #15 "Text"
+ 41     label "Measured ellipsis at 3 widths" [disabled, hidden, offscreen]
+ 42     label "A long text demonstrating ellipsis truncation measured with real glyphs" [disabled, hidden, offscreen]
+ 43     label "A long text demonstrating ellipsis truncation measured with real glyphs" [disabled, hidden, offscreen]
+ 44     label "A long text demonstrating ellipsis truncation measured with real glyphs" [disabled, hidden, offscreen]
+ 45     label "Multiline TextArea" [disabled, hidden, offscreen]
+ 46     switch "Soft wrap" [disabled, hidden, offscreen] toggle=off actions: toggle
+ 47     text area "" [disabled, hidden, offscreen, editable, multi-line] text="The TextArea scrolls on both axes with draggable scrollbars, navigates across lines with the arrow keys (sticky column), selects with Shift+arrows and mouse.\nLine 2\nLine 3: scroll down with the wheel or by dragging the thumb.\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9, the end of the text." caret=289 lines=9 scroll v=0% view 0% h=0% view 0% actions: show menu
+ 48       scroll bar "" [disabled, hidden, offscreen, vertical] value=0 [0..108] actions: increment, decrement
+ 49       scroll bar "" [disabled, hidden, offscreen, horizontal] value=0 [0..1570] actions: increment, decrement
+ 50   scroll pane "Actions" (label) [disabled, hidden, offscreen] scroll none | labelled by #16 "Actions"
+ 51     label "Buttons (primary, secondary, icon, disabled)" [disabled, hidden, offscreen]
+ 52     button "Save" [disabled, hidden, offscreen] actions: press
+ 53     button "Download" [disabled, hidden, offscreen] actions: press
  54     button "Disabled" [disabled, hidden, offscreen] actions: press
- 55     label "ProgressBar 40% / 80% / indeterminate" [hidden, offscreen]
- 56     progress bar "" [hidden, offscreen, read-only, horizontal] value=40 [0..100] read-only
- 57     progress bar "" [hidden, offscreen, read-only, horizontal] value=80 [0..100] read-only
- 58     progress bar "" [hidden, offscreen, busy, horizontal]
- 59     label "Dialogs: 3 scopes (window / app / non-modal), plus two stacked" [hidden, offscreen]
- 60     button "Window-modal" [hidden, offscreen] actions: press
- 61     button "App-modal" [hidden, offscreen] actions: press
- 62     button "Non-modal" [hidden, offscreen] actions: press
- 63     button "Stacked (native → internal)" [hidden, offscreen] actions: press
- 64     switch "Internal (in-scene)" [hidden, offscreen] toggle=off actions: toggle
- 65     switch "Always on top" [hidden, offscreen, checked] toggle=on actions: toggle
- 66     switch "Decorated (OS frame)" [hidden, offscreen] toggle=off actions: toggle
- 67     label "Every dialog reports its result below, including one closed by the OS frame's own button (turn on Decorated), which reports as cancelled." [hidden, offscreen]
- 68     label "Audio (limn.sound) and window" [hidden, offscreen]
- 69     button "Play sound (synthesis)" [hidden, offscreen] actions: press
- 70     button "Fullscreen (native)" [hidden, offscreen] actions: press
- 71     button "Fullscreen 1280×720" [hidden, offscreen] actions: press
- 72   scroll pane "Menus" (label) [hidden, offscreen] scroll none | labelled by #17 "Menus"
- 73     label "Dropdown from a button (submenus, checkable items, separators, disabled entries):" [hidden, offscreen]
- 74     button "Actions menu" [hidden, offscreen] actions: press
- 75     switch "Modal (blocks the window)" [hidden, offscreen] toggle=off actions: toggle
- 76     label "Context menu (right-click the area below):" [hidden, offscreen]
- 77     label "The MenuBar at the top (File / Edit / View) also opens native menus with submenus." [hidden, offscreen]
- 78   tab panel "List" (label) [hidden, offscreen] | labelled by #18 "List"
- 79     list "" [hidden, offscreen] selection=single scroll v=0% view 0%
- 80       scroll bar "" [hidden, offscreen, vertical] value=0 [0..240000] actions: increment, decrement
- 81   tab panel "Controls" (label) [hidden, offscreen] | labelled by #19 "Controls"
- 82     scroll pane "" [hidden, offscreen] scroll none
- 83       heading "Slider" [hidden, offscreen]
- 84       label "Continuous (0–100)" [hidden, offscreen]
- 85       slider "" [hidden, offscreen, horizontal] value=30 [0..100] actions: increment, decrement
- 86       label "30" [hidden, offscreen]
- 87       label "Step of 1 (0–10)" [hidden, offscreen]
- 88       slider "" [hidden, offscreen, horizontal] value=5 [0..10 step 1] actions: increment, decrement
- 89       label "5" [hidden, offscreen]
- 90       label "Disabled" [hidden, offscreen]
+ 55     label "ProgressBar 40% / 80% / indeterminate" [disabled, hidden, offscreen]
+ 56     progress bar "" [disabled, hidden, offscreen, read-only, horizontal] value=40 [0..100] read-only
+ 57     progress bar "" [disabled, hidden, offscreen, read-only, horizontal] value=80 [0..100] read-only
+ 58     progress bar "" [disabled, hidden, offscreen, busy, horizontal]
+ 59     label "Dialogs: 3 scopes (window / app / non-modal), plus two stacked" [disabled, hidden, offscreen]
+ 60     button "Window-modal" [disabled, hidden, offscreen] actions: press
+ 61     button "App-modal" [disabled, hidden, offscreen] actions: press
+ 62     button "Non-modal" [disabled, hidden, offscreen] actions: press
+ 63     button "Stacked (native → internal)" [disabled, hidden, offscreen] actions: press
+ 64     switch "Internal (in-scene)" [disabled, hidden, offscreen] toggle=off actions: toggle
+ 65     switch "Always on top" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+ 66     switch "Decorated (OS frame)" [disabled, hidden, offscreen] toggle=off actions: toggle
+ 67     label "Every dialog reports its result below, including one closed by the OS frame's own button (turn on Decorated), which reports as cancelled." [disabled, hidden, offscreen]
+ 68     label "Audio (limn.sound) and window" [disabled, hidden, offscreen]
+ 69     button "Play sound (synthesis)" [disabled, hidden, offscreen] actions: press
+ 70     button "Fullscreen (native)" [disabled, hidden, offscreen] actions: press
+ 71     button "Fullscreen 1280×720" [disabled, hidden, offscreen] actions: press
+ 72   scroll pane "Menus" (label) [disabled, hidden, offscreen] scroll none | labelled by #17 "Menus"
+ 73     label "Dropdown from a button (submenus, checkable items, separators, disabled entries):" [disabled, hidden, offscreen]
+ 74     button "Actions menu" [disabled, hidden, offscreen] actions: press
+ 75     switch "Modal (blocks the window)" [disabled, hidden, offscreen] toggle=off actions: toggle
+ 76     label "Context menu (right-click the area below):" [disabled, hidden, offscreen]
+ 77     label "The MenuBar at the top (File / Edit / View) also opens native menus with submenus." [disabled, hidden, offscreen]
+ 78   tab panel "List" (label) [disabled, hidden, offscreen] | labelled by #18 "List"
+ 79     list "" [disabled, hidden, offscreen] selection=single scroll v=0% view 0%
+ 80       scroll bar "" [disabled, hidden, offscreen, vertical] value=0 [0..240000] actions: increment, decrement
+ 81   tab panel "Controls" (label) [disabled, hidden, offscreen] | labelled by #19 "Controls"
+ 82     scroll pane "" [disabled, hidden, offscreen] scroll none
+ 83       heading "Slider" [disabled, hidden, offscreen]
+ 84       label "Continuous (0–100)" [disabled, hidden, offscreen]
+ 85       slider "" [disabled, hidden, offscreen, horizontal] value=30 [0..100] actions: increment, decrement
+ 86       label "30" [disabled, hidden, offscreen]
+ 87       label "Step of 1 (0–10)" [disabled, hidden, offscreen]
+ 88       slider "" [disabled, hidden, offscreen, horizontal] value=5 [0..10 step 1] actions: increment, decrement
+ 89       label "5" [disabled, hidden, offscreen]
+ 90       label "Disabled" [disabled, hidden, offscreen]
  91       slider "" [disabled, hidden, offscreen, horizontal] value=40 [0..100] actions: increment, decrement
- 92       label "40" [hidden, offscreen]
- 93       heading "Spinner" [hidden, offscreen]
- 94       label "Buttons and keyboard (arrows, PageUp/Down, Home/End), or type the value: a digit starts an edit with the old number selected, Enter commits, Escape puts it back, and copy/paste work either way. The wheel is deliberately not a value gesture." [hidden, offscreen]
- 95       spin button "" [hidden, offscreen] value=1 [0..99 step 1] "1" actions: increment, decrement
- 96         button "Increase" [hidden, offscreen] actions: press
- 97         button "Decrease" [hidden, offscreen] actions: press
- 98       label "Quantity (0–99)" [hidden, offscreen]
- 99       spin button "" [hidden, offscreen] value=0.500 [0..1 step 0.250] "0.50" actions: increment, decrement
-100         button "Increase" [hidden, offscreen] actions: press
-101         button "Decrease" [hidden, offscreen] actions: press
-102       label "Fraction (step 0.25)" [hidden, offscreen]
-103       spin button "" [hidden, offscreen] value=450 [0..1439 step 60] "07:30" actions: increment, decrement
-104         button "Increase" [hidden, offscreen] actions: press
-105         button "Decrease" [hidden, offscreen] actions: press
-106       label "Time (HH:MM)" [hidden, offscreen]
+ 92       label "40" [disabled, hidden, offscreen]
+ 93       heading "Spinner" [disabled, hidden, offscreen]
+ 94       label "Buttons and keyboard (arrows, PageUp/Down, Home/End), or type the value: a digit starts an edit with the old number selected, Enter commits, Escape puts it back, and copy/paste work either way. The wheel is deliberately not a value gesture." [disabled, hidden, offscreen]
+ 95       spin button "" [disabled, hidden, offscreen] value=1 [0..99 step 1] "1" actions: increment, decrement
+ 96         button "Increase" [disabled, hidden, offscreen] actions: press
+ 97         button "Decrease" [disabled, hidden, offscreen] actions: press
+ 98       label "Quantity (0–99)" [disabled, hidden, offscreen]
+ 99       spin button "" [disabled, hidden, offscreen] value=0.500 [0..1 step 0.250] "0.50" actions: increment, decrement
+100         button "Increase" [disabled, hidden, offscreen] actions: press
+101         button "Decrease" [disabled, hidden, offscreen] actions: press
+102       label "Fraction (step 0.25)" [disabled, hidden, offscreen]
+103       spin button "" [disabled, hidden, offscreen] value=450 [0..1439 step 60] "07:30" actions: increment, decrement
+104         button "Increase" [disabled, hidden, offscreen] actions: press
+105         button "Decrease" [disabled, hidden, offscreen] actions: press
+106       label "Time (HH:MM)" [disabled, hidden, offscreen]
 107       spin button "" [disabled, hidden, offscreen] value=3 [0..10 step 1] "3" actions: increment, decrement
 108         button "Increase" [disabled, hidden, offscreen] actions: press
 109         button "Decrease" [disabled, hidden, offscreen] actions: press
-110       label "Disabled" [hidden, offscreen]
-111   scroll pane "3D" (label) [hidden, offscreen] scroll none | labelled by #20 "3D"
-112     label "3D showcase: subsystem capabilities" [hidden, offscreen]
-113     radio group "" [hidden, offscreen, horizontal] selection=single required active=#114 "PBR" scroll none
-114       radio button "PBR" [hidden, offscreen, selected, active] item 1 of 2 selected actions: select
-115       radio button "Shadows" [hidden, offscreen] item 2 of 2 unselected actions: select
-116     label "PBR metallic-roughness under 3 lights (directional + point + spot); click to select." [hidden, offscreen]
-117     combo box "Render 100%" desc "Renders the 3D target below device resolution and upsamples it; memory and fill cost fall with the square of the setting" [hidden, offscreen, has-popup] value=0 [0..3 step 1] "Render 100%" collapsed actions: expand
-118     canvas "" desc "3D unavailable (no GPU backend)" [hidden, offscreen]
-119     canvas "" desc "3D unavailable (no GPU backend)" [hidden, offscreen]
-120   scroll pane "Video" (label) [hidden, offscreen] scroll none | labelled by #21 "Video"
-121     label "Video: decoded planes, converted on the device" [hidden, offscreen]
-122     radio group "" [hidden, offscreen, horizontal] selection=single required active=#123 "Bars" scroll none
-123       radio button "Bars" [hidden, offscreen, selected, active] item 1 of 2 selected actions: select
-124       radio button "MP4" [hidden, offscreen] item 2 of 2 unselected actions: select
-125     video "Decoded planes uploaded to a video surface and composited as one quad" (tooltip) desc "Video unavailable (no GPU backend)" [hidden, offscreen]
-126     tool bar "" [hidden, offscreen, horizontal] | controller for #125 "Decoded planes uploaded to a video surface and composited as one quad"
+110       label "Disabled" [disabled, hidden, offscreen]
+111   scroll pane "3D" (label) [disabled, hidden, offscreen] scroll none | labelled by #20 "3D"
+112     label "3D showcase: subsystem capabilities" [disabled, hidden, offscreen]
+113     radio group "" [disabled, hidden, offscreen, horizontal] selection=single required active=#114 "PBR" scroll none
+114       radio button "PBR" [disabled, hidden, offscreen, selected, active] item 1 of 2 selected actions: select
+115       radio button "Shadows" [disabled, hidden, offscreen] item 2 of 2 unselected actions: select
+116     label "PBR metallic-roughness under 3 lights (directional + point + spot); click to select." [disabled, hidden, offscreen]
+117     combo box "Render 100%" desc "Renders the 3D target below device resolution and upsamples it; memory and fill cost fall with the square of the setting" [disabled, hidden, offscreen, has-popup] value=0 [0..3 step 1] "Render 100%" collapsed actions: expand
+118     canvas "" desc "3D unavailable (no GPU backend)" [disabled, hidden, offscreen]
+119     canvas "" desc "3D unavailable (no GPU backend)" [disabled, hidden, offscreen]
+120   scroll pane "Video" (label) [disabled, hidden, offscreen] scroll none | labelled by #21 "Video"
+121     label "Video: decoded planes, converted on the device" [disabled, hidden, offscreen]
+122     radio group "" [disabled, hidden, offscreen, horizontal] selection=single required active=#123 "Bars" scroll none
+123       radio button "Bars" [disabled, hidden, offscreen, selected, active] item 1 of 2 selected actions: select
+124       radio button "MP4" [disabled, hidden, offscreen] item 2 of 2 unselected actions: select
+125     video "Decoded planes uploaded to a video surface and composited as one quad" (tooltip) desc "Video unavailable (no GPU backend)" [disabled, hidden, offscreen]
+126     tool bar "" [disabled, hidden, offscreen, horizontal] | controller for #125 "Decoded planes uploaded to a video surface and composited as one quad"
 127       button "Pause" (tooltip) [disabled, hidden, offscreen] actions: press
-128       button "Mute" (tooltip) [hidden, offscreen] actions: press
-129       slider "Volume" (tooltip) [hidden, offscreen, horizontal] value=100 [0..100] actions: increment, decrement
-130       group "Silence the soundtrack, keeping it where it is" (tooltip) [hidden, offscreen]
-131       slider "How loud, from silent to full" (tooltip) [hidden, offscreen, horizontal] value=0 [0..100] actions: increment, decrement
+128       button "Mute" (tooltip) [disabled, hidden, offscreen] actions: press
+129       slider "Volume" (tooltip) [disabled, hidden, offscreen, horizontal] value=100 [0..100] actions: increment, decrement
+130       group "Silence the soundtrack, keeping it where it is" (tooltip) [disabled, hidden, offscreen]
+131       slider "How loud, from silent to full" (tooltip) [disabled, hidden, offscreen, horizontal] value=0 [0..100] actions: increment, decrement
 132       slider "Drag to scrub" (tooltip) [disabled, hidden, offscreen, horizontal] value=0 [0..1000] actions: increment, decrement
-133       group "Show the next subtitle track of this container, or none" (tooltip) [hidden, offscreen]
-134       label "0:00" [hidden, offscreen]
-135     button "Restart" desc "Play this source again from its first picture" [hidden, offscreen] actions: press
-136     button "Open…" desc "Play a file from this machine through the installed decoders" [hidden, offscreen] actions: press
-137     button "Open in window…" desc "Play a file in a resizable window of its own" [hidden, offscreen] actions: press
-138     radio group "Letterbox inside the box, crop to cover it, or stretch to it" (tooltip) [hidden, offscreen, horizontal] selection=single required active=#139 "Contain" scroll none
-139       radio button "Contain" [hidden, offscreen, selected, active] item 1 of 3 selected actions: select
-140       radio button "Cover" [hidden, offscreen] item 2 of 3 unselected actions: select
-141       radio button "Fill" [hidden, offscreen] item 3 of 3 unselected actions: select
-142     switch "Soundtrack" desc "Decode on a thread of its own and time the pictures by the audio" [hidden, offscreen, checked] toggle=on actions: toggle
-143     button "Audio" desc "Play the next audio track of this container, keeping the position" [hidden, offscreen] actions: press
-144     label "Colour bars in the studio BT.709 code table, 4:2:0. A wrong matrix or range does not read as \"slightly off\"; it reads as the wrong bars." [hidden, offscreen]
-145     label "No VideoDecoder installed: call Videos.installDecoder before opening video (e.g. new Y4mDecoder(), which ships in this module, or new FfmpegVideoDecoder() from limn-video-ffmpeg). A backend does not supply one." [hidden, offscreen]
-146     label "Two pure-Java decoders (a YUV4MPEG2 reader and a generator whose every sample is arithmetic) and one with a trimmed FFmpeg behind a JNI shim, which is absent unless it has been built and says so rather than failing. No media file is committed here: every one of these is produced on the way in." [hidden, offscreen]
-147     label "No soundtrack: the view decodes on the UI thread and paces on the wall clock." [hidden, offscreen]
-148     label "The soundtrack clicks once a second and higher every fifth, and the counter pattern draws the picture index, so a click landing anywhere but on a multiple of thirty is audible drift, not a matter of taste. It is generated sample by sample and handed over already open, the way a container's audio track is; no file is written and none is committed." [hidden, offscreen]
-149   scroll pane "Charts" (label) [hidden, offscreen] scroll none | labelled by #22 "Charts"
-150     heading "Charts" [hidden, offscreen]
-151     label "Hover a mark for its value; click one to select it." [hidden, offscreen]
-152     chart "Revenue by quarter" [hidden, offscreen, vertical]
-153       chart series "Direct" [hidden, offscreen, checked] toggle=on actions: toggle
-154       chart series "Partner" [hidden, offscreen, checked] toggle=on actions: toggle
-155     chart "Traffic sources" desc "Sessions" [hidden, offscreen]
-156       chart series "Direct" [hidden, offscreen, checked] toggle=on actions: toggle
-157       chart series "Search" [hidden, offscreen, checked] toggle=on actions: toggle
-158       chart series "Social" [hidden, offscreen, checked] toggle=on actions: toggle
-159       chart series "Mail" [hidden, offscreen, checked] toggle=on actions: toggle
-160       heading "100" [hidden, offscreen]
-161       label "sessions" [hidden, offscreen]
-162       button "Shuffle" [hidden, offscreen] actions: press
-163     chart "Latency, last 12 hours" [hidden, offscreen, vertical]
-164       chart series "p50" [hidden, offscreen, checked] toggle=on actions: toggle
-165       chart series "p99" [hidden, offscreen, checked] toggle=on actions: toggle
-166     chart "Support load by channel" [hidden, offscreen, horizontal]
-167       chart series "Open" [hidden, offscreen, checked] toggle=on actions: toggle
-168       chart series "Waiting" [hidden, offscreen, checked] toggle=on actions: toggle
-169       chart series "Closed" [hidden, offscreen, checked] toggle=on actions: toggle
-170   scroll pane "Scripts" (label) [hidden, offscreen] scroll none | labelled by #23 "Scripts"
-171     heading "Bidi and complex scripts" [hidden, offscreen]
-172     label "A shaper chooses the glyphs and java.text.Bidi puts them in order. The layout is not mirrored: right-to-left text, left-to-right screen." [hidden, offscreen]
-173     label "Arabic — 7 code points, 10 glyphs, chosen by the neighbours" [hidden, offscreen]
-174     label "العربية" [hidden, offscreen]
-175     label "Arabic marks — one word vocalized and bare; the font places them" [hidden, offscreen]
-176     label "كَتَبَ   كتب" [hidden, offscreen]
-177     label "Hebrew — right to left, niqqud at zero advance" [hidden, offscreen]
-178     label "שָׁלוֹם   שלום" [hidden, offscreen]
-179     label "Bidi — one line, three runs at levels 0 / 1 / 0" [hidden, offscreen]
-180     label "Total: 42 ريال (SAR)" [hidden, offscreen]
-181     label "Bidi — an Arabic line with a Latin island inside it" [hidden, offscreen]
-182     label "مرحبا Limn UI 2026 العربية" [hidden, offscreen]
-183     label "Devanagari — ksha: 3 code points, 1 glyph" [hidden, offscreen]
-184     label "क्ष" [hidden, offscreen]
-185     label "Devanagari — the i-matra is drawn before its consonant" [hidden, offscreen]
-186     label "हिन्दी" [hidden, offscreen]
-187     label "Thai — sara am is one code point and two glyphs" [hidden, offscreen]
-188     label "น้ำ   ปิ่น   ภาษาไทย" [hidden, offscreen]
-189     label "Editable — click into it, drag a selection, walk it with the arrows" [hidden, offscreen]
-190     text field "" [hidden, offscreen, editable] text="مرحبا Limn UI 2026 العربية" caret=26 actions: show menu
-191     text field "" [hidden, offscreen, editable] text="שלום Limn UI 2026" caret=17 actions: show menu
-192     label "Pinned locale — the right pair declares Arabic; the window's language moves only the left" [hidden, offscreen]
-193     label "Notifications" [hidden, offscreen]
-194     spin button "" [hidden, offscreen] value=42 [0..100 step 1] "42" actions: increment, decrement
-195       button "Increase" [hidden, offscreen] actions: press
-196       button "Decrease" [hidden, offscreen] actions: press
-197     label "الإشعارات" lang ar [hidden, offscreen]
-198     spin button "" lang ar [hidden, offscreen] value=42 [0..100 step 1] "٤٢" actions: increment, decrement
-199       button "زيادة" lang ar [hidden, offscreen] actions: press
-200       button "إنقاص" lang ar [hidden, offscreen] actions: press
-201     label "Wrapped Arabic" [hidden, offscreen]
-202     label "هذه فقرة عربية تلتف على عدة أسطر داخل عمود ثابت، ومكان القطع تحدده حدود يونيكود لا عدُّ الحروف." [hidden, offscreen]
-203     label "Wrapped Hebrew" [hidden, offscreen]
-204     label "זו פסקה בעברית הנשברת לכמה שורות בתוך עמודה קבועה, ומקום השבירה נקבע לפי גבולות יוניקוד ולא לפי ספירת תווים." [hidden, offscreen]
-205     label "Wrapped Devanagari — conjuncts in running text" [hidden, offscreen]
-206     label "यह हिन्दी का अनुच्छेद कई पंक्तियों में लिपटता है; क्षमता और शिक्षा जैसे संयुक्ताक्षर यहाँ भी बनते हैं।" [hidden, offscreen]
-207     label "Wrapped Thai — not one space in it" [hidden, offscreen]
-208     label "ภาษาไทยไม่เว้นวรรคระหว่างคำการขึ้นบรรทัดใหม่จึงต้องอาศัยตัวแบ่งบรรทัดแทนช่องว่าง" [hidden, offscreen]
-209   tab panel "Icons" (label) [hidden, offscreen] | labelled by #24 "Icons"
-210     heading "Tabler icons: the whole pack, virtualized" [hidden, offscreen]
-211     label "Every icon of an opt-in module that nothing else depends on. The list mounts only the rows on screen, so scrolling the catalogue rasterizes what you can see and no more. Names are checked by the compiler through one enum per upstream category; this row is TablerSystem.SEARCH." [hidden, offscreen]
-212     label "TablerSystem.SEARCH" [hidden, offscreen]
-213     search field "Search…" (placeholder) [hidden, offscreen, editable] text="" caret=0 actions: press, show menu
-214       button "Clear" [hidden, offscreen] actions: press
-215     label "5130 icons · tinted from the theme, so they follow light and dark" [hidden, offscreen]
-216     list "" [hidden, offscreen] selection=single scroll v=0% view 0%
-217       scroll bar "" [hidden, offscreen, vertical] value=0 [0..246240] actions: increment, decrement
-218     label "Click a row for its constant." [hidden, offscreen]
-219   tab panel "Files" (label) [hidden, offscreen] | labelled by #25 "Files"
-220     scroll pane "" [hidden, offscreen] scroll none
-221       heading "OS files: dialogs, drop, window extras" [hidden, offscreen]
-222       heading "Native file dialogs" [hidden, offscreen]
-223       label "The platform's own chooser (tinyfiledialogs via LWJGL, no AWT). Each call blocks the UI thread while the system dialog is open, like any native app." [hidden, offscreen]
-224       button "Open file…" [hidden, offscreen] actions: press
-225       button "Open files…" [hidden, offscreen] actions: press
-226       button "Save file…" [hidden, offscreen] actions: press
-227       button "Choose folder…" [hidden, offscreen] actions: press
-228       label "The sketch filter below uses a made-up extension (*.limn) that no installed application registers: the case that used to show every matching file disabled on macOS, where the panel matches types rather than names. The dialog opens on a generated sample folder: the .limn files are selectable, the decoys beside them are not." [hidden, offscreen]
-229       button "Open sketch (*.limn)…" [hidden, offscreen] actions: press
-230       label "No dialog shown yet." [hidden, offscreen]
-231       heading "Drag & drop from the OS" [hidden, offscreen]
-232       label "Drag files from Finder/Explorer onto the area below; they arrive as a FileDropEvent bubbling from the widget under the pointer (Widget.onFileDrop)." [hidden, offscreen]
-233       heading "Window extras" [hidden, offscreen]
-234       label "This window has an icon (Windows/Linux; macOS windows use the app bundle's icon), a 480×360 pt minimum size, and (while the switch is on) a close-request veto: the OS close button asks for confirmation first." [hidden, offscreen]
-235       switch "Confirm before closing" [hidden, offscreen, checked] toggle=on actions: toggle
-236   scroll pane "About" (label) [hidden, offscreen] scroll none | labelled by #26 "About"
-237     image "" [hidden, offscreen]
-238     label "Limn UI" [hidden, offscreen]
-239     label "A Java GUI toolkit built from scratch on LWJGL, without AWT, Swing or SWT." [hidden, offscreen]
-240     image "" [hidden, offscreen]
-241     image "" [hidden, offscreen]
-242     label "Icons tinted by the theme" [hidden, offscreen]
-243   label "Ready."
-244   label ""
+133       group "Show the next subtitle track of this container, or none" (tooltip) [disabled, hidden, offscreen]
+134       label "0:00" [disabled, hidden, offscreen]
+135     button "Restart" desc "Play this source again from its first picture" [disabled, hidden, offscreen] actions: press
+136     button "Open…" desc "Play a file from this machine through the installed decoders" [disabled, hidden, offscreen] actions: press
+137     button "Open in window…" desc "Play a file in a resizable window of its own" [disabled, hidden, offscreen] actions: press
+138     radio group "Letterbox inside the box, crop to cover it, or stretch to it" (tooltip) [disabled, hidden, offscreen, horizontal] selection=single required active=#139 "Contain" scroll none
+139       radio button "Contain" [disabled, hidden, offscreen, selected, active] item 1 of 3 selected actions: select
+140       radio button "Cover" [disabled, hidden, offscreen] item 2 of 3 unselected actions: select
+141       radio button "Fill" [disabled, hidden, offscreen] item 3 of 3 unselected actions: select
+142     switch "Soundtrack" desc "Decode on a thread of its own and time the pictures by the audio" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+143     button "Audio" desc "Play the next audio track of this container, keeping the position" [disabled, hidden, offscreen] actions: press
+144     label "Colour bars in the studio BT.709 code table, 4:2:0. A wrong matrix or range does not read as \"slightly off\"; it reads as the wrong bars." [disabled, hidden, offscreen]
+145     label "No VideoDecoder installed: call Videos.installDecoder before opening video (e.g. new Y4mDecoder(), which ships in this module, or new FfmpegVideoDecoder() from limn-video-ffmpeg). A backend does not supply one." [disabled, hidden, offscreen]
+146     label "Two pure-Java decoders (a YUV4MPEG2 reader and a generator whose every sample is arithmetic) and one with a trimmed FFmpeg behind a JNI shim, which is absent unless it has been built and says so rather than failing. No media file is committed here: every one of these is produced on the way in." [disabled, hidden, offscreen]
+147     label "No soundtrack: the view decodes on the UI thread and paces on the wall clock." [disabled, hidden, offscreen]
+148     label "The soundtrack clicks once a second and higher every fifth, and the counter pattern draws the picture index, so a click landing anywhere but on a multiple of thirty is audible drift, not a matter of taste. It is generated sample by sample and handed over already open, the way a container's audio track is; no file is written and none is committed." [disabled, hidden, offscreen]
+149   scroll pane "Charts" (label) [disabled, hidden, offscreen] scroll none | labelled by #22 "Charts"
+150     heading "Charts" [disabled, hidden, offscreen]
+151     label "Hover a mark for its value; click one to select it." [disabled, hidden, offscreen]
+152     chart "Revenue by quarter" [disabled, hidden, offscreen, vertical]
+153       chart series "Direct" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+154       chart series "Partner" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+155     chart "Traffic sources" desc "Sessions" [disabled, hidden, offscreen]
+156       chart series "Direct" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+157       chart series "Search" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+158       chart series "Social" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+159       chart series "Mail" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+160       heading "100" [disabled, hidden, offscreen]
+161       label "sessions" [disabled, hidden, offscreen]
+162       button "Shuffle" [disabled, hidden, offscreen] actions: press
+163     chart "Latency, last 12 hours" [disabled, hidden, offscreen, vertical]
+164       chart series "p50" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+165       chart series "p99" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+166     chart "Support load by channel" [disabled, hidden, offscreen, horizontal]
+167       chart series "Open" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+168       chart series "Waiting" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+169       chart series "Closed" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+170   scroll pane "Scripts" (label) [disabled, hidden, offscreen] scroll none | labelled by #23 "Scripts"
+171     heading "Bidi and complex scripts" [disabled, hidden, offscreen]
+172     label "A shaper chooses the glyphs and java.text.Bidi puts them in order. The layout is not mirrored: right-to-left text, left-to-right screen." [disabled, hidden, offscreen]
+173     label "Arabic — 7 code points, 10 glyphs, chosen by the neighbours" [disabled, hidden, offscreen]
+174     label "العربية" [disabled, hidden, offscreen]
+175     label "Arabic marks — one word vocalized and bare; the font places them" [disabled, hidden, offscreen]
+176     label "كَتَبَ   كتب" [disabled, hidden, offscreen]
+177     label "Hebrew — right to left, niqqud at zero advance" [disabled, hidden, offscreen]
+178     label "שָׁלוֹם   שלום" [disabled, hidden, offscreen]
+179     label "Bidi — one line, three runs at levels 0 / 1 / 0" [disabled, hidden, offscreen]
+180     label "Total: 42 ريال (SAR)" [disabled, hidden, offscreen]
+181     label "Bidi — an Arabic line with a Latin island inside it" [disabled, hidden, offscreen]
+182     label "مرحبا Limn UI 2026 العربية" [disabled, hidden, offscreen]
+183     label "Devanagari — ksha: 3 code points, 1 glyph" [disabled, hidden, offscreen]
+184     label "क्ष" [disabled, hidden, offscreen]
+185     label "Devanagari — the i-matra is drawn before its consonant" [disabled, hidden, offscreen]
+186     label "हिन्दी" [disabled, hidden, offscreen]
+187     label "Thai — sara am is one code point and two glyphs" [disabled, hidden, offscreen]
+188     label "น้ำ   ปิ่น   ภาษาไทย" [disabled, hidden, offscreen]
+189     label "Editable — click into it, drag a selection, walk it with the arrows" [disabled, hidden, offscreen]
+190     text field "" [disabled, hidden, offscreen, editable] text="مرحبا Limn UI 2026 العربية" caret=26 actions: show menu
+191     text field "" [disabled, hidden, offscreen, editable] text="שלום Limn UI 2026" caret=17 actions: show menu
+192     label "Pinned locale — the right pair declares Arabic; the window's language moves only the left" [disabled, hidden, offscreen]
+193     label "Notifications" [disabled, hidden, offscreen]
+194     spin button "" [disabled, hidden, offscreen] value=42 [0..100 step 1] "42" actions: increment, decrement
+195       button "Increase" [disabled, hidden, offscreen] actions: press
+196       button "Decrease" [disabled, hidden, offscreen] actions: press
+197     label "الإشعارات" lang ar [disabled, hidden, offscreen]
+198     spin button "" lang ar [disabled, hidden, offscreen] value=42 [0..100 step 1] "٤٢" actions: increment, decrement
+199       button "زيادة" lang ar [disabled, hidden, offscreen] actions: press
+200       button "إنقاص" lang ar [disabled, hidden, offscreen] actions: press
+201     label "Wrapped Arabic" [disabled, hidden, offscreen]
+202     label "هذه فقرة عربية تلتف على عدة أسطر داخل عمود ثابت، ومكان القطع تحدده حدود يونيكود لا عدُّ الحروف." [disabled, hidden, offscreen]
+203     label "Wrapped Hebrew" [disabled, hidden, offscreen]
+204     label "זו פסקה בעברית הנשברת לכמה שורות בתוך עמודה קבועה, ומקום השבירה נקבע לפי גבולות יוניקוד ולא לפי ספירת תווים." [disabled, hidden, offscreen]
+205     label "Wrapped Devanagari — conjuncts in running text" [disabled, hidden, offscreen]
+206     label "यह हिन्दी का अनुच्छेद कई पंक्तियों में लिपटता है; क्षमता और शिक्षा जैसे संयुक्ताक्षर यहाँ भी बनते हैं।" [disabled, hidden, offscreen]
+207     label "Wrapped Thai — not one space in it" [disabled, hidden, offscreen]
+208     label "ภาษาไทยไม่เว้นวรรคระหว่างคำการขึ้นบรรทัดใหม่จึงต้องอาศัยตัวแบ่งบรรทัดแทนช่องว่าง" [disabled, hidden, offscreen]
+209   tab panel "Icons" (label) [disabled, hidden, offscreen] | labelled by #24 "Icons"
+210     heading "Tabler icons: the whole pack, virtualized" [disabled, hidden, offscreen]
+211     label "Every icon of an opt-in module that nothing else depends on. The list mounts only the rows on screen, so scrolling the catalogue rasterizes what you can see and no more. Names are checked by the compiler through one enum per upstream category; this row is TablerSystem.SEARCH." [disabled, hidden, offscreen]
+212     label "TablerSystem.SEARCH" [disabled, hidden, offscreen]
+213     search field "Search…" (placeholder) [disabled, hidden, offscreen, editable] text="" caret=0 actions: press, show menu
+214       button "Clear" [disabled, hidden, offscreen] actions: press
+215     label "5130 icons · tinted from the theme, so they follow light and dark" [disabled, hidden, offscreen]
+216     list "" [disabled, hidden, offscreen] selection=single scroll v=0% view 0%
+217       scroll bar "" [disabled, hidden, offscreen, vertical] value=0 [0..246240] actions: increment, decrement
+218     label "Click a row for its constant." [disabled, hidden, offscreen]
+219   tab panel "Files" (label) [disabled, hidden, offscreen] | labelled by #25 "Files"
+220     scroll pane "" [disabled, hidden, offscreen] scroll none
+221       heading "OS files: dialogs, drop, window extras" [disabled, hidden, offscreen]
+222       heading "Native file dialogs" [disabled, hidden, offscreen]
+223       label "The platform's own chooser (tinyfiledialogs via LWJGL, no AWT). Each call blocks the UI thread while the system dialog is open, like any native app." [disabled, hidden, offscreen]
+224       button "Open file…" [disabled, hidden, offscreen] actions: press
+225       button "Open files…" [disabled, hidden, offscreen] actions: press
+226       button "Save file…" [disabled, hidden, offscreen] actions: press
+227       button "Choose folder…" [disabled, hidden, offscreen] actions: press
+228       label "The sketch filter below uses a made-up extension (*.limn) that no installed application registers: the case that used to show every matching file disabled on macOS, where the panel matches types rather than names. The dialog opens on a generated sample folder: the .limn files are selectable, the decoys beside them are not." [disabled, hidden, offscreen]
+229       button "Open sketch (*.limn)…" [disabled, hidden, offscreen] actions: press
+230       label "No dialog shown yet." [disabled, hidden, offscreen]
+231       heading "Drag & drop from the OS" [disabled, hidden, offscreen]
+232       label "Drag files from Finder/Explorer onto the area below; they arrive as a FileDropEvent bubbling from the widget under the pointer (Widget.onFileDrop)." [disabled, hidden, offscreen]
+233       heading "Window extras" [disabled, hidden, offscreen]
+234       label "This window has an icon (Windows/Linux; macOS windows use the app bundle's icon), a 480×360 pt minimum size, and (while the switch is on) a close-request veto: the OS close button asks for confirmation first." [disabled, hidden, offscreen]
+235       switch "Confirm before closing" [disabled, hidden, offscreen, checked] toggle=on actions: toggle
+236   scroll pane "About" (label) [disabled, hidden, offscreen] scroll none | labelled by #26 "About"
+237     image "" [disabled, hidden, offscreen]
+238     label "Limn UI" [disabled, hidden, offscreen]
+239     label "A Java GUI toolkit built from scratch on LWJGL, without AWT, Swing or SWT." [disabled, hidden, offscreen]
+240     image "" [disabled, hidden, offscreen]
+241     image "" [disabled, hidden, offscreen]
+242     label "Icons tinted by the theme" [disabled, hidden, offscreen]
+243   label "Ready." [disabled]
+244   label "" [disabled]
 == window "Dialog: window-modal" (modal) ==
 1 window "Dialog: window-modal" (explicit) [active] window modal normal
 2   dialog "Dialog: window-modal" desc "This is a window-modal dialog. Choose an option." actions: cancel
