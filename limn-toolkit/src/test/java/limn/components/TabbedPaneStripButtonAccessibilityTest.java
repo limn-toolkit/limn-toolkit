@@ -4,7 +4,6 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleRelation;
-import limn.accessibility.AccessibleTree;
 import limn.scene.LayoutDirection;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
@@ -166,13 +165,6 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
         return found;
     }
 
-    /** @return the node carrying {@code id} */
-    private AccessibleNode nodeWith(long id) {
-        AccessibleTree tree = tree();
-        int index = tree.indexOf(id);
-        assertTrue(index >= 0, "the tree holds no node " + id + describe(tree));
-        return tree.node(index);
-    }
 
     /** @return the identifier {@code kind} resolves to on this node, or zero when it has none */
     private long targetOf(AccessibleNode node, Accessible.Relation kind) {
@@ -445,9 +437,9 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
         assertEquals(tree().focused(), surface,
                 "the button controls the layer that took the keyboard when the menu opened"
                         + describe(tree()));
-        assertEquals(0, nodeWith(surface).parent(),
+        assertEquals(0, node(surface).parent(),
                 "which is an overlay, hanging under the window node" + describe(tree()));
-        assertEquals(button.id(), targetOf(nodeWith(surface), Accessible.Relation.POPUP_FOR),
+        assertEquals(button.id(), targetOf(node(surface), Accessible.Relation.POPUP_FOR),
                 "and the menu points back at the button rather than at a container that did not "
                         + "open it" + describe(tree()));
     }
@@ -473,7 +465,7 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
         assertEquals(tree().focused(), surface,
                 "the second verb reaches the same private path the first one does"
                         + describe(tree()));
-        assertEquals(button.id(), targetOf(nodeWith(surface), Accessible.Relation.POPUP_FOR),
+        assertEquals(button.id(), targetOf(node(surface), Accessible.Relation.POPUP_FOR),
                 describe(tree()));
     }
 

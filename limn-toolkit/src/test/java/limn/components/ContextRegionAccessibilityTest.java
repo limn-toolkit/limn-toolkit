@@ -3,7 +3,6 @@ package limn.components;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleRelation;
-import limn.accessibility.AccessibleTree;
 import limn.scene.Insets;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
@@ -137,13 +136,6 @@ class ContextRegionAccessibilityTest extends AccessibleComponentTestBase {
         return node(Accessible.Role.GROUP);
     }
 
-    /** @return the node carrying {@code id} */
-    private AccessibleNode nodeWith(long id) {
-        AccessibleTree tree = tree();
-        int index = tree.indexOf(id);
-        assertTrue(index >= 0, "the tree holds no node " + id + describe(tree));
-        return tree.node(index);
-    }
 
     /** @return the identifier {@code kind} resolves to on this node, or zero when it has none */
     private long targetOf(AccessibleNode node, Accessible.Relation kind) {
@@ -336,10 +328,10 @@ class ContextRegionAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(1, source.asked, describe(tree()));
         assertTrue(tree().nodeCount() > nodes,
                 "the overlay joined the tree" + describe(tree()));
-        long surface = targetOf(nodeWith(group), Accessible.Relation.CONTROLLER_FOR);
+        long surface = targetOf(node(group), Accessible.Relation.CONTROLLER_FOR);
         assertNotEquals(0, surface,
                 "the region controls the layer the menu mounted as" + describe(tree()));
-        assertEquals(group, targetOf(nodeWith(surface), Accessible.Relation.POPUP_FOR),
+        assertEquals(group, targetOf(node(surface), Accessible.Relation.POPUP_FOR),
                 "and the menu points back at the node that declared HAS_POPUP rather than at "
                         + "whatever happened to hold focus" + describe(tree()));
     }

@@ -187,16 +187,6 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
         return node(Accessible.Role.SCROLL_BAR);
     }
 
-    /** @return every event of {@code type} raised so far, in order */
-    private List<AccessibleEvent> eventsOf(AccessibleEvent.Type type) {
-        List<AccessibleEvent> found = new ArrayList<>();
-        for (AccessibleEvent event : bridge.events) {
-            if (event.type() == type) {
-                found.add(event);
-            }
-        }
-        return found;
-    }
 
     /** @return whether any node in {@code tree} carries {@code role} */
     private static boolean anyNodeIs(AccessibleTree tree, Accessible.Role role) {
@@ -317,7 +307,7 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
         hostScrollsTo(300);
         frame();
 
-        List<AccessibleEvent> changes = eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
+        List<AccessibleEvent> changes = bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
         assertEquals(1, changes.size(), bridge.events.toString());
         assertEquals(id, changes.get(0).nodeId());
         assertEquals(0.0, changes.get(0).oldValue());
@@ -398,7 +388,7 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(anyNodeIs(tree(), Accessible.Role.SCROLL_BAR),
                 "a range with a maximum of zero that nothing can operate" + describe(tree()));
         assertEquals(1, bridge.countOf(AccessibleEvent.Type.NODE_DESTROYED), bridge.events.toString());
-        assertEquals(id, eventsOf(AccessibleEvent.Type.NODE_DESTROYED).get(0).nodeId());
+        assertEquals(id, bridge.eventsOf(AccessibleEvent.Type.NODE_DESTROYED).get(0).nodeId());
 
         model.content = CONTENT;
         bar.refresh();
@@ -439,7 +429,7 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
                 "a faded bar accepts the set, and the set reveals it as a wheel does: the control "
                         + "puts itself on screen the moment it is used");
         frame();
-        List<AccessibleEvent> changes = eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
+        List<AccessibleEvent> changes = bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
         assertEquals(1, changes.size(), bridge.events.toString());
         assertEquals(id, changes.get(0).nodeId());
         assertEquals(0.0, changes.get(0).oldValue());
@@ -671,7 +661,7 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         assertEquals(200f, view.offsetY(), "a page from a reader scrolls the view");
-        List<AccessibleEvent> changes = eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
+        List<AccessibleEvent> changes = bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
         assertEquals(1, changes.size(),
                 "the host's scroll damages the bar, so the tree learns the offset with no help: "
                         + bridge.events);

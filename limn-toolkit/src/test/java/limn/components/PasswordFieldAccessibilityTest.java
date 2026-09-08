@@ -113,16 +113,6 @@ class PasswordFieldAccessibilityTest extends AccessibleComponentTestBase {
         return published;
     }
 
-    /** @return every event of {@code type} raised so far, in order */
-    private List<AccessibleEvent> eventsOf(AccessibleEvent.Type type) {
-        List<AccessibleEvent> found = new ArrayList<>();
-        for (AccessibleEvent event : bridge.events) {
-            if (event.type() == type) {
-                found.add(event);
-            }
-        }
-        return found;
-    }
 
     /**
      * Sweeps the whole published tree — every name, every description, every facet — for the
@@ -258,7 +248,7 @@ class PasswordFieldAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         assertEquals(ShapedText.Affinity.DOWNSTREAM, facet().caretAffinity(), describe(tree()));
-        assertEquals(List.of(), eventsOf(AccessibleEvent.Type.CARET_MOVED),
+        assertEquals(List.of(), bridge.eventsOf(AccessibleEvent.Type.CARET_MOVED),
                 "the side is a field the difference compares, so an unpinned one would report a "
                         + "caret move for a caret that did not move" + bridge.events);
     }
@@ -322,22 +312,22 @@ class PasswordFieldAccessibilityTest extends AccessibleComponentTestBase {
         bindField();
         field.setText(SECRET);
         frame();
-        assertEquals(1, eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
                 "the first build: empty to three dots" + bridge.events);
 
         bridge.events.clear();
         field.setRevealed(true);
         frame();
-        assertEquals(1, eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
                 "a reader caching three bullets has to be told they became the value"
                         + bridge.events);
-        assertEquals(fieldNode().id(), eventsOf(AccessibleEvent.Type.TEXT_CHANGED).get(0).nodeId());
+        assertEquals(fieldNode().id(), bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED).get(0).nodeId());
         assertEquals(SECRET, facet().text(), describe(tree()));
 
         bridge.events.clear();
         field.setRevealed(false);
         frame();
-        assertEquals(1, eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
                 "and told again on the way back, or it goes on speaking the secret"
                         + bridge.events);
         assertEquals(DOT.repeat(3), facet().text(), describe(tree()));
@@ -354,7 +344,7 @@ class PasswordFieldAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         assertEquals(DOT.repeat(3), facet().text(), describe(tree()));
-        assertEquals(List.of(), eventsOf(AccessibleEvent.Type.TEXT_CHANGED),
+        assertEquals(List.of(), bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED),
                 "three dots became three dots: the counter moves when the published string moves "
                         + "and not when the rebuild runs" + bridge.events);
     }

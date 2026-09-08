@@ -252,16 +252,6 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         return y;
     }
 
-    /**
-     * @param id the identifier to look up
-     * @return the node carrying it
-     */
-    private AccessibleNode byId(long id) {
-        AccessibleTree tree = tree();
-        int at = tree.indexOf(id);
-        assertNotEquals(AccessibleNode.NONE, at, "node " + id + " is gone" + describe(tree));
-        return tree.node(at);
-    }
 
     // ------------------------------------------------------------------------------ the shape
 
@@ -478,7 +468,7 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
                 "accepted, which is not the same as done");
         frame();
 
-        AccessibleNode opener = byId(export.id());
+        AccessibleNode opener = node(export.id());
         assertTrue(opener.expand().expanded(), describe(tree()));
         AccessibleNode submenu = columnUnder(opener);
         assertEquals("Export", submenu.name(),
@@ -498,7 +488,7 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         perform(export.id(), Accessible.Action.SHOW_MENU, Accessible.Argument.NONE);
         frame();
 
-        AccessibleNode opener = byId(export.id());
+        AccessibleNode opener = node(export.id());
         AccessibleNode submenu = columnUnder(opener);
         AccessibleNode deep = rowsOf(submenu).get(0);
 
@@ -575,10 +565,10 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(2, popup.columnCountForTest(),
                 "a collapse on a row with no submenu closes nothing" + describe(tree()));
 
-        perform(byId(export.id()).id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE);
+        perform(node(export.id()).id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE);
         frame();
         assertEquals(1, popup.columnCountForTest(), describe(tree()));
-        assertFalse(byId(export.id()).expand().expanded(), describe(tree()));
+        assertFalse(node(export.id()).expand().expanded(), describe(tree()));
     }
 
     // ------------------------------------------------------------------------------ scrolling
@@ -822,13 +812,13 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
 
         perform(exportId, Accessible.Action.SHOW_MENU, Accessible.Argument.NONE);
         frame();
-        long png = rowsOf(columnUnder(byId(exportId))).get(0).id();
+        long png = rowsOf(columnUnder(node(exportId))).get(0).id();
         perform(exportId, Accessible.Action.COLLAPSE, Accessible.Argument.NONE);
         frame();
         perform(exportId, Accessible.Action.SHOW_MENU, Accessible.Argument.NONE);
         frame();
 
-        assertEquals(png, rowsOf(columnUnder(byId(exportId))).get(0).id(),
+        assertEquals(png, rowsOf(columnUnder(node(exportId))).get(0).id(),
                 "a row is keyed by the serial MenuItem mints once, so closing and reopening its "
                         + "column hands a client back the identifier it already holds"
                         + describe(tree()));

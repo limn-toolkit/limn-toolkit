@@ -186,16 +186,6 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         return children.get(0);
     }
 
-    /** @return every event of {@code type} raised so far, in order */
-    private List<AccessibleEvent> eventsOf(AccessibleEvent.Type type) {
-        List<AccessibleEvent> found = new ArrayList<>();
-        for (AccessibleEvent event : bridge.events) {
-            if (event.type() == type) {
-                found.add(event);
-            }
-        }
-        return found;
-    }
 
     /** Opens a composition of {@code text} with its caret at the end, as the platform does. */
     private void compose(String text) {
@@ -386,7 +376,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
                 fieldNode().text(),
                 "the caret lands at the end, the selection collapses onto it, and a single-line "
                         + "model is one line" + describe(tree()));
-        List<AccessibleEvent> changes = eventsOf(AccessibleEvent.Type.TEXT_CHANGED);
+        List<AccessibleEvent> changes = bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED);
         assertEquals(1, changes.size(), bridge.events.toString());
         assertEquals(fieldNode().id(), changes.get(0).nodeId());
     }
@@ -420,7 +410,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(1, facet.selectionStart(), describe(tree()));
         assertEquals(4, facet.selectionEnd(), describe(tree()));
         assertTrue(facet.hasSelection(), describe(tree()));
-        assertEquals(1, eventsOf(AccessibleEvent.Type.TEXT_SELECTION_CHANGED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.TEXT_SELECTION_CHANGED).size(),
                 bridge.events.toString());
     }
 
@@ -447,7 +437,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
                 "the preedit caret trails what was just typed" + describe(tree()));
         assertFalse(composing.hasSelection(),
                 "a composition paints no selection band" + describe(tree()));
-        assertEquals(1, eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
                 bridge.events.toString());
 
         // The case that fails outright if the witness is the model's own counter: the model does
@@ -458,7 +448,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("akonnichiwa2b", fieldNode().text().text(),
                 "a second preedit republishes; TextEditModel#textVersion() did not move for "
                         + "either of them" + describe(tree()));
-        assertEquals(1, eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
                 bridge.events.toString());
 
         bridge.events.clear();
@@ -604,7 +594,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertEquals(2, field.model().cursor(), describe(tree()));
         assertEquals(2, fieldNode().text().caretOffset(), describe(tree()));
-        assertEquals(1, eventsOf(AccessibleEvent.Type.CARET_MOVED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.CARET_MOVED).size(),
                 bridge.events.toString());
 
         perform(fieldNode().id(), Accessible.Action.SET_CARET, new Accessible.Argument.OfRange(9, 9));
@@ -689,7 +679,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         TextFacet facet = fieldNode().text();
         assertEquals(1, facet.selectionStart(), describe(tree()));
         assertEquals(4, facet.selectionEnd(), describe(tree()));
-        assertEquals(1, eventsOf(AccessibleEvent.Type.TEXT_SELECTION_CHANGED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.TEXT_SELECTION_CHANGED).size(),
                 bridge.events.toString());
 
         perform(fieldNode().id(), Accessible.Action.SET_SELECTION,

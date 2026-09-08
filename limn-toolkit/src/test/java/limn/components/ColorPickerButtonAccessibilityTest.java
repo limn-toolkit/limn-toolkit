@@ -142,17 +142,6 @@ class ColorPickerButtonAccessibilityTest extends AccessibleComponentTestBase {
         return node(Accessible.Role.BUTTON);
     }
 
-    /**
-     * @param id the identifier to look up
-     * @return the node carrying it, which is how the well is found once a dialog with buttons of
-     *         its own is on screen
-     */
-    private AccessibleNode byId(long id) {
-        AccessibleTree tree = tree();
-        int at = tree.indexOf(id);
-        assertNotEquals(AccessibleNode.NONE, at, "node " + id + " is gone" + describe(tree));
-        return tree.node(at);
-    }
 
     private void tick() {
         clock.addAndGet(TimeUnit.MILLISECONDS.toNanos(50));
@@ -480,7 +469,7 @@ class ColorPickerButtonAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(ComponentStrings.COLOR_TITLE.get(), node(Accessible.Role.DIALOG).name(),
                 "the dialog names itself, and this widget does not copy that title"
                         + describe(tree()));
-        assertNotEquals(ComponentStrings.COLOR_TITLE.get(), byId(id).name(),
+        assertNotEquals(ComponentStrings.COLOR_TITLE.get(), node(id).name(),
                 "one fact, one home" + describe(tree()));
     }
 
@@ -636,7 +625,7 @@ class ColorPickerButtonAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode card = node(Accessible.Role.DIALOG);
         AccessibleNode layer = tree().node(card.parent());
-        AccessibleNode button = byId(id);
+        AccessibleNode button = node(id);
 
         List<AccessibleRelation> controller =
                 relationsOf(button, Accessible.Relation.CONTROLLER_FOR);

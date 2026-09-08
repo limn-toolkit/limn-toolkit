@@ -124,20 +124,10 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
         return node(Accessible.Role.SLIDER);
     }
 
-    /** @return every event of {@code type} raised so far, in order */
-    private List<AccessibleEvent> eventsOf(AccessibleEvent.Type type) {
-        List<AccessibleEvent> found = new ArrayList<>();
-        for (AccessibleEvent event : bridge.events) {
-            if (event.type() == type) {
-                found.add(event);
-            }
-        }
-        return found;
-    }
 
     /** @return every value change raised so far, in order */
     private List<AccessibleEvent> valueEvents() {
-        return eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
+        return bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
     }
 
     /** Moves the pointer to the centre of the slider's box, as a hover does. */

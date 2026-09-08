@@ -222,16 +222,6 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         return list.children().get(1 + index - list.firstVisibleIndex());
     }
 
-    /** @return every event of {@code type} raised since the last clear, in order */
-    private List<AccessibleEvent> eventsOf(AccessibleEvent.Type type) {
-        List<AccessibleEvent> found = new ArrayList<>();
-        for (AccessibleEvent event : bridge.events) {
-            if (event.type() == type) {
-                found.add(event);
-            }
-        }
-        return found;
-    }
 
     // ------------------------------------------------------------------- the role, and what is in
 
@@ -336,15 +326,15 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode row = rowNode(2);
         assertNotNull(row, describe(tree()));
-        List<AccessibleEvent> states = eventsOf(AccessibleEvent.Type.STATE_CHANGED);
+        List<AccessibleEvent> states = bridge.eventsOf(AccessibleEvent.Type.STATE_CHANGED);
         assertTrue(states.stream().anyMatch(event -> event.nodeId() == row.id()
                         && event.state() == Accessible.State.SELECTED
                         && Boolean.TRUE.equals(event.newValue())),
                 "the row is announced selected: " + bridge.events);
-        assertTrue(eventsOf(AccessibleEvent.Type.SELECTION_CHANGED).stream()
+        assertTrue(bridge.eventsOf(AccessibleEvent.Type.SELECTION_CHANGED).stream()
                         .anyMatch(event -> event.nodeId() == listId),
                 "and the container is told its selection moved: " + bridge.events);
-        assertTrue(eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED).stream()
+        assertTrue(bridge.eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED).stream()
                         .anyMatch(event -> event.nodeId() == listId
                                 && Long.valueOf(row.id()).equals(event.newValue())),
                 "and where the cursor went, which is the event a reader follows: " + bridge.events);
@@ -482,7 +472,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
         assertEquals(1, calls.get(), "exactly once");
         assertEquals(2, activated.get(), "and on the selected row");
-        assertTrue(eventsOf(AccessibleEvent.Type.INVOKED).stream()
+        assertTrue(bridge.eventsOf(AccessibleEvent.Type.INVOKED).stream()
                         .anyMatch(event -> event.nodeId() == listNode().id()),
                 "a successful press is acknowledged: " + bridge.events);
     }

@@ -138,6 +138,20 @@ public final class RecordingAccessibilityBridge implements AccessibilityBridge {
     }
 
     /**
+     * @param type the kind to look for
+     * @return every event of that kind, in the order handed over
+     */
+    public List<AccessibleEvent> eventsOf(AccessibleEvent.Type type) {
+        List<AccessibleEvent> found = new ArrayList<>();
+        for (AccessibleEvent event : events) {
+            if (event.type() == type) {
+                found.add(event);
+            }
+        }
+        return found;
+    }
+
+    /**
      * @param type the kind to count
      * @return how many events of that kind have been handed over
      */

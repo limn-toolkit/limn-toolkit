@@ -114,21 +114,11 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         return node(Accessible.Role.PROGRESS_BAR);
     }
 
-    /** @return every event of {@code type} raised so far, in order */
-    private List<AccessibleEvent> eventsOf(AccessibleEvent.Type type) {
-        List<AccessibleEvent> found = new ArrayList<>();
-        for (AccessibleEvent event : bridge.events) {
-            if (event.type() == type) {
-                found.add(event);
-            }
-        }
-        return found;
-    }
 
     /** @return every change of the busy bit raised so far, in order */
     private List<AccessibleEvent> busyEvents() {
         List<AccessibleEvent> found = new ArrayList<>();
-        for (AccessibleEvent event : eventsOf(AccessibleEvent.Type.STATE_CHANGED)) {
+        for (AccessibleEvent event : bridge.eventsOf(AccessibleEvent.Type.STATE_CHANGED)) {
             if (event.state() == Accessible.State.BUSY) {
                 found.add(event);
             }
@@ -234,7 +224,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(new ValueFacet(30, 0, 100, 0, null, true), progressNode().value(),
                 "one frame in, the fill is still easing; the model is already there"
                         + describe(tree()));
-        List<AccessibleEvent> changes = eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
+        List<AccessibleEvent> changes = bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
         assertEquals(1, changes.size(), bridge.events.toString());
         assertEquals(progressNode().id(), changes.get(0).nodeId());
         assertEquals(0.0, changes.get(0).oldValue());
@@ -275,7 +265,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         assertEquals(published + 1, bridge.published.size());
-        List<AccessibleEvent> changes = eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
+        List<AccessibleEvent> changes = bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED);
         assertEquals(1, changes.size(), bridge.events.toString());
         assertEquals(30.0, changes.get(0).oldValue());
         assertEquals(31.0, changes.get(0).newValue());
@@ -296,7 +286,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
                 "a hundred sets that crossed ten whole percent may publish ten or eleven trees, "
                         + "not a hundred: " + (bridge.published.size() - published));
         assertEquals(bridge.published.size() - published,
-                eventsOf(AccessibleEvent.Type.VALUE_CHANGED).size(),
+                bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED).size(),
                 "and exactly one value event per copy: " + bridge.events);
     }
 
@@ -385,7 +375,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(new ValueFacet(50, 0, 100, 0, null, true), node.value(), describe(tree()));
         assertEquals(1, busyEvents().size(), bridge.events.toString());
         assertEquals(Boolean.FALSE, busyEvents().get(0).newValue());
-        assertTrue(eventsOf(AccessibleEvent.Type.VALUE_CHANGED).isEmpty(),
+        assertTrue(bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED).isEmpty(),
                 "a facet that appears is not a value that moved: " + bridge.events);
     }
 
@@ -472,7 +462,7 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(0.25f, bar.progress(),
                 "the facet advertises a setter, and the widget's honest answer is no");
         assertEquals(new ValueFacet(25, 0, 100, 0, null, true), progressNode().value(), describe(tree()));
-        assertTrue(eventsOf(AccessibleEvent.Type.VALUE_CHANGED).isEmpty(), bridge.events.toString());
+        assertTrue(bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED).isEmpty(), bridge.events.toString());
         assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED), bridge.events.toString());
     }
 

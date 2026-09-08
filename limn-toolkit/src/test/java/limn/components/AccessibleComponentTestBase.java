@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import limn.testing.AccessibleTrees;
 import limn.testing.RecordingAccessibilityBridge;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -153,12 +154,25 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
      */
     protected AccessibleNode node(String name) {
         AccessibleTree tree = tree();
-        for (int i = 0; i < tree.nodeCount(); i++) {
-            if (tree.node(i).name().equals(name)) {
-                return tree.node(i);
-            }
+        AccessibleNode found = AccessibleTrees.named(tree, name);
+        if (found == null) {
+            throw new AssertionError("no node named \"" + name + "\" in " + describe(tree));
         }
-        throw new AssertionError("no node named \"" + name + "\" in " + describe(tree));
+        return found;
+    }
+
+    /**
+     * @param id a node's identifier
+     * @return the node carrying it in the newest tree
+     * @throws AssertionError with the whole tree when nothing carries it
+     */
+    protected AccessibleNode node(long id) {
+        AccessibleTree tree = tree();
+        AccessibleNode found = tree.find(id);
+        if (found == null) {
+            throw new AssertionError("no node " + id + " in " + describe(tree));
+        }
+        return found;
     }
 
     /**
@@ -224,14 +238,7 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
      * @return every node carrying it, in tree order
      */
     protected List<AccessibleNode> nodesWith(Accessible.State state) {
-        List<AccessibleNode> found = new ArrayList<>();
-        AccessibleTree tree = tree();
-        for (int i = 0; i < tree.nodeCount(); i++) {
-            if (tree.node(i).has(state)) {
-                found.add(tree.node(i));
-            }
-        }
-        return found;
+        return AccessibleTrees.withState(tree(), state);
     }
 
     /**
@@ -239,17 +246,6 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
      * @return the rendering
      */
     protected static String describe(AccessibleTree tree) {
-        StringBuilder out = new StringBuilder("\n");
-        for (int i = 0; i < tree.nodeCount(); i++) {
-            AccessibleNode node = tree.node(i);
-            out.append("  ").append(i).append(' ').append(node.role())
-                    .append(" \"").append(node.name()).append("\" ")
-                    .append(node.states())
-                    .append(" box=").append(node.x()).append(',').append(node.y())
-                    .append(' ').append(node.width()).append('x').append(node.height())
-                    .append(" parent=").append(node.parent())
-                    .append('\n');
-        }
-        return out.toString();
+        return AccessibleTrees.describe(tree);
     }
 }

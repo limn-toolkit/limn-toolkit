@@ -215,16 +215,6 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         return node(Accessible.Role.TEXT_AREA);
     }
 
-    /** @return every event of {@code type} raised so far, in order */
-    private List<AccessibleEvent> eventsOf(AccessibleEvent.Type type) {
-        List<AccessibleEvent> found = new ArrayList<>();
-        for (AccessibleEvent event : bridge.events) {
-            if (event.type() == type) {
-                found.add(event);
-            }
-        }
-        return found;
-    }
 
     /** One press and release of {@code keyCode}, through the scene's own dispatch. */
     private void key(int keyCode) {
@@ -372,7 +362,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(9, areaNode().text().lineCount(),
                 "and halving the column re-wraps every line again without moving the count"
                         + describe(tree()));
-        assertEquals(List.of(), eventsOf(AccessibleEvent.Type.TEXT_CHANGED),
+        assertEquals(List.of(), bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED),
                 "a resize is not a text change. Rows-as-lines would publish one for every frame "
                         + "of a resize drag, with the document untouched" + bridge.events);
     }
@@ -398,7 +388,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(2, areaNode().text().lineCount(),
                 "the break iterator the wrap uses is built from the process locale; the count a "
                         + "reader is told is not" + describe(tree()));
-        assertEquals(List.of(), eventsOf(AccessibleEvent.Type.TEXT_CHANGED), bridge.events.toString());
+        assertEquals(List.of(), bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED), bridge.events.toString());
     }
 
     // ---------------------------------------------------------------------------- the text facet
@@ -416,7 +406,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(13, facet.selectionStart(), describe(tree()));
         assertEquals(13, facet.selectionEnd(), describe(tree()));
         assertEquals(3, facet.lineCount(), describe(tree()));
-        List<AccessibleEvent> changes = eventsOf(AccessibleEvent.Type.TEXT_CHANGED);
+        List<AccessibleEvent> changes = bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED);
         assertEquals(1, changes.size(), bridge.events.toString());
         assertEquals(areaNode().id(), changes.get(0).nodeId());
     }
@@ -462,7 +452,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(facet.hasSelection(),
                 "every operation on a selection reads the model, so the facet does too"
                         + describe(tree()));
-        assertEquals(1, eventsOf(AccessibleEvent.Type.TEXT_SELECTION_CHANGED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.TEXT_SELECTION_CHANGED).size(),
                 bridge.events.toString());
     }
 
@@ -496,7 +486,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
                 "a composition paints no selection band" + describe(tree()));
         assertEquals(3, composing.lineCount(),
                 "a composition adds no hard line" + describe(tree()));
-        assertEquals(1, eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
                 bridge.events.toString());
 
         // The case that fails outright if the witness is the model's own counter: the model does
@@ -507,7 +497,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("ab\ncxyzd\nef", areaNode().text().text(),
                 "a second preedit republishes; TextEditModel#textVersion() did not move for "
                         + "either of them" + describe(tree()));
-        assertEquals(1, eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED).size(),
                 bridge.events.toString());
 
         bridge.events.clear();
@@ -710,8 +700,8 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(before, areaNode().text(),
                 "the document did not move, so neither did the facet that carries it"
                         + describe(tree()));
-        assertEquals(List.of(), eventsOf(AccessibleEvent.Type.TEXT_CHANGED), bridge.events.toString());
-        assertEquals(List.of(), eventsOf(AccessibleEvent.Type.CARET_MOVED), bridge.events.toString());
+        assertEquals(List.of(), bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED), bridge.events.toString());
+        assertEquals(List.of(), bridge.eventsOf(AccessibleEvent.Type.CARET_MOVED), bridge.events.toString());
     }
 
     @Test
@@ -914,7 +904,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
                 "an offset exactly on a newline is a legal caret position in a multi-line buffer"
                         + describe(tree()));
         assertEquals(2, areaNode().text().caretOffset(), describe(tree()));
-        assertEquals(1, eventsOf(AccessibleEvent.Type.CARET_MOVED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.CARET_MOVED).size(),
                 bridge.events.toString());
 
         perform(areaNode().id(), Accessible.Action.SET_CARET,
@@ -944,7 +934,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         TextFacet facet = areaNode().text();
         assertEquals(1, facet.selectionStart(), describe(tree()));
         assertEquals(8, facet.selectionEnd(), describe(tree()));
-        assertEquals(1, eventsOf(AccessibleEvent.Type.TEXT_SELECTION_CHANGED).size(),
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.TEXT_SELECTION_CHANGED).size(),
                 bridge.events.toString());
 
         perform(areaNode().id(), Accessible.Action.SET_SELECTION,

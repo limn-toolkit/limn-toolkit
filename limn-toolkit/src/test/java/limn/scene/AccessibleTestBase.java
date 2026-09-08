@@ -8,6 +8,7 @@ import limn.accessibility.ToggleFacet;
 import limn.concurrent.UiRuntime;
 import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
+import limn.testing.AccessibleTrees;
 import limn.testing.HeadlessUi;
 import limn.testing.NoopCanvas;
 import limn.testing.RecordingAccessibilityBridge;
@@ -216,26 +217,11 @@ abstract class AccessibleTestBase {
 
     /** @param tree the tree to render as one line per node, for a failure message */
     protected static String describe(AccessibleTree tree) {
-        StringBuilder out = new StringBuilder("\n");
-        for (int i = 0; i < tree.nodeCount(); i++) {
-            AccessibleNode node = tree.node(i);
-            out.append("  ").append(i).append(' ').append(node.role())
-                    .append(" \"").append(node.name()).append("\" ")
-                    .append(node.states()).append(" parent=").append(node.parent())
-                    .append('\n');
-        }
-        return out.toString();
+        return AccessibleTrees.describe(tree);
     }
 
     /** @return every node carrying a state, in tree order */
     protected List<AccessibleNode> nodesWith(Accessible.State state) {
-        List<AccessibleNode> found = new ArrayList<>();
-        AccessibleTree tree = tree();
-        for (int i = 0; i < tree.nodeCount(); i++) {
-            if (tree.node(i).has(state)) {
-                found.add(tree.node(i));
-            }
-        }
-        return found;
+        return AccessibleTrees.withState(tree(), state);
     }
 }

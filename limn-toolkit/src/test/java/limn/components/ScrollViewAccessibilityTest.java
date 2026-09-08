@@ -15,7 +15,6 @@ import limn.scene.layout.Column;
 import limn.scene.layout.SizedBox;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -94,16 +93,6 @@ class ScrollViewAccessibilityTest extends AccessibleComponentTestBase {
         return node(Accessible.Role.SCROLL_PANE);
     }
 
-    /** @return every event of {@code type} raised so far, in order */
-    private List<AccessibleEvent> eventsOf(AccessibleEvent.Type type) {
-        List<AccessibleEvent> found = new ArrayList<>();
-        for (AccessibleEvent event : bridge.events) {
-            if (event.type() == type) {
-                found.add(event);
-            }
-        }
-        return found;
-    }
 
     /** @return how many nodes in {@code tree} carry {@code role} */
     private static int countOf(AccessibleTree tree, Accessible.Role role) {
@@ -221,7 +210,7 @@ class ScrollViewAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(topBefore - 100, node("Top").y(), 1e-3,
                 "the child is physically moved, so descendants' scene coordinates are already "
                         + "scroll-corrected" + describe(tree()));
-        List<AccessibleEvent> bounds = eventsOf(AccessibleEvent.Type.BOUNDS_CHANGED);
+        List<AccessibleEvent> bounds = bridge.eventsOf(AccessibleEvent.Type.BOUNDS_CHANGED);
         assertEquals(1, bounds.size(),
                 "the one thing a reader hears about a scroll: the box that moved: " + bridge.events);
         assertEquals(topId, bounds.get(0).nodeId(), bridge.events.toString());
