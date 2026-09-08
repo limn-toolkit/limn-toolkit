@@ -1,6 +1,7 @@
 package limn.sound;
 
 import java.util.Objects;
+import limn.lang.Checks;
 
 /**
  * An immutable, backend-independent chunk of PCM audio: interleaved 16-bit
@@ -49,9 +50,7 @@ public final class AudioClip {
         if (channels != 1 && channels != 2) {
             throw new IllegalArgumentException("channels must be 1 or 2, got " + channels);
         }
-        if (sampleRate <= 0) {
-            throw new IllegalArgumentException("sampleRate must be positive, got " + sampleRate);
-        }
+        Checks.positive(sampleRate, "sampleRate");
         if (interleavedSamples.length % channels != 0) {
             throw new IllegalArgumentException(
                     "sample count " + interleavedSamples.length + " is not a multiple of channels " + channels);
@@ -71,12 +70,8 @@ public final class AudioClip {
      * @param amplitude       peak amplitude in [0..1] (e.g. 0.5)
      */
     public static AudioClip tone(float frequencyHz, float durationSeconds, float amplitude) {
-        if (frequencyHz <= 0) {
-            throw new IllegalArgumentException("frequencyHz must be positive, got " + frequencyHz);
-        }
-        if (durationSeconds <= 0) {
-            throw new IllegalArgumentException("durationSeconds must be positive, got " + durationSeconds);
-        }
+        Checks.positive(frequencyHz, "frequencyHz");
+        Checks.positive(durationSeconds, "durationSeconds");
         float peak = Math.max(0f, Math.min(1f, amplitude));
         int count = Math.max(1, Math.round(DEFAULT_SAMPLE_RATE * durationSeconds));
         short[] pcm = new short[count];

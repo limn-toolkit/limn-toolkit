@@ -2,6 +2,7 @@ package limn.video;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
+import limn.lang.Checks;
 
 /**
  * Converts a decoded picture to 8-bit RGBA on the CPU: the reference implementation of the
@@ -83,9 +84,7 @@ public final class YuvConverter {
         int componentBytes = chromaStep / format.componentsPerSample(1);
         int crByteOffset = interleaved ? componentBytes : 0;
 
-        if (dstOffset < 0) {
-            throw new IllegalArgumentException("dstOffset must be at least 0, got " + dstOffset);
-        }
+        Checks.notNegative(dstOffset, "dstOffset");
         if (dstStride < width * 4) {
             throw new IllegalArgumentException(
                     "dstStride " + dstStride + " is below the row's byte width " + (width * 4));
@@ -171,9 +170,9 @@ public final class YuvConverter {
         }
         int neutral = color.chromaNeutral(bitDepth); // also validates the depth
         int maxCode = (1 << bitDepth) - 1;
-        checkCode(y, "y", maxCode);
-        checkCode(cb, "cb", maxCode);
-        checkCode(cr, "cr", maxCode);
+        Checks.inRange(y, 0, maxCode, "y");
+        Checks.inRange(cb, 0, maxCode, "cb");
+        Checks.inRange(cr, 0, maxCode, "cr");
 
         int cbDelta = cb - neutral;
         int crDelta = cr - neutral;
@@ -189,12 +188,6 @@ public final class YuvConverter {
         out[3] = maxCode;
     }
 
-    private static void checkCode(int code, String name, int maxCode) {
-        if (code < 0 || code > maxCode) {
-            throw new IllegalArgumentException(
-                    name + " must be in [0.." + maxCode + "], got " + code);
-        }
-    }
 
     /**
      * Rounds half-up and then clamps. Half-up rather than half-even because an integer or vector

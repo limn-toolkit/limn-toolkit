@@ -1,5 +1,7 @@
 package limn.backend;
 
+import limn.lang.Checks;
+
 /**
  * Immutable per-frame metrics handed to a {@link FrameCallback}.
  *
@@ -19,12 +21,8 @@ public record FrameInfo(int framebufferWidth, int framebufferHeight, float conte
                         boolean rePresent, float gpuFrameMs) {
 
     public FrameInfo {
-        if (framebufferWidth < 0 || framebufferHeight < 0) {
-            throw new IllegalArgumentException("framebuffer size must be >= 0");
-        }
-        if (contentScale <= 0) {
-            throw new IllegalArgumentException("contentScale must be > 0, got " + contentScale);
-        }
+        Checks.notNegativeSize(framebufferWidth, framebufferHeight, "framebuffer size");
+        Checks.positive(contentScale, "contentScale");
     }
 
     /** Without a GPU-time sample. */

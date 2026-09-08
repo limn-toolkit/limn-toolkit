@@ -1,5 +1,6 @@
 package limn.video.decode;
 
+import limn.lang.Checks;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;
@@ -265,9 +266,7 @@ final class Y4mSource implements VideoStreamSource {
         if (!canSeek()) {
             throw new UnsupportedOperationException(file + " cannot be seeked");
         }
-        if (micros < 0) {
-            throw new IllegalArgumentException("seek target must not be negative, got " + micros);
-        }
+        Checks.notNegative(micros, "seek target");
         int target = mode == SeekMode.EXACT
                 ? FrameIndex.atOrAfter(micros, frameRateNum, frameRateDen)
                 : FrameIndex.atOrBefore(micros, frameRateNum, frameRateDen);

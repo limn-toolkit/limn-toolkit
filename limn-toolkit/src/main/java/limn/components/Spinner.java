@@ -16,6 +16,7 @@ import limn.graphics.RoundRect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -164,9 +165,7 @@ public class Spinner extends Widget {
         if (!(max > min)) {
             throw new IllegalArgumentException("max (" + max + ") must be > min (" + min + ")");
         }
-        if (!(step > 0)) {
-            throw new IllegalArgumentException("step must be > 0, got " + step);
-        }
+        Checks.positive(step, "step");
         this.mode = mode;
         this.min = min;
         this.max = max;

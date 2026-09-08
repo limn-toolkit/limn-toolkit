@@ -1,6 +1,7 @@
 package limn.backend;
 
 import java.util.Objects;
+import limn.lang.Checks;
 
 /**
  * Initial configuration for a {@link NativeWindow}.
@@ -24,9 +25,7 @@ public record WindowConfig(String title, int width, int height, boolean visible,
 
     public WindowConfig {
         Objects.requireNonNull(title, "title");
-        if (width <= 0 || height <= 0) {
-            throw new IllegalArgumentException("window size must be positive, got " + width + "x" + height);
-        }
+        Checks.positiveSize(width, height, "window size");
     }
 
     /** Regular window (decorated, focus on show, opaque). */

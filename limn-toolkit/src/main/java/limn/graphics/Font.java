@@ -1,6 +1,7 @@
 package limn.graphics;
 
 import java.util.Objects;
+import limn.lang.Checks;
 
 /**
  * A typeface selection: family name, size in logical points, and weight/style
@@ -22,9 +23,7 @@ public record Font(String family, float size, boolean isBold, boolean isItalic) 
 
     public Font {
         Objects.requireNonNull(family, "family");
-        if (size <= 0 || !Float.isFinite(size)) {
-            throw new IllegalArgumentException("font size must be positive and finite, got " + size);
-        }
+        Checks.positive(size, "font size");
     }
 
     /** Regular weight/style at the given family and size. */

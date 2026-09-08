@@ -1,5 +1,7 @@
 package limn.video;
 
+import limn.lang.Checks;
+
 /**
  * The memory layout of a decoded {@link VideoFrame}: how many planes it has, what each one
  * holds, and how each plane's sample grid is derived from the frame size. Every producer and
@@ -323,10 +325,17 @@ public enum PixelFormat {
         }
     }
 
-    private static void checkDimension(int value, String name) {
-        if (value < 1 || value > MAX_DIMENSION) {
-            throw new IllegalArgumentException(
-                    name + " must be in [1.." + MAX_DIMENSION + "], got " + value);
-        }
+    /**
+     * The one check every frame dimension in the toolkit passes: at least one, at most
+     * {@link #MAX_DIMENSION}. Here rather than beside each caller so that a frame, a synthetic
+     * spec and a plane all refuse the same sizes with the same words.
+     *
+     * @param value the width or height
+     * @param name  what it is, for the message
+     * @return the value
+     * @throws IllegalArgumentException if it is outside {@code [1..MAX_DIMENSION]}
+     */
+    public static int checkDimension(int value, String name) {
+        return Checks.inRange(value, 1, MAX_DIMENSION, name);
     }
 }

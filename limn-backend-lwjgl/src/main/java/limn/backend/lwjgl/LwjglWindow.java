@@ -6,6 +6,7 @@ import limn.backend.FrameInfo;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.backend.WindowInput;
+import limn.lang.Checks;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFWDropCallback;
@@ -865,9 +866,7 @@ final class LwjglWindow implements NativeWindow {
     @Override
     public void setSize(int width, int height) {
         backend.uiRuntime().checkUiThread();
-        if (width <= 0 || height <= 0) {
-            throw new IllegalArgumentException("window size must be positive, got " + width + "x" + height);
-        }
+        Checks.positiveSize(width, height, "window size");
         // GLFW takes SCREEN coordinates: logical points on macOS, physical
         // pixels on Windows/X11. Convert via the framebuffer-per-screen-coord
         // ratio so "logical points" holds on every platform:

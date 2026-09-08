@@ -1,6 +1,7 @@
 package limn.graphics;
 
 import java.util.Objects;
+import limn.lang.Checks;
 
 /**
  * An immutable, backend-independent bitmap: RGBA8 pixels, straight (non
@@ -24,9 +25,7 @@ public final class Image {
      * @param rgba   {@code width*height*4} bytes, straight alpha, top-down
      */
     public Image(int width, int height, byte[] rgba) {
-        if (width <= 0 || height <= 0) {
-            throw new IllegalArgumentException("image size must be positive, got " + width + "x" + height);
-        }
+        Checks.positiveSize(width, height, "image size");
         Objects.requireNonNull(rgba, "rgba");
         if (rgba.length != width * height * 4) {
             throw new IllegalArgumentException(

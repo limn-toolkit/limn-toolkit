@@ -1,5 +1,6 @@
 package limn.video.decode;
 
+import limn.lang.Checks;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;
@@ -129,10 +130,7 @@ public final class FramePool implements VideoFrame.Recycler {
      */
     public static long bytesFor(int slots, int width, int height, PixelFormat format) {
         Objects.requireNonNull(format, "format");
-        if (slots < 1 || slots > MAX_SLOTS) {
-            throw new IllegalArgumentException(
-                    "slots must be in [1.." + MAX_SLOTS + "], got " + slots);
-        }
+        Checks.inRange(slots, 1, MAX_SLOTS, "slots");
         long bytes = 0;
         for (int plane = 0; plane < format.planeCount(); plane++) {
             int stride = format.alignedStride(plane, width, 4);

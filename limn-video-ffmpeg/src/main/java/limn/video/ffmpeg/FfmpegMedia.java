@@ -1,5 +1,6 @@
 package limn.video.ffmpeg;
 
+import limn.lang.Checks;
 import limn.sound.AudioStreamSource;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
@@ -397,9 +398,7 @@ public final class FfmpegMedia implements AutoCloseable {
     public static FfmpegMedia open(Path file, boolean withAudio, int slots, Hardware hardware) {
         Objects.requireNonNull(file, "file");
         Objects.requireNonNull(hardware, "hardware");
-        if (slots < 1 || slots > 16) {
-            throw new IllegalArgumentException("slots must be in [1..16], got " + slots);
-        }
+        Checks.inRange(slots, 1, 16, "slots");
         FfmpegLibrary.require();
         long handle = FfmpegNative.open(file.toAbsolutePath().toString(), withAudio, slots,
                 hardware == Hardware.PREFER);

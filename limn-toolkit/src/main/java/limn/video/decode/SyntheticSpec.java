@@ -1,5 +1,6 @@
 package limn.video.decode;
 
+import limn.lang.Checks;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoStreamSource;
@@ -50,21 +51,12 @@ public record SyntheticSpec(SyntheticPattern pattern, int width, int height, Pix
         Objects.requireNonNull(pattern, "pattern");
         Objects.requireNonNull(format, "format");
         Objects.requireNonNull(color, "color");
-        checkDimension(width, "width");
-        checkDimension(height, "height");
-        if (frameRateNum < 1) {
-            throw new IllegalArgumentException("frameRateNum must be at least 1, got " + frameRateNum);
-        }
-        if (frameRateDen < 1) {
-            throw new IllegalArgumentException("frameRateDen must be at least 1, got " + frameRateDen);
-        }
-        if (frameCount < 0) {
-            throw new IllegalArgumentException("frameCount must be at least 0, got " + frameCount);
-        }
-        if (slots < 1 || slots > FramePool.MAX_SLOTS) {
-            throw new IllegalArgumentException(
-                    "slots must be in [1.." + FramePool.MAX_SLOTS + "], got " + slots);
-        }
+        PixelFormat.checkDimension(width, "width");
+        PixelFormat.checkDimension(height, "height");
+        Checks.atLeast(frameRateNum, 1, "frameRateNum");
+        Checks.atLeast(frameRateDen, 1, "frameRateDen");
+        Checks.notNegative(frameCount, "frameCount");
+        Checks.inRange(slots, 1, FramePool.MAX_SLOTS, "slots");
     }
 
     /**
@@ -137,9 +129,7 @@ public record SyntheticSpec(SyntheticPattern pattern, int width, int height, Pix
      * @throws IllegalArgumentException if {@code frameIndex} is negative
      */
     public long ptsMicrosOf(int frameIndex) {
-        if (frameIndex < 0) {
-            throw new IllegalArgumentException("frameIndex must be at least 0, got " + frameIndex);
-        }
+        Checks.notNegative(frameIndex, "frameIndex");
         return (long) frameIndex * 1_000_000L * frameRateDen / frameRateNum;
     }
 
@@ -290,10 +280,4 @@ public record SyntheticSpec(SyntheticPattern pattern, int width, int height, Pix
         }
     }
 
-    private static void checkDimension(int value, String name) {
-        if (value < 1 || value > PixelFormat.MAX_DIMENSION) {
-            throw new IllegalArgumentException(
-                    name + " must be in [1.." + PixelFormat.MAX_DIMENSION + "], got " + value);
-        }
-    }
 }

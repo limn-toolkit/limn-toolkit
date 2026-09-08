@@ -1,5 +1,6 @@
 package limn.video.decode;
 
+import limn.lang.Checks;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;
@@ -105,9 +106,7 @@ final class SyntheticSource implements VideoStreamSource {
      */
     @Override
     public void seek(long micros, SeekMode mode) {
-        if (micros < 0) {
-            throw new IllegalArgumentException("seek target must not be negative, got " + micros);
-        }
+        Checks.notNegative(micros, "seek target");
         nextIndex = mode == SeekMode.EXACT
                 ? FrameIndex.atOrAfter(micros, spec.frameRateNum(), spec.frameRateDen())
                 : FrameIndex.atOrBefore(micros, spec.frameRateNum(), spec.frameRateDen());

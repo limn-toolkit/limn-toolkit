@@ -1,6 +1,7 @@
 package limn.graphics;
 
 import java.util.Objects;
+import limn.lang.Checks;
 
 /**
  * What a shape does to the pixels already behind it: a material, not a paint. Passed to
@@ -74,12 +75,8 @@ public sealed interface BackdropEffect {
          */
         public Clear {
             Objects.requireNonNull(tint, "tint");
-            if (thickness < 0 || !Float.isFinite(thickness)) {
-                throw new IllegalArgumentException("thickness must be >= 0, got " + thickness);
-            }
-            if (dispersion < 0 || dispersion > 1) {
-                throw new IllegalArgumentException("dispersion must be 0..1, got " + dispersion);
-            }
+            Checks.notNegative(thickness, "thickness");
+            Checks.inRange(dispersion, 0f, 1f, "dispersion");
         }
 
         /** A pane with a 12pt rim and a light optical fringe: the default glass of this toolkit. */
@@ -117,12 +114,8 @@ public sealed interface BackdropEffect {
          */
         public Wash {
             Objects.requireNonNull(tint, "tint");
-            if (saturation < 0 || !Float.isFinite(saturation)) {
-                throw new IllegalArgumentException("saturation must be >= 0, got " + saturation);
-            }
-            if (!(lift >= -1) || lift > 1) {
-                throw new IllegalArgumentException("lift must be -1..1, got " + lift);
-            }
+            Checks.notNegative(saturation, "saturation");
+            Checks.inRange(lift, -1f, 1f, "lift");
         }
 
         /** A wash that only moves saturation, which is what this variant was before it lifted. */
@@ -148,9 +141,7 @@ public sealed interface BackdropEffect {
          */
         public Pixelate {
             Objects.requireNonNull(tint, "tint");
-            if (!(cell >= 1) || !Float.isFinite(cell)) {
-                throw new IllegalArgumentException("cell must be >= 1 point, got " + cell);
-            }
+            Checks.finite(Checks.atLeast(cell, 1f, "cell"), "cell");
         }
     }
 
@@ -196,9 +187,7 @@ public sealed interface BackdropEffect {
         public Blur {
             Objects.requireNonNull(tint, "tint");
             Objects.requireNonNull(axis, "axis");
-            if (!(radius >= 0) || !Float.isFinite(radius)) {
-                throw new IllegalArgumentException("radius must be >= 0, got " + radius);
-            }
+            Checks.notNegative(radius, "radius");
         }
     }
 
@@ -254,12 +243,8 @@ public sealed interface BackdropEffect {
          */
         public Crt {
             Objects.requireNonNull(tint, "tint");
-            if (!(scanline >= 0) || scanline > 1) {
-                throw new IllegalArgumentException("scanline must be 0..1, got " + scanline);
-            }
-            if (!(curvature >= 0) || curvature > 1) {
-                throw new IllegalArgumentException("curvature must be 0..1, got " + curvature);
-            }
+            Checks.inRange(scanline, 0f, 1f, "scanline");
+            Checks.inRange(curvature, 0f, 1f, "curvature");
         }
 
         /** A tube with a visible scan and a gentle bulge: the default set of this toolkit. */

@@ -1,5 +1,7 @@
 package limn.video.decode;
 
+import limn.lang.Checks;
+
 /**
  * What a {@linkplain SyntheticVideoDecoder synthetic} stream draws. Every pattern is a pure function
  * of a pixel's coordinates, the picture size and the picture's index in the stream, so any sample of
@@ -142,9 +144,7 @@ public enum SyntheticPattern {
     }
 
     private static int shift(int bitDepth) {
-        if (bitDepth < 8 || bitDepth > 16) {
-            throw new IllegalArgumentException("bitDepth must be in [8..16], got " + bitDepth);
-        }
+        Checks.inRange(bitDepth, 8, 16, "bitDepth");
         return bitDepth - 8;
     }
 

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import limn.lang.Checks;
 
 /**
  * Central design tokens: colors, corner radii, typography and spacing.
@@ -740,9 +741,7 @@ public final class Theme {
          *                                  what a text field hands over when it is empty
          */
         public Builder cornerScale(float value) {
-            if (!Float.isFinite(value)) {
-                throw new IllegalArgumentException("cornerScale must be finite, was " + value);
-            }
+            Checks.finite(value, "cornerScale");
             this.cornerScale = Math.max(0f, Math.min(MAX_CORNER_SCALE, value));
             return this;
         }

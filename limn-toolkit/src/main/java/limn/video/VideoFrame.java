@@ -4,6 +4,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.util.Objects;
+import limn.lang.Checks;
 
 /**
  * One decoded picture, borrowed from the producer that published it. A frame is a <em>lease</em>,
@@ -450,9 +451,7 @@ public final class VideoFrame {
          * @throws NullPointerException     if {@code recycler} is null
          */
         public static Writer allocate(int slot, Recycler recycler) {
-            if (slot < 0) {
-                throw new IllegalArgumentException("slot must be at least 0, got " + slot);
-            }
+            Checks.notNegative(slot, "slot");
             Objects.requireNonNull(recycler, "recycler");
             return new Writer(new VideoFrame(slot, recycler));
         }
@@ -476,14 +475,8 @@ public final class VideoFrame {
             frame.checkNotPublished();
             Objects.requireNonNull(format, "format");
             Objects.requireNonNull(color, "color");
-            if (width < 1 || width > PixelFormat.MAX_DIMENSION) {
-                throw new IllegalArgumentException(
-                        "width must be in [1.." + PixelFormat.MAX_DIMENSION + "], got " + width);
-            }
-            if (height < 1 || height > PixelFormat.MAX_DIMENSION) {
-                throw new IllegalArgumentException(
-                        "height must be in [1.." + PixelFormat.MAX_DIMENSION + "], got " + height);
-            }
+            PixelFormat.checkDimension(width, "width");
+            PixelFormat.checkDimension(height, "height");
             frame.width = width;
             frame.height = height;
             frame.format = format;

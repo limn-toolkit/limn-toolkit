@@ -9,6 +9,7 @@ import limn.graphics.Color;
 import limn.graphics.GpuSurface;
 import limn.graphics.Rect;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.math.Scalars;
 import limn.scene.event.CharEvent;
 import limn.scene.event.PreeditEvent;
@@ -1832,9 +1833,7 @@ public final class Scene implements WindowInput {
      */
     public void setTimeScale(double scale) {
         Ui.checkUiThread();
-        if (!Double.isFinite(scale) || scale < 0) {
-            throw new IllegalArgumentException("time scale must be finite and >= 0: " + scale);
-        }
+        Checks.notNegative(scale, "time scale");
         if (timeScale != scale) {
             boolean wasFrozen = paused || timeScale == 0;
             timeScale = scale;

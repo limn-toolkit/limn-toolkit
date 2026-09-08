@@ -1,5 +1,6 @@
 package limn.sound;
 
+import limn.lang.Checks;
 import limn.math.Vec3;
 
 /**
@@ -40,15 +41,9 @@ public record PlayOptions(float gain, float pitch, float pan, boolean loop,
             new PlayOptions(1f, 1f, 0f, false, AudioBus.SFX, Priority.NORMAL, null);
 
     public PlayOptions {
-        if (gain < 0 || gain > 1 || Float.isNaN(gain)) {
-            throw new IllegalArgumentException("gain must be in [0..1], got " + gain);
-        }
-        if (pitch < 0.25f || pitch > 4f || Float.isNaN(pitch)) {
-            throw new IllegalArgumentException("pitch must be in [0.25..4], got " + pitch);
-        }
-        if (pan < -1 || pan > 1 || Float.isNaN(pan)) {
-            throw new IllegalArgumentException("pan must be in [-1..1], got " + pan);
-        }
+        Checks.inRange(gain, 0f, 1f, "gain");
+        Checks.inRange(pitch, 0.25f, 4f, "pitch");
+        Checks.inRange(pan, -1f, 1f, "pan");
         if (bus == null) {
             throw new IllegalArgumentException("bus is null");
         }

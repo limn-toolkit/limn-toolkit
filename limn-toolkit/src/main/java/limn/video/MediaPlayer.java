@@ -3,6 +3,7 @@ package limn.video;
 import limn.backend.CrashPhase;
 import limn.backend.Crashes;
 import limn.concurrent.Ui;
+import limn.lang.Checks;
 import limn.sound.AudioStreamSource;
 import limn.sound.PlayOptions;
 import limn.sound.Playback;
@@ -264,9 +265,7 @@ public final class MediaPlayer implements AutoCloseable {
     public MediaPlayer setRingCapacity(int pictures) {
         Ui.checkUiThread();
         checkIdle("the ring capacity");
-        if (pictures < 1) {
-            throw new IllegalArgumentException("ringCapacity must be at least 1, got " + pictures);
-        }
+        Checks.atLeast(pictures, 1, "ringCapacity");
         ringCapacity = pictures;
         return this;
     }
@@ -513,9 +512,7 @@ public final class MediaPlayer implements AutoCloseable {
         if (state == State.CLOSED) {
             throw new IllegalStateException("this MediaPlayer is closed");
         }
-        if (micros < 0) {
-            throw new IllegalArgumentException("seek target must not be negative, got " + micros);
-        }
+        Checks.notNegative(micros, "seek target");
         if (!video.canSeek()) {
             throw new UnsupportedOperationException(
                     video.getClass().getName() + " cannot seek; ask canSeek() first");

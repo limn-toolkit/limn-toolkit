@@ -1,5 +1,6 @@
 package limn.video.ffmpeg;
 
+import limn.lang.Checks;
 import limn.sound.AudioStreamSource;
 
 import java.nio.ByteBuffer;
@@ -148,9 +149,7 @@ final class FfmpegAudioStream implements AudioStreamSource {
      */
     @Override
     public void seek(long micros) {
-        if (micros < 0) {
-            throw new IllegalArgumentException("seek target must not be negative, got " + micros);
-        }
+        Checks.notNegative(micros, "seek target");
         if (!closed) {
             media.seekAudio(micros, generation);
         }

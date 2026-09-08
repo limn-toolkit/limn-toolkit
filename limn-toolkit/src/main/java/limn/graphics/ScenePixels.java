@@ -1,6 +1,7 @@
 package limn.graphics;
 
 import java.util.Objects;
+import limn.lang.Checks;
 
 /**
  * Scene-referred pixels read back from a {@link ReadableSurface}: RGBA floats, <em>linear light</em>,
@@ -38,9 +39,7 @@ public final class ScenePixels {
      * @param rgba   {@code width*height*4} floats, linear light, premultiplied, top-down
      */
     public ScenePixels(int width, int height, float[] rgba) {
-        if (width <= 0 || height <= 0) {
-            throw new IllegalArgumentException("size must be positive, got " + width + "x" + height);
-        }
+        Checks.positiveSize(width, height, "size");
         Objects.requireNonNull(rgba, "rgba");
         if (rgba.length != (long) width * height * 4) {
             throw new IllegalArgumentException(

@@ -1,5 +1,7 @@
 package limn.render3d;
 
+import limn.lang.Checks;
+
 /**
  * CPU-side pixels for a 2D texture: tightly packed 8-bit RGBA, row-major from the
  * top-left, tagged with the {@link ColorSpace} the values are authored in. Upload
@@ -11,9 +13,7 @@ package limn.render3d;
 public record TextureData(int width, int height, byte[] rgba8, ColorSpace colorSpace) {
 
     public TextureData {
-        if (width <= 0 || height <= 0) {
-            throw new IllegalArgumentException("texture size must be positive: " + width + "x" + height);
-        }
+        Checks.positiveSize(width, height, "texture size");
         if (rgba8.length != width * height * 4) {
             throw new IllegalArgumentException("rgba8 length " + rgba8.length
                     + " != " + width + "×" + height + "×4 (" + (width * height * 4) + ")");

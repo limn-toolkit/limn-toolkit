@@ -1,5 +1,6 @@
 package limn.video.decode;
 
+import limn.lang.Checks;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;
@@ -56,9 +57,7 @@ public final class Y4mWriter {
     public static int write(Path file, VideoStreamSource source, int maxFrames) {
         Objects.requireNonNull(file, "file");
         Objects.requireNonNull(source, "source");
-        if (maxFrames < 1) {
-            throw new IllegalArgumentException("maxFrames must be at least 1, got " + maxFrames);
-        }
+        Checks.atLeast(maxFrames, 1, "maxFrames");
         String colorTag = colorTagOf(source.pixelFormat());
         try (SeekableByteChannel channel = Files.newByteChannel(file,
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE,

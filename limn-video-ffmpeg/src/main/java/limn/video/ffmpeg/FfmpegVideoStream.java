@@ -1,5 +1,6 @@
 package limn.video.ffmpeg;
 
+import limn.lang.Checks;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;
@@ -161,9 +162,7 @@ final class FfmpegVideoStream implements VideoStreamSource {
      */
     @Override
     public void seek(long micros, SeekMode mode) {
-        if (micros < 0) {
-            throw new IllegalArgumentException("seek target must not be negative, got " + micros);
-        }
+        Checks.notNegative(micros, "seek target");
         media.seekVideo(micros, mode == SeekMode.EXACT);
         // Same reason as reset(): the decoder's buffers went back to its pool when it was flushed,
         // so the addresses coming back may be the ones these slots already point at, which is an

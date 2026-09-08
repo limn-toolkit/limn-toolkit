@@ -1,5 +1,6 @@
 package limn.scene.layout;
 
+import limn.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -30,9 +31,7 @@ public final class Expanded extends Widget {
     private float minMain;
 
     private Expanded(Widget child, int flex) {
-        if (flex <= 0) {
-            throw new IllegalArgumentException("flex must be >= 1, got " + flex);
-        }
+        Checks.atLeast(flex, 1, "flex");
         this.flex = flex;
         this.child = child;
         if (child != null) {

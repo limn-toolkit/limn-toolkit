@@ -5,6 +5,7 @@ import java.text.BreakIterator;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import limn.lang.Checks;
 
 /**
  * One line of text after shaping: the glyphs a face draws for it, where each one sits, and every
@@ -813,10 +814,7 @@ public final class ShapedText {
         Objects.requireNonNull(text, "text");
         Objects.requireNonNull(font, "font");
         Objects.requireNonNull(lineMetrics, "lineMetrics");
-        if (!(advance > 0) || !Float.isFinite(advance)) {
-            throw new IllegalArgumentException(
-                    "mark advance must be positive and finite, got " + advance);
-        }
+        Checks.positive(advance, "mark advance");
         int length = text.length();
         // Through the Builder like every other producer, so the mask's caret table is assembled by
         // the same code as a shaped line's and the two cannot drift.

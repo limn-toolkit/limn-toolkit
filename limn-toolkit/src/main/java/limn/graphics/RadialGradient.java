@@ -1,6 +1,7 @@
 package limn.graphics;
 
 import java.util.Objects;
+import limn.lang.Checks;
 
 /**
  * Two-stop radial gradient: {@code center} color at {@code (cx,cy)} fading to
@@ -12,8 +13,6 @@ public record RadialGradient(float cx, float cy, float radius, Color center, Col
     public RadialGradient {
         Objects.requireNonNull(center, "center");
         Objects.requireNonNull(edge, "edge");
-        if (radius <= 0) {
-            throw new IllegalArgumentException("radius must be > 0, got " + radius);
-        }
+        Checks.positive(radius, "radius");
     }
 }

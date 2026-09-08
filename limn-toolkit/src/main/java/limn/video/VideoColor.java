@@ -1,6 +1,7 @@
 package limn.video;
 
 import java.util.Objects;
+import limn.lang.Checks;
 
 /**
  * How the samples of a {@link VideoFrame} are to be turned into colour: which luma/chroma matrix
@@ -430,11 +431,7 @@ public final class VideoColor {
     }
 
     private static int shift(int bitDepth) {
-        if (bitDepth < MIN_BIT_DEPTH || bitDepth > MAX_BIT_DEPTH) {
-            throw new IllegalArgumentException(
-                    "bitDepth must be in [" + MIN_BIT_DEPTH + ".." + MAX_BIT_DEPTH + "], got "
-                            + bitDepth);
-        }
+        Checks.inRange(bitDepth, MIN_BIT_DEPTH, MAX_BIT_DEPTH, "bitDepth");
         return bitDepth - MIN_BIT_DEPTH;
     }
 
