@@ -12,6 +12,7 @@ import limn.scene.Scene;
 import limn.scene.layout.Column;
 import limn.scene.layout.Flex;
 import limn.scene.layout.SizedBox;
+import limn.testing.RecordingAccessibilityBridge;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -95,7 +96,7 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
      * default while every later walk used this one.
      */
     private void bindUnderRuler() {
-        bridge = new RecordingBridge();
+        bridge = RecordingAccessibilityBridge.listening();
         window = new StubWindow();
         window.accessibility = bridge;
         canvas = new FakeCanvas(SCENE_WIDTH, 300);

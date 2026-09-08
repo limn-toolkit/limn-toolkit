@@ -3,7 +3,6 @@ package limn.video;
 import limn.backend.CrashHandler;
 import limn.backend.CrashPhase;
 import limn.backend.Crashes;
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.sound.AudioClip;
 import limn.sound.AudioEngine;
@@ -11,13 +10,12 @@ import limn.sound.AudioStreamSource;
 import limn.sound.PlayOptions;
 import limn.sound.Playback;
 import limn.sound.Sounds;
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,22 +41,19 @@ class MediaPlayerTest {
     /** Generous: a test that needs it has already failed to make progress, not merely been slow. */
     private static final long AWAIT_NANOS = 10_000_000_000L;
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
 
     @BeforeEach
     void installRuntime() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
     }
 
     @AfterEach
     void uninstallRuntime() {
         Sounds.uninstallEngine(null);
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     /** Wall clock a test turns by hand. */

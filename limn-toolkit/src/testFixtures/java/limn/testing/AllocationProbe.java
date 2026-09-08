@@ -1,26 +1,26 @@
-package limn.components;
+package limn.testing;
 
 import com.sun.management.ThreadMXBean;
 
 import java.lang.management.ManagementFactory;
 
 /**
- * Measures what a stretch of work allocates on the calling thread, for the claim a component's
- * describe hook makes: that a frame which damaged it and changed nothing about it allocates
- * nothing at all.
+ * Measures what a stretch of work allocates on the calling thread, for every claim in this
+ * repository that a steady-state loop allocates nothing at all: a converter's, a clock's, a
+ * describe hook's, a decoder's.
  *
  * <p>The counter is exact rather than sampled: it reports the bytes the thread requested, not what
  * survived a collection, so a single {@code new} inside a measured loop shows up. The work is passed
  * as a {@link Runnable} whose capture happens at the call site, before measuring starts, so building
  * it costs the measurement nothing.
  *
- * <p>The fifth copy of a utility that is five lines long, and deliberately a copy: the only
- * alternative is a shared test-support package every module would then depend on. What it measures
- * here is the promise a describe hook makes — that a frame which damaged a widget and changed
- * nothing about it costs no memory — and that promise is per component, so it has to be measurable
- * from this package.
+ * <p>This used to be six copies, one per package that made such a claim, each saying it was
+ * deliberately a copy because the alternative was a shared test module every module would
+ * depend on. The test fixtures of the toolkit are that module, in test scope only: nothing that
+ * ships depends on it, and a claim that is the same claim in six places is measured the same way
+ * in all of them.
  */
-final class AllocationProbe {
+public final class AllocationProbe {
 
     private AllocationProbe() {
     }
@@ -29,7 +29,7 @@ final class AllocationProbe {
      * @return whether this virtual machine counts per-thread allocation; where it does not, an
      *         allocation test has nothing to measure and must be skipped rather than passed
      */
-    static boolean isSupported() {
+    public static boolean isSupported() {
         return ManagementFactory.getThreadMXBean() instanceof ThreadMXBean bean
                 && bean.isThreadAllocatedMemorySupported();
     }
@@ -42,12 +42,14 @@ final class AllocationProbe {
      * going to be compared with each other have to come from
      * {@link #typicalAllocatedByEach(Runnable, Runnable, int)} instead, for the reason written there.
      *
+     * @param work     what to measure
+     * @param attempts how many times to run it after the warm-up
      * @return the smallest measurement, in bytes. The smallest, and not the first or the mean,
      *         because the just-in-time compiler occasionally charges a few kilobytes of its own
      *         bookkeeping to whichever thread tripped it, which would make a loop that allocates
      *         nothing look as though it does; work that genuinely allocates does so on every attempt.
      */
-    static long leastAllocatedBy(Runnable work, int attempts) {
+    public static long leastAllocatedBy(Runnable work, int attempts) {
         ThreadMXBean bean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
         bean.setThreadAllocatedMemoryEnabled(true);
         long thread = Thread.currentThread().getId();
@@ -83,8 +85,8 @@ final class AllocationProbe {
      * per-frame cost and the next makes it up. Taking the smallest of sixty samples therefore
      * selects exactly the most under-reported one, and which window that lands in is chance. The
      * recorded case is unambiguous: sixty frames flat at 3000 bytes in one window, and 3000 in the
-     * other for fifty-nine of them with a single frame at 2968 — the widget's describe pass had
-     * cost nothing at all, and the thirty-two bytes were the counter's.
+     * other for fifty-nine of them with a single frame at 2968 &mdash; the widget's describe pass
+     * had cost nothing at all, and the thirty-two bytes were the counter's.
      *
      * <p>The median keeps the property the minimum was chosen for, which is that the compiler
      * occasionally charges a few kilobytes of its own bookkeeping to whichever thread tripped it;
@@ -97,7 +99,7 @@ final class AllocationProbe {
      *                 lower of the two middle samples when it is given an even one
      * @return {@code {typical for first, typical for second}}, in bytes
      */
-    static long[] typicalAllocatedByEach(Runnable first, Runnable second, int attempts) {
+    public static long[] typicalAllocatedByEach(Runnable first, Runnable second, int attempts) {
         ThreadMXBean bean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
         bean.setThreadAllocatedMemoryEnabled(true);
         long thread = Thread.currentThread().getId();

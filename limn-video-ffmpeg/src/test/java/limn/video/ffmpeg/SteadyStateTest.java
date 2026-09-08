@@ -1,5 +1,6 @@
 package limn.video.ffmpeg;
 
+import limn.testing.AllocationProbe;
 import limn.video.VideoStreamSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

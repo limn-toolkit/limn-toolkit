@@ -3,6 +3,7 @@ package limn.scene;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
+import limn.testing.RecordingAccessibilityBridge;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

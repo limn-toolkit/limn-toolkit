@@ -1,5 +1,6 @@
 package limn.video;
 
+import limn.testing.AllocationProbe;
 import limn.video.VideoClock.Decision;
 
 import org.junit.jupiter.api.Test;

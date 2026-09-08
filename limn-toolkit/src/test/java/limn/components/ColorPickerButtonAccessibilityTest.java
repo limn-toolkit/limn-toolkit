@@ -11,6 +11,8 @@ import limn.i18n.StringBundle;
 import limn.input.Keys;
 import limn.scene.Scene;
 import limn.scene.layout.Column;
+import limn.testing.AllocationProbe;
+import limn.testing.RecordingAccessibilityBridge;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -116,7 +118,7 @@ class ColorPickerButtonAccessibilityTest extends AccessibleComponentTestBase {
         Column root = new Column();
         root.add(well);
 
-        bridge = new RecordingBridge();
+        bridge = RecordingAccessibilityBridge.listening();
         StubWindow host = hosted ? new OverlayHost() : new StubWindow();
         host.accessibility = bridge;
         window = host;

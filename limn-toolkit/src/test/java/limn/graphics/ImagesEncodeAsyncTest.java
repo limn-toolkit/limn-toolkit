@@ -1,15 +1,13 @@
 package limn.graphics;
 
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -52,16 +50,14 @@ class ImagesEncodeAsyncTest {
         }
     }
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
     private final RecordingEncoder encoder = new RecordingEncoder();
 
     @BeforeEach
     void setUp() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
         Images.uninstallAllEncoders();
         Images.installEncoder(encoder);
     }
@@ -70,8 +66,7 @@ class ImagesEncodeAsyncTest {
     void tearDown() {
         Images.uninstallAllEncoders();
         Images.installEncoder(PngEncoder.INSTANCE);
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     /** Spins the UI queue (like the backend loop) until the condition holds. */

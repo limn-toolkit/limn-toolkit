@@ -9,6 +9,7 @@ import limn.graphics.Path2D;
 import limn.graphics.Rect;
 import limn.graphics.RoundRect;
 import limn.graphics.TextMetrics;
+import limn.testing.TestRulers;
 
 /**
  * Records clear/clip/paint calls so a frame can be classified full vs partial.
@@ -127,7 +128,7 @@ final class RecordingTestCanvas implements Canvas {
     @Override public void drawPath(Path2D path, float sw, Paint paint) { paints++; }
     @Override public void drawText(String text, float x, float y, Font font, Paint paint) { paints++; }
     @Override public TextMetrics measureText(String text, Font font) {
-        return new TextMetrics(10f * (int) text.codePoints().count(), 8, 2, 12);
+        return TestRulers.FIXED.measure(text, font);
     }
     @Override public void drawImage(Image image, float x, float y, float w, float h) { paints++; }
     @Override public void drawImage(Image image, float x, float y, float w, float h, Color tint) { paints++; }

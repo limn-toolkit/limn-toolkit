@@ -1,5 +1,6 @@
 package limn.video.ffmpeg;
 
+import limn.testing.AllocationProbe;
 import limn.video.VideoFrame;
 import limn.video.VideoStreamSource;
 import limn.video.VideoStreamSource.SeekMode;

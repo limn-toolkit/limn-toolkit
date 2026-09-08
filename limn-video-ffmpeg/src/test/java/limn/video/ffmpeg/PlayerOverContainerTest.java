@@ -1,7 +1,7 @@
 package limn.video.ffmpeg;
 
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
+import limn.testing.HeadlessUi;
 import limn.video.MediaPlayer;
 import limn.video.VideoClock;
 import limn.video.VideoFrame;
@@ -13,8 +13,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -40,21 +38,18 @@ class PlayerOverContainerTest {
     @TempDir
     Path directory;
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
 
     @BeforeEach
     void installRuntime() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
     }
 
     @AfterEach
     void uninstallRuntime() {
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     /** The wall clock, turned by hand. */

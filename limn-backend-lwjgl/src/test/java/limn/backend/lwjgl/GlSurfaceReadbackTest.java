@@ -1,18 +1,16 @@
 package limn.backend.lwjgl;
 
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.graphics.Image;
 import limn.graphics.ScenePixels;
 import limn.render3d.ColorSpace;
 import limn.render3d.RenderTarget;
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.lwjgl.opengl.GL33C;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -30,16 +28,14 @@ class GlSurfaceReadbackTest {
 
     private GlCanvas canvas;
     private FontStore fonts;
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
 
     @BeforeEach
     void openFrame() {
         HeadlessGl.assumeAvailable();
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
         fonts = new FontStore();
         canvas = new GlCanvas(fonts);
         canvas.beginFrame(WIDTH, HEIGHT, 1f);
@@ -57,8 +53,7 @@ class GlSurfaceReadbackTest {
             fonts = null;
         }
         if (runtime != null) {
-            Ui.uninstall(runtime);
-            workers.shutdownNow();
+            ui.close();
             runtime = null;
         }
     }

@@ -1,15 +1,13 @@
 package limn.graphics;
 
 import limn.concurrent.Job;
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,24 +58,21 @@ class SvgIconAsyncTest {
         }
     }
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
     private final FakeRasterizer rasterizer = new FakeRasterizer();
 
     @BeforeEach
     void setUp() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
         SvgIcon.installRasterizer(rasterizer);
     }
 
     @AfterEach
     void tearDown() {
         SvgIcon.uninstallRasterizer(rasterizer);
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     /** Spins the UI queue (like the backend loop) until the condition holds. */

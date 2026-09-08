@@ -4,6 +4,7 @@ import limn.accessibility.Accessible;
 import limn.components.ButtonGroup;
 import limn.components.RadioButton;
 import limn.graphics.Canvas;
+import limn.testing.AllocationProbe;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 

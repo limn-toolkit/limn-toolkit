@@ -1,5 +1,6 @@
 package limn.video.decode;
 
+import limn.testing.AllocationProbe;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;

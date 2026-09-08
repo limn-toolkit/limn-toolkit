@@ -1,17 +1,15 @@
 package limn.animation;
 
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -23,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class TransitionTest {
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
 
     /** Minimal owner; wiring it into a Scene gives it a non-null {@code scene()}. */
@@ -42,16 +40,13 @@ class TransitionTest {
 
     @BeforeEach
     void installRuntime() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
     }
 
     @AfterEach
     void uninstallRuntime() {
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     @Test

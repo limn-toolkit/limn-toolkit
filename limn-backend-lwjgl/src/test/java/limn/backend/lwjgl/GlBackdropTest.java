@@ -1,9 +1,9 @@
 package limn.backend.lwjgl;
 
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.graphics.BackdropEffect;
 import limn.graphics.Color;
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,8 +11,6 @@ import org.lwjgl.opengl.GL33C;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -40,16 +38,14 @@ class GlBackdropTest {
 
     private GlCanvas canvas;
     private FontStore fonts;
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
 
     @BeforeEach
     void openContext() {
         HeadlessGl.assumeAvailable();
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
         fonts = new FontStore();
         canvas = new GlCanvas(fonts);
     }
@@ -65,8 +61,7 @@ class GlBackdropTest {
             fonts = null;
         }
         if (runtime != null) {
-            Ui.uninstall(runtime);
-            workers.shutdownNow();
+            ui.close();
             runtime = null;
         }
     }

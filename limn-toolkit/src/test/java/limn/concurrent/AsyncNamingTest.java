@@ -81,12 +81,16 @@ class AsyncNamingTest {
 
     /** Every public method of every public class in this module, loaded but not initialized. */
     private static List<Method> publicToolkitMethods() throws Exception {
-        // Anchored on a CLASS file so this finds the compiled tree rather than the resource tree,
-        // which Gradle keeps in a separate output directory.
-        Path anchor = Path.of(Ui.class.getResource("Ui.class").toURI());
-        Path root = anchor.getParent().getParent().getParent(); // .../limn/concurrent/Ui.class
+        // Anchored on the toolkit's own code source, which is the compiled tree when the test
+        // classpath holds the classes directory and the toolkit jar when it holds the jar -- which
+        // it does since the test fixtures depend on the toolkit through its jar. A jar is walked
+        // through a file system opened over it; the tree inside is the same one.
+        Path location = Path.of(Ui.class.getProtectionDomain().getCodeSource().getLocation().toURI());
         List<Method> found = new ArrayList<>();
-        try (Stream<Path> tree = Files.walk(root)) {
+        try (java.nio.file.FileSystem jar = Files.isDirectory(location)
+                     ? null : java.nio.file.FileSystems.newFileSystem(location);
+             Stream<Path> tree = Files.walk(jar == null ? location : jar.getPath("/"))) {
+            Path root = jar == null ? location : jar.getPath("/");
             for (Path file : tree.filter(p -> p.toString().endsWith(".class")).toList()) {
                 String name = root.relativize(file).toString()
                         .replace(java.io.File.separatorChar, '.')

@@ -15,11 +15,12 @@ import limn.backend.ScreenRect;
 import limn.backend.WindowInput;
 import limn.graphics.Canvas;
 import limn.graphics.Image;
-import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 
 import java.util.List;
 import java.util.function.Consumer;
+import limn.testing.NoopCanvas;
+import limn.testing.TestRulers;
 
 /**
  * A window with no platform behind it, whose accessibility bridge keeps the last tree it was
@@ -37,8 +38,7 @@ public final class HeadlessWindow implements NativeWindow {
      * ruler every headless layout in this repository measures against, so that a transcript
      * taken on one machine is the transcript taken on every other.
      */
-    public static final TextRuler RULER = (text, font) ->
-            new TextMetrics(10f * (int) text.codePoints().count(), 8, 2, 12);
+    public static final TextRuler RULER = TestRulers.FIXED;
 
     /** A bridge that listens and keeps the newest tree, and does nothing else. */
     public static final class CapturingBridge implements AccessibilityBridge {
@@ -69,7 +69,7 @@ public final class HeadlessWindow implements NativeWindow {
     private final int height;
     private final HeadlessBackend backend;
     private final CapturingBridge bridge = new CapturingBridge();
-    private final NullCanvas canvas;
+    private final NoopCanvas canvas;
     private final GpuRenderer renderer;
     private FrameCallback callback;
     private WindowInput input;
@@ -83,7 +83,7 @@ public final class HeadlessWindow implements NativeWindow {
         this.width = width;
         this.height = height;
         this.backend = backend;
-        this.canvas = new NullCanvas(width, height);
+        this.canvas = new NoopCanvas(width, height);
         this.renderer = new GpuRenderer() {
             @Override
             public Canvas canvas() {

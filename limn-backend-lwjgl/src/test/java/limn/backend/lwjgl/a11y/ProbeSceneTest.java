@@ -5,15 +5,14 @@ import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.scene.Scene;
+import limn.testing.HeadlessUi;
+import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ProbeSceneTest {
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
     private final AtomicLong nanos = new AtomicLong();
     private Scene scene;
@@ -62,17 +61,15 @@ class ProbeSceneTest {
     @BeforeEach
     void bind() {
         cycleBefore = System.getProperty("probe.cycle");
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(nanos::get, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi(nanos::get);
+        runtime = ui.runtime();
         probe = new ProbeScene();
         scene = new Scene(probe.root(), nanos::get);
         ProbeWindow window = new ProbeWindow();
         recorder = new Recorder();
         window.accessibility = recorder;
         scene.bind(window);
-        scene.renderFrame(new NoCanvas());
+        scene.renderFrame(new NoopCanvas(800, 600));
     }
 
     @AfterEach
@@ -82,8 +79,7 @@ class ProbeSceneTest {
         } else {
             System.setProperty("probe.cycle", cycleBefore);
         }
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     private AccessibleNode only(Accessible.Role role) {
@@ -102,7 +98,7 @@ class ProbeSceneTest {
     private void tick(String cycle) {
         System.setProperty("probe.cycle", cycle);
         probe.tick(scene);
-        scene.renderFrame(new NoCanvas());
+        scene.renderFrame(new NoopCanvas(800, 600));
     }
 
     @Test

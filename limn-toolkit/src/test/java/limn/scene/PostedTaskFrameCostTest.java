@@ -2,6 +2,7 @@ package limn.scene;
 
 import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
+import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

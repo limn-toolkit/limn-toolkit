@@ -1,10 +1,8 @@
 package limn.components;
 
 import limn.accessibility.Accessible;
-import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
-import limn.backend.AccessibilityBridge;
 import limn.graphics.Canvas;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -13,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import limn.testing.RecordingAccessibilityBridge;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
@@ -60,78 +59,11 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
     protected StubWindow window;
 
     /** Every tree and event the scene has published since {@link #bind}. */
-    protected RecordingBridge bridge;
+    protected RecordingAccessibilityBridge bridge;
 
     /** The canvas frames are rendered into; the scene's box is this canvas's. */
     protected Canvas canvas;
 
-    /**
-     * A bridge that keeps what it is handed instead of talking to a platform.
-     *
-     * <p>Every member of {@link AccessibilityBridge} has a default, so a double that answers a
-     * listening platform and remembers what arrived is this short. It claims to be listening from
-     * the start, because a component test is always asking what an assistive technology would be
-     * told; the scene's own gate — that a quiet frame costs nothing when nothing is listening — is
-     * the scene package's to prove and is proved there.
-     */
-    static final class RecordingBridge implements AccessibilityBridge {
-
-        /** What {@link #isListening()} answers. */
-        boolean listening = true;
-
-        /** Every tree handed over, newest last. */
-        final List<AccessibleTree> published = new ArrayList<>();
-
-        /** Every event handed over, in order. */
-        final List<AccessibleEvent> events = new ArrayList<>();
-
-        /**
-         * The scene-side object a real bridge calls to perform an action, kept so that a test can
-         * stand where a bridge stands. It is the only way in: a component test may not call a
-         * widget's hook itself, because half of what the path guarantees — the identifier
-         * resolving, the ancestor chain being enabled, the post landing on the thread that owns
-         * the tree — happens on the way there.
-         */
-        Host host;
-
-        @Override
-        public boolean isListening() {
-            return listening;
-        }
-
-        @Override
-        public void attach(Host attached) {
-            host = attached;
-        }
-
-        @Override
-        public void detach() {
-            host = null;
-        }
-
-        @Override
-        public void publish(AccessibleTree tree, boolean reentrant) {
-            published.add(tree);
-        }
-
-        @Override
-        public void emit(AccessibleEvent event) {
-            events.add(event);
-        }
-
-        /** @return the most recently published tree, or the empty one */
-        AccessibleTree tree() {
-            return published.isEmpty() ? AccessibleTree.EMPTY : published.get(published.size() - 1);
-        }
-
-        /**
-         * @param type the kind to count
-         * @return how many events of that kind have been handed over
-         */
-        long countOf(AccessibleEvent.Type type) {
-            return events.stream().filter(event -> event.type() == type).count();
-        }
-    }
 
     /**
      * Binds {@code root} to a 400&nbsp;&times;&nbsp;300 window whose bridge is listening, renders
@@ -157,7 +89,7 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
      * @param over the window to bind it to; its bridge is replaced with the recording one
      */
     protected void bind(Widget root, StubWindow over) {
-        bridge = new RecordingBridge();
+        bridge = RecordingAccessibilityBridge.listening();
         window = over;
         window.accessibility = bridge;
         canvas = new FakeCanvas(400, 300);

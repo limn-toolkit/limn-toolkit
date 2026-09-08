@@ -1,5 +1,6 @@
 package limn.scene;
 
+import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

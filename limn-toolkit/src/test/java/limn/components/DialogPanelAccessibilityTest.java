@@ -12,6 +12,8 @@ import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
+import limn.testing.AllocationProbe;
+import limn.testing.RecordingAccessibilityBridge;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -148,7 +150,7 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
      */
     private void showInScene(Dialog under) {
         dialog = under;
-        bridge = new RecordingBridge();
+        bridge = RecordingAccessibilityBridge.listening();
         OverlayHost host = new OverlayHost();
         host.accessibility = bridge;
         window = host;

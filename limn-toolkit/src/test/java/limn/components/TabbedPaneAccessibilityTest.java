@@ -8,6 +8,7 @@ import limn.accessibility.AccessibleTree;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.SizedBox;
+import limn.testing.AllocationProbe;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;

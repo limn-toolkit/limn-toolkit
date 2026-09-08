@@ -1,5 +1,6 @@
 package limn;
 
+import limn.testing.RepositoryRoot;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -34,7 +35,7 @@ class RepositoryNoticeTest {
      */
     @Test
     void everyPathTheNoticeNamesExists() throws IOException {
-        Path root = repositoryRoot();
+        Path root = RepositoryRoot.find();
         String notice = Files.readString(root.resolve("NOTICE"), StandardCharsets.UTF_8);
 
         Set<String> named = new TreeSet<>();
@@ -66,16 +67,4 @@ class RepositoryNoticeTest {
         assertTrue(missing.isEmpty(), "NOTICE names paths that do not exist: " + missing);
     }
 
-    /** The tests run with the module as the working directory; the root is one level up. */
-    private static Path repositoryRoot() {
-        Path directory = Path.of("").toAbsolutePath();
-        while (directory != null) {
-            if (Files.exists(directory.resolve("NOTICE"))
-                    && Files.exists(directory.resolve("settings.gradle.kts"))) {
-                return directory;
-            }
-            directory = directory.getParent();
-        }
-        throw new IllegalStateException("no repository root above " + Path.of("").toAbsolutePath());
-    }
 }

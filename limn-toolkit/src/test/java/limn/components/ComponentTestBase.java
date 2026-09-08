@@ -10,11 +10,11 @@ import limn.graphics.Path2D;
 import limn.graphics.RoundRect;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
+import limn.testing.HeadlessUi;
+import limn.testing.TestRulers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * Component tests run headless: a UiRuntime bound to the JUnit thread (thread
@@ -25,8 +25,7 @@ import java.util.concurrent.Executors;
 abstract class ComponentTestBase {
 
     /** 10pt per code point: ellipsis math becomes exact integers. */
-    static final TextRuler RULER = (text, font) ->
-            new TextMetrics(10f * (int) text.codePoints().count(), 8, 2, 12);
+    static final TextRuler RULER = TestRulers.FIXED;
 
     /**
      * Ruler that scales with the font, for control-size tests. Uses the embedded Roboto's real
@@ -42,21 +41,15 @@ abstract class ComponentTestBase {
      * be captured under <em>this</em> ruler; capturing one under {@link #RULER} pins the wrong
      * number.
      */
-    static final TextRuler SCALED_RULER = (text, font) -> {
-        float s = font.size();
-        return new TextMetrics(0.6f * s * (int) text.codePoints().count(),
-                0.927734375f * s, 0.244140625f * s, 1.171875f * s);
-    };
+    static final TextRuler SCALED_RULER = TestRulers.SCALED;
 
-    protected ExecutorService workers;
+    protected HeadlessUi ui;
     protected UiRuntime runtime;
 
     @BeforeEach
     void installRuntime() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
         Theme.setCurrent(Theme.dark());
         // Must come after Ui.install: setProcessDefault is UI-thread-checked. And it only has
         // any effect at all because Scene subscribes its metrics listener in its CONSTRUCTOR;
@@ -67,8 +60,7 @@ abstract class ComponentTestBase {
 
     @AfterEach
     void uninstallRuntime() {
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     /**

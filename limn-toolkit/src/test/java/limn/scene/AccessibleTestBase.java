@@ -5,17 +5,17 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.accessibility.ToggleFacet;
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
+import limn.testing.HeadlessUi;
+import limn.testing.NoopCanvas;
+import limn.testing.RecordingAccessibilityBridge;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -141,7 +141,7 @@ abstract class AccessibleTestBase {
         }
     }
 
-    protected ExecutorService workers;
+    protected HeadlessUi ui;
     protected UiRuntime runtime;
     protected final AtomicLong nanos = new AtomicLong();
     protected RecordingWindow window;
@@ -151,17 +151,14 @@ abstract class AccessibleTestBase {
 
     @BeforeEach
     void installRuntime() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(nanos::get, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi(nanos::get);
+        runtime = ui.runtime();
         canvas = new NoopCanvas(200, 200);
     }
 
     @AfterEach
     void uninstallRuntime() {
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     /** Binds {@code root} to a window whose bridge is listening, and settles the first frame. */

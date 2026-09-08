@@ -4,16 +4,17 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.i18n.I18nString;
+import limn.testing.AllocationProbe;
+import limn.testing.HeadlessUi;
+import limn.testing.NoopCanvas;
+import limn.testing.RecordingAccessibilityBridge;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,7 +48,7 @@ class AccessibleIdleCostTest {
         }
     }
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
     private final AtomicLong nanos = new AtomicLong();
     private RecordingWindow window;
@@ -56,10 +57,8 @@ class AccessibleIdleCostTest {
 
     @BeforeEach
     void bindScene() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(nanos::get, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi(nanos::get);
+        runtime = ui.runtime();
         box = new Box();
         scene = new Scene(box, nanos::get);
         window = new RecordingWindow();
@@ -70,8 +69,7 @@ class AccessibleIdleCostTest {
 
     @AfterEach
     void unbind() {
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     @Test

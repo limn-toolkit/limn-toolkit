@@ -4,6 +4,7 @@ import limn.graphics.Color;
 import limn.graphics.Paint;
 import limn.graphics.Rect;
 import limn.scene.layout.Column;
+import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

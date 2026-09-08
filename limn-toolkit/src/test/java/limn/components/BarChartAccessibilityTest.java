@@ -17,6 +17,8 @@ import limn.input.Keys;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.layout.Column;
+import limn.testing.AllocationProbe;
+import limn.testing.RecordingAccessibilityBridge;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -200,7 +202,7 @@ class BarChartAccessibilityTest extends AccessibleComponentTestBase {
         chart = under;
         root = new Column();
         root.add(chart);
-        bridge = new RecordingBridge();
+        bridge = RecordingAccessibilityBridge.listening();
         window = new StubWindow();
         window.accessibility = bridge;
         canvas = new BarCountingCanvas(400, 300);

@@ -5,6 +5,7 @@ import limn.components.Theme;
 import limn.components.ThemeFormat;
 import limn.graphics.Color;
 import limn.scene.Scene;
+import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -295,7 +296,7 @@ class ThemeEditorTest extends EditorTestBase {
     /** Every string a full frame draws. */
     private List<String> paintedTexts() {
         List<String> drawn = new ArrayList<>();
-        scene.renderFrame(new NullCanvas(1000, 700) {
+        scene.renderFrame(new NoopCanvas(1000, 700) {
             @Override
             public void drawText(String text, float x, float y,
                                  limn.graphics.Font font, limn.graphics.Paint paint) {
@@ -317,7 +318,7 @@ class ThemeEditorTest extends EditorTestBase {
         editor.setCornerScale(0);
 
         List<Float> radii = new ArrayList<>();
-        scene.renderFrame(new NullCanvas(1000, 700) {
+        scene.renderFrame(new NoopCanvas(1000, 700) {
             @Override
             public void fillRoundRect(limn.graphics.RoundRect r, limn.graphics.Paint paint) {
                 radii.add(r.topLeft());
@@ -478,7 +479,7 @@ class ThemeEditorTest extends EditorTestBase {
         assertTrue(editor.width() > 0 && editor.height() > 0);
         // The preview paints a palette that is not the process-wide one, which is the whole
         // reason it exists; a frame is what proves it does not reach for Theme.current().
-        scene.renderFrame(new NullCanvas(1000, 700));
+        scene.renderFrame(new NoopCanvas(1000, 700));
     }
 
     @Test

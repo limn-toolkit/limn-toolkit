@@ -1,12 +1,10 @@
 package limn.scene;
 
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * Widget mutations are UI-thread-confined; tests install a UiRuntime bound to
@@ -14,21 +12,18 @@ import java.util.concurrent.Executors;
  */
 abstract class SceneTestBase {
 
-    protected ExecutorService workers;
+    protected HeadlessUi ui;
     protected UiRuntime runtime;
 
     @BeforeEach
     void installRuntime() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
     }
 
     @AfterEach
     void uninstallRuntime() {
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     /** Fixed-preferred-size leaf widget. */

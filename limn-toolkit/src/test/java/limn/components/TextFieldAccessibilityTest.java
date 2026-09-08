@@ -14,6 +14,7 @@ import limn.i18n.I18nString;
 import limn.scene.LayoutDirection;
 import limn.scene.layout.Column;
 import limn.scene.layout.Padding;
+import limn.testing.AllocationProbe;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;

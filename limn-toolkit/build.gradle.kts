@@ -10,12 +10,32 @@
 
 plugins {
     `java-library`
+    // The test fixtures under src/testFixtures are the one place a test double every module
+    // needs lives once: the null canvas, the fixed ruler, the allocation probe, the recording
+    // accessibility bridge, the headless runtime. They are a dependency of the other modules'
+    // TESTS and of nothing that ships, which is what kept them from existing for so long -- every
+    // copy said "deliberately a copy, because a shared test module is one every module would
+    // depend on". In test scope that is the point, not the cost.
+    `java-test-fixtures`
 }
 
 dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+// The fixtures jar must not reach Maven Central: the java component would otherwise publish it
+// beside the toolkit as limn-toolkit-test-fixtures, a jar with no consumer outside this build.
+val javaComponent = components["java"] as AdhocComponentWithVariants
+javaComponent.withVariantsFromConfiguration(configurations["testFixturesApiElements"]) { skip() }
+javaComponent.withVariantsFromConfiguration(configurations["testFixturesRuntimeElements"]) { skip() }
+// The fixtures' sources jar is a variant the publishing plugin adds after this script has run,
+// so it is skipped once the project is evaluated and only if that plugin added it.
+afterEvaluate {
+    configurations.findByName("testFixturesSourcesElements")?.let { sources ->
+        javaComponent.withVariantsFromConfiguration(sources) { skip() }
+    }
 }
 
 // RepositoryNoticeTest reads the repository's NOTICE, which is outside every input Gradle infers

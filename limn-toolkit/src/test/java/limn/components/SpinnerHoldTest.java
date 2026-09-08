@@ -3,16 +3,15 @@ package limn.components;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.input.Keys;
 import limn.scene.Scene;
+import limn.testing.HeadlessUi;
+import limn.testing.RecordingAccessibilityBridge;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -41,17 +40,15 @@ class SpinnerHoldTest {
     private static final float DOWN_Y = BOX_H * 3 / 4;                 // 24
 
     private final AtomicLong clock = new AtomicLong();
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
     private Spinner spinner;
     private Scene scene;
 
     @BeforeEach
     void setup() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(clock::get, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi(clock::get);
+        runtime = ui.runtime();
         Theme.setCurrent(Theme.dark());
         // This class builds its own runtime instead of extending ComponentTestBase, so it
         // needs the same process-default reset; otherwise a sibling test that changed it
@@ -66,8 +63,7 @@ class SpinnerHoldTest {
 
     @AfterEach
     void teardown() {
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     /** Advances the manual clock and runs whatever delayed tasks are now due. */
@@ -149,8 +145,8 @@ class SpinnerHoldTest {
      */
     @Test
     void aReadersPressStepsOnceAndArmsNoAutoRepeat() throws Exception {
-        AccessibleComponentTestBase.RecordingBridge bridge =
-                new AccessibleComponentTestBase.RecordingBridge();
+        RecordingAccessibilityBridge bridge =
+                RecordingAccessibilityBridge.listening();
         StubWindow window = new StubWindow();
         window.accessibility = bridge;
         ComponentTestBase.FakeCanvas canvas = new ComponentTestBase.FakeCanvas(BOX_W, BOX_H);

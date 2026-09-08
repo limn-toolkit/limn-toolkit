@@ -1,5 +1,6 @@
 package limn.video;
 
+import limn.testing.AllocationProbe;
 import limn.video.VideoColor.Matrix;
 import limn.video.VideoColor.Range;
 

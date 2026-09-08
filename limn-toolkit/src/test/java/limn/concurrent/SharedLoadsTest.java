@@ -1,12 +1,11 @@
 package limn.concurrent;
 
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
@@ -23,21 +22,18 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 class SharedLoadsTest {
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
 
     @BeforeEach
     void setUp() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
     }
 
     @AfterEach
     void tearDown() {
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     private void pumpUntil(BooleanSupplier done) {

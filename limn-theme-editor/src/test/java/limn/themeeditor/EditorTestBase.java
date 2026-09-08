@@ -1,16 +1,14 @@
 package limn.themeeditor;
 
 import limn.components.Theme;
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
-import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.scene.ControlSize;
+import limn.testing.HeadlessUi;
+import limn.testing.TestRulers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * The editor's tests run headless: a {@link UiRuntime} bound to the JUnit thread, and a
@@ -24,18 +22,15 @@ import java.util.concurrent.Executors;
 abstract class EditorTestBase {
 
     /** 10pt per code point; ascent 8, descent 2, lineHeight 12. */
-    static final TextRuler RULER = (text, font) ->
-            new TextMetrics(10f * (int) text.codePoints().count(), 8, 2, 12);
+    static final TextRuler RULER = TestRulers.FIXED;
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
 
     @BeforeEach
     void installRuntime() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
         Theme.setCurrent(Theme.dark());
         ControlSize.setProcessDefault(ControlSize.MEDIUM);
     }
@@ -43,7 +38,6 @@ abstract class EditorTestBase {
     @AfterEach
     void uninstallRuntime() {
         Theme.setCurrent(Theme.dark());
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 }

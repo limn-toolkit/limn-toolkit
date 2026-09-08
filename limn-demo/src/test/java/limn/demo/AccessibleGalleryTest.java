@@ -18,6 +18,7 @@ import limn.graphics.TextRulers;
 import limn.i18n.I18n;
 import limn.scene.ControlSize;
 import limn.scene.Scene;
+import limn.testing.RepositoryRoot;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
@@ -301,7 +302,7 @@ class AccessibleGalleryTest {
      * for the class that declares the file, because that is the component an application uses.
      */
     private static Set<String> classesOverridingAHook() throws IOException {
-        Path sources = repositoryRoot().resolve("limn-toolkit/src/main/java");
+        Path sources = RepositoryRoot.find().resolve("limn-toolkit/src/main/java");
         assertTrue(Files.isDirectory(sources), "no toolkit sources at " + sources);
         Set<String> found = new TreeSet<>();
         try (Stream<Path> tree = Files.walk(sources)) {
@@ -320,17 +321,6 @@ class AccessibleGalleryTest {
         return found;
     }
 
-    private static Path repositoryRoot() {
-        Path directory = Path.of("").toAbsolutePath();
-        while (directory != null) {
-            if (Files.exists(directory.resolve("NOTICE"))
-                    && Files.exists(directory.resolve("settings.gradle.kts"))) {
-                return directory;
-            }
-            directory = directory.getParent();
-        }
-        throw new IllegalStateException("no repository root above " + Path.of("").toAbsolutePath());
-    }
 
     // ------------------------------------------------------------------------ the harness
 

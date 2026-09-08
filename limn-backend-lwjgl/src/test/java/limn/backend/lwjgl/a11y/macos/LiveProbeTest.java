@@ -1,14 +1,12 @@
 package limn.backend.lwjgl.a11y.macos;
 
 import limn.backend.lwjgl.a11y.ProbeScene;
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -21,23 +19,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class LiveProbeTest {
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
     private ProbeScene probe;
 
     @BeforeEach
     void build() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
         probe = new ProbeScene();
     }
 
     @AfterEach
     void tearDown() {
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     @Test

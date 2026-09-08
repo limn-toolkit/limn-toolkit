@@ -1,7 +1,7 @@
 package limn.backend.lwjgl;
 
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
+import limn.testing.HeadlessUi;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;
@@ -13,8 +13,6 @@ import org.lwjgl.opengl.GL33C;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -49,7 +47,7 @@ abstract class GlVideoTestBase {
 
     protected GlCanvas canvas;
     private FontStore fonts;
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
 
     @BeforeEach
@@ -58,10 +56,8 @@ abstract class GlVideoTestBase {
         // Per test, and removed again below: the device paths assert the
         // UI-thread confinement they document, and other classes in this module
         // install a runtime of their own that a leftover one would collide with.
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
         fonts = new FontStore();
         canvas = new GlCanvas(fonts);
         canvas.beginFrame(FRAME_WIDTH, FRAME_HEIGHT, 1f);
@@ -81,8 +77,7 @@ abstract class GlVideoTestBase {
             fonts = null;
         }
         if (runtime != null) {
-            Ui.uninstall(runtime);
-            workers.shutdownNow();
+            ui.close();
             runtime = null;
         }
     }

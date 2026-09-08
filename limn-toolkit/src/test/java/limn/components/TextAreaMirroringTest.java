@@ -9,6 +9,7 @@ import limn.input.Keys;
 import limn.scene.ControlSize;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
+import limn.testing.TestRulers;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -205,7 +206,7 @@ class TextAreaMirroringTest extends ComponentTestBase {
 
         @Override
         public TextMetrics measure(String text, Font font) {
-            return new TextMetrics(10f * (int) text.codePoints().count(), 8, 2, 12);
+            return TestRulers.FIXED.measure(text, font);
         }
 
         @Override

@@ -7,6 +7,7 @@ import limn.accessibility.AccessibleTree;
 import limn.input.Keys;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
+import limn.testing.AllocationProbe;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;

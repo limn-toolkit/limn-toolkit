@@ -1,6 +1,7 @@
 package limn.accessibility;
 
 import limn.scene.Widget;
+import limn.testing.RepositoryRoot;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -539,7 +540,7 @@ class AccessibleCoverageTest {
     }
 
     private static List<Class<?>> declaredClasses() {
-        Path sources = repositoryRoot().resolve("limn-toolkit/src/main/java");
+        Path sources = RepositoryRoot.find().resolve("limn-toolkit/src/main/java");
         List<Class<?>> all = new ArrayList<>();
         for (String pkg : List.of("limn/components", "limn/scene/layout")) {
             Path directory = sources.resolve(pkg);
@@ -578,7 +579,7 @@ class AccessibleCoverageTest {
 
     /** Every identifier ADR 039 §7's table names, in backticks, between its heading and §7.1's. */
     private static Set<String> surveyedNames() {
-        Path record = repositoryRoot().resolve("docs/adr")
+        Path record = RepositoryRoot.find().resolve("docs/adr")
                 .resolve("039-an-accessible-tree-is-a-snapshot-and-the-platform-reads-it-on-its-"
                         + "own-thread.md");
         List<String> lines;
@@ -613,15 +614,4 @@ class AccessibleCoverageTest {
         return named;
     }
 
-    private static Path repositoryRoot() {
-        Path directory = Path.of("").toAbsolutePath();
-        while (directory != null) {
-            if (Files.exists(directory.resolve("NOTICE"))
-                    && Files.exists(directory.resolve("settings.gradle.kts"))) {
-                return directory;
-            }
-            directory = directory.getParent();
-        }
-        throw new IllegalStateException("no repository root above " + Path.of("").toAbsolutePath());
-    }
 }

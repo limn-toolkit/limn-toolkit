@@ -1,4 +1,4 @@
-package limn.scene;
+package limn.testing;
 
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
@@ -20,29 +20,43 @@ import java.util.Set;
  * went away, and a scene bound over a live window has to leave it holding nothing at all. A double
  * that only counted calls could not fail either.
  */
-final class RecordingAccessibilityBridge implements AccessibilityBridge {
+public final class RecordingAccessibilityBridge implements AccessibilityBridge {
 
     /** What {@link #isListening()} answers; a test turns the platform on and off with it. */
-    boolean listening;
+    public boolean listening;
+
+    /**
+     * A bridge that is listening from the start: what a component test always wants, since it is
+     * asking what an assistive technology would be told. The scene's own gate, that a quiet frame
+     * costs nothing when nothing is listening, is the scene package's to prove, with the plain
+     * constructor.
+     *
+     * @return a recording bridge whose platform is on
+     */
+    public static RecordingAccessibilityBridge listening() {
+        RecordingAccessibilityBridge bridge = new RecordingAccessibilityBridge();
+        bridge.listening = true;
+        return bridge;
+    }
 
     /** What {@link #needsPrimingPublish()} answers. */
-    boolean needsPriming;
+    public boolean needsPriming;
 
     /** Every tree handed over, newest last. */
-    final List<AccessibleTree> published = new ArrayList<>();
+    public final List<AccessibleTree> published = new ArrayList<>();
 
     /** Whether each of those was handed over with the platform on the stack. */
-    final List<Boolean> reentrant = new ArrayList<>();
+    public final List<Boolean> reentrant = new ArrayList<>();
 
     /** Every event handed over, in order. */
-    final List<AccessibleEvent> events = new ArrayList<>();
+    public final List<AccessibleEvent> events = new ArrayList<>();
 
     /** The identifiers this bridge would be holding platform objects for. */
-    final Set<Long> elements = new LinkedHashSet<>();
+    public final Set<Long> elements = new LinkedHashSet<>();
 
     /** How many hosts it has been given, and the one it holds. */
-    int attachments;
-    Host host;
+    public int attachments;
+    public Host host;
 
     @Override
     public boolean isListening() {
@@ -112,14 +126,14 @@ final class RecordingAccessibilityBridge implements AccessibilityBridge {
     }
 
     /** Forgets every tree and event recorded so far, so a test can assert on what follows. */
-    void clear() {
+    public void clear() {
         published.clear();
         reentrant.clear();
         events.clear();
     }
 
     /** @return the most recently published tree, or the empty one */
-    AccessibleTree tree() {
+    public AccessibleTree tree() {
         return published.isEmpty() ? AccessibleTree.EMPTY : published.get(published.size() - 1);
     }
 
@@ -127,7 +141,7 @@ final class RecordingAccessibilityBridge implements AccessibilityBridge {
      * @param type the kind to count
      * @return how many events of that kind have been handed over
      */
-    long countOf(AccessibleEvent.Type type) {
+    public long countOf(AccessibleEvent.Type type) {
         return events.stream().filter(event -> event.type() == type).count();
     }
 
@@ -135,7 +149,7 @@ final class RecordingAccessibilityBridge implements AccessibilityBridge {
      * @param type the kind to look for
      * @return the first event of that kind, or {@code null}
      */
-    AccessibleEvent first(AccessibleEvent.Type type) {
+    public AccessibleEvent first(AccessibleEvent.Type type) {
         for (AccessibleEvent event : events) {
             if (event.type() == type) {
                 return event;

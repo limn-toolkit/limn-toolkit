@@ -1,6 +1,7 @@
 package limn.scene;
 
 import limn.scene.layout.Column;
+import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;

@@ -1,4 +1,4 @@
-package limn.scene;
+package limn.testing;
 
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -9,13 +9,24 @@ import limn.graphics.Path2D;
 import limn.graphics.RoundRect;
 import limn.graphics.TextMetrics;
 
-/** Fixed-size no-op {@link Canvas}: lets scene tests run full frames without GL. */
-class NoopCanvas implements Canvas {
+/**
+ * A fixed-size canvas that draws nothing, so a full frame can run with no GL. Only the
+ * save/restore depth is real: the toolkit balances it and complains when it does not, and a
+ * widget that clipped without restoring would otherwise leak into whatever painted after it.
+ *
+ * <p>Not final: a test that needs to see one call overrides that one. It used to exist four
+ * times under three names, one copy per module, each saying so.
+ */
+public class NoopCanvas implements Canvas {
 
     private final float width;
     private final float height;
 
-    NoopCanvas(float width, float height) {
+    /**
+     * @param width  what {@link #width()} answers
+     * @param height what {@link #height()} answers
+     */
+    public NoopCanvas(float width, float height) {
         this.width = width;
         this.height = height;
     }

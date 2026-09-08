@@ -9,6 +9,8 @@ import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Scene;
 import limn.scene.Widget;
+import limn.testing.AllocationProbe;
+import limn.testing.RecordingAccessibilityBridge;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -168,7 +170,7 @@ class DialogSceneOverlayAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Binds a scene over a background label to a window that can host an overlay. */
     private void openScene() {
-        bridge = new RecordingBridge();
+        bridge = RecordingAccessibilityBridge.listening();
         OverlayHost host = new OverlayHost();
         host.accessibility = bridge;
         window = host;

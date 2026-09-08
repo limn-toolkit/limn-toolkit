@@ -40,6 +40,7 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    testImplementation(testFixtures(project(":limn-toolkit")))
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

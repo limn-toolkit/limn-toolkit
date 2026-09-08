@@ -1,9 +1,9 @@
 package limn.backend.lwjgl;
 
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.graphics.FontCatalog;
 import limn.graphics.Fonts;
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,8 +12,6 @@ import limn.backend.Platform;
 
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
@@ -33,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SystemFontCatalogTest {
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
     private FontCatalog catalog;
     private final AtomicInteger changes = new AtomicInteger();
@@ -41,10 +39,8 @@ class SystemFontCatalogTest {
 
     @BeforeEach
     void installRuntime() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(System::nanoTime, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
         Fonts.addChangeListener(listener);
     }
 
@@ -54,8 +50,7 @@ class SystemFontCatalogTest {
         if (catalog != null) {
             Fonts.uninstallCatalog(catalog);
         }
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     @Test

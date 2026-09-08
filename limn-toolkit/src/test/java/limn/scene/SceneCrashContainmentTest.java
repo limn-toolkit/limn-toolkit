@@ -4,6 +4,7 @@ import limn.backend.CrashHandler;
 import limn.backend.CrashPhase;
 import limn.backend.Crashes;
 import limn.graphics.Canvas;
+import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

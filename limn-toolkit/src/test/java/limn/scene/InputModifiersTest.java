@@ -3,6 +3,7 @@ package limn.scene;
 import limn.input.Keys;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

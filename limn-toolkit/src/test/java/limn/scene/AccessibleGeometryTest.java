@@ -3,6 +3,7 @@ package limn.scene;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
+import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

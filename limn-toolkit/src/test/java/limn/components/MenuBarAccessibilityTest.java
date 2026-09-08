@@ -9,6 +9,8 @@ import limn.input.Keys;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.layout.Column;
+import limn.testing.AllocationProbe;
+import limn.testing.RecordingAccessibilityBridge;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -106,7 +108,7 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
         bar = built;
         root = new Column();
         root.add(bar);
-        bridge = new RecordingBridge();
+        bridge = RecordingAccessibilityBridge.listening();
         window = over;
         window.accessibility = bridge;
         canvas = new FakeCanvas(400, 300);

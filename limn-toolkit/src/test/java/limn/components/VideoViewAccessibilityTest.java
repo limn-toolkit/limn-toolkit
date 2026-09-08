@@ -4,6 +4,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleRelation;
 import limn.accessibility.ValueFacet;
+import limn.testing.AllocationProbe;
 import limn.video.VideoClock;
 import limn.video.VideoStreamSource;
 import limn.video.VideoSurfaces;

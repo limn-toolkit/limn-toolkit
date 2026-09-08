@@ -6,6 +6,7 @@ import limn.accessibility.AccessibleRelation;
 import limn.accessibility.SelectionFacet;
 import limn.i18n.I18n;
 import limn.scene.layout.Column;
+import limn.testing.AllocationProbe;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 

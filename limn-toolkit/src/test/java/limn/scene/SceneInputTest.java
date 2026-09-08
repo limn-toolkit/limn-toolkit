@@ -5,6 +5,7 @@ import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import limn.scene.layout.Column;
+import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -311,7 +312,7 @@ class SceneInputTest extends SceneTestBase {
     @Test
     void widgetMutationOffTheUiThreadThrows() throws ExecutionException, InterruptedException {
         buildScene(null);
-        IllegalStateException error = workers.submit(() ->
+        IllegalStateException error = ui.workers().submit(() ->
                 assertThrows(IllegalStateException.class, () -> a.setVisible(false))
         ).get();
         assertTrue(error.getMessage().contains("UI thread"), error.getMessage());

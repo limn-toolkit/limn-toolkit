@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testing.HeadlessUi;
+
 import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.graphics.Font;
@@ -33,15 +35,14 @@ class TooltipMirroringTest extends ComponentTestBase {
             new java.util.concurrent.atomic.AtomicLong();
 
     /**
-     * Swaps the base's wall clock for one this test drives, keeping the base's field so its own
-     * teardown still uninstalls the runtime that is actually installed.
+     * Swaps the base's wall clock for one this test drives, replacing the base's runtime so its
+     * own teardown still closes the one that is actually installed.
      */
     @org.junit.jupiter.api.BeforeEach
     void installControllableClock() {
-        Ui.uninstall(runtime);
-        runtime = new UiRuntime(nanos::get, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui.close();
+        ui = new HeadlessUi(nanos::get);
+        runtime = ui.runtime();
     }
 
     private static final float EPS = 1e-3f;

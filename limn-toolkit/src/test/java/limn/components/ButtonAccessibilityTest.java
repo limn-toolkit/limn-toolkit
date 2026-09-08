@@ -11,6 +11,7 @@ import limn.graphics.Image;
 import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.layout.Column;
+import limn.testing.AllocationProbe;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 

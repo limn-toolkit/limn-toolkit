@@ -11,6 +11,7 @@ import limn.scene.Insets;
 import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.testing.AllocationProbe;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;

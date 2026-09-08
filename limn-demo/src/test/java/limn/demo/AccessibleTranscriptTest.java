@@ -2,7 +2,6 @@ package limn.demo;
 
 import limn.components.Dialog;
 import limn.components.Theme;
-import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.demo.a11y.Goldens;
 import limn.demo.a11y.HeadlessBackend;
@@ -15,13 +14,12 @@ import limn.graphics.TextRulers;
 import limn.i18n.I18n;
 import limn.scene.ControlSize;
 import limn.scene.Scene;
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,17 +63,15 @@ class AccessibleTranscriptTest {
      */
     private static final ImageDecoder DECODER = bytes -> new Image(16, 16, new byte[16 * 16 * 4]);
 
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
     private long nanos;
     private HeadlessBackend backend;
 
     @BeforeEach
     void installRuntime() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(() -> nanos, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi(() -> nanos);
+        runtime = ui.runtime();
         // What the gallery capture does before every shot: the transcript is in the language the
         // reference was read in, whatever the machine running this happens to speak.
         I18n.setLocale(Locale.ENGLISH);
@@ -91,8 +87,7 @@ class AccessibleTranscriptTest {
         Images.uninstallDecoder(DECODER);
         TextRulers.uninstall(HeadlessWindow.RULER);
         Theme.setCurrent(Theme.dark());
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     @Test

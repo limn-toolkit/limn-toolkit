@@ -1,5 +1,6 @@
 package limn.backend.lwjgl.a11y;
 
+import limn.testing.RepositoryRoot;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -108,7 +109,7 @@ class DesignNoteTest {
     private static Set<String> identifiersInTheSource() throws IOException {
         Set<String> words = new HashSet<>(1 << 16);
         Pattern identifier = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
-        try (Stream<Path> tree = Files.walk(repositoryRoot())) {
+        try (Stream<Path> tree = Files.walk(RepositoryRoot.find())) {
             List<Path> sources = tree
                     .filter(p -> p.toString().endsWith(".java"))
                     .filter(p -> p.toString().contains("/src/"))
@@ -126,7 +127,7 @@ class DesignNoteTest {
 
     /** @return every span between backticks in the note, in order, without duplicates */
     private static Set<String> backtickedSpans() throws IOException {
-        Path note = repositoryRoot().resolve("docs/design/accessibility.md");
+        Path note = RepositoryRoot.find().resolve("docs/design/accessibility.md");
         assertTrue(Files.exists(note), "docs/design/accessibility.md is gone");
         String text = Files.readString(note, StandardCharsets.UTF_8);
         Set<String> spans = new LinkedHashSet<>();
@@ -138,15 +139,4 @@ class DesignNoteTest {
         return spans;
     }
 
-    private static Path repositoryRoot() {
-        Path directory = Path.of("").toAbsolutePath();
-        while (directory != null) {
-            if (Files.exists(directory.resolve("NOTICE"))
-                    && Files.exists(directory.resolve("settings.gradle.kts"))) {
-                return directory;
-            }
-            directory = directory.getParent();
-        }
-        throw new IllegalStateException("no repository root above " + Path.of("").toAbsolutePath());
-    }
 }

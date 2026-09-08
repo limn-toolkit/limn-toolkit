@@ -13,12 +13,12 @@ import limn.graphics.RoundRect;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.scene.Scene;
+import limn.testing.HeadlessUi;
+import limn.testing.TestRulers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -32,8 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CaretDamageTest {
 
-    private static final TextRuler RULER = (text, font) ->
-            new TextMetrics(10f * (int) text.codePoints().count(), 8, 2, 12);
+    private static final TextRuler RULER = TestRulers.FIXED;
 
     /**
      * Records clear/clip/fill so a frame can be classified full vs partial.
@@ -96,22 +95,19 @@ class CaretDamageTest {
     }
 
     private final AtomicLong nanos = new AtomicLong(1_000_000_000L);
-    private ExecutorService workers;
+    private HeadlessUi ui;
     private UiRuntime runtime;
 
     @BeforeEach
     void installRuntime() {
-        workers = Executors.newFixedThreadPool(1);
-        runtime = new UiRuntime(nanos::get, () -> { }, workers);
-        runtime.bindToCurrentThread();
-        Ui.install(runtime);
+        ui = new HeadlessUi(nanos::get);
+        runtime = ui.runtime();
         Theme.setCurrent(Theme.dark());
     }
 
     @AfterEach
     void uninstallRuntime() {
-        Ui.uninstall(runtime);
-        workers.shutdownNow();
+        ui.close();
     }
 
     /** Viewport-like container clipping one child placed at a fixed offset. */

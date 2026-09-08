@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.testing.AllocationProbe;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;

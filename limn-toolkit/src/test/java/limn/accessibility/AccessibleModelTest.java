@@ -1,6 +1,7 @@
 package limn.accessibility;
 
 import limn.i18n.I18nString;
+import limn.testing.RepositoryRoot;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ class AccessibleModelTest {
      * from checking anything.
      */
     private static List<String> rolesFromTheRecord() throws IOException {
-        Path record = repositoryRoot().resolve("docs/adr")
+        Path record = RepositoryRoot.find().resolve("docs/adr")
                 .resolve("039-an-accessible-tree-is-a-snapshot-and-the-platform-reads-it-on-its-"
                         + "own-thread.md");
         List<String> lines = Files.readAllLines(record, StandardCharsets.UTF_8);
@@ -99,17 +100,6 @@ class AccessibleModelTest {
         return roles;
     }
 
-    private static Path repositoryRoot() {
-        Path directory = Path.of("").toAbsolutePath();
-        while (directory != null) {
-            if (Files.exists(directory.resolve("NOTICE"))
-                    && Files.exists(directory.resolve("settings.gradle.kts"))) {
-                return directory;
-            }
-            directory = directory.getParent();
-        }
-        throw new IllegalStateException("no repository root above " + Path.of("").toAbsolutePath());
-    }
 
     @Test
     void twelveVerbsArePublishableAndFourTakeAnArgument() {
