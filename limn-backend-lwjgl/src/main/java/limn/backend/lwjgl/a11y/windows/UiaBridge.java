@@ -6,6 +6,7 @@ import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 import limn.backend.lwjgl.a11y.PlatformBridge;
+import limn.concurrent.Threads;
 import org.lwjgl.system.MemoryUtil;
 
 import java.util.ArrayList;
@@ -286,10 +287,7 @@ public final class UiaBridge extends PlatformBridge {
         }
         events.offer(event);
         if (drain == null) {
-            Thread thread = new Thread(this::drainLoop, "limn-a11y-uia-drain");
-            thread.setDaemon(true);
-            drain = thread;
-            thread.start();
+            drain = Threads.daemon("limn-a11y-uia-drain", this::drainLoop);
         }
     }
 

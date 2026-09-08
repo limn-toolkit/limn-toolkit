@@ -8,7 +8,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -100,13 +99,8 @@ public final class UiRuntime implements AutoCloseable {
      */
     public static UiRuntime create(Waker waker) {
         int poolSize = Math.max(2, Runtime.getRuntime().availableProcessors() - 1);
-        AtomicInteger counter = new AtomicInteger();
-        ThreadFactory factory = task -> {
-            Thread thread = new Thread(task, "limn-worker-" + counter.incrementAndGet());
-            thread.setDaemon(true);
-            return thread;
-        };
-        return new UiRuntime(System::nanoTime, waker, Executors.newFixedThreadPool(poolSize, factory), true);
+        return new UiRuntime(System::nanoTime, waker,
+                Executors.newFixedThreadPool(poolSize, Threads.daemonFactory("limn-worker")), true);
     }
 
     /**

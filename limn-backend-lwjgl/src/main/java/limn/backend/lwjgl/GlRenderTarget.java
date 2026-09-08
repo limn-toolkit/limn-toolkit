@@ -2,6 +2,7 @@ package limn.backend.lwjgl;
 
 import limn.backend.RenderStats;
 import limn.graphics.Color;
+import limn.lang.Checks;
 import limn.render3d.ColorSpace;
 import limn.render3d.RenderTarget;
 import org.lwjgl.opengl.GL33C;
@@ -235,9 +236,7 @@ final class GlRenderTarget implements RenderTarget {
      * into the top-down order every pixel type in the toolkit uses.
      */
     private float[] readFloats(int x, int y, int w, int h) {
-        if (colorTex == 0) {
-            throw new IllegalStateException("render target has been disposed");
-        }
+        Checks.notDisposed(colorTex == 0, "the render target");
         if (w <= 0 || h <= 0 || x < 0 || y < 0 || x + w > width || y + h > height) {
             throw new IllegalArgumentException("read rectangle " + x + "," + y + " " + w + "x" + h
                     + " is not inside " + width + "x" + height);

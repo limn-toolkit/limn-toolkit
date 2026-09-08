@@ -236,6 +236,33 @@ public final class Checks {
         }
     }
 
+    /**
+     * An object that is asked something after it was closed.
+     *
+     * @param closed whether it has been closed
+     * @param what   the object, for the message: "this MediaPlayer", "the backend"
+     * @throws IllegalStateException if it has
+     */
+    public static void notClosed(boolean closed, String what) {
+        if (closed) {
+            throw new IllegalStateException(what + " is closed");
+        }
+    }
+
+    /**
+     * An object that is asked something after it was disposed: the same refusal as
+     * {@link #notClosed} for the things whose verb is dispose, a mesh, a surface, a target.
+     *
+     * @param disposed whether it has been disposed
+     * @param what     the object, for the message
+     * @throws IllegalStateException if it has
+     */
+    public static void notDisposed(boolean disposed, String what) {
+        if (disposed) {
+            throw new IllegalStateException(what + " has been disposed");
+        }
+    }
+
     /** The shortest decimal that names a bound: {@code 1} and not {@code 1.0}, {@code 0.25} as is. */
     private static String bound(float value) {
         return value == (long) value ? Long.toString((long) value) : Float.toString(value);

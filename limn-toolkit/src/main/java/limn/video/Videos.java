@@ -3,6 +3,7 @@ package limn.video;
 import limn.concurrent.Progress;
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
+import limn.io.Closeables;
 
 import java.lang.System.Logger.Level;
 import java.nio.file.Path;
@@ -222,7 +223,7 @@ public final class Videos {
     public static Work<VideoStreamSource> openAsync(Path file) {
         Objects.requireNonNull(file, "file");
         return Ui.<VideoStreamSource>work(progress -> probeAndOpen(file, progress))
-                .onDiscarded(Videos::closeQuietly);
+                .onDiscarded(source -> Closeables.closeQuietly(source, "an undelivered video source"));
     }
 
     /**
@@ -332,18 +333,4 @@ public final class Videos {
                 "No VideoDecoder accepts " + file + " (tried, in order: " + asked + ")");
     }
 
-    /**
-     * Closes a source nobody received. On a worker thread, where blocking is allowed, and a close
-     * that throws must not become the failure of a job that already succeeded.
-     */
-    private static void closeQuietly(VideoStreamSource source) {
-        if (source == null) {
-            return;
-        }
-        try {
-            source.close();
-        } catch (Throwable failure) {
-            LOG.log(Level.DEBUG, "closing an undelivered video source failed", failure);
-        }
-    }
 }

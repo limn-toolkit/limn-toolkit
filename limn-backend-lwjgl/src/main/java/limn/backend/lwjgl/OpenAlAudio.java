@@ -1,5 +1,7 @@
 package limn.backend.lwjgl;
 
+import limn.concurrent.Threads;
+import limn.io.Closeables;
 import limn.math.Scalars;
 import limn.math.Vec3;
 import limn.sound.AudioBus;
@@ -459,7 +461,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
     @Override
     public synchronized Playback playStream(AudioStreamSource source, PlayOptions options) {
         if (!ensureInitialized()) {
-            closeQuietly(source);
+            Closeables.closeQuietly(source, "an audio stream source");
             return Playback.NONE;
         }
         // Stopped-but-unreaped streams must not occupy admission slots: a
@@ -473,7 +475,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         if ((channels != 1 && channels != 2) || streams.size() >= MAX_STREAMS) {
             LOG.log(Level.DEBUG, "stream rejected (channels={0}, active={1})",
                     channels, streams.size());
-            closeQuietly(source);
+            Closeables.closeQuietly(source, "an audio stream source");
             return Playback.NONE;
         }
         int alSource = -1;
@@ -497,7 +499,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
             }
             if (queued == 0) {
                 alDeleteSources(alSource);
-                closeQuietly(source);
+                Closeables.closeQuietly(source, "an audio stream source");
                 return Playback.NONE; // empty stream
             }
             alSourcef(stream.source, AL_GAIN, effectiveGain(stream.playGain, stream.bus));
@@ -526,7 +528,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
             } catch (Throwable cleanup) {
                 LOG.log(Level.DEBUG, "stream start cleanup failed", cleanup);
             }
-            closeQuietly(source);
+            Closeables.closeQuietly(source, "an audio stream source");
             return Playback.NONE;
         }
     }
@@ -607,9 +609,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
 
     private void ensureStreamThread() {
         if (streamThread == null || !streamThread.isAlive()) {
-            streamThread = new Thread(this::streamLoop, "limn-audio-stream");
-            streamThread.setDaemon(true);
-            streamThread.start();
+            streamThread = Threads.daemon("limn-audio-stream", this::streamLoop);
         }
     }
 
@@ -879,20 +879,13 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
             LOG.log(Level.DEBUG, "stream cleanup failed", error);
         }
         if (closeDecoder) {
-            closeQuietly(stream.decoder);
+            Closeables.closeQuietly(stream.decoder, "an audio stream source");
         } else {
             LOG.log(Level.WARNING, "stream decoder left open: the service thread is still "
                     + "decoding from it at shutdown");
         }
     }
 
-    private static void closeQuietly(AudioStreamSource source) {
-        try {
-            source.close();
-        } catch (Throwable error) {
-            LOG.log(Level.DEBUG, "stream close failed", error);
-        }
-    }
 
     // --------------------------------------------------------------- shutdown
 

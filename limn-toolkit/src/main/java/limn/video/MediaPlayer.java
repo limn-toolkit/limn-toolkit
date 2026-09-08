@@ -2,6 +2,7 @@ package limn.video;
 
 import limn.backend.CrashPhase;
 import limn.backend.Crashes;
+import limn.concurrent.Threads;
 import limn.concurrent.Ui;
 import limn.lang.Checks;
 import limn.sound.AudioStreamSource;
@@ -373,10 +374,8 @@ public final class MediaPlayer implements AutoCloseable {
             sourceEnded = false;
             lock.notifyAll();
             if (ownsDecodeThread && decodeThread == null) {
-                decodeThread = new Thread(this::decodeLoop,
-                        "limn-video-decode-" + THREAD_SERIAL.incrementAndGet());
-                decodeThread.setDaemon(true);
-                decodeThread.start();
+                decodeThread = Threads.daemon(
+                        "limn-video-decode-" + THREAD_SERIAL.incrementAndGet(), this::decodeLoop);
             }
         }
     }
@@ -453,9 +452,7 @@ public final class MediaPlayer implements AutoCloseable {
      */
     public void restart() {
         Ui.checkUiThread();
-        if (state == State.CLOSED) {
-            throw new IllegalStateException("this MediaPlayer is closed");
-        }
+        Checks.notClosed(state == State.CLOSED, "this MediaPlayer");
         stop();
         video.reset();
         synchronized (lock) {
@@ -509,9 +506,7 @@ public final class MediaPlayer implements AutoCloseable {
     public void seek(long micros, VideoStreamSource.SeekMode mode) {
         Ui.checkUiThread();
         Objects.requireNonNull(mode, "mode");
-        if (state == State.CLOSED) {
-            throw new IllegalStateException("this MediaPlayer is closed");
-        }
+        Checks.notClosed(state == State.CLOSED, "this MediaPlayer");
         Checks.notNegative(micros, "seek target");
         if (!video.canSeek()) {
             throw new UnsupportedOperationException(
@@ -1102,9 +1097,7 @@ public final class MediaPlayer implements AutoCloseable {
     }
 
     private void checkIdle(String what) {
-        if (state == State.CLOSED) {
-            throw new IllegalStateException("this MediaPlayer is closed");
-        }
+        Checks.notClosed(state == State.CLOSED, "this MediaPlayer");
         if (state != State.IDLE) {
             throw new IllegalStateException(
                     "cannot change " + what + " while a MediaPlayer is " + state);

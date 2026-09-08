@@ -19,6 +19,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import limn.concurrent.Threads;
 
 /**
  * A minimal D-Bus client for the Limn screen-reader spike: SASL EXTERNAL over a
@@ -711,12 +712,8 @@ final class DBus {
             if (readerThread != null) return;
             // The writer first: the reader may answer a call before start() returns, and its reply
             // has to find a thread already draining rather than a queue nobody reads.
-            writerThread = new Thread(this::writeLoop, "dbus-writer");
-            writerThread.setDaemon(true);
-            writerThread.start();
-            readerThread = new Thread(this::loop, "dbus-reader");
-            readerThread.setDaemon(true);
-            readerThread.start();
+            writerThread = Threads.daemon("limn-a11y-dbus-writer", this::writeLoop);
+            readerThread = Threads.daemon("limn-a11y-dbus-reader", this::loop);
         }
 
         /** The thread that answers inbound calls; nothing else may write to the connection. */

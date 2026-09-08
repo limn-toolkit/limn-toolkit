@@ -2,6 +2,7 @@ package limn.backend.lwjgl;
 
 import limn.backend.RenderStats;
 import limn.concurrent.Ui;
+import limn.lang.Checks;
 import limn.video.PixelFormat;
 import limn.video.VideoFrame;
 import limn.video.VideoSurface;
@@ -91,9 +92,7 @@ final class GlVideoSurface implements VideoSurface {
         Objects.requireNonNull(frame, "frame");
         Ui.checkUiThread();
         owner.checkCurrent();
-        if (disposed) {
-            throw new IllegalStateException("this video surface has been disposed");
-        }
+        Checks.notDisposed(disposed, "this video surface");
         // Liveness gate before anything on the device changes: a released
         // frame's memory belongs to its producer again, and asking for it is
         // what says so. Which question that is depends on the shape: a

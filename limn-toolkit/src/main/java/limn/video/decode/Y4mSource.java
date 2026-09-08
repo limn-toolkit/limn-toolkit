@@ -1,5 +1,6 @@
 package limn.video.decode;
 
+import limn.io.Closeables;
 import limn.lang.Checks;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
@@ -113,10 +114,10 @@ final class Y4mSource implements VideoStreamSource {
             VideoColor color = override != null ? override : header.color;
             return new Y4mSource(file, channel, input, header, consumed, resettable, color, slots);
         } catch (IOException error) {
-            closeQuietly(channel);
+            Closeables.closeQuietly(channel, "the Y4M channel");
             throw new UncheckedIOException("cannot read " + file, error);
         } catch (RuntimeException error) {
-            closeQuietly(channel);
+            Closeables.closeQuietly(channel, "the Y4M channel");
             throw error;
         }
     }
@@ -343,7 +344,7 @@ final class Y4mSource implements VideoStreamSource {
     public void close() {
         closed = true;
         current = null;
-        closeQuietly(channel);
+        Closeables.closeQuietly(channel, "the Y4M channel");
     }
 
     private long ptsMicrosOf(int index) {
@@ -438,15 +439,6 @@ final class Y4mSource implements VideoStreamSource {
         return new IllegalStateException("malformed Y4M in " + file + ": " + reason);
     }
 
-    private static void closeQuietly(SeekableByteChannel channel) {
-        if (channel != null) {
-            try {
-                channel.close();
-            } catch (IOException ignored) {
-                // Closing is best-effort: the caller is already on a failure path or done reading.
-            }
-        }
-    }
 
     // ------------------------------------------------------------------ header
 

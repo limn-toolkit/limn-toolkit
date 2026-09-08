@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.lang.Checks;
 import limn.math.Aabb;
 import limn.render3d.GpuMesh;
 import limn.render3d.MeshData;
@@ -88,9 +89,7 @@ final class GlMesh implements GpuMesh {
             throw new UnsupportedOperationException(
                     "mesh was uploaded as STATIC; use Graphics3D.upload(mesh, MeshUsage.DYNAMIC)");
         }
-        if (disposed) {
-            throw new IllegalStateException("mesh has been disposed");
-        }
+        Checks.notDisposed(disposed, "the mesh");
         if (!mesh.presentAttributes().equals(Set.copyOf(layout))) {
             throw new IllegalArgumentException("update changes the vertex layout: uploaded with "
                     + layout + ", updated with " + mesh.presentAttributes());

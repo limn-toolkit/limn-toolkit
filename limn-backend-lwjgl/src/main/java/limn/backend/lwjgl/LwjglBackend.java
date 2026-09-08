@@ -9,6 +9,7 @@ import limn.backend.Platform;
 import limn.backend.WindowConfig;
 import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
+import limn.lang.Checks;
 import limn.sound.AudioClip;
 import limn.sound.Sounds;
 import org.lwjgl.PointerBuffer;
@@ -971,8 +972,6 @@ public final class LwjglBackend implements Backend {
     }
 
     private void ensureOpen() {
-        if (terminated) {
-            throw new IllegalStateException("backend is closed");
-        }
+        Checks.notClosed(terminated, "the backend");
     }
 }

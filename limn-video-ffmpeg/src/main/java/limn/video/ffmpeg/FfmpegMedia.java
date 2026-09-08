@@ -571,9 +571,7 @@ public final class FfmpegMedia implements AutoCloseable {
         long[] description = new long[FfmpegNative.DESCRIBE_LENGTH];
         lock.readLock().lock();
         try {
-            if (handle == 0) {
-                throw new FfmpegException("the container is closed");
-            }
+            requireOpen();
             FfmpegNative.selectAudio(handle, index);
             // What the decoder produces, rather than what the header claimed: the fold and the
             // rate a source reports have to be the ones its samples will actually arrive in.
@@ -661,9 +659,7 @@ public final class FfmpegMedia implements AutoCloseable {
         }
         lock.readLock().lock();
         try {
-            if (handle == 0) {
-                throw new FfmpegException("the container is closed");
-            }
+            requireOpen();
             FfmpegNative.selectSubtitle(handle, index);
         } finally {
             lock.readLock().unlock();
@@ -843,9 +839,7 @@ public final class FfmpegMedia implements AutoCloseable {
     void resetVideo() {
         lock.readLock().lock();
         try {
-            if (handle == 0) {
-                throw new FfmpegException("the container is closed");
-            }
+            requireOpen();
             FfmpegNative.resetVideo(handle);
         } finally {
             lock.readLock().unlock();
@@ -855,9 +849,7 @@ public final class FfmpegMedia implements AutoCloseable {
     void seekVideo(long micros, boolean exact) {
         lock.readLock().lock();
         try {
-            if (handle == 0) {
-                throw new FfmpegException("the container is closed");
-            }
+            requireOpen();
             FfmpegNative.seekVideo(handle, micros, exact);
         } finally {
             lock.readLock().unlock();
@@ -1159,5 +1151,15 @@ public final class FfmpegMedia implements AutoCloseable {
         }
         return (head[0] & 0xFF) == 0x1A && (head[1] & 0xFF) == 0x45
                 && (head[2] & 0xFF) == 0xDF && (head[3] & 0xFF) == 0xA3;
+    }
+
+    /**
+     * The one refusal a call after {@link #close} meets on the paths that cannot answer instead:
+     * four of them, which each wrote it.
+     */
+    private void requireOpen() {
+        if (handle == 0) {
+            throw new FfmpegException("the container is closed");
+        }
     }
 }
