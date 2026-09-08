@@ -177,6 +177,8 @@ public final class LayoutExample {
             }
         });
         list.setSelectedIndex(1);
+        // A list with no caption takes its name directly; a reader says "Collections, list".
+        list.setAccessibleName("Collections");
         return list;
     }
 
@@ -188,6 +190,7 @@ public final class LayoutExample {
         SearchField search = new SearchField();
         SegmentedControl view = new SegmentedControl(List.of("Grid", "List"));
         view.setSelectedIndex(0);
+        view.setAccessibleName("View");
 
         Row tools = new Row();
         tools.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);

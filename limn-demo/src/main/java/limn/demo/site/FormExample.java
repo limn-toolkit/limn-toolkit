@@ -46,10 +46,20 @@ public final class FormExample {
      */
     // #region guide:form-field
     static Widget field(String caption, Widget control) {
+        return field(caption, control, control);
+    }
+
+    /**
+     * The same, where the control sits inside a wrapper (a field with a message beneath it):
+     * the caption names the control, and the wrapper is what is placed.
+     */
+    static Widget field(String caption, Widget control, Widget placed) {
         Column group = new Column();
         group.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
-        group.add(new Label(caption).setMuted(true));
-        group.add(control);
+        // The caption is the control's name: a screen reader says "Email, text field" and not
+        // "text field" alone. Sitting above it is a layout fact and names nothing.
+        group.add(new Label(caption).setMuted(true).setLabelFor(control));
+        group.add(placed);
         return group;
     }
     // #endregion
@@ -100,7 +110,7 @@ public final class FormExample {
         form.gap(18).crossAlignment(Flex.CrossAlignment.STRETCH);
         form.add(new Label("Create your account").setRole(Label.Role.TITLE));
         form.add(field("Full name", name));
-        form.add(field("Email", emailGroup));
+        form.add(field("Email", email, emailGroup));
         form.add(field("Password", password));
         form.add(field("Plan", plan));
         form.add(updates);

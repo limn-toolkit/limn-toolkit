@@ -104,6 +104,19 @@ function expand(source, file, snippets, shots, problems) {
         return "```java\n" + text + "\n```";
       }
 
+      // What a screen reader is told about a showcase screen: the transcript the capture wrote
+      // beside the picture, as a text block. Same guarantee as the picture: the capture that is
+      // not there fails the build rather than leaving a page describing a screen it cannot show.
+      const transcript = line.match(/^\s*\{%\s*transcript\s+(\S+)\s*%\}\s*$/);
+      if (transcript) {
+        const entry = shots.get(transcript[1]);
+        if (!entry || !entry.transcript) {
+          problems.push(`${file}: no transcript for showcase capture '${transcript[1]}'`);
+          return line;
+        }
+        return "```text\n" + entry.transcript.join("\n") + "\n```";
+      }
+
       const shot = line.match(/^\s*\{%\s*shot\s+(\S+)\s+"([^"]*)"\s*%\}\s*$/);
       if (shot) {
         const entry = shots.get(shot[1]);

@@ -572,6 +572,7 @@ public final class AccessibilityGallery {
 
     private static Built images() {
         Column page = page();
+        // #region guide:a11y-image
         ImageView logo = new ImageView(BLANK_PICTURE).setFit(ImageView.Fit.CONTAIN)
                 .setPreferredSize(96, 64);
         logo.setAccessibleName("Limn logo");
@@ -581,6 +582,7 @@ public final class AccessibilityGallery {
         ImageView decorative = new ImageView(BLANK_PICTURE).setPreferredSize(48, 48);
         // A picture the text beside it already describes is decoration, and is left out.
         decorative.setAccessibleIgnored(true);
+        // #endregion
         Row row = new Row();
         row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(decorative);
@@ -671,6 +673,7 @@ public final class AccessibilityGallery {
      * The same, where the control sits inside a wrapper — a sized box, a row with a switch — and
      * the label must point at the control and not at the box around it.
      */
+    // #region guide:a11y-labelled
     private static Widget labelled(String caption, Widget control, Widget placed) {
         Column column = new Column();
         column.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -678,6 +681,7 @@ public final class AccessibilityGallery {
         column.add(placed);
         return column;
     }
+    // #endregion
 
     /** An icon-only button, named by its tooltip, which is what an icon-only button always has. */
     private static Button iconButton(String name) {

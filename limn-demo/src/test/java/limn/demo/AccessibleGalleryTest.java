@@ -12,6 +12,8 @@ import limn.demo.a11y.AccessibilityGallery.Entry;
 import limn.demo.a11y.HeadlessBackend;
 import limn.demo.a11y.HeadlessWindow;
 import limn.demo.a11y.Transcript;
+import limn.demo.site.FormExample;
+import limn.demo.site.LayoutExample;
 import limn.graphics.TextRulers;
 import limn.i18n.I18n;
 import limn.scene.ControlSize;
@@ -26,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -114,6 +117,49 @@ class AccessibleGalleryTest {
             }
         }
         return tests.stream();
+    }
+
+    /**
+     * The guide's own worked examples, held to the same four rules. They are what the
+     * documentation shows an application doing, and the form is the screen the home page's
+     * reader panel and the accessibility guide's transcript are taken from: a nameless field
+     * there is a nameless field on every page that teaches the idiom.
+     */
+    @TestFactory
+    Stream<DynamicTest> theGuidesOwnExamplesHoldTheInvariants() {
+        Map<String, Supplier<Scene>> examples = new LinkedHashMap<>();
+        examples.put("A form", FormExample::scene);
+        examples.put("A window laid out", LayoutExample::scene);
+        List<DynamicTest> tests = new ArrayList<>();
+        examples.forEach((name, example) -> {
+            for (Palette palette : Palette.values()) {
+                tests.add(DynamicTest.dynamicTest(
+                        name + ", " + palette.name().toLowerCase(Locale.ROOT),
+                        () -> checkExample(name, example, palette)));
+            }
+        });
+        return tests.stream();
+    }
+
+    private static void checkExample(String name, Supplier<Scene> example, Palette palette) {
+        try (Harness harness = new Harness(palette)) {
+            List<HeadlessWindow> windows = harness.show(name, example.get());
+            List<String> violations = new ArrayList<>();
+            StringBuilder transcript = new StringBuilder();
+            for (HeadlessWindow window : windows) {
+                AccessibleTree tree = window.bridge().tree();
+                violations.addAll(violations(window.title(), tree));
+                transcript.append("== window \"").append(window.title()).append("\" ==\n")
+                        .append(Transcript.of(tree));
+            }
+            if (!violations.isEmpty()) {
+                fail("the guide's example \"" + name + "\" in the "
+                        + palette.name().toLowerCase(Locale.ROOT) + " palette breaks "
+                        + violations.size() + " invariant(s):\n  "
+                        + String.join("\n  ", violations)
+                        + "\nthe tree it published:\n" + transcript);
+            }
+        }
     }
 
     private static void check(Entry entry, Palette palette) {
@@ -333,6 +379,23 @@ class AccessibleGalleryTest {
                     other.desktopFocus(true);
                 }
             }
+            settle();
+            return backend.windows();
+        }
+
+        /**
+         * Binds a scene an example built for itself — the guide's worked examples come as a
+         * {@link Scene}, not a root — and settles it the same way.
+         *
+         * @param title the window's title, for the messages
+         * @param scene the example's own scene
+         * @return every window that exists once it settled
+         */
+        List<HeadlessWindow> show(String title, Scene scene) {
+            HeadlessWindow window = backend.open(title, WIDTH, HEIGHT);
+            scene.bind(window);
+            window.frame();
+            window.desktopFocus(true);
             settle();
             return backend.windows();
         }

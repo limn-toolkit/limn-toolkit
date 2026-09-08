@@ -362,7 +362,21 @@ async function main() {
         }
       }
     }
-    return { shot: { id: entry.id, title: entry.title, locale: entry.locale, images }, problems };
+    // What a screen reader is told about the same screen, written by the capture beside the
+    // picture. Text, not pixels, so it is carried as lines and not derived; but promised by the
+    // manifest like a file, and a promise the capture did not keep fails the build like one.
+    let transcript;
+    if (entry.transcript) {
+      const file = path.join(CAPTURES_DIR, entry.transcript);
+      if (!existsSync(file)) {
+        fail(`showcase entry '${entry.id}' promises ${entry.transcript}, which was not written`);
+      }
+      transcript = (await readFile(file, "utf8")).split("\n").filter((line) => line.length > 0);
+    }
+    return {
+      shot: { id: entry.id, title: entry.title, locale: entry.locale, images, transcript },
+      problems,
+    };
   });
   const shots = filmed.map((each) => each.shot);
   for (const each of filmed) {

@@ -1,5 +1,8 @@
 package limn.demo.site;
 
+import limn.accessibility.AccessibleEvent;
+import limn.accessibility.AccessibleTree;
+import limn.backend.AccessibilityBridge;
 import limn.backend.Backend;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
@@ -7,6 +10,7 @@ import limn.backend.lwjgl.LwjglBackend;
 import limn.components.Theme;
 import limn.concurrent.Ui;
 import limn.demo.SiteShowcase;
+import limn.demo.a11y.Transcript;
 import limn.graphics.Image;
 import limn.graphics.ImageFormat;
 import limn.graphics.Images;
@@ -224,6 +228,10 @@ public final class Gallery {
             big.setSize(Math.round(SHOWCASE_WIDTH * SCALE / monitorScale),
                     Math.round(SHOWCASE_HEIGHT * SCALE / monitorScale));
             big.overrideContentScale(SCALE);
+            // Before anything binds, because a scene takes the window's bridge at bind: what is
+            // published here is kept and written beside the picture as its transcript.
+            window.setAccessibility(new TreeKeeper());
+            big.setAccessibility(new TreeKeeper());
 
             // ONE list, one driver, one shot at a time; see Shot's note.
             List<Shot> all = new ArrayList<>();
@@ -346,6 +354,38 @@ public final class Gallery {
      * which is what lets {@code showcaseShots} skip the second pass, and, for an entry that
      * keeps the warm-up pass, what makes the second pass overwrite the first.
      */
+    /** The transcript beside a capture: the entry's id, in the capture's directory. */
+    private static Path transcriptFile(Path capture, String entryId) {
+        return capture.resolveSibling(entryId + ".a11y.txt");
+    }
+
+    /**
+     * Keeps the newest accessible tree a window's scene published, so that the still of a
+     * screen can be written beside what a screen reader would be told about it. It listens, so
+     * the scene publishes on every damaged frame exactly as it would under a reader.
+     */
+    private static final class TreeKeeper implements AccessibilityBridge {
+        private volatile AccessibleTree tree = AccessibleTree.EMPTY;
+
+        @Override
+        public boolean isListening() {
+            return true;
+        }
+
+        @Override
+        public void publish(AccessibleTree published, boolean reentrant) {
+            tree = published;
+        }
+
+        @Override
+        public void emit(AccessibleEvent event) {
+        }
+
+        AccessibleTree tree() {
+            return tree;
+        }
+    }
+
     private static String showcaseFile(SiteShowcase.Entry entry, Palette palette) {
         String key = entry.paletteInvariant() ? INVARIANT_KEY : palette.key();
         return "showcase-" + entry.id() + "-" + key + "@2x.png";
@@ -371,7 +411,13 @@ public final class Gallery {
                     // The size the PUBLISHED asset is, in points. The capture's own pixel
                     // size depends on the monitor it ran on; the site resizes to this.
                     .append("      \"points\": ").append(SHOWCASE_WIDTH).append(",\n")
-                    .append("      \"scale\": 2");
+                    .append("      \"scale\": 2,\n")
+                    // What a screen reader is told about this screen, written by the driver at
+                    // the still. Promised here like the pictures are: the site fails the build
+                    // over a transcript this names and the capture did not write.
+                    .append("      \"transcript\": ")
+                    .append(quote(transcriptFile(Path.of(showcaseFile(entry, PALETTES.get(0))),
+                            "showcase-" + entry.id()).toString()));
             // Counted by the driver, never declared: a number written here is a promise about
             // files, and the site fails the build over a frame the manifest promised and the
             // capture did not write.
@@ -595,6 +641,26 @@ public final class Gallery {
          * scene forever, captures nothing and never closes: a hang with no output, which
          * is exactly how this was found.
          */
+        /**
+         * Writes, beside the still, what a screen reader would be told about the same screen:
+         * the tree the scene published for the frame that was just photographed, one line per
+         * node. Once per entry and not per palette, because the transcript carries no colour
+         * and no rectangle; both passes write the same bytes to the same file.
+         */
+        private void writeTranscript(Shot shot) {
+            if (!(window.accessibility() instanceof TreeKeeper keeper)) {
+                return;
+            }
+            Path file = transcriptFile(shot.file(), shot.entry().id());
+            try {
+                Files.writeString(file, Transcript.of(keeper.tree()), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                System.err.println("gallery: could not write " + file + ": " + e.getMessage());
+                failed = true;
+                closeAll();
+            }
+        }
+
         private void installCallback() {
             NativeWindow owner = window;
             window.setFrameCallback((renderer, frame) -> {
@@ -699,6 +765,7 @@ public final class Gallery {
                         // Fall through to the frame request below and try again.
                     } else if (still != null) {
                         writer.write(still, shot.file());
+                        writeTranscript(shot);
                         still = null;
                         stillPending = false;
                         // The still is the poster, and it is captured before any pointer
