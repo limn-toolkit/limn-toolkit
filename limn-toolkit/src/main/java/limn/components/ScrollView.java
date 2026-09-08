@@ -378,12 +378,8 @@ public class ScrollView extends Widget implements Scrollable {
         float maxY = maxOffsetY();
         float childWidth = child.width();
         float childHeight = child.height();
-        a.scroll(maxX > 0 ? offsetX / maxX : 0,
-                maxY > 0 ? offsetY / maxY : 0,
-                childWidth > 0 ? viewportWidth() / childWidth : 1,
-                childHeight > 0 ? viewportHeight() / childHeight : 1,
-                maxX > 0,
-                maxY > 0);
+        a.scrollFrom(offsetX, maxX, viewportWidth(), childWidth,
+                offsetY, maxY, viewportHeight(), childHeight);
     }
 
     @Override

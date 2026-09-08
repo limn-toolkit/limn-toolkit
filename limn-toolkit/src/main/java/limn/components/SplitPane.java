@@ -694,10 +694,11 @@ public final class SplitPane extends Widget {
             float here = firstExtent(shareable(t));
             switch (action) {
                 case SET_VALUE -> {
-                    if (!(arg instanceof Accessible.Argument.OfValue set)) {
+                    double asked = Accessible.Argument.finiteValueOf(arg);
+                    if (Double.isNaN(asked)) {
                         return false;
                     }
-                    dragTo(t, (float) set.value());
+                    dragTo(t, (float) asked);
                     return true;
                 }
                 // INCREMENT does not mirror, and the arrows do. The arrows are screen directions,

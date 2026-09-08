@@ -857,10 +857,7 @@ public final class ColorPicker extends Widget {
             @Override
             protected void onAccessibility(Accessibility a) {
                 Spinner spinner = fields.get(channel);
-                a.role(Accessible.Role.SLIDER);
-                a.state(Accessible.State.HORIZONTAL);
-                a.value(spinner.value(), spinner.min(), spinner.max(), 1);
-                a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+                a.slider(Accessible.State.HORIZONTAL, spinner.value(), spinner.min(), spinner.max(), 1);
             }
 
             /**
@@ -883,8 +880,8 @@ public final class ColorPicker extends Widget {
              * <p>{@code SET_VALUE} arrives <b>in the domain that was published</b> and is turned
              * back into a fraction of the spinner's own range before the clamp, so it lands on the
              * integer grid a drag lands on and the rail and the number beside it cannot end up
-             * disagreeing. A value that is not a finite number is refused before any of that,
-             * because {@link #clamp01} passes {@code NaN} straight through.
+             * disagreeing. A value that is not a finite number is refused before any of that, by
+             * {@link Accessible.Argument#finiteValueOf}, as every value verb refuses it.
              *
              * <p>The commit fires after every handled verb, moved or not, as {@code Slider}'s hook
              * does and for the same reason: a request from a reader is a whole gesture with no
@@ -913,14 +910,14 @@ public final class ColorPicker extends Widget {
                     case INCREMENT -> moveTo(Scalars.clamp01(fraction() + unitFraction()));
                     case DECREMENT -> moveTo(Scalars.clamp01(fraction() - unitFraction()));
                     case SET_VALUE -> {
-                        if (!(arg instanceof Accessible.Argument.OfValue of)
-                                || !Double.isFinite(of.value())) {
+                        double asked = Accessible.Argument.finiteValueOf(arg);
+                        if (Double.isNaN(asked)) {
                             return false;
                         }
                         Spinner spinner = fields.get(channel);
                         double span = spinner.max() - spinner.min();
                         moveTo(span <= 0 ? 0
-                                : Scalars.clamp01((float) ((of.value() - spinner.min()) / span)));
+                                : Scalars.clamp01((float) ((asked - spinner.min()) / span)));
                     }
                     default -> {
                         return false;
@@ -1339,10 +1336,7 @@ public final class ColorPicker extends Widget {
          */
         @Override
         protected void onAccessibility(Accessibility a) {
-            a.role(Accessible.Role.SLIDER);
-            a.state(Accessible.State.HORIZONTAL);
-            a.value(Math.round(fraction() * 100), 0, 100, 1);
-            a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+            a.slider(Accessible.State.HORIZONTAL, Math.round(fraction() * 100), 0, 100, 1);
         }
 
         /**
@@ -1393,11 +1387,11 @@ public final class ColorPicker extends Widget {
                 case INCREMENT -> moveTo(Scalars.clamp01(fraction() + unitFraction()));
                 case DECREMENT -> moveTo(Scalars.clamp01(fraction() - unitFraction()));
                 case SET_VALUE -> {
-                    if (!(arg instanceof Accessible.Argument.OfValue of)
-                            || !Double.isFinite(of.value())) {
+                    double asked = Accessible.Argument.finiteValueOf(arg);
+                    if (Double.isNaN(asked)) {
                         return false;
                     }
-                    moveTo(Scalars.clamp01((float) (of.value() / 100.0)));
+                    moveTo(Scalars.clamp01((float) (asked / 100.0)));
                 }
                 default -> {
                     return false;
@@ -1709,21 +1703,14 @@ public final class ColorPicker extends Widget {
 
             a.child(SATURATION_AXIS);
             a.bounds(0, 0, width(), height());
-            a.role(Accessible.Role.SLIDER);
             a.name(ColorPickerStrings.AXIS_SATURATION, Accessible.NameFrom.CONTENT);
-            a.state(Accessible.State.HORIZONTAL);
-            a.value(Math.round(saturation * 100), 0, 100, 1);
-            // The pair and never the variable-argument form, which allocates an array per call.
-            a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+            a.slider(Accessible.State.HORIZONTAL, Math.round(saturation * 100), 0, 100, 1);
             a.endChild();
 
             a.child(VALUE_AXIS);
             a.bounds(0, 0, width(), height());
-            a.role(Accessible.Role.SLIDER);
             a.name(ColorPickerStrings.AXIS_VALUE, Accessible.NameFrom.CONTENT);
-            a.state(Accessible.State.VERTICAL);
-            a.value(Math.round(value * 100), 0, 100, 1);
-            a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+            a.slider(Accessible.State.VERTICAL, Math.round(value * 100), 0, 100, 1);
             a.endChild();
         }
 
@@ -1783,11 +1770,11 @@ public final class ColorPicker extends Widget {
                 case INCREMENT -> next = (percent + 1) / 100f;
                 case DECREMENT -> next = (percent - 1) / 100f;
                 case SET_VALUE -> {
-                    if (!(arg instanceof Accessible.Argument.OfValue of)
-                            || !Double.isFinite(of.value())) {
+                    double asked = Accessible.Argument.finiteValueOf(arg);
+                    if (Double.isNaN(asked)) {
                         return false;
                     }
-                    next = (float) (of.value() / 100.0);
+                    next = (float) (asked / 100.0);
                 }
                 default -> {
                     return false;
@@ -1927,12 +1914,8 @@ public final class ColorPicker extends Widget {
          */
         @Override
         protected void onAccessibility(Accessibility a) {
-            a.role(Accessible.Role.SLIDER);
             a.name(ColorPickerStrings.HUE, Accessible.NameFrom.CONTENT);
-            a.state(Accessible.State.VERTICAL);
-            a.value(Math.round(hue), 0, 360, 1);
-            // The pair and never the variable-argument form, which allocates an array per call.
-            a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+            a.slider(Accessible.State.VERTICAL, Math.round(hue), 0, 360, 1);
         }
 
         /**
@@ -1981,11 +1964,11 @@ public final class ColorPicker extends Widget {
                 case INCREMENT -> moveToHue(degrees + 1);
                 case DECREMENT -> moveToHue(degrees - 1);
                 case SET_VALUE -> {
-                    if (!(arg instanceof Accessible.Argument.OfValue of)
-                            || !Double.isFinite(of.value())) {
+                    double asked = Accessible.Argument.finiteValueOf(arg);
+                    if (Double.isNaN(asked)) {
                         return false;
                     }
-                    moveToHue(Math.round(of.value()));
+                    moveToHue(Math.round(asked));
                 }
                 default -> {
                     return false;

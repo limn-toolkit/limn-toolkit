@@ -1498,12 +1498,12 @@ public class Spinner extends Widget {
             case INCREMENT -> stepAsAKeyWould(1);
             case DECREMENT -> stepAsAKeyWould(-1);
             case SET_VALUE -> {
-                if (!(arg instanceof Accessible.Argument.OfValue of)
-                        || !Double.isFinite(of.value())) {
+                double asked = Accessible.Argument.finiteValueOf(arg);
+                if (Double.isNaN(asked)) {
                     return false;
                 }
                 cancelEdit();
-                apply(of.value(), true);
+                apply(asked, true);
             }
             default -> {
                 return false;

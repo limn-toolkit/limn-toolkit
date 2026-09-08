@@ -260,6 +260,20 @@ public final class Accessible {
         /** The argument of every parameterless verb. */
         Argument NONE = new None();
 
+        /**
+         * The number a {@code SET_VALUE} carried, or {@code NaN} when the argument is not an
+         * {@link OfValue} or its value is not finite. One check for every widget with a value:
+         * a request that is not a finite number is refused before it reaches a clamp, because a
+         * clamp passes {@code NaN} straight through, and this is where every value verb makes
+         * that refusal rather than each spelling the two tests for itself.
+         *
+         * @param arg the verb's argument
+         * @return the finite value asked for, or {@code NaN}
+         */
+        static double finiteValueOf(Argument arg) {
+            return arg instanceof OfValue of && Double.isFinite(of.value()) ? of.value() : Double.NaN;
+        }
+
         /** The argument of a verb that takes nothing. */
         record None() implements Argument {
         }

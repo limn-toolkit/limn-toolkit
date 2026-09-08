@@ -913,9 +913,8 @@ public class TabbedPane extends Widget {
             float viewport = width();
             float maxOffset = Math.max(0, headersTotal - viewport);
             boolean scrollable = overflowing && maxOffset > 0;
-            a.scroll(scrollable ? scrollOffset / maxOffset : 0, 0,
-                    scrollable ? viewport / headersTotal : 1, 1,
-                    scrollable, false);
+            a.scrollFrom(scrollOffset, scrollable ? maxOffset : 0, viewport,
+                    scrollable ? headersTotal : 0, 0, 0, 1, 0);
         }
     }
 

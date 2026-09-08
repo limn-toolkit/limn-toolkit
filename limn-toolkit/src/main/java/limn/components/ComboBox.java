@@ -1545,9 +1545,7 @@ public class ComboBox extends Widget {
             // and a list clamped to the work area or to the owner scene is the ordinary case
             // rather than the long one. Computed from the same expressions clampScroll uses, so
             // the facet and the clamp cannot drift apart.
-            a.scroll(0, maxScroll > 0 ? scroll / maxScroll : 0,
-                    1, contentH > 0 ? Math.min(1, viewport / contentH) : 1,
-                    false, maxScroll > 0);
+            a.scrollFrom(0, 0, 1, 0, scroll, maxScroll, viewport, contentH);
             // No MODAL. In scene the walk already stamps it on the parentless top overlay, which
             // is the layer this panel is a child of; in a window of its own the modality is the
             // popup window's. Declaring it here would publish it twice in one tree.

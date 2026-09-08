@@ -1007,9 +1007,7 @@ public class ListView extends Widget implements Scrollable {
         // axis to run along, and the nearest widget in the toolkit — the combo's popup panel,
         // also a vertical LIST with a scroll facet — declares none.
         a.selection(false, false);
-        a.scroll(0, max > 0 ? estimatedOffset(t) / max : 0,
-                1, content > 0 ? Math.min(1, viewport / content) : 1,
-                false, max > 0);
+        a.scrollFrom(0, 0, 1, 0, estimatedOffset(t), max, viewport, content);
         if (selectedIndex >= 0) {
             // The single-argument form; the variable-argument one allocates an array per call.
             // FOCUS and SCROLL_INTO_VIEW arrive free from the walk, and the two scroll verbs live

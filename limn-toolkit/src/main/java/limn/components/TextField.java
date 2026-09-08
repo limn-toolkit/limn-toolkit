@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
+import limn.components.text.TextAccessibility;
 import limn.components.text.TextEditModel;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -1470,6 +1471,23 @@ public class TextField extends Widget {
         // nothing to name it by and no operation behind it, so it is decoration.
     }
 
+
+    /** The half of this widget the shared text-facet publish and verbs reach; see {@link TextAccessibility}. */
+    private final TextAccessibility.Host editHost = new TextAccessibility.Host() {
+        @Override public TextEditModel model() { return model; }
+        @Override public boolean composing() { return !preedit.isEmpty(); }
+        @Override public int composedCaretIndex() { return TextField.this.composedCaretIndex(); }
+        @Override public boolean laidOut() { return width() > 0; }
+        @Override public void requestFocus() { TextField.this.requestFocus(); }
+        @Override public void showContextMenuForFocus() { TextField.this.showContextMenuForFocus(); }
+        @Override public void edit(Runnable change) { fireIfChanged(change); }
+        @Override public void caretMoved() {
+            ensureCursorVisible();
+            resetBlink();
+            invalidate();
+        }
+    };
+
     /**
      * The text facet: the contents, the caret with its side, the selection, and the caret's box.
      *
@@ -1502,29 +1520,15 @@ public class TextField extends Widget {
         if (!allowClipboardCopy()) {
             return;
         }
-        boolean composing = !preedit.isEmpty();
-        int caret = composing ? composedCaretIndex() : model.cursor();
-        ShapedText.Affinity affinity = composing
-                ? ShapedText.Affinity.UPSTREAM : model.caretAffinity();
-        int selectionStart = composing ? caret : model.selectionStart();
-        int selectionEnd = composing ? caret : model.selectionEnd();
-        // The line count is asked of the model rather than written as 1, so the two cannot drift if
-        // a subclass ever holds a model that is not single-line. The caret box only while focused:
-        // an unfocused field draws no caret, and the facet documents null as "no caret to draw",
-        // which confines the whole of that geometry to one field per window.
-        a.text(accessibleText(), accessibleTextRevision, caret, affinity,
-                selectionStart, selectionEnd, model.lineCount(),
-                isFocused() ? heldCaretBox() : null, false);
+        // The caret box only while focused: an unfocused field draws no caret, and the facet
+        // documents null as "no caret to draw", which confines that geometry to one field per window.
+        TextAccessibility.publish(a, editHost, accessibleText(), accessibleTextRevision,
+                isFocused() ? heldCaretBox() : null);
     }
 
     /**
      * Raises the context menu, replaces the contents, moves the caret or sets the selection, each
-     * through the path the user's own gesture takes.
-     *
-     * <p>No enabled check of its own, following the same reasoning {@code ComboBox} states: the
-     * node acted on is this widget, so the scene's gate has already walked this field and every
-     * ancestor for enabled, checked that it is showing, that the window is not modal-blocked and
-     * that it is inside the layer that owns input.
+     * through the path the user's own gesture takes; the rules are {@link TextAccessibility}'s.
      *
      * @param action what is being asked
      * @param arg    the text for {@code SET_TEXT} and the range for the other two
@@ -1532,90 +1536,10 @@ public class TextField extends Widget {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        switch (action) {
-            case SHOW_MENU -> {
-                if (width() <= 0) {
-                    return false; // no caret to raise it at until the first layout
-                }
-                // Focus first, exactly as the right-click branch does and for the reason it gives:
-                // the menu's Cut and Paste act on this field.
-                requestFocus();
-                showContextMenuForFocus();
-                return true;
-            }
-            case SET_TEXT -> {
-                if (!(arg instanceof Accessible.Argument.OfText replacement)) {
-                    return false;
-                }
-                // NEVER setText(String): that one is silent, so a reader replacing the value would
-                // change the text and tell the application nothing. Select-all-then-insert is what
-                // a user does, it keeps the undo history setText would clear, and it handles the
-                // empty case correctly -- an insert of "" with a selection deletes it, and with no
-                // selection does nothing. The model sanitizes a single line, so a string carrying
-                // a newline comes back with a space in its place and a bridge has to re-read.
-                fireIfChanged(() -> {
-                    model.selectAll();
-                    model.insert(replacement.text());
-                });
-                ensureCursorVisible();
-                resetBlink();
-                invalidate();
-                return true;
-            }
-            case SET_CARET -> {
-                if (!(arg instanceof Accessible.Argument.OfRange range)
-                        || range.start() != range.end()) {
-                    return false; // a caret is a collapsed range; anything else is not this verb
-                }
-                return placeCaret(range.start(), range.start());
-            }
-            case SET_SELECTION -> {
-                if (!(arg instanceof Accessible.Argument.OfRange range)) {
-                    return false;
-                }
-                return placeCaret(range.start(), range.end());
-            }
-            default -> {
-                return false;
-            }
-        }
+        return TextAccessibility.perform(editHost, action, arg);
     }
 
-    /**
-     * Puts the caret at {@code end}, with a selection back to {@code start} when the two differ:
-     * the click-then-shift-click gesture, which is the widget's own path to both.
-     *
-     * <p>An offset outside the text is <b>refused</b> and never clamped to a neighbour, because a
-     * client that asked for character forty of a ten-character field has misunderstood something
-     * and a caret quietly placed at ten hides that. Both offsets are aligned to a grapheme
-     * boundary first: {@link TextEditModel#cursor()} documents itself as always on one, and a
-     * bridge counting UTF-16 units can name a point inside a cluster.
-     */
-    private boolean placeCaret(int start, int end) {
-        if (!preedit.isEmpty()) {
-            // Refused outright while an IME composition is open, because the offsets a client is
-            // holding are not offsets into the string this widget would place them in. The facet
-            // publishes the COMPOSED line -- the committed text with the preedit spliced in at the
-            // cursor -- and the model counts the committed buffer alone; the two agree up to the
-            // splice and diverge after it. Placed anyway, a caret asked for one position past the
-            // preedit lands short by its length, silently, because the shorter buffer's own bounds
-            // check passes; and since the composed line is keyed on the cursor, the same call
-            // re-splices the preedit at the new position and the text under composition visibly
-            // jumps. A refusal a client can see beats either. The composition owns the caret until
-            // it commits, which is what every platform's input method contract already says.
-            return false;
-        }
-        int length = model.length();
-        if (start < 0 || start > length || end < 0 || end > length) {
-            return false;
-        }
-        model.setCursor(model.alignToGrapheme(start), false);
-        model.setCursor(model.alignToGrapheme(end), true);
-        ensureCursorVisible();
-        resetBlink();
-        invalidate();
-        return true;
-    }
+
 
     /**
      * Presses the trailing button, if there is one and this field is enabled.

@@ -415,10 +415,7 @@ public class Slider extends Widget {
      */
     @Override
     protected void onAccessibility(Accessibility a) {
-        a.role(Accessible.Role.SLIDER);
-        a.state(Accessible.State.HORIZONTAL);
-        a.value(value, min, max, step);
-        a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+        a.slider(Accessible.State.HORIZONTAL, value, min, max, step);
     }
 
     /**
@@ -457,11 +454,11 @@ public class Slider extends Widget {
             case INCREMENT -> apply(value + keyStep(), true);
             case DECREMENT -> apply(value - keyStep(), true);
             case SET_VALUE -> {
-                if (!(arg instanceof Accessible.Argument.OfValue of)
-                        || !Double.isFinite(of.value())) {
+                double asked = Accessible.Argument.finiteValueOf(arg);
+                if (Double.isNaN(asked)) {
                     return false;
                 }
-                apply((float) of.value(), true);
+                apply((float) asked, true);
             }
             default -> {
                 return false;

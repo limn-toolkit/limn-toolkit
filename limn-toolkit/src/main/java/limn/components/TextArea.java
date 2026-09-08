@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
+import limn.components.text.TextAccessibility;
 import limn.components.text.TextEditModel;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -2441,6 +2442,26 @@ public class TextArea extends Widget {
         publishScroll(a, t);
     }
 
+
+    /** The half of this widget the shared text-facet publish and verbs reach; see {@link TextAccessibility}. */
+    private final TextAccessibility.Host editHost = new TextAccessibility.Host() {
+        @Override public TextEditModel model() { return model; }
+        @Override public boolean composing() { return !preedit.isEmpty(); }
+        @Override public int composedCaretIndex() { return TextArea.this.composedCaretIndex(); }
+        @Override public boolean laidOut() { return width() > 0; }
+        @Override public void requestFocus() { TextArea.this.requestFocus(); }
+        @Override public void showContextMenuForFocus() { TextArea.this.showContextMenuForFocus(); }
+        @Override public void edit(Runnable change) { fireIfChanged(change); }
+        @Override public void caretMoved() {
+            // The sticky goal column goes: a caret placed by an assistive technology is a click,
+            // and every non-vertical path of this widget's own clears it.
+            goalX = Float.NaN;
+            ensureCursorVisible();
+            resetBlink();
+            invalidate();
+        }
+    };
+
     /**
      * The text facet: the contents, the caret with its side, the selection, the line count and the
      * caret's box.
@@ -2472,15 +2493,21 @@ public class TextArea extends Widget {
      * {@link #onAccessibility} gives.
      */
     private void publishText(Accessibility a, SizeTokens t) {
-        boolean composing = !preedit.isEmpty();
-        int caret = composing ? composedCaretIndex() : model.cursor();
-        ShapedText.Affinity affinity = composing
-                ? ShapedText.Affinity.UPSTREAM : model.caretAffinity();
-        int selectionStart = composing ? caret : model.selectionStart();
-        int selectionEnd = composing ? caret : model.selectionEnd();
-        a.text(accessibleText(t), accessibleTextRevision, caret, affinity,
-                selectionStart, selectionEnd, model.lineCount(),
-                isFocused() ? heldCaretBox(t) : null, false);
+        TextAccessibility.publish(a, editHost, accessibleText(t), accessibleTextRevision,
+                isFocused() ? heldCaretBox(t) : null);
+    }
+
+    /**
+     * Raises the context menu, replaces the contents, moves the caret or sets the selection, each
+     * through the path the user's own gesture takes; the rules are {@link TextAccessibility}'s.
+     *
+     * @param action what is being asked
+     * @param arg    the text for {@code SET_TEXT} and the range for the other two
+     * @return whether this widget did it
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        return TextAccessibility.perform(editHost, action, arg);
     }
 
     /**
@@ -2510,125 +2537,11 @@ public class TextArea extends Widget {
     private void publishScroll(Accessibility a, SizeTokens t) {
         float maxX = maxScrollX(t);
         float maxY = maxScrollY(t);
-        a.scroll(maxX > 0 ? scrollX / maxX : 0,
-                maxY > 0 ? scrollY / maxY : 0,
-                maxX > 0 ? viewWidth(t) / contentWidth(t) : 1,
-                maxY > 0 ? viewHeight(t) / contentHeight(t) : 1,
-                maxX > 0, maxY > 0);
+        a.scrollFrom(scrollX, maxX, viewWidth(t), contentWidth(t),
+                scrollY, maxY, viewHeight(t), contentHeight(t));
     }
 
-    /**
-     * Raises the context menu, replaces the contents, moves the caret or sets the selection, each
-     * through the path the user's own gesture takes.
-     *
-     * <p>No enabled check of its own: the node acted on is this widget, so the scene's gate has
-     * already walked this area and every ancestor for enabled, checked that it is showing, that
-     * the window is not modal-blocked and that it is inside the layer that owns input.
-     *
-     * @param action what is being asked
-     * @param arg    the text for {@code SET_TEXT} and the range for the other two
-     * @return whether this widget did it
-     */
-    @Override
-    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        switch (action) {
-            case SHOW_MENU -> {
-                if (width() <= 0) {
-                    return false; // no caret to raise it at until the first layout
-                }
-                // Focus first, exactly as the right-press branch does and for the reason it gives:
-                // the menu's Cut and Paste act on this area.
-                requestFocus();
-                // Never the pointer's showContextMenu(x, y): all three of this toolkit's pointer
-                // call sites hand ContextMenus.showAt a MouseEvent's SCENE coordinates for a
-                // parameter it documents and implements as anchor-local, so the menu opens offset
-                // by the widget's scene origin. This route converts, and fixing the other one
-                // changes pointer behaviour across three widgets and owes a test of its own.
-                showContextMenuForFocus();
-                return true;
-            }
-            case SET_TEXT -> {
-                if (!(arg instanceof Accessible.Argument.OfText replacement)) {
-                    return false;
-                }
-                // NEVER setText(String): that one is silent, so a reader replacing the value would
-                // change the text and tell the application nothing, and it clears the undo
-                // history. Select-all-then-insert is what a user does, and it handles the empty
-                // case correctly -- an insert of "" with a selection deletes it. This model is the
-                // multi-line one, so a string carrying a newline round-trips: the single-line
-                // sanitize ADR 039 warns a bridge about is a text FIELD's rule.
-                fireIfChanged(() -> {
-                    model.selectAll();
-                    model.insert(replacement.text());
-                });
-                goalX = Float.NaN;
-                ensureCursorVisible();
-                resetBlink();
-                invalidate();
-                return true;
-            }
-            case SET_CARET -> {
-                if (!(arg instanceof Accessible.Argument.OfRange range)
-                        || range.start() != range.end()) {
-                    return false; // a caret is a collapsed range; anything else is not this verb
-                }
-                return placeCaret(range.start(), range.start());
-            }
-            case SET_SELECTION -> {
-                if (!(arg instanceof Accessible.Argument.OfRange range)) {
-                    return false;
-                }
-                return placeCaret(range.start(), range.end());
-            }
-            default -> {
-                return false;
-            }
-        }
-    }
 
-    /**
-     * Puts the caret at {@code end}, with a selection back to {@code start} when the two differ:
-     * the click-then-shift-click gesture, which is the widget's own path to both.
-     *
-     * <p>An offset outside the text is <b>refused</b> and never clamped to a neighbour, because a
-     * client that asked for character forty of a ten-character document has misunderstood
-     * something and a caret quietly placed at ten hides that. An offset that lands exactly on a
-     * newline is not outside anything: it is a legal caret position in a multi-line buffer. Both
-     * offsets are aligned to a grapheme boundary first, because a bridge counting UTF-16 units can
-     * name a point inside a cluster.
-     *
-     * <p><b>The sticky goal x goes, and it is the line a copy of {@link TextField} would not
-     * have.</b> {@link #goalX} is the column a wrapped Up/Down run travels on, and every one of
-     * this widget's own non-vertical paths clears it — the click, the drag, an edit, and every
-     * key that is not a vertical step. A caret placed by an assistive technology is exactly a
-     * click; left unset, the next Down after one travels to the column the user's last arrow run
-     * was on, which under soft wrap is a caret that visibly jumps sideways.
-     */
-    private boolean placeCaret(int start, int end) {
-        if (!preedit.isEmpty()) {
-            // Refused outright while an IME composition is open, because the offsets a client is
-            // holding are not offsets into the string this widget would place them in. The facet
-            // publishes the COMPOSED document -- the buffer with the preedit spliced in at the
-            // cursor -- and the model counts the committed buffer alone; the two agree up to the
-            // splice and diverge after it. Placed anyway, a caret asked for one position past the
-            // preedit lands short by its length, silently, because the shorter buffer's own bounds
-            // check passes; and since the composed line is keyed on the cursor, the same call
-            // re-splices the preedit at the new position and the text under composition visibly
-            // jumps. A refusal a client can see beats either.
-            return false;
-        }
-        int length = model.length();
-        if (start < 0 || start > length || end < 0 || end > length) {
-            return false;
-        }
-        model.setCursor(model.alignToGrapheme(start), false);
-        model.setCursor(model.alignToGrapheme(end), true);
-        goalX = Float.NaN;
-        ensureCursorVisible();
-        resetBlink();
-        invalidate();
-        return true;
-    }
 
     // Cursor blink via self-rescheduling Ui.postDelayed (see TextField): a
     // focused area lets the loop sleep between blinks.

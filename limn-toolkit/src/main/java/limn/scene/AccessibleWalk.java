@@ -449,12 +449,8 @@ final class AccessibleWalk {
      * @return its owner, or {@code null} when the identifier names nothing this walk published
      */
     Widget ownerOf(long nodeId) {
-        for (int i = 0; i < count; i++) {
-            if (ids[i] == nodeId) {
-                return owners[i];
-            }
-        }
-        return null;
+        int index = indexOfNode(nodeId);
+        return index < 0 ? null : owners[index];
     }
 
     /**
@@ -464,12 +460,8 @@ final class AccessibleWalk {
      * @return whether an action for it goes to the synthetic hook
      */
     boolean isSynthetic(long nodeId) {
-        for (int i = 0; i < count; i++) {
-            if (ids[i] == nodeId) {
-                return synthetic[i];
-            }
-        }
-        return false;
+        int index = indexOfNode(nodeId);
+        return index >= 0 && synthetic[index];
     }
 
     /**
@@ -479,12 +471,18 @@ final class AccessibleWalk {
      * @return the key, or {@code 0}
      */
     long keyOf(long nodeId) {
+        int index = indexOfNode(nodeId);
+        return index < 0 ? 0 : keys[index];
+    }
+
+    /** The published position of a node, or {@code -1} when the identifier names nothing here. */
+    private int indexOfNode(long nodeId) {
         for (int i = 0; i < count; i++) {
             if (ids[i] == nodeId) {
-                return keys[i];
+                return i;
             }
         }
-        return 0;
+        return -1;
     }
 
     /** Forgets what was published, so the next walk differs from nothing. */

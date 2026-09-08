@@ -521,11 +521,11 @@ public class ScrollBar extends Widget {
             case INCREMENT -> scrollTo(model.offset() + model.viewportLength());
             case DECREMENT -> scrollTo(model.offset() - model.viewportLength());
             case SET_VALUE -> {
-                if (!(arg instanceof Accessible.Argument.OfValue of)
-                        || !Double.isFinite(of.value())) {
+                double asked = Accessible.Argument.finiteValueOf(arg);
+                if (Double.isNaN(asked)) {
                     return false;
                 }
-                scrollTo((float) of.value());
+                scrollTo((float) asked);
             }
             default -> {
                 return false;

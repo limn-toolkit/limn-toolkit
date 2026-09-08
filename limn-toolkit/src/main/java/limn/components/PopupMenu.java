@@ -1591,9 +1591,7 @@ public final class PopupMenu {
             // with no scroll route at all, and that costs a reader nothing, because the name
             // comes from the model and not from the pixels.
             float max = col.maxScroll();
-            a.scroll(0, max > 0 ? col.scroll / max : 0,
-                    1, col.h > 0 ? Math.min(1, col.visibleH / col.h) : 1,
-                    false, max > 0);
+            a.scrollFrom(0, 0, 1, 0, col.scroll, max, col.visibleH, col.h);
             if (hintBandIsLive(col, true)) {
                 describeBand(a, c, col, true);
             }

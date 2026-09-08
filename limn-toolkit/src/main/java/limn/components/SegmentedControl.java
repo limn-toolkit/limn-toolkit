@@ -641,9 +641,8 @@ public class SegmentedControl extends Widget {
         float content = bounds == null ? 0 : bounds[segments.size()];
         float max = maxScrollOffset();
         boolean scrollable = overflowing && max > 0;
-        a.scroll(scrollable ? scrollOffset / max : 0, 0,
-                scrollable && content > 0 ? Math.min(1, viewWidth / content) : 1, 1,
-                scrollable, false);
+        a.scrollFrom(scrollOffset, scrollable ? max : 0, viewWidth, scrollable ? content : 0,
+                0, 0, 1, 0);
 
         // Reading order: the arrow that scrolls back, the segments, the arrow that scrolls on.
         if (overflowing) {

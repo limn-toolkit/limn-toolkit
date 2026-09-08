@@ -553,6 +553,25 @@ public final class Accessibility {
      * @param step     one increment, or {@code 0} for none
      * @param readOnly whether the value may be read and not set
      */
+    /**
+     * A slider in one call: the role, the axis its value runs along, the value and the two
+     * step verbs. Six widgets describe themselves this way and each used to write the four
+     * lines; the pair of verbs is the two-argument form, which allocates nothing.
+     *
+     * @param orientation {@link Accessible.State#HORIZONTAL} or {@link Accessible.State#VERTICAL}
+     * @param value       the current value
+     * @param min         the least value
+     * @param max         the greatest value
+     * @param step        what one increment moves by
+     */
+    public void slider(Accessible.State orientation, double value, double min, double max,
+                       double step) {
+        role(Accessible.Role.SLIDER);
+        state(orientation);
+        value(value, min, max, step);
+        action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+    }
+
     public void value(double value, double min, double max, double step, boolean readOnly) {
         Slot s = slot();
         s.hasValue = true;
@@ -693,6 +712,35 @@ public final class Accessibility {
      * @param horizontallyScrollable whether the content is wider than the viewport
      * @param verticallyScrollable   whether it is taller
      */
+    /**
+     * The scroll facet folded from the geometry every scrolling widget holds: per axis, how far
+     * it has scrolled, how far it can, and how big the viewport and the content are.
+     *
+     * <p>Seven widgets used to fold these into the facet's percentages themselves, and three of
+     * them forgot the one guard that matters: a viewport larger than its content is a fraction
+     * over one, which a platform reads as more than all of it. Here the view size is held to one,
+     * an axis with nothing to scroll answers zero and one, and a content of zero is "all of it"
+     * rather than a division by zero &mdash; which is also what keeps a {@code NaN} out of a field
+     * the tree's difference compares with {@code !=}.
+     *
+     * @param offsetX        how far the content has scrolled along x, from zero
+     * @param maxX           how far it can; zero or less when the axis does not scroll
+     * @param viewportWidth  the width shown
+     * @param contentWidth   the width there is; zero or less when unknown
+     * @param offsetY        how far the content has scrolled along y, from zero
+     * @param maxY           how far it can; zero or less when the axis does not scroll
+     * @param viewportHeight the height shown
+     * @param contentHeight  the height there is; zero or less when unknown
+     */
+    public void scrollFrom(double offsetX, double maxX, double viewportWidth, double contentWidth,
+                           double offsetY, double maxY, double viewportHeight, double contentHeight) {
+        scroll(maxX > 0 ? offsetX / maxX : 0,
+                maxY > 0 ? offsetY / maxY : 0,
+                contentWidth > 0 ? Math.min(1, viewportWidth / contentWidth) : 1,
+                contentHeight > 0 ? Math.min(1, viewportHeight / contentHeight) : 1,
+                maxX > 0, maxY > 0);
+    }
+
     public void scroll(double horizontalPercent, double verticalPercent,
                        double horizontalViewSize, double verticalViewSize,
                        boolean horizontallyScrollable, boolean verticallyScrollable) {
@@ -1413,25 +1461,7 @@ public final class Accessibility {
 
     /** The first node inside {@code container}'s subtree that declared itself active. */
     private long activeDescendantOf(int container) {
-        long bit = 1L << Accessible.State.ACTIVE.ordinal();
-        for (int i = container + 1; i < count; i++) {
-            if (!isDescendant(i, container)) {
-                continue;
-            }
-            if ((slots[i].states & bit) != 0) {
-                return slots[i].id;
-            }
-        }
-        return 0;
-    }
-
-    private boolean isDescendant(int node, int ancestor) {
-        for (int at = slots[node].parent; at != AccessibleNode.NONE; at = slots[at].parent) {
-            if (at == ancestor) {
-                return true;
-            }
-        }
-        return false;
+        return activeDescendantIn(slots, count, container);
     }
 
     /**
@@ -1598,28 +1628,20 @@ public final class Accessibility {
      * scan, which is the frame that was going to publish anyway.
      */
     private Slot previousOf(long id, int hint) {
-        if (hint >= 0 && hint < previousCount && previous[hint].id == id) {
-            return previous[hint];
-        }
-        for (int i = 0; i < previousCount; i++) {
-            if (previous[i].id == id) {
-                return previous[i];
-            }
-        }
-        return null;
+        return slotOf(previous, previousCount, id, hint);
     }
 
     /** The slot for an identifier in the walk just finished, found by index hint first. */
     private Slot currentOf(long id, int hint) {
-        if (hint >= 0 && hint < count && slots[hint].id == id) {
-            return slots[hint];
+        return slotOf(slots, count, id, hint);
+    }
+
+    private static Slot slotOf(Slot[] pool, int size, long id, int hint) {
+        if (hint >= 0 && hint < size && pool[hint].id == id) {
+            return pool[hint];
         }
-        for (int i = 0; i < count; i++) {
-            if (slots[i].id == id) {
-                return slots[i];
-            }
-        }
-        return null;
+        int index = indexIn(pool, size, id);
+        return index < 0 ? null : pool[index];
     }
 
     private void swap() {
