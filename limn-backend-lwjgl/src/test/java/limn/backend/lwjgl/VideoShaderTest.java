@@ -1,13 +1,10 @@
 package limn.backend.lwjgl;
 
+import limn.io.Resources;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -223,15 +220,7 @@ class VideoShaderTest {
     }
 
     private static String shader(String name) {
-        try (InputStream in = VideoShaderTest.class.getResourceAsStream(
-                "/limn/backend/lwjgl/shaders/" + name)) {
-            if (in == null) {
-                throw new IllegalStateException("missing shader resource: " + name);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException error) {
-            throw new UncheckedIOException(error);
-        }
+        return Resources.text(VideoShaderTest.class, "/limn/backend/lwjgl/shaders/" + name, "shader");
     }
 
     /** Both sources, for a reader wondering whether the array above is used anywhere else. */

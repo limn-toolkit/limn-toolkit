@@ -2,11 +2,9 @@ package limn.backend.lwjgl;
 
 import limn.graphics.Image;
 import limn.graphics.Images;
+import limn.io.Resources;
 import org.lwjgl.system.MemoryUtil;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashSet;
@@ -67,16 +65,8 @@ final class ColorEmojiFont implements AutoCloseable {
      * does not install it must {@link #close} it.
      */
     static ColorEmojiFont loadResourceIfPresent(String resource) {
-        byte[] bytes;
-        try (InputStream in = ColorEmojiFont.class.getResourceAsStream(resource)) {
-            if (in == null) {
-                return null;
-            }
-            bytes = in.readAllBytes();
-        } catch (IOException error) {
-            throw new UncheckedIOException("reading font " + resource, error);
-        }
-        return fromBytes(bytes, resource);
+        byte[] bytes = Resources.bytesIfPresent(ColorEmojiFont.class, resource, "font");
+        return bytes == null ? null : fromBytes(bytes, resource);
     }
 
     /** Parses {@code bytes} as a color-bitmap font, or {@code null} if unusable. */

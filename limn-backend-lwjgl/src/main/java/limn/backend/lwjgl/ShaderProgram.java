@@ -1,9 +1,6 @@
 package limn.backend.lwjgl;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
+import limn.io.Resources;
 
 import static org.lwjgl.opengl.GL33C.GL_COMPILE_STATUS;
 import static org.lwjgl.opengl.GL33C.GL_FALSE;
@@ -118,13 +115,6 @@ final class ShaderProgram implements AutoCloseable {
     }
 
     private static String readResource(String resource) {
-        try (InputStream in = ShaderProgram.class.getResourceAsStream(resource)) {
-            if (in == null) {
-                throw new IllegalStateException("shader resource missing: " + resource);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException error) {
-            throw new UncheckedIOException("reading shader " + resource, error);
-        }
+        return Resources.text(ShaderProgram.class, resource, "shader");
     }
 }

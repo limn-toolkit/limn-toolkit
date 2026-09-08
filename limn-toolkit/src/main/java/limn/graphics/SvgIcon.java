@@ -1,7 +1,5 @@
 package limn.graphics;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -9,6 +7,7 @@ import java.util.Objects;
 
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
+import limn.io.Resources;
 
 /**
  * A themeable vector {@link Icon}: keeps the SVG source and lazily rasterizes it
@@ -79,15 +78,7 @@ public final class SvgIcon implements Icon {
      * does have one.
      */
     public static SvgIcon fromResource(String path) {
-        Objects.requireNonNull(path, "path");
-        try (InputStream in = SvgIcon.class.getResourceAsStream(path)) {
-            if (in == null) {
-                throw new IllegalArgumentException("SVG resource not found: " + path);
-            }
-            return new SvgIcon(in.readAllBytes());
-        } catch (IOException e) {
-            throw new IllegalStateException("failed to read SVG resource: " + path, e);
-        }
+        return new SvgIcon(Resources.bytes(SvgIcon.class, path, "SVG"));
     }
 
     // --------------------------------------------------------- rasterizer SPI

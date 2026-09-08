@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.io.Resources;
 import limn.render3d.VertexAttribute;
 import limn.render3d.shader.Expr;
 import limn.render3d.shader.ShaderType;
@@ -8,9 +9,6 @@ import limn.render3d.shader.SurfaceOutputs;
 import limn.render3d.shader.TargetProfile;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -358,14 +356,6 @@ class GlslCodegenTest {
     }
 
     private static String golden(String name) {
-        try (InputStream in = GlslCodegenTest.class.getResourceAsStream(
-                "/limn/backend/lwjgl/golden/" + name)) {
-            if (in == null) {
-                throw new IllegalStateException("missing golden resource: " + name);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+        return Resources.text(GlslCodegenTest.class, "/limn/backend/lwjgl/golden/" + name, "golden");
     }
 }

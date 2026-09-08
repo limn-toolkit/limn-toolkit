@@ -3,6 +3,7 @@ package limn.render3d.gltf;
 import limn.concurrent.Progress;
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
+import limn.io.Resources;
 import limn.math.Quat;
 import limn.math.Transform3D;
 import limn.math.Vec3;
@@ -10,13 +11,9 @@ import limn.math.Vec4;
 import limn.render3d.MeshData;
 import limn.render3d.VertexAttribute;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -75,11 +72,7 @@ public final class GltfLoader {
      * {@link #loadAsync(Path)} is the same work on the worker pool.
      */
     public static GltfModel load(Path file) {
-        try {
-            return load(Files.readAllBytes(file));
-        } catch (IOException e) {
-            throw new UncheckedIOException("reading glTF " + file, e);
-        }
+        return load(Resources.bytes(file, "glTF"));
     }
 
     /**
@@ -92,14 +85,7 @@ public final class GltfLoader {
      * @throws IllegalStateException if no such resource exists
      */
     public static GltfModel fromResource(String resource) {
-        try (InputStream in = GltfLoader.class.getResourceAsStream(resource)) {
-            if (in == null) {
-                throw new IllegalStateException("glTF resource missing: " + resource);
-            }
-            return load(in.readAllBytes());
-        } catch (IOException e) {
-            throw new UncheckedIOException("reading glTF resource " + resource, e);
-        }
+        return load(Resources.bytes(GltfLoader.class, resource, "glTF"));
     }
 
     /**
@@ -147,7 +133,7 @@ public final class GltfLoader {
     public static Work<GltfModel> loadAsync(Path file) {
         Objects.requireNonNull(file, "file");
         return Ui.work(progress -> {
-            byte[] data = Files.readAllBytes(file);
+            byte[] data = Resources.bytes(file, "glTF");
             progress.report(READ_DONE);
             return load(data, progress);
         });
@@ -179,13 +165,7 @@ public final class GltfLoader {
     public static Work<GltfModel> fromResourceAsync(String resource) {
         Objects.requireNonNull(resource, "resource");
         return Ui.work(progress -> {
-            byte[] data;
-            try (InputStream in = GltfLoader.class.getResourceAsStream(resource)) {
-                if (in == null) {
-                    throw new IllegalStateException("glTF resource missing: " + resource);
-                }
-                data = in.readAllBytes();
-            }
+            byte[] data = Resources.bytes(GltfLoader.class, resource, "glTF");
             progress.report(READ_DONE);
             return load(data, progress);
         });

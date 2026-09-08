@@ -1,11 +1,9 @@
 package limn.sound;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import limn.concurrent.SharedLoads;
+import limn.io.Resources;
 
 /**
  * Audio facade, backed by the running backend's {@link AudioEngine} and
@@ -127,11 +125,7 @@ public final class Sounds {
      * {@link #loadShared} is the same work on the worker pool.
      */
     public static AudioClip load(Path file) {
-        try {
-            return decode(Files.readAllBytes(file));
-        } catch (IOException error) {
-            throw new UncheckedIOException("reading audio " + file, error);
-        }
+        return decode(Resources.bytes(file, "audio"));
     }
 
     /**
@@ -140,21 +134,12 @@ public final class Sounds {
      * worker pool.
      */
     public static AudioClip fromResource(String resource) {
-        try (InputStream in = Sounds.class.getResourceAsStream(resource)) {
-            if (in == null) {
-                throw new IllegalStateException("audio resource missing: " + resource);
-            }
-            return decode(in.readAllBytes());
-        } catch (IOException error) {
-            throw new UncheckedIOException("reading audio resource " + resource, error);
-        }
+        return decode(Resources.bytes(Sounds.class, resource, "audio"));
     }
 
     // -------------------------------------------------- background loading
 
-    private static final java.util.concurrent.ConcurrentHashMap<
-            String, java.util.concurrent.CompletableFuture<AudioClip>> pending =
-            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final SharedLoads<AudioClip> shared = new SharedLoads<>();
 
     /**
      * Reads and decodes {@code file} on the {@code Ui} worker pool, a bounded pool shared with
@@ -175,7 +160,7 @@ public final class Sounds {
      * the UI thread. Requires a running backend, like the synchronous form.
      */
     public static java.util.concurrent.CompletableFuture<AudioClip> loadShared(Path file) {
-        return cachedLoad("file:" + file.toAbsolutePath(), () -> load(file));
+        return shared.load("file:" + file.toAbsolutePath(), () -> load(file));
     }
 
     /**
@@ -185,7 +170,7 @@ public final class Sounds {
      * does.
      */
     public static java.util.concurrent.CompletableFuture<AudioClip> fromResourceShared(String resource) {
-        return cachedLoad("resource:" + resource, () -> fromResource(resource));
+        return shared.load("resource:" + resource, () -> fromResource(resource));
     }
 
     /**
@@ -209,21 +194,7 @@ public final class Sounds {
      * unaffected.
      */
     public static void clearSharedCache() {
-        pending.clear();
-    }
-
-    private static java.util.concurrent.CompletableFuture<AudioClip> cachedLoad(
-            String key, java.util.function.Supplier<AudioClip> loader) {
-        return pending.computeIfAbsent(key, k -> {
-            java.util.concurrent.CompletableFuture<AudioClip> future =
-                    limn.concurrent.Ui.async(loader).toCompletableFuture();
-            future.whenComplete((clip, error) -> {
-                if (error != null) {
-                    pending.remove(k, future); // failures are retryable
-                }
-            });
-            return future;
-        });
+        shared.clear();
     }
 
     // ------------------------------------------------------------- play

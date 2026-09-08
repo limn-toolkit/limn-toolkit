@@ -1,10 +1,8 @@
 package limn.i18n;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
+import limn.io.Resources;
 
 /**
  * A {@link StringBundle} backed by UTF-8 {@code .properties} files on the classpath,
@@ -186,17 +185,18 @@ public final class PropertyBundle implements StringBundle {
     private Map<String, String> load(Locale locale) {
         Map<String, String> merged = new HashMap<>();
         for (String resource : candidates(locale)) {
-            try (InputStream in = loader.getResourceAsStream(resource)) {
-                if (in == null) {
-                    continue; // a language this domain does not translate
-                }
-                Properties properties = new Properties();
-                properties.load(new InputStreamReader(in, StandardCharsets.UTF_8));
-                for (String name : properties.stringPropertyNames()) {
-                    merged.put(name, properties.getProperty(name));
-                }
+            String text = Resources.textIfPresent(loader, resource, "strings");
+            if (text == null) {
+                continue; // a language this domain does not translate
+            }
+            Properties properties = new Properties();
+            try {
+                properties.load(new StringReader(text));
             } catch (IOException e) {
                 throw new UncheckedIOException("reading " + resource, e);
+            }
+            for (String name : properties.stringPropertyNames()) {
+                merged.put(name, properties.getProperty(name));
             }
         }
         return Map.copyOf(merged);

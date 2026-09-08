@@ -1,16 +1,14 @@
 package limn.backend.lwjgl;
 
 import limn.graphics.TextMetrics;
+import limn.io.Resources;
 import org.lwjgl.stb.STBTTFontinfo;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.lwjgl.stb.STBTruetype.stbtt_FindGlyphIndex;
@@ -137,16 +135,8 @@ final class StbFont implements AutoCloseable {
      * {@link #close} it.
      */
     static StbFont loadResourceIfPresent(String resource, String name) {
-        byte[] bytes;
-        try (InputStream in = StbFont.class.getResourceAsStream(resource)) {
-            if (in == null) {
-                return null;
-            }
-            bytes = in.readAllBytes();
-        } catch (IOException error) {
-            throw new UncheckedIOException("reading font " + resource, error);
-        }
-        return fromBytes(bytes, 0, name, resource);
+        byte[] bytes = Resources.bytesIfPresent(StbFont.class, resource, "font");
+        return bytes == null ? null : fromBytes(bytes, 0, name, resource);
     }
 
     /**
@@ -170,13 +160,7 @@ final class StbFont implements AutoCloseable {
      * @throws IllegalStateException        if it holds no face {@code index}
      */
     static StbFont loadFile(Path path, int index, String name) {
-        byte[] bytes;
-        try {
-            bytes = Files.readAllBytes(path);
-        } catch (IOException error) {
-            throw new UncheckedIOException("reading font " + path, error);
-        }
-        return fromBytes(bytes, index, name, path.toString());
+        return fromBytes(Resources.bytes(path, "font"), index, name, path.toString());
     }
 
     /** Uploads {@code bytes} to native memory and initializes face {@code index}. */

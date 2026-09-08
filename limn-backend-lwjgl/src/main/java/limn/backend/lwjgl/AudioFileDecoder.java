@@ -404,12 +404,7 @@ final class AudioFileDecoder implements AudioDecoder {
         private ShortBuffer scratch;
 
         OggStreamSource(java.nio.file.Path file) {
-            byte[] bytes;
-            try {
-                bytes = java.nio.file.Files.readAllBytes(file);
-            } catch (java.io.IOException error) {
-                throw new java.io.UncheckedIOException("reading Ogg stream " + file, error);
-            }
+            byte[] bytes = limn.io.Resources.bytes(file, "Ogg stream");
             encoded = MemoryUtil.memAlloc(bytes.length);
             encoded.put(bytes).flip();
             try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -555,11 +550,7 @@ final class AudioFileDecoder implements AudioDecoder {
         private boolean ended;
 
         Mp3StreamSource(java.nio.file.Path file) {
-            try {
-                encoded = java.nio.file.Files.readAllBytes(file);
-            } catch (java.io.IOException error) {
-                throw new java.io.UncheckedIOException("reading MP3 stream " + file, error);
-            }
+            encoded = limn.io.Resources.bytes(file, "MP3 stream");
             openBitstream();
             // Prime the first frame: validates the file and learns the format
             // before playStream asks for channels()/sampleRate().

@@ -12,6 +12,7 @@ import limn.icons.tabler.TablerMedia;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.concurrent.Job;
+import limn.io.Resources;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -654,15 +655,13 @@ final class VideoScene {
      */
     static Path bundledClip() {
         if (mp4Cache == null) {
-            try (java.io.InputStream in = VideoScene.class.getResourceAsStream(BUNDLED_CLIP)) {
-                if (in == null) {
-                    throw new IllegalStateException("this jar carries no " + BUNDLED_CLIP);
-                }
+            byte[] clip = Resources.bytes(VideoScene.class, BUNDLED_CLIP, "bundled clip");
+            try {
                 Path folder = Files.createTempDirectory("limn-demo-");
                 folder.toFile().deleteOnExit();
                 Path file = folder.resolve("big-buck-bunny-360.mp4");
                 file.toFile().deleteOnExit();
-                Files.copy(in, file);
+                Files.write(file, clip);
                 mp4Cache = file;
             } catch (IOException error) {
                 throw new UncheckedIOException("cannot unpack the demo's bundled clip", error);

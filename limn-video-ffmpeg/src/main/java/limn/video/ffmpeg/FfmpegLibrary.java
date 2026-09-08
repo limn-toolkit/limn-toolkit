@@ -2,7 +2,6 @@ package limn.video.ffmpeg;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
@@ -23,6 +22,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import limn.backend.Platform;
+import limn.io.Resources;
 
 /**
  * Finds and loads the native library the FFmpeg decoder needs, and answers whether it is there.
@@ -625,14 +625,7 @@ public final class FfmpegLibrary {
     }
 
     private static String readResource(String path) {
-        try (InputStream in = resource(path)) {
-            if (in == null) {
-                return null;
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException error) {
-            throw new UncheckedIOException(error);
-        }
+        return Resources.textIfPresent(FfmpegLibrary.class.getClassLoader(), path, "native manifest");
     }
 
     static List<String> readManifest(String text) {

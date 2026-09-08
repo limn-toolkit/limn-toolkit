@@ -1,14 +1,15 @@
 package limn.graphics;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 
+import limn.concurrent.SharedLoads;
 import limn.concurrent.Work;
+import limn.io.Resources;
 
 /**
  * Image loading and saving facade. Loading is backed by the running backend's single
@@ -87,11 +88,7 @@ public final class Images {
      * {@link #loadShared} outside setup code.
      */
     public static Image load(Path file) {
-        try {
-            return decode(Files.readAllBytes(file));
-        } catch (IOException error) {
-            throw new UncheckedIOException("reading image " + file, error);
-        }
+        return decode(Resources.bytes(file, "image"));
     }
 
     /**
@@ -99,14 +96,7 @@ public final class Images {
      * for the form that does it on the worker pool.
      */
     public static Image fromResource(String resource) {
-        try (InputStream in = Images.class.getResourceAsStream(resource)) {
-            if (in == null) {
-                throw new IllegalStateException("image resource missing: " + resource);
-            }
-            return decode(in.readAllBytes());
-        } catch (IOException error) {
-            throw new UncheckedIOException("reading image resource " + resource, error);
-        }
+        return decode(Resources.bytes(Images.class, resource, "image"));
     }
 
     // -------------------------------------------------------------- encoding
@@ -343,9 +333,7 @@ public final class Images {
 
     // -------------------------------------------------- background loading
 
-    private static final java.util.concurrent.ConcurrentHashMap<
-            String, java.util.concurrent.CompletableFuture<Image>> pending =
-            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final SharedLoads<Image> shared = new SharedLoads<>();
 
     /**
      * Reads and decodes {@code file} on the {@code Ui} worker pool; the returned future is
@@ -369,7 +357,7 @@ public final class Images {
      * argument check.
      */
     public static java.util.concurrent.CompletableFuture<Image> loadShared(Path file) {
-        return cachedLoad("file:" + file.toAbsolutePath(), () -> load(file));
+        return shared.load("file:" + file.toAbsolutePath(), () -> load(file));
     }
 
     /**
@@ -379,7 +367,7 @@ public final class Images {
      * likewise requiring a running backend.
      */
     public static java.util.concurrent.CompletableFuture<Image> fromResourceShared(String resource) {
-        return cachedLoad("resource:" + resource, () -> fromResource(resource));
+        return shared.load("resource:" + resource, () -> fromResource(resource));
     }
 
     /**
@@ -410,21 +398,7 @@ public final class Images {
      * cleared. Any thread.
      */
     public static void clearSharedCache() {
-        pending.clear();
-    }
-
-    private static java.util.concurrent.CompletableFuture<Image> cachedLoad(
-            String key, java.util.function.Supplier<Image> loader) {
-        return pending.computeIfAbsent(key, k -> {
-            java.util.concurrent.CompletableFuture<Image> future =
-                    limn.concurrent.Ui.async(loader).toCompletableFuture();
-            future.whenComplete((image, error) -> {
-                if (error != null) {
-                    pending.remove(k, future); // failures are retryable
-                }
-            });
-            return future;
-        });
+        shared.clear();
     }
 
     private static ImageDecoder require() {

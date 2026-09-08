@@ -1,10 +1,8 @@
 package limn.backend.lwjgl;
 
+import limn.io.Resources;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -120,14 +118,6 @@ class ShaderColorSpaceTest {
     }
 
     private static String shader(String name) {
-        try (InputStream in = ShaderColorSpaceTest.class.getResourceAsStream(
-                "/limn/backend/lwjgl/shaders/" + name)) {
-            if (in == null) {
-                throw new IllegalStateException("missing shader resource: " + name);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+        return Resources.text(ShaderColorSpaceTest.class, "/limn/backend/lwjgl/shaders/" + name, "shader");
     }
 }
