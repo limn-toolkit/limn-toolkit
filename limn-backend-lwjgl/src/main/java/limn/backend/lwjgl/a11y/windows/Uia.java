@@ -1,8 +1,7 @@
 package limn.backend.lwjgl.a11y.windows;
 
-import org.lwjgl.system.APIUtil;
+import limn.backend.lwjgl.NativeLibraries;
 import org.lwjgl.system.JNI;
-import org.lwjgl.system.Library;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.SharedLibrary;
 
@@ -27,49 +26,34 @@ final class Uia {
     }
 
     /** The library, or {@code null} on a machine that has none — which is most of them. */
-    private static final SharedLibrary CORE = open();
+    private static final SharedLibrary CORE =
+            NativeLibraries.optional(Uia.class, "limn.backend.lwjgl.a11y.windows", "uiautomationcore");
 
     /** {@code UiaClientsAreListening()}, or {@code 0} when the library did not open. */
     private static final long CLIENTS_ARE_LISTENING =
-            CORE == null ? 0L : address("UiaClientsAreListening");
+            NativeLibraries.address(CORE, "UiaClientsAreListening");
 
     /** {@code UiaReturnRawElementProvider(HWND, WPARAM, LPARAM, IRawElementProviderSimple*)}. */
     private static final long RETURN_RAW_ELEMENT_PROVIDER =
-            CORE == null ? 0L : address("UiaReturnRawElementProvider");
+            NativeLibraries.address(CORE, "UiaReturnRawElementProvider");
 
     /** {@code UiaRaiseAutomationEvent(IRawElementProviderSimple*, EVENTID)}. */
     private static final long RAISE_AUTOMATION_EVENT =
-            CORE == null ? 0L : address("UiaRaiseAutomationEvent");
+            NativeLibraries.address(CORE, "UiaRaiseAutomationEvent");
 
     /** {@code UiaRaiseAutomationPropertyChangedEvent(provider, PROPERTYID, VARIANT, VARIANT)}. */
     private static final long RAISE_PROPERTY_CHANGED =
-            CORE == null ? 0L : address("UiaRaiseAutomationPropertyChangedEvent");
+            NativeLibraries.address(CORE, "UiaRaiseAutomationPropertyChangedEvent");
 
     /** {@code UiaHostProviderFromHwnd(HWND, IRawElementProviderSimple**)}. */
     private static final long HOST_PROVIDER_FROM_HWND =
-            CORE == null ? 0L : address("UiaHostProviderFromHwnd");
+            NativeLibraries.address(CORE, "UiaHostProviderFromHwnd");
 
     /** {@code UiaDisconnectProvider(IRawElementProviderSimple*)}. */
     private static final long DISCONNECT_PROVIDER =
-            CORE == null ? 0L : address("UiaDisconnectProvider");
+            NativeLibraries.address(CORE, "UiaDisconnectProvider");
 
-    private static SharedLibrary open() {
-        try {
-            return Library.loadNative(Uia.class, "limn.backend.lwjgl.a11y.windows", "uiautomationcore");
-        } catch (Throwable absent) {
-            // Not Windows, or a Windows without the library: both are "no reader here" and
-            // neither is this module's business to complain about.
-            return null;
-        }
-    }
 
-    private static long address(String function) {
-        try {
-            return APIUtil.apiGetFunctionAddress(CORE, function);
-        } catch (Throwable missing) {
-            return 0L;
-        }
-    }
 
     /**
      * @return whether UI Automation is present on this machine and every entry point this module

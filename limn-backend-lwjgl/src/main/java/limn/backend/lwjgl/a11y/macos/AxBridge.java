@@ -5,6 +5,7 @@ import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
+import limn.backend.lwjgl.ObjC;
 import limn.backend.lwjgl.a11y.PlatformBridge;
 import limn.graphics.Rect;
 
@@ -53,7 +54,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         if (nsWindow == 0) return NONE;
         AxObjC objc = AxObjC.openOrNull();
         if (objc == null) return NONE;
-        long contentView = objc.msg(nsWindow, "contentView");
+        long contentView = ObjC.msg(nsWindow, "contentView");
         if (contentView == 0) return NONE;
         return new AxBridge(objc, contentView);
     }
@@ -117,7 +118,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                 // detach is about to free.
                 if (elementClass != null) elementClass.demote(element);
                 teardown.add("element demoted");
-                if (objc != null) objc.msg(element, "release");
+                if (objc != null) ObjC.msg(element, "release");
             }
         });
     }
@@ -199,7 +200,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         // VoiceOver asks the view for its focused element while glfwDestroyWindow pumps the run
         // loop, after this bridge has detached; with the closures freed first that ask was a
         // SIGSEGV inside liblwjgl, seen at the end of the first scroll run on the guest.
-        if (objc != null) objc.msgVoid(contentView, "setAccessibilityChildren:", 0);
+        if (objc != null) ObjC.msgVoid(contentView, "setAccessibilityChildren:", 0);
         teardown.add("children taken back");
         listening = false;
         if (elementClass != null) elementClass.restoreView();
@@ -403,7 +404,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         // object: what is being exercised there is which subject an event chooses, and that is
         // bookkeeping over a pointer nothing dereferences.
         if (objc == null) return SYNTHETIC_APPLICATION;
-        return objc.msg(objc.cls("NSApplication"), "sharedApplication");
+        return ObjC.msg(ObjC.cls("NSApplication"), "sharedApplication");
     }
 
     private static final long SYNTHETIC_APPLICATION = 0x1;
@@ -416,7 +417,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         if (objc != null) {
             long array = objc.mutableArray();
             for (long element : now) objc.addObject(array, element);
-            objc.msgVoid(contentView, "setAccessibilityChildren:", array);
+            ObjC.msgVoid(contentView, "setAccessibilityChildren:", array);
         }
         pushed = now;
         pushes++;

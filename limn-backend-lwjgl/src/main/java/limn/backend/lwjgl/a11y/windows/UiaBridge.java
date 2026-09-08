@@ -339,10 +339,7 @@ public final class UiaBridge extends PlatformBridge {
         if (interrupted) {
             Thread.currentThread().interrupt();
         }
-        java.util.function.Consumer<String> to = UiaWindow.trace;
-        if (to != null) {
-            to.accept("drain stopped");
-        }
+        UiaWindow.say("drain stopped");
     }
 
     private void sweepAndInvalidate() {
@@ -353,10 +350,7 @@ public final class UiaBridge extends PlatformBridge {
                 swept++;
             }
         }
-        java.util.function.Consumer<String> to = UiaWindow.trace;
-        if (to != null) {
-            to.accept("collapse: swept " + swept + " elements");
-        }
+        UiaWindow.say("collapse: swept " + swept + " elements");
         if (tree.nodeCount() > 0) {
             raise(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, tree.root().id()));
         }
@@ -374,10 +368,7 @@ public final class UiaBridge extends PlatformBridge {
     private void raise(AccessibleEvent event) {
         if (event.type() == AccessibleEvent.Type.NODE_DESTROYED) {
             if (elements.remove(event.nodeId())) {
-                java.util.function.Consumer<String> to = UiaWindow.trace;
-                if (to != null) {
-                    to.accept("released element for destroyed node " + event.nodeId());
-                }
+                UiaWindow.say("released element for destroyed node " + event.nodeId());
             }
             return;
         }
@@ -410,12 +401,9 @@ public final class UiaBridge extends PlatformBridge {
         // The one change a client that asked was owed. From here it is its subscription, or a
         // fresh ask, that keeps this window read.
         owedAnEvent = false;
-        java.util.function.Consumer<String> to = UiaWindow.trace;
-        if (to != null) {
-            to.accept("raised " + event.type() + " for node " + event.nodeId() + " in "
+        UiaWindow.say("raised " + event.type() + " for node " + event.nodeId() + " in "
                     + (System.nanoTime() - started) / 1_000 + " us on "
                     + Thread.currentThread().getName());
-        }
     }
 
     /**
@@ -465,11 +453,8 @@ public final class UiaBridge extends PlatformBridge {
             write(newOne, propertyId, event.newValue());
             int hresult = Uia.raisePropertyChangedEvent(element.pointer(), propertyId,
                     before, after);
-            java.util.function.Consumer<String> to = UiaWindow.trace;
-            if (to != null) {
-                to.accept("property " + propertyId + " changed -> 0x"
+            UiaWindow.say("property " + propertyId + " changed -> 0x"
                         + Integer.toHexString(hresult));
-            }
             freeIfString(oldOne);
             freeIfString(newOne);
         } finally {
@@ -547,11 +532,8 @@ public final class UiaBridge extends PlatformBridge {
             // call: the trace says so, and the test that pins this order reads the trace.
             boolean alive = objects.containsKey(provider);
             Uia.disconnectProvider(provider);
-            java.util.function.Consumer<String> to = UiaWindow.trace;
-            if (to != null) {
-                to.accept("disconnected root provider 0x" + Long.toHexString(provider)
+            UiaWindow.say("disconnected root provider 0x" + Long.toHexString(provider)
                         + " alive=" + alive);
-            }
         }
     }
 
@@ -582,10 +564,7 @@ public final class UiaBridge extends PlatformBridge {
         objects.clear();
         elements.empty();
         distinct.forEach(UiaObject::free);
-        java.util.function.Consumer<String> to = UiaWindow.trace;
-        if (to != null) {
-            to.accept("freed " + distinct.size() + " objects");
-        }
+        UiaWindow.say("freed " + distinct.size() + " objects");
     }
 
     /**
@@ -710,12 +689,9 @@ public final class UiaBridge extends PlatformBridge {
         @Override
         public void eventAdvised(int eventId, int[] propertyIds, boolean added) {
             int now = added ? advised.incrementAndGet() : advised.decrementAndGet();
-            java.util.function.Consumer<String> to = UiaWindow.trace;
-            if (to != null) {
-                to.accept("advise " + (added ? "added" : "removed") + " event " + eventId
+            UiaWindow.say("advise " + (added ? "added" : "removed") + " event " + eventId
                         + " properties " + java.util.Arrays.toString(propertyIds)
                         + " standing=" + now + " on " + Thread.currentThread().getName());
-            }
         }
 
         @Override

@@ -1,5 +1,6 @@
 package limn.backend.lwjgl.a11y.windows;
 
+import limn.backend.lwjgl.a11y.ClosureArgs;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Callback;
 import org.lwjgl.system.CallbackI;
@@ -49,7 +50,7 @@ final class UiaCom {
 
         @Override
         default void callback(long ret, long args) {
-            APIUtil.apiClosureRet(ret, invoke(argPointer(args, 0)));
+            APIUtil.apiClosureRet(ret, invoke(ClosureArgs.pointer(args, 0)));
         }
 
         int invoke(long self);
@@ -69,7 +70,7 @@ final class UiaCom {
 
         @Override
         default void callback(long ret, long args) {
-            APIUtil.apiClosureRet(ret, invoke(argPointer(args, 0), argPointer(args, 1)));
+            APIUtil.apiClosureRet(ret, invoke(ClosureArgs.pointer(args, 0), ClosureArgs.pointer(args, 1)));
         }
 
         int invoke(long self, long out);
@@ -93,8 +94,8 @@ final class UiaCom {
 
         @Override
         default void callback(long ret, long args) {
-            APIUtil.apiClosureRetP(ret, invoke(argPointer(args, 0), argInt(args, 1),
-                    argPointer(args, 2), argPointer(args, 3)));
+            APIUtil.apiClosureRetP(ret, invoke(ClosureArgs.pointer(args, 0), ClosureArgs.int32(args, 1),
+                    ClosureArgs.pointer(args, 2), ClosureArgs.pointer(args, 3)));
         }
 
         long invoke(long hwnd, int message, long wparam, long lparam);
@@ -114,7 +115,7 @@ final class UiaCom {
 
         @Override
         default void callback(long ret, long args) {
-            APIUtil.apiClosureRet(ret, invoke(argPointer(args, 0), argDouble(args, 1)));
+            APIUtil.apiClosureRet(ret, invoke(ClosureArgs.pointer(args, 0), ClosureArgs.float64(args, 1)));
         }
 
         int invoke(long self, double value);
@@ -135,7 +136,7 @@ final class UiaCom {
         @Override
         default void callback(long ret, long args) {
             APIUtil.apiClosureRet(ret,
-                    invoke(argPointer(args, 0), argPointer(args, 1), argPointer(args, 2)));
+                    invoke(ClosureArgs.pointer(args, 0), ClosureArgs.pointer(args, 1), ClosureArgs.pointer(args, 2)));
         }
 
         int invoke(long self, long riid, long out);
@@ -159,7 +160,7 @@ final class UiaCom {
         @Override
         default void callback(long ret, long args) {
             APIUtil.apiClosureRet(ret,
-                    invoke(argPointer(args, 0), argInt(args, 1), argPointer(args, 2)));
+                    invoke(ClosureArgs.pointer(args, 0), ClosureArgs.int32(args, 1), ClosureArgs.pointer(args, 2)));
         }
 
         int invoke(long self, int which, long out);
@@ -179,39 +180,13 @@ final class UiaCom {
 
         @Override
         default void callback(long ret, long args) {
-            APIUtil.apiClosureRet(ret, invoke(argPointer(args, 0),
-                    argDouble(args, 1), argDouble(args, 2), argPointer(args, 3)));
+            APIUtil.apiClosureRet(ret, invoke(ClosureArgs.pointer(args, 0),
+                    ClosureArgs.float64(args, 1), ClosureArgs.float64(args, 2), ClosureArgs.pointer(args, 3)));
         }
 
         int invoke(long self, double x, double y, long out);
     }
 
-    /**
-     * libffi hands a closure a pointer to an array of pointers, one per argument, each pointing at
-     * the value rather than being it. Every decode in this class goes through these three so the
-     * double indirection is written once.
-     *
-     * <p><b>And the callback's own parameters are {@code (ret, args)} and not {@code (args, ret)}</b>
-     * — two longs, so the compiler cannot tell them apart, and reading the return slot as the
-     * argument array dereferences whatever it happens to hold. That was worth a crash to find: it
-     * is the same shape of mistake as a vtable in the wrong order, with the luck of being loud.
-     * The order is LWJGL's, read off the bytecode of one of its own generated callbacks.</p>
-     */
-    private static long argSlot(long args, int index) {
-        return MemoryUtil.memGetAddress(args + (long) index * Pointer.POINTER_SIZE);
-    }
-
-    static long argPointer(long args, int index) {
-        return MemoryUtil.memGetAddress(argSlot(args, index));
-    }
-
-    static int argInt(long args, int index) {
-        return MemoryUtil.memGetInt(argSlot(args, index));
-    }
-
-    static double argDouble(long args, int index) {
-        return MemoryUtil.memGetDouble(argSlot(args, index));
-    }
 
     /**
      * One live COM object: the memory a client points at, and everything that has to be freed with
@@ -237,12 +212,7 @@ final class UiaCom {
      */
     static Instance instantiate(List<? extends CallbackI> slots) {
         List<Long> closures = new ArrayList<>(slots.size());
-        long vtable = MemoryUtil.nmemAllocChecked((long) slots.size() * Pointer.POINTER_SIZE);
-        for (int i = 0; i < slots.size(); i++) {
-            long closure = slots.get(i).address();
-            closures.add(closure);
-            MemoryUtil.memPutAddress(vtable + (long) i * Pointer.POINTER_SIZE, closure);
-        }
+        long vtable = vtable(slots, closures);
         // One field: the vtable pointer. Anything else this bridge needs about an object it keeps
         // on the Java side, keyed by this address -- §3.4's pointer map -- rather than in a
         // structure a client could be reading while the user-interface thread writes it.
@@ -261,11 +231,42 @@ final class UiaCom {
      * @param instance what {@link #instantiate} returned
      */
     static void release(Instance instance) {
-        for (long closure : instance.closures()) {
-            Callback.free(closure);
-        }
+        freeClosures(instance.closures());
         MemoryUtil.nmemFree(instance.vtable());
         MemoryUtil.nmemFree(instance.pointer());
+    }
+
+    /**
+     * Allocates a vtable and fills it with the closures behind {@code slots}, in order.
+     *
+     * <p>Shared by {@link #instantiate}, which vends one interface, and by {@code UiaObject}, which
+     * vends several from one identity: the array of function pointers is the same thing in both,
+     * and it used to be written twice, with the tested copy being the one the shipped code did
+     * not run.
+     *
+     * @param slots       what occupies slot 0 upward
+     * @param closuresOut where the executable memory behind each slot is recorded, for freeing
+     * @return the vtable's address
+     */
+    static long vtable(List<? extends CallbackI> slots, List<Long> closuresOut) {
+        long vtable = MemoryUtil.nmemAllocChecked((long) slots.size() * Pointer.POINTER_SIZE);
+        for (int i = 0; i < slots.size(); i++) {
+            long closure = slots.get(i).address();
+            closuresOut.add(closure);
+            MemoryUtil.memPutAddress(vtable + (long) i * Pointer.POINTER_SIZE, closure);
+        }
+        return vtable;
+    }
+
+    /**
+     * Frees the executable memory behind closures a vtable pointed at.
+     *
+     * @param closures what {@link #vtable} recorded
+     */
+    static void freeClosures(List<Long> closures) {
+        for (long closure : closures) {
+            Callback.free(closure);
+        }
     }
 
     /**

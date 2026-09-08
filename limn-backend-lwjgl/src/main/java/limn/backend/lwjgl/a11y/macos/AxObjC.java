@@ -1,5 +1,6 @@
 package limn.backend.lwjgl.a11y.macos;
 
+import limn.backend.lwjgl.ObjC;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.JNI;
@@ -24,7 +25,7 @@ import static org.lwjgl.system.MemoryUtil.memUTF8;
  * strings, passing a {@code CGRect} by value, and reading a constant out of AppKit.
  *
  * <p>There is no native code of ours anywhere here. A message send is
- * {@code objc_msgSend} reached through LWJGL's JNI trampoline; a struct argument is libffi; a class
+ * {@code objc_msgSend} reached through LWJGL's JNI trampoline ({@link ObjC}); a struct argument is libffi; a class
  * and a selector are the runtime's own functions (§10.2). The alternative was a shim with a build,
  * a signature and a platform matrix of its own, for a handful of calls.
  *
@@ -34,7 +35,6 @@ import static org.lwjgl.system.MemoryUtil.memUTF8;
  */
 final class AxObjC {
 
-    private final long objcMsgSend;
     private final SharedLibrary appKit;
     private final long postNotification;
     private final long postNotificationWithUserInfo;
@@ -42,8 +42,7 @@ final class AxObjC {
     private final FFICIF rectGetterCif;
     private final Map<String, Long> constants = new LinkedHashMap<>();
 
-    private AxObjC(long objcMsgSend, SharedLibrary appKit) {
-        this.objcMsgSend = objcMsgSend;
+    private AxObjC(SharedLibrary appKit) {
         this.appKit = appKit;
         this.postNotification = appKit.getFunctionAddress("NSAccessibilityPostNotification");
         this.postNotificationWithUserInfo =
@@ -60,12 +59,11 @@ final class AxObjC {
      *         runnable everywhere
      */
     static AxObjC openOrNull() {
+        if (!ObjC.isAvailable()) return null;
         try {
-            long msgSend = ObjCRuntime.getLibrary().getFunctionAddress("objc_msgSend");
-            if (msgSend == NULL) return null;
             SharedLibrary appKit = APIUtil.apiCreateLibrary(
                     "/System/Library/Frameworks/AppKit.framework/AppKit");
-            return new AxObjC(msgSend, appKit);
+            return new AxObjC(appKit);
         } catch (Throwable notAMac) {
             return null;
         }
@@ -80,29 +78,6 @@ final class AxObjC {
         type.type(LibFFI.FFI_TYPE_STRUCT);
         type.elements(elements);   // ffi_prep_cif fills in size and alignment from these
         return type;
-    }
-
-    long sel(String name) {
-        return ObjCRuntime.sel_getUid(name);
-    }
-
-    long cls(String name) {
-        return ObjCRuntime.objc_getClass(name);
-    }
-
-    /** {@code id objc_msgSend(id, SEL)} */
-    long msg(long self, String selector) {
-        return JNI.invokePPP(self, sel(selector), objcMsgSend);
-    }
-
-    /** {@code id objc_msgSend(id, SEL, id)} */
-    long msg(long self, String selector, long a) {
-        return JNI.invokePPPP(self, sel(selector), a, objcMsgSend);
-    }
-
-    /** {@code void objc_msgSend(id, SEL, id|NSInteger|BOOL)}; a BOOL rides the low byte of x2. */
-    void msgVoid(long self, String selector, long a) {
-        JNI.invokePPPV(self, sel(selector), a, objcMsgSend);
     }
 
     /**
@@ -124,7 +99,7 @@ final class AxObjC {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             ByteBuffer buffer = stack.malloc(utf8.length + 1);
             buffer.put(utf8).put((byte) 0).flip();
-            return msg(cls("NSString"), "stringWithUTF8String:", memAddress(buffer));
+            return ObjC.msg(ObjC.cls("NSString"), "stringWithUTF8String:", memAddress(buffer));
         }
     }
 
@@ -134,22 +109,22 @@ final class AxObjC {
      */
     String javaString(long nsString) {
         if (nsString == NULL) return null;
-        long utf8 = msg(nsString, "UTF8String");
+        long utf8 = ObjC.msg(nsString, "UTF8String");
         return utf8 == NULL ? null : memUTF8(utf8);
     }
 
     /** An autoreleased {@code NSNumber} carrying a C {@code NSInteger}. */
     long number(long value) {
-        return JNI.invokePPPP(cls("NSNumber"), sel("numberWithInteger:"), value, objcMsgSend);
+        return ObjC.msg(ObjC.cls("NSNumber"), "numberWithInteger:", value);
     }
 
     /** An autoreleased, empty {@code NSMutableArray}. */
     long mutableArray() {
-        return msg(cls("NSMutableArray"), "array");
+        return ObjC.msg(ObjC.cls("NSMutableArray"), "array");
     }
 
     void addObject(long array, long object) {
-        msgVoid(array, "addObject:", object);
+        ObjC.msgVoid(array, "addObject:", object);
     }
 
     /**
@@ -164,13 +139,13 @@ final class AxObjC {
     void msgRect(long self, String selector, double[] rect) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             ByteBuffer storage = stack.malloc(8 + 8 + 32);
-            storage.putLong(0, self).putLong(8, sel(selector))
+            storage.putLong(0, self).putLong(8, ObjC.sel(selector))
                    .putDouble(16, rect[0]).putDouble(24, rect[1])
                    .putDouble(32, rect[2]).putDouble(40, rect[3]);
             long base = memAddress(storage);
             PointerBuffer values = stack.mallocPointer(3);
             values.put(0, base).put(1, base + 8).put(2, base + 16);
-            LibFFI.ffi_call(rectSetterCif, objcMsgSend, stack.malloc(8), values);
+            LibFFI.ffi_call(rectSetterCif, ObjC.msgSend(), stack.malloc(8), values);
         }
     }
 
@@ -189,12 +164,12 @@ final class AxObjC {
     double[] msgGetRect(long self, String selector) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             ByteBuffer storage = stack.malloc(16);
-            storage.putLong(0, self).putLong(8, sel(selector));
+            storage.putLong(0, self).putLong(8, ObjC.sel(selector));
             long base = memAddress(storage);
             PointerBuffer values = stack.mallocPointer(2);
             values.put(0, base).put(1, base + 8);
             ByteBuffer rect = stack.malloc(32);
-            LibFFI.ffi_call(rectGetterCif, objcMsgSend, rect, values);
+            LibFFI.ffi_call(rectGetterCif, ObjC.msgSend(), rect, values);
             return new double[] { rect.getDouble(0), rect.getDouble(8),
                                   rect.getDouble(16), rect.getDouble(24) };
         }
@@ -239,9 +214,9 @@ final class AxObjC {
     String encodingOf(String selector) {
         for (String className : new String[] {
                 "NSAccessibilityElement", "NSView", "NSWindow", "NSResponder", "NSApplication" }) {
-            long c = cls(className);
+            long c = ObjC.cls(className);
             if (c == NULL) continue;
-            long method = ObjCRuntime.class_getInstanceMethod(c, sel(selector));
+            long method = ObjCRuntime.class_getInstanceMethod(c, ObjC.sel(selector));
             if (method != NULL) return ObjCRuntime.method_getTypeEncoding(method);
         }
         throw new IllegalStateException("no AppKit class declares -" + selector

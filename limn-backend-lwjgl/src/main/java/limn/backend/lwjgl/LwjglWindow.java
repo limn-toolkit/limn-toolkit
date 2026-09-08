@@ -1438,14 +1438,9 @@ final class LwjglWindow implements NativeWindow {
         if (nsWindow == NULL) {
             return;
         }
-        // [nsWindow setLevel:level], a one-shot ObjC message; libobjc's
-        // objc_msgSend takes (id self, SEL op, NSInteger level) and returns void.
-        // NSInteger is pointer-sized, so it rides the third pointer slot.
-        long objcMsgSend = org.lwjgl.system.macosx.ObjCRuntime.getLibrary()
-                .getFunctionAddress("objc_msgSend");
-        long setLevel = org.lwjgl.system.macosx.ObjCRuntime.sel_getUid("setLevel:");
-        org.lwjgl.system.JNI.invokePPPV(nsWindow, setLevel,
-                above ? CHROME_OVERLAY_LEVEL : FLOATING_LEVEL, objcMsgSend);
+        // [nsWindow setLevel:level], a one-shot ObjC message. NSInteger is pointer-sized, so
+        // it rides the pointer slot.
+        ObjC.msgVoid(nsWindow, "setLevel:", above ? CHROME_OVERLAY_LEVEL : FLOATING_LEVEL);
     }
 
     @Override

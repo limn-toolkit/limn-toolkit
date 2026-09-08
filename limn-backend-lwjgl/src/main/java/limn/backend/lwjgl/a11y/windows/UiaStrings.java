@@ -1,8 +1,7 @@
 package limn.backend.lwjgl.a11y.windows;
 
-import org.lwjgl.system.APIUtil;
+import limn.backend.lwjgl.NativeLibraries;
 import org.lwjgl.system.JNI;
-import org.lwjgl.system.Library;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.SharedLibrary;
 
@@ -46,25 +45,26 @@ final class UiaStrings {
     }
 
     /** The library, or {@code null} on a machine that has none. */
-    private static final SharedLibrary OLEAUT = open();
+    private static final SharedLibrary OLEAUT =
+            NativeLibraries.optional(UiaStrings.class, "limn.backend.lwjgl.a11y.windows", "oleaut32");
 
     /** {@code SysAllocStringLen(const OLECHAR*, UINT)}, or {@code 0}. */
     private static final long SYS_ALLOC_STRING_LEN =
-            OLEAUT == null ? 0L : address("SysAllocStringLen");
+            NativeLibraries.address(OLEAUT, "SysAllocStringLen");
 
     /** {@code SysFreeString(BSTR)}, for the strings this bridge frees rather than hands over. */
-    private static final long SYS_FREE_STRING = OLEAUT == null ? 0L : address("SysFreeString");
+    private static final long SYS_FREE_STRING = NativeLibraries.address(OLEAUT, "SysFreeString");
 
     /** {@code SafeArrayCreateVector(VARTYPE, LONG, ULONG)} — a runtime id's array. */
     private static final long SAFE_ARRAY_CREATE_VECTOR =
-            OLEAUT == null ? 0L : address("SafeArrayCreateVector");
+            NativeLibraries.address(OLEAUT, "SafeArrayCreateVector");
 
     /** {@code SafeArrayAccessData(SAFEARRAY*, void**)} and its unlock. */
     private static final long SAFE_ARRAY_ACCESS_DATA =
-            OLEAUT == null ? 0L : address("SafeArrayAccessData");
+            NativeLibraries.address(OLEAUT, "SafeArrayAccessData");
 
     private static final long SAFE_ARRAY_UNACCESS_DATA =
-            OLEAUT == null ? 0L : address("SafeArrayUnaccessData");
+            NativeLibraries.address(OLEAUT, "SafeArrayUnaccessData");
 
     /**
      * A {@code SAFEARRAY} of 32-bit integers, which is the shape a runtime id travels in.
@@ -107,21 +107,7 @@ final class UiaStrings {
         }
     }
 
-    private static SharedLibrary open() {
-        try {
-            return Library.loadNative(UiaStrings.class, "limn.backend.lwjgl.a11y.windows", "oleaut32");
-        } catch (Throwable absent) {
-            return null;
-        }
-    }
 
-    private static long address(String function) {
-        try {
-            return APIUtil.apiGetFunctionAddress(OLEAUT, function);
-        } catch (Throwable missing) {
-            return 0L;
-        }
-    }
 
     /** @return whether this machine can allocate a string a client is able to free */
     static boolean isAvailable() {

@@ -1,9 +1,7 @@
 package limn.backend.lwjgl;
 
 import org.lwjgl.glfw.GLFWNativeCocoa;
-import org.lwjgl.system.JNI;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.system.macosx.ObjCRuntime;
 
 import java.nio.IntBuffer;
 
@@ -60,9 +58,6 @@ final class MacSoftwareGl {
     private static final int CP_SWAP_INTERVAL = 222;
     private static final int CP_SURFACE_OPACITY = 236;
 
-    private static final long OBJC_MSG_SEND =
-            ObjCRuntime.getLibrary().getFunctionAddress("objc_msgSend");
-
     private MacSoftwareGl() {
     }
 
@@ -100,34 +95,34 @@ final class MacSoftwareGl {
                     PFA_DOUBLE_BUFFER,
                     PFA_CLOSEST_POLICY,
                     0);
-            pixelFormat = msg(msg(cls("NSOpenGLPixelFormat"), "alloc"),
+            pixelFormat = ObjC.msg(ObjC.msg(ObjC.cls("NSOpenGLPixelFormat"), "alloc"),
                     "initWithAttributes:", memAddress(attributes));
         }
         if (pixelFormat == NULL) {
             return NULL;
         }
-        long context = msg(msg(cls("NSOpenGLContext"), "alloc"),
+        long context = ObjC.msg(ObjC.msg(ObjC.cls("NSOpenGLContext"), "alloc"),
                 "initWithFormat:shareContext:", pixelFormat, NULL);
         // -[NSOpenGLContext pixelFormat] is a strong property, so the context owns it from here.
-        msgV(pixelFormat, "release");
+        ObjC.msgVoid(pixelFormat, "release");
         if (context == NULL) {
             return NULL;
         }
         if (transparent) {
             setParameter(context, CP_SURFACE_OPACITY, 0);
         }
-        msgV(context, "setView:", view);
+        ObjC.msgVoid(context, "setView:", view);
         return context;
     }
 
     /** Makes {@code context} current on the calling thread — the {@code glfwMakeContextCurrent}. */
     static void makeCurrent(long context) {
-        msgV(context, "makeCurrentContext");
+        ObjC.msgVoid(context, "makeCurrentContext");
     }
 
     /** Presents the back buffer — the {@code glfwSwapBuffers}, which does nothing on a NO_API window. */
     static void swapBuffers(long context) {
-        msgV(context, "flushBuffer");
+        ObjC.msgVoid(context, "flushBuffer");
     }
 
     /** Sets vsync — the {@code glfwSwapInterval}; 1 syncs to vertical retrace, 0 runs free. */
@@ -141,53 +136,20 @@ final class MacSoftwareGl {
      * after a resize would land on a stale backing store.
      */
     static void update(long context) {
-        msgV(context, "update");
+        ObjC.msgVoid(context, "update");
     }
 
     /** Detaches the context from its view and releases it. Call before the window is destroyed. */
     static void dispose(long context) {
-        msgV(cls("NSOpenGLContext"), "clearCurrentContext");
-        msgV(context, "clearDrawable");
-        msgV(context, "release");
+        ObjC.msgVoid(ObjC.cls("NSOpenGLContext"), "clearCurrentContext");
+        ObjC.msgVoid(context, "clearDrawable");
+        ObjC.msgVoid(context, "release");
     }
 
     private static void setParameter(long context, int parameter, int value) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            msgV(context, "setValues:forParameter:", memAddress(stack.ints(value)), parameter);
+            ObjC.msgVoid(context, "setValues:forParameter:", memAddress(stack.ints(value)), parameter);
         }
     }
 
-    // ---- objc_msgSend, typed by the shape of the message ---------------------------------------
-
-    private static long cls(String name) {
-        return ObjCRuntime.objc_getClass(name);
-    }
-
-    private static long sel(String name) {
-        return ObjCRuntime.sel_getUid(name);
-    }
-
-    private static long msg(long self, String selector) {
-        return JNI.invokePPP(self, sel(selector), OBJC_MSG_SEND);
-    }
-
-    private static long msg(long self, String selector, long a) {
-        return JNI.invokePPPP(self, sel(selector), a, OBJC_MSG_SEND);
-    }
-
-    private static long msg(long self, String selector, long a, long b) {
-        return JNI.invokePPPPP(self, sel(selector), a, b, OBJC_MSG_SEND);
-    }
-
-    private static void msgV(long self, String selector) {
-        JNI.invokePPV(self, sel(selector), OBJC_MSG_SEND);
-    }
-
-    private static void msgV(long self, String selector, long a) {
-        JNI.invokePPPV(self, sel(selector), a, OBJC_MSG_SEND);
-    }
-
-    private static void msgV(long self, String selector, long a, long b) {
-        JNI.invokePPPPV(self, sel(selector), a, b, OBJC_MSG_SEND);
-    }
 }

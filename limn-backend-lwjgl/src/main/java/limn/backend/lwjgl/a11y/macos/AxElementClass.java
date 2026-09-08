@@ -3,6 +3,8 @@ package limn.backend.lwjgl.a11y.macos;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.RoleNames;
+import limn.backend.lwjgl.ObjC;
+import limn.backend.lwjgl.a11y.ClosureArgs;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Callback;
 import org.lwjgl.system.CallbackI;
@@ -14,9 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.lwjgl.system.MemoryUtil.NULL;
-import static org.lwjgl.system.MemoryUtil.memGetAddress;
 import static org.lwjgl.system.MemoryUtil.memGetDouble;
-import static org.lwjgl.system.Pointer.POINTER_SIZE;
 
 /**
  * The runtime subclass of {@code NSAccessibilityElement} every node is vended as, and the
@@ -102,7 +102,7 @@ final class AxElementClass {
     AxElementClass(AxObjC objc, Source source, String className) {
         this.objc = objc;
         this.source = source;
-        this.superclass = objc.cls("NSAccessibilityElement");
+        this.superclass = ObjC.cls("NSAccessibilityElement");
         if (superclass == NULL) {
             throw new IllegalStateException("no NSAccessibilityElement: this is not AppKit");
         }
@@ -118,7 +118,7 @@ final class AxElementClass {
 
     /** @return a new, retained instance; the caller owns it until it releases it. */
     long newInstance() {
-        return objc.msg(objc.msg(elementClass, "alloc"), "init");
+        return ObjC.msg(ObjC.msg(elementClass, "alloc"), "init");
     }
 
     /**
@@ -166,13 +166,13 @@ final class AxElementClass {
 
     private void addId(String selector, IdGetter body) {
         callbacks.add(body);
-        ObjCRuntime.class_addMethod(elementClass, objc.sel(selector), body.address(),
+        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), body.address(),
                 objc.encodingOf(selector));
     }
 
     private void addBool(String selector, BoolGetter body) {
         callbacks.add(body);
-        ObjCRuntime.class_addMethod(elementClass, objc.sel(selector), body.address(),
+        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), body.address(),
                 objc.encodingOf(selector));
     }
 
@@ -263,7 +263,7 @@ final class AxElementClass {
             }
         };
         callbacks.add(gate);
-        ObjCRuntime.class_addMethod(elementClass, objc.sel("isAccessibilitySelectorAllowed:"),
+        ObjCRuntime.class_addMethod(elementClass, ObjC.sel("isAccessibilitySelectorAllowed:"),
                 gate.address(), objc.encodingOf("isAccessibilitySelectorAllowed:"));
     }
 
@@ -340,7 +340,7 @@ final class AxElementClass {
             }
         };
         callbacks.add(body);
-        ObjCRuntime.class_addMethod(subclass, objc.sel("accessibilityFocusedUIElement"),
+        ObjCRuntime.class_addMethod(subclass, ObjC.sel("accessibilityFocusedUIElement"),
                 body.address(), objc.encodingOf("accessibilityFocusedUIElement"));
         ObjCRuntime.objc_registerClassPair(subclass);
         this.swizzledView = contentView;
@@ -371,7 +371,7 @@ final class AxElementClass {
             }
         };
         callbacks.add(hitTest);
-        ObjCRuntime.class_addMethod(elementClass, objc.sel("accessibilityHitTest:"),
+        ObjCRuntime.class_addMethod(elementClass, ObjC.sel("accessibilityHitTest:"),
                 hitTest.address(), objc.encodingOf("accessibilityHitTest:"));
     }
 
@@ -452,8 +452,8 @@ final class AxElementClass {
                 APIUtil.apiCreateCIF(LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
         @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
         @Override default void callback(long ret, long args) {
-            APIUtil.apiClosureRetP(ret, invoke(memGetAddress(memGetAddress(args)),
-                    memGetAddress(memGetAddress(args + POINTER_SIZE))));
+            APIUtil.apiClosureRetP(ret, invoke(ClosureArgs.pointer(args, 0),
+                    ClosureArgs.pointer(args, 1)));
         }
         long invoke(long self, long cmd);
     }
@@ -470,8 +470,8 @@ final class AxElementClass {
         @Override default void callback(long ret, long args) {
             // apiClosureRet widens the BOOL to an ffi_arg correctly; writing a byte would leave the
             // rest of the register as whatever was there.
-            APIUtil.apiClosureRet(ret, invoke(memGetAddress(memGetAddress(args)),
-                    memGetAddress(memGetAddress(args + POINTER_SIZE))));
+            APIUtil.apiClosureRet(ret, invoke(ClosureArgs.pointer(args, 0),
+                    ClosureArgs.pointer(args, 1)));
         }
         boolean invoke(long self, long cmd);
     }
@@ -487,9 +487,9 @@ final class AxElementClass {
                         LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
         @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
         @Override default void callback(long ret, long args) {
-            APIUtil.apiClosureRet(ret, invoke(memGetAddress(memGetAddress(args)),
-                    memGetAddress(memGetAddress(args + POINTER_SIZE)),
-                    memGetAddress(memGetAddress(args + 2L * POINTER_SIZE))));
+            APIUtil.apiClosureRet(ret, invoke(ClosureArgs.pointer(args, 0),
+                    ClosureArgs.pointer(args, 1),
+                    ClosureArgs.pointer(args, 2)));
         }
         boolean invoke(long self, long cmd, long selector);
     }
@@ -505,9 +505,9 @@ final class AxElementClass {
                         LibFFI.ffi_type_pointer, AxObjC.doubles(2)));
         @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
         @Override default void callback(long ret, long args) {
-            long point = memGetAddress(args + 2L * POINTER_SIZE);   // a pointer to the struct
-            APIUtil.apiClosureRetP(ret, invoke(memGetAddress(memGetAddress(args)),
-                    memGetAddress(memGetAddress(args + POINTER_SIZE)),
+            long point = ClosureArgs.slot(args, 2);   // a pointer to the struct
+            APIUtil.apiClosureRetP(ret, invoke(ClosureArgs.pointer(args, 0),
+                    ClosureArgs.pointer(args, 1),
                     memGetDouble(point), memGetDouble(point + 8)));
         }
         long invoke(long self, long cmd, double x, double y);

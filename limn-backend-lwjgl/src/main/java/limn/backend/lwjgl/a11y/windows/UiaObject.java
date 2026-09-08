@@ -1,6 +1,5 @@
 package limn.backend.lwjgl.a11y.windows;
 
-import org.lwjgl.system.Callback;
 import org.lwjgl.system.CallbackI;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.Pointer;
@@ -100,12 +99,7 @@ final class UiaObject {
                             + "named " + given + ", which it does not have: " + one.iface().slots());
                 }
             }
-            long vtable = MemoryUtil.nmemAllocChecked((long) slots.size() * Pointer.POINTER_SIZE);
-            for (int slot = 0; slot < slots.size(); slot++) {
-                long closure = slots.get(slot).address();
-                closures.add(closure);
-                MemoryUtil.memPutAddress(vtable + (long) slot * Pointer.POINTER_SIZE, closure);
-            }
+            long vtable = UiaCom.vtable(slots, closures);
             vtables.add(vtable);
             long pointer = block + (long) i * Pointer.POINTER_SIZE;
             MemoryUtil.memPutAddress(pointer, vtable);
@@ -201,9 +195,7 @@ final class UiaObject {
      * in that client's process rather than a fault anyone would trace here.
      */
     void free() {
-        for (long closure : closures) {
-            Callback.free(closure);
-        }
+        UiaCom.freeClosures(closures);
         for (long vtable : vtables) {
             MemoryUtil.nmemFree(vtable);
         }

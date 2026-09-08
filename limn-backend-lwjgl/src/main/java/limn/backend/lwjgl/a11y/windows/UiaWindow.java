@@ -1,9 +1,8 @@
 package limn.backend.lwjgl.a11y.windows;
 
-import org.lwjgl.system.APIUtil;
+import limn.backend.lwjgl.NativeLibraries;
 import org.lwjgl.system.Callback;
 import org.lwjgl.system.JNI;
-import org.lwjgl.system.Library;
 import org.lwjgl.system.SharedLibrary;
 
 /**
@@ -44,17 +43,19 @@ final class UiaWindow {
      */
     static volatile java.util.function.Consumer<String> trace;
 
-    private static void say(String what) {
+    /** Writes to {@link #trace} if anything is listening; the bridge's own notes go through here too. */
+    static void say(String what) {
         java.util.function.Consumer<String> to = trace;
         if (to != null) {
             to.accept(what);
         }
     }
 
-    private static final SharedLibrary USER32 = open();
+    private static final SharedLibrary USER32 =
+            NativeLibraries.optional(UiaWindow.class, "limn.backend.lwjgl.a11y.windows", "user32");
     private static final long SET_WINDOW_LONG_PTR =
-            USER32 == null ? 0L : address("SetWindowLongPtrW");
-    private static final long CALL_WINDOW_PROC = USER32 == null ? 0L : address("CallWindowProcW");
+            NativeLibraries.address(USER32, "SetWindowLongPtrW");
+    private static final long CALL_WINDOW_PROC = NativeLibraries.address(USER32, "CallWindowProcW");
 
     private final long hwnd;
     private final long previous;
@@ -70,21 +71,7 @@ final class UiaWindow {
         this.unusedButKept = UiaCom.WndProc.DESCRIPTOR;
     }
 
-    private static SharedLibrary open() {
-        try {
-            return Library.loadNative(UiaWindow.class, "limn.backend.lwjgl.a11y.windows", "user32");
-        } catch (Throwable absent) {
-            return null;
-        }
-    }
 
-    private static long address(String function) {
-        try {
-            return APIUtil.apiGetFunctionAddress(USER32, function);
-        } catch (Throwable missing) {
-            return 0L;
-        }
-    }
 
     /** @return whether a window procedure can be replaced on this machine */
     static boolean isAvailable() {
