@@ -34,6 +34,9 @@ rather than "text field". A caption that merely sits above a field names nothing
 | `SearchField` | a text field with search affordances |
 | `ComboBox` | one choice from a list |
 | `Spinner` | a number with steppers |
+| `DateField` | a date, a time, or both, typed into segments the language orders |
+| `DatePicker` | the same field with a calendar behind a button; `ofRange()` for a period |
+| `CalendarView` | a month grid on its own, for a screen that shows one |
 | `Slider` | a number on a range |
 | `Checkbox` | a boolean, as a box or as a switch |
 | `RadioButton` | one of several, grouped by a `ButtonGroup` |
@@ -58,6 +61,76 @@ otherwise live as long as the widget does.
 
 A handler slot holds one handler: registering a second one throws, and `null` clears it. Two
 parties that both want to hear the same widget are both watching, and watching has no such limit.
+
+## Dates and times
+
+A date is the one field a form cannot be written without and the one a text field is wrong for.
+Limn has three classes for it, and four shapes come out of them: a field types a date, a picker
+is that field with a calendar behind a button, and either of them carries a clock as well.
+
+{% shot dates "The four shapes, a period, and the grid on its own." %}
+
+{% snippet guide:date-shapes %}
+
+**The value is always ISO.** Everything these widgets hand out and take in is a `LocalDate`, a
+`LocalTime` or a `LocalDateTime`, so an application stores what it asked for and never writes a
+branch about calendars. What is *drawn* is a separate axis: the month names, the year number and
+the length of a month come from the calendar system resolved for the widget's language, which is
+the Gregorian one everywhere until a locale carries a `u-ca` extension. A Thai user driving a
+Buddhist calendar picks a day out of a grid headed with a year 543 greater, and the application
+gets the ISO date.
+
+**The segments and the separators are the language's own.** The same field reads day, month, year
+in Portuguese, month, day, year in American English and year, month, day in Japanese, because the
+order comes from the locale's own short pattern rather than from a format string in the
+application. A two-digit year in that pattern is widened to four: the order and the separators are
+what the locale genuinely owns, and a two-digit year in something a person types is an ambiguity
+worth refusing.
+
+**Typing beats clicking, and both work.** Up and Down adjust the segment the caret is in; Left and
+Right move between segments; digits fill the current segment and roll on to the next, so
+`31122026` commits the last day of 2026 without a separator being typed. `Ctrl/Cmd+V` parses what
+is on the clipboard, which is where a date pasted out of a spreadsheet is understood. `Alt+Down`
+opens the calendar, the arrows then drive the grid, `Enter` picks and `Esc` closes.
+
+### A period
+
+{% snippet guide:date-range %}
+
+Two fields and one grid: the first click in the calendar anchors the period, the second closes it,
+and the days between are drawn as a band. `range()` answers `null` until both ends are filled — a
+period with one end is not a period, and is not published as one.
+
+### Which days may be picked
+
+{% snippet guide:date-rules %}
+
+`setMinDate`, `setMaxDate` and `setDateFilter` exist on the field, on the grid and on the picker,
+which fans them out to both of its parts. The two halves enforce them at different moments, and
+the difference is deliberate: **the grid refuses the click** — the day is drawn disabled, the
+keyboard skips it and a screen reader is given no verb for it — while **the field holds what was
+typed** and marks itself invalid with a message saying which rule was broken. A field that snapped
+a typed date to the nearest legal one would be throwing away what somebody wrote and telling them
+nothing.
+
+The filter runs once per painted cell, so it has to be cheap and it has to be pure; a filter that
+queries a database is a filter that stalls a frame. `setDayMarks` decorates days with a dot and,
+when it is given one, a phrase that joins what a screen reader says about that day — a dot alone
+reaches everyone who looks and nobody who listens.
+
+### What a screen reader gets
+
+The grid is published as a **table**: six rows of seven cells under a row of column headers, which
+are the same four roles a `Table` uses and are mapped on all three platforms. A day is named with
+the whole date and not the bare number, because a cell heard on its own has to say what it is. The
+field is a **group of spin buttons**, one per editable segment, each with its own name and its own
+range — the caret is in one segment at a time, and a single text field publishing `31/12/2026`
+would give a reader no way to say which part that is.
+
+Reading right to left, the grid mirrors and the field does not. A grid is columns in reading order,
+so the first day of the week moves to the edge reading starts from and Left and Right swap with it.
+A date is a run of numbers, and a run of numbers keeps its own left-to-right order inside a
+right-to-left line; what moves there is which side of the box the run sits against.
 
 ## Validation
 

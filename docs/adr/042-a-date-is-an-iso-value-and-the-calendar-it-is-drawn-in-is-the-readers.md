@@ -1,0 +1,332 @@
+# ADR 042: A date is an ISO value, and the calendar it is drawn in is the reader's
+
+- **Status:** Accepted, 2026-09-09; phase 1 implemented. §11 says what lands in the first phase and
+  what is deliberately left out of it, and §12 what has been verified against a live client and what
+  is still owed.
+- **Date:** 2026-09-09
+- **Scope:** the toolkit's first date widgets: what value they exchange with the application, which
+  calendar system they draw, how a date is typed, how a month grid is laid out, selected, bounded,
+  filtered and marked, how all three are read by a screen reader, and which of the four shapes a
+  corporate form asks for are one class and which are three. A time zone is not here; §9 says why.
+- **Compatibility:** nothing published changes. This record adds a package beside the widgets and
+  two derived accessors to `SizeTokens`; no existing token row moves, so no shipped control changes
+  size by a point.
+
+---
+
+## 0. The starting point
+
+The market survey of 2026-09-08 ranked a table first among what the toolkit still owed a
+line-of-business application and a date picker immediately after it, for the same reason: they are
+the two controls a form cannot be written without, and both had to be built rather than borrowed.
+The table landed as ADR 041. This is the other one.
+
+What exists to build on is more than it looks.
+
+`Spinner` already has a **segmented editor**: in `Mode.TIME` it shows `HH:MM`, the up and down
+arrows adjust the focused field, Left and Right move between the two, and typing a digit turns the
+whole control into a one-line text edit with the old value selected. Every hard question a
+segmented field asks — what a step means per segment, what a paste does, what Escape restores, what
+a programmatic set does to an edit in progress — has an answer there, written down and tested. This
+record does not re-answer them; it generalizes them from two fixed segments to a list the locale
+orders.
+
+`Table` (ADR 041) mapped `TABLE`, `ROW`, `CELL` and `COLUMN_HEADER` and the `table`/`cell` facets
+onto AT-SPI2, UI Automation and the AX API, and a live client read all four on each guest on
+2026-09-09. **A month grid is a table**, so the accessible half of the hardest widget here was paid
+for a day before it was needed, and this record adds no role, no facet and no bridge code. That is
+not a happy accident but the argument for building the table first, and it is the reason a calendar
+can ship in the same phase as the field that opens it.
+
+The i18n axis is settled and is what makes a calendar possible at all. ADR 033 fixed that a number
+is localized when it is formatted and nowhere else; ADR 034 that order and case are facts about a
+language; ADR 035 that the locale is a property of the subtree and that a widget's passes carry it
+in scope. So a widget that asks `I18n.locale()` while it measures, paints or answers an
+accessibility question gets the language of the subtree it is in, and a form in one language inside
+an application in another is already correct without this record doing anything about it.
+
+What does **not** exist is any use of `java.time` anywhere in the toolkit. Every date decision below
+is therefore a first, and none of them is constrained by a shipped API.
+
+## 1. The value is ISO, and the calendar drawn is a display fact
+
+**Decision.** The application exchanges `java.time.LocalDate`, `LocalTime` and `LocalDateTime`,
+always in the ISO calendar. The calendar system a widget *draws* — the month names, the year
+number, the length of a month, the era — is a separate, resolved axis: `Chronology.ofLocale` for
+the widget's effective locale by default, overridable per widget with `setChronology`.
+
+This is ADR 033's rule pointed at a different type. A number is localized when it is formatted; a
+date is converted when it is drawn. Nothing but the paint, the measure and the accessibility hook
+ever holds a `ChronoLocalDate`, the conversion happens at the edge of each of those passes, and the
+field the application reads back is the ISO one it wrote.
+
+Three consequences are worth stating because each is a bug that did not happen:
+
+- **An application never writes a chronology-dependent branch.** A form that stores
+  `LocalDate.of(2026, 9, 9)` gets that value back from a picker a Thai user drove, and the fact that
+  the user picked it out of a grid headed `กันยายน 2569` is not the application's problem.
+- **The JDK's default is ISO nearly everywhere,** which is measured and not assumed:
+  `Chronology.ofLocale` answers `IsoChronology` for `ar-SA`, `th-TH`, `he-IL`, `fa-IR` and `ja-JP`
+  alike, and answers something else only when the locale carries a `u-ca` extension
+  (`ja-JP-u-ca-japanese` → `JapaneseChronology`). Chronology support is therefore **opt-in by the
+  locale the application already sets**, and the default path allocates no conversion at all: the
+  ISO chronology's `date(LocalDate)` returns its argument.
+- **A chronology has a range, and it is not always wide.** `HijrahChronology` covers AH 1300–1600
+  and throws `DateTimeException` outside it. Every conversion in the paint path is therefore
+  guarded, and a value the display chronology cannot represent falls back to drawing the ISO
+  calendar for that widget rather than throwing inside a frame. The guard is in one place
+  (`CalendarChronology.convert`) and both widgets go through it.
+
+**Rejected: a value type of our own.** A `limn.time.CalendarDate` would decouple the toolkit from
+the JDK and would cost every application a conversion at every boundary, to buy nothing: `java.time`
+is in `java.base`, it is the type every persistence layer, every JSON binding and every SQL driver
+already speaks, and a toolkit that refuses it makes the application do the adapting. The toolkit
+does not own the domain vocabulary of a date any more than it owns `String`.
+
+**Rejected: exposing `ChronoLocalDate` in the API.** It is the honest type for what is drawn and the
+wrong type for what is exchanged: it is not comparable across chronologies, it makes every
+application signature generic, and it pushes a display decision into a storage decision. It is used
+internally, and does not appear on any public signature.
+
+## 2. Three widgets, and the four shapes a form asks for
+
+A corporate form asks for four things: a date, a date with a time, either of those with a calendar
+to pick from, and a period. They are **three classes**, not four and not one:
+
+| | no calendar | with calendar |
+|---|---|---|
+| **date** | `new DateField()` | `new DatePicker()` |
+| **date + time** | `DateField.dateTime()` | `DatePicker.dateTime()` |
+
+plus `DateField.time()` for a time alone, `DatePicker.range()` for a period, and `CalendarView` on
+its own for a screen that shows a month rather than filling a field.
+
+- **`CalendarView`** is a month grid and nothing else: it owns a selection, bounds, a filter, marks
+  and week numbers, and it is a public widget because a scheduling screen wants a calendar sitting
+  in a panel and not inside a popup.
+- **`DateField`** is the segmented editor: the whole of typing a date, with no popup, no calendar
+  and no dependency on either.
+- **`DatePicker`** composes them: it *holds a `DateField` as a real child* and opens a
+  `CalendarView` in a popup.
+
+**Why composition rather than one class with modes.** A single `DatePicker` with
+`Mode.DATE | TIME | DATE_TIME` and `setCalendarEnabled(false)` is one import and one Javadoc, and
+that is the whole of its case. Against it: half its state is mutually exclusive at any moment, its
+documentation has to explain which combinations mean nothing, and a screen that wants only a grid
+carries the popup machinery, the field, the segment parser and the trailing button to get it. The
+split falls where the *responsibilities* fall, which is the same test ADR 041 applied to
+`Table` against `ListView` and this repository has applied since: looking alike is not the test.
+
+**Why the field is a real child of the picker rather than painted by it.** Focus traversal, the
+caret, the clipboard, the accessible subtree and the text-input plumbing are all things a `Widget`
+already has and a painted region does not. `DatePicker.range()` is then two children and one
+popup, and Tab moves between the two ends of the period for free. The picker paints exactly one
+thing itself — the trailing calendar button — and publishes it the way `SearchField` publishes its
+clear button and `Spinner` its two arrows: a synthetic child with a name the toolkit supplies,
+because nothing else can name it.
+
+## 3. The field is segments the locale orders, and one of them is always focused
+
+**Decision.** `DateField` derives its segments from the locale's own short date pattern —
+`DateTimeFormatterBuilder.getLocalizedDateTimePattern(SHORT, …, chronology, locale)` — parsed into
+an ordered list of **fields** and **literals**. `dd/MM/y` gives day, `/`, month, `/`, year;
+`M/d/yy` gives month, `/`, day, `/`, year; `y/MM/dd`, `yy. M. d.`, `d.M.y` and `d‏/M‏/y` each give
+their own order, their own separators and — in the Arabic case — the two `U+200F` marks the pattern
+carries, kept verbatim as literals so the run reads correctly in a bidirectional line.
+
+The keyboard is `Spinner`'s, generalized: Up and Down adjust the focused segment, Left and Right
+move between segments, Home and End go to the first and last, and typing digits fills the focused
+segment and rolls on to the next when it can hold no more. Alongside that, and this is what the
+answer to "segmented or free text?" actually was: **a long run typed or pasted into the field is
+parsed as a whole.** `31122026`, `2026-12-31` and `31/12/2026` all commit the same date, so the
+person who types a date faster than they can think about segments is not punished for it, and the
+person who arrows through the segments is not made to type separators.
+
+Three details are decisions rather than mechanics:
+
+- **A two-digit year in the pattern is widened to four.** `M/d/yy` orders the fields and names the
+  separators, and those are the two things the locale genuinely owns; a two-digit year in an
+  *editable* field is an ambiguity the toolkit would be creating on purpose. What is displayed is
+  what will be stored.
+- **An era segment is read-only.** The Japanese pattern `GGGGGy/M/d` carries one, and editing it —
+  with the year renumbering across a transition — is a genuine piece of work that no other
+  chronology asks for. It is drawn, it is read out, it follows the value, and it is skipped by
+  Left and Right. §11 records it as backlog rather than pretending it is finished.
+- **An incomplete field has no value.** A field whose year is blank answers `null` from `date()`
+  and publishes `VALIDITY` as invalid; it does not guess a year. Guessing is what makes a form
+  submit something nobody typed.
+
+## 4. The grid is a table, and that is why it can already be read
+
+`CalendarView` lays out six week rows of seven day cells, plus a weekday header row and, when asked,
+a leading week-number column. Six rows always, never five and never a variable count: a grid that
+changes height as the months are paged makes the popup resize under the pointer and moves the
+button the user was about to press.
+
+Days outside the displayed month fill the leading and trailing cells. They are drawn muted, they
+are selectable, and picking one pages the grid to that month — the behaviour every desktop calendar
+has, and the one that makes the first three days of next month reachable without a trip through the
+header.
+
+The month is paged by the two header buttons, by PageUp and PageDown, and by arrowing off an edge.
+Arrow keys move by a day and a week, Home and End go to the first and last day **of the week**
+(they name a position in a row, so they mirror with the row; §8), and the focused day is a *cursor*
+that is not the selection: it moves with the arrows and commits with Enter or Space. A grid where
+arrowing selected would fire a form's handler seven times crossing a week.
+
+## 5. Bounds are two dates and a predicate, and all three are enforced twice
+
+`setMinDate`, `setMaxDate` and `setDateFilter(Predicate<LocalDate>)` exist on `CalendarView`, on
+`DateField` and on `DatePicker`, which fans out to both of its parts. A day outside the bounds or
+refused by the filter is drawn disabled, is skipped by the keyboard cursor, refuses a click, and is
+published to a screen reader without a `SELECT` verb — the same "a dead control carries no verb"
+rule `SegmentedControl` states for a scroll arrow it cannot use.
+
+The field enforces the same three, and enforces them at a different moment: a typed date that is out
+of range or refused does not silently snap to the nearest legal day. It is held, the field publishes
+`VALIDITY` as invalid with a message, and the value the application reads stays what it was.
+Snapping is the behaviour that loses a user's typing without telling them.
+
+The predicate is called during paint, once per visible cell, and is documented as such: it must be
+cheap and it must be pure. A filter that hits a database is a filter that stalls a frame.
+
+## 6. A period is one grid and two fields
+
+`CalendarView.setSelectionMode(RANGE)` makes the grid select a period: the first click sets an
+anchor, the second closes the range, the cells between them are drawn as a band, and moving the
+pointer or the keyboard cursor before the second click previews the band it would make. Shift with
+an arrow extends from the anchor. A range is `DateRange`, a record of two inclusive `LocalDate`
+ends, normalized so `start` is never after `end`; a half-made range is not a `DateRange` and is not
+published as one — `selectedRange()` answers `null` until the period is closed.
+
+`DatePicker.range()` is two `DateField`s with an en dash between them and one popup: focus in the
+start field opens the grid anchored on the start, focus in the end field on the end, and the grid
+writes back into whichever end the picker is filling. The two fields are ordinary children, so the
+period is typable end to end without ever opening the calendar.
+
+## 7. Week numbers and marks
+
+`setShowWeekNumbers(true)` adds a leading column carrying the week number from
+`WeekFields.of(locale)` — the locale's own convention, not ISO's, for the same reason the first day
+of the week is the locale's: a German user is shown the week Germany numbers (minimal days 4,
+Monday) and a Brazilian user the week Brazil numbers (minimal days 1, Sunday), and a toolkit that
+showed one of them the other's week number would be showing them a number that is wrong where they
+work. `setFirstDayOfWeek` overrides the derived day for an application whose own week is fixed.
+
+`setDayMarks(Function<LocalDate, DayMark>)` decorates days: a `DayMark` is a dot colour and an
+optional `I18nString` that joins the cell's accessible name, so a holiday, a deadline or a day with
+appointments is both visible and spoken. The colour is the application's, because a holiday is red
+in one domain and a deadline red in another, and the toolkit has no opinion about which.
+
+## 8. What a screen reader is told
+
+**The grid.** `TABLE` with `table(6 rows, 7 or 8 columns)`; the weekday header is a `GROUP` of
+`COLUMN_HEADER`s named with the standalone narrow weekday; each week is a `ROW`; each day is a
+`CELL` carrying `cell(row, column)`, a `SELECT` verb when it is selectable, `selectionItem` when it
+is selected or in the band, and `State.ACTIVE` when it is the keyboard cursor. A day's name is the
+**full localized date** and not the bare number — "9 de setembro de 2026" and not "9" — because a
+cell heard on its own has to say what it is, and the column header alone does not carry the month.
+The mark's description, when there is one, follows the date.
+
+**The field.** `GROUP` holding one `SPIN_BUTTON` per editable segment, exactly the shape
+`Spinner` publishes for its two arrows and for the same reason: a segment is separately focusable,
+separately adjustable and separately spoken, and a single text field publishing `31/12/2026` gives
+a reader no way to say which part the caret is in. Each segment carries `value(v, min, max, 1)`,
+its own name from the toolkit's bundle ("day", "month", "year", "hour", "minute", "second"), and
+`INCREMENT`/`DECREMENT`, which reach the same private path Up and Down reach. The group itself
+publishes **no value facet**: a group has no number, and a minimum, a maximum and a step over a
+date would be three lies for a bridge to carry. It publishes `INVALID` with the reason as its
+description when the field holds something unacceptable, and the whole date as a string is
+`DateField.text()` for an application that wants it. (The first implementation put the whole date
+on the group as a `valueText`; §12 records why that reached nobody.)
+
+**The picker.** The field's subtree, the popup's, and one synthetic `BUTTON` for the calendar
+affordance with `EXPANDED` on the picker itself.
+
+No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
+mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and
+it is why the calendar could be built at all without reopening the bridges, which live in their own
+repository since the fourth split.
+
+## 9. Reading right to left
+
+The grid mirrors as a grid: the first day of the week is drawn at the edge reading starts from, the
+week-number column moves to that same edge, and the paging buttons swap ends and swap their
+pointing, so "previous month" is on the side the reader comes from. Left and Right mirror, because
+they name a *side* of a row; Up and Down do not, because a week is below a week in every language;
+Home and End do not name sides and stay the first and last day of the week; PageUp and PageDown
+stay previous and next month.
+
+The field does **not** reorder its segments under a right-to-left layout, and this is the one place
+where the obvious answer is wrong. A date is a run of numbers, and a run of numbers keeps its own
+left-to-right order inside a right-to-left line — this is the Unicode bidirectional algorithm's
+rule, not a toolkit convention, and it is exactly the reading `Spinner` already documents for its
+`HH:MM`. What mirrors is where the run sits in the box and which side the trailing button takes.
+The Arabic pattern's own `U+200F` marks, carried through as literals, are what make the separators
+sit correctly, and dropping them as "punctuation" would be the actual bug.
+
+There is **no time zone anywhere in this record.** A `LocalDate` has none, a picker that offered one
+would be offering a value the application did not ask it to hold, and a zone is a property of an
+instant rather than of a calendar day. An application that needs one converts at its own boundary,
+where it knows which zone it means.
+
+## 10. Two channels, one seam each
+
+Every widget here follows ADR 040 without an exception. The handler (`onSelect`, `onChange`) runs
+only for `Origin.USER`; `observeChanges` hears everything. The aspects each announces:
+
+- `CalendarView`: `SELECTION` when the selection or the range moves, `ACTIVE` when the keyboard
+  cursor moves, `VALUE` when the displayed month pages, `RANGE` when bounds or the filter change.
+- `DateField`: `VALUE` when the value moves, `ACTIVE` when the focused segment changes, `TEXT` for
+  an edit, `VALIDITY` when what it holds becomes legal or stops being, `COMMITTED` when an edit
+  commits.
+- `DatePicker`: `EXPANDED` when the popup opens or closes, and the value aspects it forwards from
+  its field so that a watcher on the picker does not have to know it has children.
+
+`CalendarView` has two handler slots and not one: `onSelect(Consumer<LocalDate>)` in `SINGLE` mode
+and `onSelectRange(Consumer<DateRange>)` in `RANGE`. One slot taking a widget, or a slot taking
+`Object`, would make every application cast; two slots, each documented as its mode's, is the
+smaller price and each is guarded by `Checks.handlerSlot` like every other.
+
+## 11. What lands in phase 1, and what is deliberately left out
+
+**In phase 1** — everything above: the three widgets, the four shapes, the segment parser, the
+chronology axis, bounds, the filter, ranges, week numbers, day marks, the accessible trees, the
+mirroring, the notification contract, the demo scene and the guide.
+
+**Left out, deliberately, and each with its reason:**
+
+- **A time row inside the popup.** The popup does not take focus — that is the toolkit's popup
+  contract, and every key a `ComboBox` popup answers is forwarded from the field that owns it. A
+  segmented time editor inside a surface that cannot be focused would need either a focus contract
+  this record has no business changing or a second key-forwarding path. `DatePicker.dateTime()`
+  therefore edits its time in the field, which is where a keyboard user would type it anyway.
+- **A footer of shortcuts** — "Today", "Clear", "last 7 days". Cheap to add and deliberately not
+  added: which shortcuts a form wants is an application's decision, and a toolkit that ships three
+  guesses ships three that are wrong somewhere.
+- **Editing an era** (§3), and with it the Japanese calendar's era transitions.
+- **A month or year picker** reached by clicking the header. Paging is PageUp, PageDown and the two
+  buttons; jumping to a distant year is what typing into the field is for.
+- **A multi-month grid.** Two months side by side is the range-picker convention on the web; it is
+  also twice the popup, and a period is typable in the two fields without opening anything.
+- **Time zones and `Instant`** (§9).
+
+## 12. Verification
+
+Headless, in this repository: the segment parser against the eight locale patterns the probe
+recorded (`M/d/yy`, `dd/MM/y`, `dd.MM.yy`, `y/MM/dd`, `yy. M. d.`, `d.M.y`, `d‏/M‏/y`,
+`GGGGGy/M/d`), the chronology axis against Hijrah, Japanese, Thai Buddhist and Minguo including the
+AH 1300–1600 boundary, the grid's geometry and paging, the range band, bounds and the filter, both
+accessible trees against `AccessibleTestBase`, the mirroring of both widgets, and the four ADR 040
+obligations through `NotificationContractTest`.
+
+**What the implementation found, and the record now says instead of what it said first.**
+`Accessibility.valueText` gives an *existing* value a display form; a node with no value facet has
+nothing for it to land on, so the whole date published on the field's group was silently reaching
+nobody. Found by `DateFieldAccessibilityTest`, which asked the tree for it. The group now publishes
+no value at all and the segments carry them, which is §8 as it now reads.
+
+**Still owed, and named so it is not forgotten:** a live reader run on each of the three guests over
+the demo's date scene — the same discipline ADR 039 and ADR 041 were held to, which is what found
+four defects on Windows and two on Linux that no headless test could have. Until that run happens,
+what §8 claims is what the headless tree says and not what a reader speaks.

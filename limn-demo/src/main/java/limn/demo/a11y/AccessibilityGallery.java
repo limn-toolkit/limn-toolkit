@@ -34,6 +34,10 @@ import limn.components.Slider;
 import limn.components.Spinner;
 import limn.components.SplitPane;
 import limn.components.TabbedPane;
+import limn.components.date.CalendarView;
+import limn.components.date.DateField;
+import limn.components.date.DatePicker;
+import limn.components.date.DayMark;
 import limn.components.table.Table;
 import limn.components.TextArea;
 import limn.components.TextField;
@@ -198,6 +202,15 @@ public final class AccessibilityGallery {
                 new Entry("Table with a header and rows", List.of(Table.class),
                         List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL),
                         AccessibilityGallery::table),
+                new Entry("Calendar grid", List.of(CalendarView.class),
+                        List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL, Role.BUTTON),
+                        AccessibilityGallery::calendar),
+                new Entry("Date field, segmented", List.of(DateField.class),
+                        List.of(Role.GROUP, Role.SPIN_BUTTON),
+                        AccessibilityGallery::dateField),
+                new Entry("Date picker, open", List.of(DatePicker.class),
+                        List.of(Role.GROUP, Role.SPIN_BUTTON, Role.BUTTON, Role.TABLE, Role.CELL),
+                        AccessibilityGallery::datePicker),
                 new Entry("Tabbed pane", List.of(TabbedPane.class),
                         List.of(Role.TAB_LIST, Role.TAB, Role.TAB_PANEL),
                         AccessibilityGallery::tabbedPane),
@@ -458,6 +471,53 @@ public final class AccessibilityGallery {
         page.add(Labelled.above("Mountain ranges", table,
                 new SizedBox(SizedBox.UNSET, 200, table)));
         return new Built(page);
+    }
+
+    /**
+     * The month grid, wearing what a form asks of it: a bound, a filter and a mark, so a reader can
+     * be checked against a day that is refused as well as against one that is not.
+     */
+    private static Built calendar() {
+        Column page = page();
+        CalendarView calendar = new CalendarView();
+        calendar.setVisibleMonth(java.time.LocalDate.of(2026, 9, 9));
+        calendar.setSelectedDate(java.time.LocalDate.of(2026, 9, 15));
+        calendar.setShowWeekNumbers(true);
+        calendar.setMinDate(java.time.LocalDate.of(2026, 9, 2));
+        calendar.setDateFilter(day -> day.getDayOfWeek() != java.time.DayOfWeek.SUNDAY);
+        calendar.setDayMarks(day -> day.getDayOfMonth() == 21
+                ? DayMark.of(Theme.current().danger, I18nString.literal("holiday"))
+                : null);
+        page.add(Labelled.above("Delivery date", calendar));
+        return new Built(page);
+    }
+
+    /**
+     * Two fields: one that is only a date and one that carries a clock as well, so a reader is
+     * checked against both the three-segment shape and the six-segment one.
+     */
+    private static Built dateField() {
+        Column page = page();
+        DateField date = new DateField();
+        date.setDate(java.time.LocalDate.of(2026, 9, 9));
+        page.add(Labelled.above("Invoice date", date));
+        DateField moment = DateField.ofDateTime();
+        moment.setDateTime(java.time.LocalDateTime.of(2026, 9, 9, 14, 30));
+        page.add(Labelled.above("Appointment", moment));
+        return new Built(page);
+    }
+
+    /** The picker with its calendar open, in the scene so the whole tree is in one window. */
+    private static Built datePicker() {
+        Column page = page();
+        DatePicker picker = new DatePicker();
+        picker.setDate(java.time.LocalDate.of(2026, 9, 9));
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        page.add(Labelled.above("Start date", picker));
+        // Opened after the first layout, for the reason every open-popup entry here is: the overlay
+        // hangs from the picker's place in the scene, and a picker that has not been laid out has
+        // none yet.
+        return new Built(page, picker::open);
     }
 
     private static Built tabbedPane() {

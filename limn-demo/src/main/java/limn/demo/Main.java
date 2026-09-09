@@ -32,7 +32,7 @@ public final class Main {
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
             "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
-            "components", "components-light", "widgets", "list", "table", "form", "animations", "cursors",
+            "components", "components-light", "widgets", "list", "table", "dates", "dates-light", "dates-popup", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
             "newcontrols", "newcontrols-light", "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
@@ -209,6 +209,7 @@ public final class Main {
 
             limn.scene.Scene widgetScene = null;
             limn.components.ComboBox formsCombo = null;
+            limn.components.date.DatePicker datesPicker = null;
             java.util.function.Supplier<limn.components.Dialog> dialogOpener = null;
             java.util.function.Supplier<limn.components.ComboBox> dialogComboRef = null;
             Runnable loadTrigger = null;
@@ -220,6 +221,11 @@ public final class Main {
                 widgetScene = ListScene.create();
             } else if (scene.equals("table")) {
                 widgetScene = TableScene.create();
+            } else if (scene.equals("dates") || scene.equals("dates-light")
+                    || scene.equals("dates-popup")) {
+                DatesScene.Built datesBuilt = DatesScene.build(scene.endsWith("-light"));
+                widgetScene = datesBuilt.scene();
+                datesPicker = scene.equals("dates-popup") ? datesBuilt.picker() : null;
             } else if (scene.equals("form")) {
                 // The guide's worked form: a caption naming a field and a message describing it,
                 // which is what the three bridges' relation checks (scripts/a11y) read live.
@@ -429,7 +435,12 @@ public final class Main {
             // still frame cannot show them. Its own scene name, shooting three files;
             // `--scene split` stays a single plain capture.
             boolean splitCapture = scene.startsWith("split-states") && screenshotMode;
-            boolean deferredCapture = popupCapture || dialogCapture || loadingCapture
+            // The calendar is an overlay INSIDE this window, so there is no second window to
+            // photograph -- but its fade-in runs on wall time, and the warmup frames are pumped
+            // back to back with no wall time between them, so a capture taken from the warmup
+            // would photograph the first frame of the fade. Deferred for that reason alone.
+            boolean datesCapture = screenshotMode && datesPicker != null;
+            boolean deferredCapture = datesCapture || popupCapture || dialogCapture || loadingCapture
                     || perfCapture || threeDCapture || controlsCapture || menuCapture
                     || tabsOverflowCapture || inSceneDialogCapture || splitCapture
                     || chartsCapture;
@@ -663,6 +674,20 @@ public final class Main {
                     System.out.println("Loading screenshot: " + options.screenshotFile().toAbsolutePath());
                 }, 700);
                 Ui.postDelayed(window::requestClose, 900);
+            }
+
+            if (datesCapture) {
+                limn.components.date.DatePicker picker = datesPicker;
+                Ui.postDelayed(picker::open, 150);
+                Ui.postDelayed(() -> {
+                    if (!picker.isOpen()) {
+                        System.err.println("calendar did not open!");
+                    }
+                    window.captureNextFrame(options.screenshotFile());
+                    System.out.println("Calendar screenshot: "
+                            + options.screenshotFile().toAbsolutePath());
+                }, 500);
+                Ui.postDelayed(window::requestClose, 800);
             }
 
             if (popupCapture && formsCombo != null) {

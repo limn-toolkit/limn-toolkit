@@ -127,6 +127,8 @@ public final class SiteShowcase {
         entries.add(new Entry("viewport-3d", "The 3D viewport", Locale.ENGLISH, true, true, false,
                 true, SiteShowcase::viewport));
         entries.add(new Entry("form", "A form", Locale.ENGLISH, SiteShowcase::form));
+        entries.add(new Entry("dates", "Dates and periods", Locale.ENGLISH,
+                SiteShowcase::dates));
         entries.add(new Entry("layout", "A window laid out", Locale.ENGLISH, SiteShowcase::layout));
         entries.add(new Entry("control-size", "Every size step", Locale.ENGLISH,
                 SiteShowcase::controlSize));
@@ -360,6 +362,11 @@ public final class SiteShowcase {
     private static Scene form(Theme theme) {
         Theme.setCurrent(theme);
         return retheme(limn.demo.site.FormExample.scene(), theme);
+    }
+
+    private static Scene dates(Theme theme) {
+        Theme.setCurrent(theme);
+        return retheme(limn.demo.site.DatesExample.scene(), theme);
     }
 
     private static Scene layout(Theme theme) {

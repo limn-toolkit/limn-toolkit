@@ -7,6 +7,9 @@ import limn.components.chart.BarChart;
 import limn.components.chart.ChartSeries;
 import limn.components.chart.DonutChart;
 import limn.components.chart.LineChart;
+import limn.components.date.CalendarView;
+import limn.components.date.DateField;
+import limn.components.date.DatePicker;
 import limn.components.table.Column;
 import limn.components.table.Table;
 import limn.graphics.BackdropEffect;
@@ -310,6 +313,42 @@ class NotificationContractTest extends ComponentTestBase {
             new Row("limn.components.chart.LineChart",
                     () -> chart(new LineChart()),
                     w -> w.setVisible(false), Change.Aspect.VISIBLE, null),
+            // ADR 042's three. The calendar's gesture is Enter on the keyboard cursor and not a
+            // click: a click needs the grid's geometry to have settled, and Enter reaches the same
+            // private pick() through the same USER seam, which is what this test is about.
+            new Row("limn.components.date.CalendarView",
+                    () -> new CalendarView().setVisibleMonth(java.time.LocalDate.of(2026, 9, 9)),
+                    w -> ((CalendarView) w).setSelectedDate(java.time.LocalDate.of(2026, 9, 15)),
+                    Change.Aspect.SELECTION,
+                    new Gesture(Change.Aspect.SELECTION,
+                            (w, ran) -> ((CalendarView) w).onSelect(d -> ran.run()),
+                            (scene, w) -> {
+                                scene.requestFocus(w);
+                                key(scene, Keys.ENTER);
+                            })),
+            new Row("limn.components.date.DateField",
+                    () -> new DateField().setDate(java.time.LocalDate.of(2026, 9, 9)),
+                    w -> ((DateField) w).setDate(java.time.LocalDate.of(2026, 9, 15)),
+                    Change.Aspect.VALUE,
+                    new Gesture(Change.Aspect.VALUE,
+                            (w, ran) -> ((DateField) w).onChange(d -> ran.run()),
+                            (scene, w) -> {
+                                scene.requestFocus(w);
+                                key(scene, Keys.UP);
+                            })),
+            // The picker's write goes through its field, and the picker forwards what the field
+            // announced: that forwarding is the row's subject, since a watcher on the picker must
+            // not have to know the picker has children.
+            new Row("limn.components.date.DatePicker",
+                    () -> new DatePicker().setDate(java.time.LocalDate.of(2026, 9, 9)),
+                    w -> ((DatePicker) w).setDate(java.time.LocalDate.of(2026, 9, 15)),
+                    Change.Aspect.VALUE,
+                    new Gesture(Change.Aspect.VALUE,
+                            (w, ran) -> ((DatePicker) w).onSelect(d -> ran.run()),
+                            (scene, w) -> {
+                                scene.requestFocus(((DatePicker) w).field());
+                                key(scene, Keys.UP);
+                            })),
             new Row("limn.components.table.Table",
                     () -> {
                         Table<String> table = new Table<>(List.of(

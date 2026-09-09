@@ -1,0 +1,285 @@
+package limn.components;
+
+import limn.components.date.DateField;
+import limn.i18n.I18n;
+import limn.input.Keys;
+import limn.scene.Change;
+import limn.scene.Scene;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.chrono.Chronology;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/** The segmented editor: what the locale orders, what typing does, and what an incomplete field is. */
+class DateFieldTest extends ComponentTestBase {
+
+    private static final Locale PT_BR = Locale.forLanguageTag("pt-BR");
+    private static final Locale EN_US = Locale.forLanguageTag("en-US");
+
+    private DateField field;
+    private Scene scene;
+
+    private void build(DateField built, Locale locale) {
+        I18n.setLocale(locale);
+        field = built;
+        scene = new Scene(field);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(300, 32);
+        scene.requestFocus(field);
+    }
+
+    @AfterEach
+    void resetLocale() {
+        I18n.setLocale(Locale.US);
+    }
+
+    private void key(int keyCode) {
+        scene.keyEvent(keyCode, true, false, 0);
+        scene.keyEvent(keyCode, false, false, 0);
+        scene.inputBatchEnded();
+    }
+
+    private void type(String digits) {
+        for (int i = 0; i < digits.length(); i++) {
+            scene.charTyped(digits.charAt(i));
+        }
+        scene.inputBatchEnded();
+    }
+
+    @Test
+    void theSegmentsAreInTheOrderTheLanguageWritesThem() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 12, 31));
+        assertEquals("31/12/2026", field.text());
+
+        build(new DateField(), EN_US);
+        field.setDate(LocalDate.of(2026, 12, 31));
+        assertEquals("12/31/2026", field.text());
+    }
+
+    @Test
+    void aTwoDigitYearInThePatternIsWidenedToFour() {
+        // en-US's short pattern is M/d/yy. The order and the separators are the locale's; a
+        // two-digit year in a field somebody types into is an ambiguity the toolkit would be
+        // creating on purpose (ADR 042 3).
+        build(new DateField(), EN_US);
+        field.setDate(LocalDate.of(2026, 1, 2));
+        assertTrue(field.text().endsWith("2026"), "the year is written in full: " + field.text());
+    }
+
+    @Test
+    void anIncompleteFieldHasNoValueAndSaysSo() {
+        build(new DateField(), PT_BR);
+        type("31");             // the day
+        assertNull(field.date(), "one segment is not a date");
+        assertFalse(field.isValid());
+        assertNotNull(field.validationMessage());
+        type("12");             // the month
+        assertNull(field.date());
+        type("2026");           // and the year
+        assertEquals(LocalDate.of(2026, 12, 31), field.date());
+        assertTrue(field.isValid());
+        assertNull(field.validationMessage());
+    }
+
+    @Test
+    void aRunOfDigitsFillsTheWholeDateWithoutASeparatorBeingTyped() {
+        build(new DateField(), PT_BR);
+        type("31122026");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date());
+
+        build(new DateField(), EN_US);
+        type("12312026");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(),
+                "the same run means month, day, year here");
+    }
+
+    @Test
+    void aSeparatorTypedByHandMovesOnRatherThanBeingRefused() {
+        build(new DateField(), PT_BR);
+        type("3/12/2026");
+        assertEquals(LocalDate.of(2026, 12, 3), field.date());
+    }
+
+    @Test
+    void anEmptyFieldIsValidBecauseWhetherADateIsRequiredIsTheFormsBusiness() {
+        build(new DateField(), PT_BR);
+        assertTrue(field.isEmpty());
+        assertTrue(field.isValid());
+        assertNull(field.validationMessage());
+    }
+
+    @Test
+    void theArrowsStepTheFocusedSegmentAndRollOverIt() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 12, 31));
+        key(Keys.UP);
+        assertEquals(LocalDate.of(2026, 12, 1), field.date(),
+                "the day rolls from the end of the month to its start");
+        key(Keys.DOWN);
+        assertEquals(LocalDate.of(2026, 12, 31), field.date());
+    }
+
+    @Test
+    void theCaretMovesBetweenSegmentsAndDeleteEmptiesTheOneItIsIn() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 12, 31));
+        assertEquals(0, field.focusedSegment());
+        key(Keys.RIGHT);
+        assertEquals(1, field.focusedSegment());
+        key(Keys.DELETE);
+        assertNull(field.date(), "a date missing its month is not a date");
+        assertTrue(field.text().contains("--"));
+        key(Keys.END);
+        assertEquals(2, field.focusedSegment(), "End is the last segment");
+        key(Keys.HOME);
+        assertEquals(0, field.focusedSegment());
+    }
+
+    @Test
+    void steppingTheMonthCarriesADayThatOvershotIt() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 1, 31));
+        key(Keys.RIGHT);  // onto the month
+        key(Keys.UP);     // into February
+        assertEquals(LocalDate.of(2026, 2, 28), field.date(),
+                "31 January stepped into February is the 28th, not nothing");
+    }
+
+    @Test
+    void aTimeFieldKeepsTheClockTheLanguageKeeps() {
+        build(DateField.ofTime(), PT_BR);
+        field.setTime(LocalTime.of(14, 30));
+        assertEquals("14:30", field.text(), "Portuguese counts to 24");
+        assertNull(field.date(), "a time field has no date to answer");
+
+        build(DateField.ofTime(), EN_US);
+        field.setTime(LocalTime.of(14, 30));
+        assertTrue(field.text().startsWith("2:30"), "English counts to 12: " + field.text());
+        assertTrue(field.text().toUpperCase(Locale.ROOT).contains("PM"));
+    }
+
+    @Test
+    void theDayPeriodIsTypedWithTheTwoLettersPeopleActuallyType() {
+        build(DateField.ofTime(), EN_US);
+        field.setTime(LocalTime.of(9, 0));
+        key(Keys.END); // the day period is the last segment of an English clock
+        type("p");
+        assertEquals(LocalTime.of(21, 0), field.time());
+        type("a");
+        assertEquals(LocalTime.of(9, 0), field.time());
+    }
+
+    @Test
+    void secondsAreShownOnlyWhenAsked() {
+        build(DateField.ofTime(), PT_BR);
+        field.setTime(LocalTime.of(14, 30, 45));
+        assertEquals("14:30", field.text());
+        field.setShowSeconds(true);
+        assertEquals("14:30:45", field.text());
+    }
+
+    @Test
+    void aDateAndTimeFieldAnswersBothHalvesAndNeverInventsOne() {
+        build(DateField.ofDateTime(), PT_BR);
+        assertNull(field.dateTime());
+        field.setDateTime(LocalDateTime.of(2026, 12, 31, 18, 5));
+        assertEquals(LocalDate.of(2026, 12, 31), field.date());
+        assertEquals(LocalTime.of(18, 5), field.time());
+        assertEquals(LocalDateTime.of(2026, 12, 31, 18, 5), field.dateTime());
+
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 12, 31));
+        assertNull(field.dateTime(), "a date-only field answers null here rather than midnight");
+    }
+
+    @Test
+    void aDateOutsideTheBoundsIsHeldAndReportedRatherThanSnapped() {
+        build(new DateField(), PT_BR);
+        field.setMinDate(LocalDate.of(2026, 9, 1));
+        field.setMaxDate(LocalDate.of(2026, 9, 30));
+        field.setDate(LocalDate.of(2026, 10, 6));
+        assertEquals(LocalDate.of(2026, 10, 6), field.date(),
+                "what was typed is still what the field holds");
+        assertFalse(field.isValid());
+        assertNotNull(field.validationMessage());
+
+        field.setDate(LocalDate.of(2026, 9, 15));
+        assertTrue(field.isValid());
+    }
+
+    @Test
+    void aFilteredDateIsInvalidWithItsOwnMessage() {
+        build(new DateField(), PT_BR);
+        field.setDateFilter(day -> day.getDayOfMonth() != 13);
+        field.setDate(LocalDate.of(2026, 11, 13));
+        assertFalse(field.isValid());
+        assertNotNull(field.validationMessage());
+        assertEquals("limn.date.invalid.unavailable", field.validationMessage().key());
+    }
+
+    @Test
+    void theValidityMessageNamesWhichRuleWasBroken() {
+        build(new DateField(), PT_BR);
+        type("31");
+        assertEquals("limn.date.invalid.incomplete", field.validationMessage().key());
+        field.setMaxDate(LocalDate.of(2026, 1, 1));
+        field.setDate(LocalDate.of(2026, 5, 5));
+        assertEquals("limn.date.invalid.outOfRange", field.validationMessage().key());
+    }
+
+    @Test
+    void aChangeOfCalendarReDerivesTheSegmentsFromTheIsoValue() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        String iso = field.text();
+        field.setChronology(Chronology.of("ThaiBuddhist"));
+        assertEquals(LocalDate.of(2026, 9, 9), field.date(), "the value the application reads is ISO");
+        assertFalse(field.text().equals(iso), "and what is drawn is the Buddhist year");
+        assertTrue(field.text().contains("2569"), "which is 543 greater: " + field.text());
+    }
+
+    @Test
+    void everyAnnouncedAspectHasAnAccessorAndAWriteOfTheSameValueAnnouncesNothing() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        List<Change.Aspect> heard = new ArrayList<>();
+        field.observeChanges((widget, change) -> heard.add(change.aspect()));
+        field.setDate(LocalDate.of(2026, 9, 9));
+        assertTrue(heard.isEmpty(), "nothing moved");
+
+        field.setDate(LocalDate.of(2026, 9, 10));
+        assertTrue(heard.contains(Change.Aspect.VALUE));
+        assertEquals(LocalDate.of(2026, 9, 10), field.date());
+
+        heard.clear();
+        field.setMinDate(LocalDate.of(2026, 9, 20));
+        assertTrue(heard.contains(Change.Aspect.RANGE));
+        assertTrue(heard.contains(Change.Aspect.VALIDITY), "and the value stopped being acceptable");
+        assertEquals(LocalDate.of(2026, 9, 20), field.minDate());
+    }
+
+    @Test
+    void theHandlerRunsForTheUserAndNotForACallersWrite() {
+        build(new DateField(), PT_BR);
+        List<LocalDate> heard = new ArrayList<>();
+        field.onChange(heard::add);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        assertTrue(heard.isEmpty(), "a caller's write reaches no handler (ADR 040)");
+        key(Keys.UP);
+        assertEquals(1, heard.size());
+        assertEquals(field.date(), heard.get(0));
+    }
+}

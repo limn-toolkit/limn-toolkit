@@ -297,4 +297,29 @@ public record SizeTokens(
     public float sliderHeight() {
         return Math.max(Strokes.MIN_HIT_TARGET, 2 * sliderPad());
     }
+
+    /**
+     * A calendar's day cell, square: 24 / 28 / 32 / 40 / 50.
+     *
+     * <p>The control height and not a row of its own, which is the point rather than a saving. A
+     * day cell is a hit target in a grid of forty-two of them, and making it exactly as tall as
+     * every other control at the same density is what keeps a calendar sitting next to a field
+     * from looking like it came from somewhere else. Seven of them is 224pt at MEDIUM, which is
+     * within a hair of {@link #fieldWidth()}, so a picker's popup is the width of the field that
+     * opened it without either being derived from the other.
+     *
+     * <p>Floored at the minimum hit target, which binds at no step today and would if the control
+     * height ever dropped: a day is pointed at, and the ramp's dense end is where that gets tight.
+     */
+    public float calendarCell() {
+        return Math.max(Strokes.MIN_HIT_TARGET, controlHeight);
+    }
+
+    /**
+     * The week-number column, three quarters of a day cell: it holds one or two digits at a smaller
+     * type than the days, and a column as wide as a day would read as an eighth weekday.
+     */
+    public float calendarWeekColumn() {
+        return calendarCell() * 0.75f;
+    }
 }

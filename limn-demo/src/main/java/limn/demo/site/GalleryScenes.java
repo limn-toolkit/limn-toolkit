@@ -32,9 +32,16 @@ import limn.components.ToolBar;
 import limn.components.VideoView;
 import limn.components.Viewport3D;
 import limn.components.chart.BarChart;
+import limn.components.date.CalendarView;
+import limn.components.date.DateField;
+import limn.components.date.DatePicker;
+import limn.components.date.DateRange;
 import limn.components.chart.ChartSeries;
 import limn.components.chart.DonutChart;
 import limn.components.chart.LineChart;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+
 import limn.math.Quat;
 import limn.math.Transform3D;
 import limn.math.Vec3;
@@ -173,6 +180,12 @@ final class GalleryScenes {
                 // A particular job, on a particular screen.
                 new GalleryEntry("slider", "Slider", "gallery:slider", GalleryScenes::slider),
                 new GalleryEntry("spinner", "Spinner", "gallery:spinner", GalleryScenes::spinner),
+                new GalleryEntry("date-field", "DateField", "gallery:date-field",
+                        GalleryScenes::dateField),
+                new GalleryEntry("date-picker", "DatePicker", "gallery:date-picker",
+                        GalleryScenes::datePicker),
+                new GalleryEntry("calendar-view", "CalendarView", "gallery:calendar-view",
+                        GalleryScenes::calendarView),
                 new GalleryEntry("split-pane", "SplitPane", "gallery:split-pane",
                         GalleryScenes::splitPane),
                 new GalleryEntry("segmented-control", "SegmentedControl",
@@ -295,6 +308,39 @@ final class GalleryScenes {
         Spinner spinner = new Spinner(0, 100, 1);
         spinner.setValue(42);
         return scene(spinner);
+    }
+    // #endregion
+
+    // #region gallery:date-field
+    static Built dateField() {
+        // The segments, their order and the separators are the language's own: this same code
+        // reads day/month/year in Portuguese and month/day/year in American English.
+        DateField field = new DateField();
+        field.setDate(LocalDate.of(2026, 9, 9));
+        return scene(field);
+    }
+    // #endregion
+
+    // #region gallery:date-picker
+    static Built datePicker() {
+        DatePicker picker = new DatePicker();
+        picker.setDate(LocalDate.of(2026, 9, 9));
+        picker.setMinDate(LocalDate.of(2026, 1, 1));
+        return scene(picker);
+    }
+    // #endregion
+
+    // #region gallery:calendar-view
+    static Built calendarView() {
+        CalendarView calendar = new CalendarView();
+        calendar.setVisibleMonth(LocalDate.of(2026, 9, 9));
+        calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
+        calendar.setSelectedRange(new DateRange(LocalDate.of(2026, 9, 14),
+                LocalDate.of(2026, 9, 25)));
+        calendar.setShowWeekNumbers(true);
+        calendar.setDateFilter(day -> day.getDayOfWeek() != DayOfWeek.SATURDAY
+                && day.getDayOfWeek() != DayOfWeek.SUNDAY);
+        return scene(calendar);
     }
     // #endregion
 
