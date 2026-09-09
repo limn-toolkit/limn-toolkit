@@ -139,6 +139,11 @@ public enum LayoutDirection {
         return LISTENERS.observe(listener);
     }
 
+    /** How many listeners are registered: what the purge of a collected scene's wrapper leaves. */
+    static int listenerCount() {
+        return LISTENERS.count();
+    }
+
     /**
      * The four-letter script subtags written right to left. Checked before the language, because a
      * language can be written in either: {@code az-Arab} reads right to left and {@code az-Latn}

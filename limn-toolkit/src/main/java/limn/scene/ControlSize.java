@@ -116,4 +116,9 @@ public enum ControlSize {
     public static limn.concurrent.Subscription observeChanges(Runnable listener) {
         return LISTENERS.observe(listener);
     }
+
+    /** How many listeners are registered: what the purge of a collected scene's wrapper leaves. */
+    static int listenerCount() {
+        return LISTENERS.count();
+    }
 }

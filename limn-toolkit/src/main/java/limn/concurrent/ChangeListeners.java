@@ -43,6 +43,12 @@ public final class ChangeListeners {
         return new Handle(listener);
     }
 
+    /** @return how many registrations are held right now, for the tests that pin the purge */
+    public int count() {
+        Runnable[] snapshot = listeners;
+        return snapshot == null ? 0 : snapshot.length;
+    }
+
     /** Runs every listener, in registration order, containing each one's throw. */
     public void fire() {
         Runnable[] snapshot = listeners;

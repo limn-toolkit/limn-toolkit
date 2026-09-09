@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -1334,5 +1335,124 @@ class TextEditModelTest {
                 assertLineIndexMatchesARecount(m, random, step);
             }
         }
+    }
+
+    // ------------------------------------------------------------ character damage
+
+    /** The four numbers, read and cleared the way a widget's announcement does. */
+    private static int[] damage(TextEditModel m) {
+        assertTrue(m.hasCharDamage(), "an edit landed, so damage is pending");
+        int[] triple = {m.damageOffset(), m.damageRemoved(), m.damageInserted()};
+        m.clearCharDamage();
+        assertFalse(m.hasCharDamage(), "cleared: the consumer has announced");
+        return triple;
+    }
+
+    private static void assertDamage(int offset, int removed, int inserted, TextEditModel m) {
+        assertArrayEquals(new int[] {offset, removed, inserted}, damage(m));
+    }
+
+    /**
+     * Every mutator reaches the buffer through one splice, and the range that splice replaced is
+     * what a screen reader is told changed: a wrong number here is the wrong span read aloud.
+     */
+    @Test
+    void everyEditReportsTheExactRangeItReplaced() {
+        TextEditModel m = new TextEditModel(true);
+        assertFalse(m.hasCharDamage(), "nothing has landed yet");
+
+        m.insert("abc");
+        assertDamage(0, 0, 3, m);                 // a type at the end
+
+        m.setCursor(1, false);
+        m.setCursor(2, true);                     // select "b"
+        m.insert("XY");
+        assertDamage(1, 1, 2, m);                 // a type over a selection: aXYc
+
+        m.backspace();
+        assertDamage(2, 1, 0, m);                 // Backspace takes the "Y": aXc
+
+        m.setCursor(0, false);
+        m.deleteForward();
+        assertDamage(0, 1, 0, m);                 // Delete takes the "a": Xc
+
+        m.setText("hello");
+        assertDamage(0, 2, 5, m);                 // a whole replacement, offsets exact
+        assertEquals("hello", m.text());
+    }
+
+    @Test
+    void aBackspaceAtAGraphemeBoundaryReportsTheWholeCluster() {
+        TextEditModel m = new TextEditModel(true);
+        m.insert("a\uD835\uDD38"); // a followed by a surrogate pair
+        m.clearCharDamage();
+        m.backspace();
+        assertEquals("a", m.text());
+        assertDamage(1, 2, 0, m); // both chars of the pair, from where the pair began
+    }
+
+    @Test
+    void undoAndRedoReportTheRangeTheyMoved() {
+        TextEditModel m = new TextEditModel(true);
+        m.insert("one");
+        m.insert(" two");
+        m.clearCharDamage();
+
+        assertTrue(m.undo());
+        assertEquals("one", m.text());
+        int[] undone = damage(m);
+        assertEquals(3, undone[0], "the undone typing began after 'one'");
+        assertEquals(4, undone[1], "and took ' two' back out");
+        assertEquals(0, undone[2]);
+
+        assertTrue(m.redo());
+        assertEquals("one two", m.text());
+        assertDamage(3, 0, 4, m);
+    }
+
+    @Test
+    void aPasteReportsOneInsertion() {
+        TextEditModel m = new TextEditModel(false);
+        m.insert("ab");
+        m.clearCharDamage();
+        m.setCursor(1, false);
+        m.insert("line\nbreak");
+        assertEquals("aline\nbreakb", m.text());
+        assertDamage(1, 0, 10, m);
+    }
+
+    /**
+     * Two edits before a consumer reads compose to a covering range: the lowest offset, with
+     * removed and inserted widened to span both, in the coordinates of the text before the first
+     * and after the second. It cannot arise on the widgets' own paths and is specified because the
+     * model may be mutated directly; over-reporting a replaced region is the coarse answer every
+     * platform accepts.
+     */
+    @Test
+    void twoEditsBeforeAReadComposeToACoveringRange() {
+        TextEditModel m = new TextEditModel(true);
+        m.insert("abcdef");
+        m.clearCharDamage();
+
+        m.setCursor(4, false);
+        m.insert("XY");        // abcdXYef: [4,4) -> 2 chars
+        m.setCursor(1, false);
+        m.deleteForward();     // acdXYef: [1,2) -> 0 chars, before the first edit
+        assertEquals("acdXYef", m.text());
+        // Covering the original [1,4): removed the 3 chars "bcd", and what stands there now is
+        // "cdXY", 4 chars -- a net of +1, which is +2 - 1.
+        assertDamage(1, 3, 4, m);
+
+        m.insert("Q");         // acdXYef with the cursor at 1: aQcdXYef
+        m.setCursor(3, false);
+        m.setCursor(5, true);  // select "dX"
+        m.insert("--");        // aQc--Yef: inside the first edit's insertion
+        assertEquals("aQc--Yef", m.text());
+        // The second edit overlapped the first edit's inserted text, so the covering range starts
+        // at the first edit's offset and ends where the second edit's original end mapped back to.
+        int[] covered = damage(m);
+        assertEquals(1, covered[0]);
+        assertEquals(covered[1] + 1 + 0, covered[2],
+                "net delta: +1 for the Q, and the 2-for-2 replacement moved nothing");
     }
 }
