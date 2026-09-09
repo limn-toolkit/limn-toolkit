@@ -122,6 +122,27 @@ re-applied, a selected row the list no longer has is dropped and your listener h
 the scroll position is kept.
 :::
 
+### Editing a record
+
+There is no cell editing, and there will not be. Editing in place is a spreadsheet's
+interaction and reads as one everywhere else: a field that appears where a value was, a save
+on a keystroke the user did not mean as a save, a validation error with nowhere to stand, a
+change to one field of a record whose other fields depend on it. A table is for reading,
+comparing, sorting and choosing; a record is edited whole.
+
+What to do instead, each with what the toolkit already has:
+
+- **A dialog or a panel for the record.** On `onActivate` — Enter, a double click, or a button
+  in a widget column — open a `Dialog`, or a form beside the table, showing the whole record
+  with labelled and validated fields and an explicit Save. On save, change your list and
+  call `refresh()`; the selection is by model row and stays put.
+- **Master and detail.** Keep the form open in a `SplitPane` beside the table and bind it to
+  the lead row through `onSelect`, so the user walks the records with the arrow keys and
+  edits each in a form that never moves.
+- **A control in a widget column** for one-gesture changes: a switch to flag a row, a button
+  to open it, a checkbox to include it.
+- **A bulk action** over a `MULTI` selection when the same change applies to many rows.
+
 ## Splitting a window
 
 `SplitPane` gives two children a draggable divider:

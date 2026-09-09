@@ -10,8 +10,9 @@
  *
  * <p>A cell is a value drawn as text until its column asks for a widget
  * ({@link limn.components.table.Column#widget}); those cells are real children, mounted and
- * recycled with their row. Sorting keeps a permutation over the application's list and never
- * reorders it, so the selection &mdash; a set of model rows &mdash; survives a sort. ADR 041 is
- * the record.
+ * recycled with their row, and they are the whole of in-row interaction: the table does not edit
+ * cells in place, by decision, and a record is edited whole, in a dialog or a panel (ADR 041 §6).
+ * Sorting keeps a permutation over the application's list and never reorders it, so the selection
+ * &mdash; a set of model rows &mdash; survives a sort. ADR 041 is the record.
  */
 package limn.components.table;

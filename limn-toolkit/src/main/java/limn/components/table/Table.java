@@ -49,8 +49,17 @@ import java.util.function.IntConsumer;
  * {@linkplain SelectionMode modes}, and it survives a sort because a sort is a
  * {@linkplain #setSort permutation} over the application's list and never a reordering of it.
  * Separately, the arrow keys move a <b>focus cell</b>, which is what a screen reader's cursor
- * stands on and where a future editor opens. Enter and a double click
- * {@linkplain #onActivate activate} the lead row.
+ * stands on. Enter and a double click {@linkplain #onActivate activate} the lead row.
+ *
+ * <p><b>Cells are not edited in place, and will not be.</b> In-place editing is a spreadsheet's
+ * interaction and reads as one everywhere else: a field that appears where a value was, a save
+ * on a keystroke the user did not mean as one, an error with nowhere to stand. A table is for
+ * reading, comparing, sorting and choosing; editing a record wants the record whole. Open a
+ * {@code Dialog} or a panel with the record as a form from {@link #onActivate}, keep a form beside
+ * the table bound to {@link #onSelect} for master-and-detail, put a switch or a button in a
+ * {@link Column#widget} cell for the one-gesture cases, or act on the whole
+ * {@linkplain SelectionMode#MULTI selection} at once; then change the list and
+ * {@link #refresh()}. ADR 041 §6 is the reasoning.
  *
  * <p><b>Sorting</b>: a click on a sortable header cycles ascending, descending and the model's
  * order. The table sorts by default; {@link #onSortRequest} hands the click to the application

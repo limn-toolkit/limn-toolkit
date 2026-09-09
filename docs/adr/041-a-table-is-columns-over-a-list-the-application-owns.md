@@ -1,6 +1,7 @@
 # ADR 041: A table is columns over a list the application owns, and a cell is a value until it asks to be a widget
 
-- **Status:** Accepted, 2026-09-08. Phase 1 implemented the same day, with one exception: the
+- **Status:** Accepted, 2026-09-08; §6 revised 2026-09-09 to rule out cell editing for good.
+  Phase 1 implemented the same day, with one exception: the
   Windows bridge maps the four roles to control types but does not yet serve the Grid and Table
   patterns, because their interface identifiers and vtable orders have to be read off the Windows
   guest (`scripts/a11y/windows/dump-uia-interfaces.ps1`, already extended with the four) and the
@@ -67,8 +68,8 @@ a million rows free: `rowCount` is `rows.size()`, and nothing is read until it i
 directly, with no widget: the table keeps, per realized row, one `ShapedText` per visible column,
 re-shaped through the same `matches` test `Label` uses. A column may instead name a widget factory
 (`Column.widget(title, row -> new Checkbox(...))`); those cells are real children, mounted and
-recycled with the row, and they are what a button or a switch in a table is. This is the seam §6's
-editing will use, so it exists from the first phase even though no built-in column uses it yet.
+recycled with the row, and they are what a button or a switch in a table is — the one kind of
+in-row interaction this table has, because it does not edit cells (§6).
 
 ---
 
@@ -113,8 +114,9 @@ selects the range from the lead, the command modifier toggles one, and Ctrl+A or
 `selectedRow()` the lead, and both are model indices.
 
 Separately from the selection, the table always has a **focus cell** — a row and a column — that
-the arrow keys move. It is what Left and Right mean in a table, it is what a screen reader's cursor
-stands on, and it is where §6's editor will open. The focus cell's row is the lead row; moving it
+the arrow keys move. It is what Left and Right mean in a table, and it is what a screen reader's
+cursor stands on: a reader walks a table cell by cell, and a table whose keyboard moved only by row
+would leave the reader and the sighted user on different things. The focus cell's row is the lead row; moving it
 with an unshifted arrow moves the selection with it in `SINGLE` and `MULTI`, as every desktop
 table does, and does nothing to the selection in `NONE`.
 
@@ -179,14 +181,42 @@ localized when formatted and nowhere else (ADR 033).
 
 ---
 
-## 6. Editing is not in this phase, and the seam for it is
+## 6. Cells are not edited in place, and will not be
 
-The first phase is read-only. What it settles so that editing can land without touching the
-engine: the focus cell (§3), the widget-cell seam (§1), and the rule that a widget child of a row
-is mounted and recycled with that row. Phase 2 adds `Column.editor(...)`: Enter or a double click
-on the focus cell mounts the editor widget in the cell's box, Enter commits through a function
-the column names, Escape restores, and the cell publishes `EDITABLE` while an editor can open and
-a `TextFacet` while one is open. Nothing about the engine changes for it.
+The table does not edit cells, and this is a decision rather than a phase: no `Column.editor`,
+no editor mounted in a cell's box on Enter or a double click, no `EDITABLE` state on a cell.
+Decided by the owner on 2026-09-09, after the first phase had left the seam open.
+
+**Why.** In-place cell editing is a spreadsheet's interaction, and it reads as one everywhere
+else: a field that appears where a value was, a commit that happens on a keystroke the user did
+not think of as a save, a validation error with nowhere to stand, a change to one cell of a record
+whose other fields depend on it. Modern interfaces do not put it in front of a user, and every
+toolkit that ships it also ships its edge cases — what a Tab does mid-edit, what a sort does to a
+row being edited, what a screen reader is told when a cell becomes a field — which are the cost of
+a feature the interface should not have had. A table is for reading, comparing, sorting and
+choosing; editing a record wants the record whole, with its labels, its validation and its own
+Save.
+
+**What to do instead**, and each is already in the toolkit:
+
+- **A dialog or a panel for the record.** Activate a row (Enter, a double click, or a
+  `Column.widget` button) and open a `Dialog`, or a form beside or below the table, that shows the
+  whole record as a form — every field labelled, validated as forms are (`TextField.Validation`),
+  saved on an explicit action. On save, change the application's list and call `refresh()`; the
+  selection is by model row and stays where it was.
+- **Master and detail.** Keep the form open in a `SplitPane` beside the table, bound to the lead
+  row through `onSelect`, so the user moves through records with the arrow keys and edits each in
+  a form that never moves. This is the shape a settings screen or an admin screen usually wants.
+- **A control in a widget column** for the one-gesture cases: a switch to flag a row, a button to
+  open or delete it, a checkbox to include it. A `Column.widget` cell is a real widget with its own
+  focus, its own accessibility and its own listener, and it is the whole of in-row interaction this
+  table offers.
+- **A bulk action over the selection** where the same change applies to many rows: select in
+  `MULTI`, act once, `refresh()`.
+
+**What stays from the seam.** The focus cell stays, because a screen reader walks a table cell by
+cell (§3). The widget-cell seam stays, because it is what the third alternative is. Nothing that
+was reserved for an editor remains reserved.
 
 ---
 
@@ -272,8 +302,8 @@ bridges (§7), a gallery entry with a compiled snippet, a guide page, an accessi
 entry with its transcript, and the tests every widget in this set carries: coverage, quiet frames
 that allocate nothing, mirroring, recycling identity.
 
-**Phase 2:** cell editing (§6), column reordering once internal drag-and-drop exists, frozen
-leading columns, and a `Tree` that shares the engine (§9).
+**Phase 2:** column reordering once internal drag-and-drop exists, frozen leading columns, and a
+`Tree` that shares the engine (§9). Cell editing is not a phase; §6 says why.
 
 **Not decided here:** cell selection as a rectangle; grouping; a filter API; multi-column
 sort; row drag; export. Each is a request the toolkit has not had, and
