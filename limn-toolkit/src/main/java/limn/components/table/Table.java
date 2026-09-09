@@ -391,6 +391,51 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     /**
+     * Replaces the selection with exactly these rows, the last one the lead, and scrolls the lead
+     * into view: what an application restoring a saved selection calls. In
+     * {@link SelectionMode#SINGLE} only one row may be named. Fires {@link #onSelect} once when
+     * the set changed. UI thread only.
+     *
+     * @param modelIndices rows in {@code [0, rowCount())}; none clears the selection
+     * @return this table
+     * @throws IndexOutOfBoundsException if an index is outside that range
+     * @throws IllegalStateException     if the mode is {@link SelectionMode#NONE}, or SINGLE and
+     *                                   more than one row is named
+     */
+    public Table<T> setSelectedRows(int... modelIndices) {
+        Ui.checkUiThread();
+        if (modelIndices.length == 0) {
+            return clearSelection();
+        }
+        if (selectionMode == SelectionMode.NONE) {
+            throw new IllegalStateException("selection mode is NONE");
+        }
+        if (selectionMode == SelectionMode.SINGLE && modelIndices.length > 1) {
+            throw new IllegalStateException("selection mode is SINGLE");
+        }
+        for (int index : modelIndices) {
+            Objects.checkIndex(index, rows.size());
+        }
+        BitSet next = new BitSet();
+        for (int index : modelIndices) {
+            next.set(index);
+        }
+        int last = modelIndices[modelIndices.length - 1];
+        boolean same = next.equals(selected) && lead == last;
+        selected.clear();
+        selected.or(next);
+        lead = last;
+        focusRow = viewOf(last);
+        rangeAnchor = focusRow;
+        ensureVisible(focusRow);
+        invalidate();
+        if (!same) {
+            onSelect.run();
+        }
+        return this;
+    }
+
+    /**
      * Drops the selection and fires {@link #onSelect}; nothing happens when nothing is selected.
      * The focus cell stays where it is. UI thread only.
      *

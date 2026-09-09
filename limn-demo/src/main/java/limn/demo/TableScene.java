@@ -38,11 +38,14 @@ final class TableScene {
     private static final String[] STATUSES = {"Open", "Paid", "Shipped", "Returned"};
 
     private static List<Order> orders(int count) {
+        // Seeded, so two runs and two captures show the same rows.
+        java.util.Random random = new java.util.Random(20260908);
         List<Order> rows = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            rows.add(new Order(1000 + i, CUSTOMERS[(i * 7) % CUSTOMERS.length],
-                    STATUSES[(i * 13) % STATUSES.length], 10 + ((i * 37) % 990) + (i % 100) / 100.0,
-                    i % 11 == 0));
+            rows.add(new Order(100_000 + i, CUSTOMERS[random.nextInt(CUSTOMERS.length)],
+                    STATUSES[random.nextInt(STATUSES.length)],
+                    Math.round(random.nextDouble() * 249_000 + 1_000) / 100.0,
+                    random.nextInt(9) == 0));
         }
         return rows;
     }
@@ -52,7 +55,7 @@ final class TableScene {
         List<Order> rows = orders(100_000);
         Label status = new Label("No selection");
 
-        Column<Order> id = Column.numeric("Order", Order::id).width(80);
+        Column<Order> id = Column.<Order>text("Order", order -> "#" + order.id()).width(100);
         Column<Order> customer = Column.text("Customer", Order::customer).width(140).weight(1);
         Column<Order> state = Column.text("Status", Order::status).width(100);
         Column<Order> total = Column.<Order, Double>of("Total", Order::total,
@@ -69,10 +72,13 @@ final class TableScene {
         table.onSelect(() -> {
             int[] selected = table.selectedRows();
             status.setText(selected.length == 0 ? "No selection"
-                    : selected.length + " selected, lead order "
+                    : selected.length + " selected, lead order #"
                             + rows.get(table.selectedRow()).id());
         });
-        table.onActivate(index -> status.setText("Opened order " + rows.get(index).id()));
+        table.onActivate(index -> status.setText("Opened order #" + rows.get(index).id()));
+        // A selection to start from, named by model row: the three rows shown third, fourth and
+        // sixth under the default sort.
+        table.setSelectedRows(table.viewToModel(2), table.viewToModel(3), table.viewToModel(5));
 
         Row actions = new Row();
         actions.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);

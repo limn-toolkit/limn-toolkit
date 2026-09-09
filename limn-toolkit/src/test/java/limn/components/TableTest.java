@@ -205,6 +205,12 @@ class TableTest extends ComponentTestBase {
         click(scene, 30, rowCenterY(table, 2), 0);
         assertEquals(0, table.selectedRows().length, "nothing selects in NONE");
         assertEquals(2, table.focusRow(), "but the focus cell still moves");
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectedRows(7, 2, 9);
+        assertArrayEquals(new int[] {2, 7, 9}, table.selectedRows(), "code names the set");
+        assertEquals(9, table.selectedRow(), "and the last named is the lead");
+        table.setSelectedRows();
+        assertEquals(0, table.selectedRows().length, "none clears");
     }
 
     @Test
