@@ -1,5 +1,6 @@
 package limn.scene;
 
+import limn.concurrent.Subscription;
 import limn.input.Keys;
 import limn.scene.event.KeyEvent;
 import limn.scene.layout.Column;
@@ -169,16 +170,16 @@ class SceneShortcutTest extends SceneTestBase {
     }
 
     @Test
-    void theReturnedRunnableUnregistersTheHandler() {
+    void theReturnedSubscriptionUnregistersTheHandler() {
         Scene scene = sceneWith(new KeyEater(-1));
         Hook hook = new Hook();
-        Runnable unhook = scene.addShortcutHandler(hook);
+        Subscription unhook = scene.addShortcutHandler(hook);
 
         press(scene, Keys.S, Keys.MOD_CONTROL);
         assertEquals(1, hook.seen.size());
 
-        unhook.run();
-        unhook.run(); // idempotent
+        unhook.cancel();
+        unhook.cancel(); // idempotent
         press(scene, Keys.S, Keys.MOD_CONTROL);
         assertEquals(1, hook.seen.size(), "no further events after unregistering");
     }
@@ -189,11 +190,11 @@ class SceneShortcutTest extends SceneTestBase {
         // second must still be offered the same event. An index walk over the live list drops it.
         Scene scene = sceneWith(new KeyEater(-1));
         Hook second = new Hook();
-        Runnable[] unhookFirst = new Runnable[1];
+        Subscription[] unhookFirst = new Subscription[1];
         List<String> order = new ArrayList<>();
         unhookFirst[0] = scene.addShortcutHandler(event -> {
             order.add("first");
-            unhookFirst[0].run();
+            unhookFirst[0].cancel();
             return false;
         });
         scene.addShortcutHandler(event -> {

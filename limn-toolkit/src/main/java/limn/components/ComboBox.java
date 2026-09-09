@@ -7,6 +7,7 @@ import limn.backend.Cursor;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.concurrent.Ui;
+import limn.concurrent.Subscription;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
@@ -129,9 +130,9 @@ public class ComboBox extends Widget {
      */
     private boolean popupRtl;
     /** Unregisters the outside-press dismiss observer while the popup is open. */
-    private Runnable dismissHandle;
-    private Runnable blurHandle;
-    private Runnable popupBlurHandle;
+    private Subscription dismissHandle;
+    private Subscription blurHandle;
+    private Subscription popupBlurHandle;
 
     /** A combo over fixed labels; see {@link #localized} for items that follow the UI language. */
     public ComboBox(List<String> items) {
@@ -307,15 +308,15 @@ public class ComboBox extends Widget {
         open = false;
         invalidate();
         if (dismissHandle != null) {
-            dismissHandle.run();
+            dismissHandle.cancel();
             dismissHandle = null;
         }
         if (blurHandle != null) {
-            blurHandle.run();
+            blurHandle.cancel();
             blurHandle = null;
         }
         if (popupBlurHandle != null) {
-            popupBlurHandle.run();
+            popupBlurHandle.cancel();
             popupBlurHandle = null;
         }
         if (popupWindow != null) {

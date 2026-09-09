@@ -133,8 +133,18 @@ class MediaControlsTest extends ComponentTestBase {
         return rowChildren().get(2);
     }
 
-    private void render() {
+    private Widget playButton() {
+        return rowChildren().get(0);
+    }
+
+    /**
+     * Paints once, which arms the poll, and then pumps the UI queue until the first tick has
+     * refreshed the bar. A paint announces nothing, so the refresh rides the tick alone and the
+     * test waits for it the way the window would: at most one poll interval.
+     */
+    private void renderAndTick() {
         scene.renderFrame(new FakeCanvas(BAR_W, BAR_H));
+        ui.pumpUntil(() -> playButton().isEnabled());
     }
 
     @Test
@@ -144,13 +154,13 @@ class MediaControlsTest extends ComponentTestBase {
         assertFalse(volumeSlider().isVisible());
 
         controls.view().setPlayer(new MediaPlayer(new FakeVideo()));
-        render();
+        renderAndTick();
         assertFalse(muteButton().isVisible(), "a player with no soundtrack offers none either");
 
         build(LayoutDirection.LTR);
         controls.view().setPlayer(new MediaPlayer(new FakeVideo())
                 .setAudio(new FakeAudio(), PlayOptions.DEFAULTS));
-        render();
+        renderAndTick();
         assertTrue(muteButton().isVisible(), "a soundtrack brings the pair with it");
         assertTrue(volumeSlider().isVisible());
     }

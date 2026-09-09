@@ -7,6 +7,7 @@ import limn.backend.NativeWindow;
 import limn.backend.ScreenRect;
 import limn.backend.WindowConfig;
 import limn.concurrent.Ui;
+import limn.concurrent.Subscription;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
@@ -170,9 +171,9 @@ public final class PopupMenu {
     private NativeWindow parentWindow;
     private NativeWindow popupWindow;
     private Scene popupScene;
-    private Runnable dismissHandle;
-    private Runnable blurHandle;
-    private Runnable popupBlurHandle;
+    private Subscription dismissHandle;
+    private Subscription blurHandle;
+    private Subscription popupBlurHandle;
     private ScreenRect workArea;
     private float screenFactor = 1;
     private int workAreaScreenX;
@@ -363,15 +364,15 @@ public final class PopupMenu {
         }
         open = false;
         if (dismissHandle != null) {
-            dismissHandle.run();
+            dismissHandle.cancel();
             dismissHandle = null;
         }
         if (blurHandle != null) {
-            blurHandle.run();
+            blurHandle.cancel();
             blurHandle = null;
         }
         if (popupBlurHandle != null) {
-            popupBlurHandle.run();
+            popupBlurHandle.cancel();
             popupBlurHandle = null;
         }
         if (popupWindow != null) {

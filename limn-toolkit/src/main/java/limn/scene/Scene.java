@@ -3,6 +3,7 @@ package limn.scene;
 import limn.backend.Cursor;
 import limn.backend.NativeWindow;
 import limn.backend.WindowInput;
+import limn.concurrent.Listeners;
 import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -533,9 +534,10 @@ public final class Scene implements WindowInput {
         // (the button that triggered the dialog), if it is still usable.
         if (restore != null && restore != overlay && isInSubtree(restore, inputRoot())
                 && restore.isFocusable() && restore.isVisible() && restore.isEnabled()) {
-            setFocus(restore);
+            // The overlay closing is what moved the focus, not whoever closed it.
+            setFocus(restore, Change.Origin.ADJUSTMENT);
         } else {
-            setFocus(null);
+            setFocus(null, Change.Origin.ADJUSTMENT);
         }
         requestRender();
     }
@@ -1321,29 +1323,42 @@ public final class Scene implements WindowInput {
         return width * height - area(a) - area(b);
     }
 
-    private final List<java.util.function.Consumer<Widget>> pressObservers = new ArrayList<>();
+    @SuppressWarnings("unchecked")
+    private static final java.util.function.Consumer<Widget>[] NO_PRESS_OBSERVERS =
+            (java.util.function.Consumer<Widget>[]) new java.util.function.Consumer<?>[0];
+
+    private java.util.function.Consumer<Widget>[] pressObservers;
 
     /**
      * Observes every mouse press with its hit-tested target (after normal
      * dispatch), the hook for "click outside to dismiss" overlays and popups
-     * that must react to presses landing on non-focusable widgets. Returns a
-     * handle that unregisters the observer.
+     * that must react to presses landing on non-focusable widgets.
+     *
+     * @param observer told about every press; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
      */
-    public Runnable observePresses(java.util.function.Consumer<Widget> observer) {
-        pressObservers.add(Objects.requireNonNull(observer, "observer"));
-        return () -> pressObservers.remove(observer);
+    public Subscription observePresses(java.util.function.Consumer<Widget> observer) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(observer, "observer");
+        pressObservers = Listeners.added(pressObservers, observer, NO_PRESS_OBSERVERS);
+        return once(() -> pressObservers = Listeners.removed(pressObservers, observer));
     }
 
     private void notifyPressObservers(Widget target) {
-        if (pressObservers.isEmpty()) {
+        java.util.function.Consumer<Widget>[] snapshot = pressObservers;
+        if (snapshot == null) {
             return;
         }
-        for (java.util.function.Consumer<Widget> observer : List.copyOf(pressObservers)) {
-            observer.accept(target);
+        for (java.util.function.Consumer<Widget> observer : snapshot) {
+            try {
+                observer.accept(target);
+            } catch (Throwable error) {
+                Listeners.failed(limn.backend.CrashPhase.OBSERVER, error);
+            }
         }
     }
 
-    private final List<Runnable> windowBlurObservers = new ArrayList<>();
+    private Runnable[] windowBlurObservers;
     private boolean windowFocused;
 
     /**
@@ -1359,16 +1374,28 @@ public final class Scene implements WindowInput {
      * Observes the bound window losing OS focus, the cue that dismisses
      * transient popups (dropdowns, menus) anchored to this window: a press in
      * another window or application never reaches {@link #observePresses}.
-     * Returns a handle that unregisters the observer.
+     *
+     * @param observer told when the window loses focus; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
      */
-    public Runnable observeWindowBlur(Runnable observer) {
-        windowBlurObservers.add(Objects.requireNonNull(observer, "observer"));
-        return () -> windowBlurObservers.remove(observer);
+    public Subscription observeWindowBlur(Runnable observer) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(observer, "observer");
+        windowBlurObservers = Listeners.added(windowBlurObservers, observer, NO_RUNNABLES);
+        return once(() -> windowBlurObservers = Listeners.removed(windowBlurObservers, observer));
     }
 
     private void notifyWindowBlurObservers() {
-        for (Runnable observer : List.copyOf(windowBlurObservers)) {
-            observer.run();
+        Runnable[] snapshot = windowBlurObservers;
+        if (snapshot == null) {
+            return;
+        }
+        for (Runnable observer : snapshot) {
+            try {
+                observer.run();
+            } catch (Throwable error) {
+                Listeners.failed(limn.backend.CrashPhase.OBSERVER, error);
+            }
         }
     }
 
@@ -1474,7 +1501,7 @@ public final class Scene implements WindowInput {
                     new MouseEvent(MouseEvent.Type.RELEASE, mouseX, mouseY, oldButton, 0, 0, 0));
         }
         if (isInSubtree(focused, widget)) {
-            setFocus(null);
+            setFocus(null, Change.Origin.ADJUSTMENT); // hidden, disabled or detached under it
         }
     }
 
@@ -1570,6 +1597,79 @@ public final class Scene implements WindowInput {
         return false;
     }
 
+    // ------------------------------------------------------------- the change channel
+
+    private static final Runnable[] NO_RUNNABLES = new Runnable[0];
+
+    private static final ChangeObserver[] NO_WATCHERS = new ChangeObserver[0];
+
+    /** The watchers of this whole tree, null until the first one arrives. */
+    private ChangeObserver[] changeWatchers;
+
+    /**
+     * Watches every change to every widget in this scene's tree, overlays included, from every
+     * origin. One registration serves a whole window, adds nothing per widget, and works on an
+     * unbound scene -- which is the trap {@code Scene}'s own metrics listener was moved into the
+     * constructor for, and which every component test, a combo box's popup and a dialog's modal
+     * scene before it binds all depend on.
+     *
+     * <p><b>This is a channel over a tree, not over a set of widgets.</b> It hears what the scene
+     * holds now, and goes quiet about a widget the scene no longer contains -- so a recycled list
+     * cell written to while unmounted reaches its own watchers and no scene's. A consumer that
+     * must follow one particular widget wherever it goes registers on the widget.
+     *
+     * @param observer told about every change in this tree; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
+     */
+    public Subscription observeChanges(ChangeObserver observer) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(observer, "observer");
+        changeWatchers = Listeners.added(changeWatchers, observer, NO_WATCHERS);
+        return once(() -> changeWatchers = Listeners.removed(changeWatchers, observer));
+    }
+
+    /** Whether anything watches this tree; read by the text seam before it builds an edit. */
+    boolean hasChangeWatchers() {
+        return changeWatchers != null;
+    }
+
+    /** A widget in this tree announcing, after its own watchers have run. */
+    void announceChange(Widget source, Change change) {
+        ChangeObserver[] snapshot = changeWatchers;
+        if (snapshot == null) {
+            return;
+        }
+        for (ChangeObserver observer : snapshot) {
+            try {
+                observer.changed(source, change);
+            } catch (Throwable error) {
+                Listeners.failed(limn.backend.CrashPhase.OBSERVER, error);
+            }
+        }
+    }
+
+    /**
+     * A handle that drops its registration once: a second cancel finds nothing to take off the
+     * array, which is what keeps <i>cancelling twice is a no-op</i> true even where the same
+     * listener is registered twice.
+     */
+    private static Subscription once(Runnable removal) {
+        return new Subscription() {
+            private Runnable pending = removal;
+
+            @Override
+            public void cancel() {
+                Ui.checkUiThread();
+                Runnable taken = pending;
+                if (taken == null) {
+                    return;
+                }
+                pending = null;
+                taken.run();
+            }
+        };
+    }
+
     // ----------------------------------------------------------------- focus
 
     /** The widget holding keyboard focus, or {@code null} when nothing does. */
@@ -1581,8 +1681,20 @@ public final class Scene implements WindowInput {
      * Moves keyboard focus to {@code widget}, or clears it when {@code null}. Ignored
      * for a widget that is not focusable, visible and enabled, and for one outside the
      * topmost modal overlay. UI thread only.
+     *
+     * <p>An application calling this is code moving the focus, so the two {@code FOCUS} changes
+     * it announces carry {@code CODE}. A gesture that moves focus does not come through here: a
+     * click and a Tab enter the funnel from the scene's own input paths, and the two components
+     * that move focus out of a gesture -- a tab strip's arrow key and a radio group's -- enter it
+     * through {@link Widget#requestFocus(Change.Origin)}. Reading the method rather than the
+     * entry point would report every keyboard-driven focus move in the toolkit as made by code.
      */
     public void requestFocus(Widget widget) {
+        requestFocus(widget, Change.Origin.CODE);
+    }
+
+    /** The funnel the origin travels through; see {@link #requestFocus(Widget)}. */
+    void requestFocus(Widget widget, Change.Origin origin) {
         Ui.checkUiThread();
         if (widget != null && (!widget.isFocusable() || !widget.isVisible() || !widget.isEnabled())) {
             return;
@@ -1594,10 +1706,16 @@ public final class Scene implements WindowInput {
         if (widget != null && !isInSubtree(widget, inputRoot())) {
             return;
         }
-        setFocus(widget);
+        setFocus(widget, origin);
     }
 
-    private void setFocus(Widget widget) {
+    /**
+     * The one place focus moves, and the one place {@code FOCUS} is announced: on the widget
+     * losing it and then on the widget gaining it, both carrying the origin of the path that
+     * entered here. Each announcement follows that widget's own focus-lost or focus-gained hook,
+     * so a watcher reads a widget that has already settled.
+     */
+    private void setFocus(Widget widget, Change.Origin origin) {
         if (focused == widget) {
             return;
         }
@@ -1610,13 +1728,13 @@ public final class Scene implements WindowInput {
                 // commit into, whatever gains focus next.
                 window.resetPreedit();
             }
-            old.notifyFocus(false);
+            old.notifyFocus(false, origin);
             if (focused != widget) {
                 return; // a focus-lost handler re-routed focus; it finished the job
             }
         }
         if (widget != null) {
-            widget.notifyFocus(true);
+            widget.notifyFocus(true, origin);
             // Auto-scroll: focus must never land off-screen. With a layout
             // pending the geometry is stale (a just-added widget still sits at
             // 0,0 against already-offset scroll content), so revealing NOW
@@ -1666,13 +1784,23 @@ public final class Scene implements WindowInput {
         window.setPreeditCaretRect(rect.x(), rect.y(), rect.width(), rect.height());
     }
 
-    /** Moves focus to the next/previous focusable widget in layout (DFS) order. */
+    /**
+     * Moves focus to the next/previous focusable widget in layout (DFS) order.
+     *
+     * <p>{@code CODE}, because this is the method an application calls; the Tab key reaches the
+     * same traversal through the scene's own key path and announces {@code USER}.
+     */
     public void focusTraverse(boolean backward) {
+        focusTraverse(backward, Change.Origin.CODE);
+    }
+
+    /** The traversal with the origin of whatever asked for it. */
+    private void focusTraverse(boolean backward, Change.Origin origin) {
         Ui.checkUiThread();
         List<Widget> order = new ArrayList<>();
         collectFocusable(inputRoot(), order); // modal overlay confines traversal
         if (order.isEmpty()) {
-            setFocus(null);
+            setFocus(null, origin);
             return;
         }
         int index = order.indexOf(focused);
@@ -1681,7 +1809,7 @@ public final class Scene implements WindowInput {
                 : Math.floorMod(index + (backward ? -1 : 1), order.size());
         focusByTraversal = true;
         try {
-            setFocus(order.get(next));
+            setFocus(order.get(next), origin);
         } finally {
             focusByTraversal = false;
         }
@@ -2157,7 +2285,7 @@ public final class Scene implements WindowInput {
                 focusTarget = focusTarget.parent();
             }
             if (focusTarget != null) {
-                setFocus(focusTarget);
+                setFocus(focusTarget, Change.Origin.USER); // click-to-focus
             }
             dispatchBubbling(pressed, new MouseEvent(
                     MouseEvent.Type.PRESS, button.x, button.y, button.button, 0, 0, button.mods));
@@ -2197,11 +2325,15 @@ public final class Scene implements WindowInput {
         // be a shortcut, and what nobody wants at all must still traverse.
         offerToShortcutHandlers(event);
         if (!event.isConsumed() && key.pressed && key.key == Keys.TAB) {
-            focusTraverse((key.mods & Keys.MOD_SHIFT) != 0);
+            focusTraverse((key.mods & Keys.MOD_SHIFT) != 0, Change.Origin.USER);
         }
     }
 
-    private final List<java.util.function.Predicate<KeyEvent>> shortcutHandlers = new ArrayList<>();
+    @SuppressWarnings("unchecked")
+    private static final java.util.function.Predicate<KeyEvent>[] NO_SHORTCUT_HANDLERS =
+            (java.util.function.Predicate<KeyEvent>[]) new java.util.function.Predicate<?>[0];
+
+    private java.util.function.Predicate<KeyEvent>[] shortcutHandlers;
 
     /**
      * Registers a scene-wide keyboard handler for chords the focused widget did not want:
@@ -2225,28 +2357,42 @@ public final class Scene implements WindowInput {
      * or an in-scene menu has the keyboard, and a shortcut belonging to what it covers must not
      * fire behind it.
      *
+     * <p>A handler that throws is contained and read as <i>did not handle</i>, so the chord goes
+     * on to the next handler and to Tab traversal -- the policy {@code Work.deliverIf} already
+     * states for the same shape.
+     *
      * <p>Registering or unregistering from inside a handler is legal and takes effect on the next
-     * event, never on the one being dispatched. Call the returned {@link Runnable} to unregister;
-     * it is idempotent. UI thread only.
+     * event, never on the one being dispatched.
+     *
+     * @param handler consulted for chords nobody focused wanted; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
      */
-    public Runnable addShortcutHandler(java.util.function.Predicate<KeyEvent> handler) {
+    public Subscription addShortcutHandler(java.util.function.Predicate<KeyEvent> handler) {
         Ui.checkUiThread();
         Objects.requireNonNull(handler, "handler");
-        shortcutHandlers.add(handler);
-        return () -> shortcutHandlers.remove(handler);
+        shortcutHandlers = Listeners.added(shortcutHandlers, handler, NO_SHORTCUT_HANDLERS);
+        return once(() -> shortcutHandlers = Listeners.removed(shortcutHandlers, handler));
     }
 
     /**
-     * Offers an unconsumed key event to the registered handlers. Iterates a snapshot: a handler
-     * that unregisters itself (the ordinary shape for one that closes what it opened) would
-     * otherwise shift the list under the loop and skip its neighbour.
+     * Offers an unconsumed key event to the registered handlers. Walks the array the dispatch
+     * started with: a handler that unregisters itself (the ordinary shape for one that closes
+     * what it opened) would otherwise shift the list under the loop and skip its neighbour.
      */
     private void offerToShortcutHandlers(KeyEvent event) {
-        if (event.isConsumed() || shortcutHandlers.isEmpty() || topOverlay() != null) {
+        java.util.function.Predicate<KeyEvent>[] snapshot = shortcutHandlers;
+        if (event.isConsumed() || snapshot == null || topOverlay() != null) {
             return;
         }
-        for (java.util.function.Predicate<KeyEvent> handler : List.copyOf(shortcutHandlers)) {
-            if (handler.test(event)) {
+        for (java.util.function.Predicate<KeyEvent> handler : snapshot) {
+            boolean handled;
+            try {
+                handled = handler.test(event);
+            } catch (Throwable error) {
+                Listeners.failed(limn.backend.CrashPhase.OBSERVER, error);
+                handled = false; // a thrower did not handle it: the chord goes on down the chain
+            }
+            if (handled) {
                 event.consume();
                 return;
             }
@@ -2654,8 +2800,26 @@ public final class Scene implements WindowInput {
         return false;
     }
 
-    /** Everything a frame paints, in order; called once per repaint pass (must be pure). */
+    /**
+     * Everything a frame paints, in order; called once per repaint pass (must be pure).
+     *
+     * <p>The pass is bracketed so that <b>an announcement made from inside a paint throws</b>,
+     * whether or not anything is watching. A paint is re-run when nothing changed, a mutation
+     * from one lands on a frame that has already laid out, and a mutator that announces after
+     * the pass tells the truth about the state and not about the layout it implies -- so a paint
+     * paints. The counter lives on {@link Widget} rather than here because a widget mutated
+     * during a paint need not belong to the scene being painted, or to any scene at all.
+     */
     private void paintFramePass(Canvas canvas) {
+        Widget.beginPaint();
+        try {
+            paintFrameContent(canvas);
+        } finally {
+            Widget.endPaint();
+        }
+    }
+
+    private void paintFrameContent(Canvas canvas) {
         root.paintWidget(canvas);
         for (int i = 0; i < overlays.size(); i++) { // indexed: no iterator alloc per frame
             overlays.get(i).paintWidget(canvas);
@@ -3122,7 +3286,7 @@ public final class Scene implements WindowInput {
         // prevent. App-code steps are contained individually (fine-grained
         // WINDOW_CLOSE reports; the handler's verdict is not honored here).
         try {
-            setFocus(null); // runs app focus-lost handlers
+            setFocus(null, Change.Origin.ADJUSTMENT); // runs app focus-lost handlers
         } catch (Throwable error) {
             LOG.log(Level.ERROR, "focus-lost handler threw during window close; teardown continues", error);
             limn.backend.Crashes.report(limn.backend.CrashPhase.WINDOW_CLOSE, error);
@@ -3154,18 +3318,26 @@ public final class Scene implements WindowInput {
         // Same flush for ticker-driven completions (e.g. an in-scene dialog's
         // fade-out): tickers only advance while frames render, and a closed
         // window renders none, so anything waiting on one must finish NOW.
-        for (Runnable observer : List.copyOf(windowCloseObservers)) {
-            try {
-                observer.run();
-            } catch (Throwable error) {
-                LOG.log(Level.ERROR, "window-close observer threw; the remaining observers still run", error);
-                limn.backend.Crashes.report(limn.backend.CrashPhase.WINDOW_CLOSE, error);
+        Runnable[] closing = windowCloseObservers;
+        if (closing != null) {
+            for (Runnable observer : closing) {
+                try {
+                    observer.run();
+                } catch (Throwable error) {
+                    LOG.log(Level.ERROR, "window-close observer threw; the remaining observers still run", error);
+                    limn.backend.Crashes.report(limn.backend.CrashPhase.WINDOW_CLOSE, error);
+                }
             }
+            // Only the ones that ran, and not clear(): an observer registered DURING this walk --
+            // a second in-scene dialog opened by the first one's completion -- would otherwise be
+            // dropped unread, and its own unhook with it, which is exactly the abandoned
+            // completion this mechanism exists to prevent.
+            windowCloseObservers = Listeners.removedAll(windowCloseObservers, closing);
         }
-        windowCloseObservers.clear();
+        changeWatchers = null;
     }
 
-    private final List<Runnable> windowCloseObservers = new ArrayList<>();
+    private Runnable[] windowCloseObservers;
 
     /**
      * Runs {@code observer} when the bound window is destroyed, the hook for
@@ -3173,10 +3345,15 @@ public final class Scene implements WindowInput {
      * point (an abandoned fade would otherwise leak an uncompleted future).
      * Observers run once and are dropped; the returned handle unregisters
      * earlier (call it when the normal path completed first).
+     *
+     * @param observer told once, when the window is destroyed; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
      */
-    public Runnable observeWindowClosed(Runnable observer) {
-        windowCloseObservers.add(Objects.requireNonNull(observer, "observer"));
-        return () -> windowCloseObservers.remove(observer);
+    public Subscription observeWindowClosed(Runnable observer) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(observer, "observer");
+        windowCloseObservers = Listeners.added(windowCloseObservers, observer, NO_RUNNABLES);
+        return once(() -> windowCloseObservers = Listeners.removed(windowCloseObservers, observer));
     }
 
     /** Runs measure/layout when dirty or resized (public for headless tests/embedding). */
@@ -3212,6 +3389,11 @@ public final class Scene implements WindowInput {
         // A pass has run, so the boxes are real. Until it has, there is nothing truthful to say
         // about this window's geometry and the accessible tree says nothing rather than zeros.
         hasLaidOut = true;
+        // One marker per pass that actually ran, sourced at the root, saying re-read the bounds
+        // you hold. Per-widget geometry is deliberately not an aspect: layoutBox and moveChild
+        // are the innermost loop of every pass and of every scroll frame, and hooking them is the
+        // one change that would put this channel on the hot path and make it scale with the tree.
+        root.notifyChange(Change.of(Change.Aspect.LAYOUT, Change.Origin.ADJUSTMENT));
         if (pendingReveal != null) {
             Widget reveal = pendingReveal;
             pendingReveal = null;

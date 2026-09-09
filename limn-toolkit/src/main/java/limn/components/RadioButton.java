@@ -15,6 +15,7 @@ import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
 import limn.scene.Size;
+import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
@@ -149,29 +150,26 @@ public class RadioButton extends Widget {
         }
     }
 
+    // -------------------------------------------------- ButtonGroup coordination
+
     /**
-     * Enables or disables this radio, and re-decides its group's one tab stop. UI thread only.
+     * Joins {@code owner}, and lets it re-decide its one tab stop whenever this member is enabled
+     * or disabled.
      *
      * <p>The group chooses its holder among the enabled members and hears about a member's flag
-     * from nowhere but here: without this, a holder disabled after it was chosen left the group
-     * with no focusable member while the others still worked, so Tab skipped the whole group, and
-     * a group whose members had all been disabled never regained a tab stop when one came back.
-     * A standalone radio has no group and keeps {@link Widget#setEnabled}'s behaviour exactly.
-     *
-     * @param enabled whether the radio can be operated
+     * from nowhere but this watcher: without it, a holder disabled after it was chosen left the
+     * group with no focusable member while the others still worked, so Tab skipped the whole
+     * group, and a group whose members had all been disabled never regained a tab stop when one
+     * came back. This used to be a {@code setEnabled} override; the change channel is what a
+     * component uses to hear its own state move now that the inherited setters are final.
      */
-    @Override
-    public void setEnabled(boolean enabled) {
-        boolean was = isEnabled();
-        super.setEnabled(enabled);
-        if (group != null && was != enabled) {
-            group.memberEnabledChanged(this);
-        }
-    }
-
-    // -------------------------------------------------- ButtonGroup coordination
     void attachToGroup(ButtonGroup owner) {
         this.group = owner;
+        observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.ENABLED) {
+                owner.memberEnabledChanged(this);
+            }
+        });
     }
 
     /** Updates the visual state without firing listeners (the group drives notification). */

@@ -173,7 +173,7 @@ public class MediaControls extends Widget {
         // for one frame, a focusable play button with no name and enabled with nothing to play,
         // a mute button with no name at all until the sound cluster appeared, and an empty clock.
         // Nothing here is armed by it: the poll starts from the paint, and the listener slot is
-        // still empty.
+        // still empty. It is also the only refresh a bar that is never shown ever runs.
         refresh();
     }
 
@@ -410,9 +410,17 @@ public class MediaControls extends Widget {
         row.layoutBox(pad, pad, width() - 2 * pad, height() - 2 * pad);
     }
 
+    /**
+     * Paints the backdrop and arms the poll. <b>It refreshes nothing</b>: a paint may not announce
+     * a change, and {@link #refresh()} writes widget state that announces -- the bar's value on
+     * every advance, the clock's text once a second -- so the refresh runs from the poll tick
+     * alone. What that costs is latency, at most one poll interval, and a repaint that no tick
+     * follows (a resize, an occlusion redraw) no longer refreshes the transport on its own.
+     * What it keeps is the re-arm-on-paint pattern the animations use: the poll stops itself
+     * when the bar leaves the screen, and the paint that brings it back is what starts it again.
+     */
     @Override
     protected void onPaint(Canvas canvas) {
-        refresh();
         if (backdrop) {
             Theme theme = Theme.current();
             float radius = Theme.current().tokensFor(this).radiusMedium();

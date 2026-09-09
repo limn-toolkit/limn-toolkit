@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.concurrent.Subscription;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.backend.Cursor;
@@ -78,7 +79,7 @@ public final class MenuBar extends Widget {
     /** Handed to every dropdown this bar opens; see {@link #setDisplayMode}. */
     private DisplayMode displayMode = PopupMenu.defaultDisplayMode();
     /** Unregisters the scene shortcut hook; non-null exactly while attached. */
-    private Runnable unhookShortcuts;
+    private Subscription unhookShortcuts;
     /**
      * Whether the Alt currently held was pressed alone and nothing has been pressed since: the
      * state that separates "reaching for the menu bar" from "typing Alt+F". Cleared by any other
@@ -518,7 +519,7 @@ public final class MenuBar extends Widget {
     protected void onDetached() {
         closeMenu();
         if (unhookShortcuts != null) {
-            unhookShortcuts.run();
+            unhookShortcuts.cancel();
             unhookShortcuts = null;
         }
         altArmed = false;

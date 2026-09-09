@@ -1,6 +1,9 @@
 package limn.scene;
 
+import limn.backend.CrashPhase;
 import limn.backend.Cursor;
+import limn.concurrent.Listeners;
+import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.i18n.I18n;
@@ -530,8 +533,17 @@ public abstract class Widget {
      * Shows or hides this widget and its subtree, re-running layout so siblings take
      * the space back. Hiding revokes focus, hover and any press inside the subtree.
      * UI thread only.
+     *
+     * <p>Announces {@code VISIBLE}/{@code CODE}, and <b>after</b> the revocation's
+     * {@code FOCUS}/{@code ADJUSTMENT} when hiding took the focus away: the settling order of
+     * this record in the smallest case there is, with the call's own aspect last.
+     *
+     * <p>{@code final}, like the three setters beside it, because an override that forgot
+     * {@code super} would silently reopen the hole this closes -- a widget whose visibility
+     * changed and told nobody -- and because a subclass wanting to react to its own visibility
+     * has {@link #observeChanges}.
      */
-    public void setVisible(boolean visible) {
+    public final void setVisible(boolean visible) {
         Ui.checkUiThread();
         if (this.visible != visible) {
             this.visible = visible;
@@ -539,6 +551,7 @@ public abstract class Widget {
                 scene.onWidgetDetached(this); // revoke focus/hover/press in this subtree
             }
             markNeedsLayout();
+            notifyChange(Change.of(Change.Aspect.VISIBLE, Change.Origin.CODE));
         }
     }
 
@@ -551,8 +564,11 @@ public abstract class Widget {
      * Enables or disables input. Repaints without re-laying-out, since the box does not
      * change; disabling revokes focus, hover and any press inside the subtree.
      * UI thread only.
+     *
+     * <p>Announces {@code ENABLED}/{@code CODE}, after the revocation's {@code FOCUS} when
+     * disabling took the focus away. {@code final} for the reason {@link #setVisible} is.
      */
-    public void setEnabled(boolean enabled) {
+    public final void setEnabled(boolean enabled) {
         Ui.checkUiThread();
         if (this.enabled != enabled) {
             this.enabled = enabled;
@@ -560,6 +576,7 @@ public abstract class Widget {
                 scene.onWidgetDetached(this); // revoke focus/hover/press in this subtree
             }
             invalidate();
+            notifyChange(Change.of(Change.Aspect.ENABLED, Change.Origin.CODE));
         }
     }
 
@@ -578,6 +595,11 @@ public abstract class Widget {
      * being focusable is both a published state and the thing that keeps a widget in the tree at
      * all, so making a scaffold widget focusable changes what the tree <em>contains</em> — and
      * would otherwise do so silently, on the next unrelated repaint.
+     *
+     * <p>It announces {@code FOCUSABLE}/{@code CODE}, which is the only way this change is
+     * observable at all: it produces no frame, so nothing sampling the tree could ever see it.
+     * The guard in front is what keeps that honest where a roving-focus reassignment writes
+     * {@code false} over every non-holder in a group on every selection change.
      */
     public final void setFocusable(boolean focusable) {
         Ui.checkUiThread();
@@ -586,6 +608,7 @@ public abstract class Widget {
         }
         this.focusable = focusable;
         invalidateAccessible();
+        notifyChange(Change.of(Change.Aspect.FOCUSABLE, Change.Origin.CODE));
     }
 
     /**
@@ -671,7 +694,7 @@ public abstract class Widget {
     }
 
     /** Sets the hover tooltip text ({@code null} clears it). UI thread only. */
-    public void setTooltip(String text) {
+    public final void setTooltip(String text) {
         setTooltip(text == null ? null : limn.i18n.I18nString.literal(text));
     }
 
@@ -682,14 +705,22 @@ public abstract class Widget {
      * scene re-reads it then. It does {@linkplain #invalidateAccessible() tell the accessible
      * tree}, because a tooltip is a description there and often a name, and a change that paints
      * nothing would otherwise reach a screen reader on the next unrelated repaint, or never.
+     *
+     * <p>Announces {@code DESCRIPTION}/{@code CODE}, which is the other change here that produces
+     * no frame. <b>The guard in front of it compares by value and not by reference</b>, and that
+     * is load-bearing rather than a nicety: the {@code String} overload wraps its argument in a
+     * fresh {@link limn.i18n.I18nString} on every call, so a {@code !=} guard would never hold
+     * and every repeated {@code setTooltip("Play")} would announce a description that did not
+     * change. {@code I18nString} answers this already, over its key and its English.
      */
-    public void setTooltip(limn.i18n.I18nString text) {
+    public final void setTooltip(limn.i18n.I18nString text) {
         Ui.checkUiThread();
         if (Objects.equals(this.tooltip, text)) {
             return;
         }
         this.tooltip = text;
         invalidateAccessible();
+        notifyChange(Change.of(Change.Aspect.DESCRIPTION, Change.Origin.CODE));
     }
 
     /** Whether this widget currently holds its scene's keyboard focus. */
@@ -697,11 +728,34 @@ public abstract class Widget {
         return scene != null && scene.focusedWidget() == this;
     }
 
-    /** Asks the scene to move keyboard focus here (UI thread only). */
+    /**
+     * Asks the scene to move keyboard focus here (UI thread only).
+     *
+     * <p>This is the method an application calls, so the focus move it makes is {@code CODE}.
+     */
     public final void requestFocus() {
+        requestFocus(Change.Origin.CODE);
+    }
+
+    /**
+     * The same, for a component moving focus as part of a gesture it is handling: a tab strip's
+     * arrow key, a radio group's. Announces {@code FOCUS} with {@code origin} on the widget
+     * losing focus and on the widget gaining it.
+     *
+     * <p>{@code protected} and not package-private, because the two components that need it are
+     * in {@code limn.components} and this is {@code limn.scene}. That places it where a component
+     * author can reach it and an application cannot -- which is the right side of the line, since
+     * labelling the origin is a component author's obligation and an application asserting that
+     * it is the user would be a claim the toolkit cannot check. A component reaches it on
+     * <em>another</em> widget through a package-private one-liner on that widget's own class, the
+     * way a radio group already drives its members.
+     *
+     * @param origin what moved the focus
+     */
+    protected final void requestFocus(Change.Origin origin) {
         Ui.checkUiThread();
         if (scene != null) {
-            scene.requestFocus(this);
+            scene.requestFocus(this, origin);
         }
     }
 
@@ -1620,6 +1674,247 @@ public abstract class Widget {
     protected void onFileDrop(FileDropEvent event) {
     }
 
+    // ------------------------------------------------------------- the change channel
+
+    /**
+     * The watchers of this widget alone, null until the first one arrives: four bytes on a widget
+     * nobody watches, which is most widgets most of the time. Swapped rather than mutated, so a
+     * dispatch in flight keeps walking the array it started with.
+     */
+    private ChangeObserver[] watchers;
+
+    private static final ChangeObserver[] NO_WATCHERS = new ChangeObserver[0];
+
+    /**
+     * How deep the UI thread is inside a paint. Read by every announcement, so the rule that
+     * <b>nothing announces from inside a paint</b> is enforced rather than promised.
+     *
+     * <p>On the thread and not on a {@link Scene}, because a widget mutated during a paint need
+     * not belong to the scene being painted, or to any scene at all; a counter and not a boolean,
+     * because nesting must not clear it early. There is exactly one UI thread in a process and
+     * both the paint and every announcement are confined to it, so this is a plain field that one
+     * thread writes and reads.
+     */
+    private static int paintDepth;
+
+    /** Raised by {@link Scene} around a paint pass. */
+    static void beginPaint() {
+        paintDepth++;
+    }
+
+    /** Lowered by {@link Scene}, in a {@code finally}. */
+    static void endPaint() {
+        paintDepth--;
+    }
+
+    /**
+     * Watches every change to this widget, from every origin, without touching whatever handler
+     * the application registered.
+     *
+     * <p>A watcher hears what a handler does not: a value a caller wrote, a selection the widget
+     * adjusted by itself, a focus move, a label's new text. It is the channel a two-way binding,
+     * an inspector, a test and anything describing this tree to something outside it uses, and
+     * any number of parties may use it at once without being able to disturb each other or the
+     * application.
+     *
+     * <p>The subscription belongs to the widget: it survives detach and re-attach, costs nothing
+     * to keep across the mount and unmount a recycled list cell performs on every frame of a
+     * scroll, and dies with the widget, so there are no weak references here and none are needed.
+     * <b>A late subscriber is owed nothing</b> -- there is no replay and no priming call, because
+     * nothing can enumerate every aspect of an arbitrary widget and a synthetic change is
+     * indistinguishable from a real one to a listener that pushes an undo entry or plays a sound.
+     * What a late subscriber does instead is read the widget: subscribe, then read.
+     *
+     * @param observer told about every change to this widget; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
+     */
+    public final Subscription observeChanges(ChangeObserver observer) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(observer, "observer");
+        watchers = Listeners.added(watchers, observer, NO_WATCHERS);
+        return new WatcherHandle(observer);
+    }
+
+    /** One registration, dropped once: a second cancel has nothing left to take off the array. */
+    private final class WatcherHandle implements Subscription {
+
+        private ChangeObserver observer;
+
+        WatcherHandle(ChangeObserver observer) {
+            this.observer = observer;
+        }
+
+        @Override
+        public void cancel() {
+            Ui.checkUiThread();
+            ChangeObserver taken = observer;
+            if (taken == null) {
+                return;
+            }
+            observer = null;
+            watchers = Listeners.removed(watchers, taken);
+        }
+    }
+
+    /**
+     * Announces a change that has already settled, and then runs the handler if the origin is
+     * {@code USER}: the last statement of an ordinary mutator, after the state, the layout marks,
+     * the focus move and the reveal.
+     *
+     * <p>Exactly {@link #announceChange} followed by {@link #runHandler} -- the two halves in one
+     * call, which is what every seam but a compound's wants. The order it delivers in is the
+     * guarantee:
+     *
+     * <ol>
+     * <li>this widget's watchers, in registration order;</li>
+     * <li>the watchers of the scene this widget is in, if it is in one;</li>
+     * <li>this widget's handler, if the origin is {@code USER}.</li>
+     * </ol>
+     *
+     * <p>The handler runs <b>last</b>, and that is load-bearing rather than arbitrary: a handler
+     * may mutate other widgets and each of those mutations announces itself as it happens, so a
+     * handler that ran first would have every consequence of a change announced before the change
+     * itself, and a watcher would see a label's new text before the checkbox that caused it.
+     *
+     * <p>Announce only what moved: a mutator handed the state it already holds calls nothing.
+     * Where a call moved other aspects on its way to its own, those are announced in the order
+     * they settled and the call's own aspect last, which is the signal that the call is finished.
+     *
+     * @param change what changed on this widget, and what moved it
+     * @throws IllegalStateException if called from inside a paint. UI thread
+     */
+    protected final void notifyChange(Change change) {
+        announceChange(change);
+        runHandler(change);
+    }
+
+    /**
+     * The announcing half alone: this widget's watchers, then its scene's watchers, and no
+     * handler at any origin.
+     *
+     * <p>For a compound whose members must all be announced before any handler runs -- a radio
+     * group's leaver and enterer -- which is its only caller in this repository. <b>A seam that
+     * calls this owes a matching {@link #runHandler} for the same change</b>, or it has silently
+     * disabled the application's handler.
+     *
+     * @param change what changed on this widget, and what moved it
+     * @throws IllegalStateException if called from inside a paint. UI thread
+     */
+    protected final void announceChange(Change change) {
+        checkNotPainting(change.aspect());
+        announce(change);
+    }
+
+    /**
+     * The handler half alone: runs this widget's handler for a change this widget has already
+     * announced, and nothing at any origin but {@code USER}.
+     *
+     * <p>It takes the whole change rather than its aspect, because the origin is what decides
+     * whether the handler runs at all -- which is what lets a compound seam hand it every member's
+     * change without branching once per member.
+     *
+     * @param change the change this widget has just announced
+     */
+    protected final void runHandler(Change change) {
+        if (change.origin() == Change.Origin.USER) {
+            handleUserChange(change.aspect());
+        }
+    }
+
+    /**
+     * The same as {@link #notifyChange}, for a text edit, taking the edit's shape rather than a
+     * built value so that a keystroke on a tree nobody watches constructs nothing. The three
+     * numbers come from the editing model, which is the only thing that has them.
+     *
+     * <p>There is no announce-only sibling: no compound in this repository spans a text edit.
+     *
+     * <p>It reaches the handler exactly as {@code notifyChange} does, and without a
+     * {@code Change} to hand to {@link #runHandler}: the handler half needs only the aspect and
+     * the origin, and both are already here. So after every watcher has run it calls
+     * {@code handleUserChange(TEXT)} when {@code origin} is {@code USER}, and nothing when it is
+     * not -- a user keystroke on a widget nobody watches still reaches the application's handler
+     * and still allocates nothing on this path.
+     *
+     * @param origin what moved the edit
+     * @param offset where the damaged range begins, in chars
+     * @param removed how many chars it replaced
+     * @param inserted how many chars it inserted
+     * @throws IllegalStateException if called from inside a paint. UI thread
+     */
+    protected final void notifyTextEdit(Change.Origin origin, int offset, int removed, int inserted) {
+        checkNotPainting(Change.Aspect.TEXT);
+        if (watchers != null || (scene != null && scene.hasChangeWatchers())) {
+            announce(Change.edit(origin, offset, removed, inserted));
+        }
+        if (origin == Change.Origin.USER) {
+            handleUserChange(Change.Aspect.TEXT);
+        }
+    }
+
+    /** This widget's watchers and then its scene's, each inside its own try. */
+    private void announce(Change change) {
+        ChangeObserver[] mine = watchers;
+        if (mine != null) {
+            for (ChangeObserver observer : mine) {
+                try {
+                    observer.changed(this, change);
+                } catch (Throwable error) {
+                    Listeners.failed(CrashPhase.OBSERVER, error);
+                }
+            }
+        }
+        if (scene != null) {
+            scene.announceChange(this, change);
+        }
+    }
+
+    /**
+     * Runs this widget's application handler for a change it has just announced. Called by
+     * {@link #runHandler}, and so by {@link #notifyChange}, only for a {@code USER} origin and
+     * after every watcher has run.
+     *
+     * <p>A component overrides it once and switches on the aspect, reading its own accessors for
+     * the payload: a slider passes {@code value()}, a combo box {@code selectedIndex()}, a text
+     * field {@code text()}. A component with no handler does not override it.
+     *
+     * <p><b>An override that does not recognise the aspect must call {@code super}</b>, because a
+     * subclass of a component that has a handler inherits that component's dispatch through this
+     * method: a {@code SearchField} that overrode this for its own aspect and did not chain would
+     * silently delete {@code TextField}'s. The ordering lives in the base class, this is the one
+     * link in it a subclass can break, and the contract test drives every subclass through its
+     * parent's gestures to catch one that does.
+     *
+     * @param aspect what changed; the origin is {@code USER} or this is not called
+     */
+    protected void handleUserChange(Change.Aspect aspect) {
+    }
+
+    /**
+     * The paint rule, enforced at the announcing site: a paint paints, and announces nothing.
+     *
+     * <p>Three reasons, and containment is not among them -- a watcher's throw never escapes the
+     * frame, because each is invoked inside its own try. A paint is re-run when nothing changed (a
+     * resize, an occlusion redraw, a swap-chain re-present), so a notification from one would
+     * report a change nobody made. A watcher may legally mutate, and a mutation during a paint
+     * lands on a frame that has already laid out. And a mutator must settle its layout marks and
+     * then announce, which a mutator running after the pass cannot do: its announcement would be
+     * truthful about the state and false about everything the state implies.
+     *
+     * <p><b>The check sits before the nobody-is-watching early return, deliberately.</b> After it
+     * is cheaper and is the wrong place, because it makes the enforcement absent in exactly the
+     * state the mistake is made in: a component author writes the offending {@code onPaint} with
+     * no watcher anywhere, since a watcher is something a bridge or an inspector attaches later,
+     * so the check that would have named the mistake never runs, the habit sets, and the first
+     * thing to trip it is a screen reader attaching to a shipped application. What it costs the
+     * quiet path is one field read and one branch.
+     */
+    private static void checkNotPainting(Change.Aspect aspect) {
+        if (paintDepth > 0) {
+            throw new IllegalStateException(
+                    "a paint may not announce a change (" + aspect + "): move the mutation out of onPaint");
+        }
+    }
+
     // --------------------------------------------------------- accessibility
 
     /**
@@ -2075,7 +2370,12 @@ public abstract class Widget {
         }
     };
 
-    final void notifyFocus(boolean gained) {
+    /**
+     * The scene's focus funnel telling this widget it gained or lost focus: the subclass hook
+     * first, with this widget's locale in scope, and then the announcement, so a watcher reads a
+     * widget whose own reaction has already run.
+     */
+    final void notifyFocus(boolean gained, Change.Origin origin) {
         Locale enclosing = I18n.pushScope(locale());
         try {
             if (gained) {
@@ -2086,5 +2386,6 @@ public abstract class Widget {
         } finally {
             I18n.popScope(enclosing);
         }
+        notifyChange(Change.of(Change.Aspect.FOCUS, origin));
     }
 }

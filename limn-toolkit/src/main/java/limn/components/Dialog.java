@@ -9,6 +9,7 @@ import limn.backend.ScreenRect;
 import limn.backend.WindowConfig;
 import limn.backend.WindowStyle;
 import limn.concurrent.Ui;
+import limn.concurrent.Subscription;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.i18n.I18nString;
@@ -147,7 +148,7 @@ public final class Dialog {
     private boolean modal = true;
     private boolean keepInScene; // the app has vouched for IN_SCENE; never promote
     // Unregisters the "died unanswered" observer once a real answer is on its way.
-    private Runnable unanswered;
+    private Subscription unanswered;
 
     // Native-window presentation state (null when in-scene / headless).
     private NativeWindow modalWindow;
@@ -794,7 +795,7 @@ public final class Dialog {
             // which registers its own close flush. Dropping the observer matters for
             // in-scene dialogs, whose host scene outlives them: one leaked Runnable
             // per dialog shown, otherwise.
-            unanswered.run();
+            unanswered.cancel();
             unanswered = null;
         }
         if (modalWindow != null) {
@@ -808,7 +809,7 @@ public final class Dialog {
             // window dies mid-fade, finish immediately or the result future
             // never completes (the native path gets this same flush from
             // fadeWindowOut's windowClosed handling).
-            Runnable unhook = hostScene.observeWindowClosed(() -> {
+            Subscription unhook = hostScene.observeWindowClosed(() -> {
                 closeOverlay();
                 result.complete(value);
             });
@@ -822,7 +823,7 @@ public final class Dialog {
                 if (fade > 0) {
                     return true;
                 }
-                unhook.run();
+                unhook.cancel();
                 closeOverlay();
                 result.complete(value);
                 return false;

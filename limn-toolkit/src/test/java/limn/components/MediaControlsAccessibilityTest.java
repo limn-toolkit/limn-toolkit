@@ -130,6 +130,7 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
     private void bindControls() {
         view = new VideoView().setSource(new FakeVideo());
         controls = new MediaControls(view);
+        controls.setOnRefresh(() -> ticks++); // the heartbeat an injected control rides
         bind(controls);
     }
 
@@ -180,16 +181,22 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * Damages the bar and renders, twice. The bar learns of the view on its heartbeat, which is a
-     * paint or the poll, and the tree is published before the paint of the same frame; so the
-     * first frame is the one in which the bar catches up and the second is the one in which the
-     * tree does. In the running application the poll buys the first of these on its own.
+     * Damages the bar, renders, waits for the poll tick and renders again. The bar learns of the
+     * view on its heartbeat, which is the poll alone -- a paint announces nothing, so it refreshes
+     * nothing and only arms the poll -- and the tree is published before the paint of the same
+     * frame; so the tick is where the bar catches up and the second frame is where the tree does.
+     * The wait is the bar's own poll interval, at most, which is the latency the window pays too.
      */
     private void heartbeat() {
         controls.invalidate();
         frame();
+        long before = ticks;
+        ui.pumpUntil(() -> ticks > before);
         frame();
     }
+
+    /** Poll ticks seen so far: the bar's guarded writes leave no other trace of an unchanged tick. */
+    private long ticks;
 
     /**
      * @return the play button, reached through the public child lists: the bar's only child is
