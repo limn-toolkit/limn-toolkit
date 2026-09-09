@@ -141,6 +141,7 @@ final class GalleryScenes {
                         GalleryScenes::comboBox),
                 new GalleryEntry("list-view", "ListView", "gallery:list-view",
                         GalleryScenes::listView),
+                new GalleryEntry("table", "Table", "gallery:table", GalleryScenes::table),
                 new GalleryEntry("scroll-view", "ScrollView and ScrollBar",
                         "gallery:scroll-view", GalleryScenes::scrollView),
                 new GalleryEntry("dialog", "Dialog", "gallery:dialog", GalleryScenes::dialog),
@@ -447,6 +448,28 @@ final class GalleryScenes {
             }
         });
         return scene(new SizedBox(320, 130, list));
+    }
+    // #endregion
+
+    // #region gallery:table
+    static Built table() {
+        // Columns say how a row becomes a cell; the rows are the application's own list, held
+        // by reference and read only when they are on screen.
+        record Release(String name, String platform, int downloads) {
+        }
+        List<Release> rows = List.of(
+                new Release("Meridian", "Windows", 4820), new Release("Halcyon", "macOS", 3915),
+                new Release("Corvid", "Linux", 2760), new Release("Lumen", "Windows", 2314),
+                new Release("Tessera", "macOS", 1987), new Release("Orrery", "Linux", 1502),
+                new Release("Vantage", "Windows", 1210), new Release("Kestrel", "macOS", 864));
+        limn.components.table.Table<Release> table = new limn.components.table.Table<>(List.of(
+                limn.components.table.Column.text("Name", Release::name).width(120).weight(1),
+                limn.components.table.Column.text("Platform", Release::platform).width(100),
+                limn.components.table.Column.numeric("Downloads", Release::downloads).width(110)));
+        table.setRows(rows);
+        table.setSort(table.columns().get(2), limn.components.table.SortOrder.DESCENDING);
+        table.setSelectedRow(2);
+        return scene(new SizedBox(360, 200, table));
     }
     // #endregion
 

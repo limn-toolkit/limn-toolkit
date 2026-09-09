@@ -32,7 +32,7 @@ public final class Main {
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
             "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
-            "components", "components-light", "widgets", "list", "animations", "cursors",
+            "components", "components-light", "widgets", "list", "table", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
             "newcontrols", "newcontrols-light", "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
@@ -218,6 +218,8 @@ public final class Main {
                 widgetScene = WidgetsScene.create();
             } else if (scene.equals("list")) {
                 widgetScene = ListScene.create();
+            } else if (scene.equals("table")) {
+                widgetScene = TableScene.create();
             } else if (scene.equals("animations")) {
                 widgetScene = AnimationsScene.create();
             } else if (scene.equals("cursors")) {

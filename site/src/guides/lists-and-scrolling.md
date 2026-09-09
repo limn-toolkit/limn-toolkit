@@ -79,6 +79,40 @@ the same way, so what you learn on one holds for the rest:
 Arrow keys are not bound by the first rule: arrowing past either end lands on the end,
 because that is what the key means.
 
+## Tables
+
+When every row has the same shape, a `Table` is a `ListView` with columns: a header that
+sorts and resizes, cells that are values rather than widgets, and a selection by row. You
+describe the columns once; the rows are your own `List`, held by reference and read only
+when they are on screen, so a table over a million rows costs what one over twenty does.
+
+{% snippet guide:table %}
+
+A column names a title, how a row becomes a cell, and how wide it is. `Column.text` and
+`Column.numeric` cover most of a business screen — a numeric column aligns to the reading
+end and localizes its digits — and `Column.of` takes any value with a formatter that is
+handed the table's locale. Widths are a preferred width, a minimum, and a weight: every
+column gets its preferred width, and what is left of the viewport is shared among the
+weighted ones. A table wider than its viewport scrolls sideways; the header stays put.
+
+A click on a header sorts, cycling ascending, descending and your list's own order. The
+table sorts through a permutation and never touches your list, which is why the selection
+— a set of *model* rows — survives a sort. For rows a server orders, `onSortRequest` hands
+the click to you instead: reorder the list and call `refresh()`.
+
+Three selection modes: `NONE`, `SINGLE` and `MULTI`, where Shift selects a range, the
+command modifier toggles one row and Ctrl+A or Cmd+A selects all. Whatever the mode, the
+arrow keys move a focus cell, which is what a screen reader's cursor stands on; Enter or a
+double click activates the lead row. `Column.widget` is the escape hatch for a cell that is
+a control — a switch, a button — and those cells are real children, mounted and released
+with their row.
+
+:::tip[When the data changes]
+Call `refresh()` after your list's contents change, as with `ListView`: the sort is
+re-applied, a selected row the list no longer has is dropped and your listener hears it, and
+the scroll position is kept.
+:::
+
 ## Splitting a window
 
 `SplitPane` gives two children a draggable divider:
