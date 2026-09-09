@@ -87,6 +87,11 @@ application. A two-digit year in that pattern is widened to four: the order and 
 what the locale genuinely owns, and a two-digit year in something a person types is an ambiguity
 worth refusing.
 
+**The header climbs.** Clicking the month name shows the twelve months of that year; clicking again
+shows a block of twenty-four years. Each pick descends one step, and nothing is chosen until a day
+is. That is what makes a date of birth reachable, and `setView(View.YEARS)` opens a picker straight
+onto the years for exactly that case. Escape comes back down one level at a time.
+
 **Typing beats clicking, and both work.** Up and Down adjust the segment the caret is in; Left and
 Right move between segments; digits fill the current segment and roll on to the next, so
 `31122026` commits the last day of 2026 without a separator being typed. `Ctrl/Cmd+V` parses what

@@ -191,7 +191,8 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         List<AccessibleNode> buttons = childrenOf(gridNode()).stream()
                 .filter(child -> child.role() == Accessible.Role.BUTTON)
                 .toList();
-        assertEquals(2, buttons.size());
+        // Three: the two that page, and the title, which is how a reader reaches the choosers.
+        assertEquals(3, buttons.size());
         for (AccessibleNode button : buttons) {
             assertFalse(button.name().isBlank(), "a button nobody can name is a button nobody uses");
             assertTrue(offers(button, Accessible.Action.PRESS));
@@ -199,6 +200,38 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(perform(buttons.get(0).id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
         assertEquals(LocalDate.of(2026, 8, 1), calendar.visibleMonth(),
                 "the first button is the one that goes back");
+    }
+
+    @Test
+    void theTitleIsAButtonThatClimbsToTheMonthAndYearChoosers() throws InterruptedException {
+        CalendarView calendar = bindCalendar();
+        AccessibleNode title = childrenOf(gridNode()).stream()
+                .filter(child -> child.role() == Accessible.Role.BUTTON)
+                .filter(child -> child.name().toLowerCase(Locale.ROOT).contains("setembro"))
+                .findFirst().orElseThrow(() -> new AssertionError(
+                        "the header's title is not published as a button"));
+        assertTrue(perform(title.id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        assertEquals(CalendarView.View.MONTHS, calendar.view());
+        frame();
+        assertEquals(4, gridNode().table().columnCount());
+        assertEquals(3, gridNode().table().rowCount());
+        List<AccessibleNode> cells = dayNodes();
+        assertEquals(12, cells.size(), "the twelve months");
+        assertTrue(cells.get(0).name().toLowerCase(Locale.ROOT).startsWith("jan"),
+                cells.get(0).name());
+    }
+
+    @Test
+    void aMonthPickedInTheChooserNavigatesAndSelectsNothing() throws InterruptedException {
+        CalendarView calendar = bindCalendar();
+        calendar.setView(CalendarView.View.MONTHS);
+        frame();
+        AccessibleNode march = dayNodes().get(2);
+        assertTrue(perform(march.id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
+        assertEquals(LocalDate.of(2026, 3, 1), calendar.visibleMonth());
+        assertEquals(CalendarView.View.DAYS, calendar.view(), "and it comes back down");
+        assertNull(calendar.selectedDate(),
+                "navigating to a month is not choosing a date, and must not look like one");
     }
 
     @Test

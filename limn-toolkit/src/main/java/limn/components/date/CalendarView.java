@@ -35,6 +35,7 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.WeekFields;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -94,10 +95,32 @@ public class CalendarView extends Widget {
         RANGE
     }
 
+    /**
+     * What the grid is showing. A calendar that can only be paged a month at a time is unusable for
+     * the one date every form asks for and nobody remembers by month &mdash; a date of birth is
+     * four hundred presses away &mdash; so the header is a button that climbs: days to months,
+     * months to years, and each pick comes back down.
+     *
+     * <p>An application can start at any level, which is the point of it being public:
+     * {@code setView(View.YEARS)} on a birth-date picker opens where that user is going.
+     */
+    public enum View {
+        /** A month of days: the calendar proper. */
+        DAYS,
+        /** The twelve months of the year on show. */
+        MONTHS,
+        /** A block of years around the one on show. */
+        YEARS
+    }
+
     /** How many week rows are drawn, always. The class comment says why it is not variable. */
     private static final int WEEKS = 6;
     private static final int DAYS_IN_WEEK = 7;
     private static final int CELLS = WEEKS * DAYS_IN_WEEK;
+    /** Both choosers are four across: twelve months in three rows, and a block of years in six. */
+    private static final int CHOOSER_COLUMNS = 4;
+    private static final int MONTHS_IN_YEAR = 12;
+    private static final int YEARS_PER_PAGE = 24;
 
     /**
      * The accessible key space, and it is one space rather than one per parent.
@@ -114,6 +137,8 @@ public class CalendarView extends Widget {
     private static final long KEY_PREVIOUS = -1;
     private static final long KEY_NEXT = -2;
     private static final long KEY_HEADER = -3;
+    /** The header's title, which is a button: it is how a reader climbs to the choosers. */
+    private static final long KEY_TITLE = -4;
     /** One per column head, offset so it cannot meet a row or a week number. */
     private static final long KEY_HEAD_BASE = -10;
     /** One per week row. */
@@ -122,6 +147,9 @@ public class CalendarView extends Widget {
     private static final long KEY_WEEK_BASE = -200;
 
     private SelectionMode selectionMode = SelectionMode.SINGLE;
+    private View view = View.DAYS;
+    /** Where the keyboard is inside a chooser, as a flat cell index; meaningless in DAYS. */
+    private int chooserCursor;
 
     /** Any day inside the month on show; normalized to its first day when the grid is rebuilt. */
     private LocalDate visibleMonth = LocalDate.now();
@@ -151,6 +179,10 @@ public class CalendarView extends Widget {
 
     /** Which paging button the pointer is over: -1 previous, +1 next, 0 neither. */
     private int pagingHover;
+    /** Whether the pointer is over the header's title, which is the button that climbs. */
+    private boolean titleHover;
+    /** Which chooser cell the pointer is over, or -1. */
+    private int hoverChooserCell = -1;
     /**
      * Whether the keyboard is aimed at this grid although the grid does not hold the focus.
      *
@@ -184,7 +216,10 @@ public class CalendarView extends Widget {
     private long nextFirstEpoch;
     private Chronology gridChronology = IsoChronology.INSTANCE;
     private DayOfWeek gridFirstDay = DayOfWeek.MONDAY;
-    private String monthTitle = "";
+    private View gridView = View.DAYS;
+    private String headerTitle = "";
+    /** One label per chooser cell: twelve month names, or a block of years. */
+    private String[] chooserText = new String[0];
     private final String[] dayText = new String[CELLS];
     private final String[] weekText = new String[WEEKS];
     private final String[] weekdayText = new String[DAYS_IN_WEEK];
@@ -239,7 +274,7 @@ public class CalendarView extends Widget {
         if (day != null) {
             setVisibleMonth(day);
         }
-        if (java.util.Objects.equals(selected, day)) {
+        if (Objects.equals(selected, day)) {
             return this;
         }
         selected = day;
@@ -271,7 +306,7 @@ public class CalendarView extends Widget {
         if (range != null) {
             setVisibleMonth(range.start());
         }
-        if (java.util.Objects.equals(selectedRange, range)) {
+        if (Objects.equals(selectedRange, range)) {
             return this;
         }
         selectedRange = range;
@@ -332,6 +367,39 @@ public class CalendarView extends Widget {
     }
 
     // ------------------------------------------------------------------ what is on show
+
+    /** @return whether the grid is showing days, months or years */
+    public View view() {
+        return view;
+    }
+
+    /**
+     * Shows days, months or years. An application opens a birth-date picker on {@link View#YEARS}
+     * and saves its user four hundred presses.
+     *
+     * @param wanted what to show
+     * @return this
+     */
+    public CalendarView setView(View wanted) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(wanted, "view");
+        if (view == wanted) {
+            return this;
+        }
+        view = wanted;
+        chooserCursor = -1;
+        markNeedsLayout();
+        return this;
+    }
+
+    /** The header's own verb: days climb to months, months to years, and years come back down. */
+    private void climb() {
+        setView(switch (view) {
+            case DAYS -> View.MONTHS;
+            case MONTHS -> View.YEARS;
+            case YEARS -> View.DAYS;
+        });
+    }
 
     /** @return the first day of the month currently drawn */
     public LocalDate visibleMonth() {
@@ -394,7 +462,7 @@ public class CalendarView extends Widget {
      */
     public CalendarView setMinDate(LocalDate day) {
         Ui.checkUiThread();
-        if (java.util.Objects.equals(minDate, day)) {
+        if (Objects.equals(minDate, day)) {
             return this;
         }
         minDate = day;
@@ -416,7 +484,7 @@ public class CalendarView extends Widget {
      */
     public CalendarView setMaxDate(LocalDate day) {
         Ui.checkUiThread();
-        if (java.util.Objects.equals(maxDate, day)) {
+        if (Objects.equals(maxDate, day)) {
             return this;
         }
         maxDate = day;
@@ -508,7 +576,7 @@ public class CalendarView extends Widget {
      */
     public CalendarView setChronology(Chronology chronology) {
         Ui.checkUiThread();
-        if (java.util.Objects.equals(declaredChronology, chronology)) {
+        if (Objects.equals(declaredChronology, chronology)) {
             return this;
         }
         declaredChronology = chronology;
@@ -755,7 +823,8 @@ public class CalendarView extends Widget {
         LocalDate start = first.minusDays(shift);
         boolean languageMoved = textLanguage.moved();
         if (!languageMoved && gridStartEpoch == start.toEpochDay()
-                && gridChronology.equals(chronology) && gridFirstDay == firstDay) {
+                && gridChronology.equals(chronology) && gridFirstDay == firstDay
+                && gridView == view) {
             return;
         }
         gridStartEpoch = start.toEpochDay();
@@ -768,9 +837,9 @@ public class CalendarView extends Widget {
         int previousLength = previousMonthLength(chronology, chronoFirst, first);
         previousFirstEpoch = monthFirstEpoch - previousLength;
 
-        monthTitle = chronoFirst != null
-                ? CalendarChronology.monthHeader(chronology, chronoFirst, locale)
-                : "";
+        gridView = view;
+        headerTitle = buildTitle(chronology, chronoFirst, locale);
+        chooserText = buildChooserLabels(chronology, chronoFirst, locale);
         for (int i = 0; i < CELLS; i++) {
             dayText[i] = I18n.localizeDigits(Integer.toString(dayNumber(gridStartEpoch + i)));
         }
@@ -786,6 +855,114 @@ public class CalendarView extends Widget {
             weekdayText[c] = CalendarChronology.narrowWeekday(day, locale);
         }
         textEpoch++;
+    }
+
+    /**
+     * What the header says, per view: the month and the year, the year alone, or the block of years
+     * the chooser is showing.
+     *
+     * <p>Capitalised, and that is a decision rather than a slip either way. Portuguese writes
+     * months in lower case inside a sentence and this is not a sentence &mdash; it is the title of
+     * what is below it, and "setembro de 2026" as a heading reads as a fragment. The first
+     * character is upper-cased through {@link I18n}, so it follows the language's own casing rules
+     * (ADR 034) rather than {@code String.toUpperCase}'s, which turns a Turkish dotless i into the
+     * wrong letter. Languages that already capitalise their months are unchanged, and scripts with
+     * no case at all are untouched by construction.
+     */
+    private String buildTitle(Chronology chronology, ChronoLocalDate chronoFirst, Locale locale) {
+        if (chronoFirst == null) {
+            return "";
+        }
+        return switch (view) {
+            case DAYS -> capitalize(CalendarChronology.monthHeader(chronology, chronoFirst, locale));
+            case MONTHS -> yearLabel(chronoFirst);
+            case YEARS -> {
+                int first = yearBlockStart(chronoFirst);
+                yield I18n.localizeDigits(first + " \u2013 " + (first + YEARS_PER_PAGE - 1));
+            }
+        };
+    }
+
+    private static String capitalize(String text) {
+        if (text.isEmpty()) {
+            return text;
+        }
+        int first = text.codePointAt(0);
+        int width = Character.charCount(first);
+        return I18n.toUpperCase(text.substring(0, width)) + text.substring(width);
+    }
+
+    private static String yearLabel(ChronoLocalDate date) {
+        return I18n.localizeDigits(Integer.toString(date.get(ChronoField.YEAR_OF_ERA)));
+    }
+
+    /** The first year of the block a year falls in, so paging lands on the same twenty-four. */
+    private static int yearBlockStart(ChronoLocalDate date) {
+        int year = date.get(ChronoField.YEAR_OF_ERA);
+        return year - Math.floorMod(year, YEARS_PER_PAGE);
+    }
+
+    /**
+     * The labels of whichever chooser is showing, built with the grid rather than per paint: twelve
+     * month names in the calendar being drawn (the eighth month of a Hijri year is not August), or
+     * twenty-four years.
+     */
+    private String[] buildChooserLabels(Chronology chronology, ChronoLocalDate chronoFirst,
+                                        Locale locale) {
+        if (view == View.DAYS || chronoFirst == null) {
+            return new String[0];
+        }
+        if (view == View.MONTHS) {
+            String[] names = new String[MONTHS_IN_YEAR];
+            java.time.format.DateTimeFormatter format =
+                    java.time.format.DateTimeFormatter.ofPattern("MMM", locale)
+                            .withChronology(chronology);
+            for (int i = 0; i < MONTHS_IN_YEAR; i++) {
+                ChronoLocalDate month = monthCell(chronoFirst, i);
+                names[i] = month == null ? "" : capitalize(format.format(month));
+            }
+            return names;
+        }
+        String[] years = new String[YEARS_PER_PAGE];
+        int first = yearBlockStart(chronoFirst);
+        for (int i = 0; i < YEARS_PER_PAGE; i++) {
+            years[i] = I18n.localizeDigits(Integer.toString(first + i));
+        }
+        return years;
+    }
+
+    /** The first day of month {@code index} (zero-based) of the year on show, or null. */
+    private ChronoLocalDate monthCell(ChronoLocalDate reference, int index) {
+        try {
+            return reference.with(ChronoField.MONTH_OF_YEAR, index + 1L)
+                    .with(ChronoField.DAY_OF_MONTH, 1);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** The first day of year {@code index} (zero-based) of the block on show, or null. */
+    private ChronoLocalDate yearCell(ChronoLocalDate reference, int index) {
+        try {
+            return reference.with(ChronoField.YEAR_OF_ERA, yearBlockStart(reference) + (long) index)
+                    .with(ChronoField.MONTH_OF_YEAR, 1)
+                    .with(ChronoField.DAY_OF_MONTH, 1);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** The ISO day a chooser cell stands for, or null where the calendar has no such date. */
+    private LocalDate chooserDate(int index) {
+        Chronology chronology = gridChronology;
+        ChronoLocalDate reference = CalendarChronology.date(chronology,
+                LocalDate.ofEpochDay(monthFirstEpoch));
+        if (reference == null) {
+            return null;
+        }
+        ChronoLocalDate cell = view == View.MONTHS
+                ? monthCell(reference, index) : yearCell(reference, index);
+        return CalendarChronology.iso(cell);
     }
 
     private static int previousMonthLength(Chronology chronology, ChronoLocalDate chronoFirst,
@@ -834,7 +1011,7 @@ public class CalendarView extends Widget {
         SizeTokens t = Theme.current().tokensFor(this);
         rebuildGrid();
         TextRuler ruler = textRuler();
-        TextMetrics title = ruler.measure(monthTitle.isEmpty() ? "Hg" : monthTitle, t.body());
+        TextMetrics title = ruler.measure(headerTitle.isEmpty() ? "Hg" : headerTitle, t.body());
         TextMetrics label = ruler.measure("Hg", t.label());
         float cell = t.calendarCell();
         float week = showWeekNumbers ? t.calendarWeekColumn() : 0;
@@ -860,16 +1037,36 @@ public class CalendarView extends Widget {
         // the box rather than huddling at one end of it; never below the step's own cell, which is
         // the hit target the size axis promises.
         float available = Math.max(0, width() - 2 * pad - weekColW);
-        cellW = Math.max(t.calendarCell(), available / DAYS_IN_WEEK);
-        float rows = Math.max(0, height() - 2 * pad - headerH - weekdayH);
-        cellH = Math.max(t.calendarCell(), rows / WEEKS);
-        float contentW = weekColW + DAYS_IN_WEEK * cellW;
+        cellW = Math.max(t.calendarCell(), available / columns());
+        // The weekday strip's height is reserved in every view, not only the one that fills it:
+        // a chooser that reclaimed it would resize the popup under the pointer on every climb.
+        float rowSpace = Math.max(0, height() - 2 * pad - headerH - weekdayH);
+        cellH = Math.max(t.calendarCell(), rowSpace / rows());
+        float contentW = weekColW + columns() * cellW;
         float left = pad + Math.max(0, (width() - 2 * pad - contentW) / 2);
         // Reading right to left the week column is at the right edge, so the day columns start
         // where it ends on the other side. Only this coordinate mirrors; the columns themselves are
         // walked in reading order by cellLeft.
         gridX = isRightToLeft() ? left : left + weekColW;
         gridY = pad + headerH + weekdayH;
+    }
+
+    /** How many columns the view on show has: a week, or the choosers' four. */
+    private int columns() {
+        return view == View.DAYS ? DAYS_IN_WEEK : CHOOSER_COLUMNS;
+    }
+
+    /** How many rows: six weeks, three rows of months, or six rows of years. */
+    private int rows() {
+        return switch (view) {
+            case DAYS -> WEEKS;
+            case MONTHS -> MONTHS_IN_YEAR / CHOOSER_COLUMNS;
+            case YEARS -> YEARS_PER_PAGE / CHOOSER_COLUMNS;
+        };
+    }
+
+    private int cellCount() {
+        return columns() * rows();
     }
 
     /**
@@ -879,21 +1076,21 @@ public class CalendarView extends Widget {
      * {@link #columnAt}.
      */
     private float cellLeft(int c, boolean rtl) {
-        return rtl ? gridX + (DAYS_IN_WEEK - 1 - c) * cellW : gridX + c * cellW;
+        return rtl ? gridX + (columns() - 1 - c) * cellW : gridX + c * cellW;
     }
 
     private int columnAt(float localX, boolean rtl) {
         float offset = localX - gridX;
         int c = (int) Math.floor(offset / cellW);
         if (rtl) {
-            c = DAYS_IN_WEEK - 1 - c;
+            c = columns() - 1 - c;
         }
-        return c < 0 || c >= DAYS_IN_WEEK ? -1 : c;
+        return c < 0 || c >= columns() ? -1 : c;
     }
 
     /** Where the week-number column sits: the edge reading starts from, beside the first column. */
     private float weekColumnLeft(boolean rtl) {
-        return rtl ? gridX + DAYS_IN_WEEK * cellW : gridX - weekColW;
+        return rtl ? gridX + columns() * cellW : gridX - weekColW;
     }
 
     @Override
@@ -913,6 +1110,10 @@ public class CalendarView extends Widget {
         boolean enabled = isEnabled();
 
         paintHeader(canvas, theme, t, ruler, neutral, rtl, enabled);
+        if (view != View.DAYS) {
+            paintChooser(canvas, theme, t, ruler, neutral, rtl, enabled);
+            return;
+        }
         paintWeekdayRow(canvas, theme, t, ruler, neutral, rtl);
 
         Font body = t.body();
@@ -984,14 +1185,90 @@ public class CalendarView extends Widget {
         }
     }
 
+    /**
+     * The month and year choosers, which are the same grid with a different arithmetic behind it:
+     * four columns of larger cells, the cell holding the month or year on show filled the way a
+     * selected day is, and the keyboard cursor ringed the same way.
+     */
+    private void paintChooser(Canvas canvas, Theme theme, SizeTokens t, TextRuler ruler,
+                              ShapedText.Direction neutral, boolean rtl, boolean enabled) {
+        Font font = t.body();
+        TextMetrics fm = ruler.measure("Hg", font);
+        float radius = t.radiusSmall();
+        float inset = Strokes.HALF_PIXEL_INSET;
+        int current = currentChooserCell();
+        float focus = focusFade.value();
+        int columns = columns();
+        for (int i = 0; i < chooserText.length && i < cellCount(); i++) {
+            int row = i / columns;
+            int column = i % columns;
+            float left = cellLeft(column, rtl);
+            float top = gridY + row * cellH;
+            boolean offered = enabled && isChooserCellOffered(i);
+            if (i == current) {
+                canvas.fillRoundRect(left + inset, top + inset, cellW - 2 * inset,
+                        cellH - 2 * inset, radius, enabled ? theme.primary : theme.disabledFill);
+            } else if (i == hoverChooserCell && offered) {
+                canvas.fillRoundRect(left + inset, top + inset, cellW - 2 * inset,
+                        cellH - 2 * inset, radius, theme.surfaceRaised);
+            }
+            String text = chooserText[i];
+            ShapedText line = ruler.shape(text, font, ShapedText.Direction.of(text, neutral));
+            Color ink = !offered ? theme.disabledText : i == current ? theme.onPrimary : theme.text;
+            canvas.drawText(line, left + (cellW - line.metrics().width()) / 2,
+                    top + (cellH - fm.height()) / 2 + fm.ascent(), ink);
+            if (focus > 0.001f && i == chooserCursor) {
+                float gap = Strokes.FOCUS_GAP_INDICATOR;
+                canvas.drawRoundRect(left + gap, top + gap, cellW - 2 * gap, cellH - 2 * gap,
+                        radius, Strokes.FOCUS_RING_THIN, theme.focusRing.withAlpha(focus));
+            }
+        }
+    }
+
+    /** Which chooser cell holds what is on show: the visible month, or its year. */
+    private int currentChooserCell() {
+        ChronoLocalDate reference = CalendarChronology.date(gridChronology,
+                LocalDate.ofEpochDay(monthFirstEpoch));
+        if (reference == null) {
+            return -1;
+        }
+        if (view == View.MONTHS) {
+            return reference.get(ChronoField.MONTH_OF_YEAR) - 1;
+        }
+        return reference.get(ChronoField.YEAR_OF_ERA) - yearBlockStart(reference);
+    }
+
+    /**
+     * Whether a chooser cell leads anywhere: a month or a year with no selectable day in it is
+     * drawn disabled and refuses a click, the same rule a day out of bounds follows.
+     */
+    private boolean isChooserCellOffered(int index) {
+        LocalDate day = chooserDate(index);
+        if (day == null) {
+            return false;
+        }
+        LocalDate last = view == View.MONTHS
+                ? day.withDayOfMonth(day.lengthOfMonth()) : day.withDayOfYear(day.lengthOfYear());
+        return (minDate == null || !last.isBefore(minDate))
+                && (maxDate == null || !day.isAfter(maxDate));
+    }
+
     private void paintHeader(Canvas canvas, Theme theme, SizeTokens t, TextRuler ruler,
                              ShapedText.Direction neutral, boolean rtl, boolean enabled) {
         float pad = t.spacingSmall();
-        ShapedText title = ruler.shape(monthTitle, t.body(),
-                ShapedText.Direction.of(monthTitle, neutral));
+        ShapedText title = ruler.shape(headerTitle, t.body(),
+                ShapedText.Direction.of(headerTitle, neutral));
         TextMetrics fm = ruler.measure("Hg", t.body());
-        canvas.drawText(title, (width() - title.metrics().width()) / 2,
-                pad + (headerH - fm.height()) / 2 + fm.ascent(),
+        float titleWidth = title.metrics().width();
+        float titleX = (width() - titleWidth) / 2;
+        // The title is a button, so it is drawn as one when the pointer is on it: without that
+        // affordance the climb to the choosers is a feature only somebody who read the guide finds.
+        if (titleHover && enabled) {
+            float padX = t.spacingSmall();
+            canvas.fillRoundRect(titleX - padX, pad, titleWidth + 2 * padX, headerH,
+                    t.radiusSmall(), theme.surfaceRaised);
+        }
+        canvas.drawText(title, titleX, pad + (headerH - fm.height()) / 2 + fm.ascent(),
                 enabled ? theme.text : theme.disabledText);
         // The arrow that goes BACK is in the gutter reading starts from, and points that way; both
         // its side and its ink turn over, while what it does does not. Same split SegmentedControl
@@ -1083,17 +1360,38 @@ public class CalendarView extends Widget {
         return 0;
     }
 
-    /** The day under a pointer, or {@code null} if it is not over the grid. */
-    private LocalDate dayAt(float localX, float localY, boolean rtl) {
+    /** The flat cell index under a pointer, in whatever view is showing, or -1. */
+    private int cellAt(float localX, float localY, boolean rtl) {
         if (localY < gridY || cellH <= 0 || cellW <= 0) {
-            return null;
+            return -1;
         }
         int row = (int) Math.floor((localY - gridY) / cellH);
         int column = columnAt(localX, rtl);
-        if (row < 0 || row >= WEEKS || column < 0) {
-            return null;
+        if (row < 0 || row >= rows() || column < 0) {
+            return -1;
         }
-        return dayAt(row * DAYS_IN_WEEK + column);
+        return row * columns() + column;
+    }
+
+    /** The day under a pointer, or {@code null} if it is not over the grid. */
+    private LocalDate dayAt(float localX, float localY, boolean rtl) {
+        int index = cellAt(localX, localY, rtl);
+        return index < 0 ? null : dayAt(index);
+    }
+
+    /**
+     * Whether a point is on the header's title, which is the region that climbs to the next view.
+     * The band between the two paging buttons, not the glyphs of the title itself: a two-character
+     * year is a small target, and the whole gap belongs to it.
+     */
+    private boolean onTitle(float localX, float localY) {
+        SizeTokens t = Theme.current().tokensFor(this);
+        float pad = t.spacingSmall();
+        if (localY < pad || localY > pad + headerH) {
+            return false;
+        }
+        float button = t.calendarCell();
+        return localX >= pad + button && localX < width() - pad - button;
     }
 
     @Override
@@ -1104,24 +1402,32 @@ public class CalendarView extends Widget {
         switch (event.type()) {
             case MOVE, ENTER -> {
                 int paging = pagingAt(lx, ly, rtl);
-                LocalDate day = paging == 0 ? dayAt(lx, ly, rtl) : null;
+                boolean overTitle = paging == 0 && onTitle(lx, ly);
+                int cell = paging == 0 && !overTitle ? cellAt(lx, ly, rtl) : -1;
+                LocalDate day = view == View.DAYS && cell >= 0 ? dayAt(cell) : null;
+                int chooserCell = view == View.DAYS ? -1 : cell;
                 boolean previewMoved = false;
                 if (selectionMode == SelectionMode.RANGE && rangeAnchor != null
                         && day != null && !day.equals(rangePreview)) {
                     rangePreview = day;
                     previewMoved = true;
                 }
-                if (previewMoved || paging != pagingHover
-                        || !java.util.Objects.equals(day, hover)) {
+                if (previewMoved || paging != pagingHover || overTitle != titleHover
+                        || chooserCell != hoverChooserCell
+                        || !Objects.equals(day, hover)) {
                     hover = day;
                     pagingHover = paging;
+                    titleHover = overTitle;
+                    hoverChooserCell = chooserCell;
                     invalidate();
                 }
             }
             case EXIT -> {
-                if (hover != null || pagingHover != 0) {
+                if (hover != null || pagingHover != 0 || titleHover || hoverChooserCell >= 0) {
                     hover = null;
                     pagingHover = 0;
+                    titleHover = false;
+                    hoverChooserCell = -1;
                     invalidate();
                 }
             }
@@ -1132,13 +1438,23 @@ public class CalendarView extends Widget {
                 event.consume();
                 int paging = pagingAt(lx, ly, rtl);
                 if (paging != 0) {
-                    pageMonths(paging, Change.Origin.USER);
+                    page(paging);
                     return;
                 }
-                LocalDate day = dayAt(lx, ly, rtl);
-                if (day != null) {
+                if (onTitle(lx, ly)) {
                     requestFocus();
-                    pick(day, Change.Origin.USER);
+                    climb();
+                    return;
+                }
+                int cell = cellAt(lx, ly, rtl);
+                if (cell < 0) {
+                    return;
+                }
+                requestFocus();
+                if (view == View.DAYS) {
+                    pick(dayAt(cell), Change.Origin.USER);
+                } else {
+                    descend(cell);
                 }
             }
             case PRESS -> event.consume();
@@ -1154,6 +1470,10 @@ public class CalendarView extends Widget {
         }
         boolean rtl = isRightToLeft();
         boolean shift = (event.modifiers() & Keys.MOD_SHIFT) != 0;
+        if (view != View.DAYS) {
+            chooserKey(event, rtl);
+            return;
+        }
         LocalDate at = cursorOrDefault();
         switch (event.key()) {
             // A day is a step along a row, so Left and Right name a SIDE and mirror with the row.
@@ -1206,6 +1526,102 @@ public class CalendarView extends Widget {
     }
 
     /**
+     * What the two arrows step, which is a different unit per view: a month of days, a year of
+     * months, a block of years. Paging by a month in a year chooser would move nothing a reader
+     * could see.
+     */
+    private void page(int direction) {
+        switch (view) {
+            case DAYS -> pageMonths(direction, Change.Origin.USER);
+            case MONTHS -> pageMonths(direction * MONTHS_IN_YEAR, Change.Origin.USER);
+            case YEARS -> pageMonths(direction * MONTHS_IN_YEAR * YEARS_PER_PAGE,
+                    Change.Origin.USER);
+            default -> {
+            }
+        }
+    }
+
+    /**
+     * A chooser cell picked: a year opens its months, a month opens its days. Neither is a
+     * selection &mdash; nothing is chosen until a day is &mdash; so neither announces one, and the
+     * form's handler does not run while somebody is still navigating towards the year they want.
+     */
+    private void descend(int index) {
+        if (!isChooserCellOffered(index)) {
+            return;
+        }
+        LocalDate target = chooserDate(index);
+        if (target == null) {
+            return;
+        }
+        showMonth(target, Change.Origin.USER);
+        chooserCursor = -1;
+        setView(view == View.YEARS ? View.MONTHS : View.DAYS);
+    }
+
+    /**
+     * The keyboard inside a chooser, which is the same shape as the day grid's: the arrows move a
+     * cursor over the cells, Enter descends, and Escape climbs back down without choosing.
+     *
+     * <p>Left and Right mirror here for the day grid's reason &mdash; they name a side of a row of
+     * cells &mdash; and Up and Down do not.
+     */
+    private void chooserKey(KeyEvent event, boolean rtl) {
+        // The labels, before anything reads them: a key can arrive before the first paint of a
+        // view the keyboard itself just switched to, and a handler that waited for one would
+        // swallow the first press after every climb. rebuildGrid is memoized, so this costs a
+        // comparison in the case where a frame has already run.
+        rebuildGrid();
+        int count = Math.min(chooserText.length, cellCount());
+        if (count == 0) {
+            return;
+        }
+        if (chooserCursor < 0) {
+            chooserCursor = Math.max(0, Math.min(count - 1, currentChooserCell()));
+        }
+        int columns = columns();
+        int next = chooserCursor;
+        switch (event.key()) {
+            case Keys.LEFT -> next += rtl ? 1 : -1;
+            case Keys.RIGHT -> next += rtl ? -1 : 1;
+            case Keys.UP -> next -= columns;
+            case Keys.DOWN -> next += columns;
+            case Keys.HOME -> next = chooserCursor - chooserCursor % columns;
+            case Keys.END -> next = chooserCursor - chooserCursor % columns + columns - 1;
+            case Keys.PAGE_UP -> {
+                page(-1);
+                event.consume();
+                return;
+            }
+            case Keys.PAGE_DOWN -> {
+                page(1);
+                event.consume();
+                return;
+            }
+            case Keys.ENTER, Keys.SPACE -> {
+                descend(chooserCursor);
+                event.consume();
+                return;
+            }
+            case Keys.ESCAPE -> {
+                setView(View.DAYS);
+                event.consume();
+                return;
+            }
+            default -> {
+                return;
+            }
+        }
+        event.consume();
+        next = Math.max(0, Math.min(count - 1, next));
+        if (next != chooserCursor) {
+            chooserCursor = next;
+            invalidate();
+            notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+        }
+    }
+
+    /**
      * Pages by months (or, with Shift, by a year) and carries the cursor with it, in the calendar
      * being drawn: a Hijri year is eleven days shorter than an ISO one, and paging by 365 would
      * drift a year every three decades.
@@ -1250,15 +1666,33 @@ public class CalendarView extends Widget {
         SizeTokens t = Theme.current().tokensFor(this);
         Locale locale = locale();
         boolean rtl = isRightToLeft();
-        int columns = showWeekNumbers ? DAYS_IN_WEEK + 1 : DAYS_IN_WEEK;
+        boolean days = view == View.DAYS;
+        int columns = days && showWeekNumbers ? DAYS_IN_WEEK + 1 : columns();
         a.role(Accessible.Role.TABLE);
-        a.table(WEEKS, columns);
-        a.selection(selectionMode == SelectionMode.RANGE, false);
+        a.table(rows(), columns);
+        a.selection(days && selectionMode == SelectionMode.RANGE, false);
 
         float pad = t.spacingSmall();
         float buttonW = t.calendarCell();
         describePaging(a, KEY_PREVIOUS, rtl ? width() - pad - buttonW : pad, buttonW, pad);
         describePaging(a, KEY_NEXT, rtl ? pad : width() - pad - buttonW, buttonW, pad);
+        // The title is a button and is published as one: it is the only way to the month and year
+        // choosers, and a reader that is never offered it is left paging a month at a time towards
+        // a date of birth.
+        a.child(KEY_TITLE);
+        a.bounds(pad + buttonW, pad, Math.max(0, width() - 2 * (pad + buttonW)), headerH);
+        a.role(Accessible.Role.BUTTON);
+        a.name(headerTitle, textEpoch, Accessible.NameFrom.CONTENT);
+        a.expand(!days);
+        if (isEnabled()) {
+            a.action(Accessible.Action.PRESS);
+        }
+        a.endChild();
+
+        if (!days) {
+            describeChooser(a, rtl);
+            return;
+        }
 
         a.child(KEY_HEADER);
         a.bounds(0, pad + headerH, width(), weekdayH);
@@ -1332,6 +1766,47 @@ public class CalendarView extends Widget {
     }
 
     /**
+     * The chooser as the same table: rows of cells, each named with the month or the year it
+     * stands for, each carrying the verb that descends, and the keyboard cursor marked active.
+     *
+     * <p>No selection facet on the cells: descending into a month is navigation and not a choice,
+     * and telling a reader that a month is "selected" would be telling them the form now holds a
+     * value it does not.
+     */
+    private void describeChooser(Accessibility a, boolean rtl) {
+        int columns = columns();
+        int current = currentChooserCell();
+        for (int row = 0; row < rows(); row++) {
+            float top = gridY + row * cellH;
+            a.child(KEY_ROW_BASE - row);
+            a.bounds(0, top, width(), cellH);
+            a.role(Accessible.Role.ROW);
+            for (int column = 0; column < columns; column++) {
+                int index = row * columns + column;
+                if (index >= chooserText.length) {
+                    break;
+                }
+                a.child(index);
+                a.bounds(cellLeft(column, rtl), top, cellW, cellH);
+                a.role(Accessible.Role.CELL);
+                a.name(chooserText[index], textEpoch, Accessible.NameFrom.CONTENT);
+                a.cell(row, column);
+                if (isEnabled() && isChooserCellOffered(index)) {
+                    a.action(Accessible.Action.SELECT);
+                }
+                if (index == current) {
+                    a.state(Accessible.State.CHECKED, true);
+                }
+                if (index == chooserCursor && (isFocused() || keyboardActive)) {
+                    a.state(Accessible.State.ACTIVE);
+                }
+                a.endChild();
+            }
+            a.endChild();
+        }
+    }
+
+    /**
      * The full date, plus what else is true of the day: that it is today, and whatever a mark says
      * about it. Built here rather than memoized: it is wanted by nothing else, and forty-two long
      * dates per layout pass would cost more than the tree does.
@@ -1377,7 +1852,24 @@ public class CalendarView extends Widget {
             if (action != Accessible.Action.PRESS) {
                 return false;
             }
-            pageMonths(key == KEY_PREVIOUS ? -1 : 1, Change.Origin.USER);
+            page(key == KEY_PREVIOUS ? -1 : 1);
+            return true;
+        }
+        if (key == KEY_TITLE) {
+            if (action != Accessible.Action.PRESS) {
+                return false;
+            }
+            climb();
+            return true;
+        }
+        if (view != View.DAYS) {
+            if (key < 0 || key >= chooserText.length || action != Accessible.Action.SELECT) {
+                return false;
+            }
+            if (!isChooserCellOffered((int) key)) {
+                return false;
+            }
+            descend((int) key);
             return true;
         }
         if (key >= 0 && key < CELLS && action == Accessible.Action.SELECT) {

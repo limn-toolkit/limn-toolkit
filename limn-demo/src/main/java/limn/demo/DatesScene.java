@@ -52,7 +52,7 @@ final class DatesScene {
      * @param picker the plain date picker, so {@code --scene dates-popup} can open its calendar
      *               and photograph the overlay
      */
-    record Built(Scene scene, DatePicker picker) {
+    record Built(Scene scene, DatePicker picker, CalendarView grid) {
     }
 
     /** Standalone {@code --scene dates}. */
@@ -60,25 +60,33 @@ final class DatesScene {
         return build(light).scene();
     }
 
+    /** {@code --scene dates-months} / {@code dates-years}: the two choosers the header climbs to. */
+    static Scene create(boolean light, CalendarView.View view) {
+        Built built = build(light);
+        built.grid().setView(view);
+        return built.scene();
+    }
+
     /** The same, with the picker handed back for the popup capture. */
     static Built build(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         DatePicker picker = calendarPicker();
-        Scene scene = new Scene(new Padding(Insets.all(20), content(picker)));
+        CalendarView grid = grid();
+        Scene scene = new Scene(new Padding(Insets.all(20), content(picker, grid)));
         scene.setBackground(Theme.current().background);
-        return new Built(scene, picker);
+        return new Built(scene, picker, grid);
     }
 
     /** Reusable subtree, so the kitchen sink and the site gallery show the same thing. */
     static Widget content() {
-        return content(calendarPicker());
+        return content(calendarPicker(), grid());
     }
 
-    private static Widget content(DatePicker picker) {
+    private static Widget content(DatePicker picker, CalendarView grid) {
         Row row = new Row();
         row.gap(24).crossAlignment(Flex.CrossAlignment.START);
         row.add(fields(picker));
-        row.add(grid());
+        row.add(gridColumn(grid));
         return row;
     }
 
@@ -134,12 +142,19 @@ final class DatesScene {
         return column;
     }
 
-    /** The grid on its own, wearing everything a corporate form asks of it. */
-    private static Widget grid() {
+    private static Widget gridColumn(CalendarView calendar) {
         Column column = new Column();
         column.gap(14).crossAlignment(Flex.CrossAlignment.START);
         column.add(new Label("The grid on its own").setRole(Label.Role.TITLE).setStrong(true));
+        column.add(calendar);
+        Label note = new Label("Click the title to climb: days, months, years.");
+        note.setRole(Label.Role.LABEL).setMuted(true);
+        column.add(note);
+        return column;
+    }
 
+    /** The grid on its own, wearing everything a corporate form asks of it. */
+    private static CalendarView grid() {
         CalendarView calendar = new CalendarView();
         calendar.setVisibleMonth(ANCHOR);
         calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
@@ -158,11 +173,6 @@ final class DatesScene {
             }
             return null;
         });
-        column.add(calendar);
-
-        Label note = new Label("Locale week numbers, weekends filtered,\nmarks on holidays and deadlines.");
-        note.setRole(Label.Role.LABEL).setMuted(true);
-        column.add(note);
-        return column;
+        return calendar;
     }
 }

@@ -36,11 +36,13 @@ class DatePickerTest extends ComponentTestBase {
 
     private DatePicker picker;
     private Scene scene;
+    /** The scene's clock, moved only by {@link #settle()}. */
+    private final long[] nanos = {java.util.concurrent.TimeUnit.SECONDS.toNanos(1)};
 
     private void build(DatePicker built) {
         I18n.setLocale(Locale.forLanguageTag("pt-BR"));
         picker = built;
-        scene = new Scene(picker);
+        scene = new Scene(picker, () -> nanos[0]);
         scene.setTextRuler(RULER);
         scene.layoutPass(400, 32);
         scene.requestFocus(picker.field());
@@ -196,6 +198,85 @@ class DatePickerTest extends ComponentTestBase {
         key(Keys.ENTER, 0);
         assertFalse(handled.isEmpty(), "picking from the grid is the user operating the picker");
         assertEquals(picker.date(), handled.get(handled.size() - 1));
+    }
+
+    /**
+     * The defect this test exists for: the grid is one widget, each presentation built a fresh
+     * panel, and the second panel's {@code add} was refused because the first still held it. The
+     * throw happened inside a click, the scene contained it, and the picker was left reporting
+     * itself open with nothing drawn -- so nothing failed loudly and the popup simply stopped
+     * working after the first use.
+     *
+     * <p>Over a window on purpose: headless the overlay is removed synchronously, and the bug
+     * lives in the path where a fade-out defers that removal, which is every real application.
+     */
+    @Test
+    void theCalendarOpensAgainAfterItHasBeenUsedOnce() {
+        build(new DatePicker());
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        scene.bind(new StubWindow());
+        scene.layoutPass(400, 320);
+        scene.renderFrame(new FakeCanvas(400, 320));
+        for (int round = 1; round <= 3; round++) {
+            picker.open();
+            assertTrue(picker.isOpen(), "round " + round + " did not open");
+            assertNotNull(picker.calendar().parent(),
+                    "round " + round + ": the grid is not in the popup that is showing");
+            picker.close();
+            settle();
+            assertFalse(picker.isOpen());
+        }
+    }
+
+    @Test
+    void aPeriodCanBePickedFromTheGridMoreThanOnce() {
+        build(DatePicker.ofRange());
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        scene.bind(new StubWindow());
+        scene.layoutPass(400, 320);
+        scene.renderFrame(new FakeCanvas(400, 320));
+        for (int round = 1; round <= 2; round++) {
+            picker.open();
+            settle();
+            picker.calendar().setSelectedRange(null);
+            picker.calendar().setSelectedRange(new DateRange(
+                    LocalDate.of(2026, 9, 1 + round), LocalDate.of(2026, 9, 10 + round)));
+            picker.close();
+            settle();
+        }
+        assertFalse(picker.isOpen());
+    }
+
+    /**
+     * The other half of the same defect, and the one the fade-out's own release cannot cover:
+     * closed and reopened before the old card has finished fading, which is what a person does
+     * when they close a popup and immediately think better of it. The grid is taken back from the
+     * card that is still on screen.
+     */
+    @Test
+    void theCalendarOpensAgainEvenWhileTheOldCardIsStillFadingOut() {
+        build(new DatePicker());
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        scene.bind(new StubWindow());
+        scene.layoutPass(400, 320);
+        scene.renderFrame(new FakeCanvas(400, 320));
+        picker.open();
+        settle();
+        picker.close();
+        // One frame only: the fade has started and is nowhere near done.
+        nanos[0] += java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(16);
+        scene.renderFrame(new FakeCanvas(400, 320));
+        picker.open();
+        assertTrue(picker.isOpen());
+        assertNotNull(picker.calendar().parent(), "the grid is in the new popup, not the old one");
+    }
+
+    /** Real time passes, so a fade-out finishes and the overlay is actually taken down. */
+    private void settle() {
+        for (int i = 0; i < 60; i++) {
+            nanos[0] += java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(16);
+            scene.renderFrame(new FakeCanvas(400, 320));
+        }
     }
 
     @Test

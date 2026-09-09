@@ -269,6 +269,90 @@ class CalendarViewTest extends ComponentTestBase {
     }
 
     @Test
+    void theHeaderClimbsToMonthsThenYearsAndBackDown() {
+        build();
+        assertEquals(CalendarView.View.DAYS, calendar.view());
+        calendar.setView(CalendarView.View.MONTHS);
+        assertEquals(CalendarView.View.MONTHS, calendar.view());
+        calendar.setView(CalendarView.View.YEARS);
+        assertEquals(CalendarView.View.YEARS, calendar.view());
+    }
+
+    @Test
+    void theArrowsPageAYearInTheMonthChooserAndABlockInTheYearChooser() {
+        build();
+        calendar.setView(CalendarView.View.MONTHS);
+        scene.requestFocus(calendar);
+        key(Keys.PAGE_DOWN);
+        assertEquals(2027, calendar.visibleMonth().getYear(),
+                "a month chooser pages by a year, not by a month");
+        calendar.setView(CalendarView.View.YEARS);
+        int before = calendar.visibleMonth().getYear();
+        key(Keys.PAGE_DOWN);
+        assertEquals(before + 24, calendar.visibleMonth().getYear(),
+                "and a year chooser by its own block");
+    }
+
+    @Test
+    void enterInAChooserNavigatesAndChoosesNothing() {
+        build();
+        calendar.setView(CalendarView.View.MONTHS);
+        scene.requestFocus(calendar);
+        key(Keys.HOME);      // the first month of the row the cursor starts on
+        key(Keys.UP);
+        key(Keys.UP);        // clamped to the first cell: January
+        key(Keys.ENTER);
+        assertEquals(LocalDate.of(2026, 1, 1), calendar.visibleMonth());
+        assertEquals(CalendarView.View.DAYS, calendar.view(), "it comes back down");
+        assertNull(calendar.selectedDate(), "navigating is not choosing");
+    }
+
+    @Test
+    void aYearPickedOpensItsMonthsRatherThanItsDays() {
+        build();
+        calendar.setView(CalendarView.View.YEARS);
+        scene.requestFocus(calendar);
+        key(Keys.HOME);
+        key(Keys.UP);
+        key(Keys.UP);
+        key(Keys.UP);
+        key(Keys.UP);
+        key(Keys.UP);
+        key(Keys.UP);
+        key(Keys.ENTER);
+        assertEquals(CalendarView.View.MONTHS, calendar.view(),
+                "a year opens its months: the descent is one step at a time");
+        assertEquals(2016, calendar.visibleMonth().getYear(),
+                "and lands on the first year of the block on show");
+    }
+
+    @Test
+    void escapeInAChooserComesBackDownWithoutChoosing() {
+        build();
+        calendar.setView(CalendarView.View.YEARS);
+        scene.requestFocus(calendar);
+        key(Keys.ESCAPE);
+        assertEquals(CalendarView.View.DAYS, calendar.view());
+        assertNull(calendar.selectedDate());
+    }
+
+    @Test
+    void aMonthOrYearWithNoSelectableDayInItIsNotOffered() {
+        build();
+        calendar.setMinDate(LocalDate.of(2026, 6, 1));
+        calendar.setView(CalendarView.View.MONTHS);
+        scene.requestFocus(calendar);
+        // January 2026 is wholly before the minimum: Enter on it does nothing.
+        key(Keys.HOME);
+        for (int i = 0; i < 4; i++) {
+            key(Keys.UP);
+        }
+        key(Keys.ENTER);
+        assertEquals(CalendarView.View.MONTHS, calendar.view(),
+                "a month that leads nowhere refuses, the way a day out of bounds does");
+    }
+
+    @Test
     void writingTheValueTheCalendarAlreadyHoldsAnnouncesNothing() {
         build();
         calendar.setSelectedDate(ANCHOR);

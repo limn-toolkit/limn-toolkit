@@ -482,7 +482,15 @@ public class DatePicker extends Widget {
         }
         switch (event.key()) {
             case Keys.ESCAPE -> {
-                setOpen(false, Change.Origin.USER);
+                // Escape backs out one level at a time: out of the year chooser to the days, and
+                // only then out of the popup. A single Escape that closed the whole thing from
+                // inside a chooser would throw away the navigation as well as the popup.
+                if (calendar.view() != CalendarView.View.DAYS) {
+                    calendar.setView(CalendarView.View.DAYS);
+                    repaintPopup();
+                } else {
+                    setOpen(false, Change.Origin.USER);
+                }
                 event.consume();
             }
             case Keys.UP, Keys.DOWN, Keys.LEFT, Keys.RIGHT, Keys.HOME, Keys.END,
@@ -536,7 +544,30 @@ public class DatePicker extends Widget {
         }
     }
 
+    /**
+     * Takes the grid back from whatever is still holding it.
+     *
+     * <p><b>The grid is one widget and a widget has one parent.</b> Each presentation builds a
+     * fresh panel and that panel adopts the grid, so a second open finds the first panel still
+     * holding it and {@code add} refuses -- correctly, since silently reparenting is how a widget
+     * ends up in two trees. The failure was invisible in the worst way: the throw happens inside a
+     * click, the scene contains it, {@code open} had already been set, and the picker then reports
+     * itself open with nothing drawn. Every later click toggles a popup that never appears.
+     *
+     * <p>The normal path releases it when the fade-out finishes; this call is what makes an open
+     * that arrives BEFORE that fade has finished work anyway, which is exactly the fast
+     * close-then-open a person does. The old card then fades out empty for a few milliseconds,
+     * which is the right trade: the popup being built is the one the user is looking at.
+     */
+    private void releaseCalendar() {
+        Widget holder = calendar.parent();
+        if (holder != null) {
+            holder.remove(calendar);
+        }
+    }
+
     private void presentInScene(Scene owner) {
+        releaseCalendar();
         popupPanel = new PopupPanel();
         popupPanel.setInheritanceHost(this);
         scenePopup = new ScenePopup(popupPanel);
@@ -590,6 +621,7 @@ public class DatePicker extends Widget {
         popupWindow = parent.backend().createWindow(WindowConfig.popup(
                 Math.max(1, Math.round(content.width())), Math.max(1, Math.round(content.height()))));
         parent.registerChildPopup(popupWindow);
+        releaseCalendar();
         popupPanel = new PopupPanel();
         popupPanel.setInheritanceHost(this);
         popupScene = new Scene(popupPanel);
@@ -656,9 +688,13 @@ public class DatePicker extends Widget {
                 closing.requestClose();
             };
             if (closingScene != null) {
-                closingScene.fadeWindowOut(Theme.current().animWindow, destroy);
+                closingScene.fadeWindowOut(Theme.current().animWindow, () -> {
+                    destroy.run();
+                    releaseCalendar();
+                });
             } else {
                 destroy.run();
+                releaseCalendar();
             }
         }
         if (scenePopup != null) {
@@ -671,6 +707,7 @@ public class DatePicker extends Widget {
             }
             if (owner.window() == null) {
                 owner.removeOverlay(closing); // headless: no frame pump to advance a fade
+                releaseCalendar();
                 return;
             }
             owner.addRealTimeTicker(dt -> {
@@ -680,6 +717,9 @@ public class DatePicker extends Widget {
                     return true;
                 }
                 owner.removeOverlay(closing);
+                // Released here rather than at the start of the fade, so the card fades out with
+                // the grid still on it; the next open takes it back whether this ran or not.
+                releaseCalendar();
                 return false;
             });
         }

@@ -168,6 +168,16 @@ are selectable, and picking one pages the grid to that month — the behaviour e
 has, and the one that makes the first three days of next month reachable without a trip through the
 header.
 
+**The header climbs, and this is a correction.** The first cut paged a month at a time and nothing
+else; §11 recorded a month-and-year chooser as deliberately left out, on the argument that "jumping
+to a distant year is what typing into the field is for". That argument is wrong for the one date
+every form asks for and nobody reaches by paging: a date of birth is four hundred presses away, and
+the field is not always there &mdash; a standalone `CalendarView` has none. So the title is a
+button: days climb to the twelve months of the year, months climb to a block of twenty-four years,
+and each pick descends one step. `setView` lets an application open at any level, which is what a
+birth-date picker wants. Descending is navigation and not a choice: no selection is announced and no
+handler runs until a **day** is picked.
+
 The month is paged by the two header buttons, by PageUp and PageDown, and by arrowing off an edge.
 Arrow keys move by a day and a week, Home and End go to the first and last day **of the week**
 (they name a position in a row, so they mirror with the row; §8), and the focused day is a *cursor*
@@ -240,6 +250,12 @@ description when the field holds something unacceptable, and the whole date as a
 `DateField.text()` for an application that wants it. (The first implementation put the whole date
 on the group as a `valueText`; §12 records why that reached nobody.)
 
+The header's title is published as a `BUTTON` carrying `EXPANDED`, because it is the only way to
+the two choosers and a reader never offered it is left paging. In a chooser the grid stays a
+`TABLE`; its cells are named with the month or the year, carry `SELECT` where they lead anywhere,
+and carry **no** selection facet &mdash; telling a reader a month is "selected" would be telling
+them the form holds a value it does not.
+
 **The picker.** The field's subtree, the popup's, and one synthetic `BUTTON` for the calendar
 affordance with `EXPANDED` on the picker itself.
 
@@ -294,6 +310,11 @@ smaller price and each is guarded by `Checks.handlerSlot` like every other.
 chronology axis, bounds, the filter, ranges, week numbers, day marks, the accessible trees, the
 mirroring, the notification contract, the demo scene and the guide.
 
+**Struck off this list on 2026-09-09, the day it was written:** the month and year choosers. They
+were left out here with a reason that did not survive the first person to use the widget, and §4
+now carries the decision instead. A record that keeps an argument after it has been shown wrong is
+worse than one that never made it.
+
 **Left out, deliberately, and each with its reason:**
 
 - **A time row inside the popup.** The popup does not take focus — that is the toolkit's popup
@@ -305,8 +326,6 @@ mirroring, the notification contract, the demo scene and the guide.
   added: which shortcuts a form wants is an application's decision, and a toolkit that ships three
   guesses ships three that are wrong somewhere.
 - **Editing an era** (§3), and with it the Japanese calendar's era transitions.
-- **A month or year picker** reached by clicking the header. Paging is PageUp, PageDown and the two
-  buttons; jumping to a distant year is what typing into the field is for.
 - **A multi-month grid.** Two months side by side is the range-picker convention on the web; it is
   also twice the popup, and a period is typable in the two fields without opening anything.
 - **Time zones and `Instant`** (§9).
@@ -319,6 +338,18 @@ recorded (`M/d/yy`, `dd/MM/y`, `dd.MM.yy`, `y/MM/dd`, `yy. M. d.`, `d.M.y`, `d�
 AH 1300–1600 boundary, the grid's geometry and paging, the range band, bounds and the filter, both
 accessible trees against `AccessibleTestBase`, the mirroring of both widgets, and the four ADR 040
 obligations through `NotificationContractTest`.
+
+**What use found, and the record now says instead of what it said first.** Three things, all from
+the first interactive session rather than from any test. The popup opened once and then never
+again: the grid is one widget, each presentation built a fresh panel, and `Widget.add` refuses a
+child that already has a parent &mdash; correctly, since it fires `onDetached` over a whole subtree
+and silently stealing a child would run that behind the caller's back. The throw happened inside a
+click, the scene contained it, and the picker was left reporting itself open with nothing drawn,
+which is the worst shape a defect can take. The month header read as a sentence fragment, because
+Portuguese writes months in lower case inside a sentence and a heading is not one; the first
+character is now upper-cased through `I18n`, so Turkish gets its dotted capital and caseless
+scripts are untouched. And the navigation was unusable for a date of birth, which is §4's
+correction above.
 
 **What the implementation found, and the record now says instead of what it said first.**
 `Accessibility.valueText` gives an *existing* value a display form; a node with no value facet has
