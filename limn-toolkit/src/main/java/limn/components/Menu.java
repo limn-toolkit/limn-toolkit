@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.concurrent.Ui;
+
 import limn.i18n.I18nString;
 
 import java.util.ArrayList;
@@ -29,6 +31,7 @@ public final class Menu {
 
     /** Appends an item, including a {@linkplain MenuItem#separator() separator}. */
     public Menu add(MenuItem item) {
+        Ui.checkUiThread();
         items.add(Objects.requireNonNull(item, "item"));
         modCount++; // every future mutator must bump this (presenters resync on it)
         return this;

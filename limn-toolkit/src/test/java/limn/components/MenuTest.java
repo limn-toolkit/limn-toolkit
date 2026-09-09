@@ -1,6 +1,7 @@
 package limn.components;
 
 import limn.input.Keys;
+import limn.scene.Change;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,7 +48,7 @@ class MenuTest extends ComponentTestBase {
         AtomicReference<Boolean> reported = new AtomicReference<>();
         MenuItem check = MenuItem.check("Quebra", false, reported::set);
         assertFalse(check.isChecked());
-        check.activate();
+        check.activate(Change.Origin.USER); // what a click, Enter and an accelerator hand over
         assertTrue(check.isChecked());
         assertEquals(Boolean.TRUE, reported.get());
     }

@@ -1,9 +1,9 @@
 package limn.components;
 
-import limn.concurrent.Subscription;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.backend.Cursor;
+import limn.concurrent.Subscription;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
@@ -12,6 +12,7 @@ import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18n;
 import limn.input.Keys;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Size;
@@ -80,6 +81,8 @@ public final class MenuBar extends Widget {
     private DisplayMode displayMode = PopupMenu.defaultDisplayMode();
     /** Unregisters the scene shortcut hook; non-null exactly while attached. */
     private Subscription unhookShortcuts;
+    /** The open dropdown's close observation, released when the bar lets the popup go. */
+    private Subscription popupClosed;
     /**
      * Whether the Alt currently held was pressed alone and nothing has been pressed since: the
      * state that separates "reaching for the menu bar" from "typing Alt+F". Cleared by any other
@@ -517,7 +520,7 @@ public final class MenuBar extends Widget {
      */
     @Override
     protected void onDetached() {
-        closeMenu();
+        closeMenu(Change.Origin.ADJUSTMENT); // the bar left the tree; nobody closed the menu
         if (unhookShortcuts != null) {
             unhookShortcuts.cancel();
             unhookShortcuts = null;
@@ -596,7 +599,7 @@ public final class MenuBar extends Widget {
         for (int i = 0; i < entries.size(); i++) {
             MenuItem item = entries.get(i).menu().findAccelerator(key, modifiers);
             if (item != null) {
-                item.activate();
+                item.activate(Change.Origin.USER); // a chord
                 return true;
             }
         }
@@ -621,15 +624,21 @@ public final class MenuBar extends Widget {
 
     // ------------------------------------------------------------- open/close
 
+    /**
+     * Drops the menu at {@code index}. Every caller is a gesture -- a press or a hover-switch on
+     * a title, Down, Enter, Space or a mnemonic while the bar has focus, an Alt chord, the arrow
+     * walking from a neighbouring dropdown, an assistive technology's expand -- so the
+     * {@code EXPANDED} this announces when the bar goes from closed to open is the user's.
+     */
     private void openMenu(int index) {
         if (scene() == null || index < 0 || index >= entries.size()) {
             return;
         }
+        boolean wasOpen = isOpen();
         if (openPopup != null) {
             PopupMenu old = openPopup;
-            openPopup = null;
-            openIndex = -1;
-            old.close(); // its onClose no-ops now (openPopup no longer == old)
+            releasePopup();
+            old.close(); // its close observer no longer reaches this bar
         }
         // Resolved once here and threaded into the anchor rect: the dropdown must line up with
         // the title the bar painted, and the popup itself takes this bar's step and its
@@ -647,11 +656,13 @@ public final class MenuBar extends Widget {
         float sceneY = localToSceneY();
         PopupMenu popup = new PopupMenu(entries.get(index).menu());
         popup.setDisplayMode(displayMode);
-        popup.onClose(() -> {
+        popupClosed = popup.observeClose(() -> {
+            // The dropdown went away on its own: dismissed, or an item chosen. Both are the
+            // user's, and both flip this bar's expanded state, which is what it announces.
             if (openPopup == popup) {
-                openPopup = null;
-                openIndex = -1;
+                releasePopup();
                 invalidate();
+                notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
             }
         });
         // Previous and next in declaration order, NOT left and right: PopupMenu has already
@@ -668,6 +679,19 @@ public final class MenuBar extends Widget {
         // Anchored on THIS widget, not on the scene: that is what makes a SMALL bar drop a
         // SMALL menu instead of one at the scene's (or the process's) default step.
         popup.showAnchored(this, sceneX, sceneY, titleWidth(index, t), height());
+        if (!wasOpen && isOpen()) {
+            notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
+        }
+    }
+
+    /** Forgets the open dropdown and stops listening to it, without closing it. */
+    private void releasePopup() {
+        if (popupClosed != null) {
+            popupClosed.cancel();
+            popupClosed = null;
+        }
+        openPopup = null;
+        openIndex = -1;
     }
 
     /** @return whether the scene point lies within this bar's strip (its own bounds). */
@@ -681,13 +705,18 @@ public final class MenuBar extends Widget {
         return Rect.contains(bx, by, width(), height(), sceneX, sceneY);
     }
 
+    /** Closes the dropdown as the user's doing: a press on the open title, a reader's collapse. */
     private void closeMenu() {
+        closeMenu(Change.Origin.USER);
+    }
+
+    private void closeMenu(Change.Origin origin) {
         if (openPopup != null) {
             PopupMenu popup = openPopup;
-            openPopup = null;
-            openIndex = -1;
+            releasePopup();
             invalidate();
             popup.close();
+            notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
         }
     }
 

@@ -3,11 +3,13 @@ package limn.components;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.ToggleFacet;
+import limn.backend.CrashPhase;
 import limn.backend.NativeWindow;
 import limn.backend.ScreenRect;
 import limn.backend.WindowConfig;
-import limn.concurrent.Ui;
+import limn.concurrent.Listeners;
 import limn.concurrent.Subscription;
+import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
@@ -18,7 +20,9 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18nString;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.math.Scalars;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.LayoutDirection;
@@ -101,14 +105,20 @@ public final class PopupMenu {
     private static volatile DisplayMode defaultDisplayMode = DisplayMode.NATIVE_WINDOW;
 
     private final Menu rootMenu;
-    private Runnable onClose = () -> { };
+    /**
+     * Who wants to hear that this menu closed: a lifecycle observer list, because a close is
+     * something that happened once and will not un-happen, and a menu bar and an application
+     * may both want to know. Null until the first subscriber.
+     */
+    private Runnable[] closeObservers;
+    private static final Runnable[] NO_OBSERVERS = new Runnable[0];
     // The arrow keys at the root column with nowhere to go: a MenuBar hooks these to walk to
-    // the previous/next top-level menu (no-op for a standalone popup). Named for the sides
+    // the previous/next top-level menu (null for a standalone popup). Named for the sides
     // rather than for the keys because the key that reaches them is flipped in handleKey and
     // these are not: leading always means the previous menu, in either direction, and a second
     // flip out here would cancel the first one and walk the bar against its own submenus.
-    private Runnable onRootLeading = () -> { };
-    private Runnable onRootTrailing = () -> { };
+    private Runnable onRootLeading;
+    private Runnable onRootTrailing;
     // Scene points the fullscreen in-scene overlay should let through to the content
     // beneath it: a MenuBar sets this to its own strip so its titles keep hover-
     // switching (and their cursor) while a dropdown is open, as in native mode.
@@ -192,10 +202,32 @@ public final class PopupMenu {
 
     // ------------------------------------------------------------------- API
 
-    /** Runs {@code listener} when the menu closes (dismissed or an item chosen). */
-    public PopupMenu onClose(Runnable listener) {
-        this.onClose = Objects.requireNonNull(listener, "listener");
-        return this;
+    /**
+     * Observes this menu closing: a dismissal, an item chosen, or a {@link #close()} from code
+     * alike, because a close is a lifecycle fact and not a gesture. Any number may observe; the
+     * menu bar that built this popup holds one, and an application may hold another.
+     *
+     * @param observer what to run when the menu closes; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
+     */
+    public Subscription observeClose(Runnable observer) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(observer, "observer");
+        closeObservers = Listeners.added(closeObservers, observer, NO_OBSERVERS);
+        return new Subscription() {
+            private Runnable pending = observer;
+
+            @Override
+            public void cancel() {
+                Ui.checkUiThread();
+                Runnable taken = pending;
+                if (taken == null) {
+                    return;
+                }
+                pending = null;
+                closeObservers = Listeners.removed(closeObservers, taken);
+            }
+        };
     }
 
     /**
@@ -205,7 +237,8 @@ public final class PopupMenu {
      * "the previous menu" in either direction and must not flip again.
      */
     public PopupMenu onRootLeading(Runnable listener) {
-        this.onRootLeading = Objects.requireNonNull(listener, "listener");
+        Ui.checkUiThread();
+        this.onRootLeading = Checks.handlerSlot(onRootLeading, listener, "PopupMenu.onRootLeading");
         return this;
     }
 
@@ -216,7 +249,8 @@ public final class PopupMenu {
      * {@link #onRootLeading} states the direction rule both share.
      */
     public PopupMenu onRootTrailing(Runnable listener) {
-        this.onRootTrailing = Objects.requireNonNull(listener, "listener");
+        Ui.checkUiThread();
+        this.onRootTrailing = Checks.handlerSlot(onRootTrailing, listener, "PopupMenu.onRootTrailing");
         return this;
     }
 
@@ -421,7 +455,16 @@ public final class PopupMenu {
                 o.removeOverlay(s); // headless: no frame pump, remove at once
             }
         }
-        onClose.run();
+        Runnable[] closing = closeObservers;
+        if (closing != null) {
+            for (Runnable observer : closing) {
+                try {
+                    observer.run();
+                } catch (Throwable error) {
+                    Listeners.failed(CrashPhase.OBSERVER, error);
+                }
+            }
+        }
     }
 
     // --------------------------------------------------- in-scene fallback
@@ -1351,7 +1394,7 @@ public final class PopupMenu {
                 openSubmenu(c, i);
                 changed();
             } else {
-                item.activate();
+                item.activate(Change.Origin.USER); // a click on the row
                 close();
             }
         }
@@ -1413,13 +1456,17 @@ public final class PopupMenu {
                         if (i >= 0 && col.menu.items().get(i).hasSubmenu()) {
                             openSubmenu(deep, i);
                         } else if (deep == 0) {
-                            onRootTrailing.run(); // MenuBar: walk to the next menu
+                            if (onRootTrailing != null) {
+                                onRootTrailing.run(); // MenuBar: walk to the next menu
+                            }
                             return true;
                         }
                     } else if (deep > 0) {
                         truncateTo(deep - 1);
                     } else {
-                        onRootLeading.run(); // MenuBar: walk to the previous menu
+                        if (onRootLeading != null) {
+                            onRootLeading.run(); // MenuBar: walk to the previous menu
+                        }
                         return true;
                     }
                 }
@@ -1430,7 +1477,7 @@ public final class PopupMenu {
                         if (item.hasSubmenu()) {
                             openSubmenu(deep, i);
                         } else if (item.isSelectable()) {
-                            item.activate();
+                            item.activate(Change.Origin.USER); // Enter or Space on the highlight
                             close();
                             return true;
                         }

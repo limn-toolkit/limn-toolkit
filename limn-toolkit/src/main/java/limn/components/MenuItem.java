@@ -1,5 +1,8 @@
 package limn.components;
 
+import limn.concurrent.Ui;
+import limn.scene.Change;
+
 import limn.i18n.I18nString;
 
 import java.util.Objects;
@@ -67,8 +70,9 @@ public final class MenuItem {
         return of(wrap(label), action);
     }
 
-    /** A command whose label follows the UI language; see {@link I18nString}. */
+    /** A command whose label follows the UI language; see {@link I18nString}. UI thread. */
     public static MenuItem of(I18nString label, Runnable action) {
+        Ui.checkUiThread();
         MenuItem item = new MenuItem(Kind.COMMAND, Objects.requireNonNull(label, "label"));
         item.action = Objects.requireNonNull(action, "action");
         return item;
@@ -82,8 +86,9 @@ public final class MenuItem {
         return check(wrap(label), checked, onToggle);
     }
 
-    /** A checkable item whose label follows the UI language. */
+    /** A checkable item whose label follows the UI language. UI thread. */
     public static MenuItem check(I18nString label, boolean checked, Consumer<Boolean> onToggle) {
+        Ui.checkUiThread();
         MenuItem item = new MenuItem(Kind.CHECK, Objects.requireNonNull(label, "label"));
         item.checked = checked;
         item.onToggle = Objects.requireNonNull(onToggle, "onToggle");
@@ -240,8 +245,19 @@ public final class MenuItem {
      * Runs the item's effect: a command runs its action; a check flips and
      * reports its state. Submenus/separators do nothing here (the presenter
      * opens the submenu). Never called for a disabled item.
+     *
+     * <p>Package-private, and every caller is an input handler -- a click on a row, Enter or
+     * Space on the highlight, and an accelerator chord -- so the origin they hand over is
+     * {@code USER} and nothing else, and the item's action and {@code onToggle} are the
+     * application's response to it. A menu item is not a widget and announces nothing; what a
+     * watcher can hear is the surface that presents it. Reading this method as a caller's verb
+     * on the strength of its name would leave every menu in the toolkit clicking and doing
+     * nothing, which is why the origin is asserted here rather than assumed.
      */
-    void activate() {
+    void activate(Change.Origin origin) {
+        if (origin != Change.Origin.USER) {
+            return; // the handlers answer the user; no other origin reaches here today
+        }
         switch (kind) {
             case COMMAND -> action.run();
             case CHECK -> {
