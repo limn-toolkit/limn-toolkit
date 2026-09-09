@@ -1032,7 +1032,14 @@ public class CalendarView extends Widget {
         float pad = t.spacingSmall();
         headerH = t.resolvedHeight(ruler.measure("Hg", t.body()).lineHeight());
         weekdayH = ruler.measure("Hg", t.label()).lineHeight() + t.spacingSmall();
-        weekColW = showWeekNumbers ? t.calendarWeekColumn() : 0;
+        // Only where something is drawn in it. Reserving the week gutter in a chooser as well
+        // looked like the conservative choice -- keep the geometry identical across views -- and
+        // was measurably wrong: nothing is drawn there, so the four columns were centred inside a
+        // box that included a phantom column, putting them half its width (12pt at MEDIUM) off the
+        // widget's centre while the title above them stayed centred on the widget. The box's
+        // WIDTH is still view-independent, which is the part that matters: onMeasure asks for the
+        // day grid's width in every view, so climbing does not resize the popup.
+        weekColW = showWeekNumbers && view == View.DAYS ? t.calendarWeekColumn() : 0;
         // The grid takes what is left and shares it, so a calendar stretched by its parent fills
         // the box rather than huddling at one end of it; never below the step's own cell, which is
         // the hit target the size axis promises.

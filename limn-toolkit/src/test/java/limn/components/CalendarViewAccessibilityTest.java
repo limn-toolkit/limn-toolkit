@@ -202,6 +202,32 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
                 "the first button is the one that goes back");
     }
 
+    /**
+     * The cells sit centred on the widget in every view, like the title above them.
+     *
+     * <p>Measured rather than eyeballed, because the defect this pins was twelve points and looked
+     * like nothing until somebody noticed it: the week-number gutter was reserved in every view, so
+     * a chooser centred its four columns inside a box that included a column nothing is drawn in.
+     * Read from the published boxes, which is the same geometry a click lands in.
+     */
+    @Test
+    void theCellsAreCentredOnTheWidgetInEveryView() {
+        CalendarView calendar = bindCalendar();
+        calendar.setShowWeekNumbers(true);
+        for (CalendarView.View view : CalendarView.View.values()) {
+            calendar.setView(view);
+            frame();
+            float left = Float.MAX_VALUE;
+            float right = -Float.MAX_VALUE;
+            for (AccessibleNode cell : dayNodes()) {
+                left = Math.min(left, cell.x());
+                right = Math.max(right, cell.x() + cell.width());
+            }
+            assertEquals(calendar.width() / 2, (left + right) / 2, 0.01f,
+                    view + ": the cells are off the widget's centre");
+        }
+    }
+
     @Test
     void theTitleIsAButtonThatClimbsToTheMonthAndYearChoosers() throws InterruptedException {
         CalendarView calendar = bindCalendar();
