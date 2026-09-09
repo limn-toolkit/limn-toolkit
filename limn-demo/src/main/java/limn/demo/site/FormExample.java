@@ -92,10 +92,15 @@ public final class FormExample {
     /**
      * Validation is a handler and two writes: the field's own state, which recolours its
      * border, and a message beneath it. The message label is created whether or not it has
-     * text, so the form does not jump by a line the first time it fails.
+     * text, so the form does not jump by a line the first time it fails, and it is bound to the
+     * field as its description, so a screen reader speaks it after "Email, invalid" rather than
+     * leaving it as a sentence somewhere else on the screen.
      */
     // #region guide:form-validation
     static void validate(TextField email, Label message) {
+        // The message is the field's description, the way the caption is its name: declared,
+        // never inferred from the message sitting beneath the field.
+        message.setDescriptionFor(email);
         email.onChange(text -> {
             boolean ok = text.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
             email.setValidation(ok ? TextField.Validation.SUCCESS : TextField.Validation.ERROR);

@@ -204,6 +204,46 @@ public class Label extends Widget {
         return labelFor;
     }
 
+    /** The widget this label describes, or {@code null}; see {@link #setDescriptionFor(Widget)}. */
+    private Widget descriptionFor;
+
+    /**
+     * Makes this label the accessible description of another widget, the way the message beneath
+     * a field says why the field is invalid. UI thread only.
+     *
+     * <p>The same rule as {@link #setLabelFor}: a message that merely sits under a field describes
+     * nothing until this is called, one widget at a time, and {@code null} removes the link. The
+     * described widget takes this label's text as its description, read at publish so a message
+     * that changes follows, and carries a {@code DESCRIBED_BY} relation back to this label; a
+     * reader then speaks the message after the field's name and state rather than finding it as a
+     * sentence somewhere else on the screen.
+     *
+     * <p>A label may name one widget and describe another at once; a caption and a message are
+     * two different labels in a form, and this is what keeps them from having to be the same one.
+     *
+     * @param target the widget this label describes, or {@code null} to remove the link
+     * @return this label, for chaining
+     */
+    public Label setDescriptionFor(Widget target) {
+        Ui.checkUiThread();
+        if (descriptionFor == target) {
+            return this;
+        }
+        if (descriptionFor != null) {
+            descriptionFor.setAccessibleDescribedBy(null);
+        }
+        descriptionFor = target;
+        if (target != null) {
+            target.setAccessibleDescribedBy(this);
+        }
+        return this;
+    }
+
+    /** The widget this label describes, or {@code null}; see {@link #setDescriptionFor(Widget)}. */
+    public Widget descriptionFor() {
+        return descriptionFor;
+    }
+
     @Override
     protected I18nString accessibleLabelText() {
         return text;

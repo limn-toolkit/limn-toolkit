@@ -37,7 +37,7 @@ Four `protected` hooks on `Widget`, and a widget usually overrides one or two:
 | `performSyntheticAction(key, action, arg)` | performing a verb on something the widget *paints* rather than parents |
 
 `Accessibility` is a reusable builder, filled in and read by the walk; it is not a node you keep.
-Everything a widget says is declared — a role, a name, a `LABELLED_BY` relation — and **nothing is
+Everything a widget says is declared — a role, a name, a `LABELLED_BY` or `DESCRIBED_BY` relation — and **nothing is
 inferred from geometry**. A label drawn next to a field does not become that field's name because it
 is nearby; that is how a reader ends up confidently saying the wrong thing.
 

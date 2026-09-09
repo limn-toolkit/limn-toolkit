@@ -2033,9 +2033,10 @@ public abstract class Widget {
      */
     private AccessibleOverrides accessibleOverrides;
 
-    /** The four application-set overrides, in one object so an unnamed widget carries one field. */
+    /** The application-set overrides, in one object so an unnamed widget carries one field. */
     private static final class AccessibleOverrides {
         Widget labelledBy;
+        Widget describedBy;
         limn.i18n.I18nString name;
         limn.i18n.I18nString description;
         limn.accessibility.Accessible.Role role;
@@ -2093,6 +2094,33 @@ public abstract class Widget {
     /** The widget whose text names this one, or {@code null}. Read by the publish step. */
     final Widget accessibleLabelledBy() {
         return accessibleOverrides == null ? null : accessibleOverrides.labelledBy;
+    }
+
+    /**
+     * Describes this widget from another widget's text, the way the message beneath a field says
+     * why the field is invalid. UI thread only.
+     *
+     * <p>The same rule as {@link #setAccessibleLabelledBy}: declared and never inferred, one at a
+     * time, {@code null} removes it, and the text is read from the source on every publish so a
+     * message that changes its string describes with nothing to keep in step. The described node
+     * carries a {@link limn.accessibility.Accessible.Relation#DESCRIBED_BY} relation to the
+     * source, so a client may read either.
+     *
+     * <p>A bound description beats the tooltip the walk would otherwise fall back on, and an
+     * explicit {@link #setAccessibleDescription(limn.i18n.I18nString)} beats both.
+     *
+     * @param source the widget whose text describes this one, or {@code null} to remove the link
+     * @see limn.components.Label#setDescriptionFor(Widget)
+     */
+    public final void setAccessibleDescribedBy(Widget source) {
+        Ui.checkUiThread();
+        overrides().describedBy = source;
+        invalidateAccessible();
+    }
+
+    /** The widget whose text describes this one, or {@code null}. Read by the publish step. */
+    final Widget accessibleDescribedBy() {
+        return accessibleOverrides == null ? null : accessibleOverrides.describedBy;
     }
 
     /**

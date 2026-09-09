@@ -1503,8 +1503,9 @@ public class TextField extends Widget {
      * node.
      *
      * <p>No description of its own. The validation message beside a field is a {@code Label} the
-     * application owns and this widget holds no string for it; what {@link #setValidation} holds is
-     * a colour.
+     * application owns and binds with {@link Label#setDescriptionFor}, which is what makes it the
+     * field's description and gives the field a {@code DESCRIBED_BY} relation to it; this widget
+     * holds no string for it, and what {@link #setValidation} holds is a colour.
      */
     @Override
     protected void onAccessibility(Accessibility a) {
@@ -1518,8 +1519,7 @@ public class TextField extends Widget {
         // publishing INVALID there would announce a field that just passed as failing. WARNING and
         // INFO carry no bit either -- the platform flag is a boolean, so folding this widget's
         // four-way vocabulary into it loses the distinction the vocabulary exists to draw, and the
-        // message that draws it is an application Label reachable through a description or a
-        // declared relation.
+        // message that draws it is an application Label bound through Label.setDescriptionFor.
         a.state(Accessible.State.INVALID, validation == Validation.ERROR);
         // The field raises the Cut/Copy/Paste/Select All menu from the pointer and from the
         // keyboard, and without the verb a reader has no route to any of those four operations at

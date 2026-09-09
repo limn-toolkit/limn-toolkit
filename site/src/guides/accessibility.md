@@ -69,6 +69,18 @@ carry.
 
 {% snippet guide:a11y-image %}
 
+The message beneath a field is a description too, and it is bound the way a caption is,
+because a sentence that merely sits under a field explains nothing to a reader that cannot
+see where it sits:
+
+```java
+message.setDescriptionFor(email);
+```
+
+The form above does that for its email error, which is why the transcript shows the field as
+*described by* the message: a reader hears "Email, text field, invalid, enter an address
+like…" and not an invalid field with the reason somewhere else on the screen.
+
 A picture that the text beside it already describes is decoration. Mark it ignored, and it
 leaves the tree entirely; leave it unmarked and it is published as an image with no name, on
 purpose, so that a check like the one below finds it and the decision is yours.

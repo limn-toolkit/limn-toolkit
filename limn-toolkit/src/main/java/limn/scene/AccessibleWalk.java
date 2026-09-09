@@ -306,6 +306,17 @@ final class AccessibleWalk {
             }
             builder.relation(Accessible.Relation.LABELLED_BY, label);
         }
+        // The same shape for the description: a bound message's text, read at publish, then the
+        // explicit description below if the application wrote one, and the tooltip default after
+        // this method only when neither said anything.
+        Widget describer = widget.accessibleDescribedBy();
+        if (describer != null) {
+            limn.i18n.I18nString message = describer.accessibleLabelText();
+            if (message != null) {
+                builder.description(message);
+            }
+            builder.relation(Accessible.Relation.DESCRIBED_BY, describer);
+        }
         limn.i18n.I18nString name = widget.accessibleName();
         if (name != null) {
             builder.name(name, Accessible.NameFrom.EXPLICIT);

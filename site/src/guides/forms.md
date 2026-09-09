@@ -67,10 +67,13 @@ blur, or only when the user presses the submit button.
 
 {% snippet guide:form-validation %}
 
-Two details in there earn their place. The message label exists whether or not it has text,
-so the form does not jump by a line the first time a field fails. And the rule runs on
-change, which means the error clears itself as soon as the user fixes it. A form that only
-revalidates on submit makes people press the button to find out whether they are done.
+Three details in there earn their place. The message label exists whether or not it has text,
+so the form does not jump by a line the first time a field fails. It is bound to the field as
+its *description*, the way the caption is bound as its name, so a screen reader says "Email,
+text field, invalid, enter an address like…" instead of leaving the reason as a sentence
+somewhere else on the screen. And the rule runs on change, which means the error clears itself
+as soon as the user fixes it. A form that only revalidates on submit makes people press the
+button to find out whether they are done.
 
 :::tip[Validate late, clear early]
 Showing an error before someone has finished typing reads as nagging. A good default is to
