@@ -1447,7 +1447,10 @@ public class Table<T> extends Widget implements Scrollable {
         if (theme != tintTheme) {
             tintTheme = theme;
             selectionTint = theme.primary.withAlpha(0.18f);
-            stripeTint = theme.surfaceRaised.withAlpha(0.5f);
+            // The text colour, faintly, and not the raised surface: the text always contrasts
+            // with the surface it sits on, in every palette, while a raised surface sits one or
+            // two greys away from the flat one in the light palettes and half of that is nothing.
+            stripeTint = theme.text.withAlpha(0.045f);
         }
     }
 
