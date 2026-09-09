@@ -40,9 +40,19 @@ ListView list = new ListView(new ListView.Adapter() {
         return new Padding(Insets.symmetric(9, 14), new Label(people.get(index).name()));
     }
 });
-list.onSelect(index -> detail.show(people.get(index)));
+list.observeChanges((widget, change) -> {
+    if (change.aspect() == Change.Aspect.SELECTION) {
+        detail.show(list.selectedIndex() < 0 ? null : people.get(list.selectedIndex()));
+    }
+});
 list.onActivate(index -> open(people.get(index)));
 ```
+
+The detail pane *watches* the selection rather than handling it: it must follow the selection
+wherever it came from — a click, an arrow key, a `setSelectedIndex` from code, a refresh that
+dropped the selected row — and `onSelect` is the application's response to the *user* choosing a
+row, which runs for none of the others. `onActivate` is a handler and stays one: opening a record
+is something the user asks for.
 
 `rowAt` is called on demand and may be called again for the same row after it has scrolled
 out and back. Build the widget there; do not cache one per data item, or you have rebuilt

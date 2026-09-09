@@ -38,13 +38,32 @@ rather than "text field". A caption that merely sits above a field names nothing
 | `Checkbox` | a boolean, as a box or as a switch |
 | `RadioButton` | one of several, grouped by a `ButtonGroup` |
 
-Each reports changes through a listener rather than an event object:
+Each has two channels, and they answer two different questions. The fluent `onX` slot is the
+**handler**: the application's one response to the *user* operating the widget, and it never runs
+for a value the application wrote itself, so a form that fills its fields from a record cannot
+echo back into its own model:
 
 ```java
 TextField email = new TextField();
 email.setPlaceholder("ada@example.com");
-email.onChange(text -> model.setEmail(text));
+email.onChange(text -> model.setEmail(text));   // the user typed
+email.setText(record.email());                  // the application wrote: onChange stays silent
 ```
+
+Anything that must *mirror* a widget, wherever the change came from — a character counter, a
+detail pane, a two-way binding — **watches** it instead. A watcher hears every change with its
+origin, and the handle it gets back is the one way to stop:
+
+```java
+Subscription watching = email.observeChanges((widget, change) -> {
+    if (change.aspect() == Change.Aspect.TEXT) {
+        counter.setText(email.text().length() + " / 80");
+    }
+});
+```
+
+A handler slot holds one handler: registering a second one throws, and `null` clears it. Two
+parties that both want to hear the same widget are both watching, and watching has no such limit.
 
 ## Validation
 

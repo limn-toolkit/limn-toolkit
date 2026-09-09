@@ -120,7 +120,7 @@ thing; nothing sets it by default.
 
 The title, every series name and every category label are held as `I18nString` and resolved
 at paint time, with `String` overloads that wrap a literal. That is not decoration: `Scene`
-subscribes to `I18n.addChangeListener`, so a language change already re-measures and
+subscribes to `I18n.observeChanges`, so a language change already re-measures and
 repaints the tree; a chart holding raw `String`s would simply keep yesterday's language
 while every `Label` around it changed.
 

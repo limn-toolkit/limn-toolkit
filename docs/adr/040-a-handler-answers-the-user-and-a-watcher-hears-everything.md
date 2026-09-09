@@ -1,9 +1,12 @@
 # ADR 040. A handler answers the user, and a watcher hears everything
 
-- **Status:** Proposed, 2026-09-03. Nothing here is implemented. §0 is what a three-part sweep of
-  every registration, every fan-out and every prospective consumer in the repository established,
-  together with a benchmark of the eight shapes a fan-out could take, before any of it was decided.
-  §1 is the decision; §3 breaks published API.
+- **Status:** Accepted, 2026-09-03; **implemented 2026-09-09**, on `claude/adr-040`, in the order
+  §3 sets out: the types and the one fan-out, the base class, the components family by family,
+  the applications, the tests, this record. §0 is what a three-part sweep of every registration,
+  every fan-out and every prospective consumer in the repository established, together with a
+  benchmark of the eight shapes a fan-out could take, before any of it was decided. §1 is the
+  decision; §3 breaks published API; **§7 is what the implementation found**, row by row, where
+  this record's survey was wrong and which of its open items closed on the way.
 - **What in this record is exact, and what is a survey.** **Exact**: the rule (§1.2), the origin
   definition and its three clauses (§1.3), the API (§1.4), the ordering and the containment (§1.6),
   the thread, allocation and lifetime rules (§1.7), the four obligations on a component author
@@ -2320,16 +2323,32 @@ sample and a frame all allocate exactly what they allocate today.
 one-to-three element array, at human rate.
 
 **Those figures are the array walk and nothing else, and the delivery path is longer than the array
-walk.** §0.2 benchmarked eight fan-out shapes, which is what decided the storage; it did not
-benchmark this design's whole `notifyChange`, which on the `USER` path is the paint-depth read of
-§1.7, two null checks, two array walks (the widget's and the scene's), a virtual
-`handleUserChange` call, a `switch` over an enum and the slot invocation, plus a per-listener `try`
-at each visit. Nothing in that list is expensive and
-none of it allocates, and the shape decisions above do not depend on the total. But **a number
-measured for one thing must not be quoted for another**, so the honest statement is: the storage is
-measured, the whole path is not, and §6.10 names the experiment — the same `AllocationProbe` and
-least-of-N harness §0.2 used, over `notifyChange` end to end at zero, one and three watchers with and
-without a handler, run before the implementation is called done rather than after.
+walk**, so the whole path was measured before the implementation was called done (§6.10):
+`scripts/bench/NotifyBench.java`, the same harness as §0.2 — Zulu 21.0.12 on aarch64,
+`-XX:+UseSerialGC`, escape analysis off, four watcher classes so the site is megamorphic,
+allocation from the per-thread counter `AllocationProbe` reads, least of 6 × 100 000 — over
+`notifyChange` end to end with the widget's watchers, the scene's, the paint-depth read, the two
+`try`s per visit, the virtual `handleUserChange` and the handler, and over `notifyTextEdit` on a
+synthetic keystroke run. Every shape was run twice and the second pass reported, so no shape is
+measured while it is the first the compiler has seen:
+
+| shape | ns/call | B/call |
+|---|---|---|
+| `notifyChange`, nobody watching, `CODE` | 1.7 – 2.1 | 0 |
+| `notifyChange`, nobody watching, `USER` (the handler runs) | 2.4 | 0 |
+| `notifyChange`, one watcher on the widget and one on the scene | 3.7 – 5.1 | 0 |
+| `notifyChange`, three on the widget and one on the scene, with the handler | 7.0 – 7.9 | 0 |
+| `notifyTextEdit`, nobody watching, `USER` (the handler runs, nothing is built) | 1.0 – 1.5 | 0 |
+| `notifyTextEdit`, one watcher | 7.9 – 8.7 | **32** |
+| `notifyTextEdit`, three watchers | 9.1 – 9.5 | **32** |
+
+The ranges are two runs. In each run exactly one shape came out near 11 ns, a different one each
+time, which is the just-in-time compiler's artefact on that shape and not the path's; the least of
+six inside a run does not remove it and a third run moved it again, so the honest report is the
+band and not a single figure. What the table says is what §1.7 promised: **the quiet path is two
+nanoseconds and no bytes, a watcher costs the walk and no bytes, and a keystroke builds one
+32-byte record when something is watching and nothing when nothing is** — the same 32 bytes at
+one watcher and at three.
 
 **The one path that allocates:** a text edit, one small record per edit, on a path that already
 allocates one input event per keystroke.
@@ -2467,19 +2486,30 @@ an appeal to a suite this record replaces would have been no evidence at all.
    It takes an `Origin` instead, and its three callers pass `USER` (§1.3, §1.5, §3.1), and §3.5
    asserts that a click, an Enter and an accelerator each still run the item. What these four cannot
    be *read* from is this channel; whether they still work is not in question.
-2. **An assistive technology cannot set a value as the user.** §1.5. ADR 039 §1.9 decides the
-   action set — twelve parameterless verbs plus four parameterised ones, each dispatched so that the
-   widget performs its own action and therefore enters its own from-user funnel — so the answer
-   exists in design and waits on that record's implementation. Until then, an assistive technology
-   that drags a slider or types into a field reaches the handler through synthesised input, and one
-   that *sets* a value through a platform pattern reaches the watchers only, so an application whose
-   response to a slider lives in `onChange` does not run. The
+2. **~~An assistive technology cannot set a value as the user.~~ Closed, and it closed the other
+   way round from how this item expected.** ADR 039's action set had landed before this record was
+   implemented: twenty-two components override `onAccessibilityAction` or `onSyntheticAction`,
+   and every one of them reached the widget's own mutator — `Slider` through `apply(v, true)`,
+   `Checkbox` through `toggle()`, `ComboBox` through `commit()` or `setSelectedIndex()`. Under
+   §1.2 read naively, `toggle()` and `setSelectedIndex()` became `CODE`, so implementing this
+   record without §7's row would have **silenced every reader-driven action** — the opposite of
+   the gap this item named. So every accessibility action passes `USER` into the seam, which is
+   what §1.3 already said a technology performing the control's action on the person's behalf
+   is, and `NotificationContractTest` drives the reader's press, toggle, select and set through
+   the same assertions a click gets. What the item feared — a `setValue` pattern reaching the
+   watchers only — cannot arise, because the platform pattern enters the seam at `USER`. The
    alternative — an `Origin`-taking public overload on every value mutator — was refused here because
    it invites an application to assert something the toolkit cannot check, and because the shape of
    `increment`, `decrement` and `setValueAs` is decided by what a platform action set needs and not
    by this record. When those verbs land they are `USER` and they reach the handler with no further
    decision required.
-3. **`NAME` cannot be announced by four widgets** until `Checkbox`, `RadioButton`, `SegmentedControl`
+3. **~~`NAME` cannot be announced by four widgets~~ Closed by ADR 039 §8 landing first:**
+   `Checkbox.text()`/`textSource()`, `RadioButton.text()`/`textSource()`,
+   `SegmentedControl.segmentSource(int)` and `TabbedPane.tabTitleSource(int)` all exist, so the
+   accessor obligation no longer bites here — and the implementation found the other half of the
+   row was moot: `Checkbox` has no label setter at all, so it has no `NAME` to announce, while
+   `RadioButton.setText` announces one. Kept as written below for the record of what was
+   expected. Originally: until `Checkbox`, `RadioButton`, `SegmentedControl`
    and `TabbedPane` gain the `text()` and `textSource()` pair `Button` and `Label` already have,
    because §1.4 forbids announcing an aspect no accessor answers. ADR 039 §8 supplies all four —
    `text()`/`textSource()` on `Checkbox` and `RadioButton`, an `I18nString` segment list with
@@ -2546,7 +2576,9 @@ an appeal to a suite this record replaces would have been no evidence at all.
    skims past: `MenuItem.activate()` reads as `CODE` on the strength of its name even to a reader
    who has the clause that forbids it in front of them, because the clause is about the entry point
    and the name is about the method.
-10. **The delivery path has not been benchmarked end to end.** §0.2 measured eight fan-out shapes and
+10. **~~The delivery path has not been benchmarked end to end.~~ Closed: §4 carries the table,
+    and `scripts/bench/NotifyBench.java` is the experiment, re-runnable in one line.** Originally:
+    §0.2 measured eight fan-out shapes and
     that is what chose the storage; it did not measure this design's `notifyChange`, which adds a
     second array walk for the scene, the paint-depth read of §1.7, a virtual call, a `switch` and
     the slot invocation on the `USER` path. Nothing in §1 depends on the total, and §4 quotes the fan-out figures for the fan-out and
@@ -2616,6 +2648,16 @@ an appeal to a suite this record replaces would have been no evidence at all.
     inside one component, and it is the one whose shape is most likely to change when it is written.
     What is decided here is the requirement — a keyboard-driven focus move is `FOCUS`/`USER` and the
     public `requestFocus()` is `FOCUS`/`CODE` — and not the exact spelling of the sibling.
+    **Spelled, in the implementation:** `Scene.requestFocus(Widget, Origin)` package-private, and
+    on `Widget` a **`protected final requestFocus(Origin)`** rather than a package-private one,
+    because the two components are in `limn.components` and package-private on `limn.scene.Widget`
+    would not reach them; `protected` is the right side of the line anyway, since labelling the
+    origin is a component author's obligation and an application still has no way to say `USER`.
+    Each component reaches it on *another* widget through a package-private one-liner on that
+    widget's own class — `RadioButton.focusFrom(Origin)`, `TabHeader.focusFrom(Origin)` — the way a
+    radio group already drives its members. Java's protected rule is what forces the wrapper: a
+    subclass may call an inherited protected method only on itself or on its own subtype, not on a
+    sibling.
 16. **A subtree's locale moves every name under it, and the channel says only `LAYOUT`.**
     `Widget.setLocale` (ADR 035) changes the language every descendant's `I18nString`s resolve in,
     so a watcher's cached names, descriptions and formatted values all go stale together — and the
@@ -2632,3 +2674,92 @@ an appeal to a suite this record replaces would have been no evidence at all.
     a move in either re-resolves every name in the tree (039 §1.7). Like §6.1, this is a hole in
     this channel and not in that tree, and what it costs is a two-way binding, an inspector or an
     application watcher that follows a widget's text.
+
+---
+
+## 7. What the implementation found
+
+Every row of §1.5 and §3.1 was settled against its component's own code, as §3.6 said it would be,
+and this section is what that settling turned up: where the survey was wrong, what closed on the
+way, and the decisions the implementation had to take that no section above had taken. It is
+written so that the next reader of §3.1 knows which rows to trust and which this section overrules.
+
+### 7.1 The survey's errors, beyond the ones §3.6 already tabulated
+
+| the reading that was wrong | what the source said | what was done |
+|---|---|---|
+| §0.1, §1.9: four process-wide axes each keep a copy-on-write list | they already shared one class, `limn.concurrent.ChangeListeners` (`addIfAbsent`/`remove`/`fire`), from the centralize-duplicates round | its storage became `Listeners`' array and its API one `observe(Runnable): Subscription`; the five axes are one line each |
+| §1.9: a `Scene` subscribes to `Theme` and answers `invalidate()` | `limn.scene` had never imported `limn.components`, and `Theme` is a `limn.components` type; the subscription would have been the first inversion of that layering, in the core the components are built on | `Theme` is the fifth axis in its API — `observeChanges` and a `setCurrent` that notifies — and **no scene subscribes**; a palette switch stays the caller's to answer with the `invalidate()` it already writes, and the javadoc that once told callers to `markNeedsLayout()` now says so. Decided with the owner (option: accept the inversion; option: a weak scene registry in `limn.scene`, which ADR 002 refused) |
+| §1.2: `Widget.setFocusable` and `setTooltip` lack the idempotence guard | both had it — `setFocusable` a `==` and `setTooltip` an `Objects.equals` | nothing to add; the `Objects.equals` on the tooltip is what §3.1's row asks for, and it was already there |
+| §3.1: the four inherited setters are non-final today | `setFocusable` was already `final`, as §3.7 item 5 said; **`RadioButton` overrode `setEnabled`** to re-decide its group's tab stop, which §3.7's "any subclass outside this repository" did not foresee | the override became the first component to hear its own state through the channel: `attachToGroup` watches the member's own `ENABLED` |
+| §3.1 has no row for accessibility | ADR 039 was implemented: twenty-two `onAccessibilityAction`/`onSyntheticAction` overrides reach public mutators | every one passes `USER` into the seam; §6.2 closed the other way round (above) |
+| §0.1: twenty-seven fluent slots; §3.6: ~376 sites | ADR 041's `Table` added `onSelect(Runnable)`, `onActivate(IntConsumer)` and `onSortRequest(BiConsumer)`: **thirty** slots; the demo held 115 widget-slot registrations rather than 106, and the trees counted 50 / 156 / 126 / 16 / 6 / 4 by §3.6's own rule, ~358 in all | the table has its own row (§7.2) |
+| §0.13: five gestures reach a public mutator | **eight**: `ListView`'s click-to-focus reached the public `requestFocus()`; `Table`'s Ctrl+A reached the public `selectAll()`; and the Tab key reached the public `Scene.focusTraverse(boolean)` | each got its seam; `focusTraverse` keeps its public `CODE` reading and a private origin-carrying twin the key path enters |
+| §3.1 `Checkbox`: announces `NAME` once it has accessors | it has the accessors and **no label setter**, so there is no `NAME` change to announce | nothing announced; `RadioButton.setText` announces `NAME` |
+| §1.4: the text delta is computed at six sites inside `TextEditModel` | every one of the six reaches one private `splice(start, end, value)`, which already holds the triple | the character damage is noted in `splice`, once, and composes there |
+| §3.1 `ScrollBar`: "thumb position" is silent state (§0.12 item 15) | the bar's offset is its host's, read through `Model.offset()` | the bar announces nothing; the host announces `VALUE`, `USER` when the bar's model wrote it — which is the only way a bar ever writes |
+| §1.10: structure arrives from `add`, `remove`, the scene constructor and the overlay push and pop | `children()` does not list overlays, so a `CHILDREN` on the root for an overlay would violate the accessor obligation | `Widget.add`/`remove` announce `CHILDREN`/`CODE` on the parent; an overlay push announces nothing, and a scene watcher hears the overlay's own widgets directly |
+| §6.6: `ListView`'s cell mounting is `CHILDREN`/`ADJUSTMENT` "from its own funnel" | the list mounts through `Widget.add`, whose contract names the children, so under §1.3 it is `CODE`; a package-private origin-taking `add` this record said it would not add is exactly what `ADJUSTMENT` there would need | `CODE`, and this row is the limit §6.6 already described stated once more with the right label |
+| §3.1 `Table` (no row) | see §7.2 | |
+| §3.7: the tests that pin the old rule are four | eleven in the toolkit, one in the theme editor, one in the demo's font picker; and `SelectionContractTest` itself, whose javadoc *was* the old rule | each rewritten to pin both halves; the two-way binding case now binds on the watcher channel and a second case shows a binding through the handlers cannot echo at all |
+
+### 7.2 The Table, which the record predates
+
+ADR 041 landed between this record and its implementation, with the toolkit's old single-cast
+style: nine `onSelect.run()` sites, six of them caller's writes. Its seams, decided with the owner:
+`SELECTION` from one `selectOnly(model, view, reveal, Origin)`, `USER` from a click, Space, Shift,
+Ctrl, the arrows and a reader's select, `CODE` from `setSelectedRow`, `setSelectedRows`,
+`clearSelection` and `selectAll`, and `ADJUSTMENT` when `setRows`, `refresh` or
+`setSelectionMode` collapsed it; the focus cell is `ACTIVE`, the active descendant, announced
+before the selection it moved with, and `focusRow()`/`focusColumn()` answer it; `INVOKED` from
+Enter, a double click and a reader's press at `USER`, and from the public `activate()` at `CODE`,
+exactly as `ListView`; the offsets `VALUE` from one funnel. **A sort is `CHILDREN`**: the rows the
+table shows reordered, the enum has no aspect for an order, and ADR 039's snapshot publishes none,
+so nobody on the other side would read a new one; a header click announces it as `USER`, and that
+is what reaches `onSortRequest` through `handleUserChange(CHILDREN)`, with the column and the
+order the click asked for read back from two fields `headerClicked` writes first — a request for
+the model's order leaves `sortColumn` null, which is why the handler's payload cannot be the
+accessors alone. The one user gesture that reorders the rows is a header click, so the dispatch
+on `CHILDREN` at `USER` is exact.
+
+### 7.3 Decisions the implementation took that no section had taken
+
+- **`MediaControls` pays its latency, and its two tests wait for the tick.** `refresh()` left
+  `onPaint` on the first run with nobody watching, exactly as §1.7 said the runtime check would
+  report it; `MediaControlsTest` and `MediaControlsAccessibilityTest` now pump the UI queue until
+  the poll's first tick, which is what the window waits for, and the injected-control heartbeat
+  (`observeRefresh`) is what the accessibility test counts ticks with.
+- **`ColorPicker` watches its format tabs rather than handling them**, because a test drives the
+  pane from its own side and the picker must follow whichever end moved it; `setFormat` writes the
+  format before it moves the tab, so the echo finds nothing to do and the `switchingFormat` flag
+  went with the `syncing` flag — both were guarding a round trip that no longer exists.
+- **`Spinner.stepFromTyped` announces once against the pre-edit value** by settling the typed
+  number silently and letting the step announce, then announcing the adoption alone when the step
+  was a no-op; and `nudge` returns whether it moved so the auto-repeat compares against what it
+  applied. Both as §3.1 asked, both by a shape the row did not spell.
+- **The theme editor's own `onChange` is on the rule**, as §3.1 overruled: `setToken`,
+  `setCornerScale`, `revert` and `load` announce `VALUE`/`CODE` and reach nobody; a well, the shape
+  slider, the name field, the dark toggle, a base or a family picked and a derivation button
+  reach it as `USER`. Its font-picker test picks a family with the keyboard, because a
+  `setSelectedIndex` from a test is a caller's write the handler no longer answers.
+- **The demo's reflectors watch**, and the split is per registration as §3.4 said: a slider that
+  feeds a shader uniform *and* a readout keeps the uniform in `onChange` and moves the readout to
+  a watcher that reads the slider once and follows it. Status lines that narrate a user action
+  ("theme picked", "Selected: row #3") stay handlers, because narrating the user is responding to
+  the user.
+- **Menus.** `Menu.add` and the `MenuItem` factories check the thread; `PopupMenu.onRootLeading`
+  and `onRootTrailing` stay handler slots under the one null policy, since they are the arrow
+  keys' and nothing else's.
+- **`Checks.handlerSlot`** is where the one null policy lives — *null clears, a second handler
+  throws, naming the registrar* — so every registrar in the toolkit is the same one line, and
+  `ColorPickerTest`'s "the loud answer is `NullPointerException`" became "the loud answer is
+  `IllegalStateException` on the second handler, and null is the one way to clear".
+- **§6.16 stays open**, decided with the owner: `setLocale` and `setInheritanceHost` remain
+  silent, as today, and the cost is recorded there.
+
+### 7.4 What the transcripts and the goldens said
+
+The demo's three accessibility transcripts did not change, which is the confirmation §9.3 of ADR
+039 promised: that bridge reads a snapshot and subscribes to nothing here, so a record that
+changed every announcement in the toolkit changed nothing a reader hears.
+
