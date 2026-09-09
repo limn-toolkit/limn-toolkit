@@ -3,8 +3,10 @@ macOS: Version 26.6.2 (Build 25G83)
 
 ==== roles ====
   NSAccessibilityButtonRole = "AXButton"
+  NSAccessibilityCellRole = "AXCell"
   NSAccessibilityCheckBoxRole = "AXCheckBox"
   NSAccessibilityColorWellRole = "AXColorWell"
+  NSAccessibilityColumnRole = "AXColumn"
   NSAccessibilityComboBoxRole = "AXComboBox"
   NSAccessibilityDrawerRole = "AXDrawer"
   NSAccessibilityGroupRole = "AXGroup"
@@ -18,6 +20,7 @@ macOS: Version 26.6.2 (Build 25G83)
   NSAccessibilityMenuBarRole = "AXMenuBar"
   NSAccessibilityMenuItemRole = "AXMenuItem"
   NSAccessibilityMenuRole = "AXMenu"
+  NSAccessibilityOutlineRole = "AXOutline"
   NSAccessibilityPopUpButtonRole = "AXPopUpButton"
   NSAccessibilityProgressIndicatorRole = "AXProgressIndicator"
   NSAccessibilityRadioButtonRole = "AXRadioButton"
@@ -49,14 +52,17 @@ macOS: Version 26.6.2 (Build 25G83)
   NSAccessibilityDescriptionListSubrole = "AXDescriptionList"
   NSAccessibilityDialogSubrole = "AXDialog"
   NSAccessibilityIncrementArrowSubrole = "AXIncrementArrow"
+  NSAccessibilityOutlineRowSubrole = "AXOutlineRow"
   NSAccessibilitySearchFieldSubrole = "AXSearchField"
   NSAccessibilitySectionListSubrole = "AXSectionList"
   NSAccessibilitySecureTextFieldSubrole = "AXSecureTextField"
+  NSAccessibilitySortButtonSubrole = "AXSortButton"
   NSAccessibilityStandardWindowSubrole = "AXStandardWindow"
   NSAccessibilitySwitchSubrole = "AXSwitch"
   NSAccessibilitySystemDialogSubrole = "AXSystemDialog"
   NSAccessibilitySystemFloatingWindowSubrole = "AXSystemFloatingWindow"
   NSAccessibilityTabButtonSubrole = "AXTabButton"
+  NSAccessibilityTableRowSubrole = "AXTableRow"
   NSAccessibilityTimelineSubrole = "AXTimeline"
   NSAccessibilityToggleSubrole = "AXToggle"
   !! NOT EXPORTED BY THIS APPKIT: NSAccessibilitySeparatorSubrole
@@ -74,12 +80,14 @@ macOS: Version 26.6.2 (Build 25G83)
   NSAccessibilityResizedNotification = "AXResized"
   NSAccessibilityRowCountChangedNotification = "AXRowCountChanged"
   NSAccessibilitySelectedChildrenChangedNotification = "AXSelectedChildrenChanged"
+  NSAccessibilitySelectedColumnsChangedNotification = "AXSelectedColumnsChanged"
+  NSAccessibilitySelectedRowsChangedNotification = "AXSelectedRowsChanged"
   NSAccessibilitySelectedTextChangedNotification = "AXSelectedTextChanged"
   NSAccessibilityTitleChangedNotification = "AXTitleChanged"
   NSAccessibilityUIElementDestroyedNotification = "AXUIElementDestroyed"
   NSAccessibilityValueChangedNotification = "AXValueChanged"
   NSAccessibilityWindowCreatedNotification = "AXWindowCreated"
-  !! NOT EXPORTED BY THIS APPKIT: NSAccessibilityPriorityHigh, NSAccessibilityPriorityLow, NSAccessibilityPriorityMedium
+  !! NOT EXPORTED BY THIS APPKIT: NSAccessibilityPriorityHigh, NSAccessibilityPriorityLow, NSAccessibilityPriorityMedium, NSAccessibilitySortDirectionAscending, NSAccessibilitySortDirectionDescending, NSAccessibilitySortDirectionUnknown
 
 ==== selector type encodings ====
   -accessibilityRole  @16@0:8  (from NSAccessibilityElement)
@@ -123,3 +131,30 @@ macOS: Version 26.6.2 (Build 25G83)
   -isAccessibilityModal  B16@0:8  (from NSAccessibilityElement)
   -setAccessibilityModal:  v20@0:8B16  (from NSAccessibilityElement)
   -accessibilityWindow  @16@0:8  (from NSAccessibilityElement)
+  -isAccessibilitySelectorAllowed:  B24@0:8:16  (from NSAccessibilityElement)
+  -accessibilityActionNames  @16@0:8  (from NSView)
+  -accessibilityPerformRaise  B16@0:8  (from NSAccessibilityElement)
+  -accessibilityRows  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityColumns  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityVisibleRows  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityVisibleColumns  @16@0:8  (from NSAccessibilityElement)
+  -accessibilitySelectedRows  @16@0:8  (from NSAccessibilityElement)
+  -setAccessibilitySelectedRows:  v24@0:8@16  (from NSAccessibilityElement)
+  -accessibilitySelectedColumns  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityHeader  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityRowCount  q16@0:8  (from NSAccessibilityElement)
+  -accessibilityColumnCount  q16@0:8  (from NSAccessibilityElement)
+  -accessibilityColumnHeaderUIElements  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityRowHeaderUIElements  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityVisibleCells  @16@0:8  (from NSAccessibilityElement)
+  -accessibilitySelectedCells  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityCellForColumn:row:  @32@0:8q16q24  (from NSAccessibilityElement)
+  -accessibilityRowIndexRange  {_NSRange=QQ}16@0:8  (from NSAccessibilityElement)
+  -accessibilityColumnIndexRange  {_NSRange=QQ}16@0:8  (from NSAccessibilityElement)
+  -accessibilityIndex  q16@0:8  (from NSAccessibilityElement)
+  -isAccessibilitySelected  B16@0:8  (from NSAccessibilityElement)
+  -setAccessibilitySelected:  v20@0:8B16  (from NSAccessibilityElement)
+  -accessibilitySortDirection  q16@0:8  (from NSAccessibilityElement)
+  -accessibilityColumnTitles  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityDisclosureLevel  q16@0:8  (from NSAccessibilityElement)
+  -accessibilityOrientation  q16@0:8  (from NSAccessibilityElement)

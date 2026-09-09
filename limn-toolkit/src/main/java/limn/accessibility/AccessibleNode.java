@@ -48,6 +48,8 @@ public final class AccessibleNode {
     private final TextFacet text;
     private final ScrollFacet scroll;
     private final WindowFacet window;
+    private final TableFacet table;
+    private final CellFacet cell;
     private final ActionFacet actions;
     private final int parent;
     private final int firstChild;
@@ -61,7 +63,8 @@ public final class AccessibleNode {
                    AccessibleRelation[] relations,
                    ToggleFacet toggle, ValueFacet value, SelectionFacet selection,
                    SelectionItemFacet selectionItem, ExpandFacet expand, TextFacet text,
-                   ScrollFacet scroll, WindowFacet window, ActionFacet actions,
+                   ScrollFacet scroll, WindowFacet window, TableFacet table, CellFacet cell,
+                   ActionFacet actions,
                    int parent, int firstChild, int lastChild,
                    int nextSibling, int previousSibling) {
         this.id = id;
@@ -84,6 +87,8 @@ public final class AccessibleNode {
         this.text = text;
         this.scroll = scroll;
         this.window = window;
+        this.table = table;
+        this.cell = cell;
         this.actions = actions;
         this.parent = parent;
         this.firstChild = firstChild;
@@ -236,6 +241,16 @@ public final class AccessibleNode {
     /** @return this node's window, or {@code null} when it is not one */
     public WindowFacet window() {
         return window;
+    }
+
+    /** @return this node's grid shape, or {@code null} when it is not a table */
+    public TableFacet table() {
+        return table;
+    }
+
+    /** @return where this node sits in a table, or {@code null} when it is not a cell */
+    public CellFacet cell() {
+        return cell;
     }
 
     /** @return the verbs this node offers, or {@code null} when it offers none */

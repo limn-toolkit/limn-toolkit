@@ -154,6 +154,12 @@ public final class Accessibility {
         boolean windowCanMaximize;
         boolean windowCanMinimize;
         WindowFacet.State windowState;
+        boolean hasTable;
+        int tableRowCount;
+        int tableColumnCount;
+        boolean hasCell;
+        int cellRow;
+        int cellColumn;
         int verbs;                      // bit per Accessible.Action ordinal
         String keyBinding;
         int relationCount;
@@ -231,6 +237,12 @@ public final class Accessibility {
             windowCanMaximize = false;
             windowCanMinimize = false;
             windowState = WindowFacet.State.NORMAL;
+            hasTable = false;
+            tableRowCount = 0;
+            tableColumnCount = 0;
+            hasCell = false;
+            cellRow = 0;
+            cellColumn = 0;
             verbs = 0;
             keyBinding = null;
             relationCount = 0;
@@ -245,7 +257,8 @@ public final class Accessibility {
                     && relationCount == 0
                     && toggle < 0 && expand < 0
                     && !hasValue && !hasSelection && !hasSelectionItem
-                    && !hasText && !hasScroll && !hasWindow;
+                    && !hasText && !hasScroll && !hasWindow
+                    && !hasTable && !hasCell;
         }
 
         void addRelation(Accessible.Relation kind, Object target) {
@@ -752,6 +765,35 @@ public final class Accessibility {
         s.verticalViewSize = verticalViewSize;
         s.horizontallyScrollable = horizontallyScrollable;
         s.verticallyScrollable = verticallyScrollable;
+    }
+
+    /**
+     * Declares that this node is a grid of rows and columns over data; ADR 041 §7.
+     *
+     * <p>Both counts are the model's, as {@link TableFacet} says: a table publishes only the
+     * rows it has realized and still reports how many there are.
+     *
+     * @param rowCount    how many data rows the model holds
+     * @param columnCount how many columns are shown
+     */
+    public void table(int rowCount, int columnCount) {
+        Slot s = slot();
+        s.hasTable = true;
+        s.tableRowCount = rowCount;
+        s.tableColumnCount = columnCount;
+    }
+
+    /**
+     * Declares that this node is one cell of a table, at a row and a column as shown.
+     *
+     * @param row    the row as shown, from zero, or {@code -1} for a cell of the header row
+     * @param column the column as shown, from zero
+     */
+    public void cell(int row, int column) {
+        Slot s = slot();
+        s.hasCell = true;
+        s.cellRow = row;
+        s.cellColumn = column;
     }
 
     /**
@@ -1307,6 +1349,11 @@ public final class Accessibility {
                         || a.windowCanMaximize != b.windowCanMaximize
                         || a.windowCanMinimize != b.windowCanMinimize
                         || a.windowState != b.windowState))
+                || a.hasTable != b.hasTable
+                || (a.hasTable && (a.tableRowCount != b.tableRowCount
+                        || a.tableColumnCount != b.tableColumnCount))
+                || a.hasCell != b.hasCell
+                || (a.hasCell && (a.cellRow != b.cellRow || a.cellColumn != b.cellColumn))
                 || a.verbs != b.verbs
                 || !Objects.equals(a.keyBinding, b.keyBinding)
                 || relationsDiffer(a, b);
@@ -1445,6 +1492,8 @@ public final class Accessibility {
                         s.verticallyScrollable) : null,
                 s.hasWindow ? new WindowFacet(s.windowModal, s.windowCanMaximize,
                         s.windowCanMinimize, s.windowState) : null,
+                s.hasTable ? new TableFacet(s.tableRowCount, s.tableColumnCount) : null,
+                s.hasCell ? new CellFacet(s.cellRow, s.cellColumn) : null,
                 s.verbs == 0 ? null : new ActionFacet(verbsOf(s.verbs), s.keyBinding),
                 s.parent, firstChild, lastChild, nextSibling, previousSibling);
     }

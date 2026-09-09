@@ -86,6 +86,13 @@ final class AtspiRoles {
         // tab-panel concept at all, so the neutral container is the honest answer.
         map(Accessible.Role.TAB_PANEL, 39, "panel");
         map(Accessible.Role.COLOR_CHOOSER, 9, "color chooser");
+        // ADR 041 §7; the four numbers read off the Fedora 44 guest on 2026-09-08. The row is
+        // TABLE_ROW and not LIST_ITEM: Orca speaks a table row's cells with their column headers
+        // only when the row says it is one.
+        map(Accessible.Role.TABLE, 55, "table");
+        map(Accessible.Role.COLUMN_HEADER, 57, "table column header");
+        map(Accessible.Role.ROW, 90, "table row");
+        map(Accessible.Role.CELL, 56, "table cell");
         map(Accessible.Role.UNKNOWN, 0, "invalid");
     }
 

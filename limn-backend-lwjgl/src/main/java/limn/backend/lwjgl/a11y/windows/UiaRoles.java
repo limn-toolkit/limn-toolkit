@@ -153,6 +153,15 @@ final class UiaRoles {
         // than Custom: a client should walk into it, not be told it is one opaque thing.
         map(Accessible.Role.COLOR_CHOOSER, UiaIds.CONTROL_GROUP);
 
+        // ADR 041 §7. DataGrid and not Table: UI Automation's Table is the static kind whose cells
+        // are text, and its DataGrid is the one with rows that are selected and a Grid pattern a
+        // client walks by row and column. A row and a cell are both DataItem, which is what the
+        // platform's own grid controls vend for both; the Grid Item pattern tells them apart.
+        map(Accessible.Role.TABLE, UiaIds.CONTROL_DATA_GRID);
+        map(Accessible.Role.COLUMN_HEADER, UiaIds.CONTROL_HEADER_ITEM);
+        map(Accessible.Role.ROW, UiaIds.CONTROL_DATA_ITEM);
+        map(Accessible.Role.CELL, UiaIds.CONTROL_DATA_ITEM);
+
         // What the walk publishes for a widget that declared no role. Custom rather than Pane so
         // that it is visibly a gap when one appears, and no phrase, because there is nothing
         // truthful to say about it.

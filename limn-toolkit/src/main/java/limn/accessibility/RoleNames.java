@@ -114,6 +114,10 @@ public final class RoleNames {
         say(Accessible.Role.TAB, "tab");
         say(Accessible.Role.TAB_PANEL, "tab panel");
         say(Accessible.Role.COLOR_CHOOSER, "color well");
+        say(Accessible.Role.TABLE, "table");
+        say(Accessible.Role.COLUMN_HEADER, "column header");
+        say(Accessible.Role.ROW, "row");
+        say(Accessible.Role.CELL, "cell");
         // Spoken only where a bridge has nothing better, and §12.1 fails a build that publishes it.
         say(Accessible.Role.UNKNOWN, "unknown");
     }

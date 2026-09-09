@@ -1221,8 +1221,12 @@ LABEL, HEADING, IMAGE, VIDEO, CANVAS, CHART, CHART_SERIES,
 PROGRESS_BAR, SLIDER, SPIN_BUTTON,
 TEXT_FIELD, TEXT_AREA, PASSWORD_FIELD, SEARCH_FIELD,
 COMBO_BOX, LIST, LIST_ITEM, TAB_LIST, TAB, TAB_PANEL,
-COLOR_CHOOSER, UNKNOWN
+COLOR_CHOOSER, TABLE, COLUMN_HEADER, ROW, CELL, UNKNOWN
 ```
+
+`TABLE`, `COLUMN_HEADER`, `ROW` and `CELL` were added by ADR 041 on 2026-09-08, with the rows
+§2.1, §2.2 and §2.3 require and the constants read off each guest; that record's §7 is where the
+mapping is argued.
 
 Not a string, and not a per-platform constant: the three platforms disagree about the vocabulary, and
 each bridge owns a table indexed by ordinal, so every degradation is visible in one file per platform.
@@ -1314,6 +1318,8 @@ on the guest.** A recalled constant is a defect that compiles.
 | `IRawElementProviderFragmentRoot::ElementProviderFromPoint` | deepest node containing the screen point, from the snapshot's bounds | proven. **Not** `Widget#hitTest`: it returns `null` for a disabled subtree at every level, and UI Automation expects to find a disabled button under the pointer |
 | `…::GetFocus` | the focused node | proven |
 | `IInvokeProvider::Invoke` | posted `PRESS`; raises `Invoke_Invoked` | proven, including raising the event from inside `Invoke` on an RPC thread |
+| `IGridProvider` (`get_RowCount`, `get_ColumnCount`, `GetItem`) and `ITableProvider` (`GetRowHeaders`, `GetColumnHeaders`, `get_RowOrColumnMajor`) | `TableFacet`; ADR 041 §7 | `GetItem` answers a realized cell and `null` for a row the walk did not publish, the degradation §4.1 already accepts; column headers are the header group's children; row headers are none |
+| `IGridItemProvider` (`get_Row`, `get_Column`, spans of one, `get_ContainingGrid`) and `ITableItemProvider` (`GetRowHeaderItems`, `GetColumnHeaderItems`) | `CellFacet`; ADR 041 §7 | the containing grid is the nearest ancestor with a `TableFacet`; the column header item is that grid's header group's child at the cell's column |
 | `IToggleProvider`, `IRangeValueProvider`, `IValueProvider`, `ISelectionProvider`, `ISelectionItemProvider`, `IExpandCollapseProvider`, `IScrollProvider`, `IWindowProvider` | the matching facets | to be built; each is the same vtable-of-closures shape as the four proven ones |
 | `UiaRaiseAutomationEvent`, `…PropertyChangedEvent`, `…StructureChangedEvent`, `…NotificationEvent` | the event flush | the first is proven returning `S_OK` from an RPC thread |
 | `UiaClientsAreListening` | the listening gate | proven resolvable and callable |
@@ -1357,6 +1363,8 @@ is a latent crash in a caller that trusts the union.
 | `isAccessibilityElement` | `true` for every published node | transparent and ignored widgets never become nodes |
 | `accessibilityEnabled`, `accessibilityFocused` / `setAccessibilityFocused:` | states | `setAccessibilityEnabled:` proven; a `BOOL` argument rides the low bits of a pointer-sized slot |
 | `accessibilitySelectedChildren` | `SelectionFacet` | |
+| `accessibilityRows`, `accessibilityColumns`, `accessibilityHeader`, `accessibilitySelectedRows`, `accessibilityRowCount`, `accessibilityColumnCount` | `TableFacet`; ADR 041 §7 | rows are the realized `ROW` children; columns are synthesised, one per header cell; the header is the table's first group child. Constants and selector encodings read off the guest before the bridge grew them |
+| `accessibilityRowIndexRange`, `accessibilityColumnIndexRange` | `CellFacet`; ADR 041 §7 | a range of one at the cell's row and column |
 | `accessibilityHitTest:` | **implemented on our own element class, and it must recurse to the bottom itself** | the spike measured that with no override at all `AXUIElementCopyElementAtPosition` found its one element, and concluded AppKit hit-tests from the frames. It does — **for one level only**. The phase 7 probe run put three grandchildren under a group and three points inside three different grandchildren all resolved to the *group*, which is the level that was pushed onto the content view; pushing `setAccessibilityChildren:` at every level as well changed nothing, so this is not stored-versus-pulled children. Overriding the selector on `LimnProbeElement` resolved all four probed points to the correct deepest node, at depth 3. **AppKit sends it exactly once**, to the element it already resolved from the pushed array, so the override walks the whole subtree rather than returning one level. The point arrives in screen space with a bottom-left origin — the same space `accessibilityFrame` answers in, so no flip of ours. It goes on our own class, so §13.16 stays withdrawn: nothing is installed on a class GLFW owns |
 | `accessibilityIdentifier` | the node id, as a string | stable across frames by §1.3 |
 | `accessibilityPerformPress`, `…Increment`, `…Decrement`, `…ShowMenu`, `…Pick`, `…Cancel`, `…Confirm` | `ActionFacet` | **press proven end to end**: an out-of-process client's `AXUIElementPerformAction(kAXPressAction)` arrived in Java on the main thread. AppKit's encoding is `B16@0:8`, so the return is a C `bool`. The other six are the same shape and are untested |
@@ -1483,6 +1491,8 @@ objects at `/org/a11y/atspi/accessible/<id>`, plus `…/root` and `…/cache`.
 | `Value` `CurrentValue` (read/write), `MinimumValue`, `MaximumValue`, `MinimumIncrement` | `ValueFacet` | numeric only; a display form such as a spinner's `07:30` is published through `Text` |
 | `Text`, `EditableText` | `TextFacet` | **offsets converted from UTF-16 to characters at this boundary and nowhere else**; `GetRangeExtents` is not answered in the first cut (§11) |
 | `Selection` | `SelectionFacet` | |
+| `Table` (`NRows`, `NColumns`, `GetAccessibleAt`, `GetColumnHeader`, `GetSelectedRows`, `GetRowAtIndex`, `GetColumnAtIndex`) | `TableFacet`; ADR 041 §7 | `GetAccessibleAt` answers a realized cell and the null object for a row the walk did not publish, the degradation §4.1 already accepts |
+| `TableCell` (`Position`, `RowColumnSpan`, `Table`, `ColumnHeaderCells`, `RowHeaderCells`) | `CellFacet`; ADR 041 §7 | the table is the nearest ancestor with a `TableFacet`; the column header cell is its header group's child at the cell's column |
 | `Cache.GetItems` | the whole snapshot, **pre-marshalled** | measured: 46 round trips for two objects without it |
 | `Cache.AddAccessible`, `RemoveAccessible` signals | `STRUCTURE_CHANGED`, `NODE_DESTROYED` | |
 | `Event.Object` `StateChanged`, `ChildrenChanged`, `PropertyChange`, `TextChanged`, `TextCaretMoved`, `TextSelectionChanged`, `SelectionChanged`, `ActiveDescendantChanged`, `BoundsChanged`, `Announcement`; `Event.Window` `Activate`, `Deactivate`, `Create`, `Destroy`; `Event.Focus` `Focus` | the event flush | `Event.Focus.Focus` is deprecated and still what Orca listens for, so it is emitted beside the `StateChanged` |
@@ -2455,6 +2465,7 @@ and mixing them up is how a design document becomes untrustworthy in both direct
 | ↳ `ComboBox.PopupPanel` | `LIST` | `SelectionFacet` with an active descendant | one `LIST_ITEM` per option, keyed by index, `SELECTED` on the chosen one | described in the scene it lives in, so its bounds are right in both mountings (§1.11) |
 | ↳ `ComboBox.ScenePopup` | transparent | | | the overlay wrapper |
 | `ListView` | `LIST` | `SelectionFacet` with an active descendant, `ScrollFacet` | — | rows are real pooled widgets mounted directly (Finding 14); `onAccessibilityChild` gives each mounted row `LIST_ITEM`, `SELECTED`, its data index as position in set, `rowCount()` as size of set, and **its data index as the identity key** (§1.3), which is what keeps a recycled cell from carrying row 3's identifier to row 9. **Corrected:** a row also needs `ActionFacet{PRESS}` mapped onto `ListView#activate()` — Enter activates the selected row and fires `onActivate`, and a row published with `SELECTED` and no verb is a list a screen reader user can move through and cannot use. Unmounted rows are not published (§11); a scroll never unrealizes the row holding the keyboard focus, which is published with its box outside the list's and without `SHOWING`, as the half-off row already is (§13.29) |
+| `Table` | `TABLE` | `TableFacet`, `SelectionFacet` (multi-selectable in `MULTI`), `ScrollFacet`, `ActionFacet{PRESS}` while a row is selected | one `GROUP` for the header row with a `COLUMN_HEADER` child per shown column, each with `CellFacet(-1, column)` and the column's title as its name; then one `ROW` per realized data row with `SelectionItemFacet` (view position, model row count) and a `CELL` child per shown column with `CellFacet(row, column)`, its formatted text as its name and the row's witness; the focus cell is `ACTIVE` | added by ADR 041 §7 on 2026-09-08, and written against the widget's own code rather than surveyed from outside. Cells and headers are synthetic children keyed by row and column (§1.3); a widget cell of a widget column is a real child published in its place. Unrealized rows are not published (§11) and the row holding the keyboard focus stays published wherever the viewport is (§13.29) |
 | `TabbedPane` | transparent | | | the pane itself is scaffolding |
 | ↳ `TabStrip` | `TAB_LIST` | `SelectionFacet` | — | |
 | ↳ `TabHeader` | `TAB` | `SelectionItemFacet`, `ActionFacet{SELECT}` | — | name from the tab's own `I18nString` title, `nameFrom=CONTENT`. It is a private inner widget of `TabbedPane`, so it reads that title from inside its own package and needs no new accessor for this ADR — ADR 040 needs one for a different reason (§9) |

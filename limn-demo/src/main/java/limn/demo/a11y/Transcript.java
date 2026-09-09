@@ -5,10 +5,12 @@ import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleRelation;
 import limn.accessibility.AccessibleTree;
 import limn.accessibility.ActionFacet;
+import limn.accessibility.CellFacet;
 import limn.accessibility.ExpandFacet;
 import limn.accessibility.ScrollFacet;
 import limn.accessibility.SelectionFacet;
 import limn.accessibility.SelectionItemFacet;
+import limn.accessibility.TableFacet;
 import limn.accessibility.TextFacet;
 import limn.accessibility.ToggleFacet;
 import limn.accessibility.ValueFacet;
@@ -203,6 +205,15 @@ public final class Transcript {
         if (window != null) {
             out.append(" window ").append(window.modal() ? "modal" : "non-modal")
                     .append(' ').append(window.state().name().toLowerCase(Locale.ROOT));
+        }
+        TableFacet table = node.table();
+        if (table != null) {
+            out.append(" table ").append(table.rowCount()).append('x').append(table.columnCount());
+        }
+        CellFacet cell = node.cell();
+        if (cell != null) {
+            out.append(" cell ").append(cell.row() < 0 ? "header" : String.valueOf(cell.row()))
+                    .append(',').append(cell.column());
         }
     }
 

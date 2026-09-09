@@ -113,6 +113,14 @@ public final class Accessible {
         TAB_PANEL,
         /** A colour picker. */
         COLOR_CHOOSER,
+        /** A grid of rows and columns over data; ADR 041. */
+        TABLE,
+        /** The header cell of one column of a {@link #TABLE}. */
+        COLUMN_HEADER,
+        /** One data row of a {@link #TABLE}. */
+        ROW,
+        /** One cell of a {@link #ROW}. */
+        CELL,
         /**
          * Nothing better applies. A focusable node that publishes this is a defect: the toolkit
          * logs a warning naming the class, once per class.

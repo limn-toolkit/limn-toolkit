@@ -40,6 +40,7 @@ let roles = [
     "NSAccessibilityTabGroupRole", "NSAccessibilityColorWellRole", "NSAccessibilityValueIndicatorRole",
     "NSAccessibilitySplitterRole", "NSAccessibilityToolbarRole", "NSAccessibilityDrawerRole",
     "NSAccessibilityLayoutAreaRole", "NSAccessibilityLayoutItemRole",
+    "NSAccessibilityCellRole", "NSAccessibilityColumnRole", "NSAccessibilityOutlineRole",
 ]
 
 let subroles = [
@@ -52,6 +53,8 @@ let subroles = [
     "NSAccessibilityCloseButtonSubrole", "NSAccessibilityIncrementArrowSubrole",
     "NSAccessibilityTabButtonSubrole", "NSAccessibilityCollectionListSubrole",
     "NSAccessibilitySectionListSubrole", "NSAccessibilityDescriptionListSubrole",
+    "NSAccessibilityTableRowSubrole", "NSAccessibilityOutlineRowSubrole",
+    "NSAccessibilitySortButtonSubrole",
 ]
 
 let notifications = [
@@ -65,6 +68,10 @@ let notifications = [
     "NSAccessibilityAnnouncementRequestedNotification", "NSAccessibilityRowCountChangedNotification",
     "NSAccessibilityAnnouncementKey", "NSAccessibilityPriorityKey",
     "NSAccessibilityPriorityLow", "NSAccessibilityPriorityMedium", "NSAccessibilityPriorityHigh",
+    "NSAccessibilitySelectedRowsChangedNotification",
+    "NSAccessibilitySelectedColumnsChangedNotification",
+    "NSAccessibilitySortDirectionAscending", "NSAccessibilitySortDirectionDescending",
+    "NSAccessibilitySortDirectionUnknown",
 ]
 
 let selectors = [
@@ -86,6 +93,16 @@ let selectors = [
     // The gate that decides which of the perform selectors an element actually OFFERS. Without it,
     // installing the seven on one class makes every element advertise all seven.
     "isAccessibilitySelectorAllowed:", "accessibilityActionNames", "accessibilityPerformRaise",
+    // The table family: what NSAccessibilityTable, NSAccessibilityRow and NSAccessibilityCell ask.
+    "accessibilityRows", "accessibilityColumns", "accessibilityVisibleRows",
+    "accessibilityVisibleColumns", "accessibilitySelectedRows", "setAccessibilitySelectedRows:",
+    "accessibilitySelectedColumns", "accessibilityHeader", "accessibilityRowCount",
+    "accessibilityColumnCount", "accessibilityColumnHeaderUIElements",
+    "accessibilityRowHeaderUIElements", "accessibilityVisibleCells", "accessibilitySelectedCells",
+    "accessibilityCellForColumn:row:", "accessibilityRowIndexRange",
+    "accessibilityColumnIndexRange", "accessibilityIndex", "isAccessibilitySelected",
+    "setAccessibilitySelected:", "accessibilitySortDirection", "accessibilityColumnTitles",
+    "accessibilityDisclosureLevel", "accessibilityOrientation",
 ]
 
 // The classes worth asking, in the order a bridge would trust them. A selector's encoding is a fact

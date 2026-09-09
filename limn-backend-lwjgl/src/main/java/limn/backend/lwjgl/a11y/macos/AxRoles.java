@@ -137,6 +137,16 @@ final class AxRoles {
         map(Accessible.Role.TAB_PANEL, "NSAccessibilityGroupRole");
 
         map(Accessible.Role.COLOR_CHOOSER, "NSAccessibilityColorWellRole");
+
+        // ADR 041 §7. A row carries the table-row subrole so VoiceOver reads it as one of a table's
+        // rows and not as a list's; a cell is AppKit's own cell; and a column header is what
+        // NSTableHeaderView vends for its own cells, a button with the sort-button subrole, which
+        // is what makes VoiceOver offer "sort" on it. All four read off the platform on 2026-09-08.
+        map(Accessible.Role.TABLE, "NSAccessibilityTableRole");
+        map(Accessible.Role.COLUMN_HEADER, "NSAccessibilityButtonRole",
+                "NSAccessibilitySortButtonSubrole");
+        map(Accessible.Role.ROW, "NSAccessibilityRowRole", "NSAccessibilityTableRowSubrole");
+        map(Accessible.Role.CELL, "NSAccessibilityCellRole");
         map(Accessible.Role.UNKNOWN, "NSAccessibilityUnknownRole");
     }
 
