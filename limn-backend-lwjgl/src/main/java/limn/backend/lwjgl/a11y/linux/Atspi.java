@@ -56,10 +56,9 @@ final class Atspi {
 
     // ---- AtspiRelationType ------------------------------------------------------------------
     // Read 2026-09-09 from the enum's own declaration in atspi/atspi-constants.h at the release
-    // tag AT_SPI2_CORE_2_52_0 (gitlab.gnome.org/GNOME/at-spi2-core), the same 2.52.0 the guest
-    // runs, and not from the guest's typelib as the roles were: the typelib carries the same enum
-    // as Atspi.RelationType, and dump-atspi-constants.py now prints it, so a run on the guest
-    // confirms these rather than replacing them. The enum is unnumbered, so each value is its
+    // tag AT_SPI2_CORE_2_52_0 (gitlab.gnome.org/GNOME/at-spi2-core), and confirmed the same day
+    // against a guest's typelib (Fedora KDE 44, at-spi2-core 2.60.6, Atspi.RelationType), which
+    // is what dump-atspi-constants.py prints. The enum is unnumbered, so each value is its
     // position from ATSPI_RELATION_NULL at 0.
     static final int RELATION_LABEL_FOR      = 1;    // ATSPI_RELATION_LABEL_FOR
     static final int RELATION_LABELLED_BY    = 2;    // ATSPI_RELATION_LABELLED_BY

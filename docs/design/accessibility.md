@@ -175,7 +175,12 @@ because AppKit names no describing element as such and the description's text tr
 instead (`AxBridge` resolves the targets, `AxElementClass` vends the array). What every reader
 speaks is the same either way: the caption as the name and the message as the description are
 copied into the node by the walk, so the relations are for a client that wants the element
-itself.
+itself. Each bridge has a relation check under `scripts/a11y/` that reads the demo's form
+scene (`--scene form`) through the platform's own client and resolves every target: the
+Linux one asks libatspi for the relation set, the Windows one reads LabeledBy through the
+managed client and DescribedBy through the core call the managed layer itself uses, since its
+public API has no identifier for it, and the macOS one follows the linked elements. All three
+resolved the caption and the message on 2026-09-09.
 
 ### The constants rule
 
