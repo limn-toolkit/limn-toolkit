@@ -4,6 +4,7 @@ import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
 import limn.input.Keys;
+import limn.scene.Change;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -348,17 +349,25 @@ class TableTest extends ComponentTestBase {
         List<Person> rows = new ArrayList<>(people(4));
         Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));
         table.setRows(rows);
-        AtomicInteger selects = new AtomicInteger();
-        table.onSelect(selects::incrementAndGet);
+        AtomicInteger handled = new AtomicInteger();
+        table.onSelect(handled::incrementAndGet);
+        List<Change.Origin> heard = new ArrayList<>();
+        table.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.SELECTION) {
+                heard.add(change.origin());
+            }
+        });
         FakeCanvas canvas = new FakeCanvas(300, 200);
         Scene scene = scene(table, canvas);
         table.setSelectedRow(3);
-        int before = selects.get();
+        heard.clear();
         rows.remove(3);
         table.refresh();
         scene.renderFrame(canvas);
         assertEquals(-1, table.selectedRow(), "the deleted row is not selected");
-        assertEquals(before + 1, selects.get(), "and the listener heard it go");
+        assertEquals(List.of(Change.Origin.ADJUSTMENT), heard,
+                "a watcher heard the table drop it by itself");
+        assertEquals(0, handled.get(), "the handler answers the user, and no user chose a row");
         assertEquals(3, table.rowCount());
     }
 

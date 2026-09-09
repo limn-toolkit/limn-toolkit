@@ -8,6 +8,7 @@ import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.Scrollable;
 import limn.scene.Size;
+import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
@@ -72,7 +73,7 @@ public class ScrollView extends Widget implements Scrollable {
 
             @Override
             public void setOffset(float value) {
-                scrollTo(offsetX, value);
+                scrollTo(offsetX, value, Change.Origin.USER); // the bar is the user's
             }
         }).setPolicy(ScrollBar.Policy.AUTO) : null;
         if (vBar != null) {
@@ -96,7 +97,7 @@ public class ScrollView extends Widget implements Scrollable {
 
             @Override
             public void setOffset(float value) {
-                scrollTo(value, offsetY);
+                scrollTo(value, offsetY, Change.Origin.USER);
             }
         }).setPolicy(ScrollBar.Policy.AUTO) : null;
         if (hBar != null) {
@@ -214,9 +215,17 @@ public class ScrollView extends Widget implements Scrollable {
         }
     }
 
-    /** Scrolls to an absolute offset (clamped to the content). UI thread only. */
+    /**
+     * Scrolls to an absolute offset (clamped to the content). A caller's write, announced as
+     * {@code VALUE}/{@code CODE}; the wheel, the keys and the bars announce {@code USER} through
+     * the same seam, and a layout that clamped the offset an {@code ADJUSTMENT}. UI thread only.
+     */
     public void scrollTo(float newOffsetX, float newOffsetY) {
         Ui.checkUiThread();
+        scrollTo(newOffsetX, newOffsetY, Change.Origin.CODE);
+    }
+
+    private void scrollTo(float newOffsetX, float newOffsetY, Change.Origin origin) {
         float clampedX = horizontal ? Math.min(Math.max(0, newOffsetX), maxOffsetX()) : 0;
         float clampedY = vertical ? Math.min(Math.max(0, newOffsetY), maxOffsetY()) : 0;
         if (clampedX == offsetX && clampedY == offsetY) {
@@ -237,6 +246,7 @@ public class ScrollView extends Widget implements Scrollable {
             hBar.onScrolled();
         }
         invalidate();
+        notifyChange(Change.of(Change.Aspect.VALUE, origin));
     }
 
     @Override
@@ -261,9 +271,15 @@ public class ScrollView extends Widget implements Scrollable {
         float viewH = viewportHeight();
         float childWidth = horizontal ? Math.max(content.width(), viewW) : viewW;
         float childHeight = vertical ? Math.max(content.height(), viewH) : viewH;
+        float wasX = offsetX;
+        float wasY = offsetY;
         offsetX = horizontal ? Math.min(offsetX, Math.max(0, childWidth - viewW)) : 0;
         offsetY = vertical ? Math.min(offsetY, Math.max(0, childHeight - viewH)) : 0;
         child.layoutBox(contentOriginX(childWidth), -offsetY, childWidth, childHeight);
+        if (offsetX != wasX || offsetY != wasY) {
+            // Content that shrank under the offset pulled it back: the view moved by itself.
+            notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.ADJUSTMENT));
+        }
 
         float t = ScrollBar.thickness();
         // With both bars, leave a clear square in the corner so their thumbs never
@@ -467,7 +483,7 @@ public class ScrollView extends Widget implements Scrollable {
         boolean shiftToHorizontal = (event.modifiers() & Keys.MOD_SHIFT) != 0
                 && horizontal && maxOffsetX() > 0 && event.scrollY() != 0;
         if (shiftToHorizontal) {
-            scrollBy(-event.scrollY() * WHEEL_STEP, 0);
+            scrollTo(offsetX - event.scrollY() * WHEEL_STEP, offsetY, Change.Origin.USER);
             event.consume();
             return;
         }
@@ -476,8 +492,8 @@ public class ScrollView extends Widget implements Scrollable {
         if (!useX && !useY) {
             return;
         }
-        scrollBy(useX ? -event.scrollX() * WHEEL_STEP : 0,
-                useY ? -event.scrollY() * WHEEL_STEP : 0);
+        scrollTo(offsetX + (useX ? -event.scrollX() * WHEEL_STEP : 0),
+                offsetY + (useY ? -event.scrollY() * WHEEL_STEP : 0), Change.Origin.USER);
         event.consume();
     }
 
@@ -526,7 +542,7 @@ public class ScrollView extends Widget implements Scrollable {
         if (target == before) {
             return;
         }
-        scrollTo(useX ? target : offsetX(), useY ? target : offsetY());
+        scrollTo(useX ? target : offsetX(), useY ? target : offsetY(), Change.Origin.USER);
         if ((useY ? offsetY() : offsetX()) != before) {
             event.consume();
         }

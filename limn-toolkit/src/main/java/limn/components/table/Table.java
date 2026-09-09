@@ -17,6 +17,8 @@ import limn.graphics.TextRuler;
 import limn.i18n.I18n;
 import limn.i18n.LanguageWitness;
 import limn.input.Keys;
+import limn.lang.Checks;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Scrollable;
 import limn.scene.Size;
@@ -117,8 +119,12 @@ public class Table<T> extends Widget implements Scrollable {
     private final BitSet selected = new BitSet();
     private int lead = -1;
     private int rangeAnchor = -1;   // view index a Shift range extends from
-    private Runnable onSelect = () -> { };
-    private IntConsumer onActivate = index -> { };
+    private Runnable onSelect;
+    private IntConsumer onActivate;
+    // The header the last click asked to sort by, and the order it asked for: what onSortRequest
+    // is told, read back here because a request for the model's order leaves sortColumn null.
+    private Column<T> sortRequestColumn;
+    private SortOrder sortRequestOrder = SortOrder.NONE;
 
     // The focus cell: a view row and a shown column, or -1 before anything was focused.
     private int focusRow = -1;
@@ -291,8 +297,10 @@ public class Table<T> extends Widget implements Scrollable {
         markNeedsLayout();
         invalidate();
         if (had) {
-            onSelect.run();
+            // The selection went with the rows it named: a consequence, announced first.
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         }
+        notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
         return this;
     }
 
@@ -338,7 +346,9 @@ public class Table<T> extends Widget implements Scrollable {
     /**
      * Re-reads the rows and re-lays out: call after the list's contents change, or after a
      * column's width, visibility or alignment does. The sort is re-applied, a selected row the
-     * list no longer has is dropped, and the scroll position is kept, clamped. UI thread only.
+     * list no longer has is dropped, and the scroll position is kept, clamped. Announces
+     * {@code CHILDREN}/{@code CODE}, after a {@code SELECTION}/{@code ADJUSTMENT} when the
+     * selection collapsed; neither reaches a handler. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
@@ -365,8 +375,9 @@ public class Table<T> extends Widget implements Scrollable {
         markNeedsLayout();
         invalidate();
         if (moved) {
-            onSelect.run();
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         }
+        notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
     }
 
     // ------------------------------------------------------------------------ selection
@@ -393,7 +404,9 @@ public class Table<T> extends Widget implements Scrollable {
         }
         invalidate();
         if (moved) {
-            onSelect.run();
+            // The mode has no aspect of its own; what a watcher can act on is the selection it
+            // collapsed, which moved as a consequence.
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         }
         return this;
     }
@@ -404,9 +417,10 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     /**
-     * Selects one row alone, moves the focus cell to it, scrolls it into view and fires
-     * {@link #onSelect}. Selecting the row that is already the only selected one changes nothing
-     * and fires nothing, which is the recursion guard two bound controls rest on. UI thread only.
+     * Selects one row alone, moves the focus cell to it and scrolls it into view: a caller's
+     * write, so it announces {@code SELECTION}/{@code CODE} and reaches no handler. Selecting the
+     * row that is already the only selected one changes nothing and announces nothing. UI thread
+     * only.
      *
      * @param modelIndex a row in {@code [0, rowCount())}
      * @return this table
@@ -419,15 +433,15 @@ public class Table<T> extends Widget implements Scrollable {
         if (selectionMode == SelectionMode.NONE) {
             throw new IllegalStateException("selection mode is NONE");
         }
-        selectOnly(modelIndex, viewOf(modelIndex), true);
+        selectOnly(modelIndex, viewOf(modelIndex), true, Change.Origin.CODE);
         return this;
     }
 
     /**
      * Replaces the selection with exactly these rows, the last one the lead, and scrolls the lead
      * into view: what an application restoring a saved selection calls. In
-     * {@link SelectionMode#SINGLE} only one row may be named. Fires {@link #onSelect} once when
-     * the set changed. UI thread only.
+     * {@link SelectionMode#SINGLE} only one row may be named. Announces {@code SELECTION}/{@code
+     * CODE} once when the set changed. UI thread only.
      *
      * @param modelIndices rows in {@code [0, rowCount())}; none clears the selection
      * @return this table
@@ -455,6 +469,7 @@ public class Table<T> extends Widget implements Scrollable {
         }
         int last = modelIndices[modelIndices.length - 1];
         boolean same = next.equals(selected) && lead == last;
+        int wasFocusRow = focusRow;
         selected.clear();
         selected.or(next);
         lead = last;
@@ -462,15 +477,16 @@ public class Table<T> extends Widget implements Scrollable {
         rangeAnchor = focusRow;
         ensureVisible(focusRow);
         invalidate();
+        announceFocusCell(wasFocusRow, Change.Origin.CODE);
         if (!same) {
-            onSelect.run();
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.CODE));
         }
         return this;
     }
 
     /**
-     * Drops the selection and fires {@link #onSelect}; nothing happens when nothing is selected.
-     * The focus cell stays where it is. UI thread only.
+     * Drops the selection, announced as {@code SELECTION}/{@code CODE}; nothing happens when
+     * nothing is selected. The focus cell stays where it is. UI thread only.
      *
      * @return this table
      */
@@ -482,31 +498,36 @@ public class Table<T> extends Widget implements Scrollable {
         selected.clear();
         lead = -1;
         invalidate();
-        onSelect.run();
+        notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.CODE));
         return this;
     }
 
     /**
      * Selects every row, in {@link SelectionMode#MULTI}; the lead row is kept, or becomes the
-     * first row. UI thread only.
+     * first row. A caller's write, announced as {@code SELECTION}/{@code CODE}; Ctrl+A enters the
+     * same seam as the user's. UI thread only.
      *
      * @return this table
      */
     public Table<T> selectAll() {
         Ui.checkUiThread();
+        selectAll(Change.Origin.CODE);
+        return this;
+    }
+
+    private void selectAll(Change.Origin origin) {
         if (selectionMode != SelectionMode.MULTI || rows.isEmpty()) {
-            return this;
+            return;
         }
         if (selected.cardinality() == rows.size()) {
-            return this;
+            return;
         }
         selected.set(0, rows.size());
         if (lead < 0) {
             lead = modelOf(0);
         }
         invalidate();
-        onSelect.run();
-        return this;
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
     /** @return the lead row's model index, or {@code -1} when nothing is selected */
@@ -528,34 +549,84 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     /**
-     * Called once per change of the selection, by click, keyboard or code.
+     * The application's response to the user changing the selection: a click, a key, an
+     * assistive technology's select. Never for {@link #setSelectedRow}, {@link #setSelectedRows},
+     * {@link #clearSelection()}, {@link #selectAll()} or a {@link #setRows}, {@link #refresh()}
+     * or {@link #setSelectionMode} that moved it, which are the caller's or the table's own; to
+     * hear every change whatever caused it, {@linkplain #observeChanges watch} the table.
      *
-     * @param handler what to run; never {@code null}
+     * @param handler the handler, or {@code null} to clear the slot
      * @return this table
+     * @throws IllegalStateException if a handler is already registered
      */
     public Table<T> onSelect(Runnable handler) {
         Ui.checkUiThread();
-        this.onSelect = Objects.requireNonNull(handler, "handler");
+        this.onSelect = Checks.handlerSlot(onSelect, handler, "Table.onSelect");
         return this;
     }
 
     /**
-     * Called with the lead row's model index on Enter or a double click, the "open this" gesture.
+     * The application's response to the user opening the lead row: Enter, a double click, an
+     * assistive technology's press. Never for {@link #activate()}, which is a caller's verb.
      *
-     * @param handler what to run; never {@code null}
+     * @param handler the handler, or {@code null} to clear the slot
      * @return this table
+     * @throws IllegalStateException if a handler is already registered
      */
     public Table<T> onActivate(IntConsumer handler) {
         Ui.checkUiThread();
-        this.onActivate = Objects.requireNonNull(handler, "handler");
+        this.onActivate = Checks.handlerSlot(onActivate, handler, "Table.onActivate");
         return this;
     }
 
-    /** Fires {@link #onActivate} for the lead row, as Enter does; nothing without one. */
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        switch (aspect) {
+            case SELECTION -> {
+                if (onSelect != null) {
+                    onSelect.run();
+                }
+            }
+            case INVOKED -> {
+                if (onActivate != null) {
+                    onActivate.accept(lead);
+                }
+            }
+            case CHILDREN -> {
+                // The one user gesture that reorders the rows is a header click, and the
+                // request it made is read back from the fields headerClicked wrote first.
+                if (onSortRequest != null && sortRequestColumn != null) {
+                    Column<T> column = sortRequestColumn;
+                    SortOrder order = sortRequestOrder;
+                    sortRequestColumn = null;
+                    onSortRequest.accept(column, order);
+                }
+            }
+            default -> super.handleUserChange(aspect);
+        }
+    }
+
+    /**
+     * Announces that the lead row was opened, as {@code INVOKED}/{@code CODE}: a caller's verb,
+     * which reaches a watcher and <b>not</b> {@link #onActivate}, the way Enter does. Nothing
+     * without a lead row. UI thread only.
+     */
     public void activate() {
         Ui.checkUiThread();
+        activate(Change.Origin.CODE);
+    }
+
+    /** The seam Enter, a double click and an assistive technology's press enter at {@code USER}. */
+    private void activate(Change.Origin origin) {
         if (lead >= 0) {
-            onActivate.accept(lead);
+            notifyChange(Change.of(Change.Aspect.INVOKED, origin));
+        }
+    }
+
+    /** The focus cell moved with a selection or a key: {@code ACTIVE}, the active descendant. */
+    private void announceFocusCell(int wasFocusRow, Change.Origin origin) {
+        if (focusRow != wasFocusRow) {
+            notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
         }
     }
 
@@ -586,16 +657,29 @@ public class Table<T> extends Widget implements Scrollable {
     public Table<T> setSort(Column<T> column, SortOrder order) {
         Ui.checkUiThread();
         Objects.requireNonNull(order, "order");
-        if (order == SortOrder.NONE) {
-            sortColumn = null;
-            sortOrder = SortOrder.NONE;
-        } else {
+        if (order != SortOrder.NONE) {
             if (!columns.contains(column)) {
                 throw new IllegalArgumentException("not one of this table's columns");
             }
             if (!column.isSortable()) {
                 throw new IllegalArgumentException("the column is not sortable");
             }
+        }
+        applySort(column, order, Change.Origin.CODE);
+        return this;
+    }
+
+    /**
+     * The one seam a sort goes through: the public setter passes {@code CODE}, a header click
+     * {@code USER}. A sort reorders the rows the table shows, so it is announced as
+     * {@code CHILDREN} -- the enum has no aspect for an order, and the accessible tree publishes
+     * none, so what a watcher re-reads is the rows.
+     */
+    private void applySort(Column<T> column, SortOrder order, Change.Origin origin) {
+        if (order == SortOrder.NONE) {
+            sortColumn = null;
+            sortOrder = SortOrder.NONE;
+        } else {
             sortColumn = column;
             sortOrder = order;
         }
@@ -603,7 +687,7 @@ public class Table<T> extends Widget implements Scrollable {
         unmountAll();
         markNeedsLayout();
         invalidate();
-        return this;
+        notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
     }
 
     /** @return the column the rows are ordered on, or {@code null} in the model's order */
@@ -619,8 +703,8 @@ public class Table<T> extends Widget implements Scrollable {
     /**
      * Hands header clicks to the application instead of sorting: the handler is told the column
      * and the order the click asks for, orders the list itself and calls {@link #refresh()}. The
-     * header shows the order once {@link #setSort} records it. {@code null} restores the table's
-     * own sort.
+     * header shows the order the click asked for from the click itself. {@code null} restores the
+     * table's own sort. A handler, so it answers the user's click and never {@link #setSort}.
      *
      * @param handler what to tell, or {@code null}
      * @return this table
@@ -720,6 +804,16 @@ public class Table<T> extends Widget implements Scrollable {
      */
     public void scrollBy(float dx, float dy) {
         Ui.checkUiThread();
+        scrollBy(dx, dy, Change.Origin.CODE);
+    }
+
+    /**
+     * The one seam the offsets move through, announced as {@code VALUE} with {@code origin}
+     * when either moved: the public method and a reveal pass {@code CODE}, the wheel and the
+     * bars pass {@code USER}, and a column brought into view for the focus cell passes
+     * {@code ADJUSTMENT}.
+     */
+    private void scrollBy(float dx, float dy, Change.Origin origin) {
         boolean moved = false;
         if (dy != 0) {
             SizeTokens t = tokens();
@@ -762,11 +856,13 @@ public class Table<T> extends Widget implements Scrollable {
         if (moved) {
             markNeedsContainedLayout();
             invalidate();
+            notifyChange(Change.of(Change.Aspect.VALUE, origin));
         }
     }
 
+    /** The horizontal bar's model writing the offset: the user dragging or paging the bar. */
     private void scrollTo(float newOffsetX) {
-        scrollBy(newOffsetX - offsetX, 0);
+        scrollBy(newOffsetX - offsetX, 0, Change.Origin.USER);
     }
 
     @Override
@@ -814,15 +910,21 @@ public class Table<T> extends Widget implements Scrollable {
         return Math.max(0, Math.min(anchorIndex * avg - anchorTop, max));
     }
 
+    /** The vertical bar's model writing the offset: the user dragging or paging the bar. */
     private void scrollToOffset(float offset, SizeTokens t) {
         float clamped = Math.max(0, offset);
         float avg = avgRowHeight(t);
+        int wasAnchor = anchorIndex;
+        float wasTop = anchorTop;
         anchorIndex = avg > 0 ? (int) (clamped / avg) : 0;
         anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, rows.size() - 1)));
         anchorTop = anchorIndex * avg - clamped;
         markNeedsLayout();
         invalidate();
         vBar.onScrolled();
+        if (anchorIndex != wasAnchor || anchorTop != wasTop) {
+            notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+        }
     }
 
     private float headerHeight(SizeTokens t) {
@@ -1312,9 +1414,9 @@ public class Table<T> extends Widget implements Scrollable {
         float left = colX[s] - offsetX;
         float right = left + colW[s];
         if (left < 0) {
-            scrollBy(left, 0);
+            scrollBy(left, 0, Change.Origin.ADJUSTMENT);
         } else if (right > viewW) {
-            scrollBy(Math.min(left, right - viewW), 0);
+            scrollBy(Math.min(left, right - viewW), 0, Change.Origin.ADJUSTMENT);
         }
     }
 
@@ -1377,19 +1479,28 @@ public class Table<T> extends Widget implements Scrollable {
         }
         SortOrder next = column == sortColumn ? sortOrder.next() : SortOrder.ASCENDING;
         if (onSortRequest != null) {
+            // Recorded before the announcement, so the handler reads the request the click made
+            // rather than the order the table holds, which for the model's order is none.
             sortColumn = next == SortOrder.NONE ? null : column;
             sortOrder = next;
+            sortRequestColumn = column;
+            sortRequestOrder = next;
             invalidate();
-            onSortRequest.accept(column, next);
+            notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.USER));
             return;
         }
-        setSort(column, next);
+        applySort(column, next, Change.Origin.USER);
     }
 
     // ---------------------------------------------------------------------- selection core
 
-    /** Selects one model row alone and moves the lead and the focus cell to it. */
-    private void selectOnly(int modelIndex, int viewIndex, boolean reveal) {
+    /**
+     * Selects one model row alone and moves the lead and the focus cell to it: the one seam a
+     * single selection goes through, with the origin of whoever asked. The focus cell is
+     * announced first as {@code ACTIVE} when it moved, and the selection last.
+     */
+    private void selectOnly(int modelIndex, int viewIndex, boolean reveal, Change.Origin origin) {
+        int wasFocusRow = focusRow;
         focusRow = viewIndex;
         rangeAnchor = viewIndex;
         if (reveal) {
@@ -1397,21 +1508,25 @@ public class Table<T> extends Widget implements Scrollable {
         }
         if (selectionMode == SelectionMode.NONE) {
             invalidate();
+            announceFocusCell(wasFocusRow, origin);
             return;
         }
         if (lead == modelIndex && selected.cardinality() == 1 && selected.get(modelIndex)) {
             invalidate();
+            announceFocusCell(wasFocusRow, origin);
             return;
         }
         selected.clear();
         selected.set(modelIndex);
         lead = modelIndex;
         invalidate();
-        onSelect.run();
+        announceFocusCell(wasFocusRow, origin);
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
-    /** Extends the selection from the range anchor to {@code viewIndex}, in MULTI. */
+    /** Extends the selection from the range anchor to {@code viewIndex}, in MULTI: a gesture. */
     private void selectRange(int viewIndex) {
+        int wasFocusRow = focusRow;
         int from = rangeAnchor < 0 ? viewIndex : rangeAnchor;
         selected.clear();
         for (int v = Math.min(from, viewIndex); v <= Math.max(from, viewIndex); v++) {
@@ -1421,11 +1536,13 @@ public class Table<T> extends Widget implements Scrollable {
         focusRow = viewIndex;
         ensureVisible(viewIndex);
         invalidate();
-        onSelect.run();
+        announceFocusCell(wasFocusRow, Change.Origin.USER);
+        notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
     }
 
-    /** Toggles one row's membership, in MULTI. */
+    /** Toggles one row's membership, in MULTI: a gesture. */
     private void toggle(int viewIndex) {
+        int wasFocusRow = focusRow;
         int model = modelOf(viewIndex);
         selected.flip(model);
         lead = selected.get(model) ? model : (selected.isEmpty() ? -1 : lead == model
@@ -1434,7 +1551,8 @@ public class Table<T> extends Widget implements Scrollable {
         rangeAnchor = viewIndex;
         ensureVisible(viewIndex);
         invalidate();
-        onSelect.run();
+        announceFocusCell(wasFocusRow, Change.Origin.USER);
+        notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
     }
 
     /** What every key and click goes through; an index past an end lands on the end. */
@@ -1448,7 +1566,7 @@ public class Table<T> extends Widget implements Scrollable {
         if (selectionMode == SelectionMode.MULTI && shift) {
             selectRange(v);
         } else {
-            selectOnly(modelOf(v), v, true);
+            selectOnly(modelOf(v), v, true, Change.Origin.USER);
         }
     }
 
@@ -1808,7 +1926,7 @@ public class Table<T> extends Widget implements Scrollable {
                 boolean canY = estimatedContentHeight(tokens()) > rowsViewportHeight();
                 boolean canX = contentWidth > gutters.viewportWidth(width());
                 if ((dy != 0 && canY) || (dx != 0 && canX)) {
-                    scrollBy(canX ? dx : 0, canY ? dy : 0);
+                    scrollBy(canX ? dx : 0, canY ? dy : 0, Change.Origin.USER);
                     event.consume();
                 }
             }
@@ -1876,10 +1994,10 @@ public class Table<T> extends Widget implements Scrollable {
                 } else if (selectionMode == SelectionMode.MULTI && shift) {
                     selectRange(row);
                 } else {
-                    selectOnly(modelOf(row), row, false);
+                    selectOnly(modelOf(row), row, false, Change.Origin.USER);
                 }
                 if (second && !command && !shift) {
-                    activate();
+                    activate(Change.Origin.USER);
                 }
                 event.consume();
             }
@@ -1923,12 +2041,12 @@ public class Table<T> extends Widget implements Scrollable {
             case Keys.A -> {
                 if ((mods & Accelerator.commandModifier()) != 0
                         && selectionMode == SelectionMode.MULTI) {
-                    consumeAnd(event, this::selectAll);
+                    consumeAnd(event, () -> selectAll(Change.Origin.USER));
                 }
             }
             case Keys.ENTER -> {
                 if (lead >= 0) {
-                    consumeAnd(event, this::activate);
+                    consumeAnd(event, () -> activate(Change.Origin.USER));
                 }
             }
             default -> {
@@ -1952,6 +2070,7 @@ public class Table<T> extends Widget implements Scrollable {
         focusColumn = next;
         ensureColumnVisible(next);
         invalidate();
+        notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
     }
 
     @Override
@@ -2114,7 +2233,7 @@ public class Table<T> extends Widget implements Scrollable {
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
         if (action == Accessible.Action.PRESS && lead >= 0) {
-            activate();
+            activate(Change.Origin.USER);
             return true;
         }
         return false;
@@ -2125,7 +2244,7 @@ public class Table<T> extends Widget implements Scrollable {
                                         Accessible.Argument arg) {
         if (action == Accessible.Action.SELECT && selectionMode != SelectionMode.NONE
                 && key >= 0 && key < rows.size()) {
-            selectOnly((int) key, viewOf((int) key), true);
+            selectOnly((int) key, viewOf((int) key), true, Change.Origin.USER);
             return true;
         }
         return false;
