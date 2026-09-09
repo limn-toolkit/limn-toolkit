@@ -211,6 +211,26 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aFooterIsAGroupOfCellsBelowTheRows() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120).footer("Total"),
+                Column.numeric("Age", Person::age).width(60).footerSum()));
+        table.setRows(people(3));
+        bind(table);
+        List<AccessibleNode> children = childrenOf(tableNode());
+        AccessibleNode last = children.get(children.size() - 1);
+        assertEquals(Accessible.Role.GROUP, last.role(), "the footer group comes last");
+        List<AccessibleNode> cells = childrenOf(last);
+        assertEquals(2, cells.size());
+        assertEquals(Accessible.Role.CELL, cells.get(0).role());
+        assertEquals("Total", cells.get(0).name());
+        assertEquals(new CellFacet(-2, 0), cells.get(0).cell());
+        assertEquals("63", cells.get(1).name(), "20 + 21 + 22, formatted as the column's cells");
+        assertEquals(new CellFacet(-2, 1), cells.get(1).cell());
+        assertTrue(last.y() > rowNodes().get(2).y(), "below the last row");
+    }
+
+    @Test
     void aMultiSelectTableSaysSo() {
         Table<Person> table = bindTable(5);
         table.setSelectionMode(Table.SelectionMode.MULTI);

@@ -100,6 +100,13 @@ table sorts through a permutation and never touches your list, which is why the 
 — a set of *model* rows — survives a sort. For rows a server orders, `onSortRequest` hands
 the click to you instead: reorder the list and call `refresh()`.
 
+A column may also put something in the **footer**, a summary row pinned under the rows the
+way the header is pinned over them: a text (`footer("Total")`), one of the aggregates a
+numeric column offers (`footerSum()`, `footerAverage()`, `footerMin()`, `footerMax()`), the
+row count any column can show (`footerCount()`), or a value you compute from all the rows
+(`footer(rows -> …)`), formatted as that column's cells are. The row appears as soon as one
+column has something for it, and it is recomputed on `setRows` and `refresh()`, never per frame.
+
 Three selection modes: `NONE`, `SINGLE` and `MULTI`, where Shift selects a range, the
 command modifier toggles one row and Ctrl+A or Cmd+A selects all. Whatever the mode, the
 arrow keys move a focus cell, which is what a screen reader's cursor stands on; Enter or a

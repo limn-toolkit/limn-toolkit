@@ -163,6 +163,15 @@ is. A resized column's width is held on the column object, so it survives a `ref
 `Column.width()` answers. Columns may be hidden and shown. Reordering columns by drag is not in
 this record: it wants the internal drag-and-drop the toolkit does not have, and §10 records it.
 
+**The footer is a summary row**, pinned under the rows the way the header is pinned over them,
+and it exists as soon as one column has something for it: a fixed text, one of the aggregates a
+numeric column offers (sum, average, min, max), the row count any column may carry, or a value the
+application computes from all the rows and the column formats as its cells. It is computed on
+`setRows` and `refresh` and never per frame, because a sum over a million rows is a cost to pay
+once per change and not once per damaged pixel. Added to the first phase on 2026-09-09 at the
+owner's request; a free-form area under the rows was considered and refused, because a `Column`
+and a `Label` already give an application that and a table would add nothing to it.
+
 Under a right-to-left direction the first column is at the right edge and the horizontal scroll
 starts there, because mirroring is a placement decision and never a transform (ADR 032). Numeric
 columns align to the **end** of the cell, which is the left under RTL, and their digits are
@@ -188,8 +197,9 @@ platform tables, read off the platforms and never recalled. This record adds fou
 facets, and each bridge's constants for them are read from its guest before the bridge is written.
 
 **Roles.** `TABLE` for the widget; `COLUMN_HEADER` for each header cell; `ROW` for each realized
-data row; `CELL` for each cell of a realized row. The header row itself is a `GROUP`, which every
-platform has, rather than a fifth role.
+data row; `CELL` for each cell of a realized row and for each cell of the footer. The header row
+and the footer row are each a `GROUP`, which every platform has, rather than a fifth role; a
+footer cell's `CellFacet` carries a row of `-2`, as a header cell's carries `-1`.
 
 **Facets.** `TableFacet(rowCount, columnCount)` on the table node: the model's counts, not the
 tree's, for the same reason `SelectionItemFacet` carries the model's size of set. `CellFacet(row,
@@ -265,8 +275,8 @@ that allocate nothing, mirroring, recycling identity.
 **Phase 2:** cell editing (§6), column reordering once internal drag-and-drop exists, frozen
 leading columns, and a `Tree` that shares the engine (§9).
 
-**Not decided here:** cell selection as a rectangle; a footer or summary row; grouping; a
-filter API; multi-column sort; row drag; export. Each is a request the toolkit has not had, and
+**Not decided here:** cell selection as a rectangle; grouping; a filter API; multi-column
+sort; row drag; export. Each is a request the toolkit has not had, and
 each would be guessed at rather than designed.
 
 ---

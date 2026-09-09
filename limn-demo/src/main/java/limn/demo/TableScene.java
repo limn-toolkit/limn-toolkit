@@ -55,12 +55,14 @@ final class TableScene {
         List<Order> rows = orders(100_000);
         Label status = new Label("No selection");
 
-        Column<Order> id = Column.<Order>text("Order", order -> "#" + order.id()).width(100);
+        Column<Order> id = Column.<Order>text("Order", order -> "#" + order.id()).width(100)
+                .footerCount();
         Column<Order> customer = Column.text("Customer", Order::customer).width(140).weight(1);
         Column<Order> state = Column.text("Status", Order::status).width(100);
         Column<Order> total = Column.<Order, Double>of("Total", Order::total,
-                (v, locale) -> String.format(locale, "%,.2f", v)).width(110)
-                .align(Column.Alignment.END);
+                (v, locale) -> String.format(locale, "%,.2f", v)).width(150)
+                .align(Column.Alignment.END)
+                .footer(all -> all.stream().mapToDouble(Order::total).sum());
         Column<Order> flagged = Column.<Order>widget("Flagged",
                 order -> new Checkbox(Checkbox.Variant.SWITCH, "").setChecked(order.flagged()))
                 .width(90).sortable(false);

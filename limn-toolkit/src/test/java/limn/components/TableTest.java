@@ -271,6 +271,55 @@ class TableTest extends ComponentTestBase {
     }
 
     @Test
+    void theFooterSummarisesTheRowsAndTakesItsOwnStrip() {
+        Column<Person> name = nameColumn().footer("Total");
+        Column<Person> age = ageColumn().footerSum();
+        Table<Person> table = new Table<>(List.of(name, age));
+        List<Person> rows = new ArrayList<>(List.of(new Person("A", 10), new Person("B", 20),
+                new Person("C", 30)));
+        table.setRows(rows);
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        assertEquals("Total", table.footerTextOf(name));
+        assertEquals("60", table.footerTextOf(age));
+        rows.add(new Person("D", 40));
+        table.refresh();
+        assertEquals("100", table.footerTextOf(age), "recomputed on refresh");
+        age.footerAverage();
+        table.refresh();
+        assertEquals("25", table.footerTextOf(age));
+        age.footerMax();
+        table.refresh();
+        assertEquals("40", table.footerTextOf(age));
+        age.footerMin();
+        table.refresh();
+        assertEquals("10", table.footerTextOf(age));
+        name.footerCount();
+        table.refresh();
+        assertEquals("4", table.footerTextOf(name));
+        age.footer(all -> all.get(0).age() * 2.0);
+        table.refresh();
+        assertEquals("20", table.footerTextOf(age), "a function, formatted as the column is");
+        // The footer takes a strip of its own, so fewer rows fit than without it.
+        Table<Person> plain = new Table<>(List.of(nameColumn(), ageColumn()));
+        plain.setRows(people(200));
+        scene(plain, canvas);
+        table.setRows(people(200));
+        scene.renderFrame(canvas);
+        scene.requestFocus(table);
+        scene.keyEvent(Keys.END, true, false, 0);
+        scene.inputBatchEnded();
+        scene.renderFrame(canvas);
+        Scene plainScene = scene(plain, canvas);
+        plainScene.requestFocus(plain);
+        plainScene.keyEvent(Keys.END, true, false, 0);
+        plainScene.inputBatchEnded();
+        plainScene.renderFrame(canvas);
+        assertTrue(table.firstVisibleRow() > plain.firstVisibleRow(),
+                "with a footer the last row sits higher, so the first shown row is later");
+    }
+
+    @Test
     void refreshDropsASelectionTheListNoLongerHas() {
         List<Person> rows = new ArrayList<>(people(4));
         Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));

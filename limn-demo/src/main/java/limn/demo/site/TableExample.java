@@ -45,12 +45,16 @@ public final class TableExample {
      */
     // #region guide:table
     public static Table<Release> table(Label status) {
-        Column<Release> name = Column.text("Name", Release::name).width(140).weight(1);
-        Column<Release> platform = Column.text("Platform", Release::platform).width(100);
-        Column<Release> downloads = Column.numeric("Downloads", Release::downloads).width(110);
+        Column<Release> name = Column.text("Name", Release::name).width(140).weight(1)
+                .footer("Total");
+        Column<Release> platform = Column.text("Platform", Release::platform).width(100)
+                .footerCount();
+        Column<Release> downloads = Column.numeric("Downloads", Release::downloads).width(110)
+                .footerSum();
         Column<Release> size = Column.<Release, Double>of("Size", Release::size,
                 (mb, locale) -> String.format(locale, "%.1f MB", mb)).width(90)
-                .align(Column.Alignment.END);
+                .align(Column.Alignment.END)
+                .footer(rows -> rows.stream().mapToDouble(Release::size).sum());
 
         Table<Release> table = new Table<>(List.of(name, platform, downloads, size));
         table.setRows(releases());

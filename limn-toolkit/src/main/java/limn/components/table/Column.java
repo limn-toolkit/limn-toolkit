@@ -7,6 +7,7 @@ import limn.scene.Widget;
 
 import java.text.Collator;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -33,6 +34,14 @@ import java.util.function.ToDoubleFunction;
  * named, else the values themselves &mdash; numbers numerically, strings through the language's
  * collator (ADR 034), anything else comparable by itself &mdash; else the formatted text. A widget
  * column has no value and is not sortable unless given a comparator.
+ *
+ * <p><b>The footer.</b> A column may put something in the table's summary row, which is pinned
+ * under the rows the way the header is pinned over them and appears as soon as one column has
+ * something for it: a fixed text ({@link #footer(I18nString)}), a value computed from all the
+ * rows and formatted as the cells are ({@link #footer(Function)}), or one of the aggregates a
+ * numeric column offers ({@link #footerSum()}, {@link #footerAverage()}, {@link #footerMin()},
+ * {@link #footerMax()}) and the count any column does ({@link #footerCount()}). The table computes
+ * it on {@link Table#setRows} and {@link Table#refresh()}, never per frame.
  *
  * @param <T> the row type
  */
@@ -63,6 +72,9 @@ public final class Column<T> {
     private float weight;
     private float draggedWidth = -1;
     private boolean visible = true;
+    private I18nString footerText;
+    private Function<List<T>, Object> footer;
+    private BiFunction<Object, Locale, String> footerFormat;
 
     private Column(I18nString title, Function<T, Object> value,
                    BiFunction<Object, Locale, String> format, Function<T, Widget> widget) {
@@ -297,6 +309,171 @@ public final class Column<T> {
     /** @return whether the column is shown */
     public boolean isVisible() {
         return visible;
+    }
+
+    // ------------------------------------------------------------------------------- footer
+
+    /**
+     * Puts a fixed text in this column's footer cell: "Total", say, beside the sums.
+     *
+     * @param text what the footer cell says; {@code null} removes the footer cell
+     * @return this column
+     */
+    public Column<T> footer(I18nString text) {
+        this.footerText = text;
+        this.footer = null;
+        return this;
+    }
+
+    /**
+     * {@link #footer(I18nString)} with a literal text.
+     *
+     * @param text what the footer cell says
+     * @return this column
+     */
+    public Column<T> footer(String text) {
+        return footer(I18nString.literal(text));
+    }
+
+    /**
+     * Computes this column's footer cell from all the rows, and formats the result as the
+     * column's cells are formatted: a {@link #text} column expects a string back, a
+     * {@link #numeric} one a number, an {@link #of} column a value of its own type.
+     *
+     * @param summary the footer value from the rows; {@code null} removes the footer cell
+     * @return this column
+     */
+    public Column<T> footer(Function<List<T>, ?> summary) {
+        this.footerText = null;
+        this.footer = summary == null ? null : summary::apply;
+        this.footerFormat = format;
+        return this;
+    }
+
+    /**
+     * Sums the column's numbers in the footer.
+     *
+     * @return this column
+     * @throws IllegalStateException on a column without a numeric value, from the first
+     *                               {@link Table#refresh()} that computes it
+     */
+    public Column<T> footerSum() {
+        return aggregate(numbers -> {
+            double sum = 0;
+            for (double n : numbers) {
+                sum += n;
+            }
+            return sum;
+        });
+    }
+
+    /**
+     * Averages the column's numbers in the footer; empty when there are no rows.
+     *
+     * @return this column
+     */
+    public Column<T> footerAverage() {
+        return aggregate(numbers -> {
+            if (numbers.length == 0) {
+                return null;
+            }
+            double sum = 0;
+            for (double n : numbers) {
+                sum += n;
+            }
+            return sum / numbers.length;
+        });
+    }
+
+    /**
+     * The smallest of the column's numbers in the footer; empty when there are no rows.
+     *
+     * @return this column
+     */
+    public Column<T> footerMin() {
+        return aggregate(numbers -> {
+            if (numbers.length == 0) {
+                return null;
+            }
+            double min = numbers[0];
+            for (double n : numbers) {
+                min = Math.min(min, n);
+            }
+            return min;
+        });
+    }
+
+    /**
+     * The largest of the column's numbers in the footer; empty when there are no rows.
+     *
+     * @return this column
+     */
+    public Column<T> footerMax() {
+        return aggregate(numbers -> {
+            if (numbers.length == 0) {
+                return null;
+            }
+            double max = numbers[0];
+            for (double n : numbers) {
+                max = Math.max(max, n);
+            }
+            return max;
+        });
+    }
+
+    /**
+     * The row count in the footer, localized as a number; any column may carry it.
+     *
+     * @return this column
+     */
+    public Column<T> footerCount() {
+        DoubleFunction<String> number = ChartFormats.number();
+        this.footerText = null;
+        this.footer = rows -> (double) rows.size();
+        this.footerFormat = (v, locale) -> number.apply((Double) v);
+        return this;
+    }
+
+    private interface Aggregate {
+        Double of(double[] numbers);
+    }
+
+    private Column<T> aggregate(Aggregate aggregate) {
+        DoubleFunction<String> number = ChartFormats.number();
+        this.footerText = null;
+        this.footer = rows -> {
+            if (value == null) {
+                throw new IllegalStateException("a widget column has no numbers to aggregate");
+            }
+            double[] numbers = new double[rows.size()];
+            for (int i = 0; i < numbers.length; i++) {
+                Object v = value.apply(rows.get(i));
+                if (!(v instanceof Number n)) {
+                    throw new IllegalStateException("the column's value is not a number: " + v);
+                }
+                numbers[i] = n.doubleValue();
+            }
+            return aggregate.of(numbers);
+        };
+        this.footerFormat = (v, locale) -> number.apply((Double) v);
+        return this;
+    }
+
+    /** @return whether this column puts something in the footer */
+    public boolean hasFooter() {
+        return footerText != null || footer != null;
+    }
+
+    /** The footer cell's text under {@code locale}, or {@code null} when the column has none. */
+    String footerText(List<T> rows, Locale locale) {
+        if (footerText != null) {
+            return footerText.get();
+        }
+        if (footer == null) {
+            return null;
+        }
+        Object v = footer.apply(rows);
+        return v == null ? "" : footerFormat.apply(v, locale);
     }
 
     /** Forgets a width the user dragged, so layout starts from the preferred width again. */

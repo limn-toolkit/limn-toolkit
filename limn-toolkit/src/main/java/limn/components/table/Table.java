@@ -56,6 +56,11 @@ import java.util.function.IntConsumer;
  * order. The table sorts by default; {@link #onSortRequest} hands the click to the application
  * instead, for rows a server orders.
  *
+ * <p><b>The footer</b> is a summary row pinned under the rows, as the header is pinned over
+ * them, and it appears as soon as one column has something for it ({@link Column#footer},
+ * {@link Column#footerSum()} and the other aggregates). It is computed on {@link #setRows} and
+ * {@link #refresh()} and never per frame.
+ *
  * <p>ADR 041 is the record.
  *
  * @param <T> the row type
@@ -80,6 +85,8 @@ public class Table<T> extends Widget implements Scrollable {
     private static final long DOUBLE_CLICK_NANOS = 400_000_000L;
     /** The synthetic key of the header row's group node. */
     private static final long HEADER_KEY = -1;
+    /** The synthetic key of the footer row's group node. */
+    private static final long FOOTER_KEY = -2;
     /** The bit that keeps a widget cell's identity key apart from a row's. */
     private static final long WIDGET_KEY = 1L << 40;
 
@@ -134,6 +141,11 @@ public class Table<T> extends Widget implements Scrollable {
     private ShapedText[] headerShaped = new ShapedText[0];
     private final LanguageWitness language = new LanguageWitness();
     private long textEpoch;
+    // The footer: one text per column, null where the column has none, computed on setRows and
+    // refresh; shown while any shown column has one.
+    private String[] footerTexts = new String[0];
+    private ShapedText[] footerShaped = new ShapedText[0];
+    private boolean footerShown;
     private Font headerBase;
     private Font headerDerived;
     /**
@@ -266,6 +278,7 @@ public class Table<T> extends Widget implements Scrollable {
         anchorTop = 0;
         resort();
         unmountAll();
+        recomputeFooter();
         markNeedsLayout();
         invalidate();
         if (had) {
@@ -287,6 +300,16 @@ public class Table<T> extends Widget implements Scrollable {
     /** @return the columns, in reading order; hidden ones included */
     public List<Column<T>> columns() {
         return columns;
+    }
+
+    /**
+     * @param column one of this table's columns
+     * @return the text its footer cell shows, as computed by the last {@link #setRows} or
+     *         {@link #refresh()}; {@code null} when the column puts nothing in the footer
+     */
+    public String footerTextOf(Column<T> column) {
+        int c = columns.indexOf(column);
+        return c < 0 || c >= footerTexts.length ? null : footerTexts[c];
     }
 
     /**
@@ -329,6 +352,7 @@ public class Table<T> extends Widget implements Scrollable {
         anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, count - 1)));
         unmountAll();
         textEpoch++;
+        recomputeFooter();
         markNeedsLayout();
         invalidate();
         if (moved) {
@@ -796,6 +820,39 @@ public class Table<T> extends Widget implements Scrollable {
         return showHeader ? t.controlHeight() : 0;
     }
 
+    private float footerHeight(SizeTokens t) {
+        return footerShown ? t.controlHeight() : 0;
+    }
+
+    /** The top of the footer row in this widget's coordinates, for this pass. */
+    private float footerTop() {
+        return gutters.viewportHeight(height()) - footerHeight(tokens());
+    }
+
+    /**
+     * Reads every column's footer cell from the rows: once per {@link #setRows} and
+     * {@link #refresh}, and once more when the language moves, never per frame.
+     */
+    private void recomputeFooter() {
+        if (footerTexts.length < columns.size()) {
+            footerTexts = new String[columns.size()];
+            footerShaped = new ShapedText[columns.size()];
+        }
+        Locale locale = locale();
+        boolean shown = false;
+        for (int c = 0; c < columns.size(); c++) {
+            Column<T> column = columns.get(c);
+            footerTexts[c] = column.footerText(rows, locale);
+            footerShaped[c] = null;
+            shown |= footerTexts[c] != null && column.isVisible();
+        }
+        if (shown != footerShown) {
+            footerShown = shown;
+            markNeedsLayout();
+        }
+        textEpoch++;
+    }
+
     private float rowsTop() {
         return headerHeight(tokens());
     }
@@ -805,7 +862,8 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     private float rowsViewportHeight() {
-        return Math.max(0, gutters.viewportHeight(height()) - rowsTop());
+        SizeTokens t = tokens();
+        return Math.max(0, gutters.viewportHeight(height()) - headerHeight(t) - footerHeight(t));
     }
 
     // ------------------------------------------------------------------------------ layout
@@ -821,7 +879,7 @@ public class Table<T> extends Widget implements Scrollable {
         }
         float w = constraints.hasBoundedWidth() ? constraints.maxWidth() : preferred;
         float h = constraints.hasBoundedHeight() ? constraints.maxHeight()
-                : headerHeight(t) + VISIBLE_ROWS_HINT * avgRowHeight(t);
+                : headerHeight(t) + footerHeight(t) + VISIBLE_ROWS_HINT * avgRowHeight(t);
         return constraints.constrain(w, h);
     }
 
@@ -899,14 +957,16 @@ public class Table<T> extends Widget implements Scrollable {
             for (int i = 0; i < mountedCount; i++) {
                 rebind(mountedSlots[i]);
             }
+            recomputeFooter();
         }
         float headerH = headerHeight(t);
+        float footerH = footerHeight(t);
         gutters.resolve(box, boxH, vBar, hBar, (viewW, viewH) -> {
             resolveColumns(viewW);
-            return new Size(contentWidth, headerH + estimatedContentHeight(tokens()));
+            return new Size(contentWidth, headerH + footerH + estimatedContentHeight(tokens()));
         });
         float w = gutters.viewportWidth(box);
-        float viewH = Math.max(0, gutters.viewportHeight(boxH) - headerH);
+        float viewH = Math.max(0, gutters.viewportHeight(boxH) - headerH - footerH);
         resolveColumns(w);
         float barT = ScrollBar.thickness();
         vBar.measure(Constraints.tight(barT, viewH));
@@ -1422,6 +1482,16 @@ public class Table<T> extends Widget implements Scrollable {
         return fitted;
     }
 
+    private ShapedText shapedFooter(int c, String text, TextRuler ruler, Font font) {
+        ShapedText.Direction base = ShapedText.Direction.of(text, neutralBase());
+        ShapedText held = footerShaped[c];
+        if (held == null || !held.matches(text, font, base, ruler)) {
+            held = ruler.shape(text, font, base);
+            footerShaped[c] = held;
+        }
+        return held;
+    }
+
     private ShapedText shapedHeader(int c, TextRuler ruler, Font font) {
         String text = columns.get(c).title().get();
         ShapedText.Direction base = ShapedText.Direction.of(text, neutralBase());
@@ -1527,6 +1597,39 @@ public class Table<T> extends Widget implements Scrollable {
             canvas.restore();
         }
 
+        if (footerShown) {
+            float footerH = footerHeight(t);
+            float top = footerTop();
+            canvas.save();
+            try {
+                canvas.clipRect(rowX, top, w, footerH);
+                canvas.fillRect(rowX, top, w, footerH, theme.surfaceRaised);
+                canvas.drawLine(rowX, top + Strokes.HALF_PIXEL_INSET, rowX + w,
+                        top + Strokes.HALF_PIXEL_INSET, Strokes.HAIRLINE, theme.outline);
+                Font font = headerFont(t);
+                for (int s = 0; s < shownCount; s++) {
+                    float left = columnLeft(s, rowX, w, rtl);
+                    int c = shownIndex[s];
+                    String text = footerTexts.length > c ? footerTexts[c] : null;
+                    if (text == null || text.isEmpty() || left >= rowX + w
+                            || left + colW[s] <= rowX) {
+                        continue;
+                    }
+                    ShapedText shaped = shapedFooter(c, text, ruler, font);
+                    float available = Math.max(0, colW[s] - 2 * padH);
+                    ShapedText line = shaped.metrics().width() > available
+                            ? ruler.ellipsize(shaped, available) : shaped;
+                    float tw = line.metrics().width();
+                    float x = textX(columns.get(c).alignment(), left, colW[s], tw, padH, rtl);
+                    float baseline = top + (footerH - line.metrics().height()) / 2
+                            + line.metrics().ascent();
+                    canvas.drawText(line, x, baseline, theme.text);
+                }
+            } finally {
+                canvas.restore();
+            }
+        }
+
         if (showHeader) {
             canvas.save();
             try {
@@ -1605,12 +1708,13 @@ public class Table<T> extends Widget implements Scrollable {
         if (hit != null) {
             return hit;
         }
-        if (localY >= rowsTop()) {
+        if (localY >= rowsTop() && localY < rowsTop() + rowsViewportHeight()) {
             for (Widget child : children()) {
                 if (child == vBar || child == hBar) {
                     continue;
                 }
-                if (child.y() + child.height() <= rowsTop() || child.y() >= height()) {
+                if (child.y() + child.height() <= rowsTop()
+                        || child.y() >= rowsTop() + rowsViewportHeight()) {
                     continue;
                 }
                 Widget inner = child.hitTest(localX - child.x(), localY - child.y());
@@ -1655,6 +1759,9 @@ public class Table<T> extends Widget implements Scrollable {
 
     /** The view row whose box holds local {@code y}, or {@code -1}. */
     private int rowAt(float y) {
+        if (y < rowsTop() || y >= rowsTop() + rowsViewportHeight()) {
+            return -1;
+        }
         for (int i = 0; i < mountedCount; i++) {
             int row = mountedRows[i];
             float top = rowTop(row);
@@ -1930,6 +2037,31 @@ public class Table<T> extends Widget implements Scrollable {
                 if (row == focusRow && s == focusColumn) {
                     a.state(Accessible.State.ACTIVE);
                 }
+                if (left + colW[s] <= rowX || left >= rowX + w) {
+                    a.offScreen();
+                }
+                a.endChild();
+            }
+            a.endChild();
+        }
+
+        if (footerShown) {
+            float footerH = footerHeight(t);
+            float top = footerTop();
+            a.child(FOOTER_KEY);
+            a.bounds(rowX, top, w, footerH);
+            a.role(Accessible.Role.GROUP);
+            for (int s = 0; s < shownCount; s++) {
+                int c = shownIndex[s];
+                if (footerTexts[c] == null) {
+                    continue;
+                }
+                float left = columnLeft(s, rowX, w, rtl);
+                a.child(c);
+                a.bounds(left, top, colW[s], footerH);
+                a.role(Accessible.Role.CELL);
+                a.name(footerTexts[c], textEpoch, Accessible.NameFrom.CONTENT);
+                a.cell(-2, s);
                 if (left + colW[s] <= rowX || left >= rowX + w) {
                     a.offScreen();
                 }

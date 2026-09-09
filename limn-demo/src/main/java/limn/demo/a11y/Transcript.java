@@ -212,7 +212,8 @@ public final class Transcript {
         }
         CellFacet cell = node.cell();
         if (cell != null) {
-            out.append(" cell ").append(cell.row() < 0 ? "header" : String.valueOf(cell.row()))
+            out.append(" cell ").append(cell.row() == -1 ? "header"
+                    : cell.row() == -2 ? "footer" : String.valueOf(cell.row()))
                     .append(',').append(cell.column());
         }
     }
