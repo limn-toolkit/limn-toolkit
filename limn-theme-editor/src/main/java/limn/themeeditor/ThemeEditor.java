@@ -3,14 +3,14 @@ package limn.themeeditor;
 import limn.components.Button;
 import limn.components.Checkbox;
 import limn.components.ColorPickerButton;
-import limn.components.DisplayMode;
 import limn.components.ComboBox;
+import limn.components.DisplayMode;
 import limn.components.Label;
 import limn.components.ScrollGutters;
 import limn.components.ScrollView;
+import limn.components.Separator;
 import limn.components.SizeTokens;
 import limn.components.Slider;
-import limn.components.Separator;
 import limn.components.TextField;
 import limn.components.Theme;
 import limn.components.ThemeFormat;
@@ -24,6 +24,8 @@ import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Fonts;
 import limn.i18n.I18nString;
+import limn.lang.Checks;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.Scene;
@@ -161,10 +163,7 @@ public final class ThemeEditor extends Widget {
     /** What the report is currently showing, so an unchanged verdict rebuilds nothing. */
     private List<ThemeAudit.Finding> shownFindings = List.of();
     private boolean applyLive = true;
-    private Consumer<Theme> onChange = theme -> {
-    };
-    /** Guards the round trip: writing a control must not be read back as an edit. */
-    private boolean syncing;
+    private Consumer<Theme> onChange;
 
     /** An editor on the palette the application is currently wearing. */
     public ThemeEditor() {
@@ -181,23 +180,20 @@ public final class ThemeEditor extends Widget {
         this.baseChoice = ComboBox.localized(baseItems());
 
         nameField.setPlaceholder(ThemeEditorStrings.NAME_PLACEHOLDER);
+        // Every control's handler below hears the user and nothing else: the editor's own writes
+        // into its controls, in syncFromBuilder and its siblings, are a caller's writes and reach
+        // no handler, which is what let the flag that guarded the round trip go.
         nameField.onChange(text -> {
-            if (!syncing) {
-                builder.name(text.isBlank() ? ThemeEditorStrings.NAME_PLACEHOLDER.get() : text);
-                edited();
-            }
+            builder.name(text.isBlank() ? ThemeEditorStrings.NAME_PLACEHOLDER.get() : text);
+            edited(Change.Origin.USER);
         });
         darkToggle.onChange(dark -> {
-            if (!syncing) {
-                builder.dark(dark);
-                edited();
-            }
+            builder.dark(dark);
+            edited(Change.Origin.USER);
         });
         liveToggle.setChecked(true).onChange(this::setApplyLive);
         baseChoice.onSelect(index -> {
-            if (!syncing) {
-                pickBase(index);
-            }
+            pickBase(index);
         });
         rebuildFontChoice();
 
@@ -272,7 +268,7 @@ public final class ThemeEditor extends Widget {
         Objects.requireNonNull(colour, "colour");
         builder.set(token, colour);
         syncFromBuilder();
-        edited();
+        edited(Change.Origin.CODE);
         return this;
     }
 
@@ -285,7 +281,7 @@ public final class ThemeEditor extends Widget {
         Ui.checkUiThread();
         builder.cornerScale(value);
         syncCornerControl();
-        edited();
+        edited(Change.Origin.CODE);
         return this;
     }
 
@@ -303,7 +299,7 @@ public final class ThemeEditor extends Widget {
         setTheme(Theme.builtins().get(index - 1).toBuilder().name(kept).build());
         baseIndex = index; // after setTheme, which recomputes it from the palette
         syncFromBuilder();
-        edited();
+        edited(Change.Origin.USER); // reached from the "start from" control alone
     }
 
     /** Puts back the palette this editor opened on, or the last one given to {@link #setTheme}. */
@@ -311,7 +307,7 @@ public final class ThemeEditor extends Widget {
         Ui.checkUiThread();
         this.builder = original.toBuilder();
         syncFromBuilder();
-        edited();
+        edited(Change.Origin.CODE);
         return this;
     }
 
@@ -321,15 +317,34 @@ public final class ThemeEditor extends Widget {
     }
 
     /**
-     * Called after every edit, with the palette as it now stands, including the one
-     * {@link #revert()} restores. Not called by {@link #setTheme}. Keep it cheap: a colour
-     * well reports on every frame of a drag, and so does this.
+     * The application's response to the user editing the palette: a well moved, the shape
+     * slider dragged, a name typed, a base or a family picked, a derivation pressed -- called
+     * with the palette as it now stands. Never for {@link #setToken}, {@link #setCornerScale},
+     * {@link #revert()} or {@link #setTheme}, which are the caller's own writes; an application
+     * that drives the editor from a preset menu or an undo stack and wants to hear its own writes
+     * {@linkplain #observeChanges watches} the editor, whose every edit is announced as
+     * {@code VALUE}. Keep it cheap: a colour well reports on every frame of a drag, and so does
+     * this.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this editor
+     * @throws IllegalStateException if a handler is already registered
      */
     public ThemeEditor onChange(Consumer<Theme> listener) {
         Ui.checkUiThread();
-        this.onChange = listener == null ? theme -> {
-        } : listener;
+        this.onChange = Checks.handlerSlot(onChange, listener, "ThemeEditor.onChange");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.VALUE) {
+            if (onChange != null) {
+                onChange.accept(theme());
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
     }
 
     /**
@@ -344,15 +359,7 @@ public final class ThemeEditor extends Widget {
     public ThemeEditor setApplyLive(boolean value) {
         Ui.checkUiThread();
         this.applyLive = value;
-        if (liveToggle.isChecked() != value) {
-            boolean wasSyncing = syncing;
-            syncing = true;
-            try {
-                liveToggle.setChecked(value);
-            } finally {
-                syncing = wasSyncing;
-            }
-        }
+        liveToggle.setChecked(value); // a caller's write: the toggle's handler does not hear it
         pushLive();
         return this;
     }
@@ -480,7 +487,7 @@ public final class ThemeEditor extends Widget {
     void load(Theme theme) {
         this.builder = theme.toBuilder();
         syncFromBuilder();
-        edited();
+        edited(Change.Origin.CODE); // the application adopted a palette; nobody edited a control
     }
 
     /** The line the editor reports its own outcomes on. */
@@ -495,13 +502,16 @@ public final class ThemeEditor extends Widget {
 
     // --- editing -------------------------------------------------------------
 
-    /** One edit: refresh what is derived from it, install it, and tell the listener. */
-    private void edited() {
+    /**
+     * One edit: refresh what is derived from it, install it, and announce it as {@code VALUE}
+     * with {@code origin} -- which reaches {@link #onChange} for the user's edits alone.
+     */
+    private void edited(Change.Origin origin) {
         Theme theme = theme();
         preview.setTheme(theme);
         buildReport(theme);
         pushLive(theme);
-        onChange.accept(theme);
+        notifyChange(Change.of(Change.Aspect.VALUE, origin));
     }
 
     private void pushLive() {
@@ -549,20 +559,17 @@ public final class ThemeEditor extends Widget {
         scene.root().invalidate();
     }
 
-    /** Writes every control from the builder without reading any of them back as an edit. */
+    /**
+     * Writes every control from the builder. Each is a caller's write on that control and reaches
+     * no control's handler, so nothing here is read back as an edit and nothing guards it.
+     */
     private void syncFromBuilder() {
-        syncing = true;
-        try {
-            nameField.setText(builder.name());
-            darkToggle.setChecked(builder.isDark());
-
-            for (Map.Entry<Theme.Token, ColorPickerButton> entry : wells.entrySet()) {
-                entry.getValue().setColor(builder.get(entry.getKey()));
-            }
-            baseChoice.setSelectedIndex(baseIndex);
-        } finally {
-            syncing = false;
+        nameField.setText(builder.name());
+        darkToggle.setChecked(builder.isDark());
+        for (Map.Entry<Theme.Token, ColorPickerButton> entry : wells.entrySet()) {
+            entry.getValue().setColor(builder.get(entry.getKey()));
         }
+        baseChoice.setSelectedIndex(baseIndex);
         syncCornerControl();
         // The list itself can need rebuilding, not just the selection: a palette loaded from a
         // file may name a family that is not in the catalog and therefore not yet an entry.
@@ -635,9 +642,9 @@ public final class ThemeEditor extends Widget {
      */
     private Widget shapeRow() {
         cornerSlider.onChange(value -> {
-            if (!syncing) {
-                setCornerScale(value);
-            }
+            builder.cornerScale(value);
+            syncCornerControl();
+            edited(Change.Origin.USER);
         });
         syncCornerControl();
 
@@ -682,11 +689,7 @@ public final class ThemeEditor extends Widget {
         }
 
         ComboBox replacement = ComboBox.localized(items);
-        replacement.onSelect(index -> {
-            if (!syncing) {
-                pickFont(index);
-            }
-        });
+        replacement.onSelect(this::pickFont);
         for (Widget child : List.copyOf(fontRow.children())) {
             fontRow.remove(child);
         }
@@ -716,15 +719,7 @@ public final class ThemeEditor extends Widget {
 
     /** Writes the picker and its note from the builder, without reading either back as an edit. */
     private void syncFontControl() {
-        boolean wasSyncing = syncing;
-        syncing = true;
-        try {
-            String chosen = builder.fontFamily();
-            int index = fontFamilies.indexOf(chosen);
-            fontChoice.setSelectedIndex(Math.max(0, index));
-        } finally {
-            syncing = wasSyncing;
-        }
+        fontChoice.setSelectedIndex(Math.max(0, fontFamilies.indexOf(builder.fontFamily())));
         String chosen = builder.fontFamily();
         boolean missing = !Font.DEFAULT_FAMILY.equals(chosen) && !Fonts.available().contains(chosen);
         fontNote.setText(missing ? ThemeEditorStrings.FONT_MISSING : I18nString.EMPTY);
@@ -737,7 +732,7 @@ public final class ThemeEditor extends Widget {
             return;
         }
         builder.fontFamily(fontFamilies.get(index));
-        edited();
+        edited(Change.Origin.USER); // reached from the family picker alone
     }
 
     /**
@@ -746,13 +741,7 @@ public final class ThemeEditor extends Widget {
      * designer thinks in, not the multiplier that produced it.
      */
     private void syncCornerControl() {
-        boolean wasSyncing = syncing;
-        syncing = true;
-        try {
-            cornerSlider.setValue(builder.cornerScale());
-        } finally {
-            syncing = wasSyncing;
-        }
+        cornerSlider.setValue(builder.cornerScale());
         // The scale applied to the default row, rather than building a whole palette to read
         // one number back out of it: this runs on every frame of a shape drag.
         float radius = SizeTokens.MEDIUM.radiusMedium() * builder.cornerScale();
@@ -771,10 +760,8 @@ public final class ThemeEditor extends Widget {
         well.setAlphaEnabled(token == Theme.Token.SCRIM);
         well.setPickerDisplayMode(pickerDisplayMode);
         well.onChange(colour -> {
-            if (!syncing) {
-                builder.set(token, colour);
-                edited();
-            }
+            builder.set(token, colour);
+            edited(Change.Origin.USER);
         });
         wells.put(token, well);
 
@@ -801,7 +788,7 @@ public final class ThemeEditor extends Widget {
         button.onAction(() -> {
             derive(derivation);
             syncFromBuilder();
-            edited();
+            edited(Change.Origin.USER); // the button is the user's
         });
         return button;
     }

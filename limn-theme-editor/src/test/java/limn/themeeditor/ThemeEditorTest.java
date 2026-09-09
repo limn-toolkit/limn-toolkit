@@ -4,6 +4,7 @@ import limn.components.ColorPickerButton;
 import limn.components.Theme;
 import limn.components.ThemeFormat;
 import limn.graphics.Color;
+import limn.scene.Change;
 import limn.scene.Scene;
 import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,13 +80,21 @@ class ThemeEditorTest extends EditorTestBase {
     // --- editing ------------------------------------------------------------
 
     @Test
-    void settingAToneMovesThePaletteTheWellAndTheListener() {
+    void settingAToneMovesThePaletteTheWellAndTheWatchersAndNotTheHandler() {
+        List<Change.Origin> heard = new ArrayList<>();
+        editor.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.VALUE) {
+                heard.add(change.origin());
+            }
+        });
+
         editor.setToken(Theme.Token.PRIMARY, Color.rgb(0x4FD1C5));
 
         assertEquals(Color.rgb(0x4FD1C5), editor.theme().primary);
         assertEquals(Color.rgb(0x4FD1C5), editor.wellFor(Theme.Token.PRIMARY).color());
-        assertEquals(1, changes.size());
-        assertEquals(Color.rgb(0x4FD1C5), changes.get(0).primary);
+        assertEquals(List.of(Change.Origin.CODE), heard, "a watcher hears the caller's write");
+        assertEquals(List.of(), changes,
+                "the handler answers the user, and the application wrote this tone itself");
     }
 
     @Test
@@ -99,13 +108,21 @@ class ThemeEditorTest extends EditorTestBase {
     }
 
     @Test
-    void revertIsReportedLikeAnyOtherChange() {
+    void revertIsAnnouncedLikeAnyOtherChange() {
+        List<Theme> heard = new ArrayList<>();
+        editor.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.VALUE) {
+                heard.add(editor.theme());
+            }
+        });
         editor.setToken(Theme.Token.PRIMARY, Color.rgb(0x4FD1C5));
-        changes.clear();
+        heard.clear();
         editor.revert();
-        assertEquals(1, changes.size(),
-                "a caller applying what it is handed must be told the palette went back");
-        assertEquals(Theme.dark().primary, changes.get(0).primary);
+        assertEquals(1, heard.size(),
+                "a caller applying what it is handed must be told the palette went back, and a"
+                        + " watcher is how it asks to be");
+        assertEquals(Theme.dark().primary, heard.get(0).primary);
+        assertEquals(List.of(), changes, "the handler is for the user's edits");
     }
 
     @Test

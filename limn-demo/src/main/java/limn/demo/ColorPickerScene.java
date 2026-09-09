@@ -7,6 +7,7 @@ import limn.components.Label;
 import limn.components.ScrollView;
 import limn.components.Theme;
 import limn.graphics.Color;
+import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -76,8 +77,12 @@ final class ColorPickerScene {
         Label chosen = new Label("");
         ColorPickerButton well = new ColorPickerButton(Color.rgb(0xF59E0B));
         well.setAlphaEnabled(false);
-        well.onChange(color -> chosen.setText("Chosen: " + color.toHex()));
         chosen.setText("Chosen: " + well.color().toHex());
+        well.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.VALUE) {
+                chosen.setText("Chosen: " + well.color().toHex());
+            }
+        });
 
         // The second form: a caption of the application's own instead of the hex, which is
         // what a dense inspector row wants beside a token name.

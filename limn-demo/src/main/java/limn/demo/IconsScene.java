@@ -1,20 +1,21 @@
 package limn.demo;
 
 import limn.components.Label;
-import limn.components.Theme;
 import limn.components.ListView;
 import limn.components.SearchField;
+import limn.components.Theme;
 import limn.components.TokenColumn;
 import limn.components.TokenRow;
 import limn.components.Tokens;
 import limn.icons.tabler.Tabler;
 import limn.icons.tabler.TablerSystem;
-import limn.scene.layout.Flex;
-import limn.scene.layout.SizedBox;
+import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
+import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
+import limn.scene.layout.SizedBox;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -151,9 +152,17 @@ final class IconsScene {
         }
         count.setText(summary(icons));
 
-        list.onSelect(index -> detail.setText(index < 0 ? "Click a row for its constant."
-                : "Tabler.outline(\"" + icons.nameAt(index) + "\")"
-                        + (Tabler.hasFilled(icons.nameAt(index)) ? " · has a filled twin" : "")));
+        // The detail pane follows the selection wherever it came from -- a click, a key, or a
+        // refresh after a filter that dropped the row -- so it watches rather than handles.
+        list.observeChanges((source, change) -> {
+            if (change.aspect() != Change.Aspect.SELECTION) {
+                return;
+            }
+            int index = list.selectedIndex();
+            detail.setText(index < 0 ? "Click a row for its constant."
+                    : "Tabler.outline(\"" + icons.nameAt(index) + "\")"
+                            + (Tabler.hasFilled(icons.nameAt(index)) ? " · has a filled twin" : ""));
+        });
 
         Label heading = new Label("Tabler icons: the whole pack, virtualized")
                 .setRole(Label.Role.TITLE);

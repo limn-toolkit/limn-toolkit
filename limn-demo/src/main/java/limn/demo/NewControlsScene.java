@@ -13,6 +13,7 @@ import limn.components.Theme;
 import limn.components.ToolBar;
 import limn.graphics.Color;
 import limn.graphics.SvgIcon;
+import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -69,7 +70,7 @@ final class NewControlsScene {
 
         // --- RadioButton + ButtonGroup ------------------------------------
         col.add(heading("RadioButton + ButtonGroup"));
-        Label choice = new Label("Medium").setMuted(true);
+        Label choice = new Label("").setMuted(true);
         ButtonGroup group = new ButtonGroup();
         Row radios = new Row();
         radios.gap(22).crossAlignment(Flex.CrossAlignment.CENTER);
@@ -77,15 +78,17 @@ final class NewControlsScene {
         for (String name : sizes) {
             RadioButton radio = new RadioButton(name);
             radio.setTooltip("Size: " + name);
-            radio.onChange(selected -> {
-                if (selected) {
+            // The label mirrors the selection, so it watches: it hears the pre-selection below
+            // as well as every click, where a handler would hear the clicks alone.
+            radio.observeChanges((source, change) -> {
+                if (change.aspect() == Change.Aspect.VALUE && radio.isSelected()) {
                     choice.setText(name);
                 }
             });
             group.add(radio);
             radios.add(radio);
         }
-        group.setSelectedIndex(1); // pre-select "Medium"
+        group.setSelectedIndex(1); // pre-select "Medium", which the label hears
         radios.add(Expanded.of(choice, 1));
         col.add(radios);
 
@@ -100,10 +103,14 @@ final class NewControlsScene {
         bar.addItem(iconButton("info", "Info"));
 
         List<String> periods = List.of("Day", "Week", "Month", "Year");
-        Label period = new Label("Week").setMuted(true);
         SegmentedControl seg = new SegmentedControl(periods).setSelectedIndex(1);
         seg.setTooltip("Report period");
-        seg.onSelect(i -> period.setText(periods.get(i)));
+        Label period = new Label(periods.get(seg.selectedIndex())).setMuted(true);
+        seg.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.SELECTION) {
+                period.setText(periods.get(seg.selectedIndex()));
+            }
+        });
         Row toolRow = new Row();
         toolRow.gap(16).crossAlignment(Flex.CrossAlignment.CENTER);
         toolRow.add(bar);

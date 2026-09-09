@@ -161,9 +161,8 @@ final class FontsScene {
                 remove(children().get(0));
             }
             ComboBox combo = new ComboBox(list);
-            // Before onSelect is wired, deliberately: a programmatic set fires the listener like
-            // any other change, and this one would push the family already in force back through
-            // Fonts.setDefaultFamily on every rebuild.
+            // A caller's write, so it reaches no handler: the family already in force is not
+            // pushed back through Fonts.setDefaultFamily on every rebuild, wherever this sits.
             combo.setSelectedIndex(indexOfDefault(list));
             combo.onSelect(index -> Fonts.setDefaultFamily(list.get(index)));
 

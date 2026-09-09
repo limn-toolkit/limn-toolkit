@@ -5,6 +5,7 @@ import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
 import limn.i18n.NumberFormats;
+import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
@@ -66,7 +67,11 @@ public final class TableExample {
         table.setRows(releases());
         table.setSort(downloads, SortOrder.DESCENDING);
         table.setSelectionMode(Table.SelectionMode.MULTI);
-        table.onSelect(() -> status.setText(table.selectedRows().length + " selected"));
+        table.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.SELECTION) {
+                status.setText(table.selectedRows().length + " selected");
+            }
+        });
         table.onActivate(row -> status.setText("Opened " + table.rows().get(row).name()));
         return table;
     }

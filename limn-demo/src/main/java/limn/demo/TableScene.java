@@ -7,6 +7,7 @@ import limn.components.Theme;
 import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
+import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -69,7 +70,12 @@ final class TableScene {
         table.setRows(rows);
         table.setSelectionMode(Table.SelectionMode.MULTI);
         table.setSort(total, SortOrder.DESCENDING);
-        table.onSelect(() -> {
+        // The status line mirrors the selection, so it watches: it hears the starting selection
+        // below and a refresh that drops a row, as well as every click.
+        table.observeChanges((source, change) -> {
+            if (change.aspect() != Change.Aspect.SELECTION) {
+                return;
+            }
             int[] selected = table.selectedRows();
             status.setText(selected.length == 0 ? "No selection"
                     : selected.length + " selected, lead order #"

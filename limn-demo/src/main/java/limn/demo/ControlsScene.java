@@ -5,6 +5,7 @@ import limn.components.ScrollView;
 import limn.components.Slider;
 import limn.components.Spinner;
 import limn.components.Theme;
+import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -38,15 +39,14 @@ final class ControlsScene {
         column.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
 
         column.add(heading("Slider"));
-        Label volumeValue = new Label("30").setMuted(true);
+        // The readouts mirror the sliders, so they watch rather than handle: one call reads the
+        // slider and then follows it, whoever moves it, and the starting literal written twice
+        // is gone.
         Slider volume = new Slider(0, 100).setValue(30);
-        volume.onChange(v -> volumeValue.setText(Integer.toString(Math.round(v))));
-        column.add(sliderRow("Continuous (0–100)", volume, volumeValue));
+        column.add(sliderRow("Continuous (0–100)", volume, readoutOf(volume)));
 
-        Label levelValue = new Label("5").setMuted(true);
         Slider level = new Slider(0, 10).setStep(1).setValue(5);
-        level.onChange(v -> levelValue.setText(Integer.toString(Math.round(v))));
-        column.add(sliderRow("Step of 1 (0–10)", level, levelValue));
+        column.add(sliderRow("Step of 1 (0–10)", level, readoutOf(level)));
 
         Slider disabledSlider = new Slider(0, 100).setValue(40);
         disabledSlider.setEnabled(false);
@@ -75,6 +75,17 @@ final class ControlsScene {
     // subtree resolves to. The role picks the title token OF the resolved step.
     private static Label heading(String text) {
         return new Label(text).setRole(Label.Role.TITLE);
+    }
+
+    /** A label that reads the slider now and follows every move of it, from any origin. */
+    private static Label readoutOf(Slider slider) {
+        Label value = new Label(Integer.toString(Math.round(slider.value()))).setMuted(true);
+        slider.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.VALUE) {
+                value.setText(Integer.toString(Math.round(slider.value())));
+            }
+        });
+        return value;
     }
 
     private static Widget sliderRow(String caption, Slider slider, Label value) {

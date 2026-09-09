@@ -19,27 +19,28 @@ import limn.math.Vec4;
 import limn.render3d.ColorSpace;
 import limn.render3d.DebugDraw;
 import limn.render3d.Environment;
-import limn.render3d.Graphics3D;
 import limn.render3d.GpuMesh;
 import limn.render3d.GpuTexture;
+import limn.render3d.Graphics3D;
 import limn.render3d.Light;
 import limn.render3d.Material;
 import limn.render3d.MeshData;
 import limn.render3d.MeshUsage;
 import limn.render3d.OrbitController;
-import limn.render3d.Pickable;
 import limn.render3d.PickResult;
+import limn.render3d.Pickable;
 import limn.render3d.Picker;
 import limn.render3d.Primitives;
 import limn.render3d.Sampler;
 import limn.render3d.TextureData;
 import limn.render3d.VertexAttribute;
-import limn.render3d.shader.Expr;
-import limn.render3d.shader.ShaderType;
-import limn.render3d.shader.SurfaceOutputs;
 import limn.render3d.scene.LightNode;
 import limn.render3d.scene.MeshNode;
 import limn.render3d.scene.Scene3D;
+import limn.render3d.shader.Expr;
+import limn.render3d.shader.ShaderType;
+import limn.render3d.shader.SurfaceOutputs;
+import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -448,11 +449,8 @@ final class Viewport3DScene {
         });
 
         Slider erosion = new Slider(0f, 1f);
-        Label readout = new Label("0.00");
-        erosion.onChange(value -> {
-            dissolve[0] = value;
-            readout.setText(String.format(java.util.Locale.ROOT, "%.2f", value));
-        });
+        Label readout = readoutOf(erosion);
+        erosion.onChange(value -> dissolve[0] = value);
 
         Column col = new Column();
         col.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -465,11 +463,8 @@ final class Viewport3DScene {
         // once per light. Drag it up and the far side of the ripple lights from the lamp
         // behind it, which no combination of the outputs above can produce.
         Slider translucency = new Slider(0f, 1.5f);
-        Label glowReadout = new Label("0.00");
-        translucency.onChange(value -> {
-            glow[0] = value;
-            glowReadout.setText(String.format(java.util.Locale.ROOT, "%.2f", value));
-        });
+        Label glowReadout = readoutOf(translucency);
+        translucency.onChange(value -> glow[0] = value);
         col.add(bloomSliderRow("Translucency (a diffuse response, evaluated per light)",
                 translucency, glowReadout));
         return col;
@@ -1101,18 +1096,16 @@ final class Viewport3DScene {
         float[] params = {1f, 0.6f, 6f};
         Viewport3D viewport = bloomViewport(width, height, params);
 
-        Label thresholdValue = new Label("1.00").setMuted(true);
         Slider threshold = new Slider(0f, 3f).setStep(0.05f).setValue(params[0]);
+        Label thresholdValue = readoutOf(threshold).setMuted(true);
         threshold.onChange(v -> {
             params[0] = v;
-            thresholdValue.setText(String.format(java.util.Locale.ROOT, "%.2f", v));
             viewport.invalidate(); // static scene: repaint to apply
         });
-        Label intensityValue = new Label("0.60").setMuted(true);
         Slider intensity = new Slider(0f, 1.5f).setStep(0.05f).setValue(params[1]);
+        Label intensityValue = readoutOf(intensity).setMuted(true);
         intensity.onChange(v -> {
             params[1] = v;
-            intensityValue.setText(String.format(java.util.Locale.ROOT, "%.2f", v));
             viewport.invalidate();
         });
 
@@ -1124,6 +1117,21 @@ final class Viewport3DScene {
         col.add(bloomSliderRow("Intensity (0 = off; the pass costs nothing)",
                 intensity, intensityValue));
         return col;
+    }
+
+    /**
+     * A two-decimal readout that reads the slider now and follows every move of it. The uniform
+     * the slider feeds stays in its handler, because feeding a shader is a response to the user
+     * and mirroring a number is not.
+     */
+    private static Label readoutOf(Slider slider) {
+        Label value = new Label(String.format(java.util.Locale.ROOT, "%.2f", slider.value()));
+        slider.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.VALUE) {
+                value.setText(String.format(java.util.Locale.ROOT, "%.2f", slider.value()));
+            }
+        });
+        return value;
     }
 
     private static Widget bloomSliderRow(String caption, Slider slider, Label value) {
