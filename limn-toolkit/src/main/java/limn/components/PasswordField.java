@@ -9,6 +9,7 @@ import limn.graphics.Font;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
+import limn.scene.Change;
 
 /**
  * {@link TextField} that renders every character as a mask dot, with an optional reveal toggle.
@@ -108,11 +109,17 @@ public class PasswordField extends TextField {
     /** Shows/hides the real text (the optional "reveal" toggle). */
     public PasswordField setRevealed(boolean newRevealed) {
         Ui.checkUiThread();
+        if (revealed == newRevealed) {
+            return this;
+        }
         this.revealed = newRevealed;
         // The held display line is refreshed against the text, the font and the ruler's epoch, and
         // none of those changed here: the base cannot see this flag, so it has to be told.
         invalidateDisplayLine();
         invalidate();
+        // What changed is what the field shows of its own value, which is the thing a reader
+        // would speak: bullets became plaintext, or the reverse.
+        notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.CODE));
         return this;
     }
 

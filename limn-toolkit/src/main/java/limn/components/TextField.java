@@ -11,14 +11,16 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
-import limn.i18n.I18nString;
 import limn.graphics.Icon;
 import limn.graphics.Rect;
 import limn.graphics.RoundRect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
+import limn.i18n.I18nString;
 import limn.input.Keys;
+import limn.lang.Checks;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -71,8 +73,7 @@ public class TextField extends Widget {
 
     protected final TextEditModel model = new TextEditModel(true);
     private I18nString placeholder = I18nString.EMPTY;
-    private Consumer<String> onChange = text -> {
-    };
+    private Consumer<String> onChange;
     /**
      * {@code < 0} means "unset": {@link #onMeasure} falls back to the resolved step's
      * {@code fieldWidth}. A step cannot be read in a field initializer: the widget has no
@@ -144,15 +145,31 @@ public class TextField extends Widget {
         return model.text();
     }
 
-    /** Replaces the contents, clearing the selection and undo history. UI thread only. */
+    /**
+     * Replaces the contents, clearing the selection and undo history. Announces a
+     * {@code TEXT} edit as {@code CODE} when the text moved, and reaches no handler; the undo
+     * history and the caret are reset even when it is handed the string it already holds, because
+     * the guard is on the announcement and not on the call. UI thread only.
+     */
     public TextField setText(String text) {
         Ui.checkUiThread();
+        setText(text, Change.Origin.CODE);
+        return this;
+    }
+
+    /** The seam {@link SearchField#clear()} enters with the trailing button's origin. */
+    void setText(String text, Change.Origin origin) {
+        boolean moved = !model.text().equals(text);
         model.setText(text);
         // Show the head of the text; onPaint re-clamps against the real width
         // (which may still be 0 here: set before the first layout pass).
         scrollX = 0;
         invalidate();
-        return this;
+        if (moved) {
+            announceTextEdit(origin);
+        } else {
+            model.clearCharDamage();
+        }
     }
 
     /** Sets a fixed placeholder, shown only while the field is empty. */
@@ -169,8 +186,13 @@ public class TextField extends Widget {
      */
     public TextField setPlaceholder(I18nString newPlaceholder) {
         Ui.checkUiThread();
-        this.placeholder = Objects.requireNonNull(newPlaceholder, "newPlaceholder");
+        Objects.requireNonNull(newPlaceholder, "newPlaceholder");
+        if (newPlaceholder.equals(placeholder)) {
+            return this;
+        }
+        this.placeholder = newPlaceholder;
         invalidate();
+        notifyChange(Change.of(Change.Aspect.DESCRIPTION, Change.Origin.CODE));
         return this;
     }
 
@@ -179,21 +201,44 @@ public class TextField extends Widget {
         return placeholder.get();
     }
 
-    /** Called with the full text after every edit, typed or programmatic. */
+    /**
+     * The application's response to the user editing the text: typing, pasting, undo and redo, an
+     * IME commit, an assistive technology's set. Never for {@link #setText} or
+     * {@link #insertText}, which are a caller's writes; to hear every edit whatever caused it,
+     * {@linkplain #observeChanges watch} the field, which also hands over the edit's offsets.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this field
+     * @throws IllegalStateException if a handler is already registered
+     */
     public TextField onChange(Consumer<String> listener) {
         Ui.checkUiThread();
-        this.onChange = Objects.requireNonNull(listener, "listener");
+        this.onChange = Checks.handlerSlot(onChange, listener, "TextField.onChange");
         return this;
     }
 
-    /** Inserts {@code text} at the cursor (replacing any selection), as if typed. UI thread. */
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.TEXT) {
+            if (onChange != null) {
+                onChange.accept(model.text());
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
+    }
+
+    /**
+     * Inserts {@code text} at the cursor (replacing any selection): a caller's write, announced
+     * as a {@code TEXT} edit at {@code CODE}. UI thread.
+     */
     public TextField insertText(String text) {
         Ui.checkUiThread();
         if (text == null || text.isEmpty()) {
             return this;
         }
         model.insert(text);
-        fireChange();
+        announceTextEdit(Change.Origin.CODE);
         ensureCursorVisible();
         resetBlink();
         invalidate();
@@ -302,8 +347,13 @@ public class TextField extends Widget {
     /** Sets the validation state; colors the border danger/warning/success. */
     public TextField setValidation(Validation state) {
         Ui.checkUiThread();
-        this.validation = Objects.requireNonNull(state, "state");
+        Objects.requireNonNull(state, "state");
+        if (state == validation) {
+            return this;
+        }
+        this.validation = state;
         invalidate();
+        notifyChange(Change.of(Change.Aspect.VALIDITY, Change.Origin.CODE));
         return this;
     }
 
@@ -920,6 +970,26 @@ public class TextField extends Widget {
 
     @Override
     protected void onMouseEvent(MouseEvent event) {
+        long text = model.textVersion();
+        int start = model.selectionStart();
+        int end = model.selectionEnd();
+        handleMouse(event);
+        announceCaretIfMoved(text, start, end);
+    }
+
+    /**
+     * The caret or the selection moved under a gesture that did not edit: {@code SELECTION} as
+     * the user's. An edit is not doubled -- its caret move is implied by the {@code TEXT} it
+     * announced, and a watcher re-reads the caret with the text.
+     */
+    private void announceCaretIfMoved(long textBefore, int startBefore, int endBefore) {
+        if (model.textVersion() == textBefore
+                && (model.selectionStart() != startBefore || model.selectionEnd() != endBefore)) {
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
+        }
+    }
+
+    private void handleMouse(MouseEvent event) {
         SizeTokens t = Theme.current().tokensFor(this);
         float lx = sceneToLocalX(event.x());
         float ly = sceneToLocalY(event.y());
@@ -990,6 +1060,14 @@ public class TextField extends Widget {
 
     @Override
     protected void onKeyEvent(KeyEvent event) {
+        long text = model.textVersion();
+        int start = model.selectionStart();
+        int end = model.selectionEnd();
+        handleKey(event);
+        announceCaretIfMoved(text, start, end);
+    }
+
+    private void handleKey(KeyEvent event) {
         if (ContextMenus.isRequest(event)) {
             event.consume();
             showContextMenuForFocus();
@@ -1041,8 +1119,8 @@ public class TextField extends Widget {
             }
             case Keys.HOME -> model.moveHome(shift);
             case Keys.END -> model.moveEnd(shift);
-            case Keys.BACKSPACE -> fireIfChanged(word ? model::deleteWordBackward : model::backspace);
-            case Keys.DELETE -> fireIfChanged(word ? model::deleteWordForward : model::deleteForward);
+            case Keys.BACKSPACE -> editFromUser(word ? model::deleteWordBackward : model::backspace);
+            case Keys.DELETE -> editFromUser(word ? model::deleteWordForward : model::deleteForward);
             case Keys.A -> {
                 if (shortcut) {
                     model.selectAll();
@@ -1057,7 +1135,7 @@ public class TextField extends Widget {
                     String pasted = clipboard().get();
                     // Pasting an empty clipboard must not destroy the selection.
                     if (!pasted.isEmpty()) {
-                        fireIfChanged(() -> model.insert(pasted));
+                        editFromUser(() -> model.insert(pasted));
                     }
                 } else {
                     handled = false;
@@ -1065,14 +1143,14 @@ public class TextField extends Widget {
             }
             case Keys.Z -> {
                 if (shortcut) {
-                    fireIfChanged(shift ? () -> model.redo() : () -> model.undo());
+                    editFromUser(shift ? () -> model.redo() : () -> model.undo());
                 } else {
                     handled = false;
                 }
             }
             case Keys.Y -> {
                 if (shortcut) {
-                    fireIfChanged(() -> model.redo());
+                    editFromUser(() -> model.redo());
                 } else {
                     handled = false;
                 }
@@ -1094,7 +1172,7 @@ public class TextField extends Widget {
         clipboard().set(model.selectedText());
         if (cut) {
             model.deleteSelection();
-            fireChange();
+            announceTextEdit(Change.Origin.USER);
         }
         return true;
     }
@@ -1106,7 +1184,7 @@ public class TextField extends Widget {
             return;
         }
         model.insertCodePoint(cp);
-        fireChange();
+        announceTextEdit(Change.Origin.USER);
         ensureCursorVisible();
         resetBlink();
         invalidate();
@@ -1294,7 +1372,7 @@ public class TextField extends Widget {
             public void paste() {
                 String pasted = clipboard().get();
                 if (!pasted.isEmpty()) {
-                    fireIfChanged(() -> model.insert(pasted));
+                    editFromUser(() -> model.insert(pasted));
                     ensureCursorVisible(Theme.current().tokensFor(TextField.this));
                     invalidate();
                 }
@@ -1308,18 +1386,32 @@ public class TextField extends Widget {
         };
     }
 
-    /** Notifies the change listener with the current text; for subclasses that edit the model directly. */
-    protected void fireChange() {
-        onChange.accept(model.text());
+    /**
+     * Announces the edit the model just recorded -- its offset, what it removed and what it
+     * inserted -- with {@code origin}, and clears the model's character damage. The base class
+     * builds the {@code Change.TextEdit} only if something is watching, and runs the handler for
+     * {@code USER}.
+     */
+    private void announceTextEdit(Change.Origin origin) {
+        if (!model.hasCharDamage()) {
+            return;
+        }
+        int offset = model.damageOffset();
+        int removed = model.damageRemoved();
+        int inserted = model.damageInserted();
+        model.clearCharDamage();
+        notifyTextEdit(origin, offset, removed, inserted);
     }
 
-    /** Runs {@code edit} and fires onChange only if the text actually changed. */
-    private void fireIfChanged(Runnable edit) {
-        String before = model.text();
+    /**
+     * Runs {@code edit} as the user's and announces it if the text moved. Told by the model's
+     * damage rather than by copying the document out twice and comparing, which was two full
+     * copies per keystroke for a question the model already answers.
+     */
+    private void editFromUser(Runnable edit) {
+        model.clearCharDamage();
         edit.run();
-        if (!before.equals(model.text())) {
-            fireChange();
-        }
+        announceTextEdit(Change.Origin.USER);
     }
 
     // -------------------------------------------------------- accessibility
@@ -1471,13 +1563,14 @@ public class TextField extends Widget {
         @Override public boolean composing() { return !preedit.isEmpty(); }
         @Override public int composedCaretIndex() { return TextField.this.composedCaretIndex(); }
         @Override public boolean laidOut() { return width() > 0; }
-        @Override public void requestFocus() { TextField.this.requestFocus(); }
+        @Override public void requestFocus() { TextField.this.requestFocus(Change.Origin.USER); }
         @Override public void showContextMenuForFocus() { TextField.this.showContextMenuForFocus(); }
-        @Override public void edit(Runnable change) { fireIfChanged(change); }
+        @Override public void edit(Runnable change) { editFromUser(change); }
         @Override public void caretMoved() {
             ensureCursorVisible();
             resetBlink();
             invalidate();
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
         }
     };
 

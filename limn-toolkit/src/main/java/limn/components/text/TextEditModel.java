@@ -94,6 +94,14 @@ public final class TextEditModel {
     /** Line count when the first pending edit began: the old extent of a whole-document splice. */
     private int damageOldLineCount;
 
+    // Character damage since the last clearCharDamage(): the range one splice replaced, or the
+    // range covering every splice since, in the coordinates of the text as it stood at the first
+    // and as it stands now. Three ints and a boolean, written where the triple is already known.
+    private boolean charDamagePending;
+    private int charDamageOffset;
+    private int charDamageRemoved;
+    private int charDamageInserted;
+
     // Undo/redo: one step per mutation, recorded before it lands; runs of plain typing (and runs
     // of deleting) coalesce into a single step.
     private enum EditKind { OTHER, TYPING, DELETING }
@@ -1115,6 +1123,71 @@ public final class TextEditModel {
     }
 
     /**
+     * Whether a mutation has landed since the last {@link #clearCharDamage()}. The character
+     * damage is what a text-changed notification carries: the offsets a platform event wants,
+     * known exactly at the one place the buffer moves and nowhere above it, since a widget
+     * comparing two whole strings or two versions cannot re-derive them.
+     *
+     * <p>Two mutations before a consumer clears <b>compose to a covering range</b> -- the lowest
+     * offset, with {@code removed} and {@code inserted} widened to span both -- which is truthful
+     * for a text-changed event because over-reporting a replaced region is the coarse answer every
+     * platform accepts. It cannot arise on the widgets' own paths, where every edit is announced
+     * and cleared before the next can land; it is specified because the model may be mutated
+     * directly.
+     */
+    public boolean hasCharDamage() {
+        return charDamagePending;
+    }
+
+    /** @return where the damaged range begins, in chars of both the old and the new text */
+    public int damageOffset() {
+        return charDamageOffset;
+    }
+
+    /** @return how many chars of the old text the range replaced */
+    public int damageRemoved() {
+        return charDamageRemoved;
+    }
+
+    /** @return how many chars of the new text stand in their place */
+    public int damageInserted() {
+        return charDamageInserted;
+    }
+
+    /** Forgets it: the consumer has announced. */
+    public void clearCharDamage() {
+        charDamagePending = false;
+    }
+
+    /**
+     * Notes one splice's character range, composing with a pending one. The second edit's offsets
+     * are in the text the first edit produced, so its range is mapped back into the original
+     * text before the two are covered: a position past the first edit's insertion shifts by the
+     * first edit's delta, and one inside it collapses onto the first edit's range.
+     */
+    private void noteCharDamage(int start, int end, int inserted) {
+        if (!charDamagePending) {
+            charDamagePending = true;
+            charDamageOffset = start;
+            charDamageRemoved = end - start;
+            charDamageInserted = inserted;
+            return;
+        }
+        int firstEnd = charDamageOffset + charDamageInserted; // in the current text
+        int delta = charDamageInserted - charDamageRemoved;
+        int originalStart = start < charDamageOffset ? start
+                : start >= firstEnd ? start - delta : charDamageOffset;
+        int originalEnd = end <= charDamageOffset ? end
+                : end >= firstEnd ? end - delta : charDamageOffset + charDamageRemoved;
+        int coveredStart = Math.min(charDamageOffset, originalStart);
+        int coveredEnd = Math.max(charDamageOffset + charDamageRemoved, originalEnd);
+        int totalDelta = delta + (inserted - (end - start));
+        charDamageOffset = coveredStart;
+        charDamageRemoved = coveredEnd - coveredStart;
+        charDamageInserted = charDamageRemoved + totalDelta;
+    }
+
+    /**
      * Records the line range an edit is about to replace. Called <b>before</b> the buffer moves,
      * because the range is a fact about the old text; {@link #noteEditEnd} closes it after.
      */
@@ -1192,6 +1265,7 @@ public final class TextEditModel {
         }
         lineStarts = target;
         lines = count;
+        noteCharDamage(start, end, value.length());
         buffer.replace(start, end, value);
         markTextChanged();
     }

@@ -17,6 +17,8 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18n;
 import limn.input.Keys;
+import limn.lang.Checks;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -100,8 +102,7 @@ public class TextArea extends Widget {
     private final ScrollBar vBar;
     private final ScrollBar hBar;
     private final ScrollGutters gutters = new ScrollGutters();
-    private Consumer<String> onChange = text -> {
-    };
+    private Consumer<String> onChange;
     /**
      * {@code < 0} means "unset": {@link #onMeasure} falls back to the resolved step's
      * {@code areaWidth}/{@code areaHeight}. A step cannot be read in a field initializer:
@@ -221,15 +222,25 @@ public class TextArea extends Widget {
         return model.text();
     }
 
-    /** Replaces the contents, clearing the selection and undo history. UI thread only. */
+    /**
+     * Replaces the contents, clearing the selection and undo history. Announces a {@code TEXT}
+     * edit as {@code CODE} when the text moved, and reaches no handler; the undo history and the
+     * caret are reset even when it is handed the string it already holds. UI thread only.
+     */
     public TextArea setText(String text) {
         Ui.checkUiThread();
+        boolean moved = !model.text().equals(text);
         model.setText(text);
         scrollX = 0;
         scrollY = 0;
         goalX = Float.NaN;
         invalidateContentWidth();
         invalidate();
+        if (moved) {
+            announceTextEdit(Change.Origin.CODE);
+        } else {
+            model.clearCharDamage();
+        }
         return this;
     }
 
@@ -282,21 +293,44 @@ public class TextArea extends Widget {
         return softWrap;
     }
 
-    /** Called with the full text after every edit, typed or programmatic. */
+    /**
+     * The application's response to the user editing the text: typing, pasting, undo and redo, an
+     * IME commit, an assistive technology's set. Never for {@link #setText} or
+     * {@link #insertText}, which are a caller's writes; to hear every edit whatever caused it,
+     * {@linkplain #observeChanges watch} the area, which also hands over the edit's offsets.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this area
+     * @throws IllegalStateException if a handler is already registered
+     */
     public TextArea onChange(Consumer<String> listener) {
         Ui.checkUiThread();
-        this.onChange = Objects.requireNonNull(listener, "listener");
+        this.onChange = Checks.handlerSlot(onChange, listener, "TextArea.onChange");
         return this;
     }
 
-    /** Inserts {@code text} at the cursor (replacing any selection), as if typed. UI thread. */
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.TEXT) {
+            if (onChange != null) {
+                onChange.accept(model.text());
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
+    }
+
+    /**
+     * Inserts {@code text} at the cursor (replacing any selection): a caller's write, announced
+     * as a {@code TEXT} edit at {@code CODE}. UI thread.
+     */
     public TextArea insertText(String text) {
         Ui.checkUiThread();
         if (text == null || text.isEmpty()) {
             return this;
         }
         model.insert(text);
-        fireChange();
+        announceTextEdit(Change.Origin.CODE);
         ensureCursorVisible();
         resetBlink();
         invalidate();
@@ -1839,6 +1873,26 @@ public class TextArea extends Widget {
 
     @Override
     protected void onMouseEvent(MouseEvent event) {
+        long text = model.textVersion();
+        int start = model.selectionStart();
+        int end = model.selectionEnd();
+        handleMouse(event);
+        announceCaretIfMoved(text, start, end);
+    }
+
+    /**
+     * The caret or the selection moved under a gesture that did not edit: {@code SELECTION} as
+     * the user's. An edit is not doubled -- its caret move is implied by the {@code TEXT} it
+     * announced, and a watcher re-reads the caret with the text.
+     */
+    private void announceCaretIfMoved(long textBefore, int startBefore, int endBefore) {
+        if (model.textVersion() == textBefore
+                && (model.selectionStart() != startBefore || model.selectionEnd() != endBefore)) {
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
+        }
+    }
+
+    private void handleMouse(MouseEvent event) {
         // Scrollbar drags never reach here; the ScrollBar children consume them.
         SizeTokens t = Theme.current().tokensFor(this);
         // The same two pads onPaint translates by, per axis. A press maps to the character
@@ -1908,6 +1962,14 @@ public class TextArea extends Widget {
 
     @Override
     protected void onKeyEvent(KeyEvent event) {
+        long text = model.textVersion();
+        int start = model.selectionStart();
+        int end = model.selectionEnd();
+        handleKey(event);
+        announceCaretIfMoved(text, start, end);
+    }
+
+    private void handleKey(KeyEvent event) {
         if (ContextMenus.isRequest(event)) {
             event.consume();
             showContextMenuForFocus();
@@ -1991,9 +2053,9 @@ public class TextArea extends Widget {
                     model.moveEnd(shift);
                 }
             }
-            case Keys.ENTER -> fireIfChanged(() -> model.insert("\n"));
-            case Keys.BACKSPACE -> fireIfChanged(word ? model::deleteWordBackward : model::backspace);
-            case Keys.DELETE -> fireIfChanged(word ? model::deleteWordForward : model::deleteForward);
+            case Keys.ENTER -> editFromUser(() -> model.insert("\n"));
+            case Keys.BACKSPACE -> editFromUser(word ? model::deleteWordBackward : model::backspace);
+            case Keys.DELETE -> editFromUser(word ? model::deleteWordForward : model::deleteForward);
             case Keys.A -> {
                 if (shortcut) {
                     model.selectAll();
@@ -2007,7 +2069,7 @@ public class TextArea extends Widget {
                 if (shortcut) {
                     String pasted = clipboard().get();
                     if (!pasted.isEmpty()) {
-                        fireIfChanged(() -> model.insert(pasted));
+                        editFromUser(() -> model.insert(pasted));
                     }
                 } else {
                     handled = false;
@@ -2015,14 +2077,14 @@ public class TextArea extends Widget {
             }
             case Keys.Z -> {
                 if (shortcut) {
-                    fireIfChanged(shift ? () -> model.redo() : () -> model.undo());
+                    editFromUser(shift ? () -> model.redo() : () -> model.undo());
                 } else {
                     handled = false;
                 }
             }
             case Keys.Y -> {
                 if (shortcut) {
-                    fireIfChanged(() -> model.redo());
+                    editFromUser(() -> model.redo());
                 } else {
                     handled = false;
                 }
@@ -2108,7 +2170,7 @@ public class TextArea extends Widget {
             public void paste() {
                 String pasted = clipboard().get();
                 if (!pasted.isEmpty()) {
-                    fireIfChanged(() -> model.insert(pasted));
+                    editFromUser(() -> model.insert(pasted));
                     ensureCursorVisible();
                     invalidate();
                 }
@@ -2129,7 +2191,7 @@ public class TextArea extends Widget {
         clipboard().set(model.selectedText());
         if (cut) {
             model.deleteSelection();
-            fireChange();
+            announceTextEdit(Change.Origin.USER);
         }
         return true;
     }
@@ -2141,7 +2203,7 @@ public class TextArea extends Widget {
             return;
         }
         model.insertCodePoint(cp);
-        fireChange();
+        announceTextEdit(Change.Origin.USER);
         ensureCursorVisible();
         resetBlink();
         invalidate();
@@ -2261,10 +2323,24 @@ public class TextArea extends Widget {
                         local.width(), local.height());
     }
 
-    private void fireChange() {
+    /**
+     * Announces the edit the model just recorded, with {@code origin}, after this widget's own
+     * cache work: the horizontal extent is spliced from the model's line damage first and the
+     * vertical run ended, so a watcher that measures reads a cache already updated. Two
+     * independent damages, two independent clears -- the line damage by the extent cache, the
+     * character damage by the announcement -- and the announcement last.
+     */
+    private void announceTextEdit(Change.Origin origin) {
         noteTextChanged(); // text changed: widest line may differ
         goalX = Float.NaN; // an edit ends a vertical run, exactly as it resets the model's column
-        onChange.accept(model.text());
+        if (!model.hasCharDamage()) {
+            return;
+        }
+        int offset = model.damageOffset();
+        int removed = model.damageRemoved();
+        int inserted = model.damageInserted();
+        model.clearCharDamage();
+        notifyTextEdit(origin, offset, removed, inserted);
     }
 
     /**
@@ -2302,15 +2378,17 @@ public class TextArea extends Widget {
     }
 
     /**
-     * Runs {@code edit}; fires onChange (and dirties the width cache) if the text changed. Told
-     * by the model's version, not by copying the document out twice and comparing: that was two
-     * full copies per edit on every path through here, for a question the model already answers.
+     * Runs {@code edit} as the user's; announces it (and dirties the width cache) if the text
+     * changed. Told by the model's version, not by copying the document out twice and comparing:
+     * that was two full copies per edit on every path through here, for a question the model
+     * already answers.
      */
-    private void fireIfChanged(Runnable edit) {
+    private void editFromUser(Runnable edit) {
         long before = model.textVersion();
+        model.clearCharDamage();
         edit.run();
         if (model.textVersion() != before) {
-            fireChange();
+            announceTextEdit(Change.Origin.USER);
         }
     }
 
@@ -2442,9 +2520,9 @@ public class TextArea extends Widget {
         @Override public boolean composing() { return !preedit.isEmpty(); }
         @Override public int composedCaretIndex() { return TextArea.this.composedCaretIndex(); }
         @Override public boolean laidOut() { return width() > 0; }
-        @Override public void requestFocus() { TextArea.this.requestFocus(); }
+        @Override public void requestFocus() { TextArea.this.requestFocus(Change.Origin.USER); }
         @Override public void showContextMenuForFocus() { TextArea.this.showContextMenuForFocus(); }
-        @Override public void edit(Runnable change) { fireIfChanged(change); }
+        @Override public void edit(Runnable change) { editFromUser(change); }
         @Override public void caretMoved() {
             // The sticky goal column goes: a caret placed by an assistive technology is a click,
             // and every non-vertical path of this widget's own clears it.
@@ -2452,6 +2530,7 @@ public class TextArea extends Widget {
             ensureCursorVisible();
             resetBlink();
             invalidate();
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
         }
     };
 

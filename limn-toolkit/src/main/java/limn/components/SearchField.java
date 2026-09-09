@@ -5,6 +5,8 @@ import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.SvgIcon;
 import limn.input.Keys;
+import limn.lang.Checks;
+import limn.scene.Change;
 import limn.scene.event.KeyEvent;
 
 import java.util.Objects;
@@ -17,8 +19,7 @@ import java.util.function.Consumer;
  */
 public class SearchField extends TextField {
 
-    private Consumer<String> onSubmit = query -> {
-    };
+    private Consumer<String> onSubmit;
 
     /** A field with a search icon, a clear button and a localized placeholder. */
     public SearchField() {
@@ -28,21 +29,48 @@ public class SearchField extends TextField {
         // no text and no tooltip, and an application cannot reach the drawn region to name it, so
         // the two-argument overload would publish an operable control with an empty name.
         setTrailingButton(SvgIcon.fromResource("/limn/components/icons/close.svg"),
-                ComponentStrings.SEARCH_CLEAR, this::clear);
+                ComponentStrings.SEARCH_CLEAR, () -> clear(Change.Origin.USER));
     }
 
-    /** Fires with the current query when Enter is pressed. */
+    /**
+     * The application's response to the user pressing Enter, or an assistive technology's press:
+     * called with the current query.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this field
+     * @throws IllegalStateException if a handler is already registered
+     */
     public SearchField onSubmit(Consumer<String> listener) {
         Ui.checkUiThread();
-        this.onSubmit = Objects.requireNonNull(listener, "listener");
+        this.onSubmit = Checks.handlerSlot(onSubmit, listener, "SearchField.onSubmit");
         return this;
     }
 
-    /** Empties the field (and notifies onChange), as the trailing button does. */
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.SUBMITTED) {
+            if (onSubmit != null) {
+                onSubmit.accept(text());
+            }
+            return;
+        }
+        super.handleUserChange(aspect); // TextField's own dispatch, for the TEXT the user types
+    }
+
+    /**
+     * Empties the field: a caller's write, announced as one {@code TEXT} edit at {@code CODE}
+     * and reaching no handler. The trailing button empties it as the user's, through the same
+     * seam, so {@code onChange} hears the button and not this. UI thread only.
+     */
     public void clear() {
+        Ui.checkUiThread();
+        clear(Change.Origin.CODE);
+    }
+
+    /** One route through the text seam, so a clear announces once whichever end asked. */
+    private void clear(Change.Origin origin) {
         if (!text().isEmpty()) {
-            setText("");
-            fireChange();
+            setText("", origin);
         }
     }
 
@@ -66,7 +94,7 @@ public class SearchField extends TextField {
      * key to a disabled widget, and the accessibility path is gated in the hook below.
      */
     private void submit() {
-        onSubmit.accept(text());
+        notifyChange(Change.of(Change.Aspect.SUBMITTED, Change.Origin.USER));
     }
 
     // -------------------------------------------------------- accessibility

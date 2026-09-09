@@ -1,6 +1,7 @@
 package limn.components;
 
 import limn.input.Keys;
+import limn.scene.Change;
 import limn.scene.Scene;
 import org.junit.jupiter.api.Test;
 
@@ -62,15 +63,23 @@ class SearchFieldTest extends ComponentTestBase {
     }
 
     @Test
-    void clearEmptiesTheFieldAndNotifies() {
+    void clearEmptiesTheFieldAndAnnouncesItAsACallersWrite() {
         build();
         AtomicReference<String> changed = new AtomicReference<>();
+        AtomicReference<Change> heard = new AtomicReference<>();
         field.onChange(changed::set);
         field.setText("shoes");
+        field.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.TEXT) {
+                heard.set(change);
+            }
+        });
 
         field.clear();
         assertEquals("", field.text());
-        assertEquals("", changed.get(), "clear notifies, like the trailing button does");
+        assertNull(changed.get(), "the handler answers the user, and code emptied the field");
+        assertEquals(Change.edit(Change.Origin.CODE, 0, 5, 0), heard.get(),
+                "a watcher hears one edit: the five characters replaced by nothing");
     }
 
     @Test
