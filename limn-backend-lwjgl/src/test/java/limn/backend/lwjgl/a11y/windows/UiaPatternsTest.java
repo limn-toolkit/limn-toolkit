@@ -66,6 +66,22 @@ class UiaPatternsTest {
     }
 
     @Test
+    void aTableVendsGridAndTableAndItsDataCellsVendTheItemPatterns() {
+        AccessibleNode table = publish(Accessible.Role.TABLE, a -> {
+            a.table(100, 3);
+            a.selection(false, false);
+        });
+        assertEquals(List.of(UiaIds.SELECTION_PATTERN, UiaIds.GRID_PATTERN), patternsOf(table));
+        assertTrue(vends(table, UiaIds.TABLE_PATTERN));
+        AccessibleNode cell = publish(Accessible.Role.CELL, a -> a.cell(4, 1));
+        assertTrue(vends(cell, UiaIds.GRID_ITEM_PATTERN));
+        assertTrue(vends(cell, UiaIds.TABLE_ITEM_PATTERN));
+        AccessibleNode header = publish(Accessible.Role.COLUMN_HEADER, a -> a.cell(-1, 1));
+        assertFalse(vends(header, UiaIds.GRID_ITEM_PATTERN), "a header is not in the grid");
+        assertFalse(vends(header, UiaIds.TABLE_ITEM_PATTERN));
+    }
+
+    @Test
     void aButtonVendsInvokeAndNothingElse() {
         AccessibleNode button = publish(Accessible.Role.BUTTON,
                 a -> a.action(Accessible.Action.PRESS));

@@ -86,6 +86,18 @@ final class UiaPatterns {
             case UiaIds.SCROLL_ITEM_PATTERN:
                 return hasAScrollableAncestor(tree, node);
 
+            case UiaIds.GRID_PATTERN:
+            case UiaIds.TABLE_PATTERN:
+                // Both from the table facet: a grid is asked by row and column, a table for its
+                // headers, and a node that has one has the other (ADR 041 §7).
+                return node.table() != null;
+
+            case UiaIds.GRID_ITEM_PATTERN:
+            case UiaIds.TABLE_ITEM_PATTERN:
+                // A data cell only: a header or footer cell carries a negative row and is not
+                // in the grid a client counts.
+                return node.cell() != null && node.cell().row() >= 0;
+
             case UiaIds.WINDOW_PATTERN:
             case UiaIds.TRANSFORM_PATTERN:
                 // Both from the same facet, and only a real window carries one: the two describe

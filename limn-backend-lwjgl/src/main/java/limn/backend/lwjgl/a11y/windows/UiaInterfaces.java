@@ -110,6 +110,28 @@ final class UiaInterfaces {
                     "get_Minimizable", "get_IsModal", "get_VisualState", "get_InteractionState",
                     "get_IsTopmost"));
 
+    /**
+     * The four table interfaces, read off the Windows 11 ARM64 guest on 2026-09-09 for ADR 041
+     * §7: a grid is asked for a cell by row and column and for its counts, a table for its
+     * headers, and a cell for where it is and which headers it is under.
+     */
+    static final Vtable GRID_PROVIDER = new Vtable(
+            "IGridProvider", "b17d6187-0907-464b-a168-0ef17a1572b1",
+            List.of("GetItem", "get_RowCount", "get_ColumnCount"));
+
+    static final Vtable GRID_ITEM_PROVIDER = new Vtable(
+            "IGridItemProvider", "d02541f1-fb81-4d64-ae32-f520f8a6dbd1",
+            List.of("get_Row", "get_Column", "get_RowSpan", "get_ColumnSpan",
+                    "get_ContainingGrid"));
+
+    static final Vtable TABLE_PROVIDER = new Vtable(
+            "ITableProvider", "9c860395-97b3-490a-b52a-858cc22af166",
+            List.of("GetRowHeaders", "GetColumnHeaders", "get_RowOrColumnMajor"));
+
+    static final Vtable TABLE_ITEM_PROVIDER = new Vtable(
+            "ITableItemProvider", "b9734fa6-771f-4d78-9c90-2517999349cd",
+            List.of("GetRowHeaderItems", "GetColumnHeaderItems"));
+
     static final Vtable TRANSFORM_PROVIDER = new Vtable(
             "ITransformProvider", "6829ddc4-4f91-4ffa-b86f-bd3e2987cb4c",
             List.of("Move", "Resize", "Rotate", "get_CanMove", "get_CanResize", "get_CanRotate"));
@@ -134,7 +156,8 @@ final class UiaInterfaces {
             RAW_ELEMENT_PROVIDER_FRAGMENT_ROOT, INVOKE_PROVIDER, TOGGLE_PROVIDER,
             RANGE_VALUE_PROVIDER, VALUE_PROVIDER, SELECTION_PROVIDER, SELECTION_ITEM_PROVIDER,
             EXPAND_COLLAPSE_PROVIDER, SCROLL_PROVIDER, SCROLL_ITEM_PROVIDER, WINDOW_PROVIDER,
-            TRANSFORM_PROVIDER, ADVISE_EVENTS);
+            TRANSFORM_PROVIDER, ADVISE_EVENTS, GRID_PROVIDER, GRID_ITEM_PROVIDER, TABLE_PROVIDER,
+            TABLE_ITEM_PROVIDER);
 
     /**
      * Turns a canonically spelled identifier into the sixteen bytes a {@code QueryInterface}

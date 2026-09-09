@@ -161,10 +161,12 @@ class AtspiTreeTest {
         assertEquals(List.of("2220:SELECT"), performed, "a row selection reaches the widget");
 
         DBus.Msg span = call(path(2212), Atspi.I_TABLE_CELL, "GetRowColumnSpan", null);
-        Object[] rc = (Object[]) span.body[0];
-        assertEquals(1, rc[0]);
-        assertEquals(1, rc[1]);
-        assertEquals(1, rc[2]);
+        assertEquals("iiii", span.signature, "four out arguments, which is what libatspi reads; a "
+                + "struct of four was refused on the guest");
+        assertEquals(1, span.body[0]);
+        assertEquals(1, span.body[1]);
+        assertEquals(1, span.body[2]);
+        assertEquals(1, span.body[3]);
         DBus.Msg headers = call(path(2212), Atspi.I_TABLE_CELL, "GetColumnHeaderCells", null);
         Object[] first = (Object[]) ((List<?>) headers.body[0]).get(0);
         assertEquals(path(2102), first[1], "the cell's column header is the header group's child");

@@ -8,6 +8,7 @@ import org.lwjgl.system.CallbackI;
 import org.lwjgl.system.MemoryUtil;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -43,6 +44,10 @@ final class UiaPatternProviders {
             case UiaIds.EXPAND_COLLAPSE_PATTERN -> UiaInterfaces.EXPAND_COLLAPSE_PROVIDER;
             case UiaIds.SELECTION_ITEM_PATTERN -> UiaInterfaces.SELECTION_ITEM_PROVIDER;
             case UiaIds.SCROLL_ITEM_PATTERN -> UiaInterfaces.SCROLL_ITEM_PROVIDER;
+            case UiaIds.GRID_PATTERN -> UiaInterfaces.GRID_PROVIDER;
+            case UiaIds.GRID_ITEM_PATTERN -> UiaInterfaces.GRID_ITEM_PROVIDER;
+            case UiaIds.TABLE_PATTERN -> UiaInterfaces.TABLE_PROVIDER;
+            case UiaIds.TABLE_ITEM_PATTERN -> UiaInterfaces.TABLE_ITEM_PROVIDER;
             default -> null;
         };
     }
@@ -186,7 +191,8 @@ final class UiaPatternProviders {
                     for (int at = item.parent(); at != AccessibleNode.NONE;
                             at = tree.node(at).parent()) {
                         if (tree.node(at).selection() != null) {
-                            container = context.elementFor(tree.node(at).id());
+                            // The simple interface: get_SelectionContainer's declared out type.
+                            container = context.simpleElementFor(tree.node(at).id());
                             break;
                         }
                     }
@@ -199,11 +205,165 @@ final class UiaPatternProviders {
                     (UiaCom.P) self -> accepted(context.perform(nodeId,
                             Accessible.Action.SCROLL_INTO_VIEW, Accessible.Argument.NONE)));
 
+            // ADR 041 §7. Cells are answered from what the walk published: a row the table has not
+            // realized has no node, so GetItem on it answers null, the degradation ADR 039 §4.1
+            // accepts. Column headers are the header group's children; row headers are none.
+            case UiaIds.GRID_PATTERN -> {
+                slots.put("GetItem", (UiaCom.PIIP) (self, row, column, out) -> {
+                    AccessibleTree tree = context.tree();
+                    AccessibleNode table = tree.find(nodeId);
+                    if (table == null || table.table() == null) {
+                        return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+                    }
+                    AccessibleNode cell = cellAt(tree, table, row, column);
+                    MemoryUtil.memPutAddress(out,
+                            cell == null ? 0 : context.simpleElementFor(cell.id()));
+                    return UiaIds.S_OK;
+                });
+                slots.put("get_RowCount", (UiaCom.PP) (self, out) -> {
+                    AccessibleNode table = context.tree().find(nodeId);
+                    if (table == null || table.table() == null) {
+                        return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+                    }
+                    MemoryUtil.memPutInt(out, table.table().rowCount());
+                    return UiaIds.S_OK;
+                });
+                slots.put("get_ColumnCount", (UiaCom.PP) (self, out) -> {
+                    AccessibleNode table = context.tree().find(nodeId);
+                    if (table == null || table.table() == null) {
+                        return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+                    }
+                    MemoryUtil.memPutInt(out, table.table().columnCount());
+                    return UiaIds.S_OK;
+                });
+            }
+
+            case UiaIds.TABLE_PATTERN -> {
+                slots.put("GetRowHeaders", (UiaCom.PP) (self, out) -> {
+                    MemoryUtil.memPutAddress(out, context.unknownArray(new long[0]));
+                    return UiaIds.S_OK;
+                });
+                slots.put("GetColumnHeaders", (UiaCom.PP) (self, out) -> {
+                    AccessibleTree tree = context.tree();
+                    AccessibleNode table = tree.find(nodeId);
+                    if (table == null || table.table() == null) {
+                        return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+                    }
+                    List<AccessibleNode> headers = columnHeadersOf(tree, table);
+                    long[] pointers = new long[headers.size()];
+                    for (int i = 0; i < pointers.length; i++) {
+                        pointers[i] = context.simpleElementFor(headers.get(i).id());
+                    }
+                    MemoryUtil.memPutAddress(out, context.unknownArray(pointers));
+                    return UiaIds.S_OK;
+                });
+                slots.put("get_RowOrColumnMajor", (UiaCom.PP) (self, out) -> {
+                    MemoryUtil.memPutInt(out, UiaIds.ROW_OR_COLUMN_MAJOR_ROW_MAJOR);
+                    return UiaIds.S_OK;
+                });
+            }
+
+            case UiaIds.GRID_ITEM_PATTERN -> {
+                slots.put("get_Row", cellInt(nodeId, context, cell -> cell.row()));
+                slots.put("get_Column", cellInt(nodeId, context, cell -> cell.column()));
+                slots.put("get_RowSpan", cellInt(nodeId, context, cell -> 1));
+                slots.put("get_ColumnSpan", cellInt(nodeId, context, cell -> 1));
+                slots.put("get_ContainingGrid", (UiaCom.PP) (self, out) -> {
+                    AccessibleTree tree = context.tree();
+                    AccessibleNode cell = tree.find(nodeId);
+                    if (cell == null || cell.cell() == null) {
+                        return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+                    }
+                    AccessibleNode table = tableOf(tree, cell);
+                    MemoryUtil.memPutAddress(out,
+                            table == null ? 0 : context.simpleElementFor(table.id()));
+                    return UiaIds.S_OK;
+                });
+            }
+
+            case UiaIds.TABLE_ITEM_PATTERN -> {
+                slots.put("GetRowHeaderItems", (UiaCom.PP) (self, out) -> {
+                    MemoryUtil.memPutAddress(out, context.unknownArray(new long[0]));
+                    return UiaIds.S_OK;
+                });
+                slots.put("GetColumnHeaderItems", (UiaCom.PP) (self, out) -> {
+                    AccessibleTree tree = context.tree();
+                    AccessibleNode cell = tree.find(nodeId);
+                    if (cell == null || cell.cell() == null) {
+                        return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+                    }
+                    AccessibleNode table = tableOf(tree, cell);
+                    List<AccessibleNode> headers = table == null ? List.of()
+                            : columnHeadersOf(tree, table);
+                    int column = cell.cell().column();
+                    long[] pointers = column >= 0 && column < headers.size()
+                            ? new long[] {context.simpleElementFor(headers.get(column).id())}
+                            : new long[0];
+                    MemoryUtil.memPutAddress(out, context.unknownArray(pointers));
+                    return UiaIds.S_OK;
+                });
+            }
+
             default -> {
                 return null;
             }
         }
         return slots;
+    }
+
+    private interface CellInt {
+        int of(limn.accessibility.CellFacet cell);
+    }
+
+    /** A getter answering one integer off the cell facet. */
+    private static CallbackI cellInt(long nodeId, UiaProvider.Context context, CellInt body) {
+        return (UiaCom.PP) (self, out) -> {
+            AccessibleNode node = context.tree().find(nodeId);
+            if (node == null || node.cell() == null) {
+                return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+            }
+            MemoryUtil.memPutInt(out, body.of(node.cell()));
+            return UiaIds.S_OK;
+        };
+    }
+
+    /** The nearest ancestor of {@code node} that is a table, itself included; null when none. */
+    private static AccessibleNode tableOf(AccessibleTree tree, AccessibleNode node) {
+        for (AccessibleNode at = node; at != null; ) {
+            if (at.table() != null) {
+                return at;
+            }
+            int parent = at.parent();
+            at = parent == AccessibleNode.NONE ? null : tree.node(parent);
+        }
+        return null;
+    }
+
+    /** The header group's children: the table's first group child's children, in order. */
+    private static List<AccessibleNode> columnHeadersOf(AccessibleTree tree, AccessibleNode table) {
+        for (AccessibleNode child : tree.children(table)) {
+            if (child.role() == Accessible.Role.GROUP) {
+                return tree.children(child);
+            }
+        }
+        return List.of();
+    }
+
+    /** The realized cell shown at {@code row}, {@code column}; null when the row is unrealized. */
+    private static AccessibleNode cellAt(AccessibleTree tree, AccessibleNode table, int row,
+                                         int column) {
+        for (AccessibleNode child : tree.children(table)) {
+            if (child.role() == Accessible.Role.ROW && child.selectionItem() != null
+                    && child.selectionItem().positionInSet() == row + 1) {
+                for (AccessibleNode cell : tree.children(child)) {
+                    if (cell.cell() != null && cell.cell().column() == column) {
+                        return cell;
+                    }
+                }
+                return null;
+            }
+        }
+        return null;
     }
 
     /** A getter answering one double off the value facet. */

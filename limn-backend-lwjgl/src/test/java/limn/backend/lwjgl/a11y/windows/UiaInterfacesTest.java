@@ -61,6 +61,14 @@ class UiaInterfacesTest {
                     "7bf77d9806db774d8f8a86a9c3bb90b9"),
             Map.entry("6829ddc4-4f91-4ffa-b86f-bd3e2987cb4c",
                     "c4dd2968914ffa4fb86fbd3e2987cb4c"),
+            Map.entry("b17d6187-0907-464b-a168-0ef17a1572b1",
+                    "87617db107094b46a1680ef17a1572b1"),
+            Map.entry("d02541f1-fb81-4d64-ae32-f520f8a6dbd1",
+                    "f14125d081fb644dae32f520f8a6dbd1"),
+            Map.entry("9c860395-97b3-490a-b52a-858cc22af166",
+                    "9503869cb3970a49b52a858cc22af166"),
+            Map.entry("b9734fa6-771f-4d78-9c90-2517999349cd",
+                    "a64f73b91f77784d9c902517999349cd"),
             Map.entry("00000000-0000-0000-c000-000000000046",
                     "0000000000000000c000000000000046"));
 

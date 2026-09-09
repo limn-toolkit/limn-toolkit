@@ -86,8 +86,18 @@ class UiaProviderTest {
         }
 
         @Override
+        public long unknownArray(long[] pointers) {
+            return 0;
+        }
+
+        @Override
         public long elementFor(long nodeId) {
             return 0;
+        }
+
+        @Override
+        public long simpleElementFor(long nodeId) {
+            return elementFor(nodeId);
         }
 
         @Override

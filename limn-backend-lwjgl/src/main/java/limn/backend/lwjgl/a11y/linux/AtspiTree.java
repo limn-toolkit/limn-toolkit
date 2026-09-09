@@ -622,8 +622,10 @@ final class AtspiTree {
                 int row = valid ? index / columns : 0;
                 int column = valid ? index % columns : 0;
                 AccessibleNode rowNode = valid ? rowAt(tree, node, row) : null;
-                return DBus.Msg.ret(m, "(biiiib)", (Object) new Object[] {valid, row, column, 1, 1,
-                        rowNode != null && rowNode.has(Accessible.State.SELECTED)});
+                // Six out arguments, not one struct: libatspi reads "biiiib" and refuses a reply
+                // whose signature is "(biiiib)", as it refused GetRowColumnSpan on the Fedora guest.
+                return DBus.Msg.ret(m, "biiiib", valid, row, column, 1, 1,
+                        rowNode != null && rowNode.has(Accessible.State.SELECTED));
             }
             default:
                 return null;
@@ -635,8 +637,9 @@ final class AtspiTree {
         AccessibleTree tree = current.get();
         switch (m.member == null ? "" : m.member) {
             case "GetRowColumnSpan":
-                return DBus.Msg.ret(m, "(iiii)", (Object) new Object[] {node.cell().row(),
-                        node.cell().column(), 1, 1});
+                // Four out arguments and not a struct: measured on the Fedora guest, where a
+                // "(iiii)" reply was refused by libatspi with "expected iiii".
+                return DBus.Msg.ret(m, "iiii", node.cell().row(), node.cell().column(), 1, 1);
             case "GetRowHeaderCells":
                 return DBus.Msg.ret(m, "a(so)", new ArrayList<>());
             case "GetColumnHeaderCells": {

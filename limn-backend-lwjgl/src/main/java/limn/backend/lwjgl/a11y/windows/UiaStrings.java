@@ -82,6 +82,40 @@ final class UiaStrings {
      * @param values the integers to hand over
      * @return the array, or {@code 0} on a machine with no {@code oleaut32}
      */
+    /**
+     * A {@code SAFEARRAY} of {@code IUnknown*}, for the providers a table hands back as its
+     * headers. Each pointer is one the caller was already given a reference to, because
+     * {@code SafeArrayDestroy} releases every element it holds.
+     *
+     * @param pointers the interface pointers, each already referenced for the array
+     * @return the array, or {@code 0} on a machine with no {@code oleaut32}
+     */
+    static long unknownArray(long[] pointers) {
+        if (SAFE_ARRAY_CREATE_VECTOR == 0 || SAFE_ARRAY_ACCESS_DATA == 0
+                || SAFE_ARRAY_UNACCESS_DATA == 0) {
+            return 0L;
+        }
+        long array = JNI.invokeP(UiaVariant.VT_UNKNOWN, 0, pointers.length,
+                SAFE_ARRAY_CREATE_VECTOR);
+        if (array == 0 || pointers.length == 0) {
+            return array;
+        }
+        long slot = MemoryUtil.nmemAllocChecked(8);
+        try {
+            if (JNI.invokePPI(array, slot, SAFE_ARRAY_ACCESS_DATA) != UiaIds.S_OK) {
+                return array;
+            }
+            long data = MemoryUtil.memGetAddress(slot);
+            for (int i = 0; i < pointers.length; i++) {
+                MemoryUtil.memPutAddress(data + (long) i * 8, pointers[i]);
+            }
+            JNI.invokePI(array, SAFE_ARRAY_UNACCESS_DATA);
+            return array;
+        } finally {
+            MemoryUtil.nmemFree(slot);
+        }
+    }
+
     static long int32Array(int[] values) {
         if (SAFE_ARRAY_CREATE_VECTOR == 0 || SAFE_ARRAY_ACCESS_DATA == 0
                 || SAFE_ARRAY_UNACCESS_DATA == 0) {

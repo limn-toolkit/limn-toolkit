@@ -166,6 +166,29 @@ final class UiaCom {
         int invoke(long self, int which, long out);
     }
 
+    /** {@code HRESULT f(void* this, int row, int column, T* out)} — IGridProvider's GetItem. */
+    interface PIIP extends CallbackI {
+
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PIIP.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_sint32,
+                        LibFFI.ffi_type_pointer, LibFFI.ffi_type_sint32, LibFFI.ffi_type_sint32,
+                        LibFFI.ffi_type_pointer));
+
+        @Override
+        default Callback.Descriptor getDescriptor() {
+            return DESCRIPTOR;
+        }
+
+        @Override
+        default void callback(long ret, long args) {
+            APIUtil.apiClosureRet(ret, invoke(ClosureArgs.pointer(args, 0),
+                    ClosureArgs.int32(args, 1), ClosureArgs.int32(args, 2),
+                    ClosureArgs.pointer(args, 3)));
+        }
+
+        int invoke(long self, int row, int column, long out);
+    }
+
     /** {@code HRESULT f(void* this, double x, double y, T* out)} — ElementProviderFromPoint. */
     interface PDDP extends CallbackI {
 

@@ -1,11 +1,12 @@
 # ADR 041: A table is columns over a list the application owns, and a cell is a value until it asks to be a widget
 
 - **Status:** Accepted, 2026-09-08; §6 revised 2026-09-09 to rule out cell editing for good.
-  Phase 1 implemented the same day, with one exception: the
-  Windows bridge maps the four roles to control types but does not yet serve the Grid and Table
-  patterns, because their interface identifiers and vtable orders have to be read off the Windows
-  guest (`scripts/a11y/windows/dump-uia-interfaces.ps1`, already extended with the four) and the
-  guest was not reachable when the rest landed. §10 says which phase each item lands in and what
+  Phase 1 implemented, and read by a real client on each guest on 2026-09-09: libatspi on Fedora
+  (`Table` and `TableCell`, cell by row and column, column header, selected rows, a row selected
+  from outside), the AX API on macOS (rows, header, selected rows, cell by column and row, index
+  ranges, a cell's column header) and UI Automation on Windows (Grid, Table, GridItem and
+  TableItem, row and column counts, cell by row and column, column headers). Two defects only a
+  live client could find are recorded in §7.1. §10 says which phase each item lands in and what
   is deliberately left out of the first.
 - **Date:** 2026-09-08
 - **Scope:** the toolkit's first table widget: what its data model is, how it virtualizes on two
@@ -261,6 +262,23 @@ table activates the lead row; `SELECT` on a row selects it.
 | Windows | `DataGrid` control type; `IGridProvider` (`RowCount`, `ColumnCount`, `GetItem`) and `ITableProvider` (`GetColumnHeaders`, `RowOrColumnMajor`) alongside the existing `ISelectionProvider` and `IScrollProvider` | `DataItem`; `IGridItemProvider` (`Row`, `Column`, spans of 1, `ContainingGrid`) and `ITableItemProvider` (`GetColumnHeaderItems`) | `HeaderItem` |
 | macOS | `NSAccessibilityTableRole`; `accessibilityRows`, `accessibilityColumns`, `accessibilityHeader`, `accessibilitySelectedRows`, `accessibilityRowCount`, `accessibilityColumnCount` | `NSAccessibilityCellRole`; `accessibilityRowIndexRange`, `accessibilityColumnIndexRange` | the header group's children, each `NSAccessibilityCellRole` under `accessibilityHeader` |
 | Linux | `ROLE_TABLE`; `org.a11y.atspi.Table` (`NRows`, `NColumns`, `GetAccessibleAt`, `GetColumnHeader`, `GetSelectedRows`) alongside `Selection` | `ROLE_TABLE_CELL`; `org.a11y.atspi.TableCell` (`Position`, `RowColumnSpan`, `Table`, `ColumnHeaderCells`) | `ROLE_TABLE_COLUMN_HEADER` |
+
+### 7.1 What the live clients found
+
+Two defects, both invisible to the headless tests because both are about what the platform's
+own client reads rather than what the bridge writes.
+
+- **AT-SPI answers several out arguments, not one struct.** `GetRowColumnSpan` returns `iiii` and
+  `GetRowColumnExtentsAtIndex` returns `biiiib`, four and six out values; a reply whose signature
+  was `(iiii)` was refused by libatspi on Fedora with "expected iiii". A property such as
+  `Position` is a struct, `(ii)`, which is the opposite rule and the reason the first draft was
+  wrong.
+- **UI Automation reads the declared interface, not the object.** A grid's `GetItem`, a cell's
+  `get_ContainingGrid`, an item's `get_SelectionContainer` and every element of a headers array are
+  declared `IRawElementProviderSimple`; a fragment pointer handed back through one of them made
+  the .NET client fail its cast, while the same pointer through `Navigate`, declared as the
+  fragment, was right. The bridge now hands out the simple interface where that is the declared
+  type. `get_SelectionContainer` had the same defect since ADR 039 and was corrected with it.
 
 `GetItem`, `GetAccessibleAt` and `accessibilityCellForColumn:row:` are answered for realized rows
 and refuse for the rest: the neutral model mints no identifier for a node the walk did not

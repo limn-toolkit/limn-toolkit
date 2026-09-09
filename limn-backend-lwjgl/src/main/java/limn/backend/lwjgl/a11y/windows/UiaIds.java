@@ -115,6 +115,13 @@ final class UiaIds {
     static final int TABLE_ROW_HEADERS = 30081;
     static final int TABLE_COLUMN_HEADERS = 30082;
     static final int TABLE_ROW_OR_COLUMN_MAJOR = 30083;
+    /**
+     * {@code RowOrColumnMajor.RowMajor}, what {@code ITableProvider::get_RowOrColumnMajor}
+     * answers for a table whose rows are the records. Read off the Windows 11 ARM64 guest on
+     * 2026-09-09 from {@code System.Windows.Automation.RowOrColumnMajor}: RowMajor 0,
+     * ColumnMajor 1, Indeterminate 2.
+     */
+    static final int ROW_OR_COLUMN_MAJOR_ROW_MAJOR = 0;
     static final int TABLE_ITEM_ROW_HEADER_ITEMS = 30084;
     static final int TABLE_ITEM_COLUMN_HEADER_ITEMS = 30085;
     static final int TOGGLE_STATE = 30086;

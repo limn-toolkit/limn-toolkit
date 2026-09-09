@@ -658,6 +658,11 @@ public final class UiaBridge extends PlatformBridge {
             return UiaStrings.int32Array(values);
         }
 
+        @Override
+        public long unknownArray(long[] pointers) {
+            return UiaStrings.unknownArray(pointers);
+        }
+
         /**
          * <p><b>The fragment interface and not the object's primary one.</b> Every pointer a COM
          * method returns has a declared type, and a client walking slot 5 of what it believes is
@@ -669,6 +674,11 @@ public final class UiaBridge extends PlatformBridge {
         @Override
         public long elementFor(long nodeId) {
             return handOver(nodeId, UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT);
+        }
+
+        @Override
+        public long simpleElementFor(long nodeId) {
+            return handOver(nodeId, UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE);
         }
 
         /** <p>And the fragment <em>root</em> interface here, for the same reason. */
@@ -781,6 +791,8 @@ public final class UiaBridge extends PlatformBridge {
             UiaIds.INVOKE_PATTERN, UiaIds.TOGGLE_PATTERN, UiaIds.VALUE_PATTERN,
             UiaIds.RANGE_VALUE_PATTERN, UiaIds.EXPAND_COLLAPSE_PATTERN,
             UiaIds.SELECTION_ITEM_PATTERN, UiaIds.SCROLL_ITEM_PATTERN,
+            UiaIds.GRID_PATTERN, UiaIds.TABLE_PATTERN, UiaIds.GRID_ITEM_PATTERN,
+            UiaIds.TABLE_ITEM_PATTERN,
     };
 
     /** One node's COM object, as the registry sees it. */

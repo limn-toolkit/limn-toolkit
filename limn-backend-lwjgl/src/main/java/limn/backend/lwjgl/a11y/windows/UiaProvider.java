@@ -65,11 +65,30 @@ final class UiaProvider {
         long int32Array(int[] values);
 
         /**
+         * @param pointers interface pointers, each already referenced for the array
+         * @return a {@code SAFEARRAY} of {@code IUnknown*} the caller now owns, or {@code 0}
+         */
+        long unknownArray(long[] pointers);
+
+        /**
          * @param nodeId the node a client asked to navigate to, or whose element it asked for
          * @return that node's fragment pointer, already referenced for the caller, or {@code 0}
          *         when the node is not in the current tree
          */
         long elementFor(long nodeId);
+
+        /**
+         * The same node through its <em>simple</em> interface, for the methods whose declared
+         * out type is {@code IRawElementProviderSimple**}: a grid's {@code GetItem}, a cell's
+         * {@code get_ContainingGrid}, an item's {@code get_SelectionContainer}, and every element
+         * of a headers array. Measured on the guest: a fragment pointer handed back through one of
+         * those is read as the simple vtable and the client fails its cast, while the same pointer
+         * through {@code Navigate}, whose declared type is the fragment, is right.
+         *
+         * @param nodeId the node
+         * @return that node's simple pointer, already referenced for the caller, or {@code 0}
+         */
+        long simpleElementFor(long nodeId);
 
         /** @return the fragment root's own pointer, referenced for the caller */
         long rootElement();

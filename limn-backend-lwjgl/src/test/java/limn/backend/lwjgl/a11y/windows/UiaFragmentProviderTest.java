@@ -72,8 +72,18 @@ class UiaFragmentProviderTest {
         }
 
         @Override
+        public long unknownArray(long[] pointers) {
+            return 0;
+        }
+
+        @Override
         public long elementFor(long nodeId) {
             return elementPointers.computeIfAbsent(nodeId, id -> 0xE0000000L + id);
+        }
+
+        @Override
+        public long simpleElementFor(long nodeId) {
+            return elementFor(nodeId);
         }
 
         @Override
