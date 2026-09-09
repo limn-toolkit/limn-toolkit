@@ -1,6 +1,5 @@
 package limn.components;
 
-import limn.scene.Change;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
@@ -12,7 +11,9 @@ import limn.graphics.RoundRect;
 import limn.i18n.I18nString;
 import limn.i18n.LanguageWitness;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.math.Scalars;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Insets;
 import limn.scene.Size;
@@ -143,10 +144,8 @@ public final class ColorPicker extends Widget {
     /** The colour the picker opened on, drawn beside the current one. */
     private Color original = Color.WHITE;
 
-    private Consumer<Color> onChange = color -> { };
-    private Consumer<Color> onCommit = color -> { };
-    /** Guards the field round-trip: writing a field must not re-parse it as an edit. */
-    private boolean syncing;
+    private Consumer<Color> onChange;
+    private Consumer<Color> onCommit;
     /**
      * True while the hex field's own listener is running, so its text is not
      * rewritten from under the caret. "112233FF" parses to an opaque colour whose
@@ -213,11 +212,13 @@ public final class ColorPicker extends Widget {
         root.add(formatTabs);
 
         alphaField.setSnapToStep(false);
+        // A handler and not a watcher, deliberately: it hears the user typing or stepping the
+        // percentage, and never the picker's own syncFields writing it, which is a caller's
+        // write and reaches no handler. That is what retired the guard flag this once needed.
         alphaField.onChange(percent -> {
-            if (!syncing) {
-                alpha = (float) (percent / 100.0);
-                changed();
-            }
+            alpha = (float) (percent / 100.0);
+            changed(Change.Origin.USER);
+            commit();
         });
         // The same line as a channel, because that is what alpha is here: letter,
         // rail, stepper, on the columns the block above already established. It
@@ -266,10 +267,17 @@ public final class ColorPicker extends Widget {
      */
     public ColorPicker setColor(Color color) {
         Ui.checkUiThread();
+        Color before = color();
         adopt(color);
         alpha = color.a();
-        syncFields();
-        invalidateAll();
+        if (color().equals(before)) {
+            // The rows are still re-synced: the caller may have handed over a grey whose hue and
+            // saturation the picker kept, and the numbers must read what the picker holds.
+            syncFields();
+            invalidateAll();
+            return this;
+        }
+        changed(Change.Origin.CODE);
         return this;
     }
 
@@ -295,14 +303,26 @@ public final class ColorPicker extends Widget {
      * Whether the picker offers alpha at all (default {@code true}). Turning it off
      * hides the ramp and the field and makes {@link #color()} opaque, for the many
      * things being coloured that cannot be translucent.
+     *
+     * <p>Announces {@code RANGE}/{@code CODE} for the flag, and before it, when turning alpha
+     * off moved the colour, {@code VALUE}/{@code ADJUSTMENT}: the colour moved as a consequence
+     * of the call, which named alpha and not the colour.
      */
     public ColorPicker setAlphaEnabled(boolean enabled) {
         Ui.checkUiThread();
+        if (alphaEnabled == enabled) {
+            return this;
+        }
+        Color before = color();
         this.alphaEnabled = enabled;
         alphaRow.setVisible(enabled);
         markNeedsLayout();
         syncFields();
         invalidateAll();
+        if (!color().equals(before)) {
+            notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.ADJUSTMENT));
+        }
+        notifyChange(Change.of(Change.Aspect.RANGE, Change.Origin.CODE));
         return this;
     }
 
@@ -335,27 +355,52 @@ public final class ColorPicker extends Widget {
 
     /**
      * Fires on every move: a picker shows its answer live, it does not wait for OK. That makes a
-     * delivery a preview: see {@link #onCommit} for the one that is a decision.
+     * delivery a preview: see {@link #onCommit} for the one that is a decision. Never for
+     * {@link #setColor}, {@link #setInitialColor} or {@link #setAlphaEnabled}, which are a
+     * caller's writes; to hear every move whatever caused it, {@linkplain #observeChanges watch}
+     * the picker instead.
      *
-     * @throws NullPointerException if {@code listener} is null, as everywhere else in this set
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this picker
+     * @throws IllegalStateException if a handler is already registered
      */
     public ColorPicker onChange(Consumer<Color> listener) {
         Ui.checkUiThread();
-        this.onChange = Objects.requireNonNull(listener, "listener");
+        this.onChange = Checks.handlerSlot(onChange, listener, "ColorPicker.onChange");
         return this;
     }
 
     /**
      * Fires once with the settled colour when a drag ends, the difference between a preview and a
      * decision, and the same split {@code Slider.onChange}/{@code Slider.onCommit} makes. This is
-     * where an undo entry is closed, or a value written to a document.
+     * where an undo entry is closed, or a value written to a document. A typed hex, a typed or
+     * stepped channel and a typed alpha commit too, because a key press is a whole gesture.
      *
-     * @throws NullPointerException if {@code listener} is null
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this picker
+     * @throws IllegalStateException if a handler is already registered
      */
     public ColorPicker onCommit(Consumer<Color> listener) {
         Ui.checkUiThread();
-        this.onCommit = Objects.requireNonNull(listener, "listener");
+        this.onCommit = Checks.handlerSlot(onCommit, listener, "ColorPicker.onCommit");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        switch (aspect) {
+            case VALUE -> {
+                if (onChange != null) {
+                    onChange.accept(color());
+                }
+            }
+            case COMMITTED -> {
+                if (onCommit != null) {
+                    onCommit.accept(color());
+                }
+            }
+            default -> super.handleUserChange(aspect);
+        }
     }
 
     // --- layout --------------------------------------------------------------
@@ -399,10 +444,20 @@ public final class ColorPicker extends Widget {
 
     // --- editing -------------------------------------------------------------
 
-    private void changed() {
+    /**
+     * The one seam every colour change goes through: re-notates the rows, repaints the parts and
+     * announces {@code VALUE} with {@code origin}. The plane, the ramps, the fields and the
+     * spinners pass {@code USER}; {@link #setColor} passes {@code CODE}.
+     */
+    private void changed(Change.Origin origin) {
         syncFields();
         invalidateAll();
-        onChange.accept(color());
+        notifyChange(Change.of(Change.Aspect.VALUE, origin));
+    }
+
+    /** The user settled: a drag released, a key pressed, a number typed. */
+    private void commit() {
+        notifyChange(Change.of(Change.Aspect.COMMITTED, Change.Origin.USER));
     }
 
     private void invalidateAll() {
@@ -413,9 +468,6 @@ public final class ColorPicker extends Widget {
     }
 
     private void hexTyped(String text) {
-        if (syncing) {
-            return;
-        }
         editingHex = true;
         try {
             applyHex(text);
@@ -437,8 +489,11 @@ public final class ColorPicker extends Widget {
         if (parsed == null) {
             return false; // half-typed; leave the selection where it is
         }
-        setColor(alphaEnabled ? parsed : parsed.withAlpha(1f));
-        onChange.accept(color());
+        Color typed = alphaEnabled ? parsed : parsed.withAlpha(1f);
+        adopt(typed);
+        alpha = typed.a();
+        changed(Change.Origin.USER);
+        commit();
         return true;
     }
 
@@ -500,23 +555,21 @@ public final class ColorPicker extends Widget {
         return formatTabs;
     }
 
-    /** Pushes the model into every field. Silent: a programmatic set fires nothing. */
+    /**
+     * Pushes the model into every field. Each write is a caller's write on that field, so none
+     * of them reaches the field's handler and nothing here needs guarding against its own echo.
+     */
     private void syncFields() {
-        syncing = true;
-        try {
-            Color current = color();
-            if (!editingHex) {
-                // Digits only: the "#" is a label beside the field, not text in it.
-                hexField.setText(current.toHex().substring(1));
+        Color current = color();
+        if (!editingHex) {
+            // Digits only: the "#" is a label beside the field, not text in it.
+            hexField.setText(current.toHex().substring(1));
+        }
+        alphaField.setValue(Math.round(alpha * 100));
+        for (ChannelGroup group : groups) {
+            if (group.format == format) {
+                group.read(current);
             }
-            alphaField.setValue(Math.round(alpha * 100));
-            for (ChannelGroup group : groups) {
-                if (group.format == format) {
-                    group.read(current);
-                }
-            }
-        } finally {
-            syncing = false;
         }
     }
 
@@ -540,7 +593,7 @@ public final class ColorPicker extends Widget {
     private void moveField(float s, float v) {
         saturation = Scalars.clamp01(s);
         value = Scalars.clamp01(v);
-        changed();
+        changed(Change.Origin.USER);
     }
 
     @Override
@@ -651,10 +704,12 @@ public final class ColorPicker extends Widget {
                 // The model owns the value, so the spinner must not snap it onto
                 // its own grid: the same reason every other bound field opts out.
                 spinner.setSnapToStep(false);
+                // The user's steps and typing, never read()'s writes; a stepped or typed number
+                // is a whole gesture, so it commits as a key press does. A track's drag reaches
+                // write() too and commits once, on release.
                 spinner.onChange(v -> {
-                    if (!syncing) {
-                        write();
-                    }
+                    write();
+                    commit();
                 });
                 fields.add(spinner);
                 ChannelTrack track = new ChannelTrack(i);
@@ -918,7 +973,7 @@ public final class ColorPicker extends Widget {
                         return false;
                     }
                 }
-                onCommit.accept(color());
+                commit();
                 return true;
             }
         }
@@ -1023,9 +1078,7 @@ public final class ColorPicker extends Widget {
                     separationFor = color();
                 }
             }
-            syncFields();
-            invalidateAll();
-            onChange.accept(color());
+            changed(Change.Origin.USER);
         }
     }
 
@@ -1217,7 +1270,7 @@ public final class ColorPicker extends Widget {
                     if (dragging) {
                         dragging = false;
                         event.consume();
-                        onCommit.accept(color());
+                        commit();
                     }
                 }
                 default -> {
@@ -1262,7 +1315,7 @@ public final class ColorPicker extends Widget {
             float snapped = Math.round(t * 100) / 100f;
             if (snapped != alpha) {
                 alpha = snapped;
-                changed();
+                changed(Change.Origin.USER);
             }
         }
 
@@ -1392,7 +1445,7 @@ public final class ColorPicker extends Widget {
                     return false;
                 }
             }
-            onCommit.accept(color());
+            commit();
             return true;
         }
     }
@@ -1519,7 +1572,7 @@ public final class ColorPicker extends Widget {
             case RELEASE -> {
                 if (dragging) {
                     event.consume();
-                    onCommit.accept(color());
+                    commit();
                 }
                 return false;
             }
@@ -1595,7 +1648,7 @@ public final class ColorPicker extends Widget {
                     if (dragging) {
                         dragging = false;
                         event.consume();
-                        onCommit.accept(color());
+                        commit();
                     }
                 }
                 default -> {
@@ -1780,7 +1833,7 @@ public final class ColorPicker extends Widget {
             } else {
                 moveField(saturation, next);
             }
-            onCommit.accept(color());
+            commit();
             return true;
         }
     }
@@ -1836,7 +1889,7 @@ public final class ColorPicker extends Widget {
          */
         private void moveToHue(float degrees) {
             hue = Math.max(0f, Math.min(360f, degrees));
-            changed();
+            changed(Change.Origin.USER);
         }
 
         /**
@@ -1969,7 +2022,7 @@ public final class ColorPicker extends Widget {
                     return false;
                 }
             }
-            onCommit.accept(color());
+            commit();
             return true;
         }
     }

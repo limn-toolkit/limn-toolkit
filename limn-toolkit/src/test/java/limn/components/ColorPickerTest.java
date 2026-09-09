@@ -126,14 +126,22 @@ class ColorPickerTest extends ComponentTestBase {
     }
 
     /**
-     * The set's majority answer for a null listener is NullPointerException; this picker used to
-     * swap in a no-op instead, so "pass null to remove my listener" worked here and threw on nine
-     * other widgets. One answer, and it is the loud one.
+     * The one null policy every handler slot in the toolkit shares: null clears the slot, and a
+     * second handler registered over an occupied one throws rather than silently replacing it.
+     * This picker used to swap a no-op in for null while nine other widgets threw; now "pass
+     * null to remove my handler" works everywhere, and a displaced handler is loud everywhere.
      */
     @Test
-    void aNullListenerIsRefusedRatherThanSilentlyIgnored() {
-        assertThrows(NullPointerException.class, () -> picker.onChange(null));
-        assertThrows(NullPointerException.class, () -> picker.onCommit(null));
+    void nullClearsAHandlerSlotAndASecondHandlerIsRefused() {
+        // The fixture already holds onChange, which is exactly the displacement this refuses.
+        assertThrows(IllegalStateException.class, () -> picker.onChange(colour -> { }));
+        picker.onChange(null);
+        picker.onChange(colour -> { });
+
+        picker.onCommit(colour -> { });
+        assertThrows(IllegalStateException.class, () -> picker.onCommit(colour -> { }));
+        picker.onCommit(null);
+        picker.onCommit(colour -> { });
     }
 
     @Test

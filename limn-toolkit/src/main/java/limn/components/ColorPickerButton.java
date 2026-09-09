@@ -13,6 +13,8 @@ import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18nString;
 import limn.input.Keys;
+import limn.lang.Checks;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.Size;
@@ -61,8 +63,7 @@ public class ColorPickerButton extends Widget {
     private I18nString text;
     private boolean alphaEnabled = true;
     private I18nString dialogTitle = ComponentStrings.COLOR_TITLE;
-    private Consumer<Color> onChange = colour -> {
-    };
+    private Consumer<Color> onChange;
 
     private final Transition hover =
             new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
@@ -99,14 +100,14 @@ public class ColorPickerButton extends Widget {
     }
 
     /**
-     * Sets the colour without notifying, the setter an application calls when <em>it</em>
-     * is the source of the change, so a listener that writes back does not loop. The
-     * picker uses the notifying path instead.
+     * Sets the colour: a caller's write, announced as {@code VALUE}/{@code CODE} and reaching no
+     * handler, so a listener that writes back does not loop. The picker's moves and a cancelled
+     * dialog's restore are the user's and take the other origin through the same seam.
      */
     public ColorPickerButton setColor(Color value) {
         Ui.checkUiThread();
         Objects.requireNonNull(value, "value");
-        apply(alphaEnabled ? value : value.withAlpha(1f));
+        apply(alphaEnabled ? value : value.withAlpha(1f), Change.Origin.CODE);
         return this;
     }
 
@@ -117,10 +118,15 @@ public class ColorPickerButton extends Widget {
      */
     public ColorPickerButton setAlphaEnabled(boolean enabled) {
         Ui.checkUiThread();
+        if (alphaEnabled == enabled) {
+            return this;
+        }
         this.alphaEnabled = enabled;
         if (!enabled && color.a() < 1f) {
-            apply(color.withAlpha(1f));
+            // The colour moved as a consequence of the call, which named alpha and not it.
+            apply(color.withAlpha(1f), Change.Origin.ADJUSTMENT);
         }
+        notifyChange(Change.of(Change.Aspect.RANGE, Change.Origin.CODE));
         return this;
     }
 
@@ -130,14 +136,30 @@ public class ColorPickerButton extends Widget {
     }
 
     /**
-     * Called whenever the colour changes: on every move of the picker, and once more with
-     * the previous colour if the dialog is dismissed. Never called by {@link #setColor}.
+     * The application's response to the user moving the colour: on every move of the picker,
+     * and once more with the previous colour if the dialog is dismissed. Never for
+     * {@link #setColor}; to hear every change whatever caused it, {@linkplain #observeChanges
+     * watch} the button instead.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this button
+     * @throws IllegalStateException if a handler is already registered
      */
     public ColorPickerButton onChange(Consumer<Color> listener) {
         Ui.checkUiThread();
-        this.onChange = listener == null ? colour -> {
-        } : listener;
+        this.onChange = Checks.handlerSlot(onChange, listener, "ColorPickerButton.onChange");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.VALUE) {
+            if (onChange != null) {
+                onChange.accept(color);
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
     }
 
     // --- caption -------------------------------------------------------------
@@ -305,21 +327,22 @@ public class ColorPickerButton extends Widget {
         return pickerDisplayMode;
     }
 
-    /** Sets the colour and tells the listener, the picker's path, and Cancel's. */
+    /** The user moved the picker, or cancelled the dialog: the same seam, as the user's. */
     private void change(Color value) {
-        if (apply(value)) {
-            onChange.accept(color);
-        }
+        apply(value, Change.Origin.USER);
     }
 
     /**
+     * The one seam the colour moves through, announcing {@code VALUE} with {@code origin} when
+     * it did.
+     *
      * @return whether anything moved. The caption is the colour's hex by default, so a
      *         change of colour is a change of text, but only a change of its <em>length</em>
      *         can move the box, and this runs on every frame of a drag. Marking layout
      *         unconditionally here is how a colour drag turns into a relayout of the whole
      *         tree per frame.
      */
-    private boolean apply(Color value) {
+    private boolean apply(Color value, Change.Origin origin) {
         if (color.equals(value)) {
             return false;
         }
@@ -333,6 +356,7 @@ public class ColorPickerButton extends Widget {
         } else {
             invalidate();
         }
+        notifyChange(Change.of(Change.Aspect.VALUE, origin));
         return true;
     }
 
