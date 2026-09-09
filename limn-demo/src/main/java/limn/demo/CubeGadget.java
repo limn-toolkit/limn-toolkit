@@ -217,7 +217,7 @@ final class CubeGadget {
             float aspect = viewport.height() > 0 ? viewport.width() / viewport.height() : 1f;
             scene3d[0].render(pass, viewport.camera(), aspect);
         });
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (scene3d[0] != null) {
                 scene3d[0].dispose();
                 scene3d[0] = null;
@@ -362,7 +362,7 @@ final class CubeGadget {
             viewport.camera().eye(new Vec3(0, 0, EYE_Z)).target(Vec3.ZERO);
             viewport.setEnabled(false); // events bubble to this root, not the viewport
             viewport.setRenderer(this::renderSwarm);
-            viewport.onDispose(this::disposeScene);
+            viewport.observeDispose(this::disposeScene);
             add(viewport);
             setFocusable(true); // ESC once the window has taken focus
         }

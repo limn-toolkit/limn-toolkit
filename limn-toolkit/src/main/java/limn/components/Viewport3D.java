@@ -2,7 +2,10 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.backend.CrashPhase;
 import limn.backend.Cursor;
+import limn.concurrent.Listeners;
+import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -11,6 +14,7 @@ import limn.graphics.Image;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.math.Aabb;
 import limn.math.Mat4;
 import limn.math.Ray;
@@ -20,6 +24,7 @@ import limn.render3d.CameraController;
 import limn.render3d.Graphics3D;
 import limn.render3d.RenderPass;
 import limn.render3d.RenderTarget;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Size;
@@ -81,7 +86,8 @@ public class Viewport3D extends Widget {
     private int tickGeneration; // invalidates a stale ticker after detach (blink-generation idiom)
     private boolean animated = true; // continuous repaint while showing (demo cube spins)
     private Renderer renderer; // null → the built-in demo cube
-    private Runnable onDispose; // renderer-owned GPU cleanup, run context-current on detach
+    private Runnable[] disposeObservers; // renderer-owned GPU cleanup, run context-current on detach
+    private static final Runnable[] NO_OBSERVERS = new Runnable[0];
     private Camera camera = new Camera();
     private CameraController controller; // null → no camera interaction
     private Consumer<Ray> onClick;       // fired with the world ray on a (non-drag) click
@@ -120,17 +126,37 @@ public class Viewport3D extends Widget {
     }
 
     /**
-     * Registers cleanup for GPU resources owned by the renderer, typically a
-     * retained scene's {@code Scene3D::dispose}. It runs when this viewport is
-     * detached from the tree, deferred to the owning window's next frame so the
-     * GL context is current (the same path that releases the render target).
-     * Kept across re-attachments: a renderer that rebuilds lazily should also
-     * reset its own reference in this callback.
+     * Observes this viewport being detached, for GPU resources owned by the renderer, typically
+     * a retained scene's {@code Scene3D::dispose}. Every observer runs when this viewport is
+     * detached from the tree, deferred to the owning window's next frame so the GL context is
+     * current (the same path that releases the render target). Kept across re-attachments: a
+     * renderer that rebuilds lazily should also reset its own reference in this callback.
+     *
+     * <p>A lifecycle observer list and not a slot, because this is the one registration where
+     * a list is obviously right: a second registration on a slot silently dropped a GPU free,
+     * with no diagnostic and no test that could see it.
+     *
+     * @param cleanup what to run, context-current, on detach; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
      */
-    public Viewport3D onDispose(Runnable cleanup) {
+    public Subscription observeDispose(Runnable cleanup) {
         Ui.checkUiThread();
-        this.onDispose = cleanup;
-        return this;
+        Objects.requireNonNull(cleanup, "cleanup");
+        disposeObservers = Listeners.added(disposeObservers, cleanup, NO_OBSERVERS);
+        return new Subscription() {
+            private Runnable pending = cleanup;
+
+            @Override
+            public void cancel() {
+                Ui.checkUiThread();
+                Runnable taken = pending;
+                if (taken == null) {
+                    return;
+                }
+                pending = null;
+                disposeObservers = Listeners.removed(disposeObservers, taken);
+            }
+        };
     }
 
     /** Installs a camera controller (e.g. {@code new OrbitController(viewport.camera())}). */
@@ -165,10 +191,19 @@ public class Viewport3D extends Widget {
         return this;
     }
 
-    /** Fires with the world-space ray on a click (no drag); feed it to {@code Picker}. */
+    /**
+     * The application's response to a click (no drag): called with the world-space ray to feed
+     * to {@code Picker}. The one handler in the toolkit whose payload no accessor answers, since
+     * a 3D pick is not widget state, so it stays a slot fired from the pointer path, after the
+     * click is announced to the watchers as {@code INVOKED}.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this viewport
+     * @throws IllegalStateException if a handler is already registered
+     */
     public Viewport3D onClick(Consumer<Ray> listener) {
         Ui.checkUiThread();
-        this.onClick = listener;
+        this.onClick = Checks.handlerSlot(onClick, listener, "Viewport3D.onClick");
         return this;
     }
 
@@ -332,8 +367,14 @@ public class Viewport3D extends Widget {
                     return;
                 }
                 leftGesture = false;
-                if (!dragged && onClick != null && width() > 0 && height() > 0) {
-                    onClick.accept(rayAt(lastX, lastY));
+                if (!dragged && width() > 0 && height() > 0) {
+                    // The one site where the record's order -- announce, then handle -- is
+                    // written by hand rather than inherited: the ray is not widget state, so the
+                    // handler half cannot be reached from an aspect.
+                    notifyChange(Change.of(Change.Aspect.INVOKED, Change.Origin.USER));
+                    if (onClick != null) {
+                        onClick.accept(rayAt(lastX, lastY));
+                    }
                 }
                 event.consume();
             }
@@ -480,8 +521,17 @@ public class Viewport3D extends Widget {
             if (surface != null) {
                 leaving.disposeLater(surface);
             }
-            if (onDispose != null) {
-                leaving.disposeLater(onDispose);
+            Runnable[] cleanups = disposeObservers;
+            if (cleanups != null) {
+                leaving.disposeLater(() -> {
+                    for (Runnable cleanup : cleanups) {
+                        try {
+                            cleanup.run();
+                        } catch (Throwable error) {
+                            Listeners.failed(CrashPhase.OBSERVER, error);
+                        }
+                    }
+                });
             }
         }
         surface = null;

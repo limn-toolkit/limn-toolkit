@@ -81,7 +81,7 @@ public final class Viewport3DExample {
         // 3D. The render ignores its time argument, so redrawing every frame costs a capture
         // nothing and still produces identical pixels.
         viewport.setAnimated(true);
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (built[0] != null) {
                 built[0].dispose();
             }

@@ -130,7 +130,7 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
     private void bindControls() {
         view = new VideoView().setSource(new FakeVideo());
         controls = new MediaControls(view);
-        controls.setOnRefresh(() -> ticks++); // the heartbeat an injected control rides
+        controls.observeRefresh(() -> ticks++); // the heartbeat an injected control rides
         bind(controls);
     }
 

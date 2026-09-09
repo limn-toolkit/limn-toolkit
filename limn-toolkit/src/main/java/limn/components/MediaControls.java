@@ -2,11 +2,14 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.backend.CrashPhase;
+import limn.concurrent.Listeners;
+import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
-import limn.i18n.I18nString;
 import limn.graphics.Path2D;
+import limn.i18n.I18nString;
 import limn.scene.Constraints;
 import limn.scene.Insets;
 import limn.scene.LayoutDirection;
@@ -49,7 +52,7 @@ import java.util.Objects;
  *
  * <p><b>The slots.</b> {@link #addLeading} places a widget between the play button and the scrub
  * bar (where players put their volume), {@link #addTrailing} between the scrub bar and the clock,
- * and {@link #setOnRefresh} gives injected controls a ride on the same heartbeat the built-in ones
+ * and {@link #observeRefresh} gives injected controls a ride on the same heartbeat the built-in ones
  * update on. {@link #setShowPosition} and {@link #setBackdrop} trim the built-ins.
  *
  * <p>The bar polls on a timer rather than a ticker, so parked over a paused picture it costs
@@ -120,7 +123,8 @@ public class MediaControls extends Widget {
     private final List<Widget> leading = new ArrayList<>();
     private final List<Widget> trailing = new ArrayList<>();
 
-    private Runnable onRefresh;
+    private Runnable[] refreshObservers;
+    private static final Runnable[] NO_OBSERVERS = new Runnable[0];
     private boolean showPosition = true;
     private boolean backdrop = true;
     private Color ink;
@@ -221,13 +225,32 @@ public class MediaControls extends Widget {
     }
 
     /**
-     * Runs on every refresh of the built-in controls, so a widget injected through
+     * Observes every refresh of the built-in controls, so a widget injected through
      * {@link #addLeading}/{@link #addTrailing} can update on the same heartbeat instead of
-     * arming a timer of its own.
+     * arming a timer of its own. The heartbeat is the poll tick: a paint announces nothing and so
+     * refreshes nothing, which makes a tick a truer heartbeat than a paint rate was.
+     *
+     * @param listener what to run after each refresh; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
      */
-    public MediaControls setOnRefresh(Runnable listener) {
-        onRefresh = listener;
-        return this;
+    public Subscription observeRefresh(Runnable listener) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(listener, "listener");
+        refreshObservers = Listeners.added(refreshObservers, listener, NO_OBSERVERS);
+        return new Subscription() {
+            private Runnable pending = listener;
+
+            @Override
+            public void cancel() {
+                Ui.checkUiThread();
+                Runnable taken = pending;
+                if (taken == null) {
+                    return;
+                }
+                pending = null;
+                refreshObservers = Listeners.removed(refreshObservers, taken);
+            }
+        };
     }
 
     /**
@@ -484,8 +507,15 @@ public class MediaControls extends Widget {
                     ? clock(at) + " / " + clock(length)
                     : seekable ? clock(at) : clock(0));
         }
-        if (onRefresh != null) {
-            onRefresh.run();
+        Runnable[] observers = refreshObservers;
+        if (observers != null) {
+            for (Runnable observer : observers) {
+                try {
+                    observer.run();
+                } catch (Throwable error) {
+                    Listeners.failed(CrashPhase.OBSERVER, error);
+                }
+            }
         }
     }
 

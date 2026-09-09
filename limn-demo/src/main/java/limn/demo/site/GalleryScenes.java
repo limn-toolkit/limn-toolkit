@@ -641,7 +641,7 @@ final class GalleryScenes {
         // which comes out empty, from being the one the capture keeps.
         viewport.setRenderScale(0.5f);
         viewport.setAnimated(true);
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (built[0] != null) {
                 built[0].dispose();
             }

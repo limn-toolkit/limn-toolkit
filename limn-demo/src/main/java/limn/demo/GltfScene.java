@@ -100,7 +100,7 @@ final class GltfScene {
                 })
                 .start();
 
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (loading.scene != null) {
                 loading.scene.dispose();
                 loading.scene = null; // the renderer above re-uploads lazily on re-attach

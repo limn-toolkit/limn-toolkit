@@ -1,7 +1,6 @@
 package limn.components.chart;
 
 import limn.accessibility.Accessibility;
-import limn.i18n.NumberFormats;
 import limn.animation.Easing;
 import limn.animation.Transition;
 import limn.backend.Cursor;
@@ -18,7 +17,10 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
+import limn.i18n.NumberFormats;
 import limn.input.Keys;
+import limn.lang.Checks;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.Size;
@@ -126,10 +128,8 @@ public abstract class Chart extends Widget {
     private float preferredHeight = UNSET;
     private double animationSeconds = DEFAULT_ANIMATION;
     private Easing animationEasing = Easing.EASE_OUT;
-    private Consumer<ChartPoint> onPointClick = point -> {
-    };
-    private Consumer<ChartPoint> onHover = point -> {
-    };
+    private Consumer<ChartPoint> onPointClick;
+    private Consumer<ChartPoint> onPointHover;
 
     /** Drives every value interpolation in the chart; 1 = the data as it stands. */
     private final Transition anim = new Transition(this, 1);
@@ -579,7 +579,7 @@ public abstract class Chart extends Widget {
      */
     public Chart onPointClick(Consumer<ChartPoint> listener) {
         Ui.checkUiThread();
-        this.onPointClick = Objects.requireNonNull(listener, "listener");
+        this.onPointClick = Checks.handlerSlot(onPointClick, listener, "Chart.onPointClick");
         return this;
     }
 
@@ -589,8 +589,29 @@ public abstract class Chart extends Widget {
      */
     public Chart onPointHover(Consumer<ChartPoint> listener) {
         Ui.checkUiThread();
-        this.onHover = Objects.requireNonNull(listener, "listener");
+        this.onPointHover = Checks.handlerSlot(onPointHover, listener, "Chart.onPointHover");
         return this;
+    }
+
+    /**
+     * Both handlers read {@link #hoveredPoint()}, which is assigned before either announcement,
+     * so neither needs a payload the channel does not carry.
+     */
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        switch (aspect) {
+            case INVOKED -> {
+                if (onPointClick != null) {
+                    onPointClick.accept(hovered);
+                }
+            }
+            case ACTIVE -> {
+                if (onPointHover != null) {
+                    onPointHover.accept(hovered);
+                }
+            }
+            default -> super.handleUserChange(aspect);
+        }
     }
 
     /** The datum under the pointer, or {@code null}. */
@@ -1275,9 +1296,13 @@ public abstract class Chart extends Widget {
                 updatePointer(localX, localY);
                 if (hoveredLegend >= 0 && legendInteractive) {
                     toggleLegendEntry(hoveredLegend);
+                    // A series shown or hidden is what the chart holds under it, and a watcher
+                    // reads which from the series list; the legend hover itself has no accessor
+                    // and so announces nothing.
+                    notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.USER));
                     event.consume();
                 } else if (hovered != null) {
-                    onPointClick.accept(hovered);
+                    notifyChange(Change.of(Change.Aspect.INVOKED, Change.Origin.USER));
                     event.consume();
                 }
             }
@@ -1314,7 +1339,7 @@ public abstract class Chart extends Widget {
         tooltipFade.to(picked != null && tooltipEnabled ? 1 : 0);
         invalidate();
         onHoverChanged(picked);
-        onHover.accept(picked);
+        notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER)); // the datum under the pointer
     }
 
     private void clearPointer() {
@@ -1331,7 +1356,7 @@ public abstract class Chart extends Widget {
             tooltipFade.to(0);
             invalidate();
             onHoverChanged(null);
-            onHover.accept(null);
+            notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
         }
     }
 

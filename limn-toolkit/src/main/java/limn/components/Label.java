@@ -1,7 +1,7 @@
 package limn.components;
 
-import limn.accessibility.Accessible;
 import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -11,6 +11,7 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
 import limn.scene.Size;
@@ -275,12 +276,14 @@ public class Label extends Widget {
                 // are the same width every tick.
                 buildLine(ruler, f, textWidth(t, f));
                 invalidate();
+                notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
                 return this;
             }
         } else {
             this.text = newText;
         }
         markNeedsLayout();
+        notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
         return this;
     }
 
@@ -458,9 +461,13 @@ public class Label extends Widget {
     public Label setIcon(limn.graphics.Icon newIcon, limn.graphics.Icon.Mirroring mirroring) {
         Ui.checkUiThread();
         Objects.requireNonNull(mirroring, "mirroring");
+        if (icon == newIcon && iconMirroring == mirroring) {
+            return this;
+        }
         this.icon = newIcon;
         this.iconMirroring = mirroring;
         markNeedsLayout();
+        notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
         return this;
     }
 

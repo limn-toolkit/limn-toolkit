@@ -14,6 +14,8 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18nString;
 import limn.input.Keys;
+import limn.lang.Checks;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.Size;
@@ -56,8 +58,7 @@ public class Button extends Widget {
     // because I18nString memoizes it.
     private ShapedText caption;
     private boolean secondary;
-    private Runnable action = () -> {
-    };
+    private Runnable action;
     // Hover and focus-ring fades, animated through the shared Transition.
     private final Transition hover =
             new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
@@ -100,9 +101,14 @@ public class Button extends Widget {
     public Button setIcon(Icon newIcon, Icon.Mirroring mirroring) {
         Ui.checkUiThread();
         Objects.requireNonNull(mirroring, "mirroring");
+        if (icon == newIcon && iconMirroring == mirroring) {
+            return this;
+        }
         this.icon = newIcon;
         this.iconMirroring = mirroring;
         markNeedsLayout();
+        // A button whose label is an icon has no other name to give, so the icon is a NAME too.
+        notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
         return this;
     }
 
@@ -135,11 +141,35 @@ public class Button extends Widget {
         return t.iconBox() + (text.get().isEmpty() ? 0 : t.gapIcon());
     }
 
-    /** Called on click, or on Space/Enter while focused. Not called while disabled. */
+    /**
+     * The application's response to the user pressing the button: a click, Space or Enter while
+     * focused, an assistive technology's press. Not called while disabled. A press is announced
+     * to the {@linkplain #observeChanges watchers} as {@code INVOKED} first.
+     *
+     * @param newAction the handler, or {@code null} to clear the slot
+     * @return this button
+     * @throws IllegalStateException if a handler is already registered
+     */
     public Button onAction(Runnable newAction) {
         Ui.checkUiThread();
-        this.action = Objects.requireNonNull(newAction, "newAction");
+        this.action = Checks.handlerSlot(action, newAction, "Button.onAction");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.INVOKED) {
+            if (action != null) {
+                action.run();
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
+    }
+
+    /** The user pressed: the watchers hear {@code INVOKED} and then the handler runs. */
+    private void invoke() {
+        notifyChange(Change.of(Change.Aspect.INVOKED, Change.Origin.USER));
     }
 
     /** The caption as it currently reads; see {@link #textSource()} for the key behind it. */
@@ -170,6 +200,7 @@ public class Button extends Widget {
         }
         this.text = newText;
         markNeedsLayout();
+        notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
         return this;
     }
 
@@ -360,7 +391,7 @@ public class Button extends Widget {
         if (verb != Accessible.Action.PRESS || !isEnabled()) {
             return false;
         }
-        action.run();
+        invoke();
         return true;
     }
 
@@ -388,7 +419,7 @@ public class Button extends Widget {
             case CLICK -> {
                 if (event.button() == Keys.MOUSE_LEFT) {
                     event.consume();
-                    action.run();
+                    invoke();
                 }
             }
             default -> {
@@ -411,7 +442,7 @@ public class Button extends Widget {
             invalidate();
             event.consume();
             if (fire) {
-                action.run();
+                invoke();
             }
         }
     }

@@ -1733,11 +1733,11 @@ final class VideoScene {
             // write in the glass inks for the reason those constants document.
             controls = new limn.components.MediaControls(view)
                     .setBackdrop(false)
-                    .setInk(GLASS_INK, GLASS_INK_MUTED)
-                    .setOnRefresh(() -> {
-                        refreshSubtitles();
-                        refreshSound();
-                    });
+                    .setInk(GLASS_INK, GLASS_INK_MUTED);
+            controls.observeRefresh(() -> {
+                refreshSubtitles();
+                refreshSound();
+            });
             if (sound != null) {
                 // The built-in pair can only turn a gain the player already holds, and this
                 // tab's soundtrack is lazily re-opened (SoundLevel) — a policy the toolkit

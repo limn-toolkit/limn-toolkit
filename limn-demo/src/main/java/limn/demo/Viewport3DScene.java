@@ -244,7 +244,7 @@ final class Viewport3DScene {
             scene[0].render(pass, viewport.camera(), aspect);
         });
         viewport.setAnimated(false); // nothing moves; repaint on orbit/zoom only
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (scene[0] != null) {
                 scene[0].dispose();
                 scene[0] = null;
@@ -288,7 +288,7 @@ final class Viewport3DScene {
             scene[0].render(pass, viewport.camera(), aspect);
         });
         viewport.setAnimated(false);
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (scene[0] != null) {
                 scene[0].dispose();
                 scene[0] = null;
@@ -440,7 +440,7 @@ final class Viewport3DScene {
             scene[0].render(pass, viewport.camera(), aspect);
         });
         viewport.setAnimated(true);
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (scene[0] != null) {
                 scene[0].dispose();
                 scene[0] = null;
@@ -854,7 +854,7 @@ final class Viewport3DScene {
                 debug.flush(pass);
             }
         });
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (scene[0] != null) {
                 scene[0].dispose();
                 scene[0] = null; // the renderer above rebuilds lazily on re-attach
@@ -914,7 +914,7 @@ final class Viewport3DScene {
             float aspect = viewport.height() > 0 ? viewport.width() / viewport.height() : 1f;
             scene[0].render(pass, viewport.camera(), aspect);
         });
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (scene[0] != null) {
                 scene[0].dispose();
                 scene[0] = null; // the renderer above rebuilds lazily on re-attach
@@ -1018,7 +1018,7 @@ final class Viewport3DScene {
             applySelection.run();
             viewport.invalidate();
         });
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (scene[0] != null) {
                 scene[0].dispose();
                 scene[0] = null; // the renderer above rebuilds lazily on re-attach
@@ -1078,7 +1078,7 @@ final class Viewport3DScene {
             scene[0].render(pass, viewport.camera(), aspect);
         });
         viewport.setAnimated(false); // static emitters: repaint on orbit/zoom/control change
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (scene[0] != null) {
                 scene[0].dispose();
                 scene[0] = null; // the renderer above rebuilds lazily on re-attach
@@ -1204,7 +1204,7 @@ final class Viewport3DScene {
             float aspect = viewport.height() > 0 ? viewport.width() / viewport.height() : 1f;
             scene[0].render(pass, viewport.camera(), aspect);
         });
-        viewport.onDispose(() -> {
+        viewport.observeDispose(() -> {
             if (scene[0] != null) {
                 scene[0].dispose();
                 scene[0] = null; // the renderer above rebuilds lazily on re-attach
