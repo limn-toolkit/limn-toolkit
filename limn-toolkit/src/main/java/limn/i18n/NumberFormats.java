@@ -126,8 +126,57 @@ public final class NumberFormats {
             format.setCurrency(currency);
             format.setMinimumFractionDigits(currency.getDefaultFractionDigits());
             format.setMaximumFractionDigits(currency.getDefaultFractionDigits());
-            return localized(format.format(v));
+            return localized(keepSymbolWhole(format.format(v), currency.getSymbol(I18n.locale())));
         };
+    }
+
+    /**
+     * Keeps a currency symbol in one piece under a right-to-left paragraph.
+     *
+     * <p>A symbol such as {@code R$} is a strong letter and a neutral sign, and the bidi
+     * algorithm resolves the sign from its neighbours: at the end of an Arabic amount the
+     * neighbour on the right is the paragraph, so {@code R$} draws as {@code $R}. CLDR's Persian
+     * pattern carries the left-to-right mark that prevents it and its Arabic pattern does not, so
+     * the platform's output is fixed here rather than trusted: wherever the symbol appears in a
+     * text that holds right-to-left characters, an Arabic number, or a bidi mark, it is fenced by
+     * left-to-right marks, which are zero-width, and a text without any of those is returned as
+     * it came.
+     */
+    static String keepSymbolWhole(String text, String symbol) {
+        if (symbol.isEmpty() || !text.contains(symbol) || !hasRightToLeftContent(text)) {
+            return text;
+        }
+        boolean mixed = false;
+        boolean letter = false;
+        for (int i = 0; i < symbol.length(); i++) {
+            byte d = Character.getDirectionality(symbol.charAt(i));
+            if (d == Character.DIRECTIONALITY_LEFT_TO_RIGHT) {
+                letter = true;
+            } else {
+                mixed = true;
+            }
+        }
+        if (!letter || !mixed) {
+            return text;   // a lone letter or a lone sign cannot be split
+        }
+        return text.replace(symbol, "\u200E" + symbol + "\u200E");
+    }
+
+    private static boolean hasRightToLeftContent(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            switch (Character.getDirectionality(text.charAt(i))) {
+                case Character.DIRECTIONALITY_RIGHT_TO_LEFT,
+                     Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC,
+                     Character.DIRECTIONALITY_ARABIC_NUMBER,
+                     Character.DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING,
+                     Character.DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE -> {
+                    return true;
+                }
+                default -> {
+                }
+            }
+        }
+        return false;
     }
 
     /**

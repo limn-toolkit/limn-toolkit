@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The number formats under ADR 033. Java's own locale data already wrote Arabic-Indic digits
@@ -73,5 +74,24 @@ class NumberFormatsDigitsTest {
         }
         assertEquals("3.5", NumberFormats.number().apply(3.5),
                 "outside the scope the process language formats as before");
+    }
+
+    @Test
+    void aTwoCharacterCurrencySymbolStaysWholeUnderAnArabicAmount() {
+        java.util.Currency real = java.util.Currency.getInstance("BRL");
+        I18n.setLocale(Locale.forLanguageTag("ar"));
+        String arabic = NumberFormats.currency(real).apply(2499.97);
+        assertTrue(arabic.contains("\u200ER$\u200E"),
+                "the symbol is fenced by left-to-right marks so the bidi algorithm cannot split "
+                        + "it into $R: " + arabic);
+        assertTrue(arabic.contains("\u0662"), "and the digits are still Arabic-Indic: " + arabic);
+        I18n.setLocale(Locale.forLanguageTag("pt-BR"));
+        String portuguese = NumberFormats.currency(real).apply(2499.97);
+        assertEquals("R$\u00A02.499,97", portuguese, "a left-to-right text is returned as it came");
+        assertEquals("R$ 5", NumberFormats.keepSymbolWhole("R$ 5", "R$"),
+                "nothing right-to-left, nothing to fence");
+        assertEquals("\u0662 \u200ER$\u200E", NumberFormats.keepSymbolWhole("\u0662 R$", "R$"));
+        assertEquals("\u0662 \u20AC", NumberFormats.keepSymbolWhole("\u0662 \u20AC", "\u20AC"),
+                "a one-sign symbol cannot be split and is left alone");
     }
 }
