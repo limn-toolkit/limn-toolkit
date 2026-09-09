@@ -10,6 +10,7 @@ import limn.components.ScrollView;
 import limn.components.Separator;
 import limn.components.TextField;
 import limn.components.Theme;
+import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -65,7 +66,31 @@ public final class FormExample {
     // #endregion
 
     /**
-     * Validation is a listener and two writes: the field's own state, which recolours its
+     * A field with a character count beneath it: the guide's example of the second channel.
+     *
+     * <p>The count must be right after {@code setText} from the application as well as after a
+     * keystroke, so it is a <em>watcher</em> and not a handler: {@code observeChanges} hears every
+     * change with its origin, where {@code onChange} runs for the user's typing alone. The label
+     * is written once from the field and then follows it, whoever moves it.
+     */
+    // #region guide:form-counter
+    static Widget counted(TextField field, int limit) {
+        Label counter = new Label(field.text().length() + " / " + limit).setMuted(true);
+        field.observeChanges((widget, change) -> {
+            if (change.aspect() == Change.Aspect.TEXT) {
+                counter.setText(field.text().length() + " / " + limit);
+            }
+        });
+        Column group = new Column();
+        group.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
+        group.add(field);
+        group.add(counter);
+        return group;
+    }
+    // #endregion
+
+    /**
+     * Validation is a handler and two writes: the field's own state, which recolours its
      * border, and a message beneath it. The message label is created whether or not it has
      * text, so the form does not jump by a line the first time it fails.
      */
@@ -90,6 +115,8 @@ public final class FormExample {
         Label emailMessage = new Label("Enter an address like ada@example.com");
         emailMessage.setColor(Theme.current().danger);
         validate(email, emailMessage);
+        // setText above was the application's write, and a handler runs for the user alone, so
+        // the rule in validate did not run: the starting state is set here, explicitly.
         email.setValidation(TextField.Validation.ERROR);
 
         PasswordField password = new PasswordField();
@@ -109,7 +136,7 @@ public final class FormExample {
         Column form = new Column();
         form.gap(18).crossAlignment(Flex.CrossAlignment.STRETCH);
         form.add(new Label("Create your account").setRole(Label.Role.TITLE));
-        form.add(field("Full name", name));
+        form.add(field("Full name", name, counted(name, 40)));
         form.add(field("Email", email, emailGroup));
         form.add(field("Password", password));
         form.add(field("Plan", plan));
