@@ -71,8 +71,6 @@ public class DatePicker extends Widget {
     /** Breathing room kept from the work-area edge when clamping the popup. */
     private static final float EDGE_MARGIN = 8;
 
-    /** The accessible key of the trailing button; the picker's one painted affordance. */
-    private static final long KEY_BUTTON = -1;
 
     private final DateField field;
     /** The second end of a period, or {@code null} for a picker that is not one. */
@@ -93,8 +91,23 @@ public class DatePicker extends Widget {
     private Subscription dismissHandle;
     private Subscription popupBlurHandle;
 
-    private boolean buttonHover;
+    /**
+     * The trailing affordance, a real widget rather than a painted region.
+     *
+     * <p>It began as chrome this class drew, with a synthetic accessible child standing in for it.
+     * That was wrong on the axis that matters most: <b>in this toolkit only a {@code Widget} is a
+     * tab stop</b>, so a painted button is one a keyboard user can never reach. The function was
+     * reachable another way (Alt+Down opens the calendar from the field), which is why it took a
+     * pair of eyes on the running program to notice, but "reachable by another route" is not the
+     * same as "this control works", and keyboard navigation is not an optional half of a widget.
+     * As a child it is a tab stop, it draws a real focus ring, and it publishes itself instead of
+     * being described by its owner.
+     */
+    private final CalendarButton button = new CalendarButton();
     private final Transition focusFade =
+            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+    /** The trailing button's own ring, which fades on its own widget rather than on the box. */
+    private final Transition buttonFocus =
             new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
 
     private Consumer<LocalDate> onSelect;
@@ -109,6 +122,13 @@ public class DatePicker extends Widget {
         this.field = field;
         this.endField = endField;
         setCursor(Cursor.DEFAULT);
+        add(button);
+        button.observeChanges((widget, change) -> {
+            if (change.aspect() == Change.Aspect.FOCUS) {
+                refreshFocusRing();
+                invalidate();
+            }
+        });
         adopt(field);
         if (endField != null) {
             adopt(endField);
@@ -144,8 +164,7 @@ public class DatePicker extends Widget {
         member.observeChanges((widget, change) -> {
             switch (change.aspect()) {
                 case FOCUS -> {
-                    focusFade.to(field.isFocused() || endField != null && endField.isFocused()
-                            ? 1 : 0);
+                    refreshFocusRing();
                     if (member.isFocused() && endField != null) {
                         fillingEnd = member == endField;
                         syncCalendarFromFields();
@@ -163,6 +182,15 @@ public class DatePicker extends Widget {
             }
         });
         member.setKeyDelegate(this::interceptKey);
+    }
+
+    /**
+     * The box this class paints carries the focus ring for every member inside it, because none of
+     * them draws one of its own: the fields are chromeless and the button is inside the same box.
+     */
+    private void refreshFocusRing() {
+        focusFade.to(field.isFocused() || button.isFocused()
+                || endField != null && endField.isFocused() ? 1 : 0);
     }
 
     /**
@@ -526,7 +554,7 @@ public class DatePicker extends Widget {
         if (scene == null) {
             return; // headless: the state machine is the whole of what a test drives
         }
-        blurHandle = scene.observeWindowBlur(() -> Ui.post(() -> setOpen(false, Change.Origin.USER)));
+        blurHandle = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
         if (requested == DisplayMode.IN_SCENE
                 || (scene.window() != null && !scene.window().supportsAbsolutePositioning())) {
             presentInScene(scene);
@@ -619,7 +647,8 @@ public class DatePicker extends Widget {
         boolean above = content.height() > spaceBelow && spaceAbove > spaceBelow;
 
         popupWindow = parent.backend().createWindow(WindowConfig.popup(
-                Math.max(1, Math.round(content.width())), Math.max(1, Math.round(content.height()))));
+                Math.max(1, Math.round(content.width())),
+                Math.max(1, Math.round(content.height()))));
         parent.registerChildPopup(popupWindow);
         releaseCalendar();
         popupPanel = new PopupPanel();
@@ -627,8 +656,7 @@ public class DatePicker extends Widget {
         popupScene = new Scene(popupPanel);
         popupScene.inheritRenderingFlags(scene);
         popupScene.bind(popupWindow);
-        popupBlurHandle = popupScene.observeWindowBlur(
-                () -> Ui.post(() -> setOpen(false, Change.Origin.USER)));
+        popupBlurHandle = popupScene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
         popupScene.setBackground(Color.TRANSPARENT);
         int screenY = above
                 ? anchorTop - Math.round((gap + content.height()) * factor)
@@ -661,6 +689,31 @@ public class DatePicker extends Widget {
      * frame time, or a paused application would be left with an open calendar over an unreachable
      * field.
      */
+    /**
+     * Dismisses on OS focus loss, <b>unless the focus went to this picker's own popup</b>.
+     *
+     * <p>Deferred one turn so that an intra-application focus switch settles first: the owner
+     * blurs and the popup gains focus in the same input batch, or the other way round, and a check
+     * made between the two sees a moment when neither holds it.
+     *
+     * <p>The guard is not a nicety. Without it the popup closes itself the instant it takes focus,
+     * because the owner blurring <em>is</em> the popup opening; and even where the popup is created
+     * non-focus-stealing, clicking inside it hands it the OS focus on macOS, so the popup would
+     * close on the very click that was choosing a day. The unconditional close this replaces was
+     * a latent defect that only turned visible under the focus experiment of 2026-09-09 &mdash;
+     * which is how a race announces itself: two of three pickers worked.
+     */
+    private void closeUnlessRefocused() {
+        if (!open) {
+            return;
+        }
+        boolean ownerFocused = scene() != null && scene().isWindowFocused();
+        boolean popupFocused = popupScene != null && popupScene.isWindowFocused();
+        if (!ownerFocused && !popupFocused) {
+            setOpen(false, Change.Origin.ADJUSTMENT);
+        }
+    }
+
     private void dismiss() {
         if (blurHandle != null) {
             blurHandle.cancel();
@@ -772,6 +825,11 @@ public class DatePicker extends Widget {
         // clear button and a combo's chevron do; the fields take what is left, in reading order.
         float contentLeft = rtl ? button : 0;
         float contentWidth = Math.max(0, width() - button);
+        // The affordance takes the gutter on the side reading ends on, as a search field's clear
+        // button and a combo's chevron do.
+        float buttonX = rtl ? 0 : width() - button;
+        this.button.measure(Constraints.tight(button, height()));
+        this.button.layoutBox(buttonX, 0, button, height());
         if (endField == null) {
             field.measure(Constraints.tight(contentWidth, height()));
             field.layoutBox(contentLeft, 0, contentWidth, height());
@@ -824,103 +882,8 @@ public class DatePicker extends Widget {
                     (h - fm.height()) / 2 + fm.ascent(),
                     enabled ? theme.textMuted : theme.disabledText);
         }
-        paintButton(canvas, theme, t, enabled);
     }
 
-    /**
-     * The calendar glyph, drawn rather than set as a character: a font with no coverage for a
-     * calendar symbol renders tofu, and this is chrome that must look the same in every language.
-     * A page with a bound over it and two hangers.
-     *
-     * <p><b>Snapped to the pixel grid in scene coordinates, and that is the whole difficulty.</b>
-     * The obvious version of this method computes the glyph's box from {@code width()} and
-     * {@code height()} and draws it, which is correct arithmetic and renders three different
-     * glyphs in one form. A column of controls puts each row at a fractional scene offset &mdash;
-     * measured on the demo's own form, three pickers with identical boxes sat at y 280.0020,
-     * 346.4082 and 412.8145 &mdash; so identical local coordinates land on three different
-     * sub-pixel phases, and a one-point stroke is spread over two rows of pixels by a different
-     * fraction in each. The result is three calendars of visibly different weights.
-     *
-     * <p>So the origin is rounded <em>after</em> being taken into scene space and then brought
-     * back, which cancels the widget's own fractional offset; everything inside is an integer or a
-     * half from there, with the half on the strokes, where {@link Strokes#HALF_PIXEL_INSET} puts a
-     * one-point pen over exactly one row of pixels. What a reader gets is the same glyph in every
-     * instance, which is what "an icon" means.
-     */
-    private void paintButton(Canvas canvas, Theme theme, SizeTokens t, boolean enabled) {
-        float button = buttonWidth(t);
-        float left = isRightToLeft() ? 0 : width() - button;
-        if (buttonHover && enabled) {
-            canvas.fillRoundRect(left + Strokes.SPINNER_HOVER_INSET, Strokes.SPINNER_HOVER_INSET,
-                    button - 2 * Strokes.SPINNER_HOVER_INSET,
-                    height() - 2 * Strokes.SPINNER_HOVER_INSET, t.radiusSmall(),
-                    theme.surfaceRaised);
-        }
-        Color ink = !enabled ? theme.disabledText
-                : open || buttonHover ? theme.text : theme.textMuted;
-
-        float size = Math.round(t.fieldIcon());
-        float sceneX = localToSceneX();
-        float sceneY = localToSceneY();
-        float x = Math.round(sceneX + left + (button - size) / 2) - sceneX;
-        float y = Math.round(sceneY + (height() - size) / 2) - sceneY;
-        float pen = Strokes.BORDER;
-        float half = Strokes.HALF_PIXEL_INSET;
-        // What the hangers stand in, above the page. Integral, so the page's own top edge is too.
-        float hangers = Math.max(2, Math.round(size * 0.19f));
-        float pageTop = y + hangers;
-        float pageHeight = size - hangers;
-        float radius = Math.max(1, Math.round(t.radiusSmall() * 0.6f));
-
-        canvas.drawRoundRect(x + half, pageTop + half, size - pen, pageHeight - pen, radius,
-                pen, ink);
-        // The bound: a filled bar inside the page's top edge, which is what makes the glyph read
-        // as a calendar at sixteen points rather than as an empty box.
-        canvas.fillRect(x + pen, pageTop + pen, size - 2 * pen, Math.max(2, Math.round(size * 0.22f)),
-                ink);
-        float leftHanger = Math.round(x + size * 0.3f) + half;
-        float rightHanger = Math.round(x + size * 0.7f) + half;
-        canvas.drawLine(leftHanger, y, leftHanger, pageTop + pen, pen, ink);
-        canvas.drawLine(rightHanger, y, rightHanger, pageTop + pen, pen, ink);
-    }
-
-    private boolean overButton(float localX) {
-        float button = buttonWidth(Theme.current().tokensFor(this));
-        return isRightToLeft() ? localX < button : localX >= width() - button;
-    }
-
-    @Override
-    protected void onMouseEvent(MouseEvent event) {
-        float lx = sceneToLocalX(event.x());
-        switch (event.type()) {
-            case MOVE, ENTER -> {
-                boolean over = overButton(lx);
-                if (over != buttonHover) {
-                    buttonHover = over;
-                    invalidate();
-                }
-            }
-            case EXIT -> {
-                if (buttonHover) {
-                    buttonHover = false;
-                    invalidate();
-                }
-            }
-            case CLICK -> {
-                if (event.button() == Keys.MOUSE_LEFT && overButton(lx) && isEnabled()) {
-                    event.consume();
-                    setOpen(!open, Change.Origin.USER);
-                    if (open) {
-                        // The field keeps the keyboard while the grid is open, which is the whole
-                        // of how the forwarded keys reach it.
-                        (fillingEnd && endField != null ? endField : field).requestFocus();
-                    }
-                }
-            }
-            default -> {
-            }
-        }
-    }
 
     // ------------------------------------------------------------------ accessibility
 
@@ -930,29 +893,10 @@ public class DatePicker extends Widget {
      */
     @Override
     protected void onAccessibility(Accessibility a) {
-        SizeTokens t = Theme.current().tokensFor(this);
         a.role(Accessible.Role.GROUP);
         a.expand(open);
-        float button = buttonWidth(t);
-        a.child(KEY_BUTTON);
-        a.bounds(isRightToLeft() ? 0 : width() - button, 0, button, height());
-        a.role(Accessible.Role.BUTTON);
-        a.name(DateStrings.OPEN_CALENDAR, Accessible.NameFrom.CONTENT);
-        a.expand(open);
-        if (isEnabled()) {
-            a.action(Accessible.Action.PRESS);
-        }
-        a.endChild();
-    }
-
-    @Override
-    protected boolean onSyntheticAction(long key, Accessible.Action action,
-                                        Accessible.Argument arg) {
-        if (key != KEY_BUTTON || action != Accessible.Action.PRESS || !isEnabled()) {
-            return false;
-        }
-        setOpen(!open, Change.Origin.USER);
-        return true;
+        // The button is a real child and describes itself; the fields likewise. This hook says
+        // what is true of the composite and nothing about its members.
     }
 
     @Override
@@ -973,6 +917,178 @@ public class DatePicker extends Widget {
     }
 
     // ------------------------------------------------------------------ the popup's two shells
+
+
+    /**
+     * The trailing affordance: a square button that opens and closes the calendar.
+     *
+     * <p>A widget rather than a region its owner paints, and that is the whole point of it. In
+     * this toolkit focus traversal visits widgets, so a painted button is unreachable by keyboard
+     * however carefully it is described to a screen reader &mdash; and a control half of whose
+     * users cannot operate it is not finished. As a widget it takes Tab, answers Enter and Space,
+     * draws its own focus ring and publishes its own node.
+     */
+    private final class CalendarButton extends Widget {
+
+        private boolean hover;
+
+        CalendarButton() {
+            setFocusable(true);
+            setCursor(Cursor.POINTER);
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            SizeTokens t = Theme.current().tokensFor(DatePicker.this);
+            return constraints.constrain(buttonWidth(t), t.controlHeight());
+        }
+
+        @Override
+        protected float paintOutset() {
+            return Strokes.FOCUS_RING_OUTSET;
+        }
+
+        /**
+         * The calendar glyph, drawn rather than set as a character: a font with no coverage for a
+         * calendar symbol renders tofu, and this is chrome that must look the same in every
+         * language. A page with a bound over it and two hangers.
+         *
+         * <p><b>Snapped to the pixel grid in scene coordinates, and that is the whole difficulty.</b>
+         * The obvious version computes the glyph's box from this widget's own size and draws it,
+         * which is correct arithmetic and renders a different glyph in every row of a form: a
+         * column of controls puts each row at a fractional scene offset &mdash; measured on the
+         * demo's own form, three pickers with identical boxes sat at y 280.0020, 346.4082 and
+         * 412.8145 &mdash; so identical local coordinates land on three different sub-pixel phases
+         * and a one-point stroke is spread over two rows of pixels by a different fraction in
+         * each. The origin is therefore rounded <em>after</em> being taken into scene space and
+         * brought back, which cancels this widget's own fractional offset; everything inside is an
+         * integer or a half from there, with the half on the strokes.
+         */
+        @Override
+        protected void onPaint(Canvas canvas) {
+            Theme theme = Theme.current();
+            SizeTokens t = theme.tokensFor(DatePicker.this);
+            boolean enabled = isEnabled();
+            if (hover && enabled) {
+                canvas.fillRoundRect(Strokes.SPINNER_HOVER_INSET, Strokes.SPINNER_HOVER_INSET,
+                        width() - 2 * Strokes.SPINNER_HOVER_INSET,
+                        height() - 2 * Strokes.SPINNER_HOVER_INSET, t.radiusSmall(),
+                        theme.surfaceRaised);
+            }
+            Color ink = !enabled ? theme.disabledText
+                    : open || hover || isFocused() ? theme.text : theme.textMuted;
+
+            float size = Math.round(t.fieldIcon());
+            float sceneX = localToSceneX();
+            float sceneY = localToSceneY();
+            float x = Math.round(sceneX + (width() - size) / 2) - sceneX;
+            float y = Math.round(sceneY + (height() - size) / 2) - sceneY;
+            float pen = Strokes.BORDER;
+            float half = Strokes.HALF_PIXEL_INSET;
+            float hangers = Math.max(2, Math.round(size * 0.19f));
+            float pageTop = y + hangers;
+            float pageHeight = size - hangers;
+            float radius = Math.max(1, Math.round(t.radiusSmall() * 0.6f));
+
+            canvas.drawRoundRect(x + half, pageTop + half, size - pen, pageHeight - pen, radius,
+                    pen, ink);
+            // The bound: a filled bar inside the page's top edge, which is what makes the glyph
+            // read as a calendar at sixteen points rather than as an empty box.
+            canvas.fillRect(x + pen, pageTop + pen, size - 2 * pen,
+                    Math.max(2, Math.round(size * 0.22f)), ink);
+            float leftHanger = Math.round(x + size * 0.3f) + half;
+            float rightHanger = Math.round(x + size * 0.7f) + half;
+            canvas.drawLine(leftHanger, y, leftHanger, pageTop + pen, pen, ink);
+            canvas.drawLine(rightHanger, y, rightHanger, pageTop + pen, pen, ink);
+
+            float focus = buttonFocus.value();
+            if (focus > 0.001f) {
+                float gap = Strokes.FOCUS_GAP_BUTTON;
+                canvas.drawRoundRect(gap, gap, width() - 2 * gap, height() - 2 * gap,
+                        t.radiusSmall(), Strokes.FOCUS_RING, theme.focusRing.withAlpha(focus));
+            }
+        }
+
+        @Override
+        protected void onFocusGained() {
+            buttonFocus.to(1);
+        }
+
+        @Override
+        protected void onFocusLost() {
+            buttonFocus.to(0);
+        }
+
+        @Override
+        protected void onMouseEvent(MouseEvent event) {
+            switch (event.type()) {
+                case MOVE, ENTER -> {
+                    if (!hover) {
+                        hover = true;
+                        invalidate();
+                    }
+                }
+                case EXIT -> {
+                    if (hover) {
+                        hover = false;
+                        invalidate();
+                    }
+                }
+                case CLICK -> {
+                    if (event.button() == Keys.MOUSE_LEFT && isEnabled()) {
+                        event.consume();
+                        press();
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+
+        @Override
+        protected void onKeyEvent(KeyEvent event) {
+            if (!event.isPressed() || !isEnabled()) {
+                return;
+            }
+            if (event.key() == Keys.ENTER || event.key() == Keys.SPACE) {
+                event.consume();
+                press();
+            }
+        }
+
+        /**
+         * Opens or closes the calendar, and hands the keyboard to the field when it opens: the
+         * popup does not take focus, so the field is what the navigation keys are forwarded from.
+         * A person who reached this button with Tab therefore lands in the grid, which is where
+         * they were going.
+         */
+        private void press() {
+            setOpen(!open, Change.Origin.USER);
+            if (open) {
+                (fillingEnd && endField != null ? endField : field).requestFocus();
+            }
+        }
+
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.BUTTON);
+            a.name(DateStrings.OPEN_CALENDAR, Accessible.NameFrom.CONTENT);
+            a.expand(open);
+            if (isEnabled()) {
+                a.action(Accessible.Action.PRESS);
+            }
+        }
+
+        @Override
+        protected boolean onAccessibilityAction(Accessible.Action action,
+                                                Accessible.Argument arg) {
+            if (action != Accessible.Action.PRESS || !isEnabled()) {
+                return false;
+            }
+            press();
+            return true;
+        }
+    }
 
     /**
      * The card the grid sits on: rounded, raised, and translucent in a window of its own, which is

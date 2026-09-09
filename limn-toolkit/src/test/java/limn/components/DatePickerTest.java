@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.components.date.CalendarView;
 import limn.components.date.DatePicker;
 import limn.components.date.DateRange;
 import limn.i18n.I18n;
@@ -277,6 +278,58 @@ class DatePickerTest extends ComponentTestBase {
             nanos[0] += java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(16);
             scene.renderFrame(new FakeCanvas(400, 320));
         }
+    }
+
+    /**
+     * The affordance is a tab stop and answers the keyboard, which is what makes it a control
+     * rather than a picture of one. It was neither until a pair of eyes on the running program
+     * said so: the function was reachable by Alt+Down from the field, and "reachable by another
+     * route" is not the same as "this button works".
+     */
+    @Test
+    void theCalendarButtonTakesFocusAndAnswersTheKeyboard() {
+        build(new DatePicker());
+        limn.scene.Widget affordance = picker.children().stream()
+                .filter(child -> child != picker.field() && child.isFocusable())
+                .findFirst().orElseThrow(() -> new AssertionError(
+                        "the trailing affordance is not a focusable child"));
+        scene.requestFocus(affordance);
+        assertTrue(affordance.isFocused());
+        key(Keys.ENTER, 0);
+        assertTrue(picker.isOpen(), "Enter on the button opens the calendar");
+        // And the keyboard lands where it was going: the field, which is what forwards the
+        // navigation keys to the grid while the popup has no focus of its own.
+        assertTrue(picker.field().isFocused());
+    }
+
+    @Test
+    void theKeyboardReachesTheMonthAndYearChoosers() {
+        build(new DatePicker());
+        picker.setDate(ANCHOR);
+        picker.open();
+        assertEquals(CalendarView.View.DAYS, picker.calendar().view());
+        key(Keys.UP, Keys.MOD_CONTROL);
+        assertEquals(CalendarView.View.MONTHS, picker.calendar().view(),
+                "the choosers were reachable by pointer alone until this key existed");
+        key(Keys.UP, Keys.MOD_CONTROL);
+        assertEquals(CalendarView.View.YEARS, picker.calendar().view());
+        key(Keys.DOWN, Keys.MOD_CONTROL);
+        assertEquals(CalendarView.View.MONTHS, picker.calendar().view());
+        key(Keys.ESCAPE, 0);
+        assertEquals(CalendarView.View.DAYS, picker.calendar().view(),
+                "Escape comes back down a level before it closes anything");
+        assertTrue(picker.isOpen());
+    }
+
+    @Test
+    void losingTheWindowsFocusClosesTheCalendar() {
+        build(new DatePicker());
+        picker.open();
+        assertTrue(picker.isOpen());
+        scene.windowFocusChanged(false);
+        scene.inputBatchEnded();
+        runtime.drain(); // the dismiss decision is deferred one loop turn
+        assertFalse(picker.isOpen(), "a popup left floating over another application is stranded");
     }
 
     @Test

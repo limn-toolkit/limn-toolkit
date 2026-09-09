@@ -96,6 +96,8 @@ final class DatesScene {
         picker.setDate(ANCHOR);
         // In-scene on purpose: a native popup is a window of its own and is absent from a capture
         // of this one, so the gallery would show a picker that never opens.
+        // EXPERIMENT (uncommitted): LIMN_DATES_NATIVE=1 asks for the real second window instead,
+        // which is the only presentation where the focus question exists at all.
         picker.setDisplayMode(DisplayMode.IN_SCENE);
         picker.calendar().setShowWeekNumbers(true);
         return picker;

@@ -1482,6 +1482,23 @@ public class CalendarView extends Widget {
             return;
         }
         LocalDate at = cursorOrDefault();
+        // Ctrl (Cmd on macOS) with the vertical arrows climbs out of the days and back into them,
+        // which is the ONLY keyboard way to the month and year choosers: until this existed they
+        // were reachable by pointer and by an assistive technology's press on the title, and by
+        // nothing a keyboard user could do. Not Ctrl+Up on macOS, where the system takes it for
+        // Mission Control -- Cmd is the modifier that arrives there, and the toolkit's own
+        // "command" test accepts either.
+        if ((event.modifiers() & (Keys.MOD_CONTROL | Keys.MOD_SUPER)) != 0) {
+            if (event.key() == Keys.UP) {
+                setView(View.MONTHS);
+                event.consume();
+                return;
+            }
+            if (event.key() == Keys.DOWN) {
+                event.consume();
+                return; // already at the finest view: nothing below the days
+            }
+        }
         switch (event.key()) {
             // A day is a step along a row, so Left and Right name a SIDE and mirror with the row.
             case Keys.LEFT -> {
@@ -1585,6 +1602,18 @@ public class CalendarView extends Widget {
         }
         if (chooserCursor < 0) {
             chooserCursor = Math.max(0, Math.min(count - 1, currentChooserCell()));
+        }
+        if ((event.modifiers() & (Keys.MOD_CONTROL | Keys.MOD_SUPER)) != 0) {
+            if (event.key() == Keys.UP) {
+                setView(View.YEARS); // the coarsest there is; from YEARS it stays put
+                event.consume();
+                return;
+            }
+            if (event.key() == Keys.DOWN) {
+                setView(view == View.YEARS ? View.MONTHS : View.DAYS);
+                event.consume();
+                return;
+            }
         }
         int columns = columns();
         int next = chooserCursor;
