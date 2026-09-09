@@ -77,6 +77,99 @@ class AtspiTreeTest {
         assertTrue(button > 0);
     }
 
+    /**
+     * A window holding a table of two columns over three rows, published the way ADR 041 §7 says a
+     * table publishes: a header group with a header cell per column, then a row per realized data
+     * row with a cell per column. Ids are chosen so that a path can be written by hand.
+     */
+    private void publishAWindowWithATable() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        int table = a.begin(2000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TABLE);
+        a.table(3, 2);
+        a.selection(false, false);
+        a.inherited(true, true, true, true, false);
+        int header = a.begin(2100, table, Locale.ENGLISH, 0, 0, 400, 30);
+        a.role(Accessible.Role.GROUP);
+        a.inherited(true, true, true, false, false);
+        for (int c = 0; c < 2; c++) {
+            a.begin(2101 + c, header, Locale.ENGLISH, c * 200, 0, 200, 30);
+            a.role(Accessible.Role.COLUMN_HEADER);
+            a.name(I18nString.literal(c == 0 ? "Name" : "Age"), Accessible.NameFrom.CONTENT);
+            a.cell(-1, c);
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        for (int r = 0; r < 3; r++) {
+            int row = a.begin(2200 + r * 10, table, Locale.ENGLISH, 0, 30 + r * 30, 400, 30);
+            a.role(Accessible.Role.ROW);
+            a.selectionItem(r == 1, r + 1, 3);
+            a.action(Accessible.Action.SELECT);
+            a.inherited(true, true, true, false, false);
+            for (int c = 0; c < 2; c++) {
+                a.begin(2201 + r * 10 + c, row, Locale.ENGLISH, c * 200, 30 + r * 30, 200, 30);
+                a.role(Accessible.Role.CELL);
+                a.name(I18nString.literal("r" + r + "c" + c), Accessible.NameFrom.CONTENT);
+                a.cell(r, c);
+                a.inherited(true, true, true, false, false);
+                a.end();
+            }
+            a.end();
+        }
+        a.end();
+        a.end();
+        tree.set(a.publish(0, 200, 100, 2f, true));
+    }
+
+    private static String path(long id) {
+        return "/org/a11y/atspi/accessible/" + id;
+    }
+
+    @Test
+    void aTableAnswersItsShapeItsCellsAndItsHeadersFromTheTwoFacets() {
+        publishAWindowWithATable();
+        DBus.Msg interfaces = call(path(2000), Atspi.I_ACCESSIBLE, "GetInterfaces", null);
+        assertTrue(((List<?>) interfaces.body[0]).contains(Atspi.I_TABLE),
+                "a node with a table facet implements Table");
+        DBus.Msg cellInterfaces = call(path(2211), Atspi.I_ACCESSIBLE, "GetInterfaces", null);
+        assertTrue(((List<?>) cellInterfaces.body[0]).contains(Atspi.I_TABLE_CELL));
+
+        DBus.Msg cell = call(path(2000), Atspi.I_TABLE, "GetAccessibleAt", "ii", 1, 1);
+        assertEquals(path(2212), ((Object[]) cell.body[0])[1], "row 1, column 1");
+        DBus.Msg missing = call(path(2000), Atspi.I_TABLE, "GetAccessibleAt", "ii", 7, 0);
+        assertEquals(Atspi.PATH_NULL, ((Object[]) missing.body[0])[1],
+                "a row the walk did not publish is the null object, not a guess");
+        DBus.Msg header = call(path(2000), Atspi.I_TABLE, "GetColumnHeader", "i", 1);
+        assertEquals(path(2102), ((Object[]) header.body[0])[1]);
+        DBus.Msg description = call(path(2000), Atspi.I_TABLE, "GetColumnDescription", "i", 1);
+        assertEquals("Age", description.body[0]);
+        DBus.Msg selected = call(path(2000), Atspi.I_TABLE, "GetSelectedRows", null);
+        assertEquals(List.of(1), selected.body[0]);
+        DBus.Msg isSelected = call(path(2000), Atspi.I_TABLE, "IsRowSelected", "i", 1);
+        assertEquals(true, isSelected.body[0]);
+        DBus.Msg index = call(path(2000), Atspi.I_TABLE, "GetIndexAt", "ii", 2, 1);
+        assertEquals(5, index.body[0]);
+
+        DBus.Msg select = call(path(2000), Atspi.I_TABLE, "AddRowSelection", "i", 2);
+        assertEquals(true, select.body[0]);
+        assertEquals(List.of("2220:SELECT"), performed, "a row selection reaches the widget");
+
+        DBus.Msg span = call(path(2212), Atspi.I_TABLE_CELL, "GetRowColumnSpan", null);
+        Object[] rc = (Object[]) span.body[0];
+        assertEquals(1, rc[0]);
+        assertEquals(1, rc[1]);
+        assertEquals(1, rc[2]);
+        DBus.Msg headers = call(path(2212), Atspi.I_TABLE_CELL, "GetColumnHeaderCells", null);
+        Object[] first = (Object[]) ((List<?>) headers.body[0]).get(0);
+        assertEquals(path(2102), first[1], "the cell's column header is the header group's child");
+    }
+
     private DBus.Msg call(String path, String iface, String member, String sig, Object... args) {
         DBus.Msg m = DBus.Msg.call("org.a11y.atspi.Registry", path, iface, member, sig, args);
         m.path = path;

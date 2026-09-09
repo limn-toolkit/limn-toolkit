@@ -69,6 +69,17 @@ final class AxObjC {
         }
     }
 
+    /** An FFI struct of n unsigned 64-bit integers: an {@code NSRange}, returned in x0 and x1. */
+    static FFIType uint64s(int n) {
+        PointerBuffer elements = org.lwjgl.system.MemoryUtil.memAllocPointer(n + 1);
+        for (int i = 0; i < n; i++) elements.put(i, LibFFI.ffi_type_uint64.address());
+        elements.put(n, NULL);
+        FFIType type = FFIType.calloc();
+        type.type(LibFFI.FFI_TYPE_STRUCT);
+        type.elements(elements);
+        return type;
+    }
+
     /** An FFI struct of n doubles. arm64 passes a CGPoint and a CGRect as HFAs in d0..d3. */
     static FFIType doubles(int n) {
         PointerBuffer elements = org.lwjgl.system.MemoryUtil.memAllocPointer(n + 1);

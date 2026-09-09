@@ -32,6 +32,8 @@ final class Atspi {
     static final String I_APPLICATION = "org.a11y.atspi.Application";
     static final String I_COMPONENT   = "org.a11y.atspi.Component";
     static final String I_ACTION      = "org.a11y.atspi.Action";
+    static final String I_TABLE       = "org.a11y.atspi.Table";
+    static final String I_TABLE_CELL  = "org.a11y.atspi.TableCell";
     static final String I_CACHE       = "org.a11y.atspi.Cache";
     static final String I_SOCKET      = "org.a11y.atspi.Socket";
     static final String I_PROPS       = "org.freedesktop.DBus.Properties";

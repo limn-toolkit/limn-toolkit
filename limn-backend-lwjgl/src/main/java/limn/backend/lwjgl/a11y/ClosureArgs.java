@@ -57,4 +57,13 @@ public final class ClosureArgs {
     public static double float64(long args, int index) {
         return MemoryUtil.memGetDouble(slot(args, index));
     }
+
+    /**
+     * @param args  the argument block
+     * @param index which argument
+     * @return the 64-bit integer in slot {@code index}, for a {@code q} or {@code Q} parameter
+     */
+    public static long int64(long args, int index) {
+        return org.lwjgl.system.MemoryUtil.memGetLong(slot(args, index));
+    }
 }

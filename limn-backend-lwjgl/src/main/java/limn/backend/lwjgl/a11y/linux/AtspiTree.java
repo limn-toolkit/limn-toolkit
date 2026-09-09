@@ -147,6 +147,12 @@ final class AtspiTree {
         if (Atspi.I_ACTION.equals(iface) && node != null) {
             return action(m, node);
         }
+        if (Atspi.I_TABLE.equals(iface) && node != null && node.table() != null) {
+            return table(m, node);
+        }
+        if (Atspi.I_TABLE_CELL.equals(iface) && node != null && node.cell() != null) {
+            return tableCell(m, node);
+        }
         if (Atspi.I_APPLICATION.equals(iface) && root) {
             return application(m);
         }
@@ -294,6 +300,27 @@ final class AtspiTree {
             out.put("Id", new DBus.Variant("i", 0));
             return out;
         }
+        if (Atspi.I_TABLE.equals(which) && node != null && node.table() != null) {
+            AccessibleTree tree = current.get();
+            out.put("NRows", new DBus.Variant("i", node.table().rowCount()));
+            out.put("NColumns", new DBus.Variant("i", node.table().columnCount()));
+            out.put("Caption", new DBus.Variant("(so)", nullRef().toStruct()));
+            out.put("Summary", new DBus.Variant("(so)", nullRef().toStruct()));
+            out.put("NSelectedRows", new DBus.Variant("i", selectedRowsOf(tree, node).size()));
+            out.put("NSelectedColumns", new DBus.Variant("i", 0));
+            return out;
+        }
+        if (Atspi.I_TABLE_CELL.equals(which) && node != null && node.cell() != null) {
+            AccessibleTree tree = current.get();
+            AccessibleNode table = tableOf(tree, node);
+            out.put("ColumnSpan", new DBus.Variant("i", 1));
+            out.put("RowSpan", new DBus.Variant("i", 1));
+            out.put("Position", new DBus.Variant("(ii)",
+                    (Object) new Object[] {node.cell().row(), node.cell().column()}));
+            out.put("Table", new DBus.Variant("(so)",
+                    (table == null ? nullRef() : refOf(table.id())).toStruct()));
+            return out;
+        }
         if (!Atspi.I_ACCESSIBLE.equals(which)) {
             return out;
         }
@@ -413,6 +440,14 @@ final class AtspiTree {
         if (node.actions() != null && !node.actions().actions().isEmpty()) {
             out.add(Atspi.I_ACTION);
         }
+        // Named here and in the cache item alike, from the same facets: a client that reads the
+        // cache and never calls GetInterfaces sees only what the cache said (ADR 041 §7).
+        if (node.table() != null) {
+            out.add(Atspi.I_TABLE);
+        }
+        if (node.cell() != null) {
+            out.add(Atspi.I_TABLE_CELL);
+        }
         return out;
     }
 
@@ -508,6 +543,178 @@ final class AtspiTree {
             default:
                 return null;
         }
+    }
+
+    // ------------------------------------------------------------------ org.a11y.atspi.Table
+
+    /**
+     * The table interface over a node with a {@code TableFacet}; ADR 041 §7.
+     *
+     * <p>Rows and cells are answered from what the walk published: a row the table has not
+     * realized has no node, so {@code GetAccessibleAt} on it answers the null object, which is the
+     * degradation ADR 039 §4.1 already accepts for a client that walks a long list. Column headers
+     * are the header group's children, and row headers are none.
+     */
+    private DBus.Msg table(DBus.Msg m, AccessibleNode node) {
+        AccessibleTree tree = current.get();
+        int columns = node.table().columnCount();
+        switch (m.member == null ? "" : m.member) {
+            case "GetAccessibleAt": {
+                AccessibleNode cell = cellAt(tree, node, arg(m, 0), arg(m, 1));
+                return DBus.Msg.ret(m, "(so)", (Object) (cell == null ? nullRef() : refOf(cell.id()))
+                        .toStruct());
+            }
+            case "GetIndexAt":
+                return DBus.Msg.ret(m, "i", columns == 0 ? -1 : arg(m, 0) * columns + arg(m, 1));
+            case "GetRowAtIndex":
+                return DBus.Msg.ret(m, "i", columns == 0 ? -1 : arg(m, 0) / columns);
+            case "GetColumnAtIndex":
+                return DBus.Msg.ret(m, "i", columns == 0 ? -1 : arg(m, 0) % columns);
+            case "GetRowDescription":
+                return DBus.Msg.ret(m, "s", "");
+            case "GetColumnDescription": {
+                AccessibleNode header = columnHeaderOf(tree, node, arg(m, 0));
+                return DBus.Msg.ret(m, "s", header == null ? "" : header.name());
+            }
+            case "GetRowExtentAt":
+            case "GetColumnExtentAt":
+                return DBus.Msg.ret(m, "i", 1);
+            case "GetRowHeader":
+                return DBus.Msg.ret(m, "(so)", (Object) nullRef().toStruct());
+            case "GetColumnHeader": {
+                AccessibleNode header = columnHeaderOf(tree, node, arg(m, 0));
+                return DBus.Msg.ret(m, "(so)",
+                        (Object) (header == null ? nullRef() : refOf(header.id())).toStruct());
+            }
+            case "GetSelectedRows": {
+                List<Object> rows = new ArrayList<>();
+                for (AccessibleNode row : selectedRowsOf(tree, node)) {
+                    rows.add(row.selectionItem().positionInSet() - 1);
+                }
+                return DBus.Msg.ret(m, "ai", rows);
+            }
+            case "GetSelectedColumns":
+                return DBus.Msg.ret(m, "ai", new ArrayList<>());
+            case "IsRowSelected": {
+                AccessibleNode row = rowAt(tree, node, arg(m, 0));
+                return DBus.Msg.ret(m, "b", row != null && row.has(Accessible.State.SELECTED));
+            }
+            case "IsSelected": {
+                AccessibleNode row = rowAt(tree, node, arg(m, 0));
+                return DBus.Msg.ret(m, "b", row != null && row.has(Accessible.State.SELECTED));
+            }
+            case "IsColumnSelected":
+            case "AddColumnSelection":
+            case "RemoveColumnSelection":
+            case "RemoveRowSelection":
+                return DBus.Msg.ret(m, "b", false);
+            case "AddRowSelection": {
+                AccessibleNode row = rowAt(tree, node, arg(m, 0));
+                AccessibilityBridge.Host h = host.get();
+                boolean done = row != null && h != null && row.actions() != null
+                        && row.actions().has(Accessible.Action.SELECT)
+                        && h.perform(row.id(), Accessible.Action.SELECT, Accessible.Argument.NONE);
+                return DBus.Msg.ret(m, "b", done);
+            }
+            case "GetRowColumnExtentsAtIndex": {
+                int index = arg(m, 0);
+                boolean valid = columns > 0 && index >= 0 && index < node.table().rowCount() * columns;
+                int row = valid ? index / columns : 0;
+                int column = valid ? index % columns : 0;
+                AccessibleNode rowNode = valid ? rowAt(tree, node, row) : null;
+                return DBus.Msg.ret(m, "(biiiib)", (Object) new Object[] {valid, row, column, 1, 1,
+                        rowNode != null && rowNode.has(Accessible.State.SELECTED)});
+            }
+            default:
+                return null;
+        }
+    }
+
+    /** The table-cell interface over a node with a {@code CellFacet}; ADR 041 §7. */
+    private DBus.Msg tableCell(DBus.Msg m, AccessibleNode node) {
+        AccessibleTree tree = current.get();
+        switch (m.member == null ? "" : m.member) {
+            case "GetRowColumnSpan":
+                return DBus.Msg.ret(m, "(iiii)", (Object) new Object[] {node.cell().row(),
+                        node.cell().column(), 1, 1});
+            case "GetRowHeaderCells":
+                return DBus.Msg.ret(m, "a(so)", new ArrayList<>());
+            case "GetColumnHeaderCells": {
+                List<Object> out = new ArrayList<>();
+                AccessibleNode table = tableOf(tree, node);
+                AccessibleNode header = table == null ? null
+                        : columnHeaderOf(tree, table, node.cell().column());
+                if (header != null && header != node) {
+                    out.add(refOf(header.id()).toStruct());
+                }
+                return DBus.Msg.ret(m, "a(so)", out);
+            }
+            default:
+                return null;
+        }
+    }
+
+    private static int arg(DBus.Msg m, int index) {
+        return ((Number) m.body[index]).intValue();
+    }
+
+    /** The nearest ancestor of {@code node} that is a table, itself included; null when none. */
+    private static AccessibleNode tableOf(AccessibleTree tree, AccessibleNode node) {
+        for (AccessibleNode at = node; at != null; ) {
+            if (at.table() != null) {
+                return at;
+            }
+            int parent = at.parent();
+            at = parent < 0 || parent >= tree.nodeCount() ? null : tree.node(parent);
+        }
+        return null;
+    }
+
+    /** The header group's child at {@code column}: the table's first group child's children. */
+    private static AccessibleNode columnHeaderOf(AccessibleTree tree, AccessibleNode table,
+                                                 int column) {
+        for (AccessibleNode child : tree.children(table)) {
+            if (child.role() == Accessible.Role.GROUP) {
+                List<AccessibleNode> headers = tree.children(child);
+                return column >= 0 && column < headers.size() ? headers.get(column) : null;
+            }
+        }
+        return null;
+    }
+
+    /** The realized row shown at {@code row}, by its position in set; null when unrealized. */
+    private static AccessibleNode rowAt(AccessibleTree tree, AccessibleNode table, int row) {
+        for (AccessibleNode child : tree.children(table)) {
+            if (child.role() == Accessible.Role.ROW && child.selectionItem() != null
+                    && child.selectionItem().positionInSet() == row + 1) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    private static AccessibleNode cellAt(AccessibleTree tree, AccessibleNode table, int row,
+                                         int column) {
+        AccessibleNode rowNode = rowAt(tree, table, row);
+        if (rowNode == null) {
+            return null;
+        }
+        for (AccessibleNode cell : tree.children(rowNode)) {
+            if (cell.cell() != null && cell.cell().column() == column) {
+                return cell;
+            }
+        }
+        return null;
+    }
+
+    private static List<AccessibleNode> selectedRowsOf(AccessibleTree tree, AccessibleNode table) {
+        List<AccessibleNode> out = new ArrayList<>();
+        for (AccessibleNode child : tree.children(table)) {
+            if (child.role() == Accessible.Role.ROW && child.has(Accessible.State.SELECTED)) {
+                out.add(child);
+            }
+        }
+        return out;
     }
 
     /**

@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.lwjgl.system.MemoryUtil.NULL;
 import static org.lwjgl.system.MemoryUtil.memGetDouble;
+import static org.lwjgl.system.MemoryUtil.memPutLong;
 
 /**
  * The runtime subclass of {@code NSAccessibilityElement} every node is vended as, and the
@@ -226,6 +227,155 @@ final class AxElementClass {
         installHitTest();
         installFocusedElement();
         installActions();
+        installTable();
+    }
+
+    /**
+     * What NSAccessibilityTable, NSAccessibilityRow and NSAccessibilityCell ask, answered from the
+     * table and cell facets and from the tree's own shape; ADR 041 §7.
+     *
+     * <p>Rows are the table's {@code ROW} children and the header is its first group child, so the
+     * elements handed back are the ones AppKit already holds for those nodes. Columns are none:
+     * the toolkit has no column node, and a column index range on every cell is what VoiceOver
+     * reads "column 2 of 3" from. A cell asked for by column and row is answered only for a row
+     * the walk published, which is the degradation ADR 039 §4.1 accepts.
+     */
+    private void installTable() {
+        addId("accessibilityRows", get(node -> node.table() == null ? NULL
+                : arrayOf(node, child -> child.role() == Accessible.Role.ROW)));
+        addId("accessibilityVisibleRows", get(node -> node.table() == null ? NULL
+                : arrayOf(node, child -> child.role() == Accessible.Role.ROW
+                        && child.has(Accessible.State.SHOWING))));
+        addId("accessibilitySelectedRows", get(node -> node.table() == null ? NULL
+                : arrayOf(node, child -> child.role() == Accessible.Role.ROW
+                        && child.has(Accessible.State.SELECTED))));
+        addId("accessibilityColumns", get(node -> node.table() == null ? NULL : objc.mutableArray()));
+        addId("accessibilityHeader", get(node -> node.table() == null ? NULL : headerOf(node)));
+        addId("accessibilityColumnHeaderUIElements", get(node -> {
+            if (node.table() != null) {
+                long header = headerOf(node);
+                AccessibleNode group = header == NULL ? null : source.nodeFor(header);
+                return group == null ? NULL : arrayOf(group, child -> true);
+            }
+            if (node.cell() != null && node.cell().row() >= 0) {
+                long header = columnHeaderOf(node);
+                if (header == NULL) return NULL;
+                long array = objc.mutableArray();
+                objc.addObject(array, header);
+                return array;
+            }
+            return NULL;
+        }));
+        addLong("accessibilityRowCount", node -> node.table() == null ? 0 : node.table().rowCount());
+        addLong("accessibilityColumnCount",
+                node -> node.table() == null ? 0 : node.table().columnCount());
+        // NSAccessibilityRow's index: the row's place among the data rows, from the facet the
+        // walk numbered it with, so an unrealized row above it still counts.
+        addLong("accessibilityIndex", node -> node.role() == Accessible.Role.ROW
+                && node.selectionItem() != null ? node.selectionItem().positionInSet() - 1 : -1);
+        addRange("accessibilityRowIndexRange", node -> node.cell() == null || node.cell().row() < 0
+                ? NOT_FOUND : new long[] {node.cell().row(), 1});
+        addRange("accessibilityColumnIndexRange", node -> node.cell() == null
+                ? NOT_FOUND : new long[] {node.cell().column(), 1});
+        CellAt cellAt = new CellAt() {
+            @Override public long invoke(long self, long cmd, long column, long row) {
+                source.entered();
+                AccessibleNode node = source.nodeFor(self);
+                if (node == null || node.table() == null) return NULL;
+                for (long rowElement : source.childElementsOf(node)) {
+                    AccessibleNode rowNode = source.nodeFor(rowElement);
+                    if (rowNode == null || rowNode.role() != Accessible.Role.ROW
+                            || rowNode.selectionItem() == null
+                            || rowNode.selectionItem().positionInSet() != row + 1) continue;
+                    for (long cell : source.childElementsOf(rowNode)) {
+                        AccessibleNode cellNode = source.nodeFor(cell);
+                        if (cellNode != null && cellNode.cell() != null
+                                && cellNode.cell().column() == column) return cell;
+                    }
+                    return NULL;
+                }
+                return NULL;
+            }
+        };
+        callbacks.add(cellAt);
+        ObjCRuntime.class_addMethod(elementClass, ObjC.sel("accessibilityCellForColumn:row:"),
+                cellAt.address(), objc.encodingOf("accessibilityCellForColumn:row:"));
+        addBool("isAccessibilitySelected", is(node -> node.has(Accessible.State.SELECTED)));
+    }
+
+    /** {@code NSNotFound} and a zero length: the range of a cell that is not in the grid. */
+    private static final long[] NOT_FOUND = {Long.MAX_VALUE, 0};
+
+    private interface NodeFilter {
+        boolean keep(AccessibleNode child);
+    }
+
+    /** An autoreleased array of the elements of {@code node}'s children that {@code filter} keeps. */
+    private long arrayOf(AccessibleNode node, NodeFilter filter) {
+        long array = objc.mutableArray();
+        for (long child : source.childElementsOf(node)) {
+            AccessibleNode childNode = source.nodeFor(child);
+            if (childNode != null && filter.keep(childNode)) objc.addObject(array, child);
+        }
+        return array;
+    }
+
+    /** The element of the table's header group: its first child with the group role, or nil. */
+    private long headerOf(AccessibleNode table) {
+        for (long child : source.childElementsOf(table)) {
+            AccessibleNode childNode = source.nodeFor(child);
+            if (childNode != null && childNode.role() == Accessible.Role.GROUP) return child;
+        }
+        return NULL;
+    }
+
+    /** The element of the header cell above {@code cell}, found by structure, or nil. */
+    private long columnHeaderOf(AccessibleNode cell) {
+        long parent = source.parentElementOf(cell);              // the row
+        AccessibleNode row = parent == NULL ? null : source.nodeFor(parent);
+        long tableElement = row == null ? NULL : source.parentElementOf(row);
+        AccessibleNode table = tableElement == NULL ? null : source.nodeFor(tableElement);
+        if (table == null || table.table() == null) return NULL;
+        long header = headerOf(table);
+        AccessibleNode group = header == NULL ? null : source.nodeFor(header);
+        if (group == null) return NULL;
+        long[] headers = source.childElementsOf(group);
+        int column = cell.cell().column();
+        return column >= 0 && column < headers.length ? headers[column] : NULL;
+    }
+
+    private void addLong(String selector, NodeToLong body) {
+        LongGetter getter = new LongGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                AccessibleNode node = source.nodeFor(self);
+                return node == null ? 0 : body.apply(node);
+            }
+        };
+        callbacks.add(getter);
+        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), getter.address(),
+                objc.encodingOf(selector));
+    }
+
+    private void addRange(String selector, NodeToRange body) {
+        RangeGetter getter = new RangeGetter() {
+            @Override public long[] invoke(long self, long cmd) {
+                source.entered();
+                AccessibleNode node = source.nodeFor(self);
+                return node == null ? NOT_FOUND : body.apply(node);
+            }
+        };
+        callbacks.add(getter);
+        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), getter.address(),
+                objc.encodingOf(selector));
+    }
+
+    private interface NodeToLong {
+        long apply(AccessibleNode node);
+    }
+
+    private interface NodeToRange {
+        long[] apply(AccessibleNode node);
     }
 
     /**
@@ -499,6 +649,59 @@ final class AxElementClass {
 
     private abstract static class SelectorGate extends Callback implements SelectorGateI {
         protected SelectorGate() { super(SelectorGateI.DESCRIPTOR); }
+    }
+
+    /** {@code (id self, SEL _cmd) -> NSInteger}, encoding {@code q16@0:8}. */
+    private interface LongGetterI extends CallbackI {
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(LongGetterI.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_sint64, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
+        @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
+        @Override default void callback(long ret, long args) {
+            memPutLong(ret, invoke(ClosureArgs.pointer(args, 0), ClosureArgs.pointer(args, 1)));
+        }
+        long invoke(long self, long cmd);
+    }
+
+    private abstract static class LongGetter extends Callback implements LongGetterI {
+        protected LongGetter() { super(LongGetterI.DESCRIPTOR); }
+    }
+
+    /**
+     * {@code (id self, SEL _cmd) -> NSRange}, encoding {@code {_NSRange=QQ}16@0:8}. Two unsigned
+     * 64-bit fields, which arm64 returns in x0 and x1 and libffi writes to the return block.
+     */
+    private interface RangeGetterI extends CallbackI {
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(RangeGetterI.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(AxObjC.uint64s(2), LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
+        @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
+        @Override default void callback(long ret, long args) {
+            long[] range = invoke(ClosureArgs.pointer(args, 0), ClosureArgs.pointer(args, 1));
+            memPutLong(ret, range[0]);
+            memPutLong(ret + 8, range[1]);
+        }
+        long[] invoke(long self, long cmd);
+    }
+
+    private abstract static class RangeGetter extends Callback implements RangeGetterI {
+        protected RangeGetter() { super(RangeGetterI.DESCRIPTOR); }
+    }
+
+    /** {@code (id self, SEL _cmd, NSInteger column, NSInteger row) -> id}, encoding {@code @32@0:8q16q24}. */
+    private interface CellAtI extends CallbackI {
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(CellAtI.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_pointer, LibFFI.ffi_type_sint64, LibFFI.ffi_type_sint64));
+        @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
+        @Override default void callback(long ret, long args) {
+            APIUtil.apiClosureRetP(ret, invoke(ClosureArgs.pointer(args, 0),
+                    ClosureArgs.pointer(args, 1),
+                    ClosureArgs.int64(args, 2), ClosureArgs.int64(args, 3)));
+        }
+        long invoke(long self, long cmd, long column, long row);
+    }
+
+    private abstract static class CellAt extends Callback implements CellAtI {
+        protected CellAt() { super(CellAtI.DESCRIPTOR); }
     }
 
     /** {@code (id self, SEL _cmd, CGPoint) -> id}, encoding {@code @32@0:8{CGPoint=dd}16}. */
