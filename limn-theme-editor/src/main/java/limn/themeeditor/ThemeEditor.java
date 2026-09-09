@@ -18,6 +18,7 @@ import limn.components.TokenColumn;
 import limn.components.TokenPadding;
 import limn.components.TokenRow;
 import limn.components.Tokens;
+import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Color;
 import limn.graphics.Font;
@@ -134,7 +135,8 @@ public final class ThemeEditor extends Widget {
      * system in the background, so an editor built during startup sees the bundled families only
      * and would offer a two-item list forever without this.
      */
-    private final Runnable fontCatalogListener = this::rebuildFontChoice;
+    /** Held while this editor is attached; cancelled on detach. */
+    private Subscription fontCatalogSubscription;
     private final Map<Theme.Token, ColorPickerButton> wells = new EnumMap<>(Theme.Token.class);
     /** Handed to every colour well; see {@link #setPickerDisplayMode}. */
     private DisplayMode pickerDisplayMode = DisplayMode.NATIVE_WINDOW;
@@ -218,7 +220,7 @@ public final class ThemeEditor extends Widget {
      */
     @Override
     protected void onAttached() {
-        Fonts.addChangeListener(fontCatalogListener);
+        fontCatalogSubscription = Fonts.observeChanges(this::rebuildFontChoice);
         // A change that landed while this editor was off screen reached nobody: the listener was
         // not subscribed. That is the ordinary shape of the background enumeration, which is
         // kicked by the first listing (this editor's construction) and lands some frames later,
@@ -233,7 +235,7 @@ public final class ThemeEditor extends Widget {
 
     @Override
     protected void onDetached() {
-        Fonts.removeChangeListener(fontCatalogListener);
+        fontCatalogSubscription.cancel();
     }
 
     // --- the value -----------------------------------------------------------

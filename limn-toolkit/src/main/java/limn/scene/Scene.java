@@ -3,6 +3,7 @@ package limn.scene;
 import limn.backend.Cursor;
 import limn.backend.NativeWindow;
 import limn.backend.WindowInput;
+import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -229,10 +230,11 @@ public final class Scene implements WindowInput {
         // would otherwise never hear a global font or control-size change, and because
         // layoutPass early-returns on !layoutDirty at an unchanged size, nothing would
         // re-measure. Registration is idempotent, so bind()'s repair is harmless.
-        limn.graphics.Fonts.addChangeListener(metricsListener);
-        ControlSize.addChangeListener(metricsListener);
-        LayoutDirection.addChangeListener(metricsListener);
-        limn.i18n.I18n.addChangeListener(metricsListener);
+        metricsListener.armed(
+                limn.graphics.Fonts.observeChanges(metricsListener),
+                ControlSize.observeChanges(metricsListener),
+                LayoutDirection.observeChanges(metricsListener),
+                limn.i18n.I18n.observeChanges(metricsListener));
     }
 
     private limn.graphics.TextRuler textRuler;
@@ -252,36 +254,80 @@ public final class Scene implements WindowInput {
     private limn.backend.Clipboard clipboard;
 
     /**
-     * Re-measures the whole tree and repaints when a <b>global</b> input to measurement
-     * changes: the UI font family/catalog ({@link limn.graphics.Fonts}), the process
-     * default control size ({@link ControlSize}) or the process default layout direction
-     * ({@link LayoutDirection}). Holds the scene WEAKLY: a scene replaced
-     * on a live window (a new scene bound over it) never receives {@code windowClosed}, and
-     * a strong process-wide listener would pin the abandoned tree forever; when the scene
-     * is collected, the wrapper unregisters itself on the next change.
+     * Answers a <b>process-wide</b> change for one scene: a re-measure when an input to
+     * measurement moves — the UI font family/catalog ({@link limn.graphics.Fonts}), the process
+     * default control size ({@link ControlSize}), the process default layout direction
+     * ({@link LayoutDirection}) or the language ({@link limn.i18n.I18n}) — and a repaint when the
+     * palette does ({@link limn.components.Theme}).
+     *
+     * <p>Holds the scene WEAKLY: a scene replaced on a live window (a new scene bound over it)
+     * never receives {@code windowClosed}, and a strong process-wide listener would pin the
+     * abandoned tree forever; when the scene is collected, the wrapper cancels its own
+     * subscriptions on the next change.
+     *
+     * <p><b>It holds its own handles, and that placement is the whole of why the purge still
+     * works.</b> A handle-only channel has no removal by identity, so something has to keep the
+     * handles — and the holder of a handle must outlive the thing the handle releases. The
+     * {@code Scene} does not qualify: by the time the purge is wanted the scene has been
+     * collected and any handle it held with it, leaving one dead entry per scene ever
+     * constructed in every axis's array, forever. The listener does qualify, and holding them
+     * here also makes the purge O(1) per axis instead of an identity scan.
+     *
+     * <p><b>The response is a field and not the method body</b>, because {@code run()} takes no
+     * argument and no axis hands it one: one instance on several axes can only answer them all
+     * identically, so an axis whose answer differs takes an instance of its own carrying its own
+     * response. The four measurement axes share one, answering {@code relayout()}.
+     *
+     * <p><b>The palette is not among them, and that is a package boundary rather than a
+     * judgement about what a palette costs.</b> {@code Theme} is a {@code limn.components} type
+     * and this is {@code limn.scene}, the layer that package is built on -- no file here has ever
+     * named one, and a repaint is not worth being the first. So a palette switch is still the
+     * application's to answer, with the {@code invalidate()} or {@code relayout()} it already
+     * writes; what {@code Theme} gained is the same {@code observeChanges} handle the four axes
+     * hand back, so a subscriber there writes no list of its own.
      */
-    private static final class GlobalMetricsListener implements Runnable {
+    private static final class GlobalAxisListener implements Runnable {
         private final java.lang.ref.WeakReference<Scene> scene;
+        private final java.util.function.Consumer<Scene> response;
+        private Subscription[] handles;
 
-        GlobalMetricsListener(Scene scene) {
+        GlobalAxisListener(Scene scene, java.util.function.Consumer<Scene> response) {
             this.scene = new java.lang.ref.WeakReference<>(scene);
+            this.response = response;
+        }
+
+        /** Takes the handles for this instance's own registrations, right after they are made. */
+        void armed(Subscription... registered) {
+            this.handles = registered;
+        }
+
+        /** Cancels them, once: the scene is gone, or the window it was bound to has closed. */
+        void release() {
+            Subscription[] taken = handles;
+            if (taken == null) {
+                return;
+            }
+            handles = null;
+            for (Subscription handle : taken) {
+                handle.cancel();
+            }
         }
 
         @Override
         public void run() {
             Scene target = scene.get();
-            if (target == null) {
-                limn.graphics.Fonts.removeChangeListener(this);
-                ControlSize.removeChangeListener(this);
-                LayoutDirection.removeChangeListener(this);
-                limn.i18n.I18n.removeChangeListener(this);
-            } else {
-                target.relayout();
+            if (target != null) {
+                response.accept(target);
+                return;
             }
+            // A change delivered between the registration and armed() finds no handles; the next
+            // one purges, which is the same "purged on the next change" the mechanism promised
+            // when it purged by identity.
+            release();
         }
     }
 
-    private final GlobalMetricsListener metricsListener = new GlobalMetricsListener(this);
+    private final GlobalAxisListener metricsListener = new GlobalAxisListener(this, Scene::relayout);
 
     /** Wires this scene into a window: input, frame rendering, invalidation, clipboard. */
     public void bind(NativeWindow window) {
@@ -299,17 +345,6 @@ public final class Scene implements WindowInput {
         this.renderRequester = window::requestFrame;
         window.setFrameCallback((renderer, frame) ->
                 renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs()));
-        // Registration itself happens in the constructor (see there). Kept here so a
-        // rebind is still a no-op rather than a double-register, and so a scene that was
-        // somehow unsubscribed is repaired.
-        limn.graphics.Fonts.removeChangeListener(metricsListener);
-        limn.graphics.Fonts.addChangeListener(metricsListener);
-        ControlSize.removeChangeListener(metricsListener);
-        ControlSize.addChangeListener(metricsListener);
-        LayoutDirection.removeChangeListener(metricsListener);
-        LayoutDirection.addChangeListener(metricsListener);
-        limn.i18n.I18n.removeChangeListener(metricsListener);
-        limn.i18n.I18n.addChangeListener(metricsListener);
     }
 
     /**
@@ -3081,8 +3116,8 @@ public final class Scene implements WindowInput {
     @Override
     public void windowClosed() {
         // Every step must run even when an earlier app callback throws: a
-        // skipped Fonts.removeChangeListener pins this scene in the
-        // process-wide listener list forever, and a skipped close observer is
+        // skipped axis-listener release pins this scene's wrappers in the
+        // process-wide listener lists forever, and a skipped close observer is
         // exactly the abandoned completion the observer mechanism exists to
         // prevent. App-code steps are contained individually (fine-grained
         // WINDOW_CLOSE reports; the handler's verdict is not honored here).
@@ -3104,10 +3139,7 @@ public final class Scene implements WindowInput {
         }
         bridge = limn.backend.AccessibilityBridge.NONE;
         publishedTree = limn.accessibility.AccessibleTree.EMPTY;
-        limn.graphics.Fonts.removeChangeListener(metricsListener);
-        ControlSize.removeChangeListener(metricsListener);
-        LayoutDirection.removeChangeListener(metricsListener);
-        limn.i18n.I18n.removeChangeListener(metricsListener);
+        metricsListener.release();
         Runnable cb = winFadeOnArrive;
         winFadeOnArrive = null;
         winFadeGeneration++;

@@ -31,5 +31,12 @@ public enum CrashPhase {
      * window system made, where an escaping exception unwinds into code with no Java frame to
      * report it and the symptom is a process that dies saying nothing.
      */
-    ACCESSIBILITY
+    ACCESSIBILITY,
+    /**
+     * A watcher on the change channel: a binding, an inspector, a bridge, or anything else
+     * observing a widget rather than responding to a gesture. Contained per watcher, so the
+     * remaining watchers still run <b>and the application's own handler still runs</b> — an
+     * observer must never be able to stop the application from answering the user.
+     */
+    OBSERVER
 }

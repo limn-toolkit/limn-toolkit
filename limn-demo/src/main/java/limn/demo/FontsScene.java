@@ -111,7 +111,7 @@ final class FontsScene {
      */
     private static final class FontPicker extends Column {
 
-        private final Runnable onFontsChanged = this::rebuild;
+        private limn.concurrent.Subscription fontsSubscription;
         private List<String> built = List.of();
         private boolean populated; // the listing is requested on first SHOWN paint
 
@@ -126,12 +126,12 @@ final class FontsScene {
 
         @Override
         protected void onAttached() {
-            Fonts.addChangeListener(onFontsChanged);
+            fontsSubscription = Fonts.observeChanges(this::rebuild);
         }
 
         @Override
         protected void onDetached() {
-            Fonts.removeChangeListener(onFontsChanged);
+            fontsSubscription.cancel();
         }
 
         @Override

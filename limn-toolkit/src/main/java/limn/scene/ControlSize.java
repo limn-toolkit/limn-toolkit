@@ -81,7 +81,7 @@ public enum ControlSize {
     /**
      * Listeners notified when the process default changes. Every live {@link Scene}
      * subscribes in its constructor, so unbound (headless) scenes hear it too.
-     * Mirrors {@link limn.graphics.Fonts#addChangeListener}.
+     * Mirrors {@link limn.graphics.Fonts#observeChanges}.
      */
     private static final ChangeListeners LISTENERS = new ChangeListeners();
 
@@ -107,13 +107,13 @@ public enum ControlSize {
         LISTENERS.fire();
     }
 
-    /** Subscribes to process-default changes (idempotent per instance). */
-    public static void addChangeListener(Runnable listener) {
-        LISTENERS.add(listener);
-    }
-
-    /** Unsubscribes; no-op when it was never registered. */
-    public static void removeChangeListener(Runnable listener) {
-        LISTENERS.remove(listener);
+    /**
+     * Subscribes to process-default changes.
+     *
+     * @param listener what to run when the default step moves
+     * @return a handle that unsubscribes; cancelling it twice is a no-op. UI thread
+     */
+    public static limn.concurrent.Subscription observeChanges(Runnable listener) {
+        return LISTENERS.observe(listener);
     }
 }

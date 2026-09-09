@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.concurrent.Subscription;
 import limn.graphics.Font;
 import limn.graphics.Fonts;
 import limn.graphics.Image;
@@ -148,7 +149,8 @@ final class FontStore implements AutoCloseable {
     private final Map<StbFont, String> loadedSystemKeys = new IdentityHashMap<>();
     private final TreeSet<String> familyNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
 
-    private final Runnable onFontsChanged = this::resolutionChanged;
+    /** Handed back by {@link Fonts#observeChanges} in the constructor, cancelled in {@link #close}. */
+    private Subscription fontsSubscription;
 
     // ------------------------------------------------------------------ shaping epoch
     //
@@ -248,7 +250,7 @@ final class FontStore implements AutoCloseable {
         this.menuSymbols = menuSymbols;
 
         this.fallback = roboto;
-        Fonts.addChangeListener(onFontsChanged);
+        this.fontsSubscription = Fonts.observeChanges(this::resolutionChanged);
     }
 
     // -------------------------------------------------- background fallbacks
@@ -1134,7 +1136,7 @@ final class FontStore implements AutoCloseable {
         // on a worker; their waiters are never called, the store being gone.
         preloading.clear();
         awaitingScan.clear();
-        Fonts.removeChangeListener(onFontsChanged);
+        fontsSubscription.cancel();
         if (colorEmoji != null) {
             colorEmoji.close();
         }

@@ -392,6 +392,14 @@ public final class Theme {
 
     private static volatile Theme current = DARK;
 
+    /**
+     * Listeners notified when the palette changes. Every live {@link limn.scene.Scene}
+     * subscribes in its constructor, so unbound (headless) scenes hear it too. Mirrors
+     * {@link Fonts#observeChanges}, with {@link limn.scene.Scene#invalidate()} for a response
+     * where the four measurement axes answer with a relayout.
+     */
+    private static final limn.concurrent.ChangeListeners LISTENERS = new limn.concurrent.ChangeListeners();
+
     /** The built-in light palette. */
     public static Theme light() {
         return LIGHT;
@@ -449,10 +457,10 @@ public final class Theme {
      * itself, so a palette without a shape of its own is indistinguishable from what shipped
      * before shape existed.
      *
-     * <p><b>Why the radii are allowed out and nothing else is.</b> {@link #setCurrent} only
-     * assigns a volatile field (there is no theme-change listener anywhere in this
-     * repository), so a palette that could change a metric something <em>measures</em> from
-     * would change every measurement in every window with zero relayout. A radius is the one
+     * <p><b>Why the radii are allowed out and nothing else is.</b> No scene re-measures on
+     * {@link #setCurrent} -- the caller repaints, and no scene subscribes to this axis (see
+     * there) -- so a palette that could change a metric something <em>measures</em> from would
+     * change every measurement in every window with no relayout behind it. A radius is the one
      * metric nothing measures from: no {@code onMeasure}, {@code onLayout},
      * {@code baselineOffset} or {@code paintOutset} in this toolkit reads one, which
      * {@code ThemeShapeTest} asserts by measuring a tree at two shapes and demanding the same
@@ -464,9 +472,10 @@ public final class Theme {
      * radius fields are deprecated rather than made to follow the scale. And the nine
      * token-backed fields read the static MEDIUM row, so they would be invisible to every
      * unmigrated call site. If per-palette <em>type or spacing</em> is ever wanted, both
-     * prerequisites are required: route {@code setCurrent} through the same weak per-scene
-     * registry as {@code Fonts}/{@code ControlSize}, and initialize those fields from
-     * {@code this.tokens(MEDIUM)} in the constructor.
+     * prerequisites are required: something has to answer {@link #observeChanges} with a
+     * {@code relayout()} for every live scene, which is a decision about what every palette
+     * switch costs, and those fields have to be initialized from {@code this.tokens(MEDIUM)} in
+     * the constructor.
      */
     public final SizeTokens tokens(limn.scene.ControlSize size) {
         return rows[Objects.requireNonNull(size, "size").ordinal()];
@@ -478,12 +487,40 @@ public final class Theme {
     }
 
     /**
-     * Switches the process-wide palette. Nothing is notified: call
-     * {@code root.markNeedsLayout()} on each live scene afterwards, since type and
-     * spacing can differ between palettes.
+     * Switches the process-wide palette and tells whoever is listening. Call
+     * {@code scene.invalidate()} on each live scene afterwards: this axis has subscribers, but a
+     * {@code Scene} is not one of them.
+     *
+     * <p><b>Why a scene does not subscribe itself, unlike the four measurement axes.</b>
+     * {@code Scene} is {@code limn.scene}, the layer this package is built on, and no file there
+     * has ever named a {@code limn.components} type. A repaint is not worth being the first, so
+     * the response stays where it is today -- with the caller that switched the palette -- and
+     * what this axis is for is everything else that wants to hear it without hand-rolling a fifth
+     * listener list.
+     *
+     * <p>What that answer would be, when something does subscribe, is a <b>repaint and not a
+     * re-measure</b>, and that is the restriction that keeps a palette switch cheap enough for a
+     * colour well to make one on every frame of a drag. A palette carries colours and corner
+     * radii, and nothing in this toolkit measures from a radius -- no {@code onMeasure},
+     * {@code onLayout}, {@code baselineOffset} or {@code paintOutset} reads one, which
+     * {@code ThemeShapeTest} asserts by measuring a tree at two shapes and demanding the same
+     * numbers. A palette's type preference is not carried here either: it reaches the tree
+     * through {@link #applyFontFamily}, which is {@link Fonts}' axis and does relayout.
      */
     public static void setCurrent(Theme theme) {
         current = Objects.requireNonNull(theme, "theme");
+        LISTENERS.fire();
+    }
+
+    /**
+     * Subscribes to palette changes: the fifth process-wide axis, with the same handle the other
+     * four hand back.
+     *
+     * @param listener what to run when {@link #setCurrent} switches the palette
+     * @return a handle that unsubscribes; cancelling it twice is a no-op. UI thread
+     */
+    public static limn.concurrent.Subscription observeChanges(Runnable listener) {
+        return LISTENERS.observe(listener);
     }
 
     /**

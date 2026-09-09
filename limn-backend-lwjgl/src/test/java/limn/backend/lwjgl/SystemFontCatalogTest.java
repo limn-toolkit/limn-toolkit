@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.concurrent.Subscription;
 import limn.concurrent.UiRuntime;
 import limn.graphics.FontCatalog;
 import limn.graphics.Fonts;
@@ -35,18 +36,18 @@ class SystemFontCatalogTest {
     private UiRuntime runtime;
     private FontCatalog catalog;
     private final AtomicInteger changes = new AtomicInteger();
-    private final Runnable listener = changes::incrementAndGet;
+    private Subscription subscription;
 
     @BeforeEach
     void installRuntime() {
         ui = new HeadlessUi();
         runtime = ui.runtime();
-        Fonts.addChangeListener(listener);
+        subscription = Fonts.observeChanges(changes::incrementAndGet);
     }
 
     @AfterEach
     void uninstallRuntime() {
-        Fonts.removeChangeListener(listener);
+        subscription.cancel();
         if (catalog != null) {
             Fonts.uninstallCatalog(catalog);
         }

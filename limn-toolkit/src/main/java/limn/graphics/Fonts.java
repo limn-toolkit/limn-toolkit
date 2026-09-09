@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Objects;
 import limn.backend.Installed;
 import limn.concurrent.ChangeListeners;
+import limn.concurrent.Subscription;
 
 /**
  * Process-wide font configuration (mirrors the {@link TextRulers} / {@code Ui}
@@ -13,7 +14,7 @@ import limn.concurrent.ChangeListeners;
  * resolves to, so an application can switch its UI font at runtime.
  *
  * <p>Both the CATALOG.current() becoming available (system-font enumeration finishes) and
- * a default-family change notify {@linkplain #addChangeListener listeners} on
+ * a default-family change notify {@linkplain #observeChanges listeners} on
  * the calling thread; scenes subscribe to re-layout, and the backend's font
  * store subscribes to drop its resolution cache. Mutators are meant to be called
  * on the UI thread.
@@ -83,7 +84,7 @@ public final class Fonts {
      *         does not block. It is the installed CATALOG.current()'s current answer, which may be a partial
      *         one: a backend that enumerates the operating system does so in the background and
      *         installs a fuller CATALOG.current() when it finishes. Rebuild a family list from
-     *         {@linkplain #addChangeListener a change listener} rather than reading this once at
+     *         {@linkplain #observeChanges a change listener} rather than reading this once at
      *         startup and trusting it.
      */
     public static List<String> available() {
@@ -124,14 +125,14 @@ public final class Fonts {
         listeners.fire();
     }
 
-    /** Subscribes to CATALOG.current()/default-family changes (idempotent per instance). */
-    public static void addChangeListener(Runnable listener) {
-        listeners.add(listener);
-    }
-
-    /** Unsubscribes; no-op when it was never registered. */
-    public static void removeChangeListener(Runnable listener) {
-        listeners.remove(listener);
+    /**
+     * Subscribes to catalog and default-family changes.
+     *
+     * @param listener what to run when either moves
+     * @return a handle that unsubscribes; cancelling it twice is a no-op. UI thread
+     */
+    public static Subscription observeChanges(Runnable listener) {
+        return listeners.observe(listener);
     }
 
 

@@ -20,7 +20,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *
  * <p>Shaped after {@code Fonts} and {@code ControlSize}, because a language change
  * is measurement-affecting in exactly the way a font change is: it notifies
- * {@linkplain #addChangeListener listeners}, every scene subscribes and re-lays-out,
+ * {@linkplain #observeChanges listeners}, every scene subscribes and re-lays-out,
  * and widgets re-read their text on the way through. An application switches
  * languages with one call and nothing else:
  *
@@ -357,14 +357,14 @@ public final class I18n {
         }
     }
 
-    /** Subscribes to language changes (idempotent per instance). */
-    public static void addChangeListener(Runnable listener) {
-        LISTENERS.add(listener);
-    }
-
-    /** Unsubscribes; no-op when it was never registered. */
-    public static void removeChangeListener(Runnable listener) {
-        LISTENERS.remove(listener);
+    /**
+     * Subscribes to language changes.
+     *
+     * @param listener what to run when the locale or a bundle moves
+     * @return a handle that unsubscribes; cancelling it twice is a no-op. UI thread
+     */
+    public static limn.concurrent.Subscription observeChanges(Runnable listener) {
+        return LISTENERS.observe(listener);
     }
 
     /**

@@ -1,5 +1,6 @@
 package limn.i18n;
 
+import limn.concurrent.Subscription;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -172,15 +173,14 @@ class I18nStringTest {
     @Test
     void switchingToTheSameLocaleChangesNothing() {
         AtomicInteger notifications = new AtomicInteger();
-        Runnable listener = notifications::incrementAndGet;
-        I18n.addChangeListener(listener);
+        Subscription subscription = I18n.observeChanges(notifications::incrementAndGet);
         try {
             long epoch = I18n.epoch();
             I18n.setLocale(I18n.locale());
             assertEquals(epoch, I18n.epoch());
             assertEquals(0, notifications.get());
         } finally {
-            I18n.removeChangeListener(listener);
+            subscription.cancel();
         }
     }
 
@@ -198,15 +198,14 @@ class I18nStringTest {
                 return null;
             }
         });
-        Runnable listener = () -> order.add("notify");
-        I18n.addChangeListener(listener);
+        Subscription subscription = I18n.observeChanges(() -> order.add("notify"));
         try {
             order.clear();
             I18n.setLocale(PT_BR);
             assertEquals(List.of("prepare", "notify"), order,
                     "a file-backed bundle must not read from disk inside the relayout it caused");
         } finally {
-            I18n.removeChangeListener(listener);
+            subscription.cancel();
         }
     }
 }
