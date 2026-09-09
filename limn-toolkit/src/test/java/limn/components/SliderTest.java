@@ -3,6 +3,7 @@ package limn.components;
 import limn.graphics.Paint;
 import limn.graphics.RoundRect;
 import limn.input.Keys;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.Scene;
@@ -109,9 +110,16 @@ class SliderTest extends ComponentTestBase {
     @Test
     void aDragFiresOnChangePerStepAndOnCommitOnceAtTheEnd() {
         build(new Slider(0, 100));
+        // A watcher and not a second onChange: the fixture holds the handler slot, and a second
+        // registration over it now throws rather than silently destroying the fixture's, which
+        // is exactly what this method used to do.
         java.util.List<Float> changes = new java.util.ArrayList<>();
         java.util.List<Float> commits = new java.util.ArrayList<>();
-        slider.onChange(changes::add);
+        slider.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.VALUE && change.fromUser()) {
+                changes.add(slider.value());
+            }
+        });
         slider.onCommit(commits::add);
 
         scene.mouseButton(Keys.MOUSE_LEFT, true, 0, trackX(0.2f), HEIGHT / 2);

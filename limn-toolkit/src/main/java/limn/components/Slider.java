@@ -10,12 +10,14 @@ import limn.graphics.Color;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
+import limn.lang.Checks;
+import limn.scene.Change;
+import limn.scene.FloatConsumer;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
-import java.util.function.Consumer;
 
 /**
  * Horizontal slider selecting a value in {@code [min, max]}. Drag the thumb or
@@ -27,8 +29,14 @@ import java.util.function.Consumer;
  *
  * <pre>{@code
  * Slider volume = new Slider(0, 100).setStep(5).setValue(30);
- * volume.onChange(v -> audio.setGain(v / 100f));
+ * volume.onChange(v -> audio.setGain(v / 100f));          // the user moved it
+ * volume.observeChanges((w, c) -> readout.setText(...));  // anything moved it
  * }</pre>
+ *
+ * <p>{@link #onChange} and {@link #onCommit} are the application's response to the <em>user</em>
+ * operating the slider; {@link #setValue} and {@link #setStep} reach neither. Every change,
+ * whatever moved it, reaches a {@linkplain #observeChanges watcher} as {@code VALUE}, and a
+ * drag's release or a key press as {@code COMMITTED}.
  *
  * <p>Sizes follow the {@link ControlSize} resolved on this widget. <b>This control's height
  * derives from a focus-ring constant</b>, {@code 2 * (knobHover + FOCUS_GAP_SLIDER + border)},
@@ -56,10 +64,8 @@ public class Slider extends Widget {
     private final float max;
     private float value;
     private float step; // 0 = continuous
-    private Consumer<Float> onChange = v -> {
-    };
-    private Consumer<Float> onCommit = v -> {
-    };
+    private FloatConsumer onChange;
+    private FloatConsumer onCommit;
 
     private final Transition hover =
             new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
@@ -82,10 +88,13 @@ public class Slider extends Widget {
 
     // ------------------------------------------------------------------- API
 
-    /** Sets the value programmatically (clamped + snapped to the step); does not fire {@link #onChange}. */
+    /**
+     * Sets the value (clamped + snapped to the step). Announces {@code VALUE}/{@code CODE} when
+     * it moved, and reaches no handler: a caller's write is not the user operating the slider.
+     */
     public Slider setValue(float newValue) {
         Ui.checkUiThread();
-        apply(newValue, false);
+        apply(newValue, Change.Origin.CODE);
         return this;
     }
 
@@ -105,7 +114,9 @@ public class Slider extends Widget {
     }
 
     /**
-     * Sets the discrete increment ({@code 0} = continuous). Re-snaps the current value.
+     * Sets the discrete increment ({@code 0} = continuous). Re-snaps the current value, and says
+     * so: when the re-snap moves it, {@code VALUE}/{@code ADJUSTMENT} is announced first, and
+     * then the step's own {@code RANGE}/{@code CODE} last, as the aspect the call names.
      *
      * <p>The step is published to an assistive technology as the grid a set is snapped onto, so
      * a change to it is an accessible fact even when the value already sits on the new grid and
@@ -115,18 +126,28 @@ public class Slider extends Widget {
     public Slider setStep(float newStep) {
         Ui.checkUiThread();
         float clamped = Math.max(0, newStep);
-        if (clamped != step) {
-            step = clamped;
-            invalidateAccessible();
+        if (clamped == step) {
+            return this;
         }
-        apply(value, false);
+        step = clamped;
+        invalidateAccessible();
+        apply(value, Change.Origin.ADJUSTMENT);
+        notifyChange(Change.of(Change.Aspect.RANGE, Change.Origin.CODE));
         return this;
     }
 
-    /** Called with the new value on user changes only, not on {@link #setValue}. */
-    public Slider onChange(Consumer<Float> listener) {
+    /**
+     * The application's response to the user moving the slider: called with the new value on a
+     * drag, a key or an assistive technology's step, and never for {@link #setValue}. To hear
+     * every move whatever caused it, {@linkplain #observeChanges watch} the slider instead.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this slider
+     * @throws IllegalStateException if a handler is already registered
+     */
+    public Slider onChange(FloatConsumer listener) {
         Ui.checkUiThread();
-        this.onChange = java.util.Objects.requireNonNull(listener, "listener");
+        this.onChange = Checks.handlerSlot(onChange, listener, "Slider.onChange");
         return this;
     }
 
@@ -142,11 +163,36 @@ public class Slider extends Widget {
      *
      * <p>Fires on a drag that ends where it began, because the user still chose that value, and
      * does not fire for {@link #setValue}, which is not a user change at all.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this slider
+     * @throws IllegalStateException if a handler is already registered
      */
-    public Slider onCommit(Consumer<Float> listener) {
+    public Slider onCommit(FloatConsumer listener) {
         Ui.checkUiThread();
-        this.onCommit = java.util.Objects.requireNonNull(listener, "listener");
+        this.onCommit = Checks.handlerSlot(onCommit, listener, "Slider.onCommit");
         return this;
+    }
+
+    /**
+     * The handler half of the channel: the base class calls this after every watcher, for a
+     * {@code USER} origin only, and the slot is read here so the ordering stays in the base.
+     */
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        switch (aspect) {
+            case VALUE -> {
+                if (onChange != null) {
+                    onChange.accept(value);
+                }
+            }
+            case COMMITTED -> {
+                if (onCommit != null) {
+                    onCommit.accept(value);
+                }
+            }
+            default -> super.handleUserChange(aspect);
+        }
     }
 
     // --------------------------------------------------------------- geometry
@@ -190,8 +236,13 @@ public class Slider extends Widget {
         return trackLeft(t) + along * trackWidth(t);
     }
 
-    /** Clamps and snaps a raw value; applies + fires {@link #onChange} (when {@code fromUser}) only if it changed. */
-    private void apply(float raw, boolean fromUser) {
+    /**
+     * The one seam every value change goes through: clamps and snaps a raw value, and announces
+     * {@code VALUE} with {@code origin} only if it moved. A drag, a key and an assistive
+     * technology's step pass {@code USER}; {@link #setValue} passes {@code CODE}; the re-snap
+     * inside {@link #setStep} passes {@code ADJUSTMENT}.
+     */
+    private void apply(float raw, Change.Origin origin) {
         float clamped = Math.max(min, Math.min(max, raw));
         float snapped = clamped;
         if (step > 0) {
@@ -209,9 +260,15 @@ public class Slider extends Widget {
         }
         value = snapped;
         invalidate();
-        if (fromUser) {
-            onChange.accept(value);
-        }
+        notifyChange(Change.of(Change.Aspect.VALUE, origin));
+    }
+
+    /**
+     * The user let go, or a key press ended: whatever the value is now, including unchanged,
+     * here is what they chose. Announces {@code COMMITTED}/{@code USER} once per gesture.
+     */
+    private void commit() {
+        notifyChange(Change.of(Change.Aspect.COMMITTED, Change.Origin.USER));
     }
 
     /**
@@ -220,12 +277,12 @@ public class Slider extends Widget {
      * hands over the untouched pointer coordinate; reflecting it there as well would flip twice
      * and land on the value the user aimed away from.
      */
-    private void applyFromX(SizeTokens t, boolean rtl, float localX, boolean fromUser) {
+    private void applyFromX(SizeTokens t, boolean rtl, float localX) {
         float along = rtl ? trackLeft(t) + trackWidth(t) - localX : localX - trackLeft(t);
         float frac = Math.max(0, Math.min(1, along / trackWidth(t)));
         // Pass the exact bounds at the extremes so dragging to an edge reaches min/max.
         float raw = frac >= 1f ? max : frac <= 0f ? min : min + frac * (max - min);
-        apply(raw, fromUser);
+        apply(raw, Change.Origin.USER);
     }
 
     private float keyStep() {
@@ -321,13 +378,13 @@ public class Slider extends Widget {
                 if (event.button() == Keys.MOUSE_LEFT && isEnabled()) {
                     dragging = true;
                     hover.to(1);
-                    applyFromX(t, rtl, sceneToLocalX(event.x()), true);
+                    applyFromX(t, rtl, sceneToLocalX(event.x()));
                     event.consume();
                 }
             }
             case DRAG -> {
                 if (dragging) {
-                    applyFromX(t, rtl, sceneToLocalX(event.x()), true);
+                    applyFromX(t, rtl, sceneToLocalX(event.x()));
                     event.consume();
                 }
             }
@@ -337,9 +394,7 @@ public class Slider extends Widget {
                     if (!pointerInside) {
                         hover.to(0);
                     }
-                    // Whatever the value is now, including unchanged: the user let go here, so
-                    // here is what they chose.
-                    onCommit.accept(value);
+                    commit();
                     event.consume();
                 }
             }
@@ -363,20 +418,20 @@ public class Slider extends Widget {
         // directions, and a page is a magnitude with no side at all.
         float arrow = rtl ? -keyStep() : keyStep();
         switch (event.key()) {
-            case Keys.LEFT -> apply(value - arrow, true);
-            case Keys.RIGHT -> apply(value + arrow, true);
-            case Keys.DOWN -> apply(value - keyStep(), true);
-            case Keys.UP -> apply(value + keyStep(), true);
-            case Keys.PAGE_DOWN -> apply(value - pageStep(), true);
-            case Keys.PAGE_UP -> apply(value + pageStep(), true);
-            case Keys.HOME -> apply(min, true);
-            case Keys.END -> apply(max, true);
+            case Keys.LEFT -> apply(value - arrow, Change.Origin.USER);
+            case Keys.RIGHT -> apply(value + arrow, Change.Origin.USER);
+            case Keys.DOWN -> apply(value - keyStep(), Change.Origin.USER);
+            case Keys.UP -> apply(value + keyStep(), Change.Origin.USER);
+            case Keys.PAGE_DOWN -> apply(value - pageStep(), Change.Origin.USER);
+            case Keys.PAGE_UP -> apply(value + pageStep(), Change.Origin.USER);
+            case Keys.HOME -> apply(min, Change.Origin.USER);
+            case Keys.END -> apply(max, Change.Origin.USER);
             default -> handled = false;
         }
         if (handled) {
             // A key press is a whole gesture: there is no drag to end, so the change and the
             // decision are the same moment.
-            onCommit.accept(value);
+            commit();
             event.consume();
         }
     }
@@ -420,12 +475,12 @@ public class Slider extends Widget {
 
     /**
      * Performs a change an assistive technology asked for exactly as a key press does: through
-     * the private from-the-user path, so {@link #onChange} fires when the value moves, and then
-     * through {@link #onCommit} whether it moved or not, because a request from a reader is a
-     * whole gesture the way a key press is and the change and the decision are the same moment.
-     * Never through {@link #setValue}, which is the silent path: an application that starts
-     * something on commit, as the toolkit's own media transport does, would otherwise never hear
-     * that the user chose a value.
+     * the value seam at {@code USER}, so {@link #onChange} fires when the value moves, and then
+     * a commit whether it moved or not, because a request from a reader is a whole gesture the
+     * way a key press is and the change and the decision are the same moment. Never through
+     * {@link #setValue}, which is a caller's write: an application that starts something on
+     * commit, as the toolkit's own media transport does, would otherwise never hear that the
+     * user chose a value.
      *
      * <p>{@code INCREMENT} and {@code DECREMENT} move by the step, or by one percent of the range
      * when the slider is continuous, in the sense Up and Down have: a direction of the value and
@@ -451,20 +506,20 @@ public class Slider extends Widget {
             return false;
         }
         switch (action) {
-            case INCREMENT -> apply(value + keyStep(), true);
-            case DECREMENT -> apply(value - keyStep(), true);
+            case INCREMENT -> apply(value + keyStep(), Change.Origin.USER);
+            case DECREMENT -> apply(value - keyStep(), Change.Origin.USER);
             case SET_VALUE -> {
                 double asked = Accessible.Argument.finiteValueOf(arg);
                 if (Double.isNaN(asked)) {
                     return false;
                 }
-                apply((float) asked, true);
+                apply((float) asked, Change.Origin.USER);
             }
             default -> {
                 return false;
             }
         }
-        onCommit.accept(value);
+        commit();
         return true;
     }
 

@@ -8,6 +8,7 @@ import limn.graphics.Canvas;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.Size;
+import limn.scene.Change;
 import limn.scene.Widget;
 
 /**
@@ -67,12 +68,20 @@ public class ProgressBar extends Widget {
      */
     public ProgressBar setProgress(float value) {
         Ui.checkUiThread();
-        this.progress = Math.max(0, Math.min(1, value));
+        float clamped = Math.max(0, Math.min(1, value));
+        boolean moved = clamped != progress;
+        this.progress = clamped;
         if (indeterminate) {
             indeterminate = false;
             invalidate();
+            // The sweep ending is a consequence of the value arriving, so it is announced first
+            // and as an adjustment; the value the call names comes last.
+            notifyChange(Change.of(Change.Aspect.RANGE, Change.Origin.ADJUSTMENT));
         }
         fill.to(progress); // eases from the previous value (or snaps when detached)
+        if (moved) {
+            notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.CODE));
+        }
         return this;
     }
 
@@ -97,6 +106,7 @@ public class ProgressBar extends Widget {
             startSweep();
         }
         invalidate();
+        notifyChange(Change.of(Change.Aspect.RANGE, Change.Origin.CODE));
         return this;
     }
 

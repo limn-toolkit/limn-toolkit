@@ -20,6 +20,7 @@ import limn.input.Keys;
 import limn.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.Size;
+import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
@@ -27,7 +28,7 @@ import limn.scene.event.MouseEvent;
 
 import java.util.Locale;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
 import java.util.regex.Pattern;
 
 /**
@@ -123,8 +124,7 @@ public class Spinner extends Widget {
     private int hoverButton; // 0 none, 1 up, 2 down
     private int heldDir;     // press-and-hold direction: +1 up, -1 down, 0 idle
     private long holdToken;  // bumped to cancel a scheduled auto-repeat tick
-    private Consumer<Double> onChange = v -> {
-    };
+    private DoubleConsumer onChange;
     private final Transition focusFade =
             new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
     private final Path2D triangle = new Path2D();
@@ -181,13 +181,14 @@ public class Spinner extends Widget {
     // ------------------------------------------------------------------- API
 
     /**
-     * Sets the value programmatically (clamped + snapped); does not fire
-     * {@link #onChange}. Cancels an edit in progress; see the class comment.
+     * Sets the value (clamped + snapped). Announces {@code VALUE}/{@code CODE} when it moved and
+     * reaches no handler: a caller's write is not the user operating the spinner. Cancels an
+     * edit in progress; see the class comment.
      */
     public Spinner setValue(double newValue) {
         Ui.checkUiThread();
         cancelEdit();
-        apply(newValue, false);
+        apply(newValue, Change.Origin.CODE);
         return this;
     }
 
@@ -257,11 +258,30 @@ public class Spinner extends Widget {
         return mode;
     }
 
-    /** Called with the new value on user changes only, not on {@link #setValue}. */
-    public Spinner onChange(Consumer<Double> listener) {
+    /**
+     * The application's response to the user changing the value: a step, a typed number, an
+     * assistive technology's request. Never for {@link #setValue}; to hear every change whatever
+     * caused it, {@linkplain #observeChanges watch} the spinner instead.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this spinner
+     * @throws IllegalStateException if a handler is already registered
+     */
+    public Spinner onChange(DoubleConsumer listener) {
         Ui.checkUiThread();
-        this.onChange = Objects.requireNonNull(listener, "listener");
+        this.onChange = Checks.handlerSlot(onChange, listener, "Spinner.onChange");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.VALUE) {
+            if (onChange != null) {
+                onChange.accept(value);
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
     }
 
     /** @return the value as it is displayed ({@code "07:30"} in time mode, a number otherwise). */
@@ -356,18 +376,38 @@ public class Spinner extends Widget {
 
     // --------------------------------------------------------------- stepping
 
-    /** Clamps + snaps; applies and fires {@link #onChange} (when {@code fromUser}) only on a real change. */
-    private void apply(double raw, boolean fromUser) {
-        apply(raw, step, fromUser);
+    /**
+     * The one seam every value change goes through: clamps + snaps, and announces {@code VALUE}
+     * with {@code origin} only on a real change.
+     *
+     * @return whether the value moved
+     */
+    private boolean apply(double raw, Change.Origin origin) {
+        return apply(raw, step, origin);
     }
 
     /**
-     * As {@link #apply(double, boolean)}, but snapping onto {@code grid} instead of
+     * As {@link #apply(double, Change.Origin)}, but snapping onto {@code grid} instead of
      * the step. A fine nudge passes its own smaller grid: every step-grid point is
      * also a fine-grid point, so the value stays deterministic and a later coarse
      * step re-aligns to the coarse grid.
      */
-    private void apply(double raw, double grid, boolean fromUser) {
+    private boolean apply(double raw, double grid, Change.Origin origin) {
+        if (!settle(raw, grid)) {
+            return false;
+        }
+        notifyChange(Change.of(Change.Aspect.VALUE, origin));
+        return true;
+    }
+
+    /**
+     * The clamp and the snap without the announcement: what {@link #stepFromTyped} uses to
+     * adopt the typed number before it steps, so the adoption and the step are announced as the
+     * one change the user made.
+     *
+     * @return whether the value moved
+     */
+    private boolean settle(double raw, double grid) {
         double clamped = Math.max(min, Math.min(max, raw));
         double snapped;
         if (mode == Mode.TIME) {
@@ -385,13 +425,11 @@ public class Spinner extends Widget {
             }
         }
         if (snapped == value) {
-            return;
+            return false;
         }
         value = snapped;
         invalidate();
-        if (fromUser) {
-            onChange.accept(value);
-        }
+        return true;
     }
 
     /** The increment for one step: hours field bumps by 60 in time mode. */
@@ -399,8 +437,15 @@ public class Spinner extends Widget {
         return mode == Mode.TIME && field == 0 ? 60 : step;
     }
 
-    private void nudge(double steps, boolean fromUser) {
-        apply(value + steps * increment(), fromUser);
+    /**
+     * One user step of {@code steps} increments: every caller is a gesture -- a key, a held arrow,
+     * a press on the stepper, an assistive technology -- so this is {@code USER} and nothing else.
+     *
+     * @return whether the value moved, which the auto-repeat reads rather than re-reading the
+     *         value, so a handler that writes the value back cannot end a press-and-hold
+     */
+    private boolean nudge(double steps) {
+        return apply(value + steps * increment(), Change.Origin.USER);
     }
 
     /**
@@ -432,16 +477,16 @@ public class Spinner extends Widget {
      */
     private void nudgeFromKey(int direction, int modifiers) {
         if (mode == Mode.TIME) {
-            nudge(direction, true);
+            nudge(direction);
             return;
         }
         if ((modifiers & Keys.MOD_ALT) != 0) {
             double unit = fineIncrement();
-            apply(value + direction * unit, unit, true);
+            apply(value + direction * unit, unit, Change.Origin.USER);
         } else if ((modifiers & Keys.MOD_SHIFT) != 0) {
-            nudge(direction * 10L, true);
+            nudge(direction * 10L);
         } else {
-            nudge(direction, true);
+            nudge(direction);
         }
     }
 
@@ -483,7 +528,7 @@ public class Spinner extends Widget {
         blinkGeneration++; // stops the blink chain: it checks this before toggling
         Double parsed = parse(typed);
         if (parsed != null) {
-            apply(parsed, true);
+            apply(parsed, Change.Origin.USER);
         }
         invalidate();
     }
@@ -551,15 +596,25 @@ public class Spinner extends Widget {
     /**
      * Steps from what is <em>typed</em> rather than from what was there. The number
      * on screen is the one the user is looking at, so a step that ignored it would
-     * jump somewhere nobody asked for. The adoption is silent, leaving the step
-     * itself as the one reported change.
+     * jump somewhere nobody asked for.
+     *
+     * <p>The adoption and the step are <b>one</b> change, announced once as {@code VALUE}/{@code
+     * USER} and measured against the value before the edit: the typed number is settled
+     * silently, the step announces if it moved past that, and if it did not -- a step at a bound
+     * over a number that was itself new -- the adoption is announced in its place. A typed edit
+     * whose following step was a no-op used to apply with no notification at all.
      */
     private void stepFromTyped(Runnable step) {
+        double before = value;
         Double typed = parse(edit.text());
         if (typed != null) {
-            apply(typed, false);
+            settle(typed, this.step);
         }
+        double adopted = value;
         step.run();
+        if (value == adopted && value != before) {
+            notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+        }
         edit.setText(text());
         edit.selectAll();
         editScrollX = 0;
@@ -696,9 +751,7 @@ public class Spinner extends Widget {
         if (token != holdToken || heldDir == 0 || !isEnabled() || !isShowing()) {
             return; // released, superseded, disabled or off-screen: stop the chain
         }
-        double before = value;
-        nudge(heldDir, true);
-        if (value == before) {
+        if (!nudge(heldDir)) {
             heldDir = 0; // reached the bound: nothing left to repeat
             return;
         }
@@ -1020,7 +1073,7 @@ public class Spinner extends Widget {
                     // it replaced.
                     commitEdit();
                     int direction = region == 1 ? 1 : -1;
-                    nudge(direction, true);
+                    nudge(direction);
                     startHold(direction); // hold to keep stepping
                 } else if (editable) {
                     beginEdit(false);
@@ -1139,12 +1192,12 @@ public class Spinner extends Widget {
         switch (event.key()) {
             case Keys.UP -> nudgeFromKey(1, event.modifiers());
             case Keys.DOWN -> nudgeFromKey(-1, event.modifiers());
-            case Keys.PAGE_UP -> nudge(10, true);
-            case Keys.PAGE_DOWN -> nudge(-10, true);
+            case Keys.PAGE_UP -> nudge(10);
+            case Keys.PAGE_DOWN -> nudge(-10);
             // Home and End name min and max, which are values and not sides, so they are the
             // same key in both directions.
-            case Keys.HOME -> apply(min, true);
-            case Keys.END -> apply(max, true);
+            case Keys.HOME -> apply(min, Change.Origin.USER);
+            case Keys.END -> apply(max, Change.Origin.USER);
             case Keys.LEFT -> {
                 if (mode == Mode.TIME) {
                     // Not mirrored: the hours and the minutes of an hh:mm run do not swap places
@@ -1211,11 +1264,11 @@ public class Spinner extends Widget {
                 return true;
             }
             case Keys.PAGE_UP -> {
-                stepFromTyped(() -> nudge(10, true));
+                stepFromTyped(() -> nudge(10));
                 return true;
             }
             case Keys.PAGE_DOWN -> {
-                stepFromTyped(() -> nudge(-10, true));
+                stepFromTyped(() -> nudge(-10));
                 return true;
             }
             default -> {
@@ -1500,7 +1553,7 @@ public class Spinner extends Widget {
                     return false;
                 }
                 cancelEdit();
-                apply(asked, true);
+                apply(asked, Change.Origin.USER);
             }
             default -> {
                 return false;
@@ -1515,9 +1568,9 @@ public class Spinner extends Widget {
      */
     private void stepAsAKeyWould(int direction) {
         if (edit != null) {
-            stepFromTyped(() -> nudge(direction, true));
+            stepFromTyped(() -> nudge(direction));
         } else {
-            nudge(direction, true);
+            nudge(direction);
         }
     }
 
@@ -1558,7 +1611,7 @@ public class Spinner extends Widget {
             return false;
         }
         commitEdit();
-        nudge(direction, true);
+        nudge(direction);
         return true;
     }
 

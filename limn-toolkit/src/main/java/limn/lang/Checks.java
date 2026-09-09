@@ -263,6 +263,34 @@ public final class Checks {
         }
     }
 
+    /**
+     * A handler slot being registered over: the one null policy every fluent {@code onX} in the
+     * toolkit has. <b>{@code null} clears the slot, and a non-null handler registered over an
+     * occupied one throws</b>, because a widget has one application and being operated has one
+     * response -- a second party that wants to hear the change is observing, and observation has
+     * its own channel, {@code observeChanges}. Silently replacing the first handler is how a test
+     * fixture's listener was destroyed by one test method in this repository without anything
+     * failing.
+     *
+     * <p>Re-binding a handler over its life is {@code w.onAction(null).onAction(next)}; a widget
+     * whose handler must change often holds a mutable field and registers
+     * {@code () -> current.run()}.
+     *
+     * @param current the handler the slot holds, or null
+     * @param next    the handler being registered, or null to clear
+     * @param method  the registrar, for the message: "Slider.onChange"
+     * @param <H>     the handler type
+     * @return {@code next}, to assign to the slot
+     * @throws IllegalStateException if both are non-null
+     */
+    public static <H> H handlerSlot(H current, H next, String method) {
+        if (current != null && next != null) {
+            throw new IllegalStateException(method + " already has a handler: pass null to clear "
+                    + "it first, or watch the widget with observeChanges instead");
+        }
+        return next;
+    }
+
     /** The shortest decimal that names a bound: {@code 1} and not {@code 1.0}, {@code 0.25} as is. */
     private static String bound(float value) {
         return value == (long) value ? Long.toString((long) value) : Float.toString(value);

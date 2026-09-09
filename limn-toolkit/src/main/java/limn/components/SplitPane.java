@@ -8,14 +8,16 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.Size;
+import limn.scene.Change;
+import limn.scene.FloatConsumer;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Two panes and a divider the user drags to share the space between them.
@@ -104,7 +106,7 @@ public final class SplitPane extends Widget {
     private float ratio = 0.5f;
     private float firstMin = Strokes.MIN_HIT_TARGET;
     private float secondMin = Strokes.MIN_HIT_TARGET;
-    private Consumer<Float> onRatioChange = r -> { };
+    private FloatConsumer onRatioChange;
 
     private SplitPane(Orientation orientation, Widget first, Widget second) {
         this.orientation = orientation;
@@ -142,7 +144,7 @@ public final class SplitPane extends Widget {
      */
     public SplitPane setRatio(float newRatio) {
         Ui.checkUiThread();
-        applyRatio(newRatio, false);
+        applyRatio(newRatio, Change.Origin.CODE);
         return this;
     }
 
@@ -169,11 +171,30 @@ public final class SplitPane extends Widget {
         return this;
     }
 
-    /** Fires while the user drags or keys the divider, never on {@link #setRatio}. */
-    public SplitPane onRatioChange(Consumer<Float> listener) {
+    /**
+     * The application's response to the user moving the divider: a drag, a key, an assistive
+     * technology's step. Never for {@link #setRatio}; to hear every move whatever caused it,
+     * {@linkplain #observeChanges watch} the split instead.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this split
+     * @throws IllegalStateException if a handler is already registered
+     */
+    public SplitPane onRatioChange(FloatConsumer listener) {
         Ui.checkUiThread();
-        this.onRatioChange = listener == null ? r -> { } : listener;
+        this.onRatioChange = Checks.handlerSlot(onRatioChange, listener, "SplitPane.onRatioChange");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.VALUE) {
+            if (onRatioChange != null) {
+                onRatioChange.accept(ratio);
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
     }
 
     /**
@@ -282,20 +303,27 @@ public final class SplitPane extends Widget {
         return Math.max(low, Math.min(high, ratio * total));
     }
 
-    /** Applies a raw ratio, reporting it when the change came from the user. */
-    private void applyRatio(float raw, boolean fromUser) {
+    /**
+     * The one seam every ratio change goes through: clamps, and announces {@code VALUE} with
+     * {@code origin} only if it moved. The announcement follows the layout mark, so a watcher
+     * reads the new ratio against the extents of the last pass; the pass that honours it is the
+     * next one.
+     */
+    private void applyRatio(float raw, Change.Origin origin) {
         float clamped = Math.max(0f, Math.min(1f, raw));
         if (clamped == ratio) {
             return;
         }
         ratio = clamped;
         markNeedsLayout();
-        if (fromUser) {
-            onRatioChange.accept(ratio);
-        }
+        notifyChange(Change.of(Change.Aspect.VALUE, origin));
     }
 
-    /** Puts the first pane at {@code extent} points, clamped, and reports it. */
+    /**
+     * Puts the first pane at {@code extent} points, clamped, and announces it as the user's:
+     * every caller is a gesture -- the drag, the arrow keys, Home and End, and an assistive
+     * technology's three verbs.
+     */
     private void dragTo(SizeTokens t, float extent) {
         float total = shareable(t);
         if (total <= 0) {
@@ -303,7 +331,7 @@ public final class SplitPane extends Widget {
         }
         float low = Math.min(firstMin, total);
         float high = Math.max(low, total - secondMin);
-        applyRatio(Math.max(low, Math.min(high, extent)) / total, true);
+        applyRatio(Math.max(low, Math.min(high, extent)) / total, Change.Origin.USER);
     }
 
     @Override
