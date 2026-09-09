@@ -170,8 +170,10 @@ caller that simply applies what it is handed is correct with no bookkeeping. Tha
 whole reason the listener fires on the way back, and the difference between this and the
 hand-rolled swatch-plus-button it replaced.
 
-`setColor` does *not* notify: the application is the source of that change, and echoing it
-back invites a loop through a listener that writes state.
+`setColor` runs no handler: the application is the source of that change, and echoing it
+back invites a loop through a handler that writes state. It is announced as `VALUE` from
+`CODE` to whoever watches the button, which is the rule every component follows and the
+reason the theme editor no longer needs a guard (below).
 
 The caption defaults to the colour's hex and follows it. `apply` marks layout only when the
 hex's **length** changes (`#RRGGBB` gaining an alpha pair), because it runs on every frame
@@ -184,11 +186,15 @@ per frame.
   built once and must therefore name a derivation rather than capture the builder. A button
   holding the original would derive into a palette nobody is editing, and the tone on
   screen would not move. `aDerivationRunsOnTheBuilderTheEditorIsCurrentlyHolding` pins it.
-- **`syncing` guards the round trip** both ways: writing a control from the builder must not
-  be read back as an edit, and the controls do not agree on whether writing one notifies;
-  `TextField.setText` and `ComboBox.setSelectedIndex` echo back through their listeners,
-  `Slider.setValue` does not. The guard is what makes the editor correct either way, so it
-  stays even where today's widget happens to be silent.
+- **There is no `syncing` flag, and one must not come back.** The editor writes into its
+  controls whenever the builder changes, and every one of those writes is a caller's write:
+  it reaches the control's watchers as `CODE` and never the control's handler, so nothing the
+  editor writes can be read back as an edit. There was a flag once, because the controls did
+  not agree on whether a programmatic write echoed through the handler; the rule in
+  [change-channel.md](change-channel.md) is what made it deletable. The editor's own
+  `onChange` follows the same rule: it runs from `handleUserChange`, for the user's edits, while
+  `setToken`, `setCornerScale`, `revert` and a pasted palette announce `VALUE` as `CODE` to
+  whoever watches the editor and run no handler.
 - **The "start from" index is held, not derived.** Picking a base keeps the user's *name*, so
   the result never equals the built-in it came from; deriving the combo's selection with
   `indexOf` answered -1 and snapped the control back to the first entry on every pick; the

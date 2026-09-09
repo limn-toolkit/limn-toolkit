@@ -29,9 +29,11 @@ rather than after it: a palette that has had its ink darkened and its accent dee
 longer the palette it was borrowed from, and shipping it under the original name would be a
 claim about someone else's work.
 
-The palette is process-wide. Nothing is notified when it changes, so call
-`markNeedsLayout()` on each live scene's root afterwards; that one line is the whole
-migration for a running application.
+The palette is process-wide. Switching it tells whoever subscribed through
+`Theme.observeChanges`, and a scene is not a subscriber: call `invalidate()` on each live
+scene's root afterwards, and that one line is the whole migration for a running application.
+A palette is a repaint and never a re-measure, which is what keeps a switch cheap enough for
+a colour well to make one on every frame of a drag.
 
 ## Building your own
 

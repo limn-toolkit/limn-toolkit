@@ -58,9 +58,9 @@ import java.util.function.IntConsumer;
  * on a keystroke the user did not mean as one, an error with nowhere to stand. A table is for
  * reading, comparing, sorting and choosing; editing a record wants the record whole. Open a
  * {@code Dialog} or a panel with the record as a form from {@link #onActivate}, keep a form beside
- * the table bound to {@link #onSelect} for master-and-detail, put a switch or a button in a
- * {@link Column#widget} cell for the one-gesture cases, or act on the whole
- * {@linkplain SelectionMode#MULTI selection} at once; then change the list and
+ * the table following its selection through {@link #observeChanges} for master-and-detail, put a
+ * switch or a button in a {@link Column#widget} cell for the one-gesture cases, or act on the
+ * whole {@linkplain SelectionMode#MULTI selection} at once; then change the list and
  * {@link #refresh()}. ADR 041 §6 is the reasoning.
  *
  * <p><b>Sorting</b>: a click on a sortable header cycles ascending, descending and the model's

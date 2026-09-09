@@ -117,7 +117,7 @@ public final class Theme {
      * shipped face rather than to tofu or to an exception.
      *
      * <p><b>Why this is a name and not a {@link Font} on the size rows.</b> Type is measured
-     * from, and {@link #setCurrent} notifies nobody; see {@link #tokens}. Baking the family
+     * from, and a palette switch relays out nothing; see {@link #tokens}. Baking the family
      * into the five rows would change every text measurement in every live window with no
      * relayout anywhere. {@code Font.DEFAULT_FAMILY} is resolved late, by the backend, and
      * {@code Fonts} already notifies its listeners so that scenes re-lay-out; routing a

@@ -42,6 +42,7 @@ documentation and a guarantee.
 | [text-shaping.md](text-shaping.md) | ShapedText, TextRuler and the HarfBuzz backend: the one text path and what holding a value still buys, the visual and logical axes, itemization, the two caches and what sizes them, what a missing native or a missing face costs |
 | [text-and-input.md](text-and-input.md) | TextField, TextArea, PasswordField, Spinner: the held shaped line, the caret's side, visual versus logical movement, the display seam, the drawn password dot, insets, scrollbar geometry |
 | [popups-and-dialogs.md](popups-and-dialogs.md) | Dialog, PopupMenu, ComboBox: window vs in-scene, stacking, the native refit |
+| [change-channel.md](change-channel.md) | `Widget#observeChanges` and the `onX` handler: the origin rule, what a seam looks like, the traps (announce last, never from a paint, chain `super`, the final setters), the scene's part, the axes, and what a new component owes the contract test |
 | [theming.md](theming.md) | Theme and its builder, the token enum, the 8-bit grid, the audit's bars, ColorPickerButton and the editor module's traps |
 | [video.md](video.md) | limn.video, VideoView, the decoders and the shim: the three lifetimes, the threads, what a seek touches, rotation, bit depth and colour, what is in the native |
 | [charts.md](charts.md) | limn.components.chart: why geometry is resolved twice, what the animation interpolates, how hiding re-flows a stack, the donut's hole, why the palette order is load-bearing |

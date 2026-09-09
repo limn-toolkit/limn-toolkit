@@ -58,15 +58,18 @@ is something the user asks for.
 out and back. Build the widget there; do not cache one per data item, or you have rebuilt
 the thing `ListView` exists to avoid.
 
-`onSelect` fires whenever the selection moves: a click, or the arrow keys. `onActivate` is
-the *open this* gesture, which is Enter on the selected row; call `activate()` yourself to
-fire it from anywhere else.
+`onSelect` runs when the *user* moves the selection, by a click or the arrow keys, and not when
+your code does. `onActivate` is the *open this* gesture, which is Enter on the selected row or
+a double click. `activate()` from code is a caller's verb: it tells whoever is watching that the
+row was opened, and reaches no handler, so an application that wants its own open-the-row code
+run calls that code.
 
 :::tip[When the data changes]
 Call `refresh()` after your backing list changes. The rows are rebuilt from the adapter,
-and the scroll position and selection are kept, clamped if the list got shorter, and your
-listener hears about it, so a detail pane bound to the selection never keeps showing a
-record that is gone.
+and the scroll position and selection are kept, clamped if the list got shorter. A selection
+the refresh dropped is announced as the widget's own adjustment, so a detail pane that watches
+the selection never keeps showing a record that is gone; `onSelect`, being the user's, stays
+silent.
 :::
 
 ### Setting the selection yourself
@@ -80,11 +83,14 @@ the same way, so what you learn on one holds for the rest:
   is a `clearSelection()` that names it, because a list of records need not have a current record.
   A tab strip, a combo box and a segmented control always have exactly one, so they offer
   none.
-- Setting the selection fires the same listener a click fires. A listener describes the
-  selection, not the mouse, so anything bound to it stays right without needing to know
-  where the change came from.
-- Setting the index that is already selected does nothing and fires nothing, which is what
-  lets two controls bound to each other settle instead of bouncing.
+- Setting the selection reaches whoever is watching the widget, as a `SELECTION` change whose
+  origin is `CODE`, and does not run `onSelect`: the handler is the application's response to
+  the user, and a value the application wrote is not one. Anything that must describe the
+  selection wherever it came from, a detail pane or a status line, watches instead, and so
+  stays right without needing to know where the change came from.
+- Setting the index that is already selected does nothing and announces nothing. Together with
+  the first rule it is why two controls bound to each other through their handlers cannot
+  bounce: a handler's write into the other control reaches no handler at all.
 
 Arrow keys are not bound by the first rule: arrowing past either end lands on the end,
 because that is what the key means.
@@ -128,8 +134,8 @@ with their row.
 
 :::tip[When the data changes]
 Call `refresh()` after your list's contents change, as with `ListView`: the sort is
-re-applied, a selected row the list no longer has is dropped and your listener hears it, and
-the scroll position is kept.
+re-applied, a selected row the list no longer has is dropped and a watcher of the selection
+hears it, and the scroll position is kept.
 :::
 
 ### Editing a record
@@ -147,8 +153,9 @@ What to do instead, each with what the toolkit already has:
   with labelled and validated fields and an explicit Save. On save, change your list and
   call `refresh()`; the selection is by model row and stays put.
 - **Master and detail.** Keep the form open in a `SplitPane` beside the table and bind it to
-  the lead row through `onSelect`, so the user walks the records with the arrow keys and
-  edits each in a form that never moves.
+  the lead row by watching the table's `SELECTION`, as the example above does, so the user
+  walks the records with the arrow keys and edits each in a form that never moves, and the
+  form follows a selection your own code set just as well.
 - **A control in a widget column** for one-gesture changes: a switch to flag a row, a button
   to open it, a checkbox to include it.
 - **A bulk action** over a `MULTI` selection when the same change applies to many rows.
