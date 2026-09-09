@@ -151,6 +151,23 @@ final class UiaVariant {
         at.putLong(offset + PAYLOAD, pointer);
     }
 
+    /**
+     * A {@code SAFEARRAY} of {@code IUnknown*}, which is the form {@code DescribedBy} and
+     * {@code ControllerFor} take.
+     *
+     * @param at      the buffer
+     * @param offset  where the structure begins
+     * @param pointer the array the caller now owns, elements referenced, or {@code 0}
+     */
+    static void unknownArray(ByteBuffer at, int offset, long pointer) {
+        empty(at, offset);
+        if (pointer == 0) {
+            return;
+        }
+        at.putShort(offset, (short) (VT_ARRAY | VT_UNKNOWN));
+        at.putLong(offset + PAYLOAD, pointer);
+    }
+
     /** @return the tag currently written at {@code offset}, for a test and for a log line */
     static short tagOf(ByteBuffer at, int offset) {
         return at.getShort(offset);

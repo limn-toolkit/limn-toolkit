@@ -54,6 +54,21 @@ final class Atspi {
     static final int STATE_SHOWING   = 25;
     static final int STATE_VISIBLE   = 30;
 
+    // ---- AtspiRelationType ------------------------------------------------------------------
+    // Read 2026-09-09 from the enum's own declaration in atspi/atspi-constants.h at the release
+    // tag AT_SPI2_CORE_2_52_0 (gitlab.gnome.org/GNOME/at-spi2-core), the same 2.52.0 the guest
+    // runs, and not from the guest's typelib as the roles were: the typelib carries the same enum
+    // as Atspi.RelationType, and dump-atspi-constants.py now prints it, so a run on the guest
+    // confirms these rather than replacing them. The enum is unnumbered, so each value is its
+    // position from ATSPI_RELATION_NULL at 0.
+    static final int RELATION_LABEL_FOR      = 1;    // ATSPI_RELATION_LABEL_FOR
+    static final int RELATION_LABELLED_BY    = 2;    // ATSPI_RELATION_LABELLED_BY
+    static final int RELATION_CONTROLLER_FOR = 3;    // ATSPI_RELATION_CONTROLLER_FOR
+    static final int RELATION_CONTROLLED_BY  = 4;    // ATSPI_RELATION_CONTROLLED_BY
+    static final int RELATION_MEMBER_OF      = 5;    // ATSPI_RELATION_MEMBER_OF
+    static final int RELATION_POPUP_FOR      = 15;   // ATSPI_RELATION_POPUP_FOR
+    static final int RELATION_DESCRIBED_BY   = 18;   // ATSPI_RELATION_DESCRIBED_BY
+
     // ---- AtspiCoordType / AtspiComponentLayer (typelib) -------------------------------------
     static final int COORD_SCREEN = 0, COORD_WINDOW = 1;
     static final int LAYER_WIDGET = 3, LAYER_WINDOW = 7;

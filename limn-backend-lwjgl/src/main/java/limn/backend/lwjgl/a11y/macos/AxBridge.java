@@ -264,6 +264,23 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         return elements.elementFor(tree().node(parent).id());
     }
 
+    @Override
+    public long[] linkedElementsOf(AccessibleNode node) {
+        AccessibleTree tree = tree();
+        List<Long> linked = new ArrayList<>();
+        for (var relation : node.relations()) {
+            int index = tree.indexOf(relation.target());
+            // The window root is not vended (§2.2), so a relation resolving to it has no element
+            // of ours to name; §1.11 drops that case before it reaches a bridge, and this is the
+            // same rule applied to a target that left the tree between publish and ask.
+            if (index <= 0) continue;
+            linked.add(elements.elementFor(relation.target()));
+        }
+        long[] answer = new long[linked.size()];
+        for (int i = 0; i < answer.length; i++) answer[i] = linked.get(i);
+        return answer;
+    }
+
     // ---- the publish path ------------------------------------------------------------------------
 
     /**

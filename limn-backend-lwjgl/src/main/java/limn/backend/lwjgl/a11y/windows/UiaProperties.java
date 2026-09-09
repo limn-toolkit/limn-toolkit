@@ -30,10 +30,40 @@ import limn.accessibility.RoleNames;
  * table, and that is a reading, not a guess. Until then each answers {@code VT_EMPTY}, which costs
  * a switch control the word "switch" and a heading the word "heading" — real losses, named here so
  * they are visible rather than discovered by a listener.
+ *
+ * <p><b>Three properties are elements and not values</b> -- {@code LabeledBy}, {@code DescribedBy}
+ * and {@code ControllerFor} -- and are answered by the provider from {@link #relatedNodes}, which
+ * is the decision, with the pointers minted there, which is not.
  */
 final class UiaProperties {
 
     private UiaProperties() {
+    }
+
+    /**
+     * The nodes at the other end of one kind of relation, in the order the node declared them:
+     * what {@code LabeledBy} (the first, alone), {@code DescribedBy} and {@code ControllerFor}
+     * (all, as an array) are answered with.
+     *
+     * @param node a node from the published tree
+     * @param kind the relation
+     * @return the target ids, empty when the node has none of that kind
+     */
+    static long[] relatedNodes(AccessibleNode node, Accessible.Relation kind) {
+        int count = 0;
+        for (var relation : node.relations()) {
+            if (relation.kind() == kind) {
+                count++;
+            }
+        }
+        long[] targets = new long[count];
+        int at = 0;
+        for (var relation : node.relations()) {
+            if (relation.kind() == kind) {
+                targets[at++] = relation.target();
+            }
+        }
+        return targets;
     }
 
     /**

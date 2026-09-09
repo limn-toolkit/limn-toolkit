@@ -400,6 +400,32 @@ final class UiaProvider {
         if (node == null) {
             return UiaIds.E_ELEMENT_NOT_AVAILABLE;
         }
+        // The element-valued properties, answered here because a provider pointer is what they
+        // carry and the decision layer mints none: LabeledBy is one element, DescribedBy and
+        // ControllerFor are arrays. Through the simple interface, which is the type the property
+        // declares (see Context.simpleElementFor). A node without the relation stays VT_EMPTY,
+        // which is the platform's default for all three.
+        if (propertyId == UiaIds.LABELED_BY) {
+            long[] labels = UiaProperties.relatedNodes(node,
+                    limn.accessibility.Accessible.Relation.LABELLED_BY);
+            if (labels.length > 0) {
+                UiaVariant.unknown(variant, 0, context.simpleElementFor(labels[0]));
+            }
+            return UiaIds.S_OK;
+        }
+        if (propertyId == UiaIds.DESCRIBED_BY || propertyId == UiaIds.CONTROLLER_FOR) {
+            long[] targets = UiaProperties.relatedNodes(node, propertyId == UiaIds.DESCRIBED_BY
+                    ? limn.accessibility.Accessible.Relation.DESCRIBED_BY
+                    : limn.accessibility.Accessible.Relation.CONTROLLER_FOR);
+            if (targets.length > 0) {
+                long[] pointers = new long[targets.length];
+                for (int i = 0; i < targets.length; i++) {
+                    pointers[i] = context.simpleElementFor(targets[i]);
+                }
+                UiaVariant.unknownArray(variant, 0, context.unknownArray(pointers));
+            }
+            return UiaIds.S_OK;
+        }
         Object value = UiaProperties.valueOf(node, propertyId);
         if (value instanceof Boolean flag) {
             UiaVariant.bool(variant, 0, flag);

@@ -2,6 +2,7 @@ package limn.backend.lwjgl.a11y.linux;
 
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
+import limn.accessibility.AccessibleRelation;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 
@@ -410,10 +411,37 @@ final class AtspiTree {
             case "GetInterfaces":
                 return DBus.Msg.ret(m, "as", interfacesOf(root, node));
             case "GetRelationSet":
-                return DBus.Msg.ret(m, "a(ua(so))", new ArrayList<>());
+                return DBus.Msg.ret(m, "a(ua(so))",
+                        root ? new ArrayList<>() : relationSetOf(tree, node));
             default:
                 return null;
         }
+    }
+
+    /**
+     * The node's relations as {@code a(ua(so))}: one entry per relation type this platform has a
+     * number for, holding every target of that type. A target is a node the same publish resolved,
+     * so it is on the bus under its own id; one that has since left the tree is skipped rather
+     * than named, because a path that answers {@code UnknownObject} is worse than no relation.
+     */
+    private List<Object> relationSetOf(AccessibleTree tree, AccessibleNode node) {
+        List<Object> out = new ArrayList<>();
+        if (node.relations().isEmpty()) {
+            return out;
+        }
+        Map<Integer, List<Object>> byType = new LinkedHashMap<>();
+        for (AccessibleRelation relation : node.relations()) {
+            Integer type = AtspiRelations.of(relation.kind());
+            if (type == null || tree.find(relation.target()) == null) {
+                continue;
+            }
+            byType.computeIfAbsent(type, k -> new ArrayList<>())
+                    .add(refOf(relation.target()).toStruct());
+        }
+        for (Map.Entry<Integer, List<Object>> entry : byType.entrySet()) {
+            out.add(new Object[] {entry.getKey(), entry.getValue()});
+        }
+        return out;
     }
 
     private static int roleOf(AccessibleNode node) {

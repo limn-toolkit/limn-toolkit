@@ -165,6 +165,18 @@ wiring anything. `setAccessibility` remains for an application installing its ow
 event queue, the element registry and the listening gate stayed apart on purpose — each platform has
 a different right answer, and a shared one would make a bridge lie.
 
+**Relations cross to every platform in that platform's own form.** A node's relations are the
+model's, resolved to published nodes before a bridge sees them (a target that was never
+published is dropped there, not here). On Linux they are the relation set, one entry per type in
+AT-SPI2's numbering (`AtspiRelations`); on Windows the three element-valued properties, a label
+as one element and a description or a controlled element as an array, each handed out through
+the simple interface the property declares; on macOS the general linked-elements attribute,
+because AppKit names no describing element as such and the description's text travels as help
+instead (`AxBridge` resolves the targets, `AxElementClass` vends the array). What every reader
+speaks is the same either way: the caption as the name and the message as the description are
+copied into the node by the walk, so the relations are for a client that wants the element
+itself.
+
 ### The constants rule
 
 **Every platform constant is read off the running platform and asserted in a test**, never recalled

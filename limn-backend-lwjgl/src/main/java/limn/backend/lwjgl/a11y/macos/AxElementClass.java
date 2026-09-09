@@ -64,6 +64,14 @@ final class AxElementClass {
         long parentElementOf(AccessibleNode node);
 
         /**
+         * @param node a node in the published tree
+         * @return the elements at the other end of every relation the node declares, minting any
+         *         that do not exist yet, and skipping a target that is the elided window root or
+         *         has left the tree; empty when the node declares none
+         */
+        long[] linkedElementsOf(AccessibleNode node);
+
+        /**
          * @return the element for the node that has the keyboard, or zero when nothing does
          */
         long focusedElement();
@@ -217,6 +225,19 @@ final class AxElementClass {
             return array;
         }));
         addId("accessibilityParent", get(source::parentElementOf));
+        // The one relation attribute this platform has for an element that is neither a parent
+        // nor a child, and the one whose encoding the dump records: every relation the node
+        // declares -- the caption that names it, the message that describes it, the control a
+        // popup opened for -- is a linked element. The text of a description travels separately,
+        // as accessibilityHelp above; AppKit has no attribute that names the describing element as
+        // such, so the link is what a client that wants the element itself follows.
+        addId("accessibilityLinkedUIElements", get(node -> {
+            long[] linked = source.linkedElementsOf(node);
+            if (linked.length == 0) return NULL;
+            long array = objc.mutableArray();
+            for (long element : linked) objc.addObject(array, element);
+            return array;
+        }));
 
         // Transparent and ignored widgets never become nodes, so everything vended here is an
         // element (§1.6). Answering false would make AppKit hoist a node's children over it.

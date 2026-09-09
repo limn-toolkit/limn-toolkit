@@ -57,6 +57,7 @@ class UiaProviderTest {
             new AtomicReference<>(AccessibleTree.EMPTY);
     private long host;
     private final List<int[]> patternsAsked = new ArrayList<>();
+    private final List<long[]> arraysMade = new ArrayList<>();
 
     private final UiaProvider.Context context = new UiaProvider.Context() {
         @Override
@@ -87,7 +88,8 @@ class UiaProviderTest {
 
         @Override
         public long unknownArray(long[] pointers) {
-            return 0;
+            arraysMade.add(pointers);
+            return 0xA77A0000L + pointers.length;
         }
 
         @Override
@@ -97,7 +99,9 @@ class UiaProviderTest {
 
         @Override
         public long simpleElementFor(long nodeId) {
-            return elementFor(nodeId);
+            // A stand-in pointer that names the node, so a test can see which node an
+            // element-valued property was answered with and through which interface.
+            return 0xE1E00000L + nodeId;
         }
 
         @Override
@@ -139,6 +143,42 @@ class UiaProviderTest {
         a.inherited(true, true, true, true, false);
         a.end();
         a.end();
+        published.set(a.publish(0, 0, 0, 1f, true));
+    }
+
+    /**
+     * A window holding a caption, a field the caption names, and a message beneath the field that
+     * describes it, with the relations resolved the way the walk resolves them: to node ids.
+     */
+    private void publishAWindowWithALabelledAndDescribedField() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        a.begin(3001, 0, Locale.ENGLISH, 0, 0, 400, 20);
+        a.role(Accessible.Role.LABEL);
+        a.name(I18nString.literal("Email"), Accessible.NameFrom.CONTENT);
+        a.relation(Accessible.Relation.LABEL_FOR, 3002L);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.begin(3002, 0, Locale.ENGLISH, 0, 20, 400, 32);
+        a.role(Accessible.Role.TEXT_FIELD);
+        a.name(I18nString.literal("Email"), Accessible.NameFrom.LABEL);
+        a.description(I18nString.literal("Enter an address like ada@example.com"));
+        a.relation(Accessible.Relation.LABELLED_BY, 3001L);
+        a.relation(Accessible.Relation.DESCRIBED_BY, 3003L);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(3003, 0, Locale.ENGLISH, 0, 52, 400, 20);
+        a.role(Accessible.Role.LABEL);
+        a.name(I18nString.literal("Enter an address like ada@example.com"),
+                Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.resolveRelations(target -> (Long) target);
         published.set(a.publish(0, 0, 0, 1f, true));
     }
 
@@ -221,6 +261,46 @@ class UiaProviderTest {
             callWithId(element, GET_PROPERTY_VALUE, UiaIds.IS_OFFSCREEN, out);
             assertEquals((short) 0, variant.getShort(UiaVariant.PAYLOAD),
                     "and this one is showing");
+        } finally {
+            MemoryUtil.nmemFree(out);
+        }
+    }
+
+    /**
+     * The three element-valued properties: a caption as one element, a message as an array of one,
+     * each through the simple interface the property declares, and nothing for a node that
+     * declares no such relation -- the platform's own default for all three.
+     */
+    @Test
+    void aFieldsLabelAndDescriptionArriveAsElementsThroughTheSimpleInterface() {
+        publishAWindowWithALabelledAndDescribedField();
+        long field = elementFor(3002);
+        long out = MemoryUtil.nmemAllocChecked(UiaVariant.SIZE);
+        ByteBuffer variant = MemoryUtil.memByteBuffer(out, UiaVariant.SIZE);
+        try {
+            assertEquals(UiaIds.S_OK, callWithId(field, GET_PROPERTY_VALUE, UiaIds.LABELED_BY, out));
+            assertEquals(UiaVariant.VT_UNKNOWN, UiaVariant.tagOf(variant, 0));
+            assertEquals(0xE1E00000L + 3001, variant.getLong(UiaVariant.PAYLOAD),
+                    "the caption's own element, through the simple interface");
+
+            assertEquals(UiaIds.S_OK, callWithId(field, GET_PROPERTY_VALUE, UiaIds.DESCRIBED_BY, out));
+            assertEquals((short) (UiaVariant.VT_ARRAY | UiaVariant.VT_UNKNOWN),
+                    UiaVariant.tagOf(variant, 0), "an array, which is what the property declares");
+            assertEquals(0xA77A0000L + 1, variant.getLong(UiaVariant.PAYLOAD));
+            assertEquals(1, arraysMade.size());
+            assertEquals(0xE1E00000L + 3003, arraysMade.get(0)[0],
+                    "holding the message's element, referenced for the array");
+
+            assertEquals(UiaIds.S_OK, callWithId(field, GET_PROPERTY_VALUE, UiaIds.CONTROLLER_FOR, out));
+            assertEquals(UiaVariant.VT_EMPTY, UiaVariant.tagOf(variant, 0),
+                    "a relation the node does not declare is the platform's empty default");
+
+            long message = elementFor(3003);
+            assertEquals(UiaIds.S_OK, callWithId(message, GET_PROPERTY_VALUE, UiaIds.LABELED_BY, out));
+            assertEquals(UiaVariant.VT_EMPTY, UiaVariant.tagOf(variant, 0));
+            assertEquals(UiaIds.S_OK, callWithId(message, GET_PROPERTY_VALUE, UiaIds.DESCRIBED_BY, out));
+            assertEquals(UiaVariant.VT_EMPTY, UiaVariant.tagOf(variant, 0));
+            assertEquals(1, arraysMade.size(), "and no empty array was minted for it");
         } finally {
             MemoryUtil.nmemFree(out);
         }

@@ -101,6 +101,65 @@ class AxBridgeTest {
         assertTrue(bridge.isListening());
     }
 
+    /** The nested window, with the group's first button labelled by and described by its siblings. */
+    private static AccessibleTree aNestedWindowWithRelations() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(480, 320, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 20, 60, 200, 200);
+        a.role(Accessible.Role.GROUP);
+        a.name(I18nString.literal("A group"), Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, false, false);
+        a.begin(1002, 1, Locale.ENGLISH, 40, 96, 160, 40);
+        a.role(Accessible.Role.LABEL);
+        a.name(I18nString.literal("Email"), Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.begin(1003, 1, Locale.ENGLISH, 40, 136, 160, 40);
+        a.role(Accessible.Role.TEXT_FIELD);
+        a.name(I18nString.literal("Email"), Accessible.NameFrom.LABEL);
+        a.relation(Accessible.Relation.LABELLED_BY, 1002L);
+        a.relation(Accessible.Relation.DESCRIBED_BY, 1004L);
+        a.relation(Accessible.Relation.POPUP_FOR, 1000L);  // the elided window root: not vended
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(1004, 1, Locale.ENGLISH, 40, 176, 160, 40);
+        a.role(Accessible.Role.LABEL);
+        a.name(I18nString.literal("Enter an address"), Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.end();
+        a.resolveRelations(target -> (Long) target);
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    /**
+     * What {@code accessibilityLinkedUIElements} answers: every relation's target as an element,
+     * minted on the ask like a child is, and never the window root, which AppKit vends itself.
+     */
+    @Test
+    void aNodesRelationsAreItsLinkedElementsMintedOnTheAsk() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindowWithRelations();
+        bridge.publish(tree, false);
+        assertEquals(1, bridge.elementCount(), "only the pushed level exists before anyone asks");
+
+        long[] linked = bridge.linkedElementsOf(tree.find(1003));
+        assertEquals(2, linked.length,
+                "the caption and the message; the relation to the window root names no element of ours");
+        assertEquals(3, bridge.elementCount(), "both were minted by the ask");
+        long[] kids = bridge.childElementsOf(tree.find(1001));
+        assertEquals(kids[0], linked[0], "the caption's element is the one the group vends for it");
+        assertEquals(kids[2], linked[1], "and so is the message's");
+
+        assertEquals(0, bridge.linkedElementsOf(tree.find(1004)).length,
+                "a node that declares no relation links to nothing");
+    }
+
     @Test
     void theWindowRootIsNotVendedAndItsChildrenAreWhatGetsPushed() {
         AxBridge bridge = AxBridge.withoutThePlatform();

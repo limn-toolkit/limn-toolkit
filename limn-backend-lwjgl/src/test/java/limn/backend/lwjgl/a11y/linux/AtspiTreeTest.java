@@ -127,6 +127,42 @@ class AtspiTreeTest {
         tree.set(a.publish(0, 200, 100, 2f, true));
     }
 
+    /**
+     * A window holding a caption, a field the caption names, and a message beneath the field that
+     * describes it, with the two relations resolved the way the walk resolves them: to node ids.
+     */
+    private void publishAWindowWithALabelledAndDescribedField() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        a.begin(3001, 0, Locale.ENGLISH, 0, 0, 400, 20);
+        a.role(Accessible.Role.LABEL);
+        a.name(I18nString.literal("Email"), Accessible.NameFrom.CONTENT);
+        a.relation(Accessible.Relation.LABEL_FOR, 3002L);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.begin(3002, 0, Locale.ENGLISH, 0, 20, 400, 32);
+        a.role(Accessible.Role.TEXT_FIELD);
+        a.name(I18nString.literal("Email"), Accessible.NameFrom.LABEL);
+        a.description(I18nString.literal("Enter an address like ada@example.com"));
+        a.relation(Accessible.Relation.LABELLED_BY, 3001L);
+        a.relation(Accessible.Relation.DESCRIBED_BY, 3003L);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(3003, 0, Locale.ENGLISH, 0, 52, 400, 20);
+        a.role(Accessible.Role.LABEL);
+        a.name(I18nString.literal("Enter an address like ada@example.com"),
+                Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.resolveRelations(target -> (Long) target);
+        tree.set(a.publish(0, 200, 100, 2f, true));
+    }
+
     private static String path(long id) {
         return "/org/a11y/atspi/accessible/" + id;
     }
@@ -170,6 +206,38 @@ class AtspiTreeTest {
         DBus.Msg headers = call(path(2212), Atspi.I_TABLE_CELL, "GetColumnHeaderCells", null);
         Object[] first = (Object[]) ((List<?>) headers.body[0]).get(0);
         assertEquals(path(2102), first[1], "the cell's column header is the header group's child");
+    }
+
+    /**
+     * The relation set, one entry per type with every target of that type, in the platform's own
+     * numbering: what Orca reads a field's label and its description from when it lands on it.
+     */
+    @Test
+    void aFieldsRelationsArriveAsATypedSetOfObjectReferences() {
+        publishAWindowWithALabelledAndDescribedField();
+
+        DBus.Msg set = call(path(3002), Atspi.I_ACCESSIBLE, "GetRelationSet", null);
+        assertEquals("a(ua(so))", set.signature);
+        List<?> entries = (List<?>) set.body[0];
+        assertEquals(2, entries.size(), "one entry per relation type the field declares");
+        Object[] labelled = (Object[]) entries.get(0);
+        assertEquals(Atspi.RELATION_LABELLED_BY, labelled[0]);
+        assertEquals(path(3001), DBus.Ref.of(((List<?>) labelled[1]).get(0)).path,
+                "the caption's own object, so a client may read either");
+        Object[] described = (Object[]) entries.get(1);
+        assertEquals(Atspi.RELATION_DESCRIBED_BY, described[0]);
+        assertEquals(path(3003), DBus.Ref.of(((List<?>) described[1]).get(0)).path,
+                "and the message beneath the field, which the description already copied");
+
+        DBus.Msg mirror = call(path(3001), Atspi.I_ACCESSIBLE, "GetRelationSet", null);
+        Object[] labelFor = (Object[]) ((List<?>) mirror.body[0]).get(0);
+        assertEquals(Atspi.RELATION_LABEL_FOR, labelFor[0]);
+        assertEquals(path(3002), DBus.Ref.of(((List<?>) labelFor[1]).get(0)).path);
+
+        DBus.Msg none = call(path(3003), Atspi.I_ACCESSIBLE, "GetRelationSet", null);
+        assertEquals(List.of(), none.body[0], "a node with no relations answers an empty set");
+        DBus.Msg root = call(Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetRelationSet", null);
+        assertEquals(List.of(), root.body[0], "and so does the application object");
     }
 
     private DBus.Msg call(String path, String iface, String member, String sig, Object... args) {

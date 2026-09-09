@@ -47,6 +47,18 @@ class AtspiConstantsTest {
     }
 
     @Test
+    void everyRelationTheToolkitPublishesHasANumber() {
+        Set<String> missing = EnumSet.allOf(Accessible.Relation.class).stream()
+                .filter(relation -> AtspiRelations.of(relation) == null)
+                .map(Enum::name)
+                .collect(Collectors.toCollection(TreeSet::new));
+
+        assertEquals(Set.of(), missing,
+                "a relation with no number is dropped from every relation set in silence; read "
+                        + "it from the AtspiRelationType enum and confirm it with the dump script");
+    }
+
+    @Test
     void everyStateIsEitherABitOrOnTheListOfWhatThisPlatformCarriesOtherwise() {
         Set<String> unmapped = EnumSet.allOf(Accessible.State.class).stream()
                 .filter(state -> AtspiStates.bitOf(state) == null)

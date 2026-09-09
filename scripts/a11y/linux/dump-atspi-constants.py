@@ -51,6 +51,15 @@ STATES = [
     ("HORIZONTAL", "HORIZONTAL"), ("VERTICAL", "VERTICAL"),
 ]
 
+# The relations the toolkit publishes, paired with the AtspiRelationType enumerator each maps
+# to. Atspi.java carries these read from the enum's declaration in atspi-constants.h at the
+# guest's release; this prints what the guest's own typelib says, which must agree.
+RELATIONS = [
+    ("LABELLED_BY", "LABELLED_BY"), ("LABEL_FOR", "LABEL_FOR"), ("DESCRIBED_BY", "DESCRIBED_BY"),
+    ("CONTROLLER_FOR", "CONTROLLER_FOR"), ("CONTROLLED_BY", "CONTROLLED_BY"),
+    ("MEMBER_OF", "MEMBER_OF"), ("POPUP_FOR", "POPUP_FOR"),
+]
+
 
 def dump(title, pairs, enum, kind):
     print("// ---- %s, read from this machine's typelib ----" % title)
@@ -72,6 +81,8 @@ def main():
     dump("roles", ROLES, Atspi.Role, "Role")
     print()
     dump("states", STATES, Atspi.StateType, "State")
+    print()
+    dump("relations", RELATIONS, Atspi.RelationType, "Relation")
     if "--all" in sys.argv:
         print("\n# every enumerator this machine has")
         for name in sorted(dir(Atspi.Role)):
@@ -80,6 +91,9 @@ def main():
         for name in sorted(dir(Atspi.StateType)):
             if name.isupper():
                 print("State.%-23s %s" % (name, int(getattr(Atspi.StateType, name))))
+        for name in sorted(dir(Atspi.RelationType)):
+            if name.isupper():
+                print("Relation.%-20s %s" % (name, int(getattr(Atspi.RelationType, name))))
 
 
 if __name__ == "__main__":

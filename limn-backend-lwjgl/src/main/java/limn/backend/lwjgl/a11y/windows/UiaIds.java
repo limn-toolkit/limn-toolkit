@@ -129,6 +129,17 @@ final class UiaIds {
     static final int TRANSFORM_CAN_RESIZE = 30088;
     static final int TRANSFORM_CAN_ROTATE = 30089;
     static final int CONTROLLER_FOR = 30104;
+    /**
+     * The one identifier here that the guest's interop assemblies could not supply: the managed
+     * {@code AutomationElementIdentifiers} has no {@code DescribedBy}, so the dump script never
+     * sees it. Read 2026-09-09 from the platform's own header as Microsoft documents it,
+     * {@code UIAutomationClient.h} on learn.microsoft.com (uiauto-automation-element-propids),
+     * which lists {@code UIA_DescribedByPropertyId} beside {@code UIA_ControllerForPropertyId}
+     * at 30104 and {@code UIA_FlowsToPropertyId} at 30106 -- both of which the assemblies do
+     * carry and agree with. The value's variant type for a provider is
+     * {@code VT_UNKNOWN | VT_ARRAY}, the same as ControllerFor.
+     */
+    static final int DESCRIBED_BY = 30105;
     static final int IS_ITEM_CONTAINER_PATTERN_AVAILABLE = 30108;
     static final int IS_VIRTUALIZED_ITEM_PATTERN_AVAILABLE = 30109;
     static final int IS_SYNCHRONIZED_INPUT_PATTERN_AVAILABLE = 30110;
