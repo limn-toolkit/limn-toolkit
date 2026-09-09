@@ -14,9 +14,11 @@ import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
 import limn.scene.Size;
+import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
@@ -68,8 +70,7 @@ public class Checkbox extends Widget {
     private final Variant variant;
     private I18nString text;
     private boolean checked;
-    private Consumer<Boolean> onChange = value -> {
-    };
+    private Consumer<Boolean> onChange;
     /** 0 = unchecked visual, 1 = checked visual; eased toward the state. */
     private final Transition progress =
             new Transition(this, 0).duration(Theme.current().animFade).easing(Easing.LINEAR);
@@ -96,11 +97,31 @@ public class Checkbox extends Widget {
         setCursor(Cursor.POINTER);
     }
 
-    /** Called with the new state on user toggles only, not on {@link #setChecked}. */
+    /**
+     * The application's response to the user toggling the box: a click, Space, Enter or an
+     * assistive technology's toggle. Never for {@link #setChecked} or {@link #toggle()}, which
+     * are a caller's writes; to hear every flip whatever caused it, {@linkplain #observeChanges
+     * watch} the checkbox instead.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this checkbox
+     * @throws IllegalStateException if a handler is already registered
+     */
     public Checkbox onChange(Consumer<Boolean> listener) {
         Ui.checkUiThread();
-        this.onChange = Objects.requireNonNull(listener, "listener");
+        this.onChange = Checks.handlerSlot(onChange, listener, "Checkbox.onChange");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.VALUE) {
+            if (onChange != null) {
+                onChange.accept(checked);
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
     }
 
     /**
@@ -127,34 +148,42 @@ public class Checkbox extends Widget {
         return checked;
     }
 
-    /** Sets the state, animating the visual transition. */
+    /**
+     * Sets the state, animating the visual transition. Announces {@code VALUE}/{@code CODE} when
+     * it moved, and reaches no handler.
+     */
     public Checkbox setChecked(boolean newChecked) {
         Ui.checkUiThread();
-        if (checked == newChecked) {
-            return this;
-        }
-        checked = newChecked;
-        progress.to(checked ? 1 : 0); // eases (or snaps, when detached/headless)
-        invalidate();
+        apply(newChecked, Change.Origin.CODE);
         return this;
     }
 
+    /** The one seam every flip goes through; announces only when the state moved. */
+    private void apply(boolean value, Change.Origin origin) {
+        if (checked == value) {
+            return;
+        }
+        checked = value;
+        progress.to(checked ? 1 : 0); // eases (or snaps, when detached/headless)
+        invalidate();
+        notifyChange(Change.of(Change.Aspect.VALUE, origin));
+    }
+
     /**
-     * Flips the state and fires {@link #onChange}, as a click does. Does nothing on a disabled
-     * checkbox. UI thread only.
-     *
-     * <p>The guard is new and it is defence in depth rather than the mechanism: the reason a
-     * disabled checkbox did not toggle was that the scene never delivers it an event, which is
-     * true of a click and not of a public method. A method that flips a disabled control and fires
-     * the application's handler is a defect with or without an assistive technology asking it to.
+     * Flips the state: a {@code CODE} write spelled as a verb, exactly like {@link #setChecked},
+     * so it announces {@code VALUE}/{@code CODE} and reaches no handler. It carries no enabled
+     * guard for the same reason {@code setChecked} carries none: a write may move a disabled
+     * widget's state and always could, and the entry point a gesture or an assistive technology
+     * reaches is guarded already. UI thread only.
      */
     public void toggle() {
         Ui.checkUiThread();
-        if (!isEnabled()) {
-            return;
-        }
-        setChecked(!checked);
-        onChange.accept(checked);
+        apply(!checked, Change.Origin.CODE);
+    }
+
+    /** A gesture flipping the box: the click, the key and the reader's toggle all land here. */
+    private void toggleFromUser() {
+        apply(!checked, Change.Origin.USER);
     }
 
     float animationProgress() {
@@ -387,10 +416,10 @@ public class Checkbox extends Widget {
 
     /**
      * Performs a toggle an assistive technology asked for, exactly as a click or a Space press
-     * does: through {@link #toggle()}, so the application's {@link #onChange} handler is notified
-     * the same way, and never through {@link #setChecked}, which is the silent path. Any other
-     * verb is refused, and so is a toggle while this widget is disabled; {@code toggle()} refuses
-     * that case too but returns nothing, and the answer here has to be truthful.
+     * does: through the from-the-user seam, so the application's {@link #onChange} handler is
+     * notified the same way, and never through {@link #setChecked} or {@link #toggle()}, which
+     * are a caller's writes. Any other verb is refused, and so is a toggle while this widget is
+     * disabled, because the answer here has to be truthful.
      *
      * <p>The state change that results is what a reader hears: the flip invalidates, the next
      * frame republishes, and the difference raises the checked-state event on this node. No
@@ -405,7 +434,7 @@ public class Checkbox extends Widget {
         if (action != Accessible.Action.TOGGLE || !isEnabled()) {
             return false;
         }
-        toggle();
+        toggleFromUser();
         return true;
     }
 
@@ -418,7 +447,7 @@ public class Checkbox extends Widget {
             case CLICK -> {
                 if (event.button() == Keys.MOUSE_LEFT) {
                     event.consume();
-                    toggle();
+                    toggleFromUser();
                 }
             }
             default -> {
@@ -431,7 +460,7 @@ public class Checkbox extends Widget {
         if ((event.key() == Keys.SPACE || event.key() == Keys.ENTER)
                 && event.isPressed() && !event.isRepeat()) {
             event.consume();
-            toggle();
+            toggleFromUser();
         }
     }
 

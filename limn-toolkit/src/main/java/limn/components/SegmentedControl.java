@@ -13,16 +13,18 @@ import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
 import limn.scene.Size;
+import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * A row of connected segments with a single selection, a compact alternative to
@@ -71,8 +73,7 @@ public class SegmentedControl extends Widget {
     private final List<I18nString> segments;
     private int selected;
     private int hoverIndex = -1;
-    private Consumer<Integer> onSelect = index -> {
-    };
+    private IntConsumer onSelect;
     // The selected indicator slides by animating its two x edges (snap on first layout).
     private final Transition indicatorLeft =
             new Transition(this).duration(Theme.current().animTab).easing(Theme.current().animEasing);
@@ -184,10 +185,21 @@ public class SegmentedControl extends Widget {
      * Called with the chosen index whenever the selection changes: a click, an arrow key and a
      * {@link #setSelectedIndex} from code all arrive here.
      */
-    public SegmentedControl onSelect(Consumer<Integer> listener) {
+    public SegmentedControl onSelect(IntConsumer listener) {
         Ui.checkUiThread();
-        this.onSelect = Objects.requireNonNull(listener, "listener");
+        this.onSelect = Checks.handlerSlot(onSelect, listener, "SegmentedControl.onSelect");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.SELECTION) {
+            if (onSelect != null) {
+                onSelect.accept(selected);
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
     }
 
     /**
@@ -212,16 +224,27 @@ public class SegmentedControl extends Widget {
     public SegmentedControl setSelectedIndex(int index) {
         Ui.checkUiThread();
         Objects.checkIndex(index, segments.size());
+        select(index, Change.Origin.CODE);
+        return this;
+    }
+
+    /**
+     * The one seam every selection goes through: the public setter passes {@code CODE}, and a
+     * click, an arrow key and an assistive technology's select pass {@code USER} through
+     * {@link #choose}. Announces {@code SELECTION} after the layout mark, so a watcher reads the
+     * new index against the bounds and the indicator of the previous pass; the geometry is a
+     * pass behind by design.
+     */
+    private void select(int index, Change.Origin origin) {
         // Revealed even when the selection did not change: a caller re-selecting the current
         // segment is asking to be shown it, and it may well be scrolled out of sight.
         revealPending = index;
         markNeedsLayout(); // re-target the indicator, and apply the reveal
         if (index == selected) {
-            return this;
+            return;
         }
         selected = index;
-        onSelect.accept(selected);
-        return this;
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
     /**
@@ -229,8 +252,9 @@ public class SegmentedControl extends Widget {
      * run off both ends, which is a key with nowhere to go rather than a caller's bad index;
      * hence clamped here and refused in the public setter.
      */
+    /** A gesture choosing a segment: clamped, because arrowing past an end lands on the end. */
     private void choose(int index) {
-        setSelectedIndex(Math.max(0, Math.min(index, segments.size() - 1)));
+        select(Math.max(0, Math.min(index, segments.size() - 1)), Change.Origin.USER);
     }
 
     // Cumulative segment edges from the current label widths. Takes the row AND the neutral base
@@ -728,8 +752,8 @@ public class SegmentedControl extends Widget {
      *
      * <p>A select reaches {@link #choose}, which is literally what the click branch calls, so an
      * assistive technology's select clamps the same way, reveals the same way and fires
-     * {@link #onSelect} through {@link #setSelectedIndex} exactly as a click does — including the
-     * early return that changes nothing and fires nothing when the segment was already selected.
+     * {@link #onSelect} through the same {@code USER} seam a click does — including the early
+     * return that changes nothing and fires nothing when the segment was already selected.
      * Re-selecting the current segment is still accepted, because it still reveals, which is the
      * answer the pointer gets there.
      *

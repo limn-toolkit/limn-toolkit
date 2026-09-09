@@ -1,17 +1,27 @@
 package limn.components;
 
 import limn.concurrent.Ui;
+import limn.lang.Checks;
+import limn.scene.Change;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Coordinates a set of {@link RadioButton}s so that exactly one is selected at a
- * time. Selecting a member deselects the previous one (each radio's own
- * {@code onChange} fires for both the leaving and the entering member) and fires
- * the group's {@link #onSelect} with the new index.
+ * time. Selecting a member deselects the previous one; when the <em>user</em> did the selecting
+ * each radio's own {@code onChange} fires for both the leaving and the entering member and then
+ * the group's {@link #onSelect} fires with the new index, and when code did it none of the three
+ * handlers runs -- the two members announce their {@code VALUE} to their watchers either way.
+ *
+ * <p><b>A group is not a widget, so it announces nothing of its own.</b> It has no box, no
+ * parent and no scene, so there is no node a watcher could attach its change to; the change
+ * reaches the channel entire through the two members, which are widgets: the leaver's
+ * {@code VALUE} and then the enterer's, both carrying the origin of whatever entered the swap,
+ * and only then either member's handler. The whole swap settles before the first announcement,
+ * because a half-swapped group is unreadable.
  *
  * <p><b>A group is one tab stop, not one per radio.</b> Only the selected member (or the first
  * enabled one, before anything is selected) can take focus, and the arrow keys move the
@@ -23,8 +33,7 @@ import java.util.function.Consumer;
 public final class ButtonGroup {
 
     private final List<RadioButton> members = new ArrayList<>();
-    private Consumer<Integer> onSelect = index -> {
-    };
+    private IntConsumer onSelect;
     private RadioButton current;
 
     /**
@@ -56,13 +65,19 @@ public final class ButtonGroup {
     }
 
     /**
-     * Called with the index of the newly selected radio, or with {@code -1} when
-     * {@link #clearSelection()} empties the group. A click, an arrow key and a
-     * {@link #setSelectedIndex} from code all arrive here.
+     * The application's response to the user choosing a member: called with its index after a
+     * click, an arrow key or an assistive technology's select, once both members' own handlers
+     * have run. Never for {@link #setSelectedIndex}, {@link #clearSelection()} or a member's
+     * {@link RadioButton#select()}, which are a caller's writes; to hear every change whatever
+     * caused it, {@linkplain RadioButton#observeChanges watch} the members.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this group
+     * @throws IllegalStateException if a handler is already registered
      */
-    public ButtonGroup onSelect(Consumer<Integer> listener) {
+    public ButtonGroup onSelect(IntConsumer listener) {
         Ui.checkUiThread();
-        this.onSelect = Objects.requireNonNull(listener, "listener");
+        this.onSelect = Checks.handlerSlot(onSelect, listener, "ButtonGroup.onSelect");
         return this;
     }
 
@@ -86,10 +101,9 @@ public final class ButtonGroup {
     }
 
     /**
-     * Selects the member at {@code index} and fires {@link #onSelect}; code, a click and an arrow
-     * key take the same path, so a listener sees every change either way. Selecting the member
-     * that is already selected changes nothing and fires nothing; that early return is what keeps
-     * two controls bound to each other from recursing, so do not remove it. UI thread only.
+     * Selects the member at {@code index}: a caller's write, so both members announce
+     * {@code VALUE}/{@code CODE} and no handler runs. Selecting the member that is already
+     * selected changes nothing and announces nothing. UI thread only.
      *
      * @param index a member in {@code [0, memberCount)}, in the order they were added
      * @throws IndexOutOfBoundsException if {@code index} is not a member; a group with no members
@@ -99,15 +113,15 @@ public final class ButtonGroup {
     public ButtonGroup setSelectedIndex(int index) {
         Ui.checkUiThread();
         Objects.checkIndex(index, members.size());
-        members.get(index).select();
+        members.get(index).select(Change.Origin.CODE);
         return this;
     }
 
     /**
      * Puts the group back in the state it had before anything was selected:
-     * {@link #selectedIndex()} reports {@code -1}, the leaving member's own {@code onChange} fires
-     * with {@code false}, and {@link #onSelect} fires with {@code -1}. No-op when nothing is
-     * selected. UI thread only.
+     * {@link #selectedIndex()} reports {@code -1} and the leaving member announces
+     * {@code VALUE}/{@code CODE}; no handler runs, because a caller emptied the group. No-op when
+     * nothing is selected. UI thread only.
      *
      * <p>A radio group is one choice out of many and offers no way to un-choose from the keyboard
      * or the mouse: this is the reset a form needs, and the only route back.
@@ -120,9 +134,8 @@ public final class ButtonGroup {
         RadioButton previous = current;
         current = null;
         previous.setSelectedSilently(false);
-        previous.fireChange(false);
         applyRovingFocus();
-        onSelect.accept(-1);
+        previous.announceSelection(Change.Origin.CODE);
         return this;
     }
 
@@ -143,14 +156,23 @@ public final class ButtonGroup {
         return members.size();
     }
 
-    // Called by RadioButton.setEnabled(): the holder is chosen among the enabled members, so a
-    // flag moving on any member can move it, and the group hears about that from nowhere else.
+    // Called by a member watching its own ENABLED: the holder is chosen among the enabled
+    // members, so a flag moving on any member can move it, and the group hears about that from
+    // nowhere else.
     void memberEnabledChanged(RadioButton member) {
         applyRovingFocus();
     }
 
-    // Called by RadioButton.select(): swap the selection and notify.
-    void select(RadioButton radio) {
+    /**
+     * Called by {@link RadioButton#select(Change.Origin)}: the whole swap, in the one order that
+     * is readable. Both flags, {@code current}, the roving focus and the focus that follows a
+     * focused leaver settle first; then the leaver announces its {@code VALUE} and the enterer
+     * announces its own; then, and only for {@code USER}, the leaver's handler, the enterer's
+     * handler and this group's {@link #onSelect}, in that order. The two member handlers need no
+     * origin test, because the handler half is a no-op at any other origin; the group's own slot
+     * needs one, because it is a plain field and no base class holds the rule for it.
+     */
+    void select(RadioButton radio, Change.Origin origin) {
         if (current == radio) {
             return;
         }
@@ -158,17 +180,25 @@ public final class ButtonGroup {
         current = radio;
         if (previous != null) {
             previous.setSelectedSilently(false);
-            previous.fireChange(false);
         }
         radio.setSelectedSilently(true);
-        radio.fireChange(true);
         applyRovingFocus();
         // Focus follows the selection out of a focused member, and only then: a group selected
         // from code while the user is typing somewhere else must not steal the caret.
         if (previous != null && previous.isFocused()) {
-            radio.requestFocus();
+            radio.focusFrom(origin);
         }
-        onSelect.accept(members.indexOf(radio));
+        if (previous != null) {
+            previous.announceSelection(origin);
+        }
+        radio.announceSelection(origin);
+        if (previous != null) {
+            previous.runSelectionHandler(origin);
+        }
+        radio.runSelectionHandler(origin);
+        if (origin == Change.Origin.USER && onSelect != null) {
+            onSelect.accept(members.indexOf(radio));
+        }
     }
 
     /**
@@ -184,11 +214,13 @@ public final class ButtonGroup {
             RadioButton candidate = members.get(
                     Math.floorMod(start + step * hop, members.size()));
             if (candidate.isEnabled()) {
-                // requestFocus before select: select() only moves focus when the OLD member had
-                // it, and a group arrowed into from a click on a label may have none of it yet.
+                // Focus before select: the swap only moves focus when the OLD member had it, and
+                // a group arrowed into from a click on a label may have none of it yet. Both are
+                // the user's: an arrow key is the gesture a radio group exists for, and reading
+                // the public methods here would label it code.
                 candidate.setFocusable(true);
-                candidate.requestFocus();
-                candidate.select();
+                candidate.focusFrom(Change.Origin.USER);
+                candidate.select(Change.Origin.USER);
                 return;
             }
         }

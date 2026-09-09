@@ -17,19 +17,21 @@ import limn.graphics.Path2D;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Scrollable;
 import limn.scene.Size;
+import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Dropdown selector. The popup is a real native window: undecorated,
@@ -86,8 +88,7 @@ public class ComboBox extends Widget {
             new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
     private final Transition focusFade =
             new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
-    private Consumer<Integer> onSelect = index -> {
-    };
+    private IntConsumer onSelect;
 
     /** Reused each paint; the caret's 3 points are recomputed from the size. */
     private final Path2D caret = new Path2D();
@@ -161,13 +162,30 @@ public class ComboBox extends Widget {
     // ------------------------------------------------------------------- API
 
     /**
-     * Called with the chosen index whenever the selection changes: a pick from the popup and a
-     * {@link #setSelectedIndex} from code both arrive here.
+     * The application's response to the user picking an item: a click on a row, Enter on the
+     * highlight, an assistive technology's select. Never for {@link #setSelectedIndex}, which is
+     * a caller's write; to hear every change whatever caused it, {@linkplain #observeChanges
+     * watch} the combo instead.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this combo
+     * @throws IllegalStateException if a handler is already registered
      */
-    public ComboBox onSelect(Consumer<Integer> listener) {
+    public ComboBox onSelect(IntConsumer listener) {
         Ui.checkUiThread();
-        this.onSelect = Objects.requireNonNull(listener, "listener");
+        this.onSelect = Checks.handlerSlot(onSelect, listener, "ComboBox.onSelect");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.SELECTION) {
+            if (onSelect != null) {
+                onSelect.accept(selectedIndex);
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
     }
 
     /**
@@ -184,10 +202,9 @@ public class ComboBox extends Widget {
     }
 
     /**
-     * Selects an item and fires {@link #onSelect}; code and a pick from the popup take the same
-     * path, so a listener sees every change either way. Selecting what is already selected changes
-     * nothing and fires nothing; that early return is what keeps two controls bound to each other
-     * from recursing, so do not remove it. UI thread only.
+     * Selects an item: a caller's write, so it announces {@code SELECTION}/{@code CODE} and
+     * reaches no handler. Selecting what is already selected changes nothing and announces
+     * nothing. UI thread only.
      *
      * @param index an item in {@code [0, itemCount)}
      * @throws IndexOutOfBoundsException if {@code index} is not an item; an index computed from a
@@ -196,13 +213,22 @@ public class ComboBox extends Widget {
     public ComboBox setSelectedIndex(int index) {
         Ui.checkUiThread();
         Objects.checkIndex(index, items.size());
+        select(index, Change.Origin.CODE);
+        return this;
+    }
+
+    /**
+     * The one seam every selection goes through: the public setter passes {@code CODE}, and a
+     * pick from the popup, the Enter/Space path and an assistive technology's select pass
+     * {@code USER} through {@link #commit}. Announces only when the index moved.
+     */
+    private void select(int index, Change.Origin origin) {
         if (index == selectedIndex) {
-            return this;
+            return;
         }
         selectedIndex = index;
         invalidate();
-        onSelect.accept(selectedIndex);
-        return this;
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
     /** Whether the popup is showing. */
@@ -226,18 +252,32 @@ public class ComboBox extends Widget {
 
     // ------------------------------------------------------------ open/close
 
-    /** Opens the popup (native window when bound; pure state when headless). */
+    /**
+     * Opens the popup (native window when bound; pure state when headless). Announces
+     * {@code EXPANDED}/{@code CODE}; the click, the keys and an assistive technology's expand
+     * announce it as {@code USER} through the same seam.
+     */
     public void open() {
+        open(Change.Origin.CODE);
+    }
+
+    private void open(Change.Origin origin) {
         Ui.checkUiThread();
         if (open) {
             return;
         }
         open = true;
+        boolean highlightMoved = highlightedIndex != selectedIndex;
         highlightedIndex = selectedIndex;
         typeAhead.setLength(0); // a new list is a new word, however recently the last one was typed
         invalidate();
+        if (highlightMoved) {
+            // The highlight snapping back to the selection is a consequence of opening.
+            notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.ADJUSTMENT));
+        }
         Scene scene = scene();
         if (scene == null) {
+            notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
             return;
         }
         // A press in another window/app never reaches observePresses: dismiss on OS focus loss
@@ -255,7 +295,7 @@ public class ComboBox extends Widget {
         // that was choosing an item.
         dismissHandle = scene.observePresses(target -> {
             if (target != this) {
-                close();
+                close(Change.Origin.USER);
             }
         });
         if (scene.window() != null && popupWindow == null) {
@@ -299,14 +339,23 @@ public class ComboBox extends Widget {
         return scenePopup != null ? DisplayMode.IN_SCENE : requested;
     }
 
-    /** Dismisses the popup without changing the selection. No-op when closed. */
+    /**
+     * Dismisses the popup without changing the selection. No-op when closed. Announces
+     * {@code EXPANDED}/{@code CODE}; a dismissal by the user is {@code USER}, and one the widget
+     * makes for itself -- the window losing focus, the field being detached -- is an adjustment.
+     */
     public void close() {
+        close(Change.Origin.CODE);
+    }
+
+    private void close(Change.Origin origin) {
         Ui.checkUiThread();
         if (!open) {
             return;
         }
         open = false;
         invalidate();
+        notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
         if (dismissHandle != null) {
             dismissHandle.cancel();
             dismissHandle = null;
@@ -383,7 +432,7 @@ public class ComboBox extends Widget {
         boolean ownerFocused = scene() != null && scene().isWindowFocused();
         boolean popupFocused = popupScene != null && popupScene.isWindowFocused();
         if (!ownerFocused && !popupFocused) {
-            close();
+            close(Change.Origin.ADJUSTMENT);
         }
     }
 
@@ -545,15 +594,11 @@ public class ComboBox extends Widget {
         // row a click landed in, and the keyboard highlight), and neither is an application
         // naming an index, which is the only thing setSelectedIndex refuses.
         int chosen = Math.max(0, Math.min(index, items.size() - 1));
-        boolean changed = chosen != selectedIndex;
-        selectedIndex = chosen;
-        close();
-        invalidate();
-        if (changed) {
-            // Re-picking the item already selected closes the popup and says nothing: the
-            // listener reports the selection, and the selection did not move.
-            onSelect.accept(selectedIndex);
-        }
+        // The list closing is the pick's own settling, announced before the pick; re-picking
+        // the item already selected closes the popup and announces nothing else, because the
+        // selection did not move.
+        close(Change.Origin.USER);
+        select(chosen, Change.Origin.USER);
     }
 
     // ----------------------------------------------------------- field visual
@@ -687,9 +732,9 @@ public class ComboBox extends Widget {
             case PRESS -> {
                 if (event.button() == Keys.MOUSE_LEFT) {
                     if (open) {
-                        close();
+                        close(Change.Origin.USER);
                     } else {
-                        open();
+                        open(Change.Origin.USER);
                     }
                     event.consume();
                 }
@@ -707,7 +752,7 @@ public class ComboBox extends Widget {
         boolean handled = true;
         if (!open) {
             switch (event.key()) {
-                case Keys.SPACE, Keys.ENTER, Keys.DOWN -> open();
+                case Keys.SPACE, Keys.ENTER, Keys.DOWN -> open(Change.Origin.USER);
                 default -> handled = false;
             }
         } else {
@@ -719,7 +764,7 @@ public class ComboBox extends Widget {
                 case Keys.PAGE_DOWN -> setHighlight(highlightedIndex + visibleRows());
                 case Keys.PAGE_UP -> setHighlight(highlightedIndex - visibleRows());
                 case Keys.ENTER, Keys.SPACE -> commit(highlightedIndex);
-                case Keys.ESCAPE -> close();
+                case Keys.ESCAPE -> close(Change.Origin.USER);
                 default -> handled = false;
             }
         }
@@ -804,9 +849,13 @@ public class ComboBox extends Widget {
                 || I18n.toLowerCase(label).startsWith(I18n.toLowerCase(prefix));
     }
 
+    /** The keyboard highlight, which is the active descendant a reader follows: every caller is a key. */
     private void setHighlight(int index) {
         int old = highlightedIndex;
         highlightedIndex = Math.max(0, Math.min(index, items.size() - 1));
+        if (highlightedIndex != old) {
+            notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+        }
         if (popupPanel != null) {
             // Resolved once for the whole event, on the panel: damage and reveal must agree
             // with each other and with the paint loop, or the highlight scrolls to one row
@@ -830,7 +879,7 @@ public class ComboBox extends Widget {
     protected void onFocusLost() {
         focusFade.to(0);
         if (scenePopup == null) {
-            close(); // clicking anywhere else (a popup window never takes focus) dismisses
+            close(Change.Origin.USER); // clicking anywhere else (a popup window never takes focus) dismisses
         }
         // An in-scene popup takes the focus itself (pushOverlay confines it to the overlay), so
         // here focus loss means the popup opening, not the user leaving. Closing on it would
@@ -845,7 +894,7 @@ public class ComboBox extends Widget {
      */
     @Override
     protected void onDetached() {
-        close();
+        close(Change.Origin.ADJUSTMENT);
     }
 
     // -------------------------------------------------------- accessibility
@@ -940,14 +989,14 @@ public class ComboBox extends Widget {
                 if (open) {
                     return false; // already down: nothing was done, and saying otherwise is a lie
                 }
-                open();
+                open(Change.Origin.USER);
                 return true;
             }
             case COLLAPSE -> {
                 if (!open) {
                     return false;
                 }
-                close();
+                close(Change.Origin.USER);
                 return true;
             }
             case SET_VALUE -> {
@@ -962,10 +1011,12 @@ public class ComboBox extends Widget {
     /**
      * Selects the item an argument names, by index or by its text.
      *
-     * <p>Both funnels are the widget's own: an open list commits, which is the path a click on a
-     * row takes and which closes the list and reports a change only when there was one; a shut one
-     * goes through the public setter, which is the same funnel an application uses. So a pick from
-     * an assistive technology reaches the application exactly as a pick from the pointer does.
+     * <p>Both funnels are the widget's own and both are the user's: an open list commits, which
+     * is the path a click on a row takes and which closes the list and reports a change only when
+     * there was one; a shut one enters the selection seam at {@code USER} directly, and not
+     * through the public setter, which is a caller's write and would reach no handler. So a pick
+     * from an assistive technology reaches the application exactly as a pick from the pointer
+     * does.
      */
     private boolean selectFromArgument(Accessible.Argument arg) {
         int index;
@@ -987,7 +1038,7 @@ public class ComboBox extends Widget {
         if (open) {
             commit(index);
         } else {
-            setSelectedIndex(index);
+            select(index, Change.Origin.USER);
         }
         return true;
     }
@@ -1107,7 +1158,7 @@ public class ComboBox extends Widget {
         protected void onMouseEvent(MouseEvent event) {
             // Only presses that missed the list arrive here; one inside it is the panel's.
             if (event.type() == MouseEvent.Type.PRESS) {
-                close();
+                close(Change.Origin.USER);
                 event.consume();
             }
         }
@@ -1174,7 +1225,7 @@ public class ComboBox extends Widget {
             // a popup that is already closing, and the posted action has already re-checked
             // attachment, the enabled chain, showing and reachability. Nothing here gains an
             // entry point the keyboard does not already use.
-            ComboBox.this.close();
+            ComboBox.this.close(Change.Origin.USER);
             return true;
         }
     }

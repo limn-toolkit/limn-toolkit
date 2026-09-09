@@ -1,5 +1,7 @@
 package limn.components;
 
+import java.util.ArrayList;
+import limn.scene.Change;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
@@ -184,25 +186,32 @@ class SegmentedControlTest extends ComponentTestBase {
     }
 
     /**
-     * The setter used to be silent and to clamp, so a screen bound to {@code onSelect} missed
-     * every change it made itself, and an index computed from a lookup that missed quietly
-     * selected the nearest segment instead.
+     * The setter reaches the watchers and not the handler: {@code onSelect} is the application's
+     * response to the user choosing, and a caller's write is announced as {@code CODE} to whoever
+     * watches the strip. An index computed from a lookup that missed is refused, never clamped.
      */
     @Test
-    void aProgrammaticSelectionIsAnnouncedAndANonSegmentIsRefused() {
+    void aProgrammaticSelectionIsAnnouncedToTheWatchersAndANonSegmentIsRefused() {
         SegmentedControl seg = new SegmentedControl(List.of("A", "B", "C"));
         AtomicReference<Integer> chosen = new AtomicReference<>(-1);
         seg.onSelect(chosen::set);
+        List<Change.Origin> heard = new ArrayList<>();
+        seg.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.SELECTION) {
+                heard.add(change.origin());
+            }
+        });
 
         seg.setSelectedIndex(2);
         assertEquals(2, seg.selectedIndex());
-        assertEquals(2, chosen.get(), "code and a click reach the listener by the same path");
+        assertEquals(List.of(Change.Origin.CODE), heard, "a watcher hears a caller's write");
+        assertEquals(-1, chosen.get(), "the handler answers the user, and code moved the strip");
 
-        chosen.set(-1);
+        heard.clear();
         assertThrows(IndexOutOfBoundsException.class, () -> seg.setSelectedIndex(3));
         assertThrows(IndexOutOfBoundsException.class, () -> seg.setSelectedIndex(-1));
         assertEquals(2, seg.selectedIndex(), "a refused index moves nothing");
-        assertEquals(-1, chosen.get(), "and announces nothing");
+        assertEquals(List.of(), heard, "and announces nothing");
     }
 
     @Test

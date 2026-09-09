@@ -7,9 +7,11 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.i18n.I18nString;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.Scrollable;
 import limn.scene.Size;
+import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
@@ -161,8 +163,8 @@ public class ListView extends Widget implements Scrollable {
     private float measuredRowHeight;
 
     private int selectedIndex = -1;
-    private IntConsumer onSelect = index -> { };
-    private IntConsumer onActivate = index -> { };
+    private IntConsumer onSelect;
+    private IntConsumer onActivate;
     /**
      * Fades the selected-row highlight between the resting outline and the focus ring.
      * The {@link Theme} reads here are <b>animation durations</b>, which are palette- and
@@ -227,25 +229,50 @@ public class ListView extends Widget implements Scrollable {
     }
 
     /**
-     * Called with the row index when the selection moves, by click or keyboard.
+     * The application's response to the user moving the selection: a click or a key. Never for
+     * {@link #setSelectedIndex}, {@link #clearSelection()} or a {@link #refresh()} that
+     * collapsed the selection, which are the caller's or the list's own; to hear every move
+     * whatever caused it, {@linkplain #observeChanges watch} the list instead.
      *
-     * @throws NullPointerException if {@code handler} is null, as everywhere else in this set
+     * @param handler the handler, or {@code null} to clear the slot
+     * @return this list
+     * @throws IllegalStateException if a handler is already registered
      */
     public ListView onSelect(IntConsumer handler) {
         Ui.checkUiThread();
-        this.onSelect = Objects.requireNonNull(handler, "handler");
+        this.onSelect = Checks.handlerSlot(onSelect, handler, "ListView.onSelect");
         return this;
     }
 
     /**
-     * Called with the row index on Enter or a double activation, the "open this" gesture.
+     * The application's response to the user opening the selected row: Enter, or an assistive
+     * technology's press. Never for {@link #activate()}, which is a caller's verb.
      *
-     * @throws NullPointerException if {@code handler} is null
+     * @param handler the handler, or {@code null} to clear the slot
+     * @return this list
+     * @throws IllegalStateException if a handler is already registered
      */
     public ListView onActivate(IntConsumer handler) {
         Ui.checkUiThread();
-        this.onActivate = Objects.requireNonNull(handler, "handler");
+        this.onActivate = Checks.handlerSlot(onActivate, handler, "ListView.onActivate");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        switch (aspect) {
+            case SELECTION -> {
+                if (onSelect != null) {
+                    onSelect.accept(selectedIndex);
+                }
+            }
+            case INVOKED -> {
+                if (onActivate != null) {
+                    onActivate.accept(selectedIndex);
+                }
+            }
+            default -> super.handleUserChange(aspect);
+        }
     }
 
     /**
@@ -268,10 +295,12 @@ public class ListView extends Widget implements Scrollable {
     }
 
     /**
-     * Re-reads the adapter and re-lays out (call after the data changes). If the adapter shrank
-     * past the selected row the selection moves to the last row (or is dropped when the list is
-     * now empty) and {@link #onSelect} is told, because a listener showing the selected record
-     * would otherwise still be showing a deleted one. UI thread only.
+     * Re-reads the adapter and re-lays out (call after the data changes). Announces
+     * {@code CHILDREN}/{@code CODE} after the rows are unmounted, and, when the adapter shrank
+     * past the selected row, first moves the selection to the last row (or drops it when the
+     * list is now empty) and announces that as {@code SELECTION}/{@code ADJUSTMENT}: a watcher
+     * showing the selected record hears the list move by itself, with an origin that says so,
+     * where a handler -- the user's response -- is not run. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
@@ -286,17 +315,17 @@ public class ListView extends Widget implements Scrollable {
         markNeedsLayout();
         invalidate();
         if (selectedIndex >= count) {
-            // Last, and without a reveal: the listener runs on a list whose rows are already
-            // unmounted, and revealing here would jump the anchor the clamp above just settled.
-            select(count == 0 ? -1 : count - 1, false);
+            // Without a reveal: a watcher runs on a list whose rows are already unmounted, and
+            // revealing here would jump the anchor the clamp above just settled.
+            select(count == 0 ? -1 : count - 1, false, Change.Origin.ADJUSTMENT);
         }
+        notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
     }
 
     /**
-     * Selects a row, scrolls it into view and fires {@link #onSelect}; code and a click take the
-     * same path, so a listener sees every change either way. Selecting the row that is already
-     * selected changes nothing, reveals nothing and fires nothing; that early return is what keeps
-     * two controls bound to each other from recursing, so do not remove it. UI thread only.
+     * Selects a row and scrolls it into view: a caller's write, so it announces
+     * {@code SELECTION}/{@code CODE} and reaches no handler. Selecting the row that is already
+     * selected changes nothing, reveals nothing and announces nothing. UI thread only.
      *
      * @param index a row in {@code [0, rowCount())}. {@code -1} is not an argument even though it
      *              is what {@link #selectedIndex()} reports for an empty selection:
@@ -309,25 +338,27 @@ public class ListView extends Widget implements Scrollable {
     public ListView setSelectedIndex(int index) {
         Ui.checkUiThread();
         Objects.checkIndex(index, adapter.rowCount());
-        select(index, true);
+        select(index, true, Change.Origin.CODE);
         return this;
     }
 
     /**
-     * Drops the selection: {@link #selectedIndex()} becomes {@code -1} and {@link #onSelect} is
-     * fired with it. No-op when nothing is selected. UI thread only.
+     * Drops the selection: {@link #selectedIndex()} becomes {@code -1}, announced as
+     * {@code SELECTION}/{@code CODE}. No-op when nothing is selected. UI thread only.
      */
     public ListView clearSelection() {
         Ui.checkUiThread();
-        select(-1, false);
+        select(-1, false, Change.Origin.CODE);
         return this;
     }
 
     /**
-     * The one place the selection moves. {@code index} is already valid or {@code -1}; the early
-     * return is the recursion guard the public setter's contract rests on.
+     * The one place the selection moves, and the one seam it announces from: the public setter
+     * and {@code clearSelection} pass {@code CODE}, a refresh that collapsed it passes
+     * {@code ADJUSTMENT}, and every key and click passes {@code USER}. {@code index} is already
+     * valid or {@code -1}; announces only when it moved, after the reveal.
      */
-    private void select(int index, boolean reveal) {
+    private void select(int index, boolean reveal, Change.Origin origin) {
         if (index == selectedIndex) {
             return;
         }
@@ -336,7 +367,7 @@ public class ListView extends Widget implements Scrollable {
             ensureVisible(selectedIndex);
         }
         invalidate();
-        onSelect.accept(selectedIndex);
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
     /**
@@ -349,14 +380,24 @@ public class ListView extends Widget implements Scrollable {
         if (count == 0) {
             return;
         }
-        select(Math.min(Math.max(0, index), count - 1), true);
+        select(Math.min(Math.max(0, index), count - 1), true, Change.Origin.USER);
     }
 
-    /** Fires {@link #onActivate} for the selected row, as Enter does. */
+    /**
+     * Announces that the selected row was opened, as {@code INVOKED}/{@code CODE}: a caller's
+     * verb, which reaches a watcher and <b>not</b> {@link #onActivate}, the way Enter does. An
+     * application that wants its own open-the-row code run calls that code. Nothing without a
+     * selection. UI thread only.
+     */
     public void activate() {
         Ui.checkUiThread();
+        activate(Change.Origin.CODE);
+    }
+
+    /** The seam Enter and an assistive technology's press enter at {@code USER}. */
+    private void activate(Change.Origin origin) {
         if (selectedIndex >= 0) {
-            onActivate.accept(selectedIndex);
+            notifyChange(Change.of(Change.Aspect.INVOKED, origin));
         }
     }
 
@@ -878,7 +919,7 @@ public class ListView extends Widget implements Scrollable {
                     if (index >= 0) {
                         selectClamped(index);
                     }
-                    requestFocus();
+                    requestFocus(Change.Origin.USER); // a click landed here
                     event.consume();
                 }
             }
@@ -913,7 +954,7 @@ public class ListView extends Widget implements Scrollable {
             case Keys.END -> consumeAnd(event, () -> selectClamped(adapter.rowCount() - 1));
             case Keys.ENTER -> {
                 if (selectedIndex >= 0) {
-                    consumeAnd(event, this::activate);
+                    consumeAnd(event, () -> activate(Change.Origin.USER));
                 }
             }
             default -> {
@@ -1094,13 +1135,14 @@ public class ListView extends Widget implements Scrollable {
     }
 
     /**
-     * Opens the selected row, through the same {@link #activate()} Enter reaches.
+     * Opens the selected row, through the same {@code USER} seam Enter reaches -- and not through
+     * the public {@link #activate()}, which is a caller's verb and reaches no handler.
      *
      * <p>No enabled guard of its own: the node acted on here is this widget, so the scene's gate
      * has already walked this list and every ancestor for {@code isEnabled()}, checked that it is
      * showing, that the window is not modal-blocked and that it is inside the layer that owns
-     * input. {@code activate()} re-checks the selection and the thread for itself, so the
-     * application is told exactly as Enter tells it and nothing here is a second entry point.
+     * input. The seam re-checks the selection for itself, so the application is told exactly as
+     * Enter tells it and nothing here is a second entry point.
      *
      * @param action what was asked
      * @param arg    unused; the one verb offered here is parameterless
@@ -1111,7 +1153,7 @@ public class ListView extends Widget implements Scrollable {
         if (action != Accessible.Action.PRESS || selectedIndex < 0) {
             return false;
         }
-        activate();
+        activate(Change.Origin.USER);
         return true;
     }
 

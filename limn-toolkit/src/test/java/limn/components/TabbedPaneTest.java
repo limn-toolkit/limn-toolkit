@@ -1,5 +1,7 @@
 package limn.components;
 
+import java.util.ArrayList;
+import java.util.List;
 import limn.input.Keys;
 import limn.scene.ControlSize;
 import limn.scene.Scene;
@@ -90,13 +92,17 @@ class TabbedPaneTest extends ComponentTestBase {
     }
 
     @Test
-    void setSelectedIndexTogglesContentAndFires() {
+    void setSelectedIndexTogglesContentAndAnnouncesToTheWatchersOnly() {
         build(TabbedPane.TabAlignment.LEFT);
+        List<String> heard = new ArrayList<>();
+        tabs.observeChanges((source, change) -> heard.add(change.toString()));
         tabs.setSelectedIndex(2);
         assertEquals(2, tabs.selectedIndex());
         assertFalse(a.isVisible());
         assertTrue(c.isVisible());
-        assertEquals(2, changed.get());
+        assertEquals(-1, changed.get(), "the handler answers the user, and code moved the pane");
+        assertEquals("SELECTION/CODE", heard.get(heard.size() - 1),
+                "the selection is the last thing announced, after the panel swap: " + heard);
     }
 
     @Test

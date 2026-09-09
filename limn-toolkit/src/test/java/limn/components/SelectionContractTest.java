@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.scene.Change;
+import limn.scene.ChangeObserver;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -19,16 +21,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The one contract {@link ListView}, {@link TabbedPane}, {@link ComboBox},
  * {@link SegmentedControl} and {@link ButtonGroup} share, asserted against all five at once so
  * that a sixth widget cannot quietly answer {@code setSelectedIndex} its own way: an index that
- * is not a choice throws, a programmatic set fires the listener, and setting the index already
- * held does neither.
+ * is not a choice throws, a programmatic set reaches the watchers as {@code SELECTION}/{@code
+ * CODE} and reaches no handler, and setting the index already held does neither.
  *
- * <p>That last one is the load-bearing clause and the reason the second is safe. A single UI
- * thread rules out two <em>concurrent</em> entries into a widget and says nothing at all about
- * two <em>nested</em> ones: bind two of these controls to each other and A's listener writes B,
- * whose listener writes A, on one stack. What stops it is that the second write finds the value
- * already there and returns before firing. Remove the guard as a redundant optimization and a
- * two-way binding becomes a {@code StackOverflowError}, which is what
- * {@link #aTwoWayBindingSettlesInsteadOfRecursing} would then throw.
+ * <p>The rule is the one on {@link Change.Origin}: the handler answers the user, and a watcher
+ * hears everything. A two-way binding is therefore written on the watcher channel, and what
+ * ends it is the last clause -- a mutator handed the state it already holds announces nothing --
+ * which {@link #aTwoWayBindingSettlesInsteadOfRecursing} would otherwise turn into a
+ * {@code StackOverflowError}. A binding through the handlers cannot recurse at all, because a
+ * handler's writes are not user input and reach no second handler.
+ *
+ * <p>{@link ButtonGroup} is not a widget and announces nothing of its own: its change reaches
+ * the channel through its members, the leaver's {@code VALUE} and then the enterer's. The
+ * adapter below hears the group through the member that became selected, so one set is one
+ * notification for every member of the family.
  */
 class SelectionContractTest extends ComponentTestBase {
 
@@ -44,6 +50,9 @@ class SelectionContractTest extends ComponentTestBase {
         void setSelectedIndex(int index);
 
         void onSelect(IntConsumer listener);
+
+        /** Watches the selection: one call per set, carrying the announced origin. */
+        void observe(ChangeObserver observer);
     }
 
     /** A row/panel with a size and nothing else: these tests never lay anything out. */
@@ -86,6 +95,11 @@ class SelectionContractTest extends ComponentTestBase {
             public void onSelect(IntConsumer listener) {
                 list.onSelect(listener);
             }
+
+            @Override
+            public void observe(ChangeObserver observer) {
+                list.observeChanges(selectionOnly(observer));
+            }
         };
     }
 
@@ -112,7 +126,12 @@ class SelectionContractTest extends ComponentTestBase {
 
             @Override
             public void onSelect(IntConsumer listener) {
-                tabs.onSelect(listener::accept);
+                tabs.onSelect(listener);
+            }
+
+            @Override
+            public void observe(ChangeObserver observer) {
+                tabs.observeChanges(selectionOnly(observer));
             }
         };
     }
@@ -137,7 +156,12 @@ class SelectionContractTest extends ComponentTestBase {
 
             @Override
             public void onSelect(IntConsumer listener) {
-                combo.onSelect(listener::accept);
+                combo.onSelect(listener);
+            }
+
+            @Override
+            public void observe(ChangeObserver observer) {
+                combo.observeChanges(selectionOnly(observer));
             }
         };
     }
@@ -162,7 +186,12 @@ class SelectionContractTest extends ComponentTestBase {
 
             @Override
             public void onSelect(IntConsumer listener) {
-                seg.onSelect(listener::accept);
+                seg.onSelect(listener);
+            }
+
+            @Override
+            public void observe(ChangeObserver observer) {
+                seg.observeChanges(selectionOnly(observer));
             }
         };
     }
@@ -190,7 +219,29 @@ class SelectionContractTest extends ComponentTestBase {
 
             @Override
             public void onSelect(IntConsumer listener) {
-                group.onSelect(listener::accept);
+                group.onSelect(listener);
+            }
+
+            @Override
+            public void observe(ChangeObserver observer) {
+                // The group has no node; the member that became selected is where its change
+                // lands, and it is the second of the two VALUEs a swap announces.
+                for (RadioButton member : group.members()) {
+                    member.observeChanges((source, change) -> {
+                        if (change.aspect() == Change.Aspect.VALUE && member.isSelected()) {
+                            observer.changed(source, change);
+                        }
+                    });
+                }
+            }
+        };
+    }
+
+    /** Narrows a widget's watcher to its {@code SELECTION} changes. */
+    private static ChangeObserver selectionOnly(ChangeObserver observer) {
+        return (source, change) -> {
+            if (change.aspect() == Change.Aspect.SELECTION) {
+                observer.changed(source, change);
             }
         };
     }
@@ -225,68 +276,76 @@ class SelectionContractTest extends ComponentTestBase {
     }
 
     @Test
-    void aRefusedIndexChangesNothingAndFiresNothing() {
+    void aRefusedIndexChangesNothingAndAnnouncesNothing() {
         for (Choice choice : family()) {
             choice.setSelectedIndex(1);
-            AtomicInteger fires = new AtomicInteger();
-            choice.onSelect(index -> fires.incrementAndGet());
+            AtomicInteger heard = new AtomicInteger();
+            AtomicInteger handled = new AtomicInteger();
+            choice.observe((source, change) -> heard.incrementAndGet());
+            choice.onSelect(index -> handled.incrementAndGet());
 
             assertThrows(IndexOutOfBoundsException.class, () -> choice.setSelectedIndex(CHOICES));
 
             assertEquals(1, choice.selectedIndex(),
                     choice.name() + ": a throw is not a half-applied selection");
-            assertEquals(0, fires.get(), choice.name() + ": nor a listener call");
+            assertEquals(0, heard.get(), choice.name() + ": nor an announcement");
+            assertEquals(0, handled.get(), choice.name() + ": nor a handler call");
         }
     }
 
     @Test
-    void aProgrammaticSetFiresTheListener() {
+    void aProgrammaticSetReachesTheWatchersAsCodeAndNotTheHandler() {
         for (Choice choice : family()) {
             choice.setSelectedIndex(0);
-            AtomicInteger heard = new AtomicInteger(-2);
-            choice.onSelect(heard::set);
+            List<Change.Origin> heard = new ArrayList<>();
+            AtomicInteger handled = new AtomicInteger(-2);
+            choice.observe((source, change) -> heard.add(change.origin()));
+            choice.onSelect(handled::set);
 
             choice.setSelectedIndex(2);
 
             assertEquals(2, choice.selectedIndex(), choice.name());
-            assertEquals(2, heard.get(), choice.name()
-                    + ": a listener describes the selection, not the mouse; code and a click"
-                    + " reach it by the same path");
+            assertEquals(List.of(Change.Origin.CODE), heard, choice.name()
+                    + ": a watcher hears every change, and this one was a caller's write");
+            assertEquals(-2, handled.get(), choice.name()
+                    + ": the handler is the application's response to the user, and no user"
+                    + " operated this widget");
         }
     }
 
     /**
-     * The guard the always-echo rule rests on. It is not an optimization: it is the only thing
-     * between a two-way binding and a stack overflow, so a "simplification" that drops it must
-     * fail here rather than in an application.
+     * The guard on the announcement. It is not an optimization: it is what ends a two-way
+     * binding written on the watcher channel, so a "simplification" that drops it must fail here
+     * rather than in an application.
      */
     @Test
-    void settingTheIndexAlreadyHeldFiresNothing() {
+    void settingTheIndexAlreadyHeldAnnouncesNothing() {
         for (Choice choice : family()) {
             choice.setSelectedIndex(2);
-            AtomicInteger fires = new AtomicInteger();
-            choice.onSelect(index -> fires.incrementAndGet());
+            AtomicInteger heard = new AtomicInteger();
+            choice.observe((source, change) -> heard.incrementAndGet());
 
             choice.setSelectedIndex(2);
             choice.setSelectedIndex(2);
 
-            assertEquals(0, fires.get(), choice.name()
-                    + ": re-setting the value already held must return before it notifies");
+            assertEquals(0, heard.get(), choice.name()
+                    + ": re-setting the value already held must return before it announces");
             assertEquals(2, choice.selectedIndex(), choice.name());
         }
     }
 
     /**
-     * Two controls wired to follow each other: the shape a settings screen with a strip and a
-     * list has. Without the unchanged-value early return this recurses on one stack; the UI-thread
-     * rule does not help, because both entries are on that thread and nested inside one call.
+     * Two controls wired to follow each other on the watcher channel: the shape a settings screen
+     * with a strip and a list has. Without the unchanged-value early return this recurses on one
+     * stack; the UI-thread rule does not help, because both entries are on that thread and nested
+     * inside one call.
      */
     @Test
     void aTwoWayBindingSettlesInsteadOfRecursing() {
         for (Supplier<Choice> factory : FAMILY) {
             Choice a = factory.get();
             Choice b = factory.get();
-            AtomicInteger fires = bind(a, b);
+            AtomicInteger heard = bind(a, b);
 
             a.setSelectedIndex(3);
             assertEquals(3, a.selectedIndex(), a.name() + " A");
@@ -296,7 +355,7 @@ class SelectionContractTest extends ComponentTestBase {
             assertEquals(1, a.selectedIndex(), a.name() + " A followed back");
             assertEquals(1, b.selectedIndex(), a.name() + " B");
 
-            assertEquals(4, fires.get(), a.name()
+            assertEquals(4, heard.get(), a.name()
                     + ": each write should cost one notification per control and stop; more means"
                     + " the echo is bouncing rather than dying on the first unchanged set");
         }
@@ -307,27 +366,52 @@ class SelectionContractTest extends ComponentTestBase {
     void aBindingBetweenTwoDifferentWidgetsSettlesToo() {
         Choice combo = comboBox();
         Choice strip = segmentedControl();
-        AtomicInteger fires = bind(combo, strip);
+        AtomicInteger heard = bind(combo, strip);
 
         strip.setSelectedIndex(3);
 
         assertEquals(3, combo.selectedIndex(), "the combo followed the strip");
         assertEquals(3, strip.selectedIndex());
-        assertEquals(2, fires.get(), "one notification each, then the echo found nothing to change");
+        assertEquals(2, heard.get(), "one notification each, then the echo found nothing to change");
+    }
+
+    /**
+     * A binding through the handlers cannot bounce at all: a handler's write is not the user,
+     * so it reaches the other control's watchers and never its handler.
+     */
+    @Test
+    void aBindingThroughTheHandlersCannotEchoAtAll() {
+        Choice combo = comboBox();
+        Choice strip = segmentedControl();
+        AtomicInteger handled = new AtomicInteger();
+        combo.onSelect(index -> {
+            handled.incrementAndGet();
+            strip.setSelectedIndex(index);
+        });
+        strip.onSelect(index -> {
+            handled.incrementAndGet();
+            combo.setSelectedIndex(index);
+        });
+
+        strip.setSelectedIndex(3);
+
+        assertEquals(3, strip.selectedIndex());
+        assertEquals(0, combo.selectedIndex(), "nothing ran: the strip was written by code");
+        assertEquals(0, handled.get());
     }
 
     /** Wires each control to write the other, counting every notification the pair produces. */
     private static AtomicInteger bind(Choice a, Choice b) {
-        AtomicInteger fires = new AtomicInteger();
-        a.onSelect(index -> {
-            fires.incrementAndGet();
-            b.setSelectedIndex(index);
+        AtomicInteger heard = new AtomicInteger();
+        a.observe((source, change) -> {
+            heard.incrementAndGet();
+            b.setSelectedIndex(a.selectedIndex());
         });
-        b.onSelect(index -> {
-            fires.incrementAndGet();
-            a.setSelectedIndex(index);
+        b.observe((source, change) -> {
+            heard.incrementAndGet();
+            a.setSelectedIndex(b.selectedIndex());
         });
-        return fires;
+        return heard;
     }
 
     /**

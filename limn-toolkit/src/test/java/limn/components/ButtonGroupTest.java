@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.scene.Change;
 import limn.input.Keys;
 import limn.scene.Scene;
 import org.junit.jupiter.api.Test;
@@ -28,23 +29,46 @@ class ButtonGroupTest extends ComponentTestBase {
         c.onChange(sel -> log.add("c=" + sel));
         AtomicInteger groupIndex = new AtomicInteger(-1);
         ButtonGroup group = new ButtonGroup().add(a).add(b).add(c).onSelect(groupIndex::set);
+        List<String> heard = new ArrayList<>();
+        for (RadioButton member : List.of(a, b, c)) {
+            member.observeChanges((source, change) -> {
+                if (change.aspect() == Change.Aspect.VALUE) { // the roving focus announces too
+                    heard.add(member.text() + "=" + member.isSelected() + "/" + change.origin());
+                }
+            });
+        }
 
-        a.select();
+        // The user's select, through the seam a click and a key enter: the handlers run.
+        a.select(Change.Origin.USER);
         assertTrue(a.isSelected());
         assertFalse(b.isSelected());
         assertFalse(c.isSelected());
         assertEquals(0, group.selectedIndex());
         assertEquals(0, groupIndex.get());
         assertEquals(List.of("a=true"), log);
+        assertEquals(List.of("A=true/USER"), heard);
 
         log.clear();
-        b.select();
+        heard.clear();
+        b.select(Change.Origin.USER);
         assertFalse(a.isSelected());
         assertTrue(b.isSelected());
         assertEquals(1, group.selectedIndex());
         assertEquals(1, groupIndex.get());
-        // The leaving radio is notified false, the entering one true.
+        // The leaving radio is notified false, the entering one true, and the two are announced
+        // to the watchers in that order before either handler runs.
         assertEquals(List.of("a=false", "b=true"), log);
+        assertEquals(List.of("A=false/USER", "B=true/USER"), heard);
+
+        log.clear();
+        heard.clear();
+        groupIndex.set(-1);
+        c.select(); // the public verb is a caller's write: the watchers hear it, nobody handles it
+        assertTrue(c.isSelected());
+        assertEquals(2, group.selectedIndex());
+        assertEquals(-1, groupIndex.get(), "the group's handler answers the user, and code moved it");
+        assertEquals(List.of(), log, "and so do the members' handlers");
+        assertEquals(List.of("B=false/CODE", "C=true/CODE"), heard);
     }
 
     @Test
@@ -54,9 +78,9 @@ class ButtonGroupTest extends ComponentTestBase {
         AtomicInteger groupFires = new AtomicInteger();
         ButtonGroup group = new ButtonGroup().add(a).add(b).onSelect(i -> groupFires.incrementAndGet());
 
-        b.select();
+        b.select(Change.Origin.USER);
         assertEquals(1, groupFires.get());
-        b.select(); // already selected: radios do not toggle off, and nothing re-fires
+        b.select(Change.Origin.USER); // already selected: radios do not toggle off, and nothing re-fires
         assertTrue(b.isSelected());
         assertEquals(1, groupFires.get());
     }
@@ -90,19 +114,27 @@ class ButtonGroupTest extends ComponentTestBase {
         b.onChange(sel -> log.add("b=" + sel));
         AtomicInteger groupIndex = new AtomicInteger(-2);
         ButtonGroup group = new ButtonGroup().add(a).add(b).onSelect(groupIndex::set);
+        List<String> heard = new ArrayList<>();
+        b.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.VALUE) {
+                heard.add(b.isSelected() + "/" + change.origin());
+            }
+        });
         group.setSelectedIndex(1);
         log.clear();
+        heard.clear();
 
         group.clearSelection();
 
         assertEquals(-1, group.selectedIndex());
         assertFalse(b.isSelected(), "the leaving member is deselected");
-        assertEquals(List.of("b=false"), log, "its own onChange hears it");
-        assertEquals(-1, groupIndex.get(), "and the group reports the empty selection");
+        assertEquals(List.of("false/CODE"), heard, "its watchers hear a caller empty the group");
+        assertEquals(List.of(), log, "its handler answers the user, and no user did this");
+        assertEquals(-2, groupIndex.get(), "nor does the group's");
 
-        groupIndex.set(-2);
+        heard.clear();
         group.clearSelection();
-        assertEquals(-2, groupIndex.get(), "clearing an already-empty group says nothing");
+        assertEquals(List.of(), heard, "clearing an already-empty group says nothing");
     }
 
     /**

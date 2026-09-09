@@ -255,6 +255,9 @@ public abstract class Widget {
         child.parent = this;
         child.setSceneRecursively(scene);
         markNeedsLayout();
+        // Structure is announced on the parent, from the one funnel every child joins through,
+        // so a watcher of a tree hears a mount as it happens rather than by diffing child lists.
+        notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
     }
 
     /** Removes a child (UI thread only). */
@@ -267,6 +270,7 @@ public abstract class Widget {
                 scene.onWidgetDetached(child);
             }
             markNeedsLayout();
+            notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
         }
     }
 

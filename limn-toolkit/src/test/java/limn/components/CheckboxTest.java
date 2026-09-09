@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.scene.Change;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
@@ -55,27 +56,34 @@ class CheckboxTest extends ComponentTestBase {
     }
 
     /**
-     * A public method that flips a disabled control and fires the application's handler is a
-     * defect with or without an assistive technology asking it to. The only reason a disabled
-     * checkbox did not toggle was that the scene never delivers it an event, which is a fact about
-     * clicks and not about this method.
+     * {@code toggle()} is a caller's write spelled as a verb, exactly like {@code setChecked}: it
+     * moves a disabled box, because a write may move a disabled widget's state and always could,
+     * and it reaches no handler, because the handler is the application's response to the user.
+     * The entry point a click, a key or an assistive technology reaches is guarded already.
      */
     @Test
-    void toggleRefusesADisabledCheckbox() {
+    void toggleIsACallersWriteThatMovesADisabledBoxAndReachesNoHandler() {
         build(Checkbox.Variant.BOX);
         AtomicReference<Boolean> seen = new AtomicReference<>();
+        AtomicReference<Change> heard = new AtomicReference<>();
         checkbox.onChange(seen::set);
+        checkbox.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.VALUE) {
+                heard.set(change);
+            }
+        });
         checkbox.setEnabled(false);
 
         checkbox.toggle();
 
-        assertFalse(checkbox.isChecked());
-        assertEquals(null, seen.get(), "a disabled control must not reach the handler");
+        assertTrue(checkbox.isChecked(), "a write moves the state, enabled or not");
+        assertEquals(null, seen.get(), "and reaches no handler");
+        assertEquals(Change.Origin.CODE, heard.get().origin(), "the watchers hear whose write it was");
 
         checkbox.setEnabled(true);
         checkbox.toggle();
-        assertTrue(checkbox.isChecked());
-        assertEquals(Boolean.TRUE, seen.get());
+        assertFalse(checkbox.isChecked());
+        assertEquals(null, seen.get(), "still a caller's write");
     }
 
     /** The caption a screen reader announces, reachable at last. */

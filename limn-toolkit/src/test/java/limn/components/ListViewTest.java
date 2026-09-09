@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.scene.Change;
 import limn.graphics.Paint;
 import limn.graphics.RoundRect;
 import limn.input.Keys;
@@ -576,13 +577,17 @@ class ListViewTest extends ComponentTestBase {
      * fire sites all carried a null guard.
      */
     @Test
-    void theSelectionSetterChainsAndTheListenersRefuseNull() {
+    void theSelectionSetterChainsAndNullClearsAHandlerSlot() {
         ListView list = list(3, index -> 20);
 
         assertSame(list, list.setSelectedIndex(1), "the setter chains, as setScrollbarPolicy does");
         assertEquals(1, list.selectedIndex());
-        assertThrows(NullPointerException.class, () -> list.onSelect(null));
-        assertThrows(NullPointerException.class, () -> list.onActivate(null));
+        list.onSelect(index -> { });
+        assertThrows(IllegalStateException.class, () -> list.onSelect(index -> { }),
+                "a second handler over an occupied slot is refused rather than silently replacing");
+        assertSame(list, list.onSelect(null), "null clears the slot");
+        list.onSelect(index -> { });
+        assertSame(list, list.onActivate(null));
     }
 
     // ------------------------------------------------------- the selection contract
@@ -609,11 +614,18 @@ class ListViewTest extends ComponentTestBase {
         ListView list = list(10, index -> 20);
         list.setSelectedIndex(3);
         AtomicInteger heard = new AtomicInteger(-2);
-        list.onSelect(heard::set);
+        AtomicInteger handled = new AtomicInteger(-2);
+        list.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.SELECTION) {
+                heard.set(list.selectedIndex());
+            }
+        });
+        list.onSelect(handled::set);
 
         assertSame(list, list.clearSelection(), "the clear chains, as the setter does");
         assertEquals(-1, list.selectedIndex());
-        assertEquals(-1, heard.get(), "a listener bound to the selection hears it empty");
+        assertEquals(-1, heard.get(), "a watcher bound to the selection hears it empty");
+        assertEquals(-2, handled.get(), "the handler answers the user, and code emptied it");
 
         heard.set(-2);
         list.clearSelection();
@@ -658,10 +670,11 @@ class ListViewTest extends ComponentTestBase {
 
     /**
      * The adapter shrank past the selected row, so the selection moved. Silence here leaves a
-     * detail pane bound to {@code onSelect} showing a record that was deleted.
+     * detail pane watching the selection showing a record that was deleted; what it hears is the
+     * list moving by itself, an adjustment, and not a user choosing a row.
      */
     @Test
-    void refreshTellsTheListenerWhenShrinkingDataMovedTheSelection() {
+    void refreshTellsTheWatchersWhenShrinkingDataMovedTheSelection() {
         int[] count = {10};
         ListView list = new ListView(new ListView.Adapter() {
             @Override
@@ -676,16 +689,26 @@ class ListViewTest extends ComponentTestBase {
         });
         list.setSelectedIndex(9);
         AtomicInteger heard = new AtomicInteger(-2);
-        list.onSelect(heard::set);
+        AtomicInteger handled = new AtomicInteger(-2);
+        List<Change.Origin> origins = new ArrayList<>();
+        list.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.SELECTION) {
+                heard.set(list.selectedIndex());
+                origins.add(change.origin());
+            }
+        });
+        list.onSelect(handled::set);
 
         count[0] = 4;
         list.refresh();
         assertEquals(3, list.selectedIndex(), "the selection lands on the new last row");
         assertEquals(3, heard.get());
+        assertEquals(List.of(Change.Origin.ADJUSTMENT), origins, "the list moved it by itself");
+        assertEquals(-2, handled.get(), "and no user chose a row");
 
         heard.set(-2);
         list.refresh();
-        assertEquals(-2, heard.get(), "a refresh that moves nothing announces nothing");
+        assertEquals(-2, heard.get(), "a refresh that moves nothing announces no selection");
 
         count[0] = 0;
         list.refresh();

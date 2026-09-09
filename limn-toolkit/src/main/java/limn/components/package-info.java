@@ -21,15 +21,17 @@
  *     {@link limn.components.TabbedPane} holding tabs, a {@link limn.components.ComboBox} and a
  *     {@link limn.components.SegmentedControl} always have exactly one selection and so offer
  *     none.</li>
- * <li><b>A programmatic set fires the change listener</b>, the same one a click fires. A listener
- *     describes the selection, not the mouse, so a detail pane bound to it stays right without
- *     knowing where the change came from.</li>
- * <li><b>Setting the index that is already selected changes nothing and fires nothing.</b> That
- *     early return is load-bearing, not an optimization. A single UI thread rules out two
- *     <em>concurrent</em> entries, never two <em>nested</em> ones: widget A's listener writing
- *     widget B, whose listener writes A back, recurses on one stack until it overflows. The bounce
- *     dies on the first return instead, which is the whole reason a two-way binding between two of
- *     these controls terminates. Do not delete the guard as redundant with the thread rule.</li>
+ * <li><b>A programmatic set reaches the watchers and not the handler.</b> {@code onSelect} is
+ *     the application's response to the <em>user</em> choosing, and it runs only for a click, a
+ *     key or an assistive technology's select; a {@code setSelectedIndex} from code announces
+ *     {@code SELECTION}/{@code CODE} to whoever {@linkplain limn.scene.Widget#observeChanges
+ *     watches} the widget, and to nobody else. A detail pane that must follow the selection
+ *     wherever it came from watches; a pane that answers the user handles. That is the one rule
+ *     of {@link limn.scene.Change.Origin}, and it is why two of these controls bound to each
+ *     other through their handlers cannot recurse at all.</li>
+ * <li><b>Setting the index that is already selected changes nothing and announces nothing.</b>
+ *     The guard is on the announcement: a mutator handed the state it already holds says nothing,
+ *     which is what ends a two-way binding written on the watcher channel on its first echo.</li>
  * </ul>
  *
  * <p>Keyboard traversal is not bound by the first rule: arrowing past either end of a strip lands

@@ -1,5 +1,7 @@
 package limn.components;
 
+import java.util.ArrayList;
+import limn.scene.Change;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
@@ -141,22 +143,29 @@ class ComboBoxTest extends ComponentTestBase {
     }
 
     /**
-     * The setter used to be silent and to clamp, so a screen bound to {@code onSelect} missed
-     * every change it made itself, and an index computed from a lookup that missed quietly
-     * selected the nearest item instead.
+     * The setter reaches the watchers and not the handler: {@code onSelect} is the application's
+     * response to the user picking, and a caller's write is announced as {@code CODE} to whoever
+     * watches the combo. An index computed from a lookup that missed is refused, never clamped.
      */
     @Test
-    void aProgrammaticSelectionIsAnnouncedAndANonItemIsRefused() {
+    void aProgrammaticSelectionIsAnnouncedToTheWatchersAndANonItemIsRefused() {
         build();
+        List<Change.Origin> heard = new ArrayList<>();
+        combo.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.SELECTION) {
+                heard.add(change.origin());
+            }
+        });
 
         combo.setSelectedIndex(2);
-        assertEquals(2, selected.get(), "code and a pick from the popup reach the listener alike");
+        assertEquals(List.of(Change.Origin.CODE), heard, "a watcher hears a caller's write");
+        assertEquals(-1, selected.get(), "the handler answers the user, and code moved the combo");
 
-        selected.set(-1);
+        heard.clear();
         assertThrows(IndexOutOfBoundsException.class, () -> combo.setSelectedIndex(3));
         assertThrows(IndexOutOfBoundsException.class, () -> combo.setSelectedIndex(-1));
         assertEquals(2, combo.selectedIndex(), "a refused index moves nothing");
-        assertEquals(-1, selected.get(), "and announces nothing");
+        assertEquals(List.of(), heard, "and announces nothing");
     }
 
     /** The listener reports the selection, so a commit that moved nothing reports nothing. */

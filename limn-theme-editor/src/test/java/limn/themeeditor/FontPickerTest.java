@@ -7,6 +7,7 @@ import limn.components.Tokens;
 import limn.graphics.Font;
 import limn.graphics.FontCatalog;
 import limn.graphics.Fonts;
+import limn.input.Keys;
 import limn.scene.Scene;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -106,6 +107,13 @@ class FontPickerTest extends EditorTestBase {
         assertSame(built, editor.fontChoice(), "no change, no rebuild");
     }
 
+    /** One key press and release, delivered the way the window delivers them. */
+    private static void press(Scene scene, int key) {
+        scene.keyEvent(key, true, false, 0);
+        scene.keyEvent(key, false, false, 0);
+        scene.inputBatchEnded();
+    }
+
     @Test
     void pickingAnEnumeratedFamilyWritesItToThePalette() {
         Fonts.installCatalog(BUNDLED);
@@ -116,8 +124,18 @@ class FontPickerTest extends EditorTestBase {
         scene.layoutPass(1000, 700);
         Fonts.installCatalog(ENUMERATED);
 
-        editor.fontChoice().setSelectedIndex(editor.offeredFontFamilies().indexOf("Helvetica Neue"));
+        // The user's pick, through the keyboard: a setSelectedIndex from the test would be a
+        // caller's write, which the editor's handler no longer answers.
+        ComboBox combo = editor.fontChoice();
+        int target = editor.offeredFontFamilies().indexOf("Helvetica Neue");
+        scene.requestFocus(combo);
+        press(scene, Keys.SPACE);
+        for (int i = combo.selectedIndex(); i < target; i++) {
+            press(scene, Keys.DOWN);
+        }
+        press(scene, Keys.ENTER);
 
+        assertEquals(target, combo.selectedIndex());
         assertEquals("Helvetica Neue", editor.theme().fontFamily);
         assertTrue(editor.isModified());
     }

@@ -13,9 +13,11 @@ import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.Scrollable;
 import limn.scene.Size;
+import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
@@ -23,7 +25,7 @@ import limn.scene.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Tabbed panel: a horizontal strip of tab headers over a content area that
@@ -96,8 +98,7 @@ public class TabbedPane extends Widget {
     private final StripButton listButton = new StripButton(StripButton.Kind.LIST);
     private int selected = -1;
     private TabAlignment alignment = TabAlignment.LEFT;
-    private Consumer<Integer> onChange = index -> {
-    };
+    private IntConsumer onSelect;
 
     // Overflow state, recomputed each layout. Header widths are measured by the
     // pane and consumed by the strip (which lays the headers out inside itself).
@@ -185,7 +186,8 @@ public class TabbedPane extends Widget {
         contents.add(content);
         strip.add(header);
         add(content);
-        if (selected < 0) {
+        boolean first = selected < 0;
+        if (first) {
             selected = 0;
         }
         // Roving focus (one tab stop for the whole strip): only the selected
@@ -193,6 +195,11 @@ public class TabbedPane extends Widget {
         header.setFocusable(index == selected);
         content.setVisible(index == selected);
         markNeedsLayout();
+        if (first) {
+            // The pane took its first tab by itself: a consequence of adding, not a caller naming
+            // a selection, so a watcher hears it as an adjustment.
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
+        }
         return this;
     }
 
@@ -251,11 +258,10 @@ public class TabbedPane extends Widget {
     }
 
     /**
-     * Selects a tab, scrolls it into view and fires {@link #onSelect}; code and a click take the
-     * same path, so a listener sees every change either way. Re-selecting the current tab still
+     * Selects a tab and scrolls it into view: a caller's write, so it announces
+     * {@code SELECTION}/{@code CODE} and reaches no handler. Re-selecting the current tab still
      * scrolls it back into view (a caller asking for a tab is asking to be shown it) but changes
-     * nothing and fires nothing; that early return is what keeps two controls bound to each other
-     * from recursing, so do not remove it. UI thread only.
+     * nothing and announces nothing. UI thread only.
      *
      * @param index a tab in {@code [0, tabCount)}
      * @throws IndexOutOfBoundsException if {@code index} is not a tab; an empty pane has none, so
@@ -265,15 +271,35 @@ public class TabbedPane extends Widget {
     public TabbedPane setSelectedIndex(int index) {
         Ui.checkUiThread();
         Objects.checkIndex(index, contents.size());
-        selectTab(index, Focus.NONE);
+        selectTab(index, Focus.NONE, Change.Origin.CODE);
         return this;
     }
 
-    /** Called with the new index whenever the selection changes, by click, keyboard or code. */
-    public TabbedPane onSelect(Consumer<Integer> listener) {
+    /**
+     * The application's response to the user choosing a tab: a click on a header, an arrow key
+     * across the strip, a pick from the overflow menu, an assistive technology's select. Never
+     * for {@link #setSelectedIndex}, which is a caller's write; to hear every change whatever
+     * caused it, {@linkplain #observeChanges watch} the pane instead.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this pane
+     * @throws IllegalStateException if a handler is already registered
+     */
+    public TabbedPane onSelect(IntConsumer listener) {
         Ui.checkUiThread();
-        this.onChange = Objects.requireNonNull(listener, "listener");
+        this.onSelect = Checks.handlerSlot(onSelect, listener, "TabbedPane.onSelect");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.SELECTION) {
+            if (onSelect != null) {
+                onSelect.accept(selected);
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
     }
 
     /**
@@ -282,14 +308,23 @@ public class TabbedPane extends Widget {
      * {@code headers.size() - 1} from End on an empty strip), and arrowing off an end is a key
      * that has nowhere to go, not a programming error. Out of range is a no-op here; it throws
      * only where an application named the index.
+     *
+     * <p>This is also the one seam every selection announces from, with {@code origin} saying who
+     * asked: the public setter passes {@code CODE}, and the header's click and keys, the overflow
+     * menu and an assistive technology's select pass {@code USER}. The announcement is the
+     * <b>last</b> thing here, after the panel swap, the roving focus and the focus move have all
+     * settled, so a watcher hears {@code VISIBLE}, {@code VISIBLE}, {@code FOCUSABLE},
+     * {@code FOCUSABLE}, {@code FOCUS}, {@code FOCUS} and then the {@code SELECTION} they belong
+     * to -- the settling order, with the aspect the call names as the signal that it is done.
      */
-    private void selectTab(int index, Focus focus) {
+    private void selectTab(int index, Focus focus, Change.Origin origin) {
         Ui.checkUiThread();
         if (index < 0 || index >= contents.size()) {
             return; // out of range (e.g. arrowing past an end)
         }
         Focus effective = focus;
-        if (index != selected) {
+        boolean moved = index != selected;
+        if (moved) {
             boolean stripHadFocus = false;
             if (selected >= 0) {
                 contents.get(selected).setVisible(false);
@@ -303,26 +338,35 @@ public class TabbedPane extends Widget {
             for (TabHeader header : headers) {
                 header.invalidate();
             }
-            onChange.accept(selected);
             if (effective == Focus.NONE && stripHadFocus) {
                 effective = Focus.HEADER; // focus follows the selection out of a focused strip
             }
         }
         revealPending = index; // scroll into view even when re-selecting
         markNeedsLayout();     // onLayout re-targets the indicator + applies the reveal
-        applyFocus(index, effective);
+        applyFocus(index, effective, origin);
+        if (moved) {
+            notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+        }
     }
 
-    private void applyFocus(int index, Focus focus) {
+    private void applyFocus(int index, Focus focus, Change.Origin origin) {
         switch (focus) {
             case CONTENT -> {
                 // Land in the panel: focus its first focusable descendant, or fall
                 // back to the header so keyboard tab-navigation still works for
                 // panels that have nothing focusable (labels, images).
                 Widget target = firstFocusable(contents.get(index));
-                (target != null ? target : headers.get(index)).requestFocus();
+                if (target != null) {
+                    // A descendant the pane does not own: the public, CODE-labelled move is
+                    // the only one reachable, and it is the honest label for a focus the pane
+                    // lands somewhere it cannot see into.
+                    target.requestFocus();
+                } else {
+                    headers.get(index).focusFrom(origin);
+                }
             }
-            case HEADER -> headers.get(index).requestFocus();
+            case HEADER -> headers.get(index).focusFrom(origin);
             case NONE -> {
             }
         }
@@ -389,7 +433,7 @@ public class TabbedPane extends Widget {
             // The caption's source and not a string resolved here: the menu outlives this call,
             // and a row holding a literal cannot re-resolve when the language moves under it.
             menu.addCheck(headers.get(i).title, i == selected,
-                    on -> selectTab(index, Focus.NONE));
+                    on -> selectTab(index, Focus.NONE, Change.Origin.USER));
         }
         // Anchored on listButton, NOT on scene(): the Widget overload hosts the cascade on a
         // widget inside this pane, so the menu resolves the pane's step. Anchoring on the scene
@@ -1133,6 +1177,11 @@ public class TabbedPane extends Widget {
         private final Transition focusFade =
                 new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
 
+        /** Moves focus here with the origin of the gesture the pane is handling. */
+        void focusFrom(Change.Origin origin) {
+            requestFocus(origin);
+        }
+
         TabHeader(I18nString title, Icon icon, Icon.Mirroring iconMirroring, int index) {
             this.title = title;
             this.icon = icon;
@@ -1316,11 +1365,11 @@ public class TabbedPane extends Widget {
         protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
             switch (action) {
                 case SELECT -> {
-                    selectTab(index, Focus.NONE);
+                    selectTab(index, Focus.NONE, Change.Origin.USER);
                     return true;
                 }
                 case PRESS -> {
-                    selectTab(index, Focus.CONTENT);
+                    selectTab(index, Focus.CONTENT, Change.Origin.USER);
                     return true;
                 }
                 default -> {
@@ -1337,7 +1386,7 @@ public class TabbedPane extends Widget {
                 case CLICK -> {
                     if (event.button() == Keys.MOUSE_LEFT) {
                         event.consume();
-                        selectTab(index, Focus.CONTENT);
+                        selectTab(index, Focus.CONTENT, Change.Origin.USER);
                     }
                 }
                 case PRESS -> event.consume();
@@ -1362,23 +1411,23 @@ public class TabbedPane extends Widget {
             switch (event.key()) {
                 case Keys.LEFT -> {
                     event.consume();
-                    selectTab(visualLeft, Focus.HEADER); // keep arrowing across headers
+                    selectTab(visualLeft, Focus.HEADER, Change.Origin.USER); // keep arrowing across headers
                 }
                 case Keys.RIGHT -> {
                     event.consume();
-                    selectTab(visualRight, Focus.HEADER);
+                    selectTab(visualRight, Focus.HEADER, Change.Origin.USER);
                 }
                 case Keys.HOME -> {
                     event.consume();
-                    selectTab(0, Focus.HEADER);
+                    selectTab(0, Focus.HEADER, Change.Origin.USER);
                 }
                 case Keys.END -> {
                     event.consume();
-                    selectTab(headers.size() - 1, Focus.HEADER);
+                    selectTab(headers.size() - 1, Focus.HEADER, Change.Origin.USER);
                 }
                 case Keys.ENTER, Keys.SPACE -> {
                     event.consume();
-                    selectTab(index, Focus.CONTENT); // dive into the panel
+                    selectTab(index, Focus.CONTENT, Change.Origin.USER); // dive into the panel
                 }
                 default -> {
                 }

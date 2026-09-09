@@ -341,8 +341,9 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(1, raised.size(), "one node moved, one event: " + bridge.events);
         assertEquals(medium, raised.get(0).nodeId(), bridge.events.toString());
         assertEquals(Boolean.TRUE, raised.get(0).newValue(), bridge.events.toString());
-        assertEquals(List.of("Medium=true"), handled,
-                "the group's swap is what tells the application, and the tree hears the same");
+        assertEquals(List.of(), handled,
+                "a set from code reaches the tree through the members' announcements and not the"
+                        + " application's handlers, which answer the user");
 
         bridge.events.clear();
         group.setSelectedIndex(0);

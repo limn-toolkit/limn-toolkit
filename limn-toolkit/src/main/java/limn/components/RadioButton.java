@@ -12,6 +12,7 @@ import limn.i18n.I18nString;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
+import limn.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
 import limn.scene.Size;
@@ -64,8 +65,7 @@ public class RadioButton extends Widget {
     private I18nString text;
     private boolean selected;
     private ButtonGroup group; // null = standalone
-    private Consumer<Boolean> onChange = value -> {
-    };
+    private Consumer<Boolean> onChange;
     /** 0 = empty, 1 = full dot; eased toward the state. */
     private final Transition progress =
             new Transition(this, 0).duration(Theme.current().animFade).easing(Easing.LINEAR);
@@ -89,8 +89,19 @@ public class RadioButton extends Widget {
     /** Fires with {@code true} when this radio becomes selected, {@code false} when a sibling takes over. */
     public RadioButton onChange(Consumer<Boolean> listener) {
         Ui.checkUiThread();
-        this.onChange = Objects.requireNonNull(listener, "listener");
+        this.onChange = Checks.handlerSlot(onChange, listener, "RadioButton.onChange");
         return this;
+    }
+
+    @Override
+    protected void handleUserChange(Change.Aspect aspect) {
+        if (aspect == Change.Aspect.VALUE) {
+            if (onChange != null) {
+                onChange.accept(selected);
+            }
+            return;
+        }
+        super.handleUserChange(aspect);
     }
 
     /**
@@ -123,8 +134,13 @@ public class RadioButton extends Widget {
      */
     public RadioButton setText(I18nString newText) {
         Ui.checkUiThread();
-        this.text = Objects.requireNonNull(newText, "newText");
+        Objects.requireNonNull(newText, "newText");
+        if (newText.equals(text)) {
+            return this;
+        }
+        this.text = newText;
         markNeedsLayout();
+        notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
         return this;
     }
 
@@ -134,19 +150,32 @@ public class RadioButton extends Widget {
     }
 
     /**
-     * Selects this radio (idempotent). In a group, deselects the previously
-     * selected sibling and notifies the group; standalone, just selects itself.
+     * Selects this radio (idempotent). In a group, deselects the previously selected sibling
+     * and tells the group; standalone, just selects itself. A {@code CODE} write spelled as a
+     * verb: it announces {@code VALUE}/{@code CODE} on every member it moves and reaches no
+     * handler, exactly as {@link ButtonGroup#setSelectedIndex} does.
      */
     public void select() {
+        select(Change.Origin.CODE);
+    }
+
+    /**
+     * The seam every selection of this radio goes through, with the origin of whoever asked: the
+     * public verb passes {@code CODE}; the click, the key, the arrow through the group and an
+     * assistive technology's select pass {@code USER}. A radio group is the one compound whose
+     * members' aspects are the toolkit's spelling of one change, so one origin runs through the
+     * whole swap.
+     */
+    void select(Change.Origin origin) {
         Ui.checkUiThread();
         if (selected) {
             return; // radios never toggle off by re-selecting
         }
         if (group != null) {
-            group.select(this); // deselects siblings, sets this, fires listeners
+            group.select(this, origin); // deselects siblings, sets this, announces both
         } else {
             setSelectedSilently(true);
-            onChange.accept(true);
+            notifyChange(Change.of(Change.Aspect.VALUE, origin));
         }
     }
 
@@ -172,7 +201,7 @@ public class RadioButton extends Widget {
         });
     }
 
-    /** Updates the visual state without firing listeners (the group drives notification). */
+    /** Updates the visual state without announcing (the group drives the announcement). */
     void setSelectedSilently(boolean value) {
         if (selected == value) {
             return;
@@ -182,8 +211,25 @@ public class RadioButton extends Widget {
         invalidate();
     }
 
-    void fireChange(boolean value) {
-        onChange.accept(value);
+    /**
+     * The announcing half of this member's {@code VALUE}, for the group: both members of a swap
+     * are announced before either handler runs, an order one indivisible {@code notifyChange}
+     * per member cannot produce. The base class's two halves are {@code protected} on
+     * {@code limn.scene.Widget} and the group is not a widget, so it reaches them through these
+     * two package-private lines, the way it already drives {@link #setSelectedSilently}.
+     */
+    void announceSelection(Change.Origin origin) {
+        announceChange(Change.of(Change.Aspect.VALUE, origin));
+    }
+
+    /** The handler half, a no-op at any origin but {@code USER}. */
+    void runSelectionHandler(Change.Origin origin) {
+        runHandler(Change.of(Change.Aspect.VALUE, origin));
+    }
+
+    /** Moves focus here as part of a gesture the group is handling, or of a swap it settles. */
+    void focusFrom(Change.Origin origin) {
+        requestFocus(origin);
     }
 
     // ---------------------------------------------------------------- layout
@@ -340,12 +386,12 @@ public class RadioButton extends Widget {
 
     /**
      * Performs a select an assistive technology asked for, exactly as a click or a Space press
-     * does: through {@link #select()}, so a group deselects the previous member, both radios'
-     * {@link #onChange} handlers and the group's own listener are notified the same way, and the
-     * tab stop moves with the selection. Selecting the member that is already selected is
-     * accepted and does nothing, because the state asked for holds. Any other verb is refused,
+     * does: through the seam at {@code USER}, so a group deselects the previous member, both
+     * radios' {@link #onChange} handlers and the group's own listener are notified the same way,
+     * and the tab stop moves with the selection. Selecting the member that is already selected
+     * is accepted and does nothing, because the state asked for holds. Any other verb is refused,
      * including a press, which this node does not offer, and so is a select while this widget is
-     * disabled: {@code select()} carries no such guard of its own, because it is also the path
+     * disabled: the seam carries no such guard of its own, because it is also the path
      * {@link ButtonGroup#setSelectedIndex} takes to restore a disabled form's state, and the
      * answer here has to be truthful.
      *
@@ -362,7 +408,7 @@ public class RadioButton extends Widget {
         if (action != Accessible.Action.SELECT || !isEnabled()) {
             return false;
         }
-        select();
+        select(Change.Origin.USER);
         return true;
     }
 
@@ -376,7 +422,7 @@ public class RadioButton extends Widget {
             case CLICK -> {
                 if (event.button() == Keys.MOUSE_LEFT) {
                     event.consume();
-                    select();
+                    select(Change.Origin.USER);
                 }
             }
             default -> {
@@ -391,7 +437,7 @@ public class RadioButton extends Widget {
         }
         if ((event.key() == Keys.SPACE || event.key() == Keys.ENTER) && !event.isRepeat()) {
             event.consume();
-            select();
+            select(Change.Origin.USER);
             return;
         }
         if (group == null) {

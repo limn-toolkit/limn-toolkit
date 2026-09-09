@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.scene.Change;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
@@ -146,8 +147,6 @@ public final class ColorPicker extends Widget {
     private Consumer<Color> onCommit = color -> { };
     /** Guards the field round-trip: writing a field must not re-parse it as an edit. */
     private boolean syncing;
-    /** The same guard one level up: moving the tab must not be read back as a switch. */
-    private boolean switchingFormat;
     /**
      * True while the hex field's own listener is running, so its text is not
      * rewritten from under the caret. "112233FF" parses to an opaque colour whose
@@ -201,10 +200,14 @@ public final class ColorPicker extends Widget {
             tabPads.add(padded);
             formatTabs.addTab(ColorPickerStrings.format(each), padded);
         }
-        formatTabs.onSelect(index -> {
-            // Ignored while setFormat is the one moving the tab; see there.
-            if (!switchingFormat) {
-                setFormat(Format.values()[index]);
+        // Watched and not handled, because the picker must follow the tab whichever end moved
+        // it: a click on the strip, and a caller reaching the pane from its own side alike.
+        // setFormat writes this.format before it moves the tab, so the echo finds the format
+        // already in place and returns.
+        formatTabs.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.SELECTION
+                    && Format.values()[formatTabs.selectedIndex()] != format) {
+                setFormat(Format.values()[formatTabs.selectedIndex()]);
             }
         });
         root.add(formatTabs);
@@ -311,22 +314,15 @@ public final class ColorPicker extends Widget {
     /**
      * Which numeric model the channel rows show. The visual field is always HSV.
      *
-     * <p>The one entry point, whichever end it came from: a tab the user clicked
-     * arrives here through {@link TabbedPane#onSelect}, and this pushes the
-     * selection back the other way for a caller that set it. That round trip is
-     * why the guard exists: unlike a segmented control, a tabbed pane reports a
-     * <em>programmatic</em> selection too, so without it one switch would run
-     * {@link #syncFields} twice: once from the notification and once here.
+     * <p>The one entry point, whichever end it came from: a tab the user clicked arrives here
+     * through the picker's watcher on the pane, and this pushes the selection back the other way
+     * for a caller that set it. No guard is needed for the round trip: the format is written
+     * first, so the pane's announcement finds the picker already there and the watcher returns.
      */
     public ColorPicker setFormat(Format format) {
         Ui.checkUiThread();
         this.format = format;
-        switchingFormat = true;
-        try {
-            formatTabs.setSelectedIndex(format.ordinal());
-        } finally {
-            switchingFormat = false;
-        }
+        formatTabs.setSelectedIndex(format.ordinal());
         markNeedsLayout();
         syncFields();
         return this;
