@@ -34,6 +34,7 @@ import limn.components.Slider;
 import limn.components.Spinner;
 import limn.components.SplitPane;
 import limn.components.TabbedPane;
+import limn.components.table.Table;
 import limn.components.TextArea;
 import limn.components.TextField;
 import limn.components.Theme;
@@ -194,6 +195,9 @@ public final class AccessibilityGallery {
                 new Entry("List view with rows", List.of(ListView.class, ScrollBar.class),
                         List.of(Role.LIST, Role.LIST_ITEM, Role.SCROLL_BAR),
                         AccessibilityGallery::listView),
+                new Entry("Table with a header and rows", List.of(Table.class),
+                        List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL),
+                        AccessibilityGallery::table),
                 new Entry("Tabbed pane", List.of(TabbedPane.class),
                         List.of(Role.TAB_LIST, Role.TAB, Role.TAB_PANEL),
                         AccessibilityGallery::tabbedPane),
@@ -433,6 +437,26 @@ public final class AccessibilityGallery {
                 "Rockies", "Urals", "Zagros"));
         list.setSelectedIndex(2);
         page.add(Labelled.above("Mountain ranges", list, new SizedBox(SizedBox.UNSET, 160, list)));
+        return new Built(page);
+    }
+
+    private static Built table() {
+        Column page = page();
+        record Range(String name, String continent, int summit) {
+        }
+        Table<Range> table = new Table<>(List.of(
+                limn.components.table.Column.text("Range", Range::name).width(120).weight(1),
+                limn.components.table.Column.text("Continent", Range::continent).width(100),
+                limn.components.table.Column.numeric("Summit", Range::summit).width(80)));
+        table.setRows(List.of(
+                new Range("Alps", "Europe", 4808), new Range("Andes", "South America", 6961),
+                new Range("Atlas", "Africa", 4167), new Range("Carpathians", "Europe", 2655),
+                new Range("Caucasus", "Europe", 5642), new Range("Himalayas", "Asia", 8849),
+                new Range("Pyrenees", "Europe", 3404), new Range("Rockies", "North America", 4401),
+                new Range("Urals", "Europe", 1895), new Range("Zagros", "Asia", 4409)));
+        table.setSelectedRow(2);
+        page.add(Labelled.above("Mountain ranges", table,
+                new SizedBox(SizedBox.UNSET, 200, table)));
         return new Built(page);
     }
 

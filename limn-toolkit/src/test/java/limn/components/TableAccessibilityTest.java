@@ -1,0 +1,225 @@
+package limn.components;
+
+import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleNode;
+import limn.accessibility.CellFacet;
+import limn.accessibility.SelectionItemFacet;
+import limn.accessibility.TableFacet;
+import limn.components.table.Column;
+import limn.components.table.SortOrder;
+import limn.components.table.Table;
+import limn.input.Keys;
+import limn.testing.AllocationProbe;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/** What a screen reader is told about a table; ADR 041 §7. */
+class TableAccessibilityTest extends AccessibleComponentTestBase {
+
+    record Person(String name, int age) {
+    }
+
+    private static List<Person> people(int count) {
+        List<Person> list = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            list.add(new Person("Person " + i, 20 + i % 50));
+        }
+        return list;
+    }
+
+    private Table<Person> bindTable(int count) {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        table.setRows(people(count));
+        bind(table);
+        return table;
+    }
+
+    private AccessibleNode tableNode() {
+        return node(Accessible.Role.TABLE);
+    }
+
+    private List<AccessibleNode> rowNodes() {
+        List<AccessibleNode> rows = new ArrayList<>();
+        for (AccessibleNode child : childrenOf(tableNode())) {
+            if (child.role() == Accessible.Role.ROW) {
+                rows.add(child);
+            }
+        }
+        return rows;
+    }
+
+    private AccessibleNode headerGroup() {
+        AccessibleNode first = childrenOf(tableNode()).get(0);
+        assertEquals(Accessible.Role.GROUP, first.role(), "the header group comes first");
+        return first;
+    }
+
+    @Test
+    void aTableIsItsShapeItsHeadersAndTheRowsItRealized() {
+        Table<Person> table = bindTable(1000);
+        AccessibleNode node = tableNode();
+        TableFacet facet = node.table();
+        assertNotNull(facet);
+        assertEquals(1000, facet.rowCount(), "the model's count, not the tree's");
+        assertEquals(2, facet.columnCount());
+        assertNotNull(node.selection());
+        assertFalse(node.selection().multiSelectable());
+        assertNotNull(node.scroll());
+        assertTrue(node.scroll().verticallyScrollable());
+
+        List<AccessibleNode> headers = childrenOf(headerGroup());
+        assertEquals(2, headers.size());
+        assertEquals(Accessible.Role.COLUMN_HEADER, headers.get(0).role());
+        assertEquals("Name", headers.get(0).name());
+        assertEquals(new CellFacet(-1, 0), headers.get(0).cell());
+        assertEquals("Age", headers.get(1).name());
+        assertEquals(new CellFacet(-1, 1), headers.get(1).cell());
+
+        List<AccessibleNode> rows = rowNodes();
+        assertTrue(rows.size() < 20 && rows.size() > 3, "only realized rows: " + rows.size());
+        AccessibleNode second = rows.get(1);
+        SelectionItemFacet item = second.selectionItem();
+        assertNotNull(item);
+        assertEquals(2, item.positionInSet());
+        assertEquals(1000, item.sizeOfSet());
+        List<AccessibleNode> cells = childrenOf(second);
+        assertEquals(2, cells.size());
+        assertEquals(Accessible.Role.CELL, cells.get(0).role());
+        assertEquals("Person 1", cells.get(0).name());
+        assertEquals(new CellFacet(1, 0), cells.get(0).cell());
+        assertEquals(Accessible.NameFrom.CONTENT, cells.get(0).nameFrom());
+        assertEquals(new CellFacet(1, 1), cells.get(1).cell());
+        assertTrue(table.rowCount() == 1000);
+    }
+
+    @Test
+    void theFocusCellIsTheActiveDescendantAndSelectionMarksTheRow() {
+        Table<Person> table = bindTable(30);
+        scene.requestFocus(table);
+        table.setSelectedRow(3);
+        frame();
+        AccessibleNode row = rowNodes().get(3);
+        assertTrue(row.has(Accessible.State.SELECTED));
+        assertTrue(row.selectionItem().selected());
+        AccessibleNode cell = childrenOf(row).get(0);
+        assertTrue(cell.has(Accessible.State.ACTIVE), "the focus cell is the cursor");
+        assertEquals(cell.id(), tableNode().selection().activeDescendant());
+        scene.keyEvent(Keys.RIGHT, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        AccessibleNode moved = childrenOf(rowNodes().get(3)).get(1);
+        assertTrue(moved.has(Accessible.State.ACTIVE), "Right moves the cursor a column");
+        assertEquals(1, nodesWith(Accessible.State.ACTIVE).size());
+    }
+
+    @Test
+    void aRowKeepsItsIdentityAcrossAScrollAwayAndBack() {
+        Table<Person> table = bindTable(500);
+        long rowTwo = rowNodes().get(2).id();
+        long cellTwo = childrenOf(rowNodes().get(2)).get(0).id();
+        table.scrollBy(0, 4000);
+        frame();
+        assertTrue(rowNodes().get(0).selectionItem().positionInSet() > 50, "scrolled away");
+        table.scrollBy(0, -4000);
+        frame();
+        assertEquals(rowTwo, rowNodes().get(2).id(), "row 2 is row 2 again");
+        assertEquals(cellTwo, childrenOf(rowNodes().get(2)).get(0).id());
+    }
+
+    @Test
+    void aSortRenumbersTheRowsAndKeepsEachRowsIdentity() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        table.setRows(List.of(new Person("Carol", 3), new Person("Alice", 1),
+                new Person("Bob", 2)));
+        bind(table);
+        long carol = rowNodes().get(0).id();
+        assertEquals("Carol", childrenOf(rowNodes().get(0)).get(0).name());
+        table.setSort(table.columns().get(0), SortOrder.ASCENDING);
+        frame();
+        assertEquals("Alice", childrenOf(rowNodes().get(0)).get(0).name());
+        assertEquals(1, rowNodes().get(0).selectionItem().positionInSet());
+        assertEquals(carol, rowNodes().get(2).id(), "Carol's row is Carol's row, third now");
+        assertEquals(3, rowNodes().get(2).selectionItem().positionInSet());
+        assertEquals(new CellFacet(2, 0), childrenOf(rowNodes().get(2)).get(0).cell());
+    }
+
+    @Test
+    void aReaderCanSelectARowAndActivateTheTable() throws InterruptedException {
+        Table<Person> table = bindTable(20);
+        int[] activated = {-1};
+        table.onActivate(index -> activated[0] = index);
+        assertTrue(rowNodes().get(4).actions().actions().contains(Accessible.Action.SELECT));
+        assertTrue(perform(rowNodes().get(4).id(), Accessible.Action.SELECT, null));
+        assertEquals(4, table.selectedRow());
+        frame();
+        assertTrue(tableNode().actions().actions().contains(Accessible.Action.PRESS),
+                "a press is offered once a row is selected");
+        assertTrue(perform(tableNode().id(), Accessible.Action.PRESS, null));
+        assertEquals(4, activated[0]);
+    }
+
+    @Test
+    void aQuietTableAllocatesNothingAndPublishesNothing() {
+        Assumptions.assumeTrue(AllocationProbe.isSupported(),
+                "this virtual machine does not count per-thread allocation");
+        Table<Person> table = bindTable(200);
+        table.setSelectedRow(3);
+        frame();
+        scene.requestFocus(table);
+        frame();
+        settleAnimations(table);
+        int published = bridge.published.size();
+        bridge.events.clear();
+
+        for (int i = 0; i < 20; i++) {
+            table.invalidate();
+            frame();
+        }
+        assertEquals(published, bridge.published.size(),
+                "damage changes nothing a reader hears, so no snapshot");
+        assertTrue(bridge.events.isEmpty(), "and no events: " + bridge.events);
+
+        long[] cost = AllocationProbe.typicalAllocatedByEach(() -> {
+            bridge.listening = true;
+            table.invalidate();
+            frame();
+        }, () -> {
+            bridge.listening = false;
+            table.invalidate();
+            frame();
+        }, 60);
+        bridge.listening = true;
+        assertEquals(published, bridge.published.size(), "still no difference, so no snapshot");
+        // Equal, and not zero: painting the focus ring builds one RoundRect per frame, as every
+        // focused widget in this set does, and that is the paint's cost whether or not a reader is
+        // attached. What must be zero is the difference, which is what the describe hook costs.
+        assertEquals(cost[1], cost[0],
+                "describing a table whose cells did not move costs no memory: every name is a "
+                        + "string a slot already holds, handed over with the row's witness");
+    }
+
+    @Test
+    void aMultiSelectTableSaysSo() {
+        Table<Person> table = bindTable(5);
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        frame();
+        assertTrue(tableNode().selection().multiSelectable());
+        table.setSelectionMode(Table.SelectionMode.NONE);
+        frame();
+        assertTrue(rowNodes().get(0).actions() == null
+                || !rowNodes().get(0).actions().actions().contains(Accessible.Action.SELECT),
+                "nothing to select in NONE");
+    }
+}
