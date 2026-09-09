@@ -840,11 +840,19 @@ public class Table<T> extends Widget implements Scrollable {
         }
         Locale locale = locale();
         boolean shown = false;
-        for (int c = 0; c < columns.size(); c++) {
-            Column<T> column = columns.get(c);
-            footerTexts[c] = column.footerText(rows, locale);
-            footerShaped[c] = null;
-            shown |= footerTexts[c] != null && column.isVisible();
+        // Under the table's own locale, as a pass would be: a format that reads I18n.locale()
+        // when it formats has to see this table's language, not the thread's, and a refresh is
+        // called from application code outside any pass.
+        Locale enclosing = I18n.pushScope(locale);
+        try {
+            for (int c = 0; c < columns.size(); c++) {
+                Column<T> column = columns.get(c);
+                footerTexts[c] = column.footerText(rows, locale);
+                footerShaped[c] = null;
+                shown |= footerTexts[c] != null && column.isVisible();
+            }
+        } finally {
+            I18n.popScope(enclosing);
         }
         if (shown != footerShown) {
             footerShown = shown;

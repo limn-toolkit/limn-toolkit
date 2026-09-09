@@ -4,11 +4,13 @@ import limn.components.Label;
 import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
+import limn.i18n.NumberFormats;
 import limn.scene.Widget;
 import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 
 import java.util.ArrayList;
+import java.util.Currency;
 import java.util.List;
 
 /**
@@ -22,7 +24,8 @@ public final class TableExample {
     }
 
     /** One row of the table: a record, as most rows are. */
-    public record Release(String name, String platform, int downloads, double size) {
+    public record Release(String name, String platform, int downloads, double price,
+                          double size) {
     }
 
     /** A few rows, deterministic so two capture runs produce the same pixels. */
@@ -32,7 +35,8 @@ public final class TableExample {
                 "Vantage", "Kestrel", "Sable", "Aurum", "Quill", "Zephyr"};
         String[] platforms = {"Windows", "macOS", "Linux"};
         for (int i = 0; i < names.length; i++) {
-            rows.add(new Release(names[i], platforms[i % 3], 1200 + i * 731, 2.5 + i * 0.7));
+            rows.add(new Release(names[i], platforms[i % 3], 1200 + i * 731, 4.99 + i * 3,
+                    2.5 + i * 0.7));
         }
         return rows;
     }
@@ -49,14 +53,16 @@ public final class TableExample {
                 .footer("Total");
         Column<Release> platform = Column.text("Platform", Release::platform).width(100)
                 .footerCount();
-        Column<Release> downloads = Column.numeric("Downloads", Release::downloads).width(110)
-                .footerSum();
+        Column<Release> downloads = Column.numeric("Downloads", Release::downloads,
+                NumberFormats.compact()).width(110).footerSum();
+        Column<Release> price = Column.currency("Price", Release::price,
+                Currency.getInstance("USD")).width(110).footerAverage();
         Column<Release> size = Column.<Release, Double>of("Size", Release::size,
                 (mb, locale) -> String.format(locale, "%.1f MB", mb)).width(90)
                 .align(Column.Alignment.END)
                 .footer(rows -> rows.stream().mapToDouble(Release::size).sum());
 
-        Table<Release> table = new Table<>(List.of(name, platform, downloads, size));
+        Table<Release> table = new Table<>(List.of(name, platform, downloads, price, size));
         table.setRows(releases());
         table.setSort(downloads, SortOrder.DESCENDING);
         table.setSelectionMode(Table.SelectionMode.MULTI);

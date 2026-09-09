@@ -1,5 +1,6 @@
 package limn.components.chart;
 
+import limn.i18n.NumberFormats;
 import limn.concurrent.Ui;
 
 import java.util.Objects;
@@ -30,7 +31,7 @@ public final class ChartAxis {
     private Double max;
     private boolean beginAtZero;
     private int tickCount = 5;
-    private DoubleFunction<String> format = ChartFormats.number();
+    private DoubleFunction<String> format = NumberFormats.number();
     private boolean grid = true;
     private boolean visible = true;
     private String title;
@@ -107,7 +108,7 @@ public final class ChartAxis {
     }
 
     /**
-     * Sets the tick text format. Defaults to {@link ChartFormats#number()}; the chart's
+     * Sets the tick text format. Defaults to {@link NumberFormats#number()}; the chart's
      * own {@link Chart#setValueFormat(DoubleFunction)} does not reach here, so an axis and
      * its tooltips can read differently (compact ticks, exact tooltips).
      */

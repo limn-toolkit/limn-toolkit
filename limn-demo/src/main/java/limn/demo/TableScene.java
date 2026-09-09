@@ -59,10 +59,8 @@ final class TableScene {
                 .footerCount();
         Column<Order> customer = Column.text("Customer", Order::customer).width(140).weight(1);
         Column<Order> state = Column.text("Status", Order::status).width(100);
-        Column<Order> total = Column.<Order, Double>of("Total", Order::total,
-                (v, locale) -> String.format(locale, "%,.2f", v)).width(150)
-                .align(Column.Alignment.END)
-                .footer(all -> all.stream().mapToDouble(Order::total).sum());
+        Column<Order> total = Column.currency("Total", Order::total,
+                java.util.Currency.getInstance("BRL")).width(180).footerSum();
         Column<Order> flagged = Column.<Order>widget("Flagged",
                 order -> new Checkbox(Checkbox.Variant.SWITCH, "").setChecked(order.flagged()))
                 .width(90).sortable(false);

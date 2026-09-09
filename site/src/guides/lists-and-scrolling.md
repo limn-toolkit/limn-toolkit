@@ -90,8 +90,10 @@ when they are on screen, so a table over a million rows costs what one over twen
 
 A column names a title, how a row becomes a cell, and how wide it is. `Column.text` and
 `Column.numeric` cover most of a business screen — a numeric column aligns to the reading
-end and localizes its digits — and `Column.of` takes any value with a formatter that is
-handed the table's locale. Widths are a preferred width, a minimum, and a weight: every
+end and localizes its digits — `Column.currency` writes money the way the language in effect
+writes it, symbol and side included, and `Column.of` takes any value with a formatter that is
+handed the table's locale. A numeric column takes any of `NumberFormats` for its cells and its
+footer alike: `prefix("R$ ")` for a fixed prefix, `decimals(2)`, `unit(" kg")`, `compact()`. Widths are a preferred width, a minimum, and a weight: every
 column gets its preferred width, and what is left of the viewport is shared among the
 weighted ones. A table wider than its viewport scrolls sideways; the header stays put.
 

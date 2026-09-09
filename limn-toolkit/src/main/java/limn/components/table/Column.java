@@ -1,12 +1,13 @@
 package limn.components.table;
 
-import limn.components.chart.ChartFormats;
+import limn.i18n.NumberFormats;
 import limn.concurrent.Ui;
 import limn.i18n.I18nString;
 import limn.scene.Widget;
 
 import java.text.Collator;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -72,6 +73,7 @@ public final class Column<T> {
     private float weight;
     private float draggedWidth = -1;
     private boolean visible = true;
+    private DoubleFunction<String> numberFormat;
     private I18nString footerText;
     private Function<List<T>, Object> footer;
     private BiFunction<Object, Locale, String> footerFormat;
@@ -120,12 +122,75 @@ public final class Column<T> {
      * @return the column
      */
     public static <T> Column<T> numeric(I18nString title, ToDoubleFunction<T> value) {
+        return numeric(title, value, NumberFormats.number());
+    }
+
+    /**
+     * A column of numbers written by {@code format}, which is any of {@link NumberFormats} or
+     * the application's own {@code DoubleFunction<String>}: {@code NumberFormats.prefix("R$ ")}
+     * for a fixed prefix, {@code decimals(2)}, {@code unit(" kg")}, {@code percent(1)},
+     * {@code compact()}. The footer's aggregates are written by the same format, so a sum of
+     * prices is a price.
+     *
+     * @param title  what the header says
+     * @param value  a row's number
+     * @param format the number as text, reading the locale in effect when it formats
+     * @param <T>    the row type
+     * @return the column
+     */
+    public static <T> Column<T> numeric(I18nString title, ToDoubleFunction<T> value,
+                                        DoubleFunction<String> format) {
         Objects.requireNonNull(value, "value");
-        DoubleFunction<String> number = ChartFormats.number();
+        Objects.requireNonNull(format, "format");
         Column<T> column = new Column<>(title, row -> value.applyAsDouble(row),
-                (v, locale) -> number.apply((Double) v), null);
+                (v, locale) -> format.apply((Double) v), null);
         column.alignment = Alignment.END;
+        column.numberFormat = format;
         return column;
+    }
+
+    /**
+     * {@link #numeric(I18nString, ToDoubleFunction, DoubleFunction)} with a literal title.
+     *
+     * @param title  what the header says
+     * @param value  a row's number
+     * @param format the number as text
+     * @param <T>    the row type
+     * @return the column
+     */
+    public static <T> Column<T> numeric(String title, ToDoubleFunction<T> value,
+                                        DoubleFunction<String> format) {
+        return numeric(I18nString.literal(title), value, format);
+    }
+
+    /**
+     * A column of amounts in one currency, written as the language in effect writes money
+     * ({@link NumberFormats#currency(Currency)}): the symbol, its side, the decimals and the
+     * separators are the locale's, and a footer sum is money too.
+     *
+     * @param title    what the header says
+     * @param value    a row's amount, in {@code currency}
+     * @param currency the currency the amounts are in
+     * @param <T>      the row type
+     * @return the column
+     */
+    public static <T> Column<T> currency(I18nString title, ToDoubleFunction<T> value,
+                                         Currency currency) {
+        return numeric(title, value, NumberFormats.currency(currency));
+    }
+
+    /**
+     * {@link #currency(I18nString, ToDoubleFunction, Currency)} with a literal title.
+     *
+     * @param title    what the header says
+     * @param value    a row's amount
+     * @param currency the currency the amounts are in
+     * @param <T>      the row type
+     * @return the column
+     */
+    public static <T> Column<T> currency(String title, ToDoubleFunction<T> value,
+                                         Currency currency) {
+        return currency(I18nString.literal(title), value, currency);
     }
 
     /**
@@ -427,7 +492,7 @@ public final class Column<T> {
      * @return this column
      */
     public Column<T> footerCount() {
-        DoubleFunction<String> number = ChartFormats.number();
+        DoubleFunction<String> number = NumberFormats.number();
         this.footerText = null;
         this.footer = rows -> (double) rows.size();
         this.footerFormat = (v, locale) -> number.apply((Double) v);
@@ -439,7 +504,7 @@ public final class Column<T> {
     }
 
     private Column<T> aggregate(Aggregate aggregate) {
-        DoubleFunction<String> number = ChartFormats.number();
+        DoubleFunction<String> number = numberFormat != null ? numberFormat : NumberFormats.number();
         this.footerText = null;
         this.footer = rows -> {
             if (value == null) {

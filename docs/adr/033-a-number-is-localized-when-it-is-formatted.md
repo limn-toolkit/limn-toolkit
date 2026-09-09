@@ -4,6 +4,9 @@
 Arabic interface showed `42` in Latin digits in its spinners and clocks, and Devanagari digits
 were never producible at all. (The charts, it turned out, were localizing already — see below —
 which is half the reason this needed measuring before deciding.)
+- **Note, 2026-09-09:** `ChartFormats` became `limn.i18n.NumberFormats` when ADR 041's table
+  gave it a second caller; every format named below lives there under the same name, plus
+  `currency`.
 
 ---
 

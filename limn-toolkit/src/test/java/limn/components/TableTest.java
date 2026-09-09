@@ -320,6 +320,30 @@ class TableTest extends ComponentTestBase {
     }
 
     @Test
+    void aNumericColumnsFormatWritesItsCellsAndItsFooterAlike() {
+        Column<Person> price = Column.<Person>numeric("Price", p -> p.age() * 10.5,
+                limn.i18n.NumberFormats.prefix("R$ ")).footerSum();
+        Column<Person> money = Column.<Person>currency("Money", p -> p.age() * 10.5,
+                java.util.Currency.getInstance("BRL")).footerSum();
+        Table<Person> table = new Table<>(List.of(nameColumn(), price, money));
+        table.setRows(List.of(new Person("A", 1), new Person("B", 2)));
+        FakeCanvas canvas = new FakeCanvas(400, 200);
+        Scene scene = scene(table, canvas);
+        assertTrue(table.footerTextOf(price).startsWith("R$ "), table.footerTextOf(price));
+        assertTrue(table.footerTextOf(price).endsWith("31,5") || table.footerTextOf(price).endsWith("31.5"),
+                "the sum, written by the column's own format: " + table.footerTextOf(price));
+        String sum = table.footerTextOf(money);
+        assertTrue(sum.contains("R$") || sum.contains("BRL"), "money keeps its currency: " + sum);
+        assertTrue(sum.contains("31,50") || sum.contains("31.50"), "and its two decimals: " + sum);
+        scene.setLocale(java.util.Locale.FRANCE);
+        table.refresh();
+        scene.renderFrame(canvas);
+        String french = table.footerTextOf(money);
+        assertTrue(french.endsWith("R$") || french.endsWith("BRL"),
+                "under fr the symbol follows the amount: " + french);
+    }
+
+    @Test
     void refreshDropsASelectionTheListNoLongerHas() {
         List<Person> rows = new ArrayList<>(people(4));
         Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));

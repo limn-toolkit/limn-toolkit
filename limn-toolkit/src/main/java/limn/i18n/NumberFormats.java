@@ -1,31 +1,35 @@
-package limn.components.chart;
+package limn.i18n;
 
-import limn.i18n.I18n;
-import limn.i18n.NumberingSystem;
-
+import java.text.NumberFormat;
+import java.util.Currency;
+import java.util.Objects;
 import java.util.function.DoubleFunction;
 
 /**
- * Ready-made number formats for axis ticks and tooltip values: what a chart puts on
- * screen when the application does not supply its own
- * {@link Chart#setValueFormat(DoubleFunction)}.
+ * Ready-made number formats: what a chart puts on an axis tick or a tooltip, what a table puts in
+ * a numeric column and its footer, and what any caption that shows a number can use.
  *
  * <p>Every format here follows the {@linkplain I18n#locale() language in effect where it
- * formats}, read at that moment: a locale switch reaches charts already on screen, and a
- * chart inside a subtree that {@linkplain limn.scene.Widget#setLocale declares its own
- * locale} formats in that subtree's language (ADR 035) — separators and digits alike —
- * because the chart's passes hold its effective locale in scope. A format is a plain
- * {@code DoubleFunction<String>}: anything else you write is equally acceptable, and reads
- * the same scope for free by asking {@code I18n.locale()} when it formats.
+ * formats}, read at that moment: a locale switch reaches widgets already on screen, and a widget
+ * inside a subtree that {@linkplain limn.scene.Widget#setLocale declares its own locale} formats
+ * in that subtree's language (ADR 035) &mdash; separators, digits and a currency's symbol and
+ * position alike &mdash; because the widget's passes hold its effective locale in scope. A format
+ * is a plain {@code DoubleFunction<String>}: anything else you write is equally acceptable, and
+ * reads the same scope for free by asking {@code I18n.locale()} when it formats.
  *
  * <pre>{@code
- * chart.setValueFormat(ChartFormats.compact());          // 12500 -> "12.5k"
- * chart.valueAxis().setFormat(ChartFormats.unit(" ms")); // 16 -> "16 ms"
+ * chart.setValueFormat(NumberFormats.compact());                      // 12500 -> "12.5k"
+ * chart.valueAxis().setFormat(NumberFormats.unit(" ms"));             // 16 -> "16 ms"
+ * Column.numeric("Price", Item::price, NumberFormats.prefix("R$ "));  // 1234.5 -> "R$ 1.234,5"
+ * Column.currency("Total", Order::total, Currency.getInstance("BRL")); // -> "R$ 1.234,50"
  * }</pre>
+ *
+ * <p>Until ADR 041 this class was {@code limn.components.chart.ChartFormats}; the table gave it
+ * a second caller and the name moved with it.
  */
-public final class ChartFormats {
+public final class NumberFormats {
 
-    private ChartFormats() {
+    private NumberFormats() {
     }
 
     /**
@@ -92,10 +96,55 @@ public final class ChartFormats {
         return v -> body.apply(v) + suffix;
     }
 
-    /** {@link #number()} with a fixed prefix: {@code prefix("$")}, {@code prefix("R$ ")}. */
+    /**
+     * {@link #number()} with a fixed prefix: {@code prefix("$")}, {@code prefix("R$ ")}. The
+     * prefix sits before the number in every language; money whose symbol should follow the
+     * language's own rules wants {@link #currency(Currency)} instead.
+     */
     public static DoubleFunction<String> prefix(String text) {
         DoubleFunction<String> body = number();
         return v -> text + body.apply(v);
+    }
+
+    /**
+     * An amount of money in a named currency, written as the language in effect writes it:
+     * {@code 1234.5} in Brazilian reais reads {@code "R$ 1.234,50"} under {@code pt-BR},
+     * {@code "R$ 1,234.50"} under {@code en}, and {@code "1 234,50 R$"} under {@code fr}. The
+     * symbol, its position, the decimals and the separators are the locale's; the digits follow
+     * the active numbering system as every format here does.
+     *
+     * @param currency the currency the amounts are in; never {@code null}
+     * @return the format
+     */
+    public static DoubleFunction<String> currency(Currency currency) {
+        Objects.requireNonNull(currency, "currency");
+        return v -> {
+            if (!Double.isFinite(v)) {
+                return "-";
+            }
+            NumberFormat format = NumberFormat.getCurrencyInstance(I18n.locale());
+            format.setCurrency(currency);
+            format.setMinimumFractionDigits(currency.getDefaultFractionDigits());
+            format.setMaximumFractionDigits(currency.getDefaultFractionDigits());
+            return localized(format.format(v));
+        };
+    }
+
+    /**
+     * {@link #currency(Currency)} in the currency of the language in effect: reais under
+     * {@code pt-BR}, euros under {@code de-DE}. A locale that names no country &mdash;
+     * {@code ja}, {@code ar} &mdash; has no currency of its own, and the platform then writes a
+     * generic sign; an application that knows which currency its amounts are in names it.
+     *
+     * @return the format
+     */
+    public static DoubleFunction<String> currency() {
+        return v -> {
+            if (!Double.isFinite(v)) {
+                return "-";
+            }
+            return localized(NumberFormat.getCurrencyInstance(I18n.locale()).format(v));
+        };
     }
 
     /**

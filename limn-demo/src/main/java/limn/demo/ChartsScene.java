@@ -5,7 +5,7 @@ import limn.components.Label;
 import limn.components.Theme;
 import limn.components.chart.BarChart;
 import limn.components.chart.Chart;
-import limn.components.chart.ChartFormats;
+import limn.i18n.NumberFormats;
 import limn.components.chart.ChartSeries;
 import limn.components.chart.DonutChart;
 import limn.components.chart.LineChart;
@@ -85,8 +85,8 @@ final class ChartsScene {
         chart.setLabels("Q1", "Q2", "Q3", "Q4");
         chart.addSeries(ChartSeries.of("Direct", 120, 145, 132, 168));
         chart.addSeries(ChartSeries.of("Partner", 80, 92, 105, 99));
-        chart.setValueFormat(ChartFormats.prefix("$"));
-        chart.valueAxis().setFormat(ChartFormats.compact());
+        chart.setValueFormat(NumberFormats.prefix("$"));
+        chart.valueAxis().setFormat(NumberFormats.compact());
         report(chart, status);
         return chart;
     }
@@ -116,8 +116,8 @@ final class ChartsScene {
                 104, 83, 70));
         chart.setSmooth(true);
         chart.setPointRadius(2.5f);
-        chart.valueAxis().setFormat(ChartFormats.unit(" ms"));
-        chart.setValueFormat(ChartFormats.unit(" ms"));
+        chart.valueAxis().setFormat(NumberFormats.unit(" ms"));
+        chart.setValueFormat(NumberFormats.unit(" ms"));
         report(chart, status);
         return chart;
     }

@@ -1,6 +1,7 @@
 package limn.components.chart;
 
 import limn.accessibility.Accessibility;
+import limn.i18n.NumberFormats;
 import limn.animation.Easing;
 import limn.animation.Transition;
 import limn.backend.Cursor;
@@ -119,7 +120,7 @@ public abstract class Chart extends Widget {
     private boolean legendInteractive = true;
     private TooltipMode tooltipMode = TooltipMode.INDEX;
     private boolean tooltipEnabled = true;
-    private DoubleFunction<String> valueFormat = ChartFormats.number();
+    private DoubleFunction<String> valueFormat = NumberFormats.number();
     private Function<ChartPoint, String> tooltipFormat;
     private float preferredWidth = UNSET;
     private float preferredHeight = UNSET;
@@ -484,7 +485,7 @@ public abstract class Chart extends Widget {
         return valueFormat;
     }
 
-    /** Sets the tooltip value format; see {@link ChartFormats} for ready-made ones. */
+    /** Sets the tooltip value format; see {@link NumberFormats} for ready-made ones. */
     public Chart setValueFormat(DoubleFunction<String> format) {
         Ui.checkUiThread();
         this.valueFormat = Objects.requireNonNull(format, "format");

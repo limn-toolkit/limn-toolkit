@@ -1,8 +1,9 @@
 # Charts
 
 `limn.components.chart`: `Chart` and its three shapes (`BarChart`, `LineChart`,
-`DonutChart`) plus `ChartSeries`, `ChartAxis`, `ChartPalette`, `ChartPoint` and
-`ChartFormats`. Read this before changing any of them; the invariants below are the ones
+`DonutChart`) plus `ChartSeries`, `ChartAxis`, `ChartPalette` and `ChartPoint`; the number
+formats they draw with are `limn.i18n.NumberFormats`, shared with the table since ADR 041. Read this
+before changing any of them; the invariants below are the ones
 the Javadoc deliberately leaves out because they are about how the pieces fit rather than
 about what one method promises.
 
