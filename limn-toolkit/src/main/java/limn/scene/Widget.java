@@ -301,6 +301,9 @@ public abstract class Widget {
             this.scene = newScene;
         }
         if (attaching) {
+            if (paintsFromBackdrop()) {
+                newScene.addBackdropDependant(this);
+            }
             onAttached();
         }
         // Indexed and growth- AND shrink-tolerant: a lifecycle hook may legally
@@ -323,6 +326,9 @@ public abstract class Widget {
             // and remember to null it again; two widgets in this repo alone had
             // grown that field, which is a design saying it got the order wrong.
             onDetached();
+            if (paintsFromBackdrop() && old != null) {
+                old.removeBackdropDependant(this);
+            }
             this.scene = null;
             // The funnel's epoch bump ran BEFORE the hook, so a memo resolved inside
             // onDetached — legal there, and answered from the scene being left — is
@@ -1995,6 +2001,34 @@ public abstract class Widget {
      */
     protected boolean onSyntheticAction(long key, limn.accessibility.Accessible.Action action,
                                         limn.accessibility.Accessible.Argument arg) {
+        return false;
+    }
+
+    /**
+     * Whether this widget's picture is made partly of the pixels <b>behind</b> it: a wash, a
+     * frost, a refraction. Default {@code false}.
+     *
+     * <p>It exists for one mode and is inert outside it. With partial rendering on, a frame
+     * repaints only what was invalidated, and a widget like this can be stale without having
+     * changed at all: nothing about it moved, but what it is made of did. ADR 019 &sect;6 recorded
+     * that as the mode's known limit and named the fix; this is it. A widget that answers
+     * {@code true} is registered with its scene, and its rectangle joins the damage of any frame
+     * whose damage reaches it.
+     *
+     * <p><b>Reaching it is over-approximated on purpose.</b> What actually stales the picture is a
+     * change <em>behind</em> it, and the test here is any intersection, front or back. Deciding
+     * front from back means knowing paint order, which the damage list does not carry; the
+     * over-approximation costs a repaint of something already being painted over and can never
+     * miss one. That is the right way round for a correctness rule.
+     *
+     * <p>Answer it from the class rather than from state: it is read when the widget joins a
+     * scene, not on every frame. A widget whose answer could change with a setter would have to
+     * re-register, and nothing in this toolkit needs that &mdash; a backdrop panel is built with
+     * an effect and never loses it.
+     *
+     * @return whether the pixels behind this widget are part of what it draws
+     */
+    protected boolean paintsFromBackdrop() {
         return false;
     }
 

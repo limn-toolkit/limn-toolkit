@@ -166,11 +166,12 @@ backdrop-dependent, whose rect joins the damage list whenever the damage interse
 §7's third item. Until then this is documented on `Canvas.fillBackdropRoundRect`, in
 `BackdropPanel`, and on screen in the demo scene, rather than discovered.
 
-**2026-09-10:** this limit is now the one thing blocking a decision rather than a note about a
-flag nobody turns on. [ADR 043](043-a-frame-repaints-what-changed-and-every-exception-is-named.md)
-proposes partial rendering as the default and cannot land without §7's third item; it also records
-that the surface is a single class, `BackdropPanel`, which is smaller than this section's wording
-suggests.
+**2026-09-10: closed.** §7's third item is built, so this section describes what used to happen.
+A widget answers {@code paintsFromBackdrop()}, its scene keeps the ones that do, and a frame whose
+damage reaches such a widget repaints it as well. The surface turned out to be a single class,
+`BackdropPanel`, which is smaller than this section's wording suggests. It was built because
+[ADR 043](043-a-frame-repaints-what-changed-and-every-exception-is-named.md) proposes partial
+rendering as the default and could not be decided while this was open.
 
 ---
 
@@ -183,7 +184,7 @@ suggests.
 2. **A rim specular.** `Clear` refracts but does not catch a highlight along its edge, which is the
    cheapest remaining thing that would make it read as glass rather than as a lens. It is a
    parameter and a `pow`, left out only to keep this step's surface to what is tested.
-3. **Backdrop-dependent damage**, per §6.
+3. ~~**Backdrop-dependent damage**, per §6.~~ **Landed 2026-09-10.** `Widget.paintsFromBackdrop()`, a per-scene registry maintained on the funnel a subtree joins and leaves a scene through, and a pass that adds such a widget's rectangle to any frame whose damage reaches it. Reaching is over-approximated to any intersection rather than to a change behind: the damage list carries no paint order, and over-approximating costs a repaint of something already being painted over while never missing one. Asked for by [043](043-a-frame-repaints-what-changed-and-every-exception-is-named.md), which could not be decided without it.
 4. **Paths.** The effect needs the shape's signed distance to find its own rim, and a filled path
    has none. Round rects cover rectangles, circles and capsules through the same SDF.
 5. **A caller-supplied shader.** §2.

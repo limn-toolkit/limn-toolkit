@@ -598,6 +598,13 @@ public final class Scene implements WindowInput {
     // merge on arrival; disjoint hot spots stay separate repaint passes.
     // List semantics throughout: null = the whole scene, empty = nothing.
     private static final int MAX_DAMAGE_RECTS = 8;
+    /**
+     * Widgets whose picture is made of the pixels behind them, kept as a list rather than found
+     * by walking: the walk would be per frame and would cost the same whether the count is zero
+     * or two, and it is zero in almost every application. Maintained on the one funnel a subtree
+     * joins and leaves a scene through, so it cannot drift from the tree.
+     */
+    private final List<Widget> backdropDependants = new ArrayList<>();
     private final List<Rect> pendingDamage = new ArrayList<>();
     private List<Rect> frameDamage1;      // fresh damage of the previous content frame
     private List<Rect> lastRepaintRegion; // what the previous content frame actually repainted
@@ -1221,6 +1228,21 @@ public final class Scene implements WindowInput {
      * nothing at all.
      */
     private void addClippedDamage(Widget widget, float x, float y, float w, float h) {
+        Rect region = clippedSceneRect(widget, x, y, w, h);
+        if (region != null) {
+            addDamage(region.x(), region.y(), region.width(), region.height());
+        }
+    }
+
+    /**
+     * A rect in {@code widget}'s local coordinates, walked up to scene coordinates and clamped at
+     * every ancestor that clips its children, or {@code null} if nothing of it survives.
+     *
+     * <p>Extracted so that damage and the backdrop pass ask the question once: a backdrop panel
+     * scrolled out of a viewport must add nothing, by exactly the rule that stops a scrolled-away
+     * widget damaging the viewport it is no longer inside.
+     */
+    private Rect clippedSceneRect(Widget widget, float x, float y, float w, float h) {
         float x0 = x;
         float y0 = y;
         float x1 = x + w;
@@ -1228,7 +1250,7 @@ public final class Scene implements WindowInput {
         Widget below = null;
         for (Widget node = widget; node != null; below = node, node = node.parent()) {
             if (!node.isVisible()) {
-                return; // hidden branch: it paints nothing, so no pixel changed
+                return null; // hidden branch: it paints nothing, so no pixel changed
             }
             if (node != widget && node.clipsChildren()) {
                 // The ancestor's clip for the child we came up through, which is its box unless it
@@ -1240,7 +1262,7 @@ public final class Scene implements WindowInput {
                 x1 = Math.min(x1, cx + node.clipWidth(below) + 1);
                 y1 = Math.min(y1, cy + node.clipHeight(below) + 1);
                 if (x1 <= x0 || y1 <= y0) {
-                    return; // fully clipped away (scrolled out of view)
+                    return null; // fully clipped away (scrolled out of view)
                 }
             }
             x0 += node.x();
@@ -1248,7 +1270,69 @@ public final class Scene implements WindowInput {
             x1 += node.x();
             y1 += node.y();
         }
-        addDamage(x0, y0, x1 - x0, y1 - y0);
+        return x1 <= x0 || y1 <= y0 ? null : new Rect(x0, y0, x1 - x0, y1 - y0);
+    }
+
+    /**
+     * Adds the rectangle of every backdrop-dependent widget this frame's damage reaches.
+     *
+     * <p>ADR 019 &sect;6's limit, closed: a shape filled from what is behind it is stale when what
+     * is behind it repaints, and nothing about the shape itself moved to say so. Adding one such
+     * rectangle can reach another &mdash; a panel over a panel &mdash; so the pass repeats until
+     * nothing new is added, which is at most once per registered widget because each is added at
+     * most once.
+     *
+     * <p>Inert when there are none, which is almost every scene: one emptiness check per frame.
+     *
+     * @param fresh this frame's damage; {@code null} means the whole scene and {@code empty}
+     *              means nothing, and neither has anything to add to
+     * @return the damage, widened
+     */
+    private List<Rect> withBackdropDependants(List<Rect> fresh) {
+        if (backdropDependants.isEmpty() || fresh == null || fresh.isEmpty()) {
+            return fresh;
+        }
+        List<Rect> widened = null;
+        boolean[] taken = new boolean[backdropDependants.size()];
+        for (boolean added = true; added; ) {
+            added = false;
+            for (int i = 0; i < backdropDependants.size(); i++) {
+                if (taken[i]) {
+                    continue;
+                }
+                Widget widget = backdropDependants.get(i);
+                float outset = 1 + widget.paintOutset();
+                Rect rect = clippedSceneRect(widget, -outset, -outset,
+                        widget.width() + 2 * outset, widget.height() + 2 * outset);
+                if (rect == null) {
+                    taken[i] = true; // clipped away or hidden: nothing of it is on screen
+                    continue;
+                }
+                List<Rect> against = widened == null ? fresh : widened;
+                boolean reached = false;
+                for (int r = 0; r < against.size(); r++) {
+                    if (intersects(against.get(r), rect)) {
+                        reached = true;
+                        break;
+                    }
+                }
+                if (!reached) {
+                    continue;
+                }
+                if (widened == null) {
+                    widened = new ArrayList<>(fresh);
+                }
+                mergeDamage(widened, rect);
+                taken[i] = true;
+                added = true;
+            }
+        }
+        return widened == null ? fresh : widened;
+    }
+
+    private static boolean intersects(Rect a, Rect b) {
+        return a.x() < b.x() + b.width() && b.x() < a.x() + a.width()
+                && a.y() < b.y() + b.height() && b.y() < a.y() + a.height();
     }
 
     private void addDamage(float x, float y, float w, float h) {
@@ -1475,6 +1559,23 @@ public final class Scene implements WindowInput {
             }
             damageWidget(widget);
         }
+    }
+
+    /** See {@link Widget#paintsFromBackdrop()}. Called as the widget joins this scene. */
+    void addBackdropDependant(Widget widget) {
+        if (!backdropDependants.contains(widget)) {
+            backdropDependants.add(widget);
+        }
+    }
+
+    /** See {@link Widget#paintsFromBackdrop()}. Called as the widget leaves this scene. */
+    void removeBackdropDependant(Widget widget) {
+        backdropDependants.remove(widget);
+    }
+
+    /** @return how many backdrop-dependent widgets this scene holds; for tests */
+    int backdropDependantCount() {
+        return backdropDependants.size();
     }
 
     void onWidgetDetached(Widget widget) {
@@ -2647,6 +2748,10 @@ public final class Scene implements WindowInput {
             repaint = partialRendering ? lastRepaintRegion : null;
         } else {
             List<Rect> fresh = consumeFreshDamage(canvas);
+            // Widened BEFORE it is stored as this frame's damage, so the next frame's union
+            // carries the backdrop rects too: the other buffer needs them for the same reason
+            // this one does.
+            fresh = withBackdropDependants(fresh);
             // Double buffering: the back buffer holds the frame from two
             // presents ago, so the previous frame's damage repaints too.
             repaint = unionDamage(fresh, frameDamage1);

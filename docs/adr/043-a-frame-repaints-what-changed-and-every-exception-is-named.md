@@ -1,7 +1,7 @@
 # ADR 043: A frame repaints what changed, and every exception is named
 
-- **Status:** Proposed, 2026-09-10. Nothing here is implemented beyond the two prerequisites §3
-  records as already landed. §9 says what has to be true before the flag is flipped, and §11 what
+- **Status:** Proposed, 2026-09-10; §9's first item, which was the blocker, landed the same day.
+  The flag itself is not flipped. §9 says what has to be true before the flag is flipped, and §11 what
   is deliberately not in this step.
 - **Date:** 2026-09-10
 - **Scope:** whether `Scene.setPartialRendering` should be on by default; what a widget owes if it
@@ -92,25 +92,33 @@ ring inside its box (`TabbedPane`); `Slider` reserves the ring inside its measur
 construction (`sliderPad()` is `knobHover + FOCUS_GAP_SLIDER + BORDER`). Nothing was relying on the
 blanket.
 
-**Not done, and this is the blocker: a widget that depends on pixels it does not own.** ADR 019 §6
-records it exactly: a shape filled from its backdrop keeps showing the older backdrop if content
+**Done 2026-09-10, and it was the blocker: a widget that depends on pixels it does not own.**
+ADR 019 §6 recorded it exactly: a shape filled from its backdrop keeps showing the older backdrop if content
 behind it changes while it does not itself invalidate. It does not bite over a video that repaints
 every frame, and it does not bite over static content; it bites in between. The fix is named in
 that record's §7 and has never been built: *a widget that declares itself backdrop-dependent, whose
 rect joins the damage list whenever the damage intersects it*.
 
-**The surface is one class.** `BackdropPanel` is the only widget in the toolkit that fills from
+**The surface was one class.** `BackdropPanel` is the only widget in the toolkit that fills from
 what is behind it; `BackdropEffect` and `Canvas.fillBackdropRoundRect` are the plumbing under it.
-So §7.3 is not a research project, it is a predicate and a loop:
+So §7.3 was not a research project, and what landed is a predicate and a loop:
 
 ```java
 protected boolean paintsFromBackdrop() { return false; }   // Widget
 ```
 
-and, where the scene composes the frame's damage, one pass that adds the scene-space rect of every
-backdrop-dependent widget whose rect intersects the damage already collected. Bounded by the number
-of such widgets, which is the number an application chose to put on screen, and zero in almost
-every application.
+A widget answering `true` registers with its scene on the one funnel a subtree joins and leaves a
+scene through, so the registry cannot drift from the tree; and where the frame composes its damage,
+one pass adds the scene-space rect of every registered widget the damage reaches, repeating until
+nothing new is added — a panel over a panel is one reach away from a second. The rect goes through
+the same ancestor-clipping walk `invalidate()` uses, so a panel scrolled out of a viewport adds
+nothing, and it is widened *before* the frame stores its damage, so the other buffer gets it too.
+Inert where there are none, which is almost every scene: one emptiness check per frame.
+
+**Reaching is over-approximated on purpose**: what stales the picture is a change *behind* it, and
+the test is any intersection. Front from back needs paint order, which the damage list does not
+carry; over-approximating costs a repaint of something already being painted over and can never
+miss one, which is the right way round for a correctness rule.
 
 ## 4. What every widget owes under this default
 
@@ -178,8 +186,9 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
 
 ## 9. What has to be true before the flag is flipped
 
-1. **§3's backdrop predicate**, or the mode is wrong for every application using `BackdropPanel`
-   and the glass palettes.
+1. ~~**§3's backdrop predicate**~~ — **done 2026-09-10**, with a test that fails by exactly the
+   symptom it prevents: with the pass removed, the repaint region holds the widget that changed
+   and not the panel made of it.
 2. **`CalendarView` damages cells rather than itself** (§4), and the same question asked of the
    other widgets whose cursors move inside a large box: `ListView`, `Table`, `PopupMenu`'s panel,
    `TabbedPane`'s strip. Each is a measurement, not an opinion.

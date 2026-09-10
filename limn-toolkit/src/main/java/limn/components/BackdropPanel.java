@@ -60,6 +60,19 @@ public class BackdropPanel extends Padding {
         this.effects = java.util.List.of(Objects.requireNonNull(effect, "effect"));
     }
 
+    /**
+     * Yes: this panel's picture is the pixels behind it, put through an effect.
+     *
+     * <p>Which is why it is stale whenever they change, without anything about the panel moving.
+     * Answering this is what puts its rectangle into the damage of a frame that repaints anything
+     * underneath it, and it is what ADR 019 &sect;6 said had to exist before partial rendering
+     * could be trusted over one of these.
+     */
+    @Override
+    protected boolean paintsFromBackdrop() {
+        return true;
+    }
+
     /** The first effect painted behind the child; see {@link #effects()} for the whole stack. */
     public final BackdropEffect effect() {
         return effects.get(0);
