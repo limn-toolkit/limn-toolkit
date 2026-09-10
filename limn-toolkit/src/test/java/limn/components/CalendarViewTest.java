@@ -269,6 +269,48 @@ class CalendarViewTest extends ComponentTestBase {
     }
 
     @Test
+    void tabWalksTheHeaderControlsAndThenLeavesTheWidget() {
+        build();
+        scene.requestFocus(calendar);
+        // The grid is where focus lands, because it is what the widget is for.
+        assertEquals(LocalDate.of(2026, 9, 1), calendar.visibleMonth());
+        key(Keys.TAB);   // onto the arrow that pages back
+        key(Keys.ENTER);
+        assertEquals(LocalDate.of(2026, 8, 1), calendar.visibleMonth(),
+                "Enter on the header control the cursor is on presses it");
+        key(Keys.RIGHT); // plain arrows move between the three header controls
+        key(Keys.ENTER);
+        assertEquals(CalendarView.View.MONTHS, calendar.view(),
+                "the middle control is the title, and pressing it climbs");
+    }
+
+    @Test
+    void downFromTheHeaderDropsBackIntoTheGrid() {
+        build();
+        calendar.setSelectedDate(ANCHOR);
+        scene.requestFocus(calendar);
+        key(Keys.TAB);
+        key(Keys.DOWN);
+        // Back in the grid, so the arrows move the day cursor again rather than the header.
+        key(Keys.RIGHT);
+        assertEquals(ANCHOR.plusDays(1), calendar.focusedDate());
+    }
+
+    @Test
+    void tabOffTheEndOfTheWalkIsNotTheCalendarsToKeep() {
+        build();
+        scene.requestFocus(calendar);
+        for (int i = 0; i < 3; i++) {
+            key(Keys.TAB); // previous, title, next
+        }
+        // A fourth Tab runs off the end. The calendar declines it, which is what lets focus
+        // leave the widget at all -- and what a picker reads as "close and move on".
+        LocalDate before = calendar.visibleMonth();
+        key(Keys.TAB);
+        assertEquals(before, calendar.visibleMonth(), "and nothing was pressed on the way out");
+    }
+
+    @Test
     void theHeaderClimbsToMonthsThenYearsAndBackDown() {
         build();
         assertEquals(CalendarView.View.DAYS, calendar.view());

@@ -521,6 +521,19 @@ public class DatePicker extends Widget {
                 }
                 event.consume();
             }
+            case Keys.TAB -> {
+                // Forwarded so the grid's own parts -- the two paging arrows and the title --
+                // are reachable while the field holds the focus. The calendar declines the key
+                // when the walk runs off an end, and that is the signal to let go: the popup
+                // closes and the Tab does what it would have done, which is move to the next
+                // control in the form.
+                calendar.onKeyEvent(event);
+                if (event.isConsumed()) {
+                    repaintPopup();
+                } else {
+                    setOpen(false, Change.Origin.USER);
+                }
+            }
             case Keys.UP, Keys.DOWN, Keys.LEFT, Keys.RIGHT, Keys.HOME, Keys.END,
                  Keys.PAGE_UP, Keys.PAGE_DOWN, Keys.ENTER, Keys.SPACE -> {
                 // Straight into the grid's own handler, which is the path its keyboard already

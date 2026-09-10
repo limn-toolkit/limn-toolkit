@@ -146,6 +146,33 @@ public class CalendarView extends Widget {
     /** One per week-number cell. */
     private static final long KEY_WEEK_BASE = -200;
 
+    /**
+     * Which part of the calendar the keyboard is on.
+     *
+     * <p>A <b>roving</b> focus rather than four focusable widgets, and the difference is not
+     * cosmetic: in a popup the grid holds no operating-system focus at all &mdash; the field that
+     * opened it does, and the keys are forwarded &mdash; so real focus inside would work in one
+     * presentation and not the other. This is the same pattern the platform accessibility APIs
+     * call an <em>active descendant</em>: one node holds the focus, another says which of its
+     * descendants the cursor is on, and every bridge already understands it. The grid's day
+     * cursor was always this; the header simply joins it.
+     */
+    private enum Part {
+        /** The days, months or years, wherever the cursor is inside them. */
+        GRID,
+        /** The arrow that pages back. */
+        PREVIOUS,
+        /** The title, which climbs to the next view. */
+        TITLE,
+        /** The arrow that pages on. */
+        NEXT
+    }
+
+    /** The order Tab walks: the grid first, because it is what the widget is for. */
+    private static final Part[] TAB_ORDER = {Part.GRID, Part.PREVIOUS, Part.TITLE, Part.NEXT};
+
+    private Part part = Part.GRID;
+
     private SelectionMode selectionMode = SelectionMode.SINGLE;
     private View view = View.DAYS;
     /** Where the keyboard is inside a chooser, as a flat cell index; meaningless in DAYS. */
@@ -233,6 +260,7 @@ public class CalendarView extends Widget {
         keyboardActive = active;
         if (active) {
             cursor = cursorOrDefault();
+            part = Part.GRID;
         }
         focusFade.to(active ? 1 : 0);
         invalidate();
@@ -1284,9 +1312,23 @@ public class CalendarView extends Widget {
         float leftX = pad;
         float rightX = width() - pad - buttonW;
         paintChevron(canvas, theme, t, rtl ? rightX : leftX, buttonW, rtl ? 1 : -1,
-                enabled, pagingHover == -1);
+                enabled, pagingHover == -1 || part == Part.PREVIOUS);
         paintChevron(canvas, theme, t, rtl ? leftX : rightX, buttonW, rtl ? -1 : 1,
-                enabled, pagingHover == 1);
+                enabled, pagingHover == 1 || part == Part.NEXT);
+        // The roving focus, drawn where it is: a ring on the header control the keyboard is on.
+        float focus = focusFade.value();
+        if (focus > 0.001f && part != Part.GRID) {
+            float gap = Strokes.FOCUS_GAP_INDICATOR;
+            float ringX = switch (part) {
+                case PREVIOUS -> rtl ? rightX : leftX;
+                case NEXT -> rtl ? leftX : rightX;
+                default -> pad + buttonW;
+            };
+            float ringW = part == Part.TITLE
+                    ? Math.max(0, width() - 2 * (pad + buttonW)) : buttonW;
+            canvas.drawRoundRect(ringX + gap, pad + gap, ringW - 2 * gap, headerH - 2 * gap,
+                    t.radiusSmall(), Strokes.FOCUS_RING_THIN, theme.focusRing.withAlpha(focus));
+        }
     }
 
     /**
@@ -1338,6 +1380,9 @@ public class CalendarView extends Widget {
     @Override
     protected void onFocusGained() {
         cursor = cursorOrDefault();
+        // The grid, not the header: it is what the widget is for, and a caret that landed on
+        // "previous month" would make every arrival a detour.
+        part = Part.GRID;
         focusFade.to(1);
     }
 
@@ -1477,6 +1522,20 @@ public class CalendarView extends Widget {
         }
         boolean rtl = isRightToLeft();
         boolean shift = (event.modifiers() & Keys.MOD_SHIFT) != 0;
+        // Tab walks the calendar's own parts before it leaves the widget, which is what makes the
+        // two paging arrows and the title reachable at all: they are painted regions, and painted
+        // regions are not tab stops. Declining the key at the end of the walk is deliberate --
+        // that is what lets focus leave, and what a picker reads as "close and move on".
+        if (event.key() == Keys.TAB) {
+            if (movePart(shift ? -1 : 1)) {
+                event.consume();
+            }
+            return;
+        }
+        if (part != Part.GRID) {
+            headerKey(event, rtl);
+            return;
+        }
         if (view != View.DAYS) {
             chooserKey(event, rtl);
             return;
@@ -1581,6 +1640,92 @@ public class CalendarView extends Widget {
         showMonth(target, Change.Origin.USER);
         chooserCursor = -1;
         setView(view == View.YEARS ? View.MONTHS : View.DAYS);
+    }
+
+    /**
+     * Moves the roving focus one step along {@link #TAB_ORDER}.
+     *
+     * @param delta +1 forwards, -1 backwards
+     * @return whether the calendar kept the key; {@code false} means the walk ran off an end and
+     *         the key belongs to whatever encloses this widget
+     */
+    private boolean movePart(int delta) {
+        int at = 0;
+        for (int i = 0; i < TAB_ORDER.length; i++) {
+            if (TAB_ORDER[i] == part) {
+                at = i;
+                break;
+            }
+        }
+        int next = at + delta;
+        if (next < 0 || next >= TAB_ORDER.length) {
+            return false;
+        }
+        part = TAB_ORDER[next];
+        invalidate();
+        notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+        return true;
+    }
+
+    /**
+     * The keyboard while the cursor is on one of the three header controls: plain arrows move
+     * between them, Enter and Space press the one it is on, and Down drops back into the grid.
+     *
+     * <p>Left and Right mirror, because they name a side of a row of buttons; Down does not,
+     * because the grid is below the header in every language.
+     */
+    private void headerKey(KeyEvent event, boolean rtl) {
+        switch (event.key()) {
+            case Keys.LEFT -> {
+                stepHeader(rtl ? 1 : -1);
+                event.consume();
+            }
+            case Keys.RIGHT -> {
+                stepHeader(rtl ? -1 : 1);
+                event.consume();
+            }
+            case Keys.DOWN -> {
+                part = Part.GRID;
+                invalidate();
+                notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+                event.consume();
+            }
+            case Keys.ENTER, Keys.SPACE -> {
+                pressPart();
+                event.consume();
+            }
+            case Keys.ESCAPE -> {
+                part = Part.GRID;
+                invalidate();
+                event.consume();
+            }
+            default -> {
+            }
+        }
+    }
+
+    /** Moves between the three header controls, stopping at the ends rather than wrapping. */
+    private void stepHeader(int delta) {
+        Part[] header = {Part.PREVIOUS, Part.TITLE, Part.NEXT};
+        int at = part == Part.PREVIOUS ? 0 : part == Part.TITLE ? 1 : 2;
+        int next = Math.max(0, Math.min(header.length - 1, at + delta));
+        if (header[next] == part) {
+            return;
+        }
+        part = header[next];
+        invalidate();
+        notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+    }
+
+    /** What Enter does on the part the cursor is on: the same path the pointer takes. */
+    private void pressPart() {
+        switch (part) {
+            case PREVIOUS -> page(-1);
+            case NEXT -> page(1);
+            case TITLE -> climb();
+            default -> {
+            }
+        }
     }
 
     /**
@@ -1723,6 +1868,9 @@ public class CalendarView extends Widget {
         if (isEnabled()) {
             a.action(Accessible.Action.PRESS);
         }
+        if (focusHere(Part.TITLE)) {
+            a.state(Accessible.State.ACTIVE);
+        }
         a.endChild();
 
         if (!days) {
@@ -1792,7 +1940,7 @@ public class CalendarView extends Widget {
                 if (isEnabled() && isSelectable(day)) {
                     a.action(Accessible.Action.SELECT);
                 }
-                if (day.equals(cursor) && (isFocused() || keyboardActive)) {
+                if (day.equals(cursor) && focusHere(Part.GRID)) {
                     a.state(Accessible.State.ACTIVE);
                 }
                 a.endChild();
@@ -1833,7 +1981,7 @@ public class CalendarView extends Widget {
                 if (index == current) {
                     a.state(Accessible.State.CHECKED, true);
                 }
-                if (index == chooserCursor && (isFocused() || keyboardActive)) {
+                if (index == chooserCursor && focusHere(Part.GRID)) {
                     a.state(Accessible.State.ACTIVE);
                 }
                 a.endChild();
@@ -1859,6 +2007,15 @@ public class CalendarView extends Widget {
         return note == null ? date : date + ", " + note;
     }
 
+    /**
+     * Whether the keyboard cursor is on a given part <em>and</em> this calendar is the thing being
+     * driven &mdash; either because it holds the focus itself, or because a picker is forwarding
+     * its keys here.
+     */
+    private boolean focusHere(Part which) {
+        return part == which && (isFocused() || keyboardActive);
+    }
+
     private void describePaging(Accessibility a, long key, float x, float w, float pad) {
         a.child(key);
         a.bounds(x, pad, w, headerH);
@@ -1867,6 +2024,11 @@ public class CalendarView extends Widget {
                 Accessible.NameFrom.CONTENT);
         if (isEnabled()) {
             a.action(Accessible.Action.PRESS);
+        }
+        // The roving cursor is published as the active descendant, which is the vocabulary every
+        // bridge already has for "focus is here without the focus moving".
+        if (focusHere(key == KEY_PREVIOUS ? Part.PREVIOUS : Part.NEXT)) {
+            a.state(Accessible.State.ACTIVE);
         }
         a.endChild();
     }
