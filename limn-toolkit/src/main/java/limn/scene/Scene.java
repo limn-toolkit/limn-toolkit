@@ -1747,7 +1747,20 @@ public final class Scene implements WindowInput {
             }
         }
         updateImeState(); // turn the platform IME on/off for the new focus
-        requestRender();
+        // The two widgets that moved, and not the whole window.
+        //
+        // This was a bare requestRender(), which is a full frame by definition, so every focus
+        // change repainted everything -- measured, and true of a plain Button as much as of
+        // anything newer. What actually changed is at most two boxes, and each is damaged with
+        // the outset its focus ring reaches into, which is the same inflation every other painter
+        // of a ring relies on. Their own onFocusGained/onFocusLost usually damage them anyway;
+        // this makes it true for a widget that draws a ring and overrides neither.
+        if (old != null) {
+            old.invalidate();
+        }
+        if (widget != null) {
+            widget.invalidate();
+        }
     }
 
     /** Focused widget awaiting post-layout reveal (see {@link #setFocus}). */
