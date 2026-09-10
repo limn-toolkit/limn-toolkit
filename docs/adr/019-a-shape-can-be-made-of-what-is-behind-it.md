@@ -166,6 +166,12 @@ backdrop-dependent, whose rect joins the damage list whenever the damage interse
 §7's third item. Until then this is documented on `Canvas.fillBackdropRoundRect`, in
 `BackdropPanel`, and on screen in the demo scene, rather than discovered.
 
+**2026-09-10:** this limit is now the one thing blocking a decision rather than a note about a
+flag nobody turns on. [ADR 043](043-a-frame-repaints-what-changed-and-every-exception-is-named.md)
+proposes partial rendering as the default and cannot land without §7's third item; it also records
+that the surface is a single class, `BackdropPanel`, which is smaller than this section's wording
+suggests.
+
 ---
 
 ## 7. Deliberately not in this step

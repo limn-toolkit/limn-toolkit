@@ -74,14 +74,6 @@ final class DatesScene {
         CalendarView grid = grid();
         Scene scene = new Scene(new Padding(Insets.all(20), content(picker, grid)));
         scene.setBackground(Theme.current().background);
-        // EXPERIMENT (uncommitted): LIMN_DAMAGE=1 washes each frame's fresh damage in magenta,
-        // and LIMN_PARTIAL=1 turns on partial rendering, which this scene (like most) leaves off.
-        if (System.getenv("LIMN_DAMAGE") != null) {
-            scene.setDamageDebug(true);
-        }
-        if (System.getenv("LIMN_PARTIAL") != null) {
-            scene.setPartialRendering(true);
-        }
         return new Built(scene, picker, grid);
     }
 
