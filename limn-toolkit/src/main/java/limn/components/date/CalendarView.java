@@ -793,13 +793,63 @@ public class CalendarView extends Widget {
         if (day == null || day.equals(cursor) && !extend) {
             return;
         }
+        LocalDate from = cursor;
         cursor = day;
-        if (extend && selectionMode == SelectionMode.RANGE && rangeAnchor != null) {
+        boolean band = extend && selectionMode == SelectionMode.RANGE && rangeAnchor != null;
+        if (band) {
             rangePreview = day;
         }
+        LocalDate wasShowing = visibleMonth;
         showMonth(day, Change.Origin.ADJUSTMENT);
-        invalidate();
+        if (band || !wasShowing.equals(visibleMonth)) {
+            // A band redraws every cell between its ends, and paging redraws all of them; two
+            // cells is the wrong answer for both.
+            invalidate();
+        } else {
+            damageDay(from);
+            damageDay(day);
+        }
         notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+    }
+
+    /**
+     * Damages one cell of whichever view is showing, rather than the whole grid.
+     *
+     * <p>ADR 043 &sect;9.2. A cursor step changes two cells and used to repaint the widget:
+     * measured at <b>50.4% of a nine-hundred-point window</b> for one arrow key, which under a
+     * full-frame default costs nothing and under a partial one is the difference between a cell
+     * and half a screen. The rect is the cell's box grown by the focus ring's own reach, because
+     * the ring is what a cursor step draws and it sits inside the cell by a gap rather than on
+     * its edge.
+     *
+     * @param index the flat cell index, or a negative for nothing
+     */
+    private void damageCell(int index) {
+        if (index < 0 || index >= cellCount() || cellW <= 0 || cellH <= 0) {
+            return;
+        }
+        int columns = columns();
+        float left = cellLeft(index % columns, isRightToLeft());
+        float top = gridY + (index / columns) * cellH;
+        float grow = Strokes.FOCUS_RING_THIN + Strokes.FOCUS_GAP_INDICATOR;
+        invalidate(left - grow, top - grow, cellW + 2 * grow, cellH + 2 * grow);
+    }
+
+    /** Damages the cell a day sits in, if that day is on screen at all. */
+    private void damageDay(LocalDate day) {
+        if (day == null || view != View.DAYS || gridStartEpoch == Long.MIN_VALUE) {
+            return;
+        }
+        long offset = day.toEpochDay() - gridStartEpoch;
+        if (offset >= 0 && offset < CELLS) {
+            damageCell((int) offset);
+        }
+    }
+
+    /** The header strip: the two arrows, the title, and the roving ring on whichever holds it. */
+    private void damageHeader() {
+        float pad = Theme.current().tokensFor(this).spacingSmall();
+        invalidate(0, 0, width(), pad + headerH + pad);
     }
 
     /** Where the cursor is when the keyboard first arrives: the selection, else today. */
@@ -1467,20 +1517,40 @@ public class CalendarView extends Widget {
                 if (previewMoved || paging != pagingHover || overTitle != titleHover
                         || chooserCell != hoverChooserCell
                         || !Objects.equals(day, hover)) {
+                    LocalDate wasHovering = hover;
+                    int wasCell = hoverChooserCell;
+                    boolean headerMoved = paging != pagingHover || overTitle != titleHover;
                     hover = day;
                     pagingHover = paging;
                     titleHover = overTitle;
                     hoverChooserCell = chooserCell;
-                    invalidate();
+                    if (previewMoved) {
+                        invalidate(); // the band's extent changed, which is many cells
+                    } else {
+                        if (headerMoved) {
+                            damageHeader();
+                        }
+                        damageDay(wasHovering);
+                        damageDay(day);
+                        damageCell(wasCell);
+                        damageCell(chooserCell);
+                    }
                 }
             }
             case EXIT -> {
                 if (hover != null || pagingHover != 0 || titleHover || hoverChooserCell >= 0) {
+                    LocalDate wasHovering = hover;
+                    int wasCell = hoverChooserCell;
+                    boolean headerMoved = pagingHover != 0 || titleHover;
                     hover = null;
                     pagingHover = 0;
                     titleHover = false;
                     hoverChooserCell = -1;
-                    invalidate();
+                    if (headerMoved) {
+                        damageHeader();
+                    }
+                    damageDay(wasHovering);
+                    damageCell(wasCell);
                 }
             }
             case CLICK -> {
@@ -1703,9 +1773,10 @@ public class CalendarView extends Widget {
             }
             next = Math.floorMod(next, TAB_ORDER.length);
         }
+        Part from = part;
         part = TAB_ORDER[next];
         enterPart();
-        invalidate();
+        damagePartChange(from, part);
         notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
         return true;
     }
@@ -1753,9 +1824,10 @@ public class CalendarView extends Widget {
                 event.consume();
             }
             case Keys.DOWN -> {
+                Part from = part;
                 part = Part.GRID;
                 enterPart();
-                invalidate();
+                damagePartChange(from, part);
                 notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
                 event.consume();
             }
@@ -1764,9 +1836,10 @@ public class CalendarView extends Widget {
                 event.consume();
             }
             case Keys.ESCAPE -> {
+                Part from = part;
                 part = Part.GRID;
                 enterPart();
-                invalidate();
+                damagePartChange(from, part);
                 event.consume();
             }
             default -> {
@@ -1782,9 +1855,27 @@ public class CalendarView extends Widget {
         if (header[next] == part) {
             return;
         }
+        Part from = part;
         part = header[next];
-        invalidate();
+        damagePartChange(from, part);
         notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+    }
+
+    /**
+     * Damages what a move of the roving focus actually changes: the header strip when it is at
+     * either end of the move, and the cursor's cell when the grid is.
+     */
+    private void damagePartChange(Part from, Part to) {
+        if (from != Part.GRID || to != Part.GRID) {
+            damageHeader();
+        }
+        if (from == Part.GRID || to == Part.GRID) {
+            if (view == View.DAYS) {
+                damageDay(cursor);
+            } else {
+                damageCell(chooserCursor);
+            }
+        }
     }
 
     /** What Enter does on the part the cursor is on: the same path the pointer takes. */
@@ -1874,8 +1965,10 @@ public class CalendarView extends Widget {
             return;
         }
         if (next != chooserCursor) {
+            int from = chooserCursor;
             chooserCursor = next;
-            invalidate();
+            damageCell(from);
+            damageCell(next);
             notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
         }
     }

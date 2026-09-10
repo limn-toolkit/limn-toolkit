@@ -24,13 +24,25 @@ Instrumenting the scene's repaint clip headlessly gave the shape of it:
 
 | gesture | with the flag off | with the flag on |
 | --- | --- | --- |
-| focus into a field | 100.0% of the window per frame | 2.0% |
-| focus to the next field | 100.0% | 2.0% |
-| a day cursor step, popup open | 100.0% | 50.4% |
+| focus into a field, while the fade runs | 100.0% of the window per frame | 2.0% |
+| the same, once it has settled | 100.0% | 0% — no frame is painted at all |
+| a day cursor step inside an open popup | 100.0% | 0.5%, and the clip is the two cells |
 
-Measured over a nine-hundred-by-seven-hundred window holding two pickers and eight text fields,
+Measured over a nine-hundred-by-seven-hundred window holding a picker and eight text fields,
 counting the area of the clip the scene applies before anything is drawn. Three things fell out of
 it, and only the first was expected.
+
+**The third row is a correction, and the way it was wrong is worth keeping.** It first read 50.4%,
+and that number was an artefact of the harness: it averaged four frames, two of which were the
+popup's own opening, which marks the layout dirty and is a full frame by the structural invariant.
+Averaged, "opening a popup" and "moving a cursor" came out as one number that described neither.
+Two further attempts to measure it read 12.8% and 0.0%, both also artefacts — a focus fade still
+running under the measurement, and then frames that painted *nothing* being scored as full. The
+number above is from a probe that does one gesture in a fresh scene, prints per frame rather than
+averaging, settles past every transition first, and prints the clip rectangle so the reader can
+check it against the geometry: `114,126 44x72` is two day cells, stacked, which is what a Down key
+changes. A measurement that cannot be checked against a rectangle is an opinion with a decimal
+point.
 
 **The flag is doing what it says.** Two per cent against a hundred is not a micro-optimization; it
 is the difference between repainting a form and repainting a field.
@@ -125,13 +137,23 @@ miss one, which is the right way round for a correctness rule.
 One sentence, and it is already the contract: **declare, in `paintOutset()`, everything you paint
 outside your own box, and call `invalidate()` for everything you change.**
 
-The second half is where the interesting failures are, and this work produced one. Measured above:
-a day cursor step in an open calendar repaints **50.4%** of the window with the flag on, because
-`CalendarView` invalidates itself whole when the cursor moves one cell. Nothing is wrong with the
-picture — it is correct and wasteful, which is the failure mode this mode has. Under the current
-default it costs nothing, because the frame was full anyway; under the proposed one it is the
-difference between a cell and half a screen. That is the shape of the migration work, and §9 puts
-it before the flip rather than after.
+The second half is where the interesting failures are, and this work produced two, both in code
+written this month by somebody who had read the contract.
+
+`CalendarView` invalidated **itself** when the cursor moved one cell: correct, and wasteful, which
+is this mode's failure mode. It now damages the cell the cursor left and the cell it arrived at,
+and falls back to the whole grid exactly where the whole grid does change — a range band redrawing
+between its ends, and a page turn. Measured after: `114,126 44x72`, two cells.
+
+`DatePicker` was worse and less visible. Every key it forwarded to the grid called a
+`repaintPopup()` that did two things it should not: it marked the popup's layout dirty, and a
+layout pass is a full frame by the structural invariant; and it invalidated the in-scene overlay,
+which is **the size of the whole scene**. So each arrow key threw away the half per cent the grid
+had just asked for and repainted the window. It now asks only the popup *window* for a frame, and
+only because a second window has a frame loop of its own that this scene's damage does not reach.
+
+Both were invisible under the current default, because the frame was full anyway. That is the
+argument of §6 in one paragraph.
 
 ## 5. What stays full-frame, for ever
 
@@ -189,9 +211,11 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
 1. ~~**§3's backdrop predicate**~~ — **done 2026-09-10**, with a test that fails by exactly the
    symptom it prevents: with the pass removed, the repaint region holds the widget that changed
    and not the panel made of it.
-2. **`CalendarView` damages cells rather than itself** (§4), and the same question asked of the
-   other widgets whose cursors move inside a large box: `ListView`, `Table`, `PopupMenu`'s panel,
-   `TabbedPane`'s strip. Each is a measurement, not an opinion.
+2. ~~**`CalendarView` damages cells rather than itself**~~ — **done 2026-09-10**, along with the
+   `DatePicker` defect it uncovered (§4). The same question is still open for the other widgets
+   whose cursors move inside a large box: `ListView`, `Table`, `PopupMenu`'s panel, `TabbedPane`'s
+   strip. Each is a measurement, not an opinion, and the harness is now known to be the hard part:
+   settle past the transitions, print per frame, and check the clip against the geometry.
 3. **A demo scene running with the mode on**, in the gallery capture, so that every future capture
    exercises it. The captures are the only pass over the whole widget set that happens on every
    build.

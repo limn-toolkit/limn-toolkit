@@ -551,15 +551,28 @@ public class DatePicker extends Widget {
         }
     }
 
+    /**
+     * Asks the popup to draw again after a key it was handed.
+     *
+     * <p><b>Not a layout.</b> This asked for one, and a layout pass is a full frame by the
+     * structural invariant ADR 002 states -- a widget that moved cannot damage where it used to
+     * be -- so every forwarded arrow key repainted the entire window. Measured: a cursor step
+     * inside an open popup was three full frames and one of one per cent, where the one per cent
+     * was the grid correctly damaging two cells and the rest was this call throwing that away.
+     *
+     * <p>Nothing here needs a layout. The grid damages what it changed, and the popup's box is
+     * deliberately the same in every view (its measure asks for the day grid's width whatever is
+     * showing), so climbing to a chooser does not resize it either. Where a layout IS needed the
+     * widget that needs it asks: {@code CalendarView.setView} marks itself, and that propagates.
+     */
     private void repaintPopup() {
-        if (popupPanel != null) {
-            popupPanel.markNeedsLayout();
-        }
+        // Only the window, and only because a second window has a frame loop of its own that this
+        // scene's damage does not reach. Nothing else: the grid damaged whatever it changed, and
+        // the in-scene overlay is the size of the WHOLE SCENE, so invalidating it turned every
+        // forwarded arrow key into a full-window repaint -- measured at two full frames per key
+        // against the half per cent the grid had just asked for.
         if (popupWindow != null) {
             popupWindow.requestFrame();
-        }
-        if (scenePopup != null) {
-            scenePopup.invalidate();
         }
     }
 
