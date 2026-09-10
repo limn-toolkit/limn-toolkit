@@ -919,7 +919,7 @@ public class Table<T> extends Widget implements Scrollable {
         anchorIndex = avg > 0 ? (int) (clamped / avg) : 0;
         anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, rows.size() - 1)));
         anchorTop = anchorIndex * avg - clamped;
-        markNeedsLayout();
+        markNeedsContainedLayout(); // a drag of the bar is a scroll; see the wheel and ensureVisible
         invalidate();
         vBar.onScrolled();
         if (anchorIndex != wasAnchor || anchorTop != wasTop) {
@@ -1403,7 +1403,11 @@ public class Table<T> extends Widget implements Scrollable {
             anchorIndex = index;
             anchorTop = 0;
         }
-        markNeedsLayout();
+        // Contained, for the reason the wheel path already gives: a reveal changes which rows are
+        // mounted and where they sit, and both are inside a box this widget clips and whose own
+        // size a reveal cannot move. A full layout here made every Page key and every keyboard
+        // walk off the edge a whole-window repaint.
+        markNeedsContainedLayout();
     }
 
     private void ensureColumnVisible(int s) {
@@ -1501,25 +1505,28 @@ public class Table<T> extends Widget implements Scrollable {
      */
     private void selectOnly(int modelIndex, int viewIndex, boolean reveal, Change.Origin origin) {
         int wasFocusRow = focusRow;
+        BitSet before = (BitSet) selected.clone();
         focusRow = viewIndex;
         rangeAnchor = viewIndex;
         if (reveal) {
+            // Damages the table itself when it scrolls, which is right then: a scroll re-mounts
+            // every row, so a pair of bands would be a lie.
             ensureVisible(viewIndex);
         }
         if (selectionMode == SelectionMode.NONE) {
-            invalidate();
+            damageSelectionChange(before, wasFocusRow);
             announceFocusCell(wasFocusRow, origin);
             return;
         }
         if (lead == modelIndex && selected.cardinality() == 1 && selected.get(modelIndex)) {
-            invalidate();
+            damageSelectionChange(before, wasFocusRow);
             announceFocusCell(wasFocusRow, origin);
             return;
         }
         selected.clear();
         selected.set(modelIndex);
         lead = modelIndex;
-        invalidate();
+        damageSelectionChange(before, wasFocusRow);
         announceFocusCell(wasFocusRow, origin);
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
@@ -1527,6 +1534,7 @@ public class Table<T> extends Widget implements Scrollable {
     /** Extends the selection from the range anchor to {@code viewIndex}, in MULTI: a gesture. */
     private void selectRange(int viewIndex) {
         int wasFocusRow = focusRow;
+        BitSet before = (BitSet) selected.clone();
         int from = rangeAnchor < 0 ? viewIndex : rangeAnchor;
         selected.clear();
         for (int v = Math.min(from, viewIndex); v <= Math.max(from, viewIndex); v++) {
@@ -1535,7 +1543,7 @@ public class Table<T> extends Widget implements Scrollable {
         lead = modelOf(viewIndex);
         focusRow = viewIndex;
         ensureVisible(viewIndex);
-        invalidate();
+        damageSelectionChange(before, wasFocusRow);
         announceFocusCell(wasFocusRow, Change.Origin.USER);
         notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
     }
@@ -1543,6 +1551,7 @@ public class Table<T> extends Widget implements Scrollable {
     /** Toggles one row's membership, in MULTI: a gesture. */
     private void toggle(int viewIndex) {
         int wasFocusRow = focusRow;
+        BitSet before = (BitSet) selected.clone();
         int model = modelOf(viewIndex);
         selected.flip(model);
         lead = selected.get(model) ? model : (selected.isEmpty() ? -1 : lead == model
@@ -1550,7 +1559,7 @@ public class Table<T> extends Widget implements Scrollable {
         focusRow = viewIndex;
         rangeAnchor = viewIndex;
         ensureVisible(viewIndex);
-        invalidate();
+        damageSelectionChange(before, wasFocusRow);
         announceFocusCell(wasFocusRow, Change.Origin.USER);
         notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
     }
@@ -1568,6 +1577,73 @@ public class Table<T> extends Widget implements Scrollable {
         } else {
             selectOnly(modelOf(v), v, true, Change.Origin.USER);
         }
+    }
+
+    /**
+     * How many changed rows are still worth damaging one at a time before the whole table is
+     * cheaper. The damage list holds eight rectangles and merges what it must; past a handful of
+     * bands the union is the table anyway, and a select-all should not walk five hundred rows to
+     * discover that.
+     */
+    private static final int MAX_DAMAGED_ROWS = 6;
+
+    /**
+     * Damages one row's band, or nothing when that row is not on screen.
+     *
+     * <p>ADR 043 &sect;9.2. The band is the row across the rows' viewport, and it needs no
+     * outset: the stripe and the selection tint fill exactly it, and the focus cell's ring is
+     * drawn <em>inset</em> within one column of it. A row outside the placed run has no box to
+     * damage, and whatever put it out of view damaged the table on its own.
+     *
+     * @param viewIndex a row in view order, or any negative for no row
+     */
+    private void damageRow(int viewIndex) {
+        if (viewIndex < 0 || !isPlaced(viewIndex)) {
+            return;
+        }
+        Slot slot = slotFor(viewIndex);
+        float rowY = rowTop(viewIndex);
+        if (slot == null || Float.isNaN(rowY)) {
+            return;
+        }
+        // Clamped to the rows' viewport, because nothing else will: damage is clipped by every
+        // ANCESTOR that clips its children, and this widget is not its own ancestor. The paint
+        // clips to exactly this rectangle, so a band outside it would repaint pixels this table
+        // never draws -- the header above, or whatever sits below the table.
+        float viewTop = rowsTop();
+        float viewBottom = viewTop + rowsViewportHeight();
+        float top = Math.max(viewTop, rowY);
+        float bottom = Math.min(viewBottom, rowY + slot.height);
+        if (bottom > top) {
+            invalidate(rowsLeft(), top, gutters.viewportWidth(width()), bottom - top);
+        }
+    }
+
+    /**
+     * Damages what a selection move actually changed: every row that entered or left the
+     * selection, and the row the focus cell came from and went to.
+     *
+     * <p>Taken as the difference between a snapshot and the result rather than reasoned about per
+     * call site, because the four seams that mutate the selection &mdash; select one, extend a
+     * range, toggle, select all &mdash; change between one row and every row, and only the
+     * difference knows which. An arrow key comes out as two bands; a select-all comes out over
+     * the ceiling and takes the table, which is the honest answer for it.
+     *
+     * @param before      the selection as it was, cloned before the mutation
+     * @param wasFocusRow the focus row as it was, in view order
+     */
+    private void damageSelectionChange(BitSet before, int wasFocusRow) {
+        BitSet changed = (BitSet) before.clone();
+        changed.xor(selected);
+        if (changed.cardinality() > MAX_DAMAGED_ROWS) {
+            invalidate();
+            return;
+        }
+        for (int m = changed.nextSetBit(0); m >= 0; m = changed.nextSetBit(m + 1)) {
+            damageRow(viewOf(m));
+        }
+        damageRow(wasFocusRow);
+        damageRow(focusRow);
     }
 
     private int rowsPerPage(SizeTokens t) {
@@ -2068,21 +2144,24 @@ public class Table<T> extends Widget implements Scrollable {
             return;
         }
         focusColumn = next;
+        // Before the damage: a horizontal scroll invalidates the table itself, and a single row
+        // band would then be short of it.
         ensureColumnVisible(next);
-        invalidate();
+        damageRow(focusRow);
         notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
     }
 
     @Override
     protected void onFocusGained() {
         // The focus cell is not placed until a key asks for one: the first Down then lands on
-        // the top row the way it does in ListView, rather than on the row below it.
-        invalidate();
+        // the top row the way it does in ListView, rather than on the row below it. So what
+        // appears is one ring in one row, and that is all this damages.
+        damageRow(focusRow);
     }
 
     @Override
     protected void onFocusLost() {
-        invalidate();
+        damageRow(focusRow);
     }
 
     // ---------------------------------------------------------------------- accessibility

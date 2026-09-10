@@ -172,7 +172,11 @@ public class ListView extends Widget implements Scrollable {
      * parent and could never be corrected. Do not copy the pattern for metrics.
      */
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing)
+                    // The fade draws one row's outline, so that is what each of its frames
+                    // repaints. Without this the list repainted itself whole eleven times over
+                    // for a Tab to land in it -- see Transition.damages.
+                    .damages(() -> damageRow(selectedIndex));
 
     /** A list driven by {@code adapter}, which supplies and recycles the row widgets. */
     public ListView(Adapter adapter) {
@@ -362,11 +366,15 @@ public class ListView extends Widget implements Scrollable {
         if (index == selectedIndex) {
             return;
         }
+        int from = selectedIndex;
         selectedIndex = index;
         if (reveal && selectedIndex >= 0) {
+            // Damages the list itself when it scrolls, which is the right answer then: a scroll
+            // re-mounts every row, so two bands would be a lie.
             ensureVisible(selectedIndex);
         }
-        invalidate();
+        damageRow(from);
+        damageRow(selectedIndex);
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
@@ -483,7 +491,7 @@ public class ListView extends Widget implements Scrollable {
         anchorIndex = avg > 0 ? (int) (clamped / avg) : 0;
         anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, adapter.rowCount() - 1)));
         anchorTop = anchorIndex * avg - clamped;
-        markNeedsLayout();
+        markNeedsContainedLayout(); // a drag of the bar is a scroll; see scrollBy and ensureVisible
         invalidate();
         vBar.onScrolled();
     }
@@ -797,7 +805,45 @@ public class ListView extends Widget implements Scrollable {
             anchorIndex = index;
             anchorTop = 0;
         }
-        markNeedsLayout();
+        // Contained, for the reason scrollBy already gives: a reveal changes which rows are
+        // mounted and where they sit, and both are inside a box this widget clips and whose own
+        // size a reveal cannot move. Asking for a full layout here made every Page key, every
+        // End, and every arrow that ran off the edge a whole-window repaint -- the keyboard walk
+        // was paying what the wheel had already stopped paying.
+        markNeedsContainedLayout();
+    }
+
+    /**
+     * Damages one row's band, rather than the list, when what changed is that row's highlight.
+     *
+     * <p>ADR 043 &sect;9.2. An arrow key used to answer with {@code invalidate()} and repaint the
+     * whole list &mdash; correct and out of all proportion, which is the failure mode partial
+     * rendering has. Measured at the full widget for one keystroke; two bands after this.
+     *
+     * <p>Full width and no outset, because the highlight is a rounded rect drawn across the list
+     * and <em>inset</em> inside the row's own box: it reaches nothing this rectangle does not
+     * already hold. A row that is not mounted has nothing on screen to damage, and the scroll
+     * that would bring it on screen damages the list on its own.
+     *
+     * @param index a row index, or any negative for no row
+     */
+    private void damageRow(int index) {
+        if (index < 0) {
+            return;
+        }
+        Widget cell = cellFor(index);
+        if (cell == null) {
+            return;
+        }
+        // Clamped to the list's own box, because nothing else will: damage is clipped by every
+        // ANCESTOR that clips its children, and this widget is not its own ancestor. A row that a
+        // reveal has just pushed out of the viewport still has its pre-layout box, and unclamped
+        // that band lands on whatever sits below the list.
+        float top = Math.max(0, cell.y());
+        float bottom = Math.min(height(), cell.y() + cell.height());
+        if (bottom > top) {
+            invalidate(0, top, width(), bottom - top);
+        }
     }
 
     private boolean containsFocus(Widget cell) {

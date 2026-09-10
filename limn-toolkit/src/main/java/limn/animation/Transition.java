@@ -40,6 +40,7 @@ public final class Transition {
     private boolean enabled = true;
     private boolean repeat;
     private boolean sceneTime;
+    private Runnable damage;
 
     private float current;
     private float from;
@@ -64,6 +65,34 @@ public final class Transition {
     /** Sets the animation length in seconds ({@code 0} = no animation; {@link #to} snaps). */
     public Transition duration(double seconds) {
         this.duration = Math.max(0, seconds);
+        return this;
+    }
+
+    /**
+     * Narrows what each frame of this animation repaints, for an animation that moves a small
+     * part of a large widget.
+     *
+     * <p>By default a running transition calls {@code owner.invalidate()} once per frame, which
+     * is the whole widget &mdash; right for a button, whose animation <em>is</em> the button, and
+     * badly wrong for a list, whose focus ring is one row of many. Measured: a list arriving at
+     * focus repainted itself whole for <b>eleven consecutive frames</b> so that one row's outline
+     * could fade in. Under a full-frame default that costs nothing, because the frame was full
+     * anyway; under a partial one it is the difference between a row and a list.
+     *
+     * <p>The first choice is still to give the animation an owner that <em>is</em> what moves
+     * &mdash; a tab strip rather than the tabbed pane. This is for when no such widget exists
+     * because the moving part is drawn by the parent itself.
+     *
+     * <p><b>The callback must invalidate something</b>, and enough: it is the only repaint the
+     * frame gets, so a region short of what the animation draws leaves stale pixels behind, which
+     * no assertion can see. It runs on the UI thread, once per animated frame, and must not
+     * change layout.
+     *
+     * @param region invalidates the part this animation draws, or {@code null} for the owner
+     * @return this
+     */
+    public Transition damages(Runnable region) {
+        this.damage = region;
         return this;
     }
 
@@ -149,7 +178,16 @@ public final class Transition {
         Ui.checkUiThread();
         current = from = to = value;
         animating = false;
-        owner.invalidate();
+        repaint();
+    }
+
+    /** One frame's repaint: the narrowed region when one was named, else the whole owner. */
+    private void repaint() {
+        if (damage != null) {
+            damage.run();
+        } else {
+            owner.invalidate();
+        }
     }
 
     /** @return the current (eased) value; read this each paint */
@@ -204,7 +242,7 @@ public final class Transition {
         elapsed += dt;
         float t = duration > 0 ? (float) Math.min(1.0, elapsed / duration) : 1f;
         current = from + (to - from) * easing.apply(t);
-        owner.invalidate();
+        repaint();
         if (t >= 1f) {
             current = to;
             if (repeat) {

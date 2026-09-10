@@ -214,28 +214,62 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    symptom it prevents: with the pass removed, the repaint region holds the widget that changed
    and not the panel made of it.
 2. ~~**`CalendarView` damages cells rather than itself**~~ — **done 2026-09-10**, along with the
-   `DatePicker` defect it uncovered (§4). **The other four were then measured**, each boxed at
-   420×320 inside a 900×700 window so that "the widget" and "the window" are different
-   rectangles — without that they are the same number and the question cannot be asked:
+   `DatePicker` defect it uncovered (§4), and **the other four are now done too**. Each was boxed
+   strictly inside a larger window so that "the widget" and "the window" are different rectangles
+   — without that they are the same number and the question cannot be asked.
 
-   | widget | a selection or cursor step damages | |
+   | widget | a selection or cursor step damaged | now |
    | --- | --- | --- |
    | `PopupMenu`'s panel | the two rows | already precise, through its own `damageRow` |
-   | `TabbedPane` | **was** the whole pane, on every frame of the indicator slide | **fixed**: 21.6% → 2.1% |
-   | `ListView` | the whole widget, once per step | open |
-   | `Table` | the whole widget, once per step | open |
+   | `TabbedPane` | the whole pane, on every frame of the indicator slide | 21.6% → 2.1% |
+   | `ListView` | the whole list, `322x222` for one arrow | `322x50` — **2.1 rows of 9.2** |
+   | `Table` | the whole table, `322x222` for one arrow | `322x66` — **2.1 rows of 6.9** |
 
-   `TabbedPane` was the one worth fixing immediately, and its cause is worth naming because it is
-   a trap rather than an oversight: the indicator's two transitions were constructed as
-   `new Transition(this)`, so an animation drawn **in the strip** damaged the pane — the strip and
-   the whole page under it — once per frame for the length of the slide. Binding them to the strip
-   is a one-word change and the clip goes from the widget's box to `422x32`. Any animation bound
-   to a widget larger than what it draws has the same shape.
+   `TabbedPane`'s cause is worth naming because it is a trap rather than an oversight: the
+   indicator's two transitions were constructed as `new Transition(this)`, so an animation drawn
+   **in the strip** damaged the pane — the strip and the whole page under it — once per frame for
+   the length of the slide. Binding them to the strip is a one-word change. **Any animation bound
+   to a widget larger than what it draws has that shape**, and §9.2.1 is the same trap where no
+   such child widget exists to bind to.
 
-   `ListView` and `Table` are one full-widget repaint per arrow key rather than one per frame, so
-   they are cheaper and still wrong; both mount their rows as real widgets, so the fix is to damage
-   the row left and the row arrived at. Left open deliberately rather than done in passing: they
-   are the two most-used widgets in the toolkit and neither has been read closely in this work.
+   ### 9.2.1 What reading the two most-used widgets closely actually found
+
+   Three defects, not one, and the one the list opened with was the smallest.
+
+   **A selection step repainted the widget.** `ListView.select` and `Table`'s four selection seams
+   all ended in `invalidate()`. Fixed by damaging the row band left and the row band arrived at;
+   `Table` takes the difference between a snapshot of its selection and the result rather than
+   reasoning per call site, because its four seams change between one row and every row and only
+   the difference knows which. Past six changed rows it takes the table, which is the honest
+   answer for a select-all.
+
+   **A keyboard scroll repainted the window** — and this was the larger number. `ensureVisible`
+   and `scrollToOffset` in both widgets asked for `markNeedsLayout()`, which a scene answers with
+   full damage, while the wheel path next to them had already been changed to
+   `markNeedsContainedLayout()` for exactly the reason that applies to all three: a scroll changes
+   which rows are mounted and where they sit, and both are inside a box the widget clips and whose
+   own size a scroll cannot move. So the wheel had stopped paying and the Page key, the End key,
+   any arrow that ran off an edge, and every drag of the scrollbar were still paying a whole
+   window. The contract makes this safe by construction: the scene re-measures and falls back to a
+   full pass if the size moved, so getting it wrong costs a frame rather than correctness.
+
+   **A focus arrival repainted the list eleven times.** `ListView`'s focus fade is a
+   `new Transition(this)` — the `TabbedPane` trap again — but there is no child widget to bind it
+   to, because the ring is drawn by the list itself across the selected row. `Transition` gains
+   `damages(Runnable)`, an opt-in narrowing for exactly this case, and the list names its selected
+   row's band. **Eleven whole-list frames become two plus nine row bands**; the two that remain are
+   `Scene.setFocus` damaging the newly focused widget's box, which it must, because it cannot know
+   that this widget's focus draws inside one row.
+
+   **A row band has to be clamped to its own widget.** Found by the measurement, not by reading:
+   damage is clipped by every *ancestor* that clips its children, and a widget is not its own
+   ancestor, so a row whose box a pending reveal has already pushed out of the viewport painted a
+   band onto whatever sat below the list. Both helpers clamp.
+
+   `SelectionDamageTest` is the first instance of §9.4 and asserts the clip in rows rather than
+   pixels, so the numbers survive a change of theme; each assertion was checked by backing its own
+   fix out and watching it go red.
+
 3. ~~**A demo scene running with the mode on**~~ — **done 2026-09-10.** The demo application
    runs **every** scene with the mode on, set where it binds its scene, so every manual pass and
    every `--screenshot` run exercises it; the same scene captured both ways is byte-identical.
@@ -306,8 +340,15 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    window, so a corrective resize before the capture loop starts renders inside a loop that is not
    running yet. Placement avoids the question by never needing the correction.
 
-4. **A clip-asserting test per interactive widget**, or at least per widget with a moving cursor;
-   the shape is in `PartialRenderingTest` already.
+4. **A clip-asserting test per interactive widget**, or at least per widget with a moving cursor.
+   **Started, not finished**: the shape is in `PartialRenderingTest`, and `SelectionDamageTest`
+   (§9.2.1) now covers the two widgets that matter most, alongside the existing `ListScrollDamage`,
+   `CaretDamage`, `MenuDamage`, `TooltipDamage` and `BackdropDamage` tests. What has none is every
+   other widget with a moving cursor, and the general question §9.2.1 raises: **which of the forty
+   `new Transition(this)` in this toolkit animate something smaller than their owner?** Most are
+   buttons and checkboxes, where the animation *is* the widget and nothing is wrong. The ones to
+   read are the large ones — `SplitPane`, `ScrollBar`, `Chart`, `TextArea`, `CalendarView` — and
+   each is a measurement, not an opinion.
 
 ## 10. The escape hatch, and why it stays
 
