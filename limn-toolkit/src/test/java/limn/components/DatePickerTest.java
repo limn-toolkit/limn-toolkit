@@ -393,6 +393,63 @@ class DatePickerTest extends ComponentTestBase {
         assertNotEquals(picker.field(), stops.get(1), "and the button follows it");
     }
 
+    /**
+     * Picking a month with the keyboard puts you back in the grid, on a day, with a cursor you can
+     * see. Without that the descent ends in a month with nothing focused and the next arrow moves
+     * from somewhere the person cannot point at.
+     */
+    @Test
+    void pickingAMonthReturnsToTheGridWithADayUnderTheCursor() {
+        build(new DatePicker());
+        picker.setDate(ANCHOR);
+        picker.open();
+        picker.calendar().setView(CalendarView.View.MONTHS);
+        key(Keys.TAB, 0);
+        key(Keys.DOWN, 0);      // into the chooser, on September
+        key(Keys.LEFT, 0);      // August
+        key(Keys.ENTER, 0);
+        assertEquals(CalendarView.View.DAYS, picker.calendar().view());
+        assertEquals(LocalDate.of(2026, 8, 1), picker.calendar().visibleMonth());
+        assertNotNull(picker.calendar().focusedDate(), "the grid has a cursor on arrival");
+        assertEquals(LocalDate.of(2026, 8, 1), picker.calendar().focusedDate(),
+                "and it is on a day of the month just chosen, not one of the month left behind");
+        // And the arrows move from there, rather than from wherever the cursor used to be.
+        key(Keys.RIGHT, 0);
+        assertEquals(LocalDate.of(2026, 8, 2), picker.calendar().focusedDate());
+    }
+
+    @Test
+    void theCursorFollowsTheSelectionWhenItIsInTheMonthChosen() {
+        build(new DatePicker());
+        picker.setDate(LocalDate.of(2026, 8, 20));
+        picker.open();
+        picker.calendar().setView(CalendarView.View.MONTHS);
+        picker.calendar().setVisibleMonth(LocalDate.of(2026, 9, 1));
+        key(Keys.TAB, 0);
+        key(Keys.DOWN, 0);
+        key(Keys.LEFT, 0);      // back to August, where the selected day is
+        key(Keys.ENTER, 0);
+        assertEquals(LocalDate.of(2026, 8, 20), picker.calendar().focusedDate(),
+                "somebody editing a date they already have lands on it");
+    }
+
+    @Test
+    void aYearPickedLandsOnAMonthWithACursorToo() {
+        build(new DatePicker());
+        picker.setDate(ANCHOR);
+        picker.open();
+        picker.calendar().setView(CalendarView.View.YEARS);
+        key(Keys.TAB, 0);
+        key(Keys.DOWN, 0);
+        key(Keys.ENTER, 0);
+        assertEquals(CalendarView.View.MONTHS, picker.calendar().view());
+        // The month chooser has a cursor on arrival: one Enter more takes a month rather than
+        // needing an arrow first to make the cursor exist.
+        key(Keys.ENTER, 0);
+        assertEquals(CalendarView.View.DAYS, picker.calendar().view());
+        assertNotNull(picker.calendar().focusedDate());
+    }
+
     @Test
     void losingTheWindowsFocusClosesTheCalendar() {
         build(new DatePicker());

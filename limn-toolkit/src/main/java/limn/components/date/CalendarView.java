@@ -1640,6 +1640,38 @@ public class CalendarView extends Widget {
         showMonth(target, Change.Origin.USER);
         chooserCursor = -1;
         setView(view == View.YEARS ? View.MONTHS : View.DAYS);
+        // Arriving somewhere means being somewhere in it. Descending used to change the view and
+        // leave the cursor wherever it had been -- on a day of the month you just left, so out of
+        // sight -- and a person who picked a month with the keyboard was returned to a grid with
+        // no visible cursor at all, having to guess where the next arrow would take them.
+        part = Part.GRID;
+        if (view == View.DAYS) {
+            cursor = landingDay();
+        }
+        enterPart();
+        invalidate();
+        notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+    }
+
+    /**
+     * Where the day cursor lands in a month just navigated to: the selected day when it is in that
+     * month, and the month's first day otherwise.
+     *
+     * <p>Not "the same day number as before", which is the tempting rule and is wrong outside the
+     * ISO calendar: the day-of-month of an ISO cursor means nothing in a Hijri month of 29 days
+     * that started three weeks ago. The first day of whatever month is on show is the one answer
+     * correct in every chronology, and following the selection when it is visible is the case that
+     * actually matters &mdash; somebody editing a date they already have.
+     */
+    private LocalDate landingDay() {
+        rebuildGrid();
+        if (selected != null && isInVisibleMonth(selected.toEpochDay())) {
+            return selected;
+        }
+        if (selectedRange != null && isInVisibleMonth(selectedRange.start().toEpochDay())) {
+            return selectedRange.start();
+        }
+        return LocalDate.ofEpochDay(monthFirstEpoch);
     }
 
     /**
