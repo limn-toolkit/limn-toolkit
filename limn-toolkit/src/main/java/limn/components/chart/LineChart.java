@@ -9,6 +9,7 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.LinearGradient;
 import limn.graphics.Path2D;
+import limn.graphics.Rect;
 
 import java.util.List;
 import limn.math.Scalars;
@@ -333,6 +334,19 @@ public class LineChart extends CartesianChart {
             canvas.fillCircle(px[c], py[c], radius + Strokes.BORDER, ring);
             canvas.fillCircle(px[c], py[c], radius, color);
         }
+    }
+
+    /**
+     * A lit marker grows to {@link #HOVER_SCALE} of its radius and is centred on the band, so it
+     * reaches that far outside it; the ring around it adds a border.
+     */
+    @Override
+    protected float hoverMarkMargin() {
+        float widest = 0;
+        for (int i = 0; i < seriesCount(); i++) {
+            widest = Math.max(widest, series(i).pointRadius());
+        }
+        return widest * HOVER_SCALE + Strokes.BORDER;
     }
 
     private void paintCrosshair(Canvas canvas, Theme theme, int category) {

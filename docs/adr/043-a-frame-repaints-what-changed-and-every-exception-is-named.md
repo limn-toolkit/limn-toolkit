@@ -384,17 +384,56 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    know that this widget's focus draws inside one row, and what *does* change wholesale on the
    focus flip — a caret appearing, a selection colouring — needs exactly that frame.
 
-   **`Chart` is measured and deliberately not fixed**, which is a different thing from not
-   noticed. Its tooltip fade repaints the whole chart for fourteen frames each way, and worse, the
-   hover path invalidates the whole chart on **every pointer move** while a mark is hovered — its
-   own comment says why: *"the panel follows the pointer even within one mark"*. The fix is not
-   the mechanical one it looks like. The panel's rectangle is computed inside `paintTooltip` from
-   text measurement and would have to be hoisted out so damage and paint agree; and hovering
-   changes more than the panel — `BarChart` lifts the hovered category, `LineChart` draws a
-   crosshair the full height of the plot and grows its markers, `CartesianChart` paints a band
-   behind the category — so each subclass would have to declare the region its hover affects.
-   Guessing that region short leaves stale pixels, which is the one failure mode of this mode that
-   no assertion can see. It is worth doing and it is its own piece of work.
+   **`Chart` was the one that needed a design rather than a call**, and §9.4.2 is it.
+
+   ### 9.4.2 The chart, which needed a seam and not a call
+
+   Its tooltip fade repainted the whole chart for fourteen frames each way, and the hover path
+   invalidated the whole chart on **every pointer move** while a mark was hovered — its own
+   comment saying why: *"the panel follows the pointer even within one mark"*. The fourteen frames
+   on the way **out** were the strangest of them: the panel is not drawn at all once the hover is
+   gone, so that was an animation repainting a chart to show nothing.
+
+   | | before | after |
+   | --- | --- | --- |
+   | `BarChart`, pointer arrives / moves / leaves | 101%, 14 / 2 / 14 frames | **26.8%**, 14 / 2 / **2** |
+   | `LineChart`, the same | 101%, 14 / 2 / 14 | **29.4%**, 14 / 2 / **2** |
+   | `DonutChart`, the same | 101%, 14 / 2 / 14 | **62.6%**, 14 / 2 / **2** |
+
+   Three things had to be true at once, and none of them is a one-liner.
+
+   **The panel's rectangle had to leave the paint.** It was computed inside `paintTooltip`, so
+   nothing else could name it. Hoisted into `tooltipPanelRect`, which paint and damage both call —
+   the only way to be sure damage names the rectangle the paint will fill.
+
+   **Each subclass had to declare what its hover draws**, because the answers differ in kind:
+   `CartesianChart` lights a category, which is a band across the plot and covers the bars
+   `BarChart` lifts, the crosshair `LineChart` runs down it and the markers it grows on it (the
+   band inflated by `hoverMarkMargin()`, since a marker centred on a band's edge reaches past it);
+   `DonutChart` answers with the ring plus the distance a slice pops out of it. The hook returns
+   `null` for "I decline to say", and the chart then repaints itself whole — because **an answer
+   that is too small leaves stale pixels**, and that is the one failure of this mode no assertion
+   can see. `ChartHoverDamageTest` pins the trail case directly: crossing from one category to
+   another must damage where the panel *was*, and with that half removed the test names the
+   rectangle left painted on the chart.
+
+   **The panel's size had to be memoized, and this is where the change first went wrong.**
+   Damaging precisely means knowing the panel's size on every pointer move, and sizing it means
+   shaping every line it holds. `ChartLayoutCostTest` — which exists for exactly this — caught it
+   at 336 text measurements for twenty moves. Splitting size (shaped, memoized per datum) from
+   position (arithmetic, per move) fixes it, and the residue is one panel measurement per newly
+   hovered datum: bounded by the tooltip's rows, not by the data. That test's *ratio* half had to
+   change with it, and the reasoning is written at the call site: the same twenty moves cross
+   twenty categories on a 400-category chart and six on a 20-category one, so the ratio now
+   measures how narrow the bands are. Its absolute sibling still says what it meant, and better.
+
+   **One general fact fell out of this and belongs in §2.** Damaging the marks and the panel as
+   two rectangles instead of their union looked obviously better — the panel flips to the far side
+   of the pointer near an edge, so the bounding box can be the whole chart. Measured, it was
+   twice as expensive: **the scene runs a widget's whole paint once per damage rectangle**, so two
+   passes over a chart cost two shapings of every label. Hovering a 400-category chart went from
+   321 text measurements to 721 when they were damaged apart, and back to 421 when unioned. More
+   rectangles is not free, and for a widget whose paint costs more than its fill it is a loss.
 
 ## 10. The escape hatch, and why it stays
 

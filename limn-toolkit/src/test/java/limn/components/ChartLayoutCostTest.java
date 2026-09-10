@@ -99,9 +99,14 @@ class ChartLayoutCostTest extends ComponentTestBase {
                 "painting 400 categories cost " + large.paintMeasures()
                         + " measurements against " + small.paintMeasures() + " for 20; the "
                         + "layout is scanning the whole dataset per frame again");
-        assertTrue(large.hoverMeasures() <= small.hoverMeasures() * 2 + 20,
-                "hovering cost " + large.hoverMeasures() + " measurements against "
-                        + small.hoverMeasures() + ": the pointer path is rescanning the data");
+        // The hover half of this comparison used to live here and no longer means anything.
+        // A move now measures the tooltip panel it is about to damage, once per datum newly
+        // hovered (ADR 043 §9.4.2), and the same twenty moves cross twenty categories on the
+        // large chart against six on the small one -- so the ratio measures how narrow the bands
+        // are, not whether the data is being rescanned. The absolute bound in
+        // aPointerMoveCostsAFewMeasurementsAndNotAFrameOfLayout is the guard that still says
+        // what this one meant, and says it better: rescanning 400 categories once per move
+        // would be eight thousand measurements, not two hundred.
     }
 
     /** Five paints of a settled sideways chart whose twelve category names have {@code width} characters. */

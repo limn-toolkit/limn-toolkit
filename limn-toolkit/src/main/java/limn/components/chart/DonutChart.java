@@ -9,6 +9,7 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Path2D;
+import limn.graphics.Rect;
 import limn.i18n.I18nString;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -60,7 +61,9 @@ public class DonutChart extends Chart {
     private final BitSet hiddenSlices = new BitSet();
     /** One weight per slice, animating 1 → 0 as it is hidden, so the ring closes over it. */
     private final List<Transition> sliceWeights = new ArrayList<>();
-    private final Transition hoverPop = new Transition(this);
+    // The pop is the ring moving, not the widget: without this the slice stepping out repainted
+    // the title, the legend and every label with it, once a frame, in and out again.
+    private final Transition hoverPop = new Transition(this).damages(this::damageHoverInPlace);
     private final Path2D path = new Path2D();
 
     /** The ring geometry, recomputed with the regions each paint and each pointer test. */
@@ -404,6 +407,22 @@ public class DonutChart extends Chart {
     private ChartPoint slicedPoint(int ring, int index, double share, double midAngle) {
         float midRadius = (innerRadius * outerRadius + outerRadius) / 2;
         return pointFor(ring, index, share, px(midAngle, midRadius), py(midAngle, midRadius));
+    }
+
+    /**
+     * The ring, grown by the distance a slice pops out of it.
+     *
+     * <p>The whole ring rather than the hovered sector: a sector's bounding box is an arc
+     * problem with four cases for which quadrants it spans, and the ring is a square that is
+     * already much smaller than this widget, which also carries a title and a legend.
+     */
+    @Override
+    protected Rect hoverRegion(ChartPoint point) {
+        if (outerRadius <= 0) {
+            return null;
+        }
+        float r = outerRadius + HOVER_POP + 1;
+        return new Rect(centerX - r, centerY - r, 2 * r, 2 * r);
     }
 
     @Override

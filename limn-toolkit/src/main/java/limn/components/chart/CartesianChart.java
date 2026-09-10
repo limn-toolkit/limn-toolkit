@@ -10,6 +10,7 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18nString;
@@ -605,6 +606,41 @@ public abstract class CartesianChart extends Chart {
         } else {
             canvas.drawLine(plotX, base, plotX + plotWidth, base, Strokes.HAIRLINE, axisLine);
         }
+    }
+
+    /**
+     * A hover here lights one category, and a category is a band across the plot.
+     *
+     * <p>Everything a cartesian hover draws lives in that band: the soft band itself, the bars
+     * this class's subclass lifts, the crosshair a line chart runs down it, and the markers it
+     * grows on it. Wider than the mark and deliberately so &mdash; the band is a rectangle both
+     * orientations already know how to compute, where a per-mark answer would have to be right
+     * for grouped bars, stacks and gaps and would be wrong once.
+     *
+     * <p>Inflated on all four sides by {@link #hoverMarkMargin()}, because a mark centred on the
+     * band's edge or on the plot's top reaches past it.
+     */
+    @Override
+    protected Rect hoverRegion(ChartPoint point) {
+        if (plotWidth <= 1 || plotHeight <= 1 || categoryCount() <= 0) {
+            return null;
+        }
+        float start = bandStart(point.index());
+        float size = bandSize();
+        float m = hoverMarkMargin() + 1;
+        return horizontal
+                ? new Rect(plotX - m, start - m, plotWidth + 2 * m, size + 2 * m)
+                : new Rect(start - m, plotY - m, size + 2 * m, plotHeight + 2 * m);
+    }
+
+    /**
+     * How far past its band a lit mark reaches: a grown marker's radius, and zero for a chart
+     * whose marks are rectangles inside the band.
+     *
+     * @return a margin in logical points
+     */
+    protected float hoverMarkMargin() {
+        return 0;
     }
 
     /** A soft band behind the hovered category, so the tooltip and the marks agree. */

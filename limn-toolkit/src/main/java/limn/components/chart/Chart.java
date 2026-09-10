@@ -134,7 +134,29 @@ public abstract class Chart extends Widget {
     /** Drives every value interpolation in the chart; 1 = the data as it stands. */
     private final Transition anim = new Transition(this, 1);
     private final Transition tooltipFade =
-            new Transition(this).duration(Theme.current().animFade).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.current().animFade).easing(Theme.current().animEasing)
+                    // A tooltip is a panel over a corner of a chart, and its fade used to repaint
+                    // every mark, axis and label for fourteen frames each way -- including the way
+                    // OUT, where the panel is not drawn at all and the animation ran on regardless.
+                    .damages(this::damageHover);
+
+    /**
+     * What the last frame drew that depends on the hover: the region the marks light in, and the
+     * tooltip panel. Either is {@code null} when the last frame did not draw it.
+     *
+     * <p>Recorded at <b>paint</b> rather than at damage, so they are what is on screen and not
+     * what was asked for. Damage is always the old pair plus the new one, because a hover that
+     * moves has to erase where it was.
+     *
+     * <p>Damaged as <b>one</b> rectangle rather than four, and that is measured rather than
+     * assumed. The scene runs a widget's whole paint once per damage rectangle: two passes over
+     * this chart cost two shapings of every label, and hovering a 400-category chart went from
+     * 321 text measurements to 721 when the marks and the panel were damaged apart. A chart's
+     * paint is expensive in a way its fill rate is not, so the union wins even when it is
+     * wasteful in area &mdash; which is also why pushing "more rectangles" has a floor.
+     */
+    private Rect paintedMarks;
+    private Rect paintedPanel;
 
     private int dataGeneration = 1;
     private ChartPoint hovered;
@@ -142,6 +164,22 @@ public abstract class Chart extends Widget {
     private ChartPoint tooltipRowsFor;
     private int tooltipRowsGeneration = -1;
     private long tooltipRowsEpoch = -1;
+    /**
+     * The panel's measured size, memoized on the same key as its rows plus the font it is set in.
+     *
+     * <p>Its <b>size</b> comes from shaping every line it will hold; its <b>position</b> is
+     * arithmetic on the pointer. Separating them is not tidiness: the position is wanted on every
+     * pointer motion, to damage where the panel was and where it is going, and measuring text
+     * that often is what {@code ChartLayoutCostTest} exists to forbid. This split is also
+     * cheaper than what came before it, where the paint re-measured the panel every frame the
+     * tooltip was on screen.
+     */
+    private float panelWidthCache;
+    private float panelHeightCache;
+    private ChartPoint panelSizeFor;
+    private int panelSizeGeneration = -1;
+    private long panelSizeEpoch = -1;
+    private Font panelSizeFont;
     private float pointerX;
     private float pointerY;
     private int hoveredLegend = -1;
@@ -917,7 +955,14 @@ public abstract class Chart extends Widget {
 
     @Override
     protected void onPaintOverlay(Canvas canvas) {
-        paintTooltip(canvas, tokens(), Theme.current(), isRightToLeft());
+        SizeTokens t = tokens();
+        boolean rtl = isRightToLeft();
+        paintTooltip(canvas, t, Theme.current(), rtl);
+        // What this frame put on screen that depends on the hover, so the next damage knows what
+        // to erase. Read after the paint and from the same two methods the paint used.
+        paintedMarks = hovered == null ? null : hoverRegion(hovered);
+        paintedPanel = hovered != null && tooltipFade.value() > 0.01f
+                ? tooltipPanelRect(t, rtl) : null;
     }
 
     // ---------------------------------------------------------------- regions
@@ -1160,38 +1205,36 @@ public abstract class Chart extends Widget {
 
     // ---------------------------------------------------------------- tooltip
 
-    private void paintTooltip(Canvas canvas, SizeTokens t, Theme theme, boolean rtl) {
-        float fade = tooltipFade.value();
+    /**
+     * Where the tooltip panel goes, for the datum hovered and the pointer where it is, or
+     * {@code null} when no panel would be drawn.
+     *
+     * <p>Hoisted out of {@link #paintTooltip} rather than computed there, because <b>damage has
+     * to name the same rectangle the paint will fill</b> and the only way to be sure of that is
+     * for both to ask one method. The panel is sized from the lines it will hold, so this shapes
+     * text; {@link #cachedTooltipRows} and the shaping cache carry the cost, which the paint was
+     * paying every frame anyway.
+     *
+     * @param t   this chart's size tokens
+     * @param rtl whether the panel opens the other way
+     * @return the panel's box in widget coordinates, or {@code null} for no panel
+     */
+    private Rect tooltipPanelRect(SizeTokens t, boolean rtl) {
         ChartPoint picked = hovered;
-        if (fade <= 0.01f || picked == null || !tooltipEnabled) {
-            return;
+        if (picked == null || !tooltipEnabled) {
+            return null;
         }
-        List<ChartPoint> rows = cachedTooltipRows(picked);
-        Font headingFont = tooltipTitleFont.of(t.label());
         Font rowFont = t.label();
-        String heading = tooltipTitle(picked);
-        float padH = t.tooltipPadH();
-        float padV = t.tooltipPadV();
-        float gap = t.spacingMedium();
-        float swatch = swatchSize(rowFont);
-
-        float rowHeight = measure("X", rowFont).lineHeight();
-        float headingHeight = heading.isEmpty() ? 0 : measure(heading, headingFont).lineHeight();
-        // The panel is sized from the lines it will hold. A tooltip row is the most reliably
-        // neutral string a chart draws -- a name that is a year, a value that is a number -- so
-        // sizing it without the fallback sizes a different line than the one painted below.
-        float panelWidth = heading.isEmpty() ? 0
-                : shapeText(heading, headingFont).metrics().width();
-        for (ChartPoint row : rows) {
-            float width = swatch + t.gapIcon()
-                    + shapeText(rowName(row), rowFont).metrics().width();
-            if (tooltipFormat == null) {
-                width += gap + shapeText(tooltipRowValue(row), rowFont).metrics().width();
-            }
-            panelWidth = Math.max(panelWidth, width);
+        if (picked != panelSizeFor || panelSizeGeneration != dataGeneration
+                || panelSizeEpoch != I18n.epoch() || !rowFont.equals(panelSizeFont)) {
+            measurePanel(picked, t, rowFont);
+            panelSizeFor = picked;
+            panelSizeGeneration = dataGeneration;
+            panelSizeEpoch = I18n.epoch();
+            panelSizeFont = rowFont;
         }
-        panelWidth += 2 * padH;
-        float panelHeight = 2 * padV + headingHeight + rows.size() * rowHeight;
+        float panelWidth = panelWidthCache;
+        float panelHeight = panelHeightCache;
 
         // Beside the pointer, flipped rather than clamped when it would not fit: a panel
         // pinned to the edge covers the very marks the reader is pointing at. The side offered
@@ -1216,6 +1259,58 @@ public abstract class Chart extends Widget {
             py = pointerY - TOOLTIP_OFFSET - panelHeight;
         }
         py = Math.max(0, Math.min(Math.max(0, height() - panelHeight), py));
+        return new Rect(px, py, panelWidth, panelHeight);
+    }
+
+    /** Shapes every line the panel will hold and stores the box they need. */
+    private void measurePanel(ChartPoint picked, SizeTokens t, Font rowFont) {
+        List<ChartPoint> rows = cachedTooltipRows(picked);
+        Font headingFont = tooltipTitleFont.of(t.label());
+        String heading = tooltipTitle(picked);
+        float gap = t.spacingMedium();
+        float swatch = swatchSize(rowFont);
+        float rowHeight = measure("X", rowFont).lineHeight();
+        float headingHeight = heading.isEmpty() ? 0 : measure(heading, headingFont).lineHeight();
+        // The panel is sized from the lines it will hold. A tooltip row is the most reliably
+        // neutral string a chart draws -- a name that is a year, a value that is a number -- so
+        // sizing it without the fallback sizes a different line than the one painted below.
+        float width = heading.isEmpty() ? 0
+                : shapeText(heading, headingFont).metrics().width();
+        for (ChartPoint row : rows) {
+            float rowWidth = swatch + t.gapIcon()
+                    + shapeText(rowName(row), rowFont).metrics().width();
+            if (tooltipFormat == null) {
+                rowWidth += gap + shapeText(tooltipRowValue(row), rowFont).metrics().width();
+            }
+            width = Math.max(width, rowWidth);
+        }
+        panelWidthCache = width + 2 * t.tooltipPadH();
+        panelHeightCache = 2 * t.tooltipPadV() + headingHeight + rows.size() * rowHeight;
+    }
+
+    private void paintTooltip(Canvas canvas, SizeTokens t, Theme theme, boolean rtl) {
+        float fade = tooltipFade.value();
+        ChartPoint picked = hovered;
+        if (fade <= 0.01f || picked == null || !tooltipEnabled) {
+            return;
+        }
+        Rect panel = tooltipPanelRect(t, rtl);
+        if (panel == null) {
+            return;
+        }
+        float px = panel.x();
+        float py = panel.y();
+        float panelWidth = panel.width();
+        float panelHeight = panel.height();
+        List<ChartPoint> rows = cachedTooltipRows(picked);
+        Font headingFont = tooltipTitleFont.of(t.label());
+        Font rowFont = t.label();
+        String heading = tooltipTitle(picked);
+        float padH = t.tooltipPadH();
+        float padV = t.tooltipPadV();
+        float swatch = swatchSize(rowFont);
+        float rowHeight = measure("X", rowFont).lineHeight();
+        float headingHeight = heading.isEmpty() ? 0 : measure(heading, headingFont).lineHeight();
 
         canvas.save();
         try {
@@ -1258,6 +1353,77 @@ public abstract class Chart extends Widget {
         } finally {
             canvas.restore();
         }
+    }
+
+    /**
+     * The region of this chart that changes when {@code point} is the datum under the pointer:
+     * lit marks, a crosshair, a band, a popped slice. {@code null} means "unknown", and the whole
+     * chart is repainted.
+     *
+     * <p>A subclass owns this because only it knows what its hover draws, and the answers differ
+     * in kind: a cartesian chart lights a category across the plot, a donut pops one slice out of
+     * a ring. <b>An answer that is too small leaves stale pixels</b>, which is the one failure of
+     * partial rendering no assertion can see, so answer generously or answer {@code null}. The
+     * tooltip panel is not part of it &mdash; this class adds that.
+     *
+     * @param point the hovered datum, never {@code null}
+     * @return the region in widget coordinates, or {@code null} for "all of it"
+     */
+    protected Rect hoverRegion(ChartPoint point) {
+        return null;
+    }
+
+    /**
+     * Damages what the hover draws: where it is now, and where it was.
+     *
+     * <p>Both halves matter and the second is the one that is easy to forget &mdash; a panel that
+     * followed the pointer without erasing its last position leaves a trail, and a trail is
+     * exactly what no headless test would catch.
+     */
+    private void damageHover() {
+        Rect marks = hovered == null ? null : hoverRegion(hovered);
+        if (hovered != null && marks == null) {
+            invalidate(); // the subclass declines to say; the whole chart is the safe answer
+            paintedMarks = null;
+            paintedPanel = null;
+            return;
+        }
+        Rect all = union(union(marks, tooltipPanelRect(tokens(), isRightToLeft())),
+                union(paintedMarks, paintedPanel));
+        if (all != null) {
+            invalidate(all.x(), all.y(), all.width(), all.height());
+        }
+    }
+
+    private static Rect union(Rect a, Rect b) {
+        if (a == null) {
+            return b;
+        }
+        return b == null ? a : a.union(b);
+    }
+
+    /**
+     * Damages whatever the hover draws right now, without erasing anywhere it has been.
+     *
+     * <p>What a fade wants: the panel and the marks are where the last frame left them, so
+     * repainting them in place is the whole of it. A subclass whose own animation runs on the
+     * hover &mdash; a slice popping out of a ring &mdash; points its transition here.
+     */
+    protected final void damageHoverInPlace() {
+        damageHover();
+    }
+
+    /** Damages one legend entry's box, or the chart when the index names none. */
+    private void damageLegendEntry(int index) {
+        if (index < 0) {
+            return;
+        }
+        if (index * 4 + 3 >= legendBoxes.length) {
+            invalidate();
+            return;
+        }
+        invalidate(legendBoxes[index * 4], legendBoxes[index * 4 + 1],
+                legendBoxes[index * 4 + 2], legendBoxes[index * 4 + 3]);
     }
 
     /**
@@ -1318,8 +1484,9 @@ public abstract class Chart extends Widget {
 
         int legendHit = legendEntryAt(localX, localY);
         if (legendHit != hoveredLegend) {
+            damageLegendEntry(hoveredLegend);
             hoveredLegend = legendHit;
-            invalidate();
+            damageLegendEntry(hoveredLegend);
         }
 
         ChartPoint picked = legendHit >= 0 ? null : pickAt(localX, localY);
@@ -1331,21 +1498,23 @@ public abstract class Chart extends Widget {
         }
         if (samePoint(picked, hovered)) {
             if (picked != null) {
-                invalidate(); // the panel follows the pointer even within one mark
+                // The panel follows the pointer even within one mark, so this damages where it
+                // was as well as where it is going; the marks have not moved.
+                damageHover();
             }
             return;
         }
         hovered = picked;
         tooltipFade.to(picked != null && tooltipEnabled ? 1 : 0);
-        invalidate();
+        damageHover();
         onHoverChanged(picked);
         notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER)); // the datum under the pointer
     }
 
     private void clearPointer() {
         if (hoveredLegend >= 0) {
+            damageLegendEntry(hoveredLegend);
             hoveredLegend = -1;
-            invalidate();
         }
         if (pointerCursor) {
             pointerCursor = false;
@@ -1354,7 +1523,7 @@ public abstract class Chart extends Widget {
         if (hovered != null) {
             hovered = null;
             tooltipFade.to(0);
-            invalidate();
+            damageHover();
             onHoverChanged(null);
             notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
         }
