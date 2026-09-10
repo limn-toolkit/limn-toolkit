@@ -9,7 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The normalized display value types ({@link Resolution} and {@link ScreenRect}),
- * plus the {@link Backend#primaryDisplay()} default's pick logic.
+ * the {@link Backend#primaryDisplay()} default's pick logic, and
+ * {@link WindowConfig#on(Display)}, which is how a caller says which of them a window opens on.
  */
 class DisplayTypesTest {
 
@@ -52,6 +53,41 @@ class DisplayTypesTest {
         assertEquals(null, backendWith().primaryDisplay());
     }
 
+    @Test
+    void aWindowIsPlacedByNobodyUnlessItAsks() {
+        WindowConfig plain = WindowConfig.of("w", 100, 100);
+        assertEquals(WindowConfig.ANY_POSITION, plain.screenX(), "the desktop places it");
+        assertEquals(WindowConfig.ANY_POSITION, plain.screenY());
+        // Every factory, including the nine-part form the popups use.
+        assertEquals(WindowConfig.ANY_POSITION, WindowConfig.popup(10, 10).screenX());
+        assertEquals(WindowConfig.ANY_POSITION,
+                new WindowConfig("w", 1, 1, false, false, false, true, true, false).screenX());
+    }
+
+    @Test
+    void onADisplayAnchorsToItsWorkAreaAndSurvivesACopy() {
+        // The whole point: a window created here is created at THIS monitor's scale, and no
+        // arithmetic after the fact can undo a framebuffer that came out the wrong size.
+        Display external = display("ext", false, new ScreenRect(-2560, -771, 2560, 1440));
+        WindowConfig on = WindowConfig.of("w", 100, 100).on(external);
+        assertEquals(-2560, on.screenX());
+        assertEquals(-771, on.screenY());
+        // A copy keeps it: withVisible is how a popup is built, and losing the display there
+        // would put the window back wherever the desktop likes.
+        assertEquals(-2560, on.withVisible(false).screenX());
+        assertEquals(-771, on.withVisible(false).screenY());
+        assertEquals(7, on.at(7, 9).screenX(), "at() overrides");
+    }
+
+    @Test
+    void onNullIsTheHeadlessAnswerAndNotAFailure() {
+        // Backend.primaryDisplay() returns null when headless, and a caller that has to branch
+        // on that will forget to; this is why it does not have to.
+        WindowConfig plain = WindowConfig.of("w", 100, 100);
+        assertEquals(plain, plain.on(null));
+        assertEquals(plain, plain.on(backendWith().primaryDisplay()));
+    }
+
     // -- minimal stubs -------------------------------------------------------
 
     private static Backend backendWith(Display... displays) {
@@ -59,6 +95,10 @@ class DisplayTypesTest {
     }
 
     private static Display display(String id, boolean primary) {
+        return display(id, primary, new ScreenRect(0, 0, 1, 1));
+    }
+
+    private static Display display(String id, boolean primary, ScreenRect area) {
         return new Display() {
             @Override public String id() {
                 return id;
@@ -85,7 +125,7 @@ class DisplayTypesTest {
             }
 
             @Override public ScreenRect workArea() {
-                return new ScreenRect(0, 0, 1, 1);
+                return area;
             }
 
             @Override public float contentScale() {

@@ -4,6 +4,7 @@ import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 import limn.backend.Backend;
+import limn.backend.Display;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.backend.lwjgl.LwjglBackend;
@@ -208,15 +209,28 @@ public final class Gallery {
         try (Backend backend = new LwjglBackend()) {
             // Invisible window: the capture must not depend on a desktop, and on CI there
             // is none. Sized ONCE: every entry shares this canvas.
-            float monitorScale = 1f;
+            //
+            // BOTH windows are created on the primary display, and that is not tidiness.
+            // A window's content scale is the scale of the monitor it opens on; these two are
+            // created separately, so on a desk with a Retina laptop and a 1× monitor beside it
+            // the desktop is free to put them on different ones, and then one scale sizes two
+            // framebuffers and one of them is wrong by a factor of two. That is what happened:
+            // two runs of this command on 2026-09-10 wrote showcase-theme-editor-dark-f000@2x.png
+            // at 4096×2800 and at 2048×1400, and 880 images differed between two runs with no
+            // change between them at all -- which also means no A/B against this gallery has ever
+            // measured anything, because it had no floor. Naming the display fixes both windows
+            // to one scale, and the run is comparable with the run before it.
+            Display display = backend.primaryDisplay();
             NativeWindow probe = backend.createWindow(
-                    new WindowConfig("Limn UI: gallery", CANVAS_WIDTH, CANVAS_HEIGHT, false, true));
-            monitorScale = probe.contentScale();
-            // Size the window so the framebuffer is exactly canvas × SCALE device pixels,
-            // whatever this monitor's own scale is; otherwise the same command produces a
-            // different PNG on a Retina machine and on a CI runner.
-            probe.setSize(Math.round(CANVAS_WIDTH * SCALE / monitorScale),
-                    Math.round(CANVAS_HEIGHT * SCALE / monitorScale));
+                    new WindowConfig("Limn UI: gallery", CANVAS_WIDTH, CANVAS_HEIGHT, false, true)
+                            .on(display));
+            // Size each window so its framebuffer is exactly canvas × SCALE device pixels,
+            // whatever that monitor's own scale is; otherwise the same command produces a
+            // different PNG on a Retina machine and on a CI runner. Each window is asked for its
+            // OWN scale rather than sharing one: with the display named they agree, and if some
+            // desktop ignores the request they at least each come out the right size.
+            probe.setSize(Math.round(CANVAS_WIDTH * SCALE / probe.contentScale()),
+                    Math.round(CANVAS_HEIGHT * SCALE / probe.contentScale()));
             probe.overrideContentScale(SCALE);
             NativeWindow window = probe;
             // The showcase gets a window of its own rather than sharing this one: its
@@ -224,9 +238,10 @@ public final class Gallery {
             // the race this design exists to avoid. Both windows are created up front and
             // the loop runs until both close.
             NativeWindow big = backend.createWindow(new WindowConfig(
-                    "Limn UI: showcase", SHOWCASE_WIDTH, SHOWCASE_HEIGHT, false, true));
-            big.setSize(Math.round(SHOWCASE_WIDTH * SCALE / monitorScale),
-                    Math.round(SHOWCASE_HEIGHT * SCALE / monitorScale));
+                    "Limn UI: showcase", SHOWCASE_WIDTH, SHOWCASE_HEIGHT, false, true)
+                            .on(display));
+            big.setSize(Math.round(SHOWCASE_WIDTH * SCALE / big.contentScale()),
+                    Math.round(SHOWCASE_HEIGHT * SCALE / big.contentScale()));
             big.overrideContentScale(SCALE);
             // Before anything binds, because a scene takes the window's bridge at bind: what is
             // published here is kept and written beside the picture as its transcript.
@@ -889,9 +904,13 @@ public final class Gallery {
             limn.graphics.Fonts.setDefaultFamily(null);
             built = shot.entry().builder().get();
             scene = built.scene();
-            // The mode ADR 043 proposes as the default, so that the one pass over the whole
-            // widget set that happens on every build exercises it. Verified not to change what is
-            // captured: the same scene rendered both ways produced byte-identical PNGs.
+            // NOT setPartialRendering(true), and the reason is written down rather than
+            // assumed: a capture harness paints over the whole window on somebody else's
+            // schedule (ADR 043 §5, §9.3), and this one draws its pointer through
+            // Scene.setFrontPainter, whose contract clips what a front painter draws outside
+            // the damaged region. What the mode WOULD cost here is measured rather than
+            // guessed: turning it on changes 15 of 4633 published images -- fifteen
+            // consecutive frames of one film, one 10x100 device-pixel box, one level in 255.
             scene.bind(window);
             // AFTER bind, never before: bind installs a frame callback of its own, and a
             // callback set only at start-up is silently replaced by the first bind.

@@ -96,6 +96,8 @@ import static org.lwjgl.glfw.GLFW.glfwSetWindowPosCallback;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowFocusCallback;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowIcon;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowRefreshCallback;
+import static org.lwjgl.glfw.GLFW.GLFW_POSITION_X;
+import static org.lwjgl.glfw.GLFW.GLFW_POSITION_Y;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowPos;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowOpacity;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowShouldClose;
@@ -208,6 +210,22 @@ final class LwjglWindow implements NativeWindow {
         // Windows/X11 report window sizes in physical pixels; this hint sizes the
         // window by the monitor scale so WindowConfig stays in logical points.
         glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+        // Which monitor, decided here rather than by the desktop, when the caller asked.
+        //
+        // This is the ONLY moment the choice can be made, and the reason is the hint above:
+        // the content scale a window is born with is the scale of the monitor it is born on,
+        // and it decides the framebuffer. Moving the window afterwards does re-scale it --
+        // glfwSetWindowPos is honoured even on a hidden window -- but by then the first frame
+        // has a size nobody chose. GLFW's own createWindow monitor argument is no help: it means
+        // fullscreen ON that monitor, not windowed on it. These two hints, added in GLFW 3.4, are
+        // what a windowed answer looks like. Wayland has no window positions at all, which
+        // canPositionWindows() already knows, and there the request is simply not made.
+        if (config.screenX() != WindowConfig.ANY_POSITION
+                && config.screenY() != WindowConfig.ANY_POSITION
+                && LwjglBackend.canPositionWindows()) {
+            glfwWindowHint(GLFW_POSITION_X, config.screenX());
+            glfwWindowHint(GLFW_POSITION_Y, config.screenY());
+        }
 
         // Ask for the accelerated context first, on every platform macOS included:
         // this is the path every real machine takes, and it is unchanged. Only

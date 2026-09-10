@@ -236,39 +236,76 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    they are cheaper and still wrong; both mount their rows as real widgets, so the fix is to damage
    the row left and the row arrived at. Left open deliberately rather than done in passing: they
    are the two most-used widgets in the toolkit and neither has been read closely in this work.
-3. ~~**A demo scene running with the mode on**~~ — **partly done 2026-09-10.** The demo
-   application now runs **every** scene with the mode on, set where it binds its scene, so every
-   manual pass and every `--screenshot` run exercises it; the same scene captured both ways is
-   byte-identical, which is the evidence that the screenshot path is unaffected.
+3. ~~**A demo scene running with the mode on**~~ — **done 2026-09-10.** The demo application
+   runs **every** scene with the mode on, set where it binds its scene, so every manual pass and
+   every `--screenshot` run exercises it; the same scene captured both ways is byte-identical.
 
-   The **gallery capture harness deliberately does not**, and this is a finding rather than an
+   The **gallery capture harness deliberately does not**, and that is a finding rather than an
    omission. `Scene.setFrontPainter` documents that what a front painter draws outside the damaged
    region is clipped away, and that "the capture harness renders whole frames and so does not have
    to" mark damage itself — the harness draws its pointer layer through exactly that seam. A
-   capture harness is therefore a fifth member of §5's list: it paints over the whole window on
-   somebody else's schedule. Turning the mode on there without also fixing the pointer layer to
-   damage what it moves would silently clip a published image.
+   capture harness is a fifth member of §5's list: it paints over the whole window on somebody
+   else's schedule.
 
-   **The A/B could not be run at all, and finding out why is the useful part.** Two consecutive
-   runs of the capture command *with no change between them* differ in 880 of 4578 images. So a
-   difference of that size says nothing about anything, and the first attempt — which read 880
-   with the mode on and 24 with it off, and looked conclusive — was comparing noise against a
-   lucky run.
+   **What the mode would cost there is now measured, and the measurement took a harness fix
+   first.** The A/B could not be run at all, because two consecutive runs of the capture command
+   *with no change between them* differed in 880 of 4578 images. A difference of that size says
+   nothing about anything, and the first attempt — 880 with the mode on against 24 with it off —
+   was comparing noise against a lucky run.
 
-   Isolating the loudest contributor answered it. 852 of the 880 are frames of the filmed
-   theme-editor entry, and frame `f000` already differs, before any animation: the two runs
-   captured it at **4096×2800 and 2048×1400**. The films are not non-deterministic; the *window*
-   is. `Gallery` reads one monitor scale from its probe window and sizes the showcase window with
-   it, and the two windows are created separately, so on a machine with a Retina panel and an
-   external monitor they can open on displays of different scale. The published image is then
-   whichever the compositor chose. It is a defect in the capture harness, it is unrelated to this
-   record, and it has its own task; two attempted fixes hung the harness, which is written down
-   there so the next person starts from it rather than from scratch.
+   The cause was the harness, not the films. 852 of the 880 were frames of the filmed theme-editor
+   entry, and frame `f000` already differed, before any animation: the two runs captured it at
+   **4096×2800 and 2048×1400**. `Gallery` read one monitor scale from its probe window and sized
+   the showcase window with it, and the two windows are created separately, so on a machine with a
+   Retina panel and an external monitor beside it they can open on displays of different scale.
+   One scale, two framebuffers, one of them wrong by a factor of two.
 
-   **What that leaves is the honest statement**: partial rendering has *not* been shown to change
-   the gallery's output, and cannot be until two runs of that command agree with each other. The
-   reason the harness stays full-frame is §5's, from `setFrontPainter`'s own contract, and not a
-   measurement.
+   **Fixed by choosing the monitor rather than discovering it** (`WindowConfig.on(Display)`,
+   §9.3.1 below). Two runs now differ in **12 of 4633**, and those twelve are the kitchen sink's
+   live performance footer — FPS 293 against 361, memory 666 MB against 634 — which is a
+   wall-clock reading painted into the picture and cannot be reproducible by construction. That
+   is the noise floor, and it is a named set rather than a number.
+
+   **Against that floor the A/B reads:** the mode on differs from the mode off in **27 of 4633**
+   images. Twelve are the floor, the same twelve by name. The remaining fifteen are frames
+   `f204`–`f218` of one film — one contiguous run, one box of `1183,641 10x101` device pixels held
+   still across all fifteen, and **a maximum channel difference of 1 in 255**. The box is the two
+   rounded caps of a scrollbar thumb over the frames its fade lasts. Not a stale pixel: a stale
+   pixel is a large difference that persists, and this is a rounding difference that begins and
+   ends with an animation.
+
+   So the honest statement, which is no longer a shrug: **across one pass over the whole widget
+   set, partial rendering changes one antialiased edge by one level for the length of one fade.**
+   The harness still stays full-frame, for §5's reason and not for that one.
+
+   ### 9.3.1 The harness fix, because the next person will hit the same wall
+
+   GLFW's `glfwCreateWindow` takes a monitor, and it is not the answer: passing one means
+   *fullscreen on that monitor*, verified here — the window came back 1920×1200 with
+   `glfwGetWindowMonitor` set. The windowed answer is the pair of hints GLFW 3.4 added,
+   `GLFW_POSITION_X` / `GLFW_POSITION_Y` (this tree runs GLFW 3.5.1 through LWJGL 3.4.3), and
+   position is the whole of it: **a window's content scale is the scale of the monitor it is
+   created on**, so the monitor has to be chosen at construction and no arithmetic afterwards can
+   undo a framebuffer that came out the wrong size.
+
+   Two things were measured on a three-monitor Mac (built-in at 2×, two externals at 1×) before
+   any of this was written, and both matter:
+
+   - A **hidden** window hinted onto the **primary** monitor opens there, at that monitor's scale,
+     at creation: `pos=(40,40) fb=800x600 scale=2.00` for a 400×300 request. This is the case the
+     harness needs and it works.
+   - A hidden window hinted onto a **secondary** monitor does **not** — macOS keeps it on the
+     primary, and it only moves once `glfwSetWindowPos` is called or the window is shown. So
+     "always the primary display" is not a simplification here, it is the supported case.
+
+   Wayland has no window positions at all; `LwjglBackend.canPositionWindows()` already knew that
+   and the hints are not asked for there.
+
+   Two earlier attempts to fix this by resizing instead of placing **hung the harness**, and the
+   reason is worth keeping: `LwjglWindow.setSize` ends in `renderNow(true)` for a resizable
+   window, so a corrective resize before the capture loop starts renders inside a loop that is not
+   running yet. Placement avoids the question by never needing the correction.
+
 4. **A clip-asserting test per interactive widget**, or at least per widget with a moving cursor;
    the shape is in `PartialRenderingTest` already.
 
