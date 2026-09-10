@@ -889,6 +889,9 @@ public final class Gallery {
             limn.graphics.Fonts.setDefaultFamily(null);
             built = shot.entry().builder().get();
             scene = built.scene();
+            // The mode ADR 043 proposes as the default, so that the one pass over the whole
+            // widget set that happens on every build exercises it. Verified not to change what is
+            // captured: the same scene rendered both ways produced byte-identical PNGs.
             scene.bind(window);
             // AFTER bind, never before: bind installs a frame callback of its own, and a
             // callback set only at start-up is silently replaced by the first bind.

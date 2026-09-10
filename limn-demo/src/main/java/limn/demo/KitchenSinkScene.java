@@ -600,7 +600,7 @@ final class KitchenSinkScene {
                 // instead: a menu item cannot carry one, and an explanation that arrives
                 // when the thing is switched on is read, where one hidden behind a hover
                 // on a row of toggles was not.
-                .addCheck(KitchenStrings.RENDER_PARTIAL, false, on -> {
+                .addCheck(KitchenStrings.RENDER_PARTIAL, true, on -> {
                     scene.setPartialRendering(on);
                     status.setText(KitchenStrings.RENDER_PARTIAL_TIP);
                 })

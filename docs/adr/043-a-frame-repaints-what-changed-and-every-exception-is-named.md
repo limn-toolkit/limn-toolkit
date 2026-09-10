@@ -166,6 +166,8 @@ Not everything should be partial, and the paths that are not are not a backlog:
   widget draws rather than what one of them draws. ADR 002 says it in its own words about the size
   axis: *"A step change produces exactly one full frame, which is the only correct answer."*
 - **The first frame**, and the frame after the flag itself is toggled.
+- **A capture harness that paints over the window through `setFrontPainter`**, whose contract says
+  in as many words that it relies on whole frames (§9.3).
 
 ## 6. Why not simply leave it opt-in
 
@@ -216,9 +218,23 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    whose cursors move inside a large box: `ListView`, `Table`, `PopupMenu`'s panel, `TabbedPane`'s
    strip. Each is a measurement, not an opinion, and the harness is now known to be the hard part:
    settle past the transitions, print per frame, and check the clip against the geometry.
-3. **A demo scene running with the mode on**, in the gallery capture, so that every future capture
-   exercises it. The captures are the only pass over the whole widget set that happens on every
-   build.
+3. ~~**A demo scene running with the mode on**~~ — **partly done 2026-09-10.** The demo
+   application now runs **every** scene with the mode on, set where it binds its scene, so every
+   manual pass and every `--screenshot` run exercises it; the same scene captured both ways is
+   byte-identical, which is the evidence that the screenshot path is unaffected.
+
+   The **gallery capture harness deliberately does not**, and this is a finding rather than an
+   omission. `Scene.setFrontPainter` documents that what a front painter draws outside the damaged
+   region is clipped away, and that "the capture harness renders whole frames and so does not have
+   to" mark damage itself — the harness draws its pointer layer through exactly that seam. A
+   capture harness is therefore a fifth member of §5's list: it paints over the whole window on
+   somebody else's schedule. Turning the mode on there without also fixing the pointer layer to
+   damage what it moves would silently clip a published image.
+
+   An attempt to A/B it was **inconclusive and is recorded as such**: the two runs produced images
+   of different sizes (2048×1400 against 4096×2800), because the demo window landed on displays of
+   different content scale between them. That is a capture-determinism problem of its own on a
+   multi-monitor machine, unrelated to this record and worth its own look.
 4. **A clip-asserting test per interactive widget**, or at least per widget with a moving cursor;
    the shape is in `PartialRenderingTest` already.
 

@@ -401,6 +401,14 @@ public final class Main {
                 System.out.println("Theme: " + options.theme().name);
             }
             if (widgetScene != null) {
+                // Partial rendering, everywhere, because it is what ADR 043 proposes as the
+                // toolkit's default and a default nobody runs is a default nobody tests. Setting
+                // it here rather than per scene is the point: every scene of this demo, every
+                // manual pass and every --screenshot run now exercises the mode, which is how the
+                // two defects of 1d25aab would have been caught by somebody looking rather than
+                // by somebody measuring. The kitchen sink's own switch still works and simply
+                // starts on.
+                widgetScene.setPartialRendering(true);
                 widgetScene.bind(window); // input + invalidation
             }
             limn.scene.Scene boundScene = widgetScene;
