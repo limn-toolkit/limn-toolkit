@@ -122,13 +122,9 @@ public class DatePicker extends Widget {
         this.field = field;
         this.endField = endField;
         setCursor(Cursor.DEFAULT);
-        add(button);
-        button.observeChanges((widget, change) -> {
-            if (change.aspect() == Change.Aspect.FOCUS) {
-                refreshFocusRing();
-                invalidate();
-            }
-        });
+        // The fields first and the affordance last, because children() is the Tab order: a person
+        // types the date far more often than they open the calendar, so the text is what the first
+        // Tab should land in and the button is where the second one goes.
         adopt(field);
         if (endField != null) {
             adopt(endField);
@@ -136,6 +132,13 @@ public class DatePicker extends Widget {
             field.setAccessibleName(DateStrings.RANGE_START);
             endField.setAccessibleName(DateStrings.RANGE_END);
         }
+        add(button);
+        button.observeChanges((widget, change) -> {
+            if (change.aspect() == Change.Aspect.FOCUS) {
+                refreshFocusRing();
+                invalidate();
+            }
+        });
         // The grid in a popup is NOT a tab stop, and the accessibility gallery is what caught it:
         // the popup contract keeps focus on the field and forwards the navigation keys here, so a
         // focusable grid is a node the traversal can land on and a node with no name -- a reader

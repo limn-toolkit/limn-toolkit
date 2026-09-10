@@ -19,6 +19,7 @@ import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -319,6 +320,77 @@ class DatePickerTest extends ComponentTestBase {
         assertEquals(CalendarView.View.DAYS, picker.calendar().view(),
                 "Escape comes back down a level before it closes anything");
         assertTrue(picker.isOpen());
+    }
+
+    @Test
+    void shiftTabLeavesTheHeaderForTheGridWithoutClosingThePopup() {
+        build(new DatePicker());
+        picker.setDate(ANCHOR);
+        picker.open();
+        key(Keys.TAB, 0);                    // grid -> the arrow that pages back
+        key(Keys.TAB, Keys.MOD_SHIFT);       // and back to the grid
+        assertTrue(picker.isOpen(), "coming out of the header is not leaving the popup");
+        key(Keys.RIGHT, 0);
+        assertEquals(ANCHOR.plusDays(1), picker.calendar().focusedDate(),
+                "and the arrows move the day again, so the cursor really is in the grid");
+    }
+
+    @Test
+    void comingDownFromTheHeaderLandsOnWhatIsShowingRatherThanJumping() {
+        build(new DatePicker());
+        picker.setDate(ANCHOR);              // September, which is cell 8 of the month chooser
+        picker.open();
+        picker.calendar().setView(CalendarView.View.MONTHS);
+        key(Keys.TAB, 0);                    // into the header
+        key(Keys.DOWN, 0);                   // back down into the chooser
+        key(Keys.ENTER, 0);
+        assertEquals(LocalDate.of(2026, 9, 1), picker.calendar().visibleMonth(),
+                "the cursor came back onto the month on show, not four cells past it");
+    }
+
+    /**
+     * The report this pins, in its own shape: Down out of the header showed no cursor at all, and
+     * a second Down both created it and moved it, landing on December.
+     */
+    @Test
+    void aSecondDownMovesTheCursorRatherThanCreatingIt() {
+        build(new DatePicker());
+        picker.setDate(ANCHOR);
+        picker.open();
+        picker.calendar().setView(CalendarView.View.MONTHS);
+        key(Keys.TAB, 0);
+        key(Keys.DOWN, 0);   // back into the chooser, cursor visible on September
+        key(Keys.DOWN, 0);   // September is on the last row of four columns, so this stays put
+        key(Keys.ENTER, 0);
+        assertEquals(LocalDate.of(2026, 9, 1), picker.calendar().visibleMonth(),
+                "an arrow off the bottom row stays where it is; it does not slide to December");
+    }
+
+    @Test
+    void tabWrapsInsideThePopupRatherThanFallingOutOfIt() {
+        build(new DatePicker());
+        picker.setDate(ANCHOR);
+        picker.open();
+        for (int i = 0; i < 6; i++) {
+            key(Keys.TAB, 0);   // right around the walk and past its end
+        }
+        assertTrue(picker.isOpen(),
+                "a popup is somewhere you are until you leave it, and Escape is how you leave");
+        key(Keys.TAB, Keys.MOD_SHIFT);
+        assertTrue(picker.isOpen(), "and backwards is not an exit either");
+        key(Keys.ESCAPE, 0);
+        assertFalse(picker.isOpen());
+    }
+
+    @Test
+    void theFieldComesFirstAndTheButtonSecond() {
+        build(new DatePicker());
+        List<limn.scene.Widget> stops = picker.children().stream()
+                .filter(limn.scene.Widget::isFocusable)
+                .toList();
+        assertEquals(picker.field(), stops.get(0), "the text is what a person types into first");
+        assertEquals(2, stops.size());
+        assertNotEquals(picker.field(), stops.get(1), "and the button follows it");
     }
 
     @Test

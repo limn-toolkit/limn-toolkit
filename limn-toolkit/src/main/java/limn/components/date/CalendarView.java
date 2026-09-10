@@ -1659,12 +1659,48 @@ public class CalendarView extends Widget {
         }
         int next = at + delta;
         if (next < 0 || next >= TAB_ORDER.length) {
-            return false;
+            // Inside a popup the walk WRAPS, and outside one it runs off the end.
+            //
+            // A popup is a place you are in until you leave it deliberately, and Escape is how
+            // you leave: a Tab that fell out of the back of it closed the calendar on somebody
+            // who was only stepping out of the header, which is the report this branch answers.
+            // A calendar sitting in a page is not a place you are in -- it is one control among
+            // others -- so there the key has to be declined or focus could never move past it.
+            if (!keyboardActive) {
+                return false;
+            }
+            next = Math.floorMod(next, TAB_ORDER.length);
         }
         part = TAB_ORDER[next];
+        enterPart();
         invalidate();
         notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
         return true;
+    }
+
+    /**
+     * Puts a cursor where the roving focus just landed, so that arriving somewhere is visible
+     * <em>on arrival</em> rather than on the next keystroke.
+     *
+     * <p>Without this, coming back into the grid showed no ring at all -- the chooser's cursor was
+     * still unset -- and the next arrow both created it and moved it, so a Down that should have
+     * settled on September landed on December. Two reports, one cause: a cursor that does not
+     * exist until it moves.
+     */
+    private void enterPart() {
+        if (part != Part.GRID) {
+            return;
+        }
+        // The memo first: which cell is "the one on show" is read from the month the grid was last
+        // rebuilt for, and a key can arrive before the first paint of a view the keyboard itself
+        // just switched to. Without this the cursor landed on January -- cell zero of a grid built
+        // for the epoch -- which is the same trap chooserKey already guards against.
+        rebuildGrid();
+        if (view == View.DAYS) {
+            cursor = cursorOrDefault();
+        } else if (chooserCursor < 0) {
+            chooserCursor = Math.max(0, currentChooserCell());
+        }
     }
 
     /**
@@ -1686,6 +1722,7 @@ public class CalendarView extends Widget {
             }
             case Keys.DOWN -> {
                 part = Part.GRID;
+                enterPart();
                 invalidate();
                 notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
                 event.consume();
@@ -1696,6 +1733,7 @@ public class CalendarView extends Widget {
             }
             case Keys.ESCAPE -> {
                 part = Part.GRID;
+                enterPart();
                 invalidate();
                 event.consume();
             }
@@ -1747,6 +1785,9 @@ public class CalendarView extends Widget {
         }
         if (chooserCursor < 0) {
             chooserCursor = Math.max(0, Math.min(count - 1, currentChooserCell()));
+            // Arriving is not moving: the first arrow after the cursor appears would otherwise
+            // both place it and step it.
+            invalidate();
         }
         if ((event.modifiers() & (Keys.MOD_CONTROL | Keys.MOD_SUPER)) != 0) {
             if (event.key() == Keys.UP) {
@@ -1794,7 +1835,12 @@ public class CalendarView extends Widget {
             }
         }
         event.consume();
-        next = Math.max(0, Math.min(count - 1, next));
+        // Out of the grid means stay put, not slide to the nearest corner: clamping turned a Down
+        // on the bottom row into a jump to the last cell of the year, which is a move nobody asked
+        // for and the opposite of what an edge is for.
+        if (next < 0 || next >= count) {
+            return;
+        }
         if (next != chooserCursor) {
             chooserCursor = next;
             invalidate();
