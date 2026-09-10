@@ -214,10 +214,28 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    symptom it prevents: with the pass removed, the repaint region holds the widget that changed
    and not the panel made of it.
 2. ~~**`CalendarView` damages cells rather than itself**~~ — **done 2026-09-10**, along with the
-   `DatePicker` defect it uncovered (§4). The same question is still open for the other widgets
-   whose cursors move inside a large box: `ListView`, `Table`, `PopupMenu`'s panel, `TabbedPane`'s
-   strip. Each is a measurement, not an opinion, and the harness is now known to be the hard part:
-   settle past the transitions, print per frame, and check the clip against the geometry.
+   `DatePicker` defect it uncovered (§4). **The other four were then measured**, each boxed at
+   420×320 inside a 900×700 window so that "the widget" and "the window" are different
+   rectangles — without that they are the same number and the question cannot be asked:
+
+   | widget | a selection or cursor step damages | |
+   | --- | --- | --- |
+   | `PopupMenu`'s panel | the two rows | already precise, through its own `damageRow` |
+   | `TabbedPane` | **was** the whole pane, on every frame of the indicator slide | **fixed**: 21.6% → 2.1% |
+   | `ListView` | the whole widget, once per step | open |
+   | `Table` | the whole widget, once per step | open |
+
+   `TabbedPane` was the one worth fixing immediately, and its cause is worth naming because it is
+   a trap rather than an oversight: the indicator's two transitions were constructed as
+   `new Transition(this)`, so an animation drawn **in the strip** damaged the pane — the strip and
+   the whole page under it — once per frame for the length of the slide. Binding them to the strip
+   is a one-word change and the clip goes from the widget's box to `422x32`. Any animation bound
+   to a widget larger than what it draws has the same shape.
+
+   `ListView` and `Table` are one full-widget repaint per arrow key rather than one per frame, so
+   they are cheaper and still wrong; both mount their rows as real widgets, so the fix is to damage
+   the row left and the row arrived at. Left open deliberately rather than done in passing: they
+   are the two most-used widgets in the toolkit and neither has been read closely in this work.
 3. ~~**A demo scene running with the mode on**~~ — **partly done 2026-09-10.** The demo
    application now runs **every** scene with the mode on, set where it binds its scene, so every
    manual pass and every `--screenshot` run exercises it; the same scene captured both ways is
