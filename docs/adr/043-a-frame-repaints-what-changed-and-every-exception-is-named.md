@@ -249,10 +249,26 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    somebody else's schedule. Turning the mode on there without also fixing the pointer layer to
    damage what it moves would silently clip a published image.
 
-   An attempt to A/B it was **inconclusive and is recorded as such**: the two runs produced images
-   of different sizes (2048×1400 against 4096×2800), because the demo window landed on displays of
-   different content scale between them. That is a capture-determinism problem of its own on a
-   multi-monitor machine, unrelated to this record and worth its own look.
+   **The A/B could not be run at all, and finding out why is the useful part.** Two consecutive
+   runs of the capture command *with no change between them* differ in 880 of 4578 images. So a
+   difference of that size says nothing about anything, and the first attempt — which read 880
+   with the mode on and 24 with it off, and looked conclusive — was comparing noise against a
+   lucky run.
+
+   Isolating the loudest contributor answered it. 852 of the 880 are frames of the filmed
+   theme-editor entry, and frame `f000` already differs, before any animation: the two runs
+   captured it at **4096×2800 and 2048×1400**. The films are not non-deterministic; the *window*
+   is. `Gallery` reads one monitor scale from its probe window and sizes the showcase window with
+   it, and the two windows are created separately, so on a machine with a Retina panel and an
+   external monitor they can open on displays of different scale. The published image is then
+   whichever the compositor chose. It is a defect in the capture harness, it is unrelated to this
+   record, and it has its own task; two attempted fixes hung the harness, which is written down
+   there so the next person starts from it rather than from scratch.
+
+   **What that leaves is the honest statement**: partial rendering has *not* been shown to change
+   the gallery's output, and cannot be until two runs of that command agree with each other. The
+   reason the harness stays full-frame is §5's, from `setFrontPainter`'s own contract, and not a
+   measurement.
 4. **A clip-asserting test per interactive widget**, or at least per widget with a moving cursor;
    the shape is in `PartialRenderingTest` already.
 
