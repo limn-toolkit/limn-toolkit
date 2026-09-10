@@ -134,7 +134,11 @@ public class TextArea extends Widget {
     private TextMetrics cachedWidthProbe;
     /** Focus-ring fade: morphs the border between outline and focusRing. */
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing)
+                    // The fade morphs the BORDER and nothing else, so it repaints the border.
+                    // Without this a Tab landing in a text area repainted every line of it eleven
+                    // times over -- see Transition.damages.
+                    .damages(this::damageBorder);
     private TextField.Validation validation = TextField.Validation.NONE;
     /** Whether long lines wrap at the text column's edge instead of scrolling; see {@link #setSoftWrap}. */
     private boolean softWrap;
@@ -2649,6 +2653,43 @@ public class TextArea extends Widget {
         } else {
             invalidate();
         }
+    }
+
+    /**
+     * Damages the four strips the border runs through, rather than the whole area inside it.
+     *
+     * <p>What the focus fade changes is one stroke on this widget's own outline, thickening
+     * 1&nbsp;&rarr;&nbsp;2 as it runs; the fill and every line of text are the same pixels
+     * before and after. A text area is the one widget in this family big enough for that
+     * distinction to be worth anything &mdash; a field is a rim and little else &mdash; and it is
+     * measured: eleven whole-widget frames for a Tab, against four strips of about a tenth the
+     * area.
+     *
+     * <p>The strips are as thick as the corner radius plus the stroke, which covers the rounded
+     * corners outright rather than by an argument about how far an arc bulges inward. Four
+     * rectangles and not one: the scene merges damage whose union wastes little, and a rim's
+     * union is the whole box, so these stay four.
+     *
+     * <p>What changes with focus and is <em>not</em> the border &mdash; the caret appearing, the
+     * selection colouring &mdash; flips in the single frame focus moves, and the scene damages
+     * this widget's whole box for that frame on its own.
+     */
+    private void damageBorder() {
+        float thickness = Theme.current().tokensFor(this).radiusMedium()
+                + Strokes.FOCUS_RING + 1;
+        float w = width();
+        float h = height();
+        if (w <= 0 || h <= 0) {
+            return;
+        }
+        if (h <= 2 * thickness || w <= 2 * thickness) {
+            invalidate(); // too small to have an inside; the rim IS the widget
+            return;
+        }
+        invalidate(0, 0, w, thickness);
+        invalidate(0, h - thickness, w, thickness);
+        invalidate(0, thickness, thickness, h - 2 * thickness);
+        invalidate(w - thickness, thickness, thickness, h - 2 * thickness);
     }
 
     @Override

@@ -341,14 +341,60 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    running yet. Placement avoids the question by never needing the correction.
 
 4. **A clip-asserting test per interactive widget**, or at least per widget with a moving cursor.
-   **Started, not finished**: the shape is in `PartialRenderingTest`, and `SelectionDamageTest`
-   (§9.2.1) now covers the two widgets that matter most, alongside the existing `ListScrollDamage`,
-   `CaretDamage`, `MenuDamage`, `TooltipDamage` and `BackdropDamage` tests. What has none is every
-   other widget with a moving cursor, and the general question §9.2.1 raises: **which of the forty
-   `new Transition(this)` in this toolkit animate something smaller than their owner?** Most are
-   buttons and checkboxes, where the animation *is* the widget and nothing is wrong. The ones to
-   read are the large ones — `SplitPane`, `ScrollBar`, `Chart`, `TextArea`, `CalendarView` — and
-   each is a measurement, not an opinion.
+   **Started, not finished**: the shape is in `PartialRenderingTest`; `SelectionDamageTest`
+   (§9.2.1) and `FadeDamageTest` (§9.4.1) now cover seven widgets, alongside the existing
+   `ListScrollDamage`, `CaretDamage`, `MenuDamage`, `TooltipDamage` and `BackdropDamage` tests.
+   What has none is every other widget with a moving cursor.
+
+   ### 9.4.1 The five large animators, measured
+
+   §9.2.1 asked which of the forty `new Transition(this)` in this toolkit animate something
+   smaller than their owner, and named five worth reading. All five were measured, each boxed
+   420×320 inside a 500×400 window, at a real 60 Hz tick, as a share of **the widget** — the share
+   of a window is whatever the window happens to be, and says more about the test than the widget.
+
+   | widget | what the animation draws | before | after |
+   | --- | --- | --- | --- |
+   | `SplitPane` | the divider's hover, drag and focus | **6.2%**, 10 frames | already right |
+   | `ScrollBar` | the bar's own fade and thumb width | **its own box**, 2.7% of the window | already right |
+   | `TextArea` | the border, morphing 1 → 2 pt | 103%, 11 frames | 103% × 2 + **14.0% × 9** |
+   | `CalendarView` | one focus ring on one cell | 104.5%, 11 frames | 104.5% × 2 + **2.5% × 9** |
+   | `Chart` | the tooltip panel fading | **101%, 14 frames** | **open** |
+
+   **Two were already right, and one of them is the pattern.** `SplitPane`'s three transitions
+   belong to its `Divider`, an inner widget that *is* what moves, so a pointer arriving on it
+   repaints a 26-point band. That is the first thing to reach for and it needs no new API.
+   `ScrollBar` looks like a violation and is not: its fade and its thumb's widening cover the
+   whole bar, so its own box is the right answer, and the measurement confirms it damages that and
+   not the host around it. It is also the case that says why the harness matters — stretched to
+   fill the test box it read 101% of a 420-wide "bar", which measures the harness. Laid out thin,
+   the way one is used, it reads 15 points wide.
+
+   **Two were narrowed** through `Transition.damages(Runnable)`, which exists for the case
+   `SplitPane` does not have: no child widget to own the animation, because the moving part is
+   drawn by the parent. `CalendarView` names the cell its roving ring is on. `TextArea` names four
+   strips — a rim — because a focus fade morphs its border and leaves every line of text
+   identical; the strips are as thick as the corner radius plus the stroke, which covers the
+   rounded corners outright rather than by an argument about how far an arc bulges inward, and
+   they stay four rectangles because the scene merges damage whose union wastes little and a rim's
+   union is the whole widget.
+
+   **The two frames that remain in both** are `Scene.setFocus` damaging the newly focused widget's
+   box, doubled by the double-buffer union. That is correct and not worth removing: a scene cannot
+   know that this widget's focus draws inside one row, and what *does* change wholesale on the
+   focus flip — a caret appearing, a selection colouring — needs exactly that frame.
+
+   **`Chart` is measured and deliberately not fixed**, which is a different thing from not
+   noticed. Its tooltip fade repaints the whole chart for fourteen frames each way, and worse, the
+   hover path invalidates the whole chart on **every pointer move** while a mark is hovered — its
+   own comment says why: *"the panel follows the pointer even within one mark"*. The fix is not
+   the mechanical one it looks like. The panel's rectangle is computed inside `paintTooltip` from
+   text measurement and would have to be hoisted out so damage and paint agree; and hovering
+   changes more than the panel — `BarChart` lifts the hovered category, `LineChart` draws a
+   crosshair the full height of the plot and grows its markers, `CartesianChart` paints a band
+   behind the category — so each subclass would have to declare the region its hover affects.
+   Guessing that region short leaves stale pixels, which is the one failure mode of this mode that
+   no assertion can see. It is worth doing and it is its own piece of work.
 
 ## 10. The escape hatch, and why it stays
 

@@ -202,7 +202,11 @@ public class CalendarView extends Widget {
     private Consumer<DateRange> onSelectRange;
 
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing)
+                    // One ring, wherever the roving cursor is, so that is what each frame of the
+                    // fade repaints. Without this a Tab landing in the calendar repainted the
+                    // whole grid eleven times over -- see Transition.damages.
+                    .damages(this::damageFocusRing);
 
     /** Which paging button the pointer is over: -1 previous, +1 next, 0 neither. */
     private int pagingHover;
@@ -833,6 +837,25 @@ public class CalendarView extends Widget {
         float top = gridY + (index / columns) * cellH;
         float grow = Strokes.FOCUS_RING_THIN + Strokes.FOCUS_GAP_INDICATOR;
         invalidate(left - grow, top - grow, cellW + 2 * grow, cellH + 2 * grow);
+    }
+
+    /**
+     * Damages wherever the roving focus ring is drawn: one cell of the grid, or the header strip
+     * when the cursor is on one of its three controls.
+     *
+     * <p>Read live rather than remembered, because the ring is drawn from these same three fields
+     * &mdash; {@link #part}, {@link #view} and whichever cursor the view has &mdash; so the answer
+     * cannot drift from the picture. What moves the cursor damages both ends itself; this is only
+     * for the frames where nothing moves and the ring is fading.
+     */
+    private void damageFocusRing() {
+        if (part != Part.GRID) {
+            damageHeader();
+        } else if (view == View.DAYS) {
+            damageDay(cursor);
+        } else {
+            damageCell(chooserCursor);
+        }
     }
 
     /** Damages the cell a day sits in, if that day is on screen at all. */

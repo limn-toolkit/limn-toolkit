@@ -13,8 +13,13 @@ import limn.testing.TestRulers;
 
 /**
  * Records clear/clip/paint calls so a frame can be classified full vs partial.
- * Only the FIRST clip matters: it is the scene's partial-repaint pass clip;
- * widgets push their own clips later (text fields clip their text runs).
+ *
+ * <p>{@link #firstClip} is the scene's first repaint pass, and for a long time that was the whole
+ * story. It is not: damage is a LIST of rectangles, and a frame that repaints a rim or two rows
+ * has several passes, of which the first is a fraction. Ask {@link #passClips()} or
+ * {@link #damagedArea()} for the frame's real repaint, and keep {@link #firstClip} for the tests
+ * that genuinely mean "the one pass". Clips widgets push for themselves (a text field clipping
+ * its runs) are nested below a pass and excluded from both.
  *
  * <p>{@code drawSurface} is recorded too, and overriding it is the whole point:
  * it is a default method whose default draws <em>nothing at all</em>, so a canvas
@@ -40,6 +45,14 @@ final class RecordingTestCanvas implements Canvas {
      * that widget's rather than the frame's.
      */
     final java.util.List<Rect> clips = new java.util.ArrayList<>();
+    /**
+     * The save depth each entry of {@link #clips} was pushed at, so a test can tell the scene's
+     * own repaint passes from the clips widgets push inside them: a pass is pushed at the
+     * shallowest depth of the frame, and everything a widget clips is nested below it. Needed the
+     * moment damage stops being one rectangle -- {@link #firstClip} answers for one pass and
+     * silently ignores the rest.
+     */
+    final java.util.List<Integer> clipDepths = new java.util.ArrayList<>();
     int paints;
     final java.util.List<SurfaceDraw> surfaces = new java.util.ArrayList<>();
 
@@ -54,7 +67,36 @@ final class RecordingTestCanvas implements Canvas {
         paints = 0;
         surfaces.clear();
         clips.clear();
+        clipDepths.clear();
         saveDepth = 0;
+    }
+
+    /**
+     * @return the scene's own repaint passes for the frame: the clips pushed at the shallowest
+     *         depth reached, which is where the scene applies damage and below which every clip
+     *         belongs to a widget
+     */
+    java.util.List<Rect> passClips() {
+        java.util.List<Rect> passes = new java.util.ArrayList<>();
+        int shallowest = Integer.MAX_VALUE;
+        for (int depth : clipDepths) {
+            shallowest = Math.min(shallowest, depth);
+        }
+        for (int i = 0; i < clips.size(); i++) {
+            if (clipDepths.get(i) == shallowest) {
+                passes.add(clips.get(i));
+            }
+        }
+        return passes;
+    }
+
+    /** @return the total area of {@link #passClips()}; passes are disjoint, so a plain sum. */
+    float damagedArea() {
+        float total = 0;
+        for (Rect r : passClips()) {
+            total += r.width() * r.height();
+        }
+        return total;
     }
 
     boolean nothingPainted() {
@@ -113,6 +155,7 @@ final class RecordingTestCanvas implements Canvas {
             firstClip = new Rect(x, y, w, h);
         }
         clips.add(new Rect(x, y, w, h));
+        clipDepths.add(saveDepth);
     }
     @Override public void clipRoundRect(RoundRect roundRect) { }
     @Override public void fillRect(float x, float y, float w, float h, Paint paint) { paints++; }
