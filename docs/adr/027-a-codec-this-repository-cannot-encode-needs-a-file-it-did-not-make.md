@@ -63,6 +63,12 @@ it with a larger corpus for anyone who has one.
   encoder the shipping payload does not have, so every stranger who ran it opened that entry on
   nothing. Its build now copies the 360p excerpt and the CC-BY text into the jar
   (`limn/demo/media/`); the libraries still carry no media, and the corpus itself is unchanged.
+  *Amended 2026-09-11:* a second consumer of that same copy, and this one publishes pictures
+  rather than bytes. The component gallery's `MediaControls` entry films the excerpt, because a
+  transport over colour bars cannot show a scrub landing anywhere, so the website carries frames
+  of it; the card under them credits the Blender Foundation and links CC BY 3.0, which is what
+  the licence asks wherever the work goes. Still one file in one jar: nothing is copied into the
+  site's tree.
 - **Not media without paperwork.** Three things or it does not go in: a licence that permits
   redistribution, the attribution that licence requires (in `media/README.md` and in `NOTICE`,
   because a reader of one is not a reader of the other), and a recorded digest, so a file can be

@@ -5,6 +5,9 @@ import limn.components.Button;
 import limn.components.Checkbox;
 import limn.components.ColorPicker;
 import limn.components.ColorPickerButton;
+import limn.components.ComboBox;
+import limn.components.DisplayMode;
+import limn.components.MediaControls;
 import limn.components.PasswordField;
 import limn.components.Slider;
 import limn.components.SplitPane;
@@ -13,8 +16,10 @@ import limn.components.TextField;
 import limn.components.chart.BarChart;
 import limn.components.chart.DonutChart;
 import limn.components.chart.LineChart;
+import limn.components.VideoView;
 import limn.components.Viewport3D;
 import limn.scene.Widget;
+import limn.video.VideoClock;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,6 +75,8 @@ final class Films {
             case "color-picker" -> Films::colorPicker;
             case "viewport-3d" -> Films::viewport3d;
             case "checkbox" -> Films::checkbox;
+            case "combo-box" -> Films::comboBox;
+            case "media-controls" -> Films::mediaControls;
             case "slider" -> Films::slider;
             case "spinner" -> Films::spinner;
             case "split-pane" -> Films::splitPane;
@@ -450,6 +457,84 @@ final class Films {
     }
 
     /**
+     * The list opened, walked into, typed at, and the row that names picked.
+     *
+     * <p>The list is asked for IN_SCENE here rather than in the scene the site publishes as the
+     * sample. A native drop-down is a second window and the capture reads this window's
+     * framebuffer, so every frame would show a field saying it is open over nothing at all. The
+     * harness pins what filming needs, the way it pins the calendar's today, and the published
+     * code stays what a reader should copy.
+     *
+     * <p><b>The typed letter and the row under the pointer are the same row on purpose.</b>
+     * Type-ahead moves the highlight and a click takes whatever is under the arrow, so a film
+     * that typed "d" while resting over Nord would show the highlight on one row and the
+     * selection land on another -- which reads as a broken widget rather than as two ways of
+     * choosing the same thing.
+     */
+    private static Motion comboBox(GalleryScenes.Built built) {
+        ComboBox combo = (ComboBox) find(built, ComboBox.class, 0);
+        combo.setDisplayMode(DisplayMode.IN_SCENE);
+        return Motion.script()
+                .from(OFF_X, OFF_Y)
+                .to(combo, 0.5f, 0.5f, TRAVEL)
+                .hold(SETTLE)
+                .press().hold(6).release()
+                .hold(LOOK)
+                // Down into the list, onto the last row: Dracula, which is what "d" spells.
+                .to("the open list", () -> openList(built), 0.5f, 0.86f, 16)
+                .hold(SETTLE)
+                .type("d", 8)
+                .hold(LOOK)
+                .press().hold(6).release()
+                .hold(LOOK + 8);
+    }
+
+    /**
+     * The transport driven: play, and then a scrub that lands somewhere else in the film.
+     *
+     * <p>Two claims, and a still carries neither: the play button swaps its glyph and the clock
+     * starts counting, and the scrub takes the picture with it. The second is why this entry
+     * films real footage where the video view above it uses colour bars -- a scrub over eight
+     * static bars lands nowhere a reader can see.
+     *
+     * <p>The view is put on the film's clock before anything else. A video plays on wall time and
+     * the capture advances a fixed 20 ms of scene time per frame, so left alone it would
+     * photograph whichever pictures this machine's render speed happened to reach: the defect ADR
+     * 043 &sect;9.3.2 closed for the toolkit's own timers, here for a widget's own clock.
+     */
+    private static Motion mediaControls(GalleryScenes.Built built) {
+        ((VideoView) find(built, VideoView.class, 0)).setClock(new VideoClock(built.clock()));
+        Widget play = transportButton(built);
+        Widget scrub = scrubBar(built);
+        return Motion.script()
+                .from(OFF_X, OFF_Y)
+                .to(play, 0.5f, 0.5f, TRAVEL)
+                .hold(SETTLE)
+                .press().hold(6).release()
+                // A fifth of a second of it running, and then the same button again to stop it.
+                // The pause is what makes this film affordable, and it is also what makes it a
+                // film of the transport rather than of the clip: while the picture moves, every
+                // frame of it is a photograph the published animation has to carry, and a film
+                // that simply played to the end came to 1.5 MB against the 400 kB a component
+                // film is allowed (build-gallery.mjs). Stopped, the only new pictures left are
+                // the ones the scrub lands on, which the bar throttles to one per 250 ms however
+                // far the thumb travels. The beats below are short for the same reason, and they
+                // are the ones to shorten again if this film ever stops fitting: measured here
+                // at 380 kB dark and 382 kB light, one rung of the encoder's quality ladder
+                // above the floor, where playing throughout could not fit at the floor at all.
+                .hold(10)
+                .press().hold(6).release()
+                .hold(SETTLE)
+                .to(scrub, 0.28f, 0.5f, 16)
+                .hold(SETTLE)
+                .press()
+                .to(scrub, 0.74f, 0.5f, 18)
+                .hold(6)
+                .release()
+                .hold(LOOK + 10);
+    }
+
+    /**
      * Across the saturation/value field, which is the picker's largest surface and the one
      * whose whole job is being dragged through.
      */
@@ -583,6 +668,53 @@ final class Films {
             motion.hold(SETTLE + 2).to(chart, point[0], point[1], 14);
         }
         return motion.hold(LOOK + 12);
+    }
+
+    /**
+     * The combo's in-scene list: the overlay's one panel. Throws rather than aiming at a list
+     * that is not open, which would film a pointer gliding into the middle of the canvas.
+     */
+    private static Widget openList(GalleryScenes.Built built) {
+        Widget layer = overlay(built);
+        if (layer == null) {
+            throw new IllegalStateException("a film step aims into the combo's list and none is"
+                    + " open; the click that drops it either missed or has not been given enough"
+                    + " frames to be dispatched and laid out");
+        }
+        if (layer.children().size() != 1) {
+            throw new IllegalStateException("the overlay holding the list carries "
+                    + layer.children().size() + " children, not the single panel this aims at: "
+                    + names(layer));
+        }
+        return layer.children().get(0);
+    }
+
+    /** The transport's play button: the bar's only child is its row, and the row leads with it. */
+    private static Widget transportButton(GalleryScenes.Built built) {
+        Widget row = find(built, MediaControls.class, 0).children().get(0);
+        if (row.children().isEmpty()) {
+            throw new IllegalStateException("the transport's row is empty; the bar holds "
+                    + names(row));
+        }
+        return row.children().get(0);
+    }
+
+    /**
+     * The transport's scrub bar, told from the volume slider beside it by its range: the scrub is
+     * a thousand steps and the volume a hundred. Counting sliders instead would follow whichever
+     * one the row happened to add first.
+     */
+    private static Widget scrubBar(GalleryScenes.Built built) {
+        List<String> ranges = new ArrayList<>();
+        for (Widget widget : under(built.scene().root(), Slider.class)) {
+            Slider slider = (Slider) widget;
+            if (slider.max() == 1000) {
+                return slider;
+            }
+            ranges.add(String.valueOf(slider.max()));
+        }
+        throw new IllegalStateException("the filmed scene has no scrub bar over a thousand steps;"
+                + " its sliders reach " + ranges);
     }
 
     /**

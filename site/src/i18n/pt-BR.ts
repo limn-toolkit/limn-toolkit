@@ -156,6 +156,8 @@ export const ptBR: Catalog = {
   "components.stop": "Parar",
   "components.videoNote":
     "A view de vídeo usa a fonte de teste em Java puro, então ela mostra o widget funcionando e não a cobertura de codecs. Nenhum decodificador nativo participa desta imagem.",
+  "components.mediaCredit":
+    'O filme sob este transporte é o <a href="https://peach.blender.org/">Big Buck Bunny</a>, © 2008 Blender Foundation, usado sob <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>. Todas as outras imagens desta página são obra do próprio toolkit.',
 
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn: Telas",

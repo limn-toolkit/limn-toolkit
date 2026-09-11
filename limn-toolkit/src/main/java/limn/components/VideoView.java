@@ -173,6 +173,16 @@ public class VideoView extends Widget {
     private boolean due;
     /** A picture of the <em>current</em> source has been uploaded, so the surface is worth drawing. */
     private boolean uploaded;
+    /**
+     * A seek has moved the position and what is on screen is still the picture from before it.
+     * Set by {@link #seek}, cleared by the upload that answers it.
+     *
+     * <p>It exists for the paused case alone. Playing, the next picture is judged and goes up on
+     * its own; paused, the view decodes one picture and judges nothing, so the flag is what tells
+     * the paused branch that this one is wanted. Without it a scrubbed pause kept showing the
+     * frame the viewer had scrubbed away from, under a clock already reading the new position.
+     */
+    private boolean seeked;
     /** The first decode has been attempted in a paint, which is what makes a single frame show one. */
     private boolean primed;
     private boolean ended;
@@ -452,6 +462,9 @@ public class VideoView extends Widget {
         ended = false;
         failure = null;
         primed = false;
+        // What is on screen belongs to the position just left, and paused nothing else would ever
+        // replace it; see the field.
+        seeked = true;
         invalidate();
     }
 
@@ -909,6 +922,7 @@ public class VideoView extends Widget {
         try {
             surface.upload(picture);
             uploaded = true;
+            seeked = false; // the screen shows the current position again
         } catch (RuntimeException error) {
             failure = error;
             // The paint running now goes on to draw the notice, and nothing else about this view
@@ -1111,11 +1125,17 @@ public class VideoView extends Widget {
                 }
             }
             if (paused) {
-                if (!uploaded) {
+                if (!uploaded || seeked) {
                     // The first picture of a source goes up even when the view is not playing: a
                     // video that starts paused is a still frame, and an empty box reads as a
                     // decoder that produced nothing. The clock is not consulted (it would hold,
                     // being paused), so it anchors on the first picture judged after play starts.
+                    //
+                    // And so does the first picture after a seek, one step further along the same
+                    // reasoning: a paused view that was scrubbed is showing the position it was
+                    // scrubbed away from, with the clock beneath it already reading the new one.
+                    // Dragging a transport's thumb over a paused video moved the time and left
+                    // the picture, which reads as a scrub bar that does nothing.
                     due = true;
                     invalidate();
                 }

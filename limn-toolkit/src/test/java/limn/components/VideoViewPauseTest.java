@@ -3,6 +3,7 @@ package limn.components;
 import limn.scene.Scene;
 import limn.video.MediaPlayer;
 import limn.video.VideoClock;
+import limn.video.VideoStreamSource.SeekMode;
 import limn.video.VideoSurfaces;
 
 import org.junit.jupiter.api.AfterEach;
@@ -169,6 +170,34 @@ class VideoViewPauseTest extends ComponentTestBase {
         view.setPaused(false);
         renderFrames(scene, 3, 40_000_000L);
         assertTrue(surfaces.totalUploads() > 1, "and it plays when it is asked to");
+    }
+
+    /**
+     * The other half of "a paused video is a still frame": which still frame. Scrubbed, it is the
+     * one the seek landed on, and it used to be the one before it — the view decoded the new
+     * picture and held it, because paused it judges nothing and only the FIRST picture of a
+     * source was ever let through. A transport's drag over a paused video therefore moved the
+     * thumb and the clock and left the picture where it was, which reads as a scrub bar that
+     * changes nothing. The site gallery's transport entry films exactly this gesture, which is
+     * how it was found.
+     */
+    @Test
+    void aPausedViewScrubbedShowsThePictureItLandedOn() {
+        TestVideoStream stream = new TestVideoStream(64, 36);
+        VideoView view = new VideoView(stream).setClock(new VideoClock(nanos::get));
+        Scene scene = attach(view);
+        renderFrames(scene, 3, 40_000_000L);
+        assertEquals(1, surfaces.totalUploads(), "the still frame a paused video opens on");
+        assertEquals(0L, surfaces.lastPtsMicros(), "which is the stream's first picture");
+
+        view.seek(3_000_000, SeekMode.EXACT);
+        renderFrames(scene, 3, 40_000_000L);
+
+        assertEquals(2, surfaces.totalUploads(),
+                "the picture the seek landed on has to go up: paused, nothing else ever would");
+        assertTrue(surfaces.lastPtsMicros() > 0,
+                "and it is that picture on screen, not the one from before the seek");
+        assertTrue(view.isPaused(), "a seek is not a resume");
     }
 
     private Scene attach(VideoView view) {

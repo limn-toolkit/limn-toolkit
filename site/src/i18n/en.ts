@@ -136,6 +136,8 @@ export const en = {
   "components.stop": "Stop",
   "components.videoNote":
     "The video view uses the pure-Java test source, so it shows the widget working rather than codec coverage. No native decoder is involved in this picture.",
+  "components.mediaCredit":
+    'The film under this transport is <a href="https://peach.blender.org/">Big Buck Bunny</a>, © 2008 Blender Foundation, used under <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>. Every other picture on this page is the toolkit\'s own work.',
 
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn: Showcase",

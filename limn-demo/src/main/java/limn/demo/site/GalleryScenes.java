@@ -21,6 +21,7 @@ import limn.components.Dialog;
 import limn.components.DisplayMode;
 import limn.components.ImageView;
 import limn.components.ListView;
+import limn.components.MediaControls;
 import limn.components.Menu;
 import limn.components.MenuBar;
 import limn.components.MenuItem;
@@ -59,9 +60,12 @@ import limn.render3d.TextureData;
 import limn.render3d.scene.LightNode;
 import limn.render3d.scene.MeshNode;
 import limn.render3d.scene.Scene3D;
+import limn.demo.BundledClip;
+import limn.video.Videos;
 import limn.video.decode.SyntheticPattern;
 import limn.video.decode.SyntheticSpec;
 import limn.video.decode.SyntheticVideoDecoder;
+import limn.video.ffmpeg.FfmpegVideoDecoder;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
@@ -204,6 +208,8 @@ final class GalleryScenes {
                         GalleryScenes::backdropPanel),
                 new GalleryEntry("video-view", "VideoView", "gallery:video-view",
                         GalleryScenes::videoView),
+                new GalleryEntry("media-controls", "MediaControls", "gallery:media-controls",
+                        GalleryScenes::mediaControls),
                 new GalleryEntry("viewport-3d", "Viewport3D", "gallery:viewport-3d",
                         GalleryScenes::viewport3d));
     }
@@ -422,6 +428,40 @@ final class GalleryScenes {
         Padding bar = new Padding(limn.scene.Insets.symmetric(10, 2), row);
         bar.setControlSize(limn.scene.ControlSize.SMALL);
         return bar;
+    }
+    // #endregion
+
+    // #region gallery:media-controls
+    static Built mediaControls() {
+        // Real H.264 here, where the entry above is deliberately synthetic. A transport is a
+        // control over a film: a scrub that lands somewhere is the claim this picture makes, and
+        // colour bars that look the same at every position cannot carry it. The clip is the
+        // ten-second Big Buck Bunny excerpt the build already copies into this jar for the demo's
+        // video screen (ADR 027) -- (c) 2008 Blender Foundation, CC BY 3.0, credited under the
+        // pictures on the page that publishes them.
+        Videos.installDecoder(new FfmpegVideoDecoder());
+        String missing = FfmpegVideoDecoder.unavailableReason();
+        if (missing != null) {
+            // Loudly, and before anything is drawn: a capture that publishes a black rectangle
+            // satisfies the manifest and tells the reader the widget is broken.
+            throw new IllegalStateException("the MediaControls entry films real H.264 and the "
+                    + "FFmpeg decoder will not load: " + missing);
+        }
+        VideoView view = new VideoView(Videos.open(BundledClip.path()));
+        // Smaller than the video view's own entry, and the reason is the film rather than the
+        // layout: every frame of moving footage is a photograph the published animation has to
+        // carry, and at 400 points wide this one came to 1.5 MB against the 400 kB a component
+        // film is allowed (build-gallery.mjs). The bar is the widget on show; the picture only
+        // has to be big enough to see the scrub land in it.
+        view.setFit(VideoView.Fit.FILL).setPreferredSize(320, 180);
+
+        // The bar is as wide as the picture it drives: a transport narrower than its film reads
+        // as a control that belongs to something else.
+        Column player = new Column();
+        player.gap(6).crossAlignment(Flex.CrossAlignment.CENTER);
+        player.add(view);
+        player.add(new SizedBox(320, SizedBox.UNSET, new MediaControls(view)));
+        return scene(player);
     }
     // #endregion
 

@@ -12,7 +12,6 @@ import limn.icons.tabler.TablerMedia;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.concurrent.Job;
-import limn.io.Resources;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -576,9 +575,6 @@ final class VideoScene {
     /** Where a real encoded file comes from, so that none has to be committed. */
     private static final String OWN_FILE_PROPERTY = "limn.demo.video";
 
-    /** The excerpt the build copies out of media/, next to its licence; see the build file. */
-    static final String BUNDLED_CLIP = "/limn/demo/media/Big_Buck_Bunny_360_10s_1MB.mp4";
-
     private static Path mp4Cache;
 
     /**
@@ -612,7 +608,7 @@ final class VideoScene {
             return openContainer(file);
         }
         if (!limn.video.ffmpeg.FfmpegMedia.canWriteClip()) {
-            return openContainer(bundledClip());
+            return openContainer(BundledClip.path());
         }
         if (mp4Cache == null) {
             try {
@@ -647,27 +643,6 @@ final class VideoScene {
             }
         }
         return openContainer(mp4Cache);
-    }
-
-    /**
-     * The bundled excerpt as a file: the decoder opens paths, not streams, so the resource is
-     * copied out once per run into a directory that is this process's alone.
-     */
-    static Path bundledClip() {
-        if (mp4Cache == null) {
-            byte[] clip = Resources.bytes(VideoScene.class, BUNDLED_CLIP, "bundled clip");
-            try {
-                Path folder = Files.createTempDirectory("limn-demo-");
-                folder.toFile().deleteOnExit();
-                Path file = folder.resolve("big-buck-bunny-360.mp4");
-                file.toFile().deleteOnExit();
-                Files.write(file, clip);
-                mp4Cache = file;
-            } catch (IOException error) {
-                throw new UncheckedIOException("cannot unpack the demo's bundled clip", error);
-            }
-        }
-        return mp4Cache;
     }
 
     /**

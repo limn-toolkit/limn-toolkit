@@ -65,6 +65,14 @@ const FILTER_KEYWORDS: Record<string, string[]> = {
     }
   }
 }
+
+// A line under the picture, for the two cards that owe the reader one: what the video view's
+// source is, and the credit the film in the transport is published under. The second is not
+// decoration — CC BY 3.0 asks for it wherever the work goes, and these pages carry frames of it.
+const CARD_NOTES: Record<string, string> = {
+  "video-view": msg("components.videoNote"),
+  "media-controls": msg("components.mediaCredit"),
+};
 ---
 
 <Page
@@ -107,7 +115,7 @@ const FILTER_KEYWORDS: Record<string, string[]> = {
               copiedLabel={msg("codeBlock.copied")}
               playLabel={msg("components.play")}
               stopLabel={msg("components.stop")}
-              note={entry.id === "video-view" ? msg("components.videoNote") : undefined}
+              note={CARD_NOTES[entry.id]}
             />
           ))
         }
