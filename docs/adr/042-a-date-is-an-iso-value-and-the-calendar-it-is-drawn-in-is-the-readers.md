@@ -88,6 +88,16 @@ wrong type for what is exchanged: it is not comparable across chronologies, it m
 application signature generic, and it pushes a display decision into a storage decision. It is used
 internally, and does not appear on any public signature.
 
+**Today is a display fact too, and it is the clock's.** The ring on today's cell, the "today" a
+reader hears on it, the month a calendar opens on while nobody has chosen one, and an empty
+segment's first step all read one clock per widget — `setClock(java.time.Clock)` on
+`CalendarView`, `DateField` and `DatePicker`, which hands it to its parts. The default is `null`,
+the system clock in the default zone read at each call, exactly what `LocalDate.now()` does. It
+was added on 2026-09-11 when the site's gallery turned out to change every day: two captures a day
+apart differed in the calendar's ring and in two reader transcripts with nothing else changed. The
+capture harness now pins one day for every date widget it films, from outside the scene functions,
+so the samples the site publishes carry no clock (ADR 043 §9.3).
+
 ## 2. Three widgets, and the four shapes a form asks for
 
 A corporate form asks for four things: a date, a date with a time, either of those with a calendar

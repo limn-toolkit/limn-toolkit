@@ -28,6 +28,7 @@ import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
+import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -105,6 +106,8 @@ public class DateField extends Widget {
     private boolean showSeconds;
 
     private Chronology declaredChronology;
+    /** Where today and now are read from for an empty segment's first step; see setClock. */
+    private Clock clock;
 
     // ---- the pattern, taken apart, rebuilt only when the language or the calendar moves --------
 
@@ -931,11 +934,25 @@ public class DateField extends Widget {
         writeSegment(field, next, Change.Origin.USER);
     }
 
+    /**
+     * Where this field reads today and now from, for the one thing it asks them: what an empty
+     * segment becomes on its first step. Default {@code null}, the system clock in the default
+     * zone read at each call, as {@link LocalDate#now()} and {@link LocalTime#now()} are.
+     *
+     * @param newClock the clock, or {@code null} for the system's
+     * @return this
+     */
+    public DateField setClock(Clock newClock) {
+        Ui.checkUiThread();
+        clock = newClock;
+        return this;
+    }
+
     /** What an empty segment becomes on its first step: today's, which is the nearest guess. */
     private int defaultFor(DatePattern.Field field) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = clock == null ? LocalDate.now() : LocalDate.now(clock);
         ChronoLocalDate drawn = CalendarChronology.date(chronology(), today);
-        LocalTime now = LocalTime.now();
+        LocalTime now = clock == null ? LocalTime.now() : LocalTime.now(clock);
         return switch (field) {
             case YEAR -> drawn == null ? today.getYear() : drawn.get(ChronoField.YEAR_OF_ERA);
             case MONTH -> drawn == null ? today.getMonthValue() : drawn.get(ChronoField.MONTH_OF_YEAR);

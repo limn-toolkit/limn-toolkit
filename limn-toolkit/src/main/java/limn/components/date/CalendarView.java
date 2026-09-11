@@ -26,6 +26,7 @@ import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.chrono.ChronoLocalDate;
@@ -178,8 +179,18 @@ public class CalendarView extends Widget {
     /** Where the keyboard is inside a chooser, as a flat cell index; meaningless in DAYS. */
     private int chooserCursor;
 
+    /**
+     * Where today is read from, or {@code null} for the system clock in the default zone read at
+     * each call, which is what {@link LocalDate#now()} does. See {@link #setClock}.
+     */
+    private Clock clock;
     /** Any day inside the month on show; normalized to its first day when the grid is rebuilt. */
     private LocalDate visibleMonth = LocalDate.now();
+    /**
+     * Whether a caller or the person has chosen the month on show. Until one has, the month is
+     * only the one today fell in when this was built, and a clock set afterwards may move it.
+     */
+    private boolean monthChosen;
     private LocalDate selected;
     private DateRange selectedRange;
     /** The end a range is being built from, while it is being built; not published as a range. */
@@ -450,7 +461,44 @@ public class CalendarView extends Widget {
         return showMonth(day, Change.Origin.CODE);
     }
 
+    /**
+     * Where this calendar reads <em>today</em> from: the ring on today's cell, the "today" a
+     * reader hears on it, and the month it opens on while nobody has chosen one.
+     *
+     * <p>Default {@code null}: the system clock in the default zone, read at each call, exactly as
+     * {@link LocalDate#now()}. A fixed clock is for whatever has to look the same tomorrow as it
+     * does today -- a capture, a test, a screenshot in a document -- and for an application that
+     * keeps its own idea of the date, a server's or a simulated one.
+     *
+     * <p>A month already chosen, by {@link #setVisibleMonth}, {@link #setSelectedDate} or the
+     * person paging, stays where it is; only the month construction guessed from the wall clock
+     * follows the new one.
+     *
+     * @param newClock the clock, or {@code null} for the system's
+     * @return this
+     */
+    public CalendarView setClock(Clock newClock) {
+        Ui.checkUiThread();
+        clock = newClock;
+        if (!monthChosen) {
+            LocalDate first = today().withDayOfMonth(1);
+            if (!visibleMonth.withDayOfMonth(1).equals(first)) {
+                visibleMonth = first;
+                markNeedsLayout();
+                notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.CODE));
+            }
+        }
+        invalidate(); // today's ring moves with the clock
+        return this;
+    }
+
+    /** Today, by this calendar's clock. */
+    private LocalDate today() {
+        return clock == null ? LocalDate.now() : LocalDate.now(clock);
+    }
+
     private CalendarView showMonth(LocalDate day, Change.Origin origin) {
+        monthChosen = true; // every path here is somebody choosing: code, a page, a pick, a cursor
         LocalDate first = day.withDayOfMonth(1);
         if (visibleMonth.withDayOfMonth(1).equals(first)) {
             return this;
@@ -898,7 +946,7 @@ public class CalendarView extends Widget {
         if (selectedRange != null) {
             return selectedRange.start();
         }
-        LocalDate today = LocalDate.now();
+        LocalDate today = today();
         return visibleMonth.withDayOfMonth(1).getMonth() == today.getMonth()
                 && visibleMonth.getYear() == today.getYear() ? today : visibleMonth.withDayOfMonth(1);
     }
@@ -1238,7 +1286,7 @@ public class CalendarView extends Widget {
 
         Font body = t.body();
         TextMetrics fm = ruler.measure("Hg", body);
-        LocalDate today = LocalDate.now();
+        LocalDate today = today();
         float radius = t.radiusSmall();
         float inset = Strokes.HALF_PIXEL_INSET;
 
@@ -2111,7 +2159,7 @@ public class CalendarView extends Widget {
         a.endChild();
 
         Chronology chronology = gridChronology;
-        LocalDate today = LocalDate.now();
+        LocalDate today = today();
         for (int w = 0; w < WEEKS; w++) {
             float top = gridY + w * cellH;
             a.child(KEY_ROW_BASE - w);

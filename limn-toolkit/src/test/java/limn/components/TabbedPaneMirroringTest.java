@@ -421,6 +421,24 @@ class TabbedPaneMirroringTest extends ComponentTestBase {
                 "the indicator is still back at tab 0's edge, easing across: " + drawn);
     }
 
+    @Test
+    void aSecondLayoutDuringTheSlideDoesNotCutItShort() {
+        // Any other widget in the window may ask for a layout pass while the indicator slides.
+        // Re-targeting was not idempotent: a pass that found the selected tab where it already
+        // was read "same tab" as "snap", so the slide ended the moment anything else laid out.
+        build(LayoutDirection.LTR, TabbedPane.TabAlignment.LEFT);
+        float inset = T.tabPadH() / 2;
+        render(WIDE);
+
+        tabs.setSelectedIndex(1);
+        scene.layoutPass(WIDE, 200);
+        tabs.markNeedsLayout(); // a second, unrelated pass that moves nothing
+        scene.layoutPass(WIDE, 200);
+        float drawn = render(WIDE).barAt(0);
+        assertTrue(drawn < header(1).x() + inset - 1,
+                "the indicator snapped to tab 1 on a layout that moved nothing: " + drawn);
+    }
+
     // --------------------------------------------------------------------- the canvas
 
     /**

@@ -124,6 +124,32 @@ class SegmentedControlMirroringTest extends ComponentTestBase {
         }
     }
 
+    // ------------------------------------------------------------------ the slide
+
+    /**
+     * Any other widget in the window may ask for a layout pass while the pill slides. The pill
+     * re-targets in {@code onLayout}, and a pass that found the same segment where it already was
+     * used to snap it there, so the slide ended the moment anything else laid out.
+     */
+    @Test
+    void aSecondLayoutDuringTheSlideDoesNotCutItShort() {
+        float width = 300;
+        build(LayoutDirection.LTR, width);
+        paint(width);
+        float trackLeft = (width - TRACK) / 2;
+        float target = trackLeft + SEG + T.segInset(); // the pill's left edge on segment B
+
+        click(trackLeft + SEG * 1.5f);
+        scene.layoutPass(width, HEIGHT);
+        control.markNeedsLayout(); // a second, unrelated pass that moves nothing
+        scene.layoutPass(width, HEIGHT);
+        InkCanvas canvas = paint(width);
+        assertTrue(canvas.fills.size() >= 2, "the track and the pill should both have painted");
+        float drawn = canvas.fills.get(1)[0];
+        assertTrue(drawn < target - 1,
+                "the pill snapped to B on a layout that moved nothing: " + drawn + " vs " + target);
+    }
+
     // ------------------------------------------------------------------ placement
 
     @Test

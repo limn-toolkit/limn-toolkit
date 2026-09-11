@@ -826,6 +826,30 @@ public final class Gallery {
         }
 
         /** Asks every performance footer under {@code root} for its reading now. */
+        /**
+         * The day every date widget in a capture calls today: the anchor the dates scene and the
+         * date tiles are built around. Without it the calendar's "today" ring and its reader's
+         * "today" moved with the wall clock, and two runs a day apart differed in six images and
+         * two transcripts with nothing else changed (ADR 043 §9.3).
+         */
+        private static final java.time.Clock GALLERY_TODAY = java.time.Clock.fixed(
+                java.time.LocalDate.of(2026, 9, 9).atTime(12, 0)
+                        .atZone(java.time.ZoneOffset.UTC).toInstant(),
+                java.time.ZoneOffset.UTC);
+
+        private static void pinToday(Widget root) {
+            if (root instanceof limn.components.date.CalendarView calendar) {
+                calendar.setClock(GALLERY_TODAY);
+            } else if (root instanceof limn.components.date.DatePicker picker) {
+                picker.setClock(GALLERY_TODAY);
+            } else if (root instanceof limn.components.date.DateField field) {
+                field.setClock(GALLERY_TODAY);
+            }
+            for (Widget child : root.children()) {
+                pinToday(child);
+            }
+        }
+
         private static void primeFooters(Widget root) {
             if (root instanceof limn.demo.PerfFooter footer) {
                 footer.sampleNow();
@@ -904,16 +928,21 @@ public final class Gallery {
             limn.graphics.Fonts.setDefaultFamily(null);
             built = shot.entry().builder().get();
             scene = built.scene();
+            // Every date widget reads today from one fixed day, so a capture taken tomorrow is
+            // the capture taken today. Applied here rather than in the scene functions, whose text
+            // the site publishes as the sample: a reader copying a calendar should not copy a
+            // clock pinned to a documentation date.
+            pinToday(scene.root());
             // Whole frames, explicitly: partial rendering is the toolkit's default since ADR 043,
             // and this harness opts out -- a choice rather than a constraint. A capture harness
             // gains nothing from the cheaper mode -- nobody is waiting on its frames -- and whole
             // frames are the most conservative thing a pipeline of reference images can do. It is
             // NOT the pointer: PointerLayer draws through
             // Scene.setFrontPainter, whose contract clips outside the damage, but setPointer ends
-            // in requestRender(), so every move of the arrow is already a whole frame. What the
-            // mode would cost here is measured (ADR 043 §9.3): 15 of 4633 published images,
-            // fifteen consecutive frames of one film, one 10x100 device-pixel box, one level in
-            // 255 -- and none of them the pointer.
+            // in requestRender(), so every move of the arrow is already a whole frame. Measured
+            // (ADR 043 §9.3), the mode changes nothing here beyond run-to-run noise: the fifteen
+            // frames it first seemed to change were a scroll bar's wall-clock hold timer landing
+            // on a different film frame, which a cold JVM makes it do as well.
             scene.setPartialRendering(false);
             scene.bind(window);
             // AFTER bind, never before: bind installs a frame callback of its own, and a

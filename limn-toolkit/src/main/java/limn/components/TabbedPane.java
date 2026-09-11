@@ -128,6 +128,12 @@ public class TabbedPane extends Widget {
      * an ordinary slide and animates the indicator across the whole reflected strip.
      */
     private boolean indicatorRtl;
+    /**
+     * The edges last handed to the two transitions, so a layout that finds the selected tab where
+     * it already was can leave them alone. NaN before the first placement.
+     */
+    private float indicatorTargetLeft = Float.NaN;
+    private float indicatorTargetRight = Float.NaN;
 
     /** An empty pane; add pages with {@link #addTab}. */
     public TabbedPane() {
@@ -608,8 +614,15 @@ public class TabbedPane extends Widget {
             // like a scroll does; animating it would slide the indicator across the entire
             // reflected strip on its way to a tab that never moved relative to its neighbours.
             if (indicatorPlaced && indicatorTab == selected && stripRtl == indicatorRtl) {
-                indicatorLeft.snap(left);
-                indicatorRight.snap(right);
+                // The same tab. Snap only if its header actually MOVED: a layout that finds it
+                // where it was -- any other widget in the window asking for a pass while the
+                // indicator is still sliding -- must leave the slide alone, or it cuts it short.
+                // Re-targeting was not idempotent, and a second layout read as "nothing changed,
+                // so snap". ADR 043 §9.4.4.
+                if (left != indicatorTargetLeft || right != indicatorTargetRight) {
+                    indicatorLeft.snap(left);
+                    indicatorRight.snap(right);
+                }
             } else if (indicatorPlaced && stripRtl == indicatorRtl) {
                 indicatorLeft.to(left);
                 indicatorRight.to(right);
@@ -620,6 +633,8 @@ public class TabbedPane extends Widget {
             }
             indicatorTab = selected;
             indicatorRtl = stripRtl;
+            indicatorTargetLeft = left;
+            indicatorTargetRight = right;
         }
     }
 

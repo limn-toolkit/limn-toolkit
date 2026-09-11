@@ -1,5 +1,9 @@
 package limn.components;
 
+import limn.components.date.DatePicker;
+import java.time.ZoneOffset;
+import java.time.Instant;
+import java.time.Clock;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.CellFacet;
@@ -75,6 +79,54 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
             days.addAll(childrenOf(row));
         }
         return days;
+    }
+
+    private static final Clock MARCH_15 =
+            Clock.fixed(Instant.parse("2026-03-15T12:00:00Z"), ZoneOffset.UTC);
+
+    private List<String> daysCalledToday() {
+        List<String> today = new ArrayList<>();
+        for (AccessibleNode day : dayNodes()) {
+            if (day.name().endsWith(", today")) {
+                today.add(day.name());
+            }
+        }
+        return today;
+    }
+
+    /**
+     * Today is the clock's: the ring, what a reader hears on it, and the month a calendar opens on
+     * while nobody has chosen one. It is what lets the site's gallery capture a calendar tomorrow
+     * that matches the one captured today, where the wall clock moved the ring by a cell a day.
+     */
+    @Test
+    void todayIsTheClocksAndSoIsTheMonthNobodyChose() {
+        I18n.setLocale(Locale.US);
+        CalendarView calendar = new CalendarView();
+        calendar.setClock(MARCH_15);
+        bind(calendar);
+        assertEquals(LocalDate.of(2026, 3, 1), calendar.visibleMonth().withDayOfMonth(1),
+                "a month nobody chose follows the clock");
+        assertEquals(List.of("March 15, 2026, today"), daysCalledToday());
+    }
+
+    @Test
+    void aMonthSomebodyChoseStaysWhenTheClockIsSet() {
+        I18n.setLocale(Locale.US);
+        CalendarView calendar = new CalendarView();
+        calendar.setVisibleMonth(ANCHOR);
+        calendar.setClock(MARCH_15);
+        bind(calendar);
+        assertEquals(LocalDate.of(2026, 9, 1), calendar.visibleMonth().withDayOfMonth(1),
+                "September was chosen, so the clock moves only the ring");
+        assertEquals(List.of(), daysCalledToday(), "March 15 is not in September's grid");
+    }
+
+    @Test
+    void aPickerHandsItsClockToItsCalendar() {
+        DatePicker picker = new DatePicker();
+        picker.setClock(MARCH_15);
+        assertEquals(LocalDate.of(2026, 3, 1), picker.calendar().visibleMonth().withDayOfMonth(1));
     }
 
     @Test

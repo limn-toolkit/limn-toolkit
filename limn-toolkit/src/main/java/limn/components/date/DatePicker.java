@@ -28,6 +28,7 @@ import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -364,6 +365,22 @@ public class DatePicker extends Widget {
             endField.setChronology(chronology);
         }
         calendar.setChronology(chronology);
+        return this;
+    }
+
+    /**
+     * Where the picker's parts read today from: the calendar's ring and opening month, and the
+     * fields' first step on an empty segment. See {@link CalendarView#setClock}.
+     *
+     * @param clock the clock, or {@code null} for the system's
+     * @return this
+     */
+    public DatePicker setClock(Clock clock) {
+        field.setClock(clock);
+        if (endField != null) {
+            endField.setClock(clock);
+        }
+        calendar.setClock(clock);
         return this;
     }
 

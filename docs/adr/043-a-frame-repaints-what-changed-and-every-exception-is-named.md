@@ -312,19 +312,30 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn. 
    §9.3.1 below). Two runs now differ in **12 of 4633**, and those twelve are the kitchen sink's
    live performance footer — FPS 293 against 361, memory 666 MB against 634 — which is a
    wall-clock reading painted into the picture and cannot be reproducible by construction. That
-   is the noise floor, and it is a named set rather than a number.
+   is the noise floor, and it is a named set rather than a number — for two runs on the same day
+   at the same speed, which are the two conditions this paragraph did not vary (see below).
 
-   **Against that floor the A/B reads:** the mode on differs from the mode off in **27 of 4633**
-   images. Twelve are the floor, the same twelve by name. The remaining fifteen are frames
+   **Against that floor the A/B read:** the mode on differed from the mode off in **27 of 4633**
+   images. Twelve were the floor, the same twelve by name. The remaining fifteen were frames
    `f204`–`f218` of one film — one contiguous run, one box of `1183,641 10x101` device pixels held
-   still across all fifteen, and **a maximum channel difference of 1 in 255**. The box is the two
-   rounded caps of a scrollbar thumb over the frames its fade lasts. Not a stale pixel: a stale
-   pixel is a large difference that persists, and this is a rounding difference that begins and
-   ends with an animation.
+   still across all fifteen, **a maximum channel difference of 1 in 255**: the two rounded caps of a
+   scrollbar thumb over the frames its fade lasts. This record first concluded from it that partial
+   rendering changes one antialiased edge by one level for the length of one fade.
 
-   So the honest statement, which is no longer a shrug: **across one pass over the whole widget
-   set, partial rendering changes one antialiased edge by one level for the length of one fade.**
-   The harness stays full-frame by choice, with that price known.
+   **That conclusion was wrong, and the correction is worth more than the finding was.** On
+   2026-09-11 the same box, the same one-level difference and nearly the same frames appeared
+   between two runs of *identical* code, both drawing whole frames — one on a warm JVM and one on a
+   cold one. The scroll bar's hold is a timer and not an animation, by its own design: its end is a
+   `Ui.postDelayed` in real time, while a film advances a fixed clock per frame, so the frame the
+   thumb's fade begins on depends on how fast frames render. Partial rendering changes that speed;
+   so does a cold JVM, or a busy machine. Nothing partial rendering *paints* differed.
+
+   So the honest statement is the smaller one: **across one pass over the whole widget set, the A/B
+   found no difference attributable to partial rendering.** And the floor above had two members it
+   did not name, one of each kind it did not vary: the calendar's "today", which moved with the
+   wall-clock date and is now pinned by the harness (ADR 042 §1), and this timer, which moves with
+   render speed and is open as its own item — delayed tasks need the film's clock while filming.
+   The harness stays full-frame by choice.
 
    ### 9.3.1 The harness fix, because the next person will hit the same wall
 
@@ -559,9 +570,12 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn. 
    visibility change inside a box the frame's contained pass already laid out is now left to that
    pass: the box clips, kept its size, and was re-measured with the change in it.
 
-   That snap has a wider cause than this change, and it stays open as its own item: **any** full
-   layout during the slide — some other widget in the window asking for one — cuts it short the same
-   way, because the indicator's re-target is not idempotent.
+   That snap had a wider cause than this change: **any** full layout during the slide — some other
+   widget in the window asking for one — cut it short the same way, because the indicator's
+   re-target was not idempotent. Closed on 2026-09-11 in both widgets that have one: `TabbedPane`
+   and `SegmentedControl` now snap a same-selection indicator only when its target moved, and a
+   pass that finds it where it was leaves the slide alone. Each has a test that lays out a second
+   time mid-slide and fails without the change.
 
 ### 9.5 The flip, and what it surfaced
 

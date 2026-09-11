@@ -8,6 +8,9 @@ import limn.scene.Scene;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -119,6 +122,22 @@ class DateFieldTest extends ComponentTestBase {
         assertTrue(field.isEmpty());
         assertTrue(field.isValid());
         assertNull(field.validationMessage());
+    }
+
+    /**
+     * An empty segment's first step lands on today's value, and today is the field's clock: a
+     * field in a capture or a test lands on the same day whatever day it is run.
+     */
+    @Test
+    void anEmptySegmentsFirstStepLandsOnTheClocksToday() {
+        build(new DateField(), PT_BR);
+        field.setClock(Clock.fixed(Instant.parse("2026-03-15T12:00:00Z"), ZoneOffset.UTC));
+        key(Keys.UP);    // the day, which leads in Portuguese
+        key(Keys.RIGHT);
+        key(Keys.UP);    // the month
+        key(Keys.RIGHT);
+        key(Keys.UP);    // the year
+        assertEquals(LocalDate.of(2026, 3, 15), field.date());
     }
 
     @Test

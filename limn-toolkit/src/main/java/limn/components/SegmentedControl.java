@@ -83,6 +83,9 @@ public class SegmentedControl extends Widget {
     private final Transition focusFade =
             new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
     private boolean indicatorPlaced;
+    /** The pill's edges last handed to its transitions; see the same pair in TabbedPane. */
+    private float indicatorTargetLeft = Float.NaN;
+    private float indicatorTargetRight = Float.NaN;
     /**
      * The n+1 cumulative segment edges, in the strip's own <b>logical</b> space: index 0 is the
      * first segment's leading edge whichever way the control reads, and
@@ -476,13 +479,19 @@ public class SegmentedControl extends Widget {
                 indicatorRight.snap(right);
                 indicatorPlaced = true;
             }
-        } else {
+        } else if (left != indicatorTargetLeft || right != indicatorTargetRight) {
             // The SAME segment at a new place: a scroll, or a resize. Sliding here would send
             // the pill chasing a selection that never moved, and a scroll of several segments
             // would have it drift across the whole strip to end up where it started.
+            //
+            // And only at a NEW place: the same segment laid out where it already was is some
+            // other widget's layout pass arriving mid-slide, and snapping then cut the slide
+            // short. ADR 043 §9.4.4.
             indicatorLeft.snap(left);
             indicatorRight.snap(right);
         }
+        indicatorTargetLeft = left;
+        indicatorTargetRight = right;
         indicatorSegment = selected;
     }
 
