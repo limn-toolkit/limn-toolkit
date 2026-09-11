@@ -239,7 +239,13 @@ public class SegmentedControl extends Widget {
         // Revealed even when the selection did not change: a caller re-selecting the current
         // segment is asking to be shown it, and it may well be scrolled out of sight.
         revealPending = index;
-        markNeedsLayout(); // re-target the indicator, and apply the reveal
+        // Contained, not a full layout: re-targeting the indicator and applying the reveal move
+        // nothing outside this control's box, and a full pass repainted the whole WINDOW for
+        // every arrow key -- the same defect as the focus flicker ADR 043 opened with, one frame
+        // instead of eight. Safe by the scene's own check: it re-measures this control and falls
+        // back to a full pass if the size moved, and a selection does not move it, since every
+        // segment is sized from its label in one font whichever is selected.
+        markNeedsContainedLayout();
         if (index == selected) {
             return;
         }
@@ -377,8 +383,9 @@ public class SegmentedControl extends Widget {
         // revealed) is applied afterwards and yanks the strip straight back.
         revealPending = -1;
         // Layout rather than paint: the indicator's two edges are placed there, and the
-        // chevrons' dead/live state is read from the new offset.
-        markNeedsLayout();
+        // chevrons' dead/live state is read from the new offset. Contained for the reason
+        // select() gives: a scroll inside the strip moves nothing outside it.
+        markNeedsContainedLayout();
     }
 
     @Override
@@ -396,6 +403,20 @@ public class SegmentedControl extends Widget {
     protected float baselineOffset() {
         TextMetrics fm = textRuler().measure("Hg", Theme.current().tokensFor(this).body());
         return (height() - fm.height()) / 2 + fm.ascent();
+    }
+
+    /**
+     * Yes, and vacuously: this control paints its segments itself and has no child widgets, so
+     * there is nothing a clip could fail to contain.
+     *
+     * <p>Answered because it is what {@link #markNeedsContainedLayout()} requires, and that is the
+     * difference between a selection repainting this control and repainting the window. It clips
+     * no paint of this control's own &mdash; the focus ring still reaches out through
+     * {@link #paintOutset()} &mdash; since the hook concerns {@code paintChildren} alone.
+     */
+    @Override
+    protected boolean clipsChildren() {
+        return true;
     }
 
     @Override

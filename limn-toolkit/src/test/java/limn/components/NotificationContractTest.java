@@ -29,7 +29,6 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -439,7 +438,7 @@ class NotificationContractTest extends ComponentTestBase {
     @Test
     void everyConcretePublicWidgetHasARow() {
         TreeSet<String> declared = new TreeSet<>();
-        for (Class<?> type : publicConcreteWidgets()) {
+        for (Class<?> type : PublicWidgets.concrete()) {
             declared.add(type.getName());
         }
         TreeSet<String> rows = new TreeSet<>();
@@ -810,7 +809,7 @@ class NotificationContractTest extends ComponentTestBase {
     @Test
     void noRegistrarHandsBackARunnable() {
         List<String> offenders = new ArrayList<>();
-        for (Class<?> type : publicConcreteWidgets()) {
+        for (Class<?> type : PublicWidgets.concrete()) {
             for (Method method : type.getMethods()) {
                 String name = method.getName();
                 boolean registrar = name.startsWith("observe") || name.startsWith("on") && name.length() > 2
@@ -823,51 +822,6 @@ class NotificationContractTest extends ComponentTestBase {
         assertEquals(List.of(), offenders);
     }
 
-    // ------------------------------------------------------------------------- enumeration
-
-    private static List<Class<?>> publicConcreteWidgets() {
-        List<Class<?>> found = new ArrayList<>();
-        for (Class<?> declared : declaredClasses()) {
-            int modifiers = declared.getModifiers();
-            if (Widget.class.isAssignableFrom(declared)
-                    && declared != Widget.class
-                    && Modifier.isPublic(modifiers)
-                    && !Modifier.isAbstract(modifiers)
-                    && declared.getEnclosingClass() == null) {
-                found.add(declared);
-            }
-        }
-        found.sort(java.util.Comparator.comparing(Class::getName));
-        return found;
-    }
-
-    private static List<Class<?>> declaredClasses() {
-        Path sources = RepositoryRoot.find().resolve("limn-toolkit/src/main/java");
-        Path directory = sources.resolve("limn/components");
-        assertTrue(Files.isDirectory(directory), "no such source directory: " + directory);
-        List<Class<?>> all = new ArrayList<>();
-        try (Stream<Path> files = Files.walk(directory)) {
-            files.filter(file -> file.getFileName().toString().endsWith(".java"))
-                    .filter(file -> !file.getFileName().toString().equals("package-info.java"))
-                    .map(file -> sources.relativize(file).toString())
-                    .map(name -> name.substring(0, name.length() - ".java".length())
-                            .replace('/', '.').replace('\\', '.'))
-                    .sorted()
-                    .forEach(name -> all.add(load(name)));
-        } catch (IOException failure) {
-            throw new UncheckedIOException(failure);
-        }
-        return all;
-    }
-
-    private static Class<?> load(String name) {
-        try {
-            return Class.forName(name, false, NotificationContractTest.class.getClassLoader());
-        } catch (ClassNotFoundException absent) {
-            throw new AssertionError("a source file declares " + name + " and no class answers to it",
-                    absent);
-        }
-    }
 
     /** Counts what the toolkit reports, per phase, so a test can say "exactly one, under OBSERVER". */
     private static final class CountingCrashes implements CrashHandler {

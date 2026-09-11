@@ -1996,6 +1996,11 @@ public class TextArea extends Widget {
         boolean altGr = ctrl && (mods & Keys.MOD_ALT) != 0;
         boolean shortcut = cmd || (ctrl && !altGr);
         boolean handled = true;
+        // Where the caret was, when this key can only move it: see the end of this method.
+        Rect caretWas = !shift && isCaretMoveKey(event.key()) && !model.hasSelection()
+                && preedit.isEmpty() ? caretRect() : null;
+        float scrollXWas = scrollX;
+        float scrollYWas = scrollY;
         switch (event.key()) {
             // Left/Right are VISUAL and Ctrl/Alt+Left/Right are LOGICAL, so in right-to-left text
             // the two move the caret in OPPOSITE directions. That is deliberate, it is what
@@ -2104,8 +2109,20 @@ public class TextArea extends Widget {
                 goalX = Float.NaN;
             }
             ensureCursorVisible();
-            resetBlink();
-            invalidate();
+            resetBlink(); // damages the caret where it now is
+            if (caretWas != null && !model.hasSelection() && preedit.isEmpty()
+                    && scrollX == scrollXWas && scrollY == scrollYWas) {
+                // A caret that moved and nothing else: the one mark it draws, where it was and
+                // where it is. Every arrow key used to repaint the whole area -- every line of it
+                // -- for a one-point mark, which is the widget's most common key. Narrowed only
+                // when the case is proven rather than assumed: the key cannot edit, no selection
+                // band existed or exists, nothing is being composed, and the view did not scroll.
+                // Anything else is still the whole area, because a band, an edit or a scroll
+                // moves pixels this cannot name.
+                damageCaret(caretWas);
+            } else {
+                invalidate();
+            }
             event.consume();
         }
     }
@@ -2640,7 +2657,21 @@ public class TextArea extends Widget {
 
     /** Damages just the caret column: a blink repaints ~1×line-height, not the whole area. */
     private void invalidateCaret() {
-        Rect caret = caretRect(); // scene coordinates, clamped inside the viewport
+        damageCaret(caretRect()); // scene coordinates, clamped inside the viewport
+    }
+
+    /**
+     * Whether a key can only move the caret: never an edit, whatever its modifiers do to how far.
+     * Shift turns every one of these into a selection, and the caller rules that out separately.
+     */
+    private static boolean isCaretMoveKey(int key) {
+        return key == Keys.LEFT || key == Keys.RIGHT || key == Keys.UP || key == Keys.DOWN
+                || key == Keys.HOME || key == Keys.END
+                || key == Keys.PAGE_UP || key == Keys.PAGE_DOWN;
+    }
+
+    /** Damages one caret column given in scene coordinates, or the whole area without one. */
+    private void damageCaret(Rect caret) {
         if (caret != null && scene() != null) {
             // Local-coords invalidate: the damage then clamps against clipping
             // ancestors: a caret scrolled out of a viewport damages nothing.

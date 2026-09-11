@@ -754,6 +754,8 @@ public class CalendarView extends Widget {
         if (!isSelectable(day)) {
             return false;
         }
+        LocalDate cursorWas = cursor;
+        LocalDate monthWas = visibleMonth;
         cursor = day;
         showMonth(day, Change.Origin.ADJUSTMENT);
         switch (selectionMode) {
@@ -761,8 +763,18 @@ public class CalendarView extends Widget {
                 if (day.equals(selected)) {
                     return true; // nothing moved: the early return two bound calendars need
                 }
+                LocalDate selectedWas = selected;
                 selected = day;
-                invalidate();
+                if (!monthWas.equals(visibleMonth)) {
+                    invalidate(); // a pick in a neighbouring month pages the whole grid
+                } else {
+                    // Three cells at most, and usually two: the day that lost the selection, the
+                    // one that gained it, and where the cursor ring came from. A click used to
+                    // repaint all forty-two days, the header and the week column for them.
+                    damageDay(selectedWas);
+                    damageDay(day);
+                    damageDay(cursorWas);
+                }
                 notifyChange(Change.of(Change.Aspect.SELECTION, origin));
             }
             case RANGE -> {

@@ -1,8 +1,9 @@
 # ADR 043: A frame repaints what changed, and every exception is named
 
-- **Status:** Proposed, 2026-09-10; §9's first item, which was the blocker, landed the same day.
-  The flag itself is not flipped. §9 says what has to be true before the flag is flipped, and §11 what
-  is deliberately not in this step.
+- **Status:** Proposed, 2026-09-10. **All four of §9's conditions are met as of 2026-09-11**, with
+  one exemption named in §9.4.3 (a tab switch). The flag itself is not flipped: that is the
+  decision this record asks for, and nothing below takes it. §11 says what is deliberately not in
+  this step.
 - **Date:** 2026-09-10
 - **Scope:** whether `Scene.setPartialRendering` should be on by default; what a widget owes if it
   is; the one correctness hole that blocks it today and what closing it costs; and what stays
@@ -352,11 +353,14 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    window, so a corrective resize before the capture loop starts renders inside a loop that is not
    running yet. Placement avoids the question by never needing the correction.
 
-4. **A clip-asserting test per interactive widget**, or at least per widget with a moving cursor.
-   **Started, not finished**: the shape is in `PartialRenderingTest`; `SelectionDamageTest`
-   (§9.2.1) and `FadeDamageTest` (§9.4.1) now cover seven widgets, alongside the existing
-   `ListScrollDamage`, `CaretDamage`, `MenuDamage`, `TooltipDamage` and `BackdropDamage` tests.
-   What has none is every other widget with a moving cursor.
+4. ~~**A clip-asserting test per interactive widget**~~ — **done 2026-09-11**, as
+   `DamageContractTest`: one row per concrete public widget, all forty, read from the sources so
+   that a widget added without a row fails the table rather than going untested — the same
+   ratchet `NotificationContractTest` holds for ADR 040, and now sharing its enumerator
+   (`PublicWidgets`), so the two cannot disagree about what "every widget" means. §9.4.3 says what
+   it holds and what it found. The earlier, narrower tests stay: `SelectionDamageTest`,
+   `FadeDamageTest`, `ChartHoverDamageTest` and the scene-level ones each pin one mechanism in
+   more detail than a table row can.
 
    ### 9.4.1 The five large animators, measured
 
@@ -446,6 +450,74 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    passes over a chart cost two shapings of every label. Hovering a 400-category chart went from
    321 text measurements to 721 when they were damaged apart, and back to 421 when unioned. More
    rectangles is not free, and for a widget whose paint costs more than its fill it is a loss.
+
+   ### 9.4.3 Every widget, and the three rules it is held to
+
+   Each row drives the gestures its widget answers to — pointer in, pointer out, a click, focus,
+   the two arrows — and runs every frame they cause until the widget settles. Three rules against
+   every frame:
+
+   1. **Nothing outside the widget.** Every repaint pass lies within the widget's box grown by
+      eight points (its focus ring and the damage margin). This is the one that holds for all forty
+      without exception, and it is the rule a widget breaks by damaging its parent: a `Button`
+      sabotaged to invalidate its parent on hover is reported as repainting `565x405` around a
+      `60x32` button.
+   2. **Never the window**, unless the gesture names why it has to be.
+   3. **For a large widget, what changed** — a ceiling as a share of the widget, and only where it
+      means something. For a button the animation *is* the button, and rule 1 already bounds it.
+      A ceiling on a gesture that painted nothing is itself a failure: it asserted nothing, and
+      most likely aimed at the wrong place.
+
+   Every widget sits at its natural size inside a larger window, the large ones in a fixed box the
+   way an application would place them, because — as the scroll bar taught in §9.4.1 — a widget
+   stretched to fill the test box measures the harness.
+
+   **The inventory before the table found three defects, all fixed:**
+
+   | widget, gesture | before | after |
+   | --- | --- | --- |
+   | `SegmentedControl`, any selection | **a full frame** — the window | its own box |
+   | `TextArea`, an arrow key | 101% of the area, every line | two caret columns |
+   | `CalendarView`, a click on a day | 106% of the calendar | 5%: the cells that changed |
+
+   The segmented control was the ADR's opening defect in miniature: `select()` asked for a full
+   layout to re-target its indicator, and a full layout is a full frame by ADR 002's invariant.
+   Its box never moves with a selection — every segment is sized from its label in one font — so
+   it now asks for the contained pass `ListView` already uses; the scene re-measures and falls back
+   to a full frame if the size ever did move, so being wrong costs a frame and not a picture. The
+   pass requires `clipsChildren()`, which the control answers `true` vacuously: it has no child
+   widgets. The text area's key handler ended every key — typing, pasting, undo, and a bare arrow —
+   in `invalidate()`; the arrow is now narrowed to the caret's old and new columns, but only when
+   the case is proven rather than assumed (the key cannot edit, no selection band before or after,
+   nothing composing, no scroll). The caret is one mark exactly `caretRect()` wide, which the blink
+   already relied on. The calendar's pick invalidated the grid for what is at most three cells: the
+   day that lost the selection, the one that gained it, and where the cursor came from.
+
+   **Accepted, with the measurement:** `ColorPicker` repaints itself for a key, because it already
+   damages per part and a colour change touches every part — the plane, both ramps, the preview,
+   the fields — which span the picker. `ScrollView` repaints its viewport for a wheel step,
+   because the content moved. `ProgressBar` repaints its own box on every frame of an
+   indeterminate run, because the animation is the bar.
+
+   **Open: a tab switch still repaints the window.** `TabbedPane` shows the chosen content with
+   `Widget.setVisible`, and a visibility change asks for a full layout — a core rule, right in
+   general, since a widget appearing can change its parent's layout. The slide after the switch is
+   the strip alone (13%); the two frames of the switch are the whole window. The fix is in the
+   core and is written here rather than slipped into a testing change: **a visibility change inside
+   a parent that clips its children could ask that parent for a contained pass**, and the scene's
+   existing guard — re-measure the parent, fall back to a full frame if its size moved — keeps it
+   correct by construction. It would change the frame every `setVisible` in a clipping container
+   produces, which is a decision for its own commit. The row names the exemption, so it cannot be
+   forgotten: the switch is allowed its full frame with the reason written beside it.
+
+   **Two things the harness taught, both worth keeping.** The first inventory showed
+   `SearchField` repainting the window on every frame of a focus fade. It was not: an icon in a
+   headless test has no rasterizer, its paint threw, and the scene's crash containment answers a
+   thrown paint with a full frame. Tracing who asked for the full frame found it in one run; the
+   table installs a stand-in rasterizer. The second: a check that stops at a gesture's first bad
+   frame leaves the double buffer's second frame unrendered, and it lands in the next gesture's
+   reading as a violation that gesture never committed — found by backing a fix out and watching an
+   innocent click fail beside the arrow key that had. The table drains every gesture to rest.
 
 ## 10. The escape hatch, and why it stays
 
