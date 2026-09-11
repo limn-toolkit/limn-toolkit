@@ -4,7 +4,13 @@ import limn.input.Keys;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.layout.Padding;
+import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -132,5 +138,59 @@ class ScrollBarTest extends ComponentTestBase {
         bar.clock(() -> now[0]);
         bar.onHoldElapsed();
         assertFalse(bar.revealing(), "off the bar and past every hold, it fades");
+    }
+
+    /** Scene time per filmed frame: the site gallery's step. */
+    private static final long FILM_STEP_NANOS = TimeUnit.MILLISECONDS.toNanos(20);
+
+    /**
+     * The same scroll bar filmed twice, rendering each frame in one millisecond of wall time and
+     * then in ninety, comes out as the same film.
+     *
+     * <p>A film advances its scene's clock a fixed step per frame, and the hold's end is a delayed
+     * task. Measured on the wall clock it fell due on whichever frame the render speed put it on,
+     * which is the difference the site's gallery found between a warm JVM and a cold one (ADR 043
+     * &sect;9.3). With the runtime's delayed tasks on the film's clock it falls due on the frame
+     * that clock says, at any speed.
+     */
+    @Test
+    void aFilmOfTheHoldIsTheSameFilmAtAnyRenderSpeed() {
+        List<Float> fast = filmTheFlash(TimeUnit.MILLISECONDS.toNanos(1));
+        List<Float> slow = filmTheFlash(TimeUnit.MILLISECONDS.toNanos(90));
+        assertEquals(fast, slow, "the frames depend on how long each one took to render");
+        // Not two films of nothing: the bar came up, held, and faded out inside the film.
+        assertEquals(1f, fast.get(40), 1e-6f, "shown and holding 0.8 s in");
+        assertEquals(0f, fast.get(fast.size() - 1), 1e-6f, "and gone by the end");
+    }
+
+    /**
+     * Films a bar's first-overflow flash the way the site's gallery films a scene -- the scene on
+     * a clock that advances one step per frame, the runtime's delayed tasks on that clock, the
+     * loop draining before every frame -- with {@code wallPerFrame} of the runtime's own clock
+     * passing per frame, and returns the opacity the bar showed in each frame.
+     */
+    private List<Float> filmTheFlash(long wallPerFrame) {
+        AtomicLong wall = new AtomicLong(TimeUnit.HOURS.toNanos(1));
+        AtomicLong film = new AtomicLong();
+        ui.close();
+        ui = new HeadlessUi(wall::get);
+        runtime = ui.runtime();
+        runtime.setDelayClock(film::get);
+
+        ScrollBar bar = new ScrollBar(ScrollBar.Orientation.VERTICAL, new Model());
+        scene = new Scene(new Padding(Insets.NONE, bar), film::get);
+        FakeCanvas canvas = new FakeCanvas(ScrollBar.thickness(), 200);
+        scene.renderFrame(canvas);
+        // In the scene before the policy, so the flash is stamped on the film's clock.
+        bar.setPolicy(ScrollBar.Policy.ON_SCROLL);
+        List<Float> frames = new ArrayList<>();
+        for (int i = 0; i < 90; i++) {
+            wall.addAndGet(wallPerFrame);
+            runtime.drain();
+            film.addAndGet(FILM_STEP_NANOS);
+            scene.renderFrame(canvas);
+            frames.add(bar.shownOpacity());
+        }
+        return frames;
     }
 }

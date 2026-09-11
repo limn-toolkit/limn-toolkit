@@ -333,9 +333,9 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn. 
    So the honest statement is the smaller one: **across one pass over the whole widget set, the A/B
    found no difference attributable to partial rendering.** And the floor above had two members it
    did not name, one of each kind it did not vary: the calendar's "today", which moved with the
-   wall-clock date and is now pinned by the harness (ADR 042 §1), and this timer, which moves with
-   render speed and is open as its own item — delayed tasks need the film's clock while filming.
-   The harness stays full-frame by choice.
+   wall-clock date and is now pinned by the harness (ADR 042 §1), and this timer, which moved with
+   render speed and now runs on the film's clock (§9.3.2, closed 2026-09-11). The harness stays
+   full-frame by choice.
 
    ### 9.3.1 The harness fix, because the next person will hit the same wall
 
@@ -364,6 +364,35 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn. 
    reason is worth keeping: `LwjglWindow.setSize` ends in `renderNow(true)` for a resizable
    window, so a corrective resize before the capture loop starts renders inside a loop that is not
    running yet. Placement avoids the question by never needing the correction.
+
+   ### 9.3.2 Delayed tasks on the film's clock — closed 2026-09-11
+
+   A film advances its scene's clock a fixed 20 ms per frame and every animation reads that clock,
+   so a transition lands on the same frame on any machine. A **delayed task** did not:
+   `Ui.postDelayed` measured its delay on the wall, so the scroll bar's hold, the caret's blink and
+   the tooltip's dwell fell due on whichever frame the render speed put them on. The widgets are
+   right to use timers — a timer is what lets an idle window render nothing during a hold — so the
+   fix is in what the timer is measured on, and it is the harness's alone.
+
+   `UiRuntime.setDelayClock(clock)` measures delayed tasks on another clock, and each task already
+   waiting keeps what was left of its delay across the switch; `null` puts them back on the
+   runtime's own clock, which is the default and what every application runs on. The gallery hands
+   the runtime each shot's stepped clock, and before that a clock that stands still while the
+   shot's builder runs, so a delay the builder schedules is not shortened by however long the build
+   took on the machine. A shot with no stepped clock stays on the wall, and so does a primed one:
+   its pace is itself a delayed task, and on a clock that only a frame moves it would wait for the
+   frame it exists to request.
+
+   **Measured.** Three captures of the final code — on a warm daemon (19 s), with `--no-daemon`
+   (20 s), and under sixteen busy processes on eighteen CPUs (27 s) — are identical pairwise except
+   for the twelve `showcase-kitchen-*` images, the floor by name. Against the last capture before
+   the change, the switch moved 89 frames of three films, each onto the frame its clock names: the
+   theme editor's scroll bar fade (29 frames across both palettes, the thumb's caps at one level in
+   255), and the caret in the text-field and password-field films (60 frames, a 4×40 caret), which
+   now blinks on the film's clock rather than the render loop's. `UiRuntimeTest` holds the switch
+   and the carry-over; `ScrollBarTest` films a bar's hold at one millisecond and at ninety of wall
+   time per frame and requires one film. Each test was made to fail with its half of the change
+   backed out before it was trusted.
 
 4. ~~**A clip-asserting test per interactive widget**~~ — **done 2026-09-11**, as
    `DamageContractTest`: one row per concrete public widget, all forty, read from the sources so

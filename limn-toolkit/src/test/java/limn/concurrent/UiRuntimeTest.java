@@ -257,6 +257,64 @@ class UiRuntimeTest {
         assertEquals(0, runtime.nanosUntilNextDeadline(), "immediate work forbids sleeping");
     }
 
+    // --------------------------------------------------------- delay clock
+
+    /**
+     * A harness that renders on a clock of its own hands it over, and from then on a delayed task
+     * falls due when THAT clock reaches its deadline, however far the runtime's own clock has run.
+     * That is what the site's gallery needs: a scroll bar's hold or a caret's blink lands on the
+     * same film frame at any render speed (ADR 043 &sect;9.3).
+     */
+    @Test
+    void aDelayClockDecidesWhenDelayedTasksRunAndTheRuntimesOwnClockDoesNot() {
+        AtomicLong film = new AtomicLong();
+        runtime.setDelayClock(film::get);
+        List<String> ran = new ArrayList<>();
+        runtime.postDelayed(() -> ran.add("hold ended"), 100);
+
+        clock.addAndGet(TimeUnit.SECONDS.toNanos(10));
+        assertEquals(0, runtime.drain(), "ten seconds on the runtime's clock are not the film's 100 ms");
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(100), runtime.nanosUntilNextDeadline(),
+                "the loop's sleep budget is read off the film's clock too");
+
+        film.addAndGet(TimeUnit.MILLISECONDS.toNanos(99));
+        assertEquals(0, runtime.drain());
+        film.addAndGet(TimeUnit.MILLISECONDS.toNanos(1));
+        assertEquals(1, runtime.drain());
+        assertEquals(List.of("hold ended"), ran);
+    }
+
+    /**
+     * A switch moves every waiting task by the same amount, so each keeps what was left of its
+     * delay and the queue keeps its order. The gallery switches at every shot; a task that lost or
+     * gained time there would land on a frame that depends on when the switch happened to run.
+     */
+    @Test
+    void switchingClocksCarriesEachWaitingTasksRemainingDelayOver() {
+        clock.set(TimeUnit.HOURS.toNanos(1));
+        List<String> ran = new ArrayList<>();
+        runtime.postDelayed(() -> ran.add("a"), 100);
+        runtime.postDelayed(() -> ran.add("b"), 150);
+        runtime.postDelayed(() -> ran.add("never"), Long.MAX_VALUE);
+        clock.addAndGet(TimeUnit.MILLISECONDS.toNanos(40)); // a has 60 ms left, b 110
+
+        AtomicLong film = new AtomicLong(); // at zero, an hour behind the runtime's clock
+        runtime.setDelayClock(film::get);
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(60), runtime.nanosUntilNextDeadline(),
+                "the task kept the 60 ms it had left, not the hour between the two clocks");
+        film.addAndGet(TimeUnit.MILLISECONDS.toNanos(60));
+        assertEquals(1, runtime.drain());
+        assertEquals(List.of("a"), ran);
+
+        film.addAndGet(TimeUnit.MILLISECONDS.toNanos(20)); // b has 30 ms left
+        runtime.setDelayClock(null);
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(30), runtime.nanosUntilNextDeadline(),
+                "back on the runtime's own clock, with what it had left on the film's");
+        clock.addAndGet(TimeUnit.MILLISECONDS.toNanos(30));
+        assertEquals(1, runtime.drain());
+        assertEquals(List.of("a", "b"), ran, "and 'never' is still never");
+    }
+
     // --------------------------------------------------------------- async
 
     @Test

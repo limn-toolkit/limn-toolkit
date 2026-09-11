@@ -215,6 +215,11 @@ public class ScrollBar extends Widget {
         return shouldShow();
     }
 
+    /** @return the opacity the bar paints this frame, 0 to 1 (tests): what a capture shows. */
+    float shownOpacity() {
+        return effectiveOpacity();
+    }
+
     private float effectiveOpacity() {
         if (policy == Policy.HIDDEN || !hasOverflow()) {
             return 0;

@@ -10,6 +10,7 @@ import limn.backend.WindowConfig;
 import limn.backend.lwjgl.LwjglBackend;
 import limn.components.Theme;
 import limn.concurrent.Ui;
+import limn.concurrent.UiRuntime;
 import limn.demo.SiteShowcase;
 import limn.demo.a11y.Transcript;
 import limn.graphics.Image;
@@ -275,7 +276,7 @@ public final class Gallery {
             }
             all.addAll(showcase);
 
-            Driver driver = new Driver(all, List.of(window, big), writer);
+            Driver driver = new Driver(all, List.of(window, big), writer, backend.uiRuntime());
             driver.start();
             backend.runEventLoop();
             // Every capture is on disk before the warm-up is deleted or a manifest promises
@@ -582,6 +583,8 @@ public final class Gallery {
         private final List<NativeWindow> windows;
         /** Where every captured image goes; the encode is not this thread's work. */
         private final FrameWriter writer;
+        /** Whose delayed tasks run on the current shot's clock; see {@link #advance}. */
+        private final UiRuntime runtime;
         private NativeWindow window;
         private int index = -1;
         private int frames;
@@ -613,10 +616,12 @@ public final class Gallery {
         /** The watchdog's frame ceiling for the whole run; see the constructor. */
         private final long frameBudget;
 
-        Driver(List<Shot> shots, List<NativeWindow> windows, FrameWriter writer) {
+        Driver(List<Shot> shots, List<NativeWindow> windows, FrameWriter writer,
+               UiRuntime runtime) {
             this.shots = shots;
             this.windows = windows;
             this.writer = writer;
+            this.runtime = runtime;
             // The watchdog's ceiling. Flat-frame retries are wall-clock, and a paced window
             // renders at whatever rate it achieves: headless that is hundreds of frames a
             // second, because a scene with any live animation defeats the SETTLE_PACE_MS
@@ -825,7 +830,12 @@ public final class Gallery {
             });
         }
 
-        /** Asks every performance footer under {@code root} for its reading now. */
+        /**
+         * A clock that stands still: what delayed tasks are measured on while a shot's builder
+         * runs (see {@link #advance}).
+         */
+        private static final java.util.function.LongSupplier BUILDING = () -> 0L;
+
         /**
          * The day every date widget in a capture calls today: the anchor the dates scene and the
          * date tiles are built around. Without it the calendar's "today" ring and its reader's
@@ -850,6 +860,7 @@ public final class Gallery {
             }
         }
 
+        /** Asks every performance footer under {@code root} for its reading now. */
         private static void primeFooters(Widget root) {
             if (root instanceof limn.demo.PerfFooter footer) {
                 footer.sampleNow();
@@ -926,8 +937,20 @@ public final class Gallery {
             // captured the previous font. That is not hypothetical: it is what published the
             // typeface tile in Roboto.
             limn.graphics.Fonts.setDefaultFamily(null);
+            // Delayed tasks wait on a clock that stands still while the builder runs, so what the
+            // builder schedules keeps its whole delay for the film instead of losing however long
+            // the build took on this machine.
+            runtime.setDelayClock(BUILDING);
             built = shot.entry().builder().get();
             scene = built.scene();
+            // From here on they run on the shot's own clock, the one the frame callback advances a
+            // fixed step per frame. On the wall clock a scroll bar's hold, a caret's blink or a
+            // tooltip's dwell fell due on whichever frame this machine's render speed put it on: a
+            // warm JVM and a cold one filmed the theme editor's scroll bar fading on different
+            // frames (ADR 043 §9.3). A live screen has no such clock and stays on the wall, and so
+            // does a primed one: its pace below is a delayed task, and on a clock only a frame
+            // moves, the task that asks for the next frame would wait for that frame.
+            runtime.setDelayClock(shot.primesFooter() ? null : built.clock());
             // Every date widget reads today from one fixed day, so a capture taken tomorrow is
             // the capture taken today. Applied here rather than in the scene functions, whose text
             // the site publishes as the sample: a reader copying a calendar should not copy a
@@ -941,8 +964,9 @@ public final class Gallery {
             // Scene.setFrontPainter, whose contract clips outside the damage, but setPointer ends
             // in requestRender(), so every move of the arrow is already a whole frame. Measured
             // (ADR 043 §9.3), the mode changes nothing here beyond run-to-run noise: the fifteen
-            // frames it first seemed to change were a scroll bar's wall-clock hold timer landing
-            // on a different film frame, which a cold JVM makes it do as well.
+            // frames it first seemed to change were a scroll bar's hold timer landing on a
+            // different film frame, which a cold JVM made it do as well while delayed tasks still
+            // ran on the wall clock.
             scene.setPartialRendering(false);
             scene.bind(window);
             // AFTER bind, never before: bind installs a frame callback of its own, and a

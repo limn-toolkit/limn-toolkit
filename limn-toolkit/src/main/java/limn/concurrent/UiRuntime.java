@@ -1,6 +1,8 @@
 package limn.concurrent;
 
 import java.lang.System.Logger.Level;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
@@ -65,6 +67,25 @@ public final class UiRuntime implements AutoCloseable {
             int byDeadline = Long.compare(deadlineNanos, other.deadlineNanos);
             return byDeadline != 0 ? byDeadline : Long.compare(sequence, other.sequence);
         }
+
+        /**
+         * The same task on a clock that reads {@code delta} more than the old one, with what was
+         * left of its delay unchanged. "Never" stays never, and a move that would wrap the
+         * deadline saturates it the way {@link UiRuntime#postDelayed} does: forward to never,
+         * backward to now.
+         */
+        DelayedTask movedBy(long delta, long now) {
+            if (deadlineNanos == Long.MAX_VALUE) {
+                return this;
+            }
+            long moved;
+            try {
+                moved = Math.addExact(deadlineNanos, delta);
+            } catch (ArithmeticException wrapped) {
+                moved = delta > 0 ? Long.MAX_VALUE : now;
+            }
+            return new DelayedTask(moved, sequence, action);
+        }
     }
 
     private final ConcurrentLinkedQueue<Runnable> immediate = new ConcurrentLinkedQueue<>();
@@ -84,6 +105,12 @@ public final class UiRuntime implements AutoCloseable {
     private final Object delayedLock = new Object();
     private final AtomicLong delayedSequence = new AtomicLong();
     private final LongSupplier nanoClock;
+    /**
+     * What delayed tasks are measured on: {@link #nanoClock}, unless a harness set a clock of its
+     * own ({@link #setDelayClock}). Read and replaced only under {@link #delayedLock}: a deadline
+     * computed on one clock and queued after a switch would be a reading of the other.
+     */
+    private LongSupplier delayClock;
     private final Waker waker;
     private final ExecutorService workers;
     private final boolean ownsWorkers;
@@ -113,6 +140,7 @@ public final class UiRuntime implements AutoCloseable {
 
     private UiRuntime(LongSupplier nanoClock, Waker waker, ExecutorService workers, boolean ownsWorkers) {
         this.nanoClock = Objects.requireNonNull(nanoClock, "nanoClock");
+        this.delayClock = this.nanoClock;
         this.waker = Objects.requireNonNull(waker, "waker");
         this.workers = Objects.requireNonNull(workers, "workers");
         this.ownsWorkers = ownsWorkers;
@@ -187,19 +215,59 @@ public final class UiRuntime implements AutoCloseable {
      */
     public void postDelayed(Runnable action, long delayMillis) {
         Objects.requireNonNull(action, "action");
-        long now = nanoClock.getAsLong();
-        long deadline = now + TimeUnit.MILLISECONDS.toNanos(Math.max(0, delayMillis));
-        if (deadline < now) {
-            // A delay of a few centuries (Long.MAX_VALUE is the idiomatic way to write "never")
-            // wraps the sum negative, and the queue orders by the deadline itself. The task would
-            // then sit at the head with a deadline no clock reaches, and the drain, which stops at
-            // the first task that is not due, would never look at the real deadlines behind it.
-            deadline = Long.MAX_VALUE;
-        }
         synchronized (delayedLock) {
+            long now = delayClock.getAsLong();
+            long deadline = now + TimeUnit.MILLISECONDS.toNanos(Math.max(0, delayMillis));
+            if (deadline < now) {
+                // A delay of a few centuries (Long.MAX_VALUE is the idiomatic way to write "never")
+                // wraps the sum negative, and the queue orders by the deadline itself. The task
+                // would then sit at the head with a deadline no clock reaches, and the drain, which
+                // stops at the first task that is not due, would never look at the real deadlines
+                // behind it.
+                deadline = Long.MAX_VALUE;
+            }
             delayed.add(new DelayedTask(deadline, delayedSequence.getAndIncrement(), action));
         }
         waker.wake();
+    }
+
+    /**
+     * Measures delayed tasks on {@code clock} from now on, or on this runtime's own clock again
+     * when it is {@code null}. A task already waiting keeps what was left of its delay: due in
+     * 300 ms on the old clock, it is due in 300 ms on the new one, and the queue keeps its order.
+     *
+     * <p>For a harness that renders on a clock of its own. The site's gallery films each scene on
+     * a clock that advances a fixed step per frame, and a delayed task measured on the wall -- a
+     * scroll bar's hold, a caret's blink, a tooltip's dwell -- fell due on whichever frame the
+     * render speed put it on, so a warm JVM and a cold one filmed different frames (ADR 043
+     * &sect;9.3). Measured on the film's clock it falls due on the same frame on any machine.
+     *
+     * <p>{@link #nanosUntilNextDeadline()} answers on that clock too, so a clock that moves only
+     * when its owner moves it holds its tasks until then, however long the loop sleeps. That is
+     * the point for a harness that renders every frame it can, and the reason an application has
+     * no use for this. The slow-task budget stays on the runtime's own clock: it measures how
+     * long a task took, and a film's clock stands still while one runs.
+     *
+     * @param clock what delayed tasks read as now, or {@code null} for this runtime's own clock
+     */
+    public void setDelayClock(LongSupplier clock) {
+        LongSupplier next = clock != null ? clock : nanoClock;
+        synchronized (delayedLock) {
+            if (next == delayClock) {
+                return;
+            }
+            long now = next.getAsLong();
+            long delta = now - delayClock.getAsLong();
+            delayClock = next;
+            if (delta != 0 && !delayed.isEmpty()) {
+                // One delta for every task, so the order they were in is the order they stay in.
+                List<DelayedTask> waiting = new ArrayList<>(delayed);
+                delayed.clear();
+                for (DelayedTask task : waiting) {
+                    delayed.add(task.movedBy(delta, now));
+                }
+            }
+        }
     }
 
     /**
@@ -297,8 +365,8 @@ public final class UiRuntime implements AutoCloseable {
     public int drain(Runnable onTaskCrash) {
         checkUiThread();
         Objects.requireNonNull(onTaskCrash, "onTaskCrash");
-        long now = nanoClock.getAsLong();
         synchronized (delayedLock) {
+            long now = delayClock.getAsLong();
             while (!delayed.isEmpty() && delayed.peek().deadlineNanos() - now <= 0) {
                 enqueue(delayed.poll().action());
             }
@@ -346,7 +414,8 @@ public final class UiRuntime implements AutoCloseable {
     /**
      * How long the native loop may sleep: {@code 0} if immediate work is
      * pending, {@code -1} if it may sleep indefinitely, otherwise the
-     * nanoseconds until the earliest delayed task is due.
+     * nanoseconds until the earliest delayed task is due, on the clock delayed
+     * tasks are measured on ({@link #setDelayClock}).
      */
     public long nanosUntilNextDeadline() {
         if (!immediate.isEmpty()) {
@@ -357,7 +426,7 @@ public final class UiRuntime implements AutoCloseable {
             if (head == null) {
                 return -1;
             }
-            return Math.max(0, head.deadlineNanos() - nanoClock.getAsLong());
+            return Math.max(0, head.deadlineNanos() - delayClock.getAsLong());
         }
     }
 
