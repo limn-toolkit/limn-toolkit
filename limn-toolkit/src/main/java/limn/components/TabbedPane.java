@@ -349,7 +349,11 @@ public class TabbedPane extends Widget {
             }
         }
         revealPending = index; // scroll into view even when re-selecting
-        markNeedsLayout();     // onLayout re-targets the indicator + applies the reveal
+        // onLayout re-targets the indicator and applies the reveal. Contained rather than a full
+        // layout: a switch moves nothing outside this pane, and it clips its children, so the
+        // scene can lay out and repaint the pane alone -- and falls back to a full pass by itself
+        // if the pane's size moved, which it can only do on an unbounded axis. ADR 043 §9.4.4.
+        markNeedsContainedLayout();
         applyFocus(index, effective, origin);
         if (moved) {
             notifyChange(Change.of(Change.Aspect.SELECTION, origin));
@@ -425,7 +429,7 @@ public class TabbedPane extends Widget {
         for (TabHeader header : headers) {
             header.layoutBox(header.x() + shift, header.y(), header.width(), header.height());
         }
-        markNeedsLayout(); // chevron enable state + indicator follow next frame
+        markNeedsContainedLayout(); // chevron state + indicator follow; contained, as a switch is
     }
 
     /** Opens the all-tabs popup anchored under the list button (check on the current tab). */

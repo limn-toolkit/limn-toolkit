@@ -293,12 +293,10 @@ class DamageContractTest extends ComponentTestBase {
             boxed("TabbedPane", () -> new TabbedPane().addTab("Alpha", new Plain())
                     .addTab("Beta", new Plain()).addTab("Gamma", new Plain()), List.of(
                     hoverAt("pointer onto a tab", 90, 14).ceiling(0.1f),
-                    // The two frames of the switch are the window, and the slide after them is
-                    // the strip. The switch is Widget.setVisible on the content, and a visibility
-                    // change is a layout the scene cannot contain today; ADR 043 §9.4.3.
-                    clickAt("switch to a tab", 90, 14).ceiling(0.2f).fullFrameBecause(
-                            "a tab switch changes which content is visible, and "
-                                    + "Widget.setVisible lays out the scene"))),
+                    // The switch shows the new content with Widget.setVisible, which repainted
+                    // the window until visibility changes were laid out narrowly (ADR 043
+                    // §9.4.4); now it is the content area once, then the strip for the slide.
+                    clickAt("switch to a tab", 90, 14))),
             boxed("TextArea", () -> {
                 TextArea area = new TextArea();
                 area.setText("one\ntwo\nthree\nfour");

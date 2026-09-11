@@ -262,7 +262,10 @@ class PartialRenderingTest extends SceneTestBase {
         frame();
         bottom.invalidate();
         frame();
-        top.setVisible(false); // marks layout dirty → requestRender → full damage
+        // A structural layout request is still a full frame. It used to be written with
+        // setVisible, which no longer is one: VisibilityDamageTest says what a visibility change
+        // repaints now (ADR 043 §9.4.4).
+        top.markNeedsLayout();
         frame();
         assertTrue(canvas.fullFramePainted());
     }
@@ -539,7 +542,7 @@ class PartialRenderingTest extends SceneTestBase {
     void hiddenBranchDamagesNothing() {
         scene.setPartialRendering(true);
         frame();
-        top.setVisible(false); // layout change: full frame
+        top.setVisible(false);
         frame();
         frame(); // settle
         top.invalidate(); // hidden widget: paints nothing, so nothing changed

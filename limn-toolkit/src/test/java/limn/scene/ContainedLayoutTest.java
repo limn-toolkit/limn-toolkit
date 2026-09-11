@@ -113,6 +113,37 @@ class ContainedLayoutTest extends SceneTestBase {
         assertEquals(List.of("box"), layouts, "only the widget itself laid out again");
     }
 
+    /**
+     * A widget that asks for a contained pass and shows or hides one of its own children in the
+     * same breath -- what a tab pane does on every switch -- is laid out once, not twice.
+     *
+     * <p>Twice is not only waste. A tab pane re-targets its indicator in {@code onLayout}, and it
+     * reads "the selected tab has not changed" as "snap": the first pass saw the change and
+     * started the slide, the second saw nothing new and cancelled it. The visibility change is
+     * inside a box that clips, kept its size and was re-measured with the change in it, so the
+     * contained pass has already laid it out and damaged everything it could have moved.
+     */
+    @Test
+    void aVisibilityChangeInsideAContainedPassIsNotLaidOutAgain() {
+        Box child = new Box(layouts, "child", 20);
+        Box pane = new Box(layouts, "pane", 60);
+        pane.add(child);
+        Scene scene = new Scene(new Host(pane));
+        scene.setPartialRendering(true);
+        PartialRenderingTest.RecordingCanvas canvas = settle(scene);
+
+        canvas.reset();
+        layouts.clear();
+        child.setVisible(false);
+        pane.markNeedsContainedLayout();
+        scene.renderFrame(canvas);
+
+        assertFalse(canvas.log.contains("clear"), "it must stay a partial frame");
+        assertEquals(1, layouts.stream().filter("pane"::equals).count(),
+                "the pane laid out " + layouts + ": once per change, or a layout that is not "
+                        + "idempotent reads the second pass as nothing having happened");
+    }
+
     @Test
     void aSizeChangeEscalatesToAFullPass() {
         Box box = new Box(layouts, "box", 60);

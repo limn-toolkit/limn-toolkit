@@ -499,16 +499,9 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    because the content moved. `ProgressBar` repaints its own box on every frame of an
    indeterminate run, because the animation is the bar.
 
-   **Open: a tab switch still repaints the window.** `TabbedPane` shows the chosen content with
-   `Widget.setVisible`, and a visibility change asks for a full layout — a core rule, right in
-   general, since a widget appearing can change its parent's layout. The slide after the switch is
-   the strip alone (13%); the two frames of the switch are the whole window. The fix is in the
-   core and is written here rather than slipped into a testing change: **a visibility change inside
-   a parent that clips its children could ask that parent for a contained pass**, and the scene's
-   existing guard — re-measure the parent, fall back to a full frame if its size moved — keeps it
-   correct by construction. It would change the frame every `setVisible` in a clipping container
-   produces, which is a decision for its own commit. The row names the exemption, so it cannot be
-   forgotten: the switch is allowed its full frame with the reason written beside it.
+   **A tab switch repainted the window, and no longer does** — §9.4.4, where the fix turned out
+   to be about every widget and not one. The row in `DamageContractTest` carried a named full-frame
+   exemption until then; it has none now.
 
    **Two things the harness taught, both worth keeping.** The first inventory showed
    `SearchField` repainting the window on every frame of a focus fade. It was not: an icon in a
@@ -518,6 +511,56 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    frame leaves the double buffer's second frame unrendered, and it lands in the next gesture's
    reading as a violation that gesture never committed — found by backing a fix out and watching an
    innocent click fail beside the arrow key that had. The table drains every gesture to rest.
+
+   ### 9.4.4 A widget shown or hidden repaints what it moved
+
+   `Widget.setVisible` asked for a full layout, and a full layout is a full frame by ADR 002's
+   invariant: **hiding one button in a form repainted the whole window** — every field, label and
+   border — for the space one button had held. That was the tab switch's cause too, and every
+   disclosure, validation message, toolbar item and optional field in an application built on this
+   toolkit paid it. Measured in a 640×480 window holding an eight-row form:
+
+   | gesture | before | after |
+   | --- | --- | --- |
+   | hide the button in the middle of the form | the window | **25.9%**: the button and what moved up |
+   | show it again | the window | 25.9% |
+   | hide the last button, with nothing below it | the window | **7.4%**: the button's box |
+   | switch a tab | the window, twice | the pane once, then the strip for the slide |
+
+   **What a visibility change can move is bounded, and the bound is findable.** Nothing outside the
+   nearest ancestor whose size survives the change can move, because that ancestor's parent placed
+   it against a size that is still true. So the scene climbs from the widget's parent, re-measuring
+   each ancestor against the constraints it was last given, stops at the first whose size came out
+   the same, lays that one out in place, and compares where each of its children was with where it
+   went. It damages the ones that moved — old box and new — and the widget itself. Inside a
+   container that clips its children, that can never leave the container; in a plain form it is
+   the widget and whatever slid.
+
+   Three details are where a narrower answer would leave a stale pixel, and each has a test that
+   fails without it:
+
+   - **A hidden widget's old box is damaged through its parent**, because a hidden branch damages
+     nothing through itself. In the middle of a column the next sibling slides into the space and
+     its damage covers the old box by accident — a test written only there *passed* with the erasure
+     removed. The last button of a form, with nothing to slide into its place, is the case that
+     keeps it honest.
+   - **A child whose visibility changed during the pass counts as moved**, since a container may
+     show or hide its own parts as it lays out (a scroll view's bars).
+   - **Anything the comparison cannot vouch for falls back rather than guesses**: a child list that
+     changed during the pass, or a layout request absorbed from deeper than the children compared,
+     damages the whole ancestor if it clips its children and escalates to a full frame if it does
+     not; a widget with no parent, an ancestor never measured, a climb past the root, all escalate.
+
+   **And a change must be laid out once.** The first version ran the tab pane's `onLayout` twice in
+   one frame — once for the pane's own contained request, once for the content it had just shown —
+   and the tab indicator, which snaps when the tab it points at has not changed, read the second
+   pass as nothing having happened and cut its slide short. `TabbedPaneMirroringTest` caught it. A
+   visibility change inside a box the frame's contained pass already laid out is now left to that
+   pass: the box clips, kept its size, and was re-measured with the change in it.
+
+   That snap has a wider cause than this change, and it stays open as its own item: **any** full
+   layout during the slide — some other widget in the window asking for one — cuts it short the same
+   way, because the indicator's re-target is not idempotent.
 
 ## 10. The escape hatch, and why it stays
 

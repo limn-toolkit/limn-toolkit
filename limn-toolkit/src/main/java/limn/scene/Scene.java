@@ -1494,9 +1494,26 @@ public final class Scene implements WindowInput {
 
     /** Widgets that asked for a contained layout, in request order. */
     private final List<Widget> containedLayouts = new ArrayList<>();
+    /** Widgets shown or hidden since the last frame, in request order; see runVisibilityLayouts. */
+    private final List<Widget> visibilityChanges = new ArrayList<>();
+    /**
+     * The widgets this frame's contained pass laid out and kept contained. A visibility change
+     * inside one of them is already laid out and damaged, and laying it out a second time is not
+     * merely waste: a layout that is not idempotent -- a tab indicator that snaps when the tab it
+     * points at has not changed -- reads the second pass as nothing having happened.
+     */
+    private final List<Widget> containedThisFrame = new ArrayList<>();
+    /**
+     * Set when a layout or visibility request arrives from inside a narrow pass and is absorbed by
+     * it. A contained pass damages its whole widget, so for it that is the end of the matter; a
+     * visibility pass damages only the children it saw move, and a request from deeper down means
+     * something moved that it did not see.
+     */
+    private boolean absorbedInsidePass;
 
     void markLayoutDirty(Widget origin) {
         if (containedTarget != null && origin != null && isInSubtree(origin, containedTarget)) {
+            absorbedInsidePass = true;
             return; // the pass already running over this subtree covers it
         }
         layoutDirty = true;
@@ -1505,6 +1522,22 @@ public final class Scene implements WindowInput {
 
     void markLayoutDirty() {
         markLayoutDirty(null);
+    }
+
+    /**
+     * See {@link Widget#setVisible}: a widget shown or hidden, laid out and damaged at the next
+     * frame by {@link #runVisibilityLayouts} rather than by a full pass.
+     */
+    void markVisibilityChanged(Widget widget) {
+        if (containedTarget != null && isInSubtree(widget, containedTarget)) {
+            absorbedInsidePass = true;
+            return; // the pass already running over this subtree lays it out
+        }
+        if (!visibilityChanges.contains(widget)) {
+            visibilityChanges.add(widget);
+        }
+        accessibleNodesDirty = true;
+        scheduleFrame();
     }
 
     void markContainedLayout(Widget widget) {
@@ -1527,6 +1560,7 @@ public final class Scene implements WindowInput {
      * placed it against a size that is no longer true and only a full pass can fix that.
      */
     private void runContainedLayouts() {
+        containedThisFrame.clear();
         if (containedLayouts.isEmpty()) {
             return;
         }
@@ -1558,7 +1592,168 @@ public final class Scene implements WindowInput {
                 containedTarget = null;
             }
             damageWidget(widget);
+            containedThisFrame.add(widget);
         }
+    }
+
+    /**
+     * Lays out and damages what a visibility change actually moved, instead of the window.
+     *
+     * <p>ADR 043 &sect;9.4.4. A widget shown or hidden can only move things inside the nearest
+     * ancestor whose size survives the change: that ancestor's parent placed it against a size
+     * that is still true, so nothing outside it moves. The pass climbs from the widget's parent,
+     * re-measuring each ancestor against the constraints it was last given, and stops at the first
+     * whose size came out the same. It lays that one out in place, compares where each of its
+     * children was with where it is now, and damages the ones that moved -- where they were and
+     * where they went -- plus the widget itself.
+     *
+     * <p><b>The widget's own old box is damaged through its parent</b>, because a hidden branch
+     * damages nothing through itself ({@link #clippedSceneRect}) and a box never erased is a widget
+     * still on screen. A child whose visibility changed during the pass counts as moved, since a
+     * container may show or hide its own parts as it lays out (a scroll view's bars).
+     *
+     * <p>Every case the comparison cannot vouch for falls back rather than guesses: a widget no
+     * longer in this scene or with no parent, an ancestor never measured, a climb past the root,
+     * all escalate to a full pass; a child list that changed during the pass, or a request
+     * absorbed from deeper than the children compared, damages the whole ancestor if it clips its
+     * children and escalates if it does not. Wrong costs a frame, never a stale pixel.
+     */
+    private void runVisibilityLayouts() {
+        if (visibilityChanges.isEmpty()) {
+            return;
+        }
+        List<Widget> pending = List.copyOf(visibilityChanges);
+        visibilityChanges.clear();
+        if (layoutDirty) {
+            return; // a full pass is already scheduled and covers all of them
+        }
+        for (Widget widget : pending) {
+            if (insideContainedThisFrame(widget)) {
+                // Laid out and damaged already, by a pass over a box that clips its children and
+                // kept its size -- re-measured with this change in it, since setVisible marked the
+                // measures stale on the way up. So nothing it moved can be outside that box.
+                continue;
+            }
+            Widget parent = widget.parent();
+            if (widget.scene() != this || parent == null) {
+                layoutDirty = true;
+                continue;
+            }
+            Widget anchor = parent;
+            boolean absorbed = false;
+            while (anchor != null) {
+                Constraints constraints = anchor.lastConstraints();
+                Size before = anchor.lastSize();
+                if (constraints == null || before == null) {
+                    break; // never measured: nothing to compare against
+                }
+                Size after = anchor.measure(constraints);
+                if (after.equals(before)) {
+                    absorbed = true;
+                    break;
+                }
+                anchor = anchor.parent(); // this one moved size, so its parent must place it
+            }
+            if (!absorbed) {
+                layoutDirty = true;
+                continue;
+            }
+            // Where the widget is drawn now, in its parent's space, read before anything moves.
+            float wx = widget.x();
+            float wy = widget.y();
+            float ww = widget.width();
+            float wh = widget.height();
+            List<Widget> children = List.copyOf(anchor.children());
+            float[] was = new float[children.size() * 4];
+            boolean[] wasVisible = new boolean[children.size()];
+            for (int i = 0; i < children.size(); i++) {
+                Widget child = children.get(i);
+                was[i * 4] = child.x();
+                was[i * 4 + 1] = child.y();
+                was[i * 4 + 2] = child.width();
+                was[i * 4 + 3] = child.height();
+                wasVisible[i] = child.isVisible();
+            }
+            absorbedInsidePass = false;
+            containedTarget = anchor;
+            try {
+                anchor.layoutBox(anchor.x(), anchor.y(), anchor.width(), anchor.height());
+            } finally {
+                containedTarget = null;
+            }
+            if (absorbedInsidePass || !children.equals(anchor.children())) {
+                // Something moved that the comparison below would not see.
+                absorbedInsidePass = false;
+                if (anchor.clipsChildren()) {
+                    damageWidget(anchor);
+                } else {
+                    layoutDirty = true;
+                }
+                continue;
+            }
+            for (int i = 0; i < children.size(); i++) {
+                Widget child = children.get(i);
+                boolean moved = was[i * 4] != child.x() || was[i * 4 + 1] != child.y()
+                        || was[i * 4 + 2] != child.width() || was[i * 4 + 3] != child.height();
+                if (!moved && wasVisible[i] == child.isVisible()) {
+                    continue;
+                }
+                float o = 1 + child.paintOutset();
+                if (wasVisible[i]) {
+                    damageInParent(anchor, child, was[i * 4] - o, was[i * 4 + 1] - o,
+                            was[i * 4 + 2] + 2 * o, was[i * 4 + 3] + 2 * o);
+                }
+                if (child.isVisible()) {
+                    damageInParent(anchor, child, child.x() - o, child.y() - o,
+                            child.width() + 2 * o, child.height() + 2 * o);
+                }
+            }
+            float o = 1 + widget.paintOutset();
+            if (widget.isVisible()) {
+                damageWidget(widget);
+            } else {
+                damageInParent(parent, widget, wx - o, wy - o, ww + 2 * o, wh + 2 * o);
+            }
+            accessibleNodesDirty = true;
+        }
+    }
+
+    private boolean insideContainedThisFrame(Widget widget) {
+        for (int i = 0; i < containedThisFrame.size(); i++) {
+            Widget target = containedThisFrame.get(i);
+            if (widget != target && isInSubtree(widget, target)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Damages a rectangle given in {@code parent}'s coordinates, on behalf of {@code child}: clamped
+     * to the parent's own clip for that child when it clips, and then through every ancestor as
+     * any damage is. For a region that belongs to a child which may no longer be drawn -- a hidden
+     * widget's old box -- and so cannot be damaged through the child itself.
+     */
+    private void damageInParent(Widget parent, Widget child, float x, float y, float w, float h) {
+        if (!partialRendering && !damageDebug) {
+            return;
+        }
+        float x0 = x;
+        float y0 = y;
+        float x1 = x + w;
+        float y1 = y + h;
+        if (parent.clipsChildren()) {
+            float cx = parent.clipX(child);
+            float cy = parent.clipY(child);
+            x0 = Math.max(x0, cx - 1);
+            y0 = Math.max(y0, cy - 1);
+            x1 = Math.min(x1, cx + parent.clipWidth(child) + 1);
+            y1 = Math.min(y1, cy + parent.clipHeight(child) + 1);
+            if (x1 <= x0 || y1 <= y0) {
+                return;
+            }
+        }
+        addClippedDamage(parent, x0, y0, x1 - x0, y1 - y0);
     }
 
     /** See {@link Widget#paintsFromBackdrop()}. Called as the widget joins this scene. */
@@ -2720,6 +2915,7 @@ public final class Scene implements WindowInput {
         // Before the full-damage decision, because a contained pass that could not keep its
         // promise sets layoutDirty and this frame has to become the full one after all.
         runContainedLayouts();
+        runVisibilityLayouts();
         if (layoutDirty || canvas.width() != width || canvas.height() != height) {
             // A layout pass can move any widget without it invalidating its old
             // bounds: layout frames are always full, which is a structural
@@ -3481,6 +3677,7 @@ public final class Scene implements WindowInput {
             // or an embedder calls instead of rendering a frame, and without this a list that
             // scrolled would sit on stale rows until something else dirtied the layout.
             runContainedLayouts();
+            runVisibilityLayouts();
             if (!layoutDirty) {
                 return;
             }
@@ -3488,6 +3685,7 @@ public final class Scene implements WindowInput {
             // rather than leaving the caller with a layout that is neither.
         }
         containedLayouts.clear(); // a full pass covers every contained request outstanding
+        visibilityChanges.clear(); // and every visibility change, having measured from the root
         // A full pass moves boxes, and a box is what the accessible tree publishes, so the pass
         // itself owes the node flag. Every other path here reaches it through a funnel that set
         // the flag already; the two that do not are a window resize -- whose arm marks the layout

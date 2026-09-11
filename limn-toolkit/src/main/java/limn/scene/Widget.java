@@ -560,7 +560,20 @@ public abstract class Widget {
             if (!visible && scene != null) {
                 scene.onWidgetDetached(this); // revoke focus/hover/press in this subtree
             }
-            markNeedsLayout();
+            // Every measure on the way up is stale, exactly as for markNeedsLayout(): whichever
+            // pass lays this out -- the scene's narrow one or a full one it escalates to -- has
+            // to re-measure from here. What differs is only what the scene is told.
+            for (Widget w = this; w != null; w = w.parent) {
+                w.needsMeasure = true;
+            }
+            if (scene != null && parent != null) {
+                // Not a full layout: a visibility change can move nothing outside the nearest
+                // ancestor whose size survives it, and the scene lays out and damages only that.
+                // ADR 043 §9.4.4. A full layout here repainted the whole window to hide one button.
+                scene.markVisibilityChanged(this);
+            } else if (scene != null) {
+                scene.markLayoutDirty(this); // a root has no parent to absorb it
+            }
             notifyChange(Change.of(Change.Aspect.VISIBLE, Change.Origin.CODE));
         }
     }
