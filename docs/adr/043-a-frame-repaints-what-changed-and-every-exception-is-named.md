@@ -394,6 +394,11 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn. 
    time per frame and requires one film. Each test was made to fail with its half of the change
    backed out before it was trusted.
 
+   The toolkit's last two direct reads of the wall clock moved onto the scene's clock the same day:
+   the pause that ends a `ComboBox` type-ahead word, and the spacing of a `MediaControls` drag's
+   seeks. They are one clock in an application. No film exercises either yet, and each has a test
+   that fails on the wall clock (`ComboBoxTest`, `MediaControlsTest`).
+
 4. ~~**A clip-asserting test per interactive widget**~~ — **done 2026-09-11**, as
    `DamageContractTest`: one row per concrete public widget, all forty, read from the sources so
    that a widget added without a row fails the table rather than going untested — the same

@@ -811,7 +811,10 @@ public class ComboBox extends Widget {
         if (!open || codepoint < 0x20 || codepoint == 0x7F || items.isEmpty()) {
             return;
         }
-        long now = System.nanoTime();
+        // The scene's clock rather than the wall's. They are one clock in an application; in a
+        // test or a filmed capture the scene's is the one every other interval on screen is
+        // measured on, where the wall made the pause however long the machine took between keys.
+        long now = sceneNanos();
         if (now - lastTypedNanos > TYPE_AHEAD_RESET_NANOS) {
             typeAhead.setLength(0);
         }

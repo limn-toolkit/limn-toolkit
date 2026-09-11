@@ -525,7 +525,10 @@ public class MediaControls extends Widget {
             return;
         }
         long target = (long) (fraction / bar.max() * length);
-        long now = System.nanoTime();
+        // The scene's clock rather than the wall's. They are one clock in an application; in a
+        // test or a filmed capture the scene's is the one every other interval on screen is
+        // measured on, where the wall spaced the seeks by however fast the machine delivered moves.
+        long now = sceneNanos();
         if (!settled && lastScrubNanos != Long.MIN_VALUE
                 && now - lastScrubNanos < SCRUB_INTERVAL_MICROS * 1_000L) {
             return;

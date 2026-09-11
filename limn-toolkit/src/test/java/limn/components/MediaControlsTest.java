@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
@@ -15,6 +16,8 @@ import limn.video.VideoStreamSource;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -184,6 +187,64 @@ class MediaControlsTest extends ComponentTestBase {
         controls.setMuted(false);
         assertFalse(controls.isMuted());
         assertEquals(0.6f, controls.volume(), EPS, "and unmuting restores exactly it");
+    }
+
+    /**
+     * A drag's keyframe seeks are spaced on the scene's clock. They are one clock in an
+     * application; in a test or a filmed capture the wall spaced them by however fast the machine
+     * delivered the moves, which here, with no time between them at all, let one seek through for
+     * the whole drag.
+     */
+    @Test
+    void aDragsSeeksAreSpacedOnTheScenesClock() {
+        AtomicLong nanos = new AtomicLong();
+        TestVideoStream stream = new TestVideoStream(640, 360);
+        stream.durationMicros = 60_000_000L;
+        controls = new MediaControls(new VideoView().setSource(stream));
+        scene = new Scene(controls, nanos::get);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(BAR_W, BAR_H);
+        Slider bar = scrubBar(controls);
+        float y = bar.localToSceneY() + bar.height() / 2;
+
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, alongBar(bar, 0.2f), y);
+        scene.inputBatchEnded();
+        assertEquals(1, stream.seeks, "the press seeks");
+
+        nanos.addAndGet(TimeUnit.MILLISECONDS.toNanos(100));
+        scene.mouseMoved(alongBar(bar, 0.4f), y);
+        scene.inputBatchEnded();
+        assertEquals(1, stream.seeks, "a tenth of a second on is inside the interval");
+
+        nanos.addAndGet(TimeUnit.MILLISECONDS.toNanos(200));
+        scene.mouseMoved(alongBar(bar, 0.6f), y);
+        scene.inputBatchEnded();
+        assertEquals(2, stream.seeks, "three tenths on, the next seek goes through");
+        assertEquals(VideoStreamSource.SeekMode.KEYFRAME, stream.seekedMode, "a drag seeks keyframes");
+
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, alongBar(bar, 0.6f), y);
+        scene.inputBatchEnded();
+        assertEquals(3, stream.seeks, "and letting go lands, throttled by nothing");
+        assertEquals(VideoStreamSource.SeekMode.EXACT, stream.seekedMode);
+    }
+
+    /** @return the transport's scrub bar, the one slider over a thousand steps, or null */
+    private static Slider scrubBar(Widget root) {
+        if (root instanceof Slider slider && slider.max() == 1000) {
+            return slider;
+        }
+        for (Widget child : root.children()) {
+            Slider found = scrubBar(child);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    /** @return the scene x {@code fraction} of the way along {@code bar}'s box */
+    private static float alongBar(Slider bar, float fraction) {
+        return bar.localToSceneX() + bar.width() * fraction;
     }
 
     /** A do-nothing video source: enough for a player that is never started. */

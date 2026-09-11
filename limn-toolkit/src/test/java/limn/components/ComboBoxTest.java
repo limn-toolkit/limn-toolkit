@@ -10,7 +10,9 @@ import limn.scene.Size;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -484,6 +486,33 @@ class ComboBoxTest extends ComponentTestBase {
         // And the dead prefix must not poison the next keystroke.
         type("a");
         assertEquals(0, box.highlightedIndex(), "Alpha");
+    }
+
+    /**
+     * The pause that ends a word is measured on the scene's clock, the one its animations and
+     * timers read, so a test or a filmed capture that moves that clock moves the pause with it. On
+     * the wall clock the pause was however long the machine took between two keystrokes: none at
+     * all here, where "b", two seconds and "c" read as one word that spells nothing.
+     */
+    @Test
+    void aPauseThatEndsAWordIsMeasuredOnTheScenesClock() {
+        AtomicLong nanos = new AtomicLong();
+        ComboBox box = new ComboBox(List.of("Alpha", "Bravo", "Bengal", "Beta", "Charlie"));
+        Scene typeScene = new Scene(box, nanos::get);
+        typeScene.setTextRuler(RULER);
+        typeScene.layoutPass(200, 32);
+        typeScene.requestFocus(box);
+        this.scene = typeScene;
+        box.open();
+
+        type("b");
+        nanos.addAndGet(TimeUnit.MILLISECONDS.toNanos(500));
+        type("e");
+        assertEquals(2, box.highlightedIndex(), "half a second is inside the word: \"be\" is Bengal");
+
+        nanos.addAndGet(TimeUnit.SECONDS.toNanos(2));
+        type("c");
+        assertEquals(4, box.highlightedIndex(), "two seconds end it: \"c\" is Charlie");
     }
 
     /** A closed combo is not a search box: letters must not silently change the selection. */
