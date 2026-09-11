@@ -297,7 +297,15 @@ final class GalleryScenes {
     static Built comboBox() {
         ComboBox combo = new ComboBox(List.of("Limn", "Limn Light", "Nord", "Dracula"));
         combo.setSelectedIndex(0);
-        return scene(new SizedBox(260, SizedBox.UNSET, combo));
+        // A height, and the list is what it is for: this entry is filmed opening its list, and
+        // the site crops the still and the film of an entry to ONE box, so that pressing play
+        // swaps a picture rather than resizing the card. That box is the widget's, measured
+        // while the layout settles -- before any list exists. Cropped to the field alone, the
+        // film published a drop-down with its head cut off.
+        Column room = new Column();
+        room.mainAlignment(Flex.MainAlignment.START).crossAlignment(Flex.CrossAlignment.STRETCH);
+        room.add(combo);
+        return scene(new SizedBox(260, 176, room));
     }
     // #endregion
 
