@@ -189,6 +189,10 @@ class VideoViewPlayerTest extends ComponentTestBase {
         advanceMillis(200);
         for (int frame = 0; frame < 4; frame++) {
             canvas.reset();
+            // Painted on purpose: with partial rendering a frame that changed nothing does not
+            // repaint the view at all, so the picture stays on screen without being drawn, and a
+            // view that blanked itself whenever it WAS repainted would pass unseen.
+            view.invalidate();
             scene.renderFrame(canvas);
         }
         assertEquals(1, surfaces.totalUploads(), "nothing new was uploaded");
@@ -223,6 +227,7 @@ class VideoViewPlayerTest extends ComponentTestBase {
         // The last picture stays on screen and nothing more is asked for.
         canvas.reset();
         advanceMillis(200);
+        view.invalidate(); // a repaint must still draw the last picture; see the test above
         scene.renderFrame(canvas);
         assertEquals(2, surfaces.totalUploads());
         assertEquals(1, canvas.surfaces.size(), "an ended view keeps drawing what it has");

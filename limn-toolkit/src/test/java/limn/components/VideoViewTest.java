@@ -488,6 +488,9 @@ class VideoViewTest extends ComponentTestBase {
         int readsAtEnd = stream.reads;
         for (int frame = 0; frame < 4; frame++) {
             canvas.reset();
+            // Painted on purpose: a frame that changed nothing does not repaint the view under
+            // partial rendering, and what this checks is that a repaint draws the last picture.
+            view.invalidate();
             scene.renderFrame(canvas);
         }
         assertEquals(readsAtEnd, stream.reads, "an ended view asks the stream for nothing more");

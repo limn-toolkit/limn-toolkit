@@ -142,8 +142,9 @@ against an unchanged value, and a paused picture with all of them running costs 
 
 ## 5. What this deliberately is not
 
-- **Not damage tracking by default.** Partial rendering stays off by default; this changes whether a
-  frame happens, not how much of it is repainted.
+- **Not damage tracking.** This changes whether a frame happens, not how much of it is repainted.
+  Partial rendering was off by default when this was written; ADR 043 made it the default, which
+  changes nothing here.
 - **Not an observable-property mechanism on `Widget`.** A funnel that invalidated every field write
   would remove the residual surface §2 names, and would also make every setter pay for a mechanism
   the toolkit has been fine without. The contract on three methods is the cheaper answer.

@@ -1,9 +1,9 @@
 # ADR 043: A frame repaints what changed, and every exception is named
 
-- **Status:** Proposed, 2026-09-10. **All four of §9's conditions are met as of 2026-09-11**, with
-  one exemption named in §9.4.3 (a tab switch). The flag itself is not flipped: that is the
-  decision this record asks for, and nothing below takes it. §11 says what is deliberately not in
-  this step.
+- **Status:** **Accepted, 2026-09-11.** Proposed on 2026-09-10; all four of §9's conditions were met
+  on 2026-09-11 and the default was flipped the same day. `Scene` starts with partial rendering on;
+  `setPartialRendering(false)` remains the escape hatch of §10, and the gallery capture harness is
+  the one place in this repository that uses it. §11 says what is deliberately not in this step.
 - **Date:** 2026-09-10
 - **Scope:** whether `Scene.setPartialRendering` should be on by default; what a widget owes if it
   is; the one correctness hole that blocks it today and what closing it costs; and what stays
@@ -207,7 +207,8 @@ starts over-invalidating, and it costs a recording canvas.
 The flip itself is one line. The work is §9's list, and most of it is auditing rather than writing.
 
 The runtime cost of the mode is one union per frame, a list of at most eight rectangles, and a clip
-per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
+per pass — against, in a form, ninety-eight per cent of the pixels not drawn. And, since the flip,
+**no allocation**: a thousand widgets damaging themselves in one frame cost it nothing (§9.5).
 
 ## 9. What has to be true before the flag is flipped
 
@@ -562,12 +563,54 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    layout during the slide — some other widget in the window asking for one — cuts it short the same
    way, because the indicator's re-target is not idempotent.
 
+### 9.5 The flip, and what it surfaced
+
+Flipped on 2026-09-11: `Scene` starts with partial rendering on. The demo no longer sets it, since
+every scene now runs it without being told; the gallery harness sets it off, the one opt-out (§10).
+
+**Eight tests failed at the flip, and each was read before it was changed**, because a test that
+starts failing when a default moves is either stating the old default or has found something.
+
+- **One stated the old default.** A popup scene's flags are inherited from its owner, and the test
+  asserted a fresh scene starts with the mode off before inheriting it on. It now sets the owner
+  against the new default, which is the stronger test: a popup that merely kept its own defaults
+  would have passed the old one.
+- **Four were measuring something the mode changes.** Past its retry limit, crash containment stops
+  asking for frames; under partial rendering a frame with no damage never reaches the crashing box
+  and so never crashes again, which is the better outcome but made the test's crash count measure
+  the damage rather than the containment — it declares whole frames, its subject being the count.
+  Three video tests asserted that a view keeps drawing its last picture; a frame that changed
+  nothing does not repaint the view at all, so they passed or failed on whether anything had been
+  damaged. They now invalidate the view before the frame they check, so a view that blanked itself
+  whenever it *was* repainted would still be caught rather than passing vacuously.
+- **Three found a real cost, and it was fixed rather than excused.** The toolkit holds a damaged
+  frame that changes no accessible fact to allocating nothing, and three tests say so. The damage
+  path allocated a `Rect` per `invalidate()` and a list per frame — **96,128 bytes for a thousand
+  widgets damaging themselves once** — invisible while the mode was off, because the full-frame path
+  never touched it, and now the default path of every frame. Part of it was this record's own: the
+  clip walk extracted for §3 returned a `Rect`. The damage is now `DamageRects`, a fixed-capacity
+  list of floats with the merge arithmetic reproduced in the same order — the union, the waste test,
+  the cheapest pair and its tie-break, removal that keeps the order — so every pass is the pass it
+  was, which every partial-rendering test confirms unchanged, and the frame allocates nothing. The
+  damage-debug overlay is the one path that still may.
+
+**And the refactor made one silent mistake, caught by a test that already existed.** The frame's
+region count read `repaint == null ? 1 : repaint.size()`; against a holder that is never null it
+compiled, took the second branch every time, and recorded a full frame as zero regions.
+`FrameMetricsTest` said so. The general form is worth keeping: **replacing a nullable list with an
+object that is never null turns every `== null` into a silent `false`**, so search for them after
+such a change. The search found one more, dead but harmless by the accident of `isEmpty()`'s
+definition, and it is gone.
+
 ## 10. The escape hatch, and why it stays
 
 `setPartialRendering(false)` remains, and remains public. An application that composites something
 the toolkit does not know about — a video wall, a custom `frontPainter`, a backdrop-dependent
 widget of its own before §3's predicate reaches its API — needs the blunt mode, and finding out
 that it needs it should not require a fork. What changes is which way round the default sits.
+
+The gallery capture harness is the one caller in this repository, for §9.3's reasons: a pipeline of
+reference images gains nothing from the cheaper mode and wants the most conservative one.
 
 ## 11. Deliberately not in this step
 

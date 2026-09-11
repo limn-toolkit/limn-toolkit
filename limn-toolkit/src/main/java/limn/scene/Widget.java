@@ -31,7 +31,7 @@ import java.util.Objects;
  * <p>Invalidation model: <b>nothing repaints on its own.</b>
  * {@link #invalidate()} asks for a frame and records this widget's bounds as
  * damage; a scene with {@linkplain Scene#setPartialRendering(boolean) partial
- * rendering} enabled then repaints only the damaged region, one without it
+ * rendering} on (the default) then repaints only the damaged region, one without it
  * repaints the window, and either way the loop goes back to sleep once nothing
  * is asking. {@link #markNeedsLayout()} additionally re-runs measure/layout,
  * which repaints everything. A change that goes through neither is not drawn:
@@ -1337,8 +1337,8 @@ public abstract class Widget {
     /**
      * Requests a repaint (event-driven: the loop wakes and redraws once). Also
      * records this widget's bounds as damage so a scene with
-     * {@linkplain Scene#setPartialRendering(boolean) partial rendering} enabled
-     * repaints only the changed region. A widget whose painting can extend
+     * {@linkplain Scene#setPartialRendering(boolean) partial rendering} on, which is the
+     * default, repaints only the changed region. A widget whose painting can extend
      * beyond its bounds must widen the region via {@link Scene#damage(Rect)}.
      */
     public final void invalidate() {

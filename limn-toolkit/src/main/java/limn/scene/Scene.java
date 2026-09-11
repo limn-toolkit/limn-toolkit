@@ -589,14 +589,14 @@ public final class Scene implements WindowInput {
     // the previous frame changed must be repainted again into this buffer).
     // requestRender() and every layout/overlay/tooltip path stay full-frame:
     // anything not routed through invalidate() is conservatively "everything".
-    private boolean partialRendering;
+    private boolean partialRendering = true; // ADR 043: repaint what changed, name every exception
     private boolean damageDebug;
     private boolean fullDamagePending = true; // first frame paints everything
     // Damage is a SMALL LIST of rects, not one bounding box: a progress bar
     // animating at the top and a status footer at the bottom must not conspire
     // to repaint everything between them. Rects whose union wastes little area
     // merge on arrival; disjoint hot spots stay separate repaint passes.
-    // List semantics throughout: null = the whole scene, empty = nothing.
+    // Damage semantics throughout (DamageRects): whole = the whole scene, empty = nothing.
     private static final int MAX_DAMAGE_RECTS = 8;
     /**
      * Widgets whose picture is made of the pixels behind them, kept as a list rather than found
@@ -605,9 +605,19 @@ public final class Scene implements WindowInput {
      * joins and leaves a scene through, so it cannot drift from the tree.
      */
     private final List<Widget> backdropDependants = new ArrayList<>();
-    private final List<Rect> pendingDamage = new ArrayList<>();
-    private List<Rect> frameDamage1;      // fresh damage of the previous content frame
-    private List<Rect> lastRepaintRegion; // what the previous content frame actually repainted
+    // The frame's damage, as fixed-capacity float lists rather than lists of Rect: every
+    // invalidate() lands in pendingDamage, and with partial rendering on by default an object per
+    // call there was the toolkit's busiest allocation. See DamageRects. A list that starts whole
+    // is what null meant before: a first frame has no history and repaints everything.
+    private final DamageRects pendingDamage = new DamageRects(MAX_DAMAGE_RECTS, false);
+    private final DamageRects freshDamage = new DamageRects(MAX_DAMAGE_RECTS, false);
+    private final DamageRects frameDamage1 = new DamageRects(MAX_DAMAGE_RECTS, true); // previous frame's fresh damage
+    private final DamageRects repaintRegion = new DamageRects(MAX_DAMAGE_RECTS, false);
+    private final DamageRects lastRepaintRegion = new DamageRects(MAX_DAMAGE_RECTS, true); // what it repainted
+    /** Scratch for the clip walk, so damaging a widget makes no object. UI thread only. */
+    private final float[] clipScratch = new float[4];
+    private final float[] backdropScratch = new float[4];
+    private boolean[] backdropTaken = new boolean[0];
 
     // Damage-debug flashes: each fresh damage region stays highlighted for
     // DAMAGE_FLASH_SECONDS, fading out. A fading flash changes pixels every
@@ -640,7 +650,12 @@ public final class Scene implements WindowInput {
      * (plus the previous frame's, for double buffering) instead of the whole
      * window. A subtree that misses the pass region is skipped from the paint
      * walk too ({@code culledFromPaint}), as one that misses the canvas clip is
-     * in every mode. Default off.
+     * in every mode.
+     *
+     * <p><b>Default on</b>, since ADR 043: the mode the toolkit is correct in is the one it runs,
+     * and every widget is held to it by {@code DamageContractTest}. {@code false} is the escape
+     * hatch for a scene that composites something the toolkit cannot see, and for a capture
+     * harness that wants whole frames on purpose; nothing else should need it.
      */
     public void setPartialRendering(boolean enabled) {
         Ui.checkUiThread();
@@ -1228,9 +1243,8 @@ public final class Scene implements WindowInput {
      * nothing at all.
      */
     private void addClippedDamage(Widget widget, float x, float y, float w, float h) {
-        Rect region = clippedSceneRect(widget, x, y, w, h);
-        if (region != null) {
-            addDamage(region.x(), region.y(), region.width(), region.height());
+        if (clippedSceneRect(widget, x, y, w, h, clipScratch)) {
+            addDamage(clipScratch[0], clipScratch[1], clipScratch[2], clipScratch[3]);
         }
     }
 
@@ -1242,7 +1256,8 @@ public final class Scene implements WindowInput {
      * scrolled out of a viewport must add nothing, by exactly the rule that stops a scrolled-away
      * widget damaging the viewport it is no longer inside.
      */
-    private Rect clippedSceneRect(Widget widget, float x, float y, float w, float h) {
+    private boolean clippedSceneRect(Widget widget, float x, float y, float w, float h,
+                                     float[] out) {
         float x0 = x;
         float y0 = y;
         float x1 = x + w;
@@ -1250,7 +1265,7 @@ public final class Scene implements WindowInput {
         Widget below = null;
         for (Widget node = widget; node != null; below = node, node = node.parent()) {
             if (!node.isVisible()) {
-                return null; // hidden branch: it paints nothing, so no pixel changed
+                return false; // hidden branch: it paints nothing, so no pixel changed
             }
             if (node != widget && node.clipsChildren()) {
                 // The ancestor's clip for the child we came up through, which is its box unless it
@@ -1262,7 +1277,7 @@ public final class Scene implements WindowInput {
                 x1 = Math.min(x1, cx + node.clipWidth(below) + 1);
                 y1 = Math.min(y1, cy + node.clipHeight(below) + 1);
                 if (x1 <= x0 || y1 <= y0) {
-                    return null; // fully clipped away (scrolled out of view)
+                    return false; // fully clipped away (scrolled out of view)
                 }
             }
             x0 += node.x();
@@ -1270,7 +1285,14 @@ public final class Scene implements WindowInput {
             x1 += node.x();
             y1 += node.y();
         }
-        return x1 <= x0 || y1 <= y0 ? null : new Rect(x0, y0, x1 - x0, y1 - y0);
+        if (x1 <= x0 || y1 <= y0) {
+            return false;
+        }
+        out[0] = x0;
+        out[1] = y0;
+        out[2] = x1 - x0;
+        out[3] = y1 - y0;
+        return true;
     }
 
     /**
@@ -1284,127 +1306,47 @@ public final class Scene implements WindowInput {
      *
      * <p>Inert when there are none, which is almost every scene: one emptiness check per frame.
      *
-     * @param fresh this frame's damage; {@code null} means the whole scene and {@code empty}
-     *              means nothing, and neither has anything to add to
-     * @return the damage, widened
+     * @param fresh this frame's damage, widened in place; whole or empty, it has nothing to add
      */
-    private List<Rect> withBackdropDependants(List<Rect> fresh) {
-        if (backdropDependants.isEmpty() || fresh == null || fresh.isEmpty()) {
-            return fresh;
+    private void withBackdropDependants(DamageRects fresh) {
+        if (backdropDependants.isEmpty() || fresh.isWhole() || fresh.isEmpty()) {
+            return;
         }
-        List<Rect> widened = null;
-        boolean[] taken = new boolean[backdropDependants.size()];
+        int n = backdropDependants.size();
+        if (backdropTaken.length < n) {
+            backdropTaken = new boolean[n];
+        }
+        for (int i = 0; i < n; i++) {
+            backdropTaken[i] = false;
+        }
         for (boolean added = true; added; ) {
             added = false;
-            for (int i = 0; i < backdropDependants.size(); i++) {
-                if (taken[i]) {
+            for (int i = 0; i < n; i++) {
+                if (backdropTaken[i]) {
                     continue;
                 }
                 Widget widget = backdropDependants.get(i);
                 float outset = 1 + widget.paintOutset();
-                Rect rect = clippedSceneRect(widget, -outset, -outset,
-                        widget.width() + 2 * outset, widget.height() + 2 * outset);
-                if (rect == null) {
-                    taken[i] = true; // clipped away or hidden: nothing of it is on screen
+                if (!clippedSceneRect(widget, -outset, -outset,
+                        widget.width() + 2 * outset, widget.height() + 2 * outset,
+                        backdropScratch)) {
+                    backdropTaken[i] = true; // clipped away or hidden: nothing of it is on screen
                     continue;
                 }
-                List<Rect> against = widened == null ? fresh : widened;
-                boolean reached = false;
-                for (int r = 0; r < against.size(); r++) {
-                    if (intersects(against.get(r), rect)) {
-                        reached = true;
-                        break;
-                    }
-                }
-                if (!reached) {
+                if (!fresh.intersectsAny(backdropScratch[0], backdropScratch[1],
+                        backdropScratch[2], backdropScratch[3])) {
                     continue;
                 }
-                if (widened == null) {
-                    widened = new ArrayList<>(fresh);
-                }
-                mergeDamage(widened, rect);
-                taken[i] = true;
+                fresh.add(backdropScratch[0], backdropScratch[1], backdropScratch[2],
+                        backdropScratch[3]);
+                backdropTaken[i] = true;
                 added = true;
             }
         }
-        return widened == null ? fresh : widened;
-    }
-
-    private static boolean intersects(Rect a, Rect b) {
-        return a.x() < b.x() + b.width() && b.x() < a.x() + a.width()
-                && a.y() < b.y() + b.height() && b.y() < a.y() + a.height();
     }
 
     private void addDamage(float x, float y, float w, float h) {
-        if (w <= 0 || h <= 0) {
-            return;
-        }
-        mergeDamage(pendingDamage, new Rect(x, y, w, h));
-    }
-
-    /**
-     * Adds {@code rect} to {@code rects}, merging with any rect whose union
-     * wastes little area (so repeated/overlapping damage collapses, while
-     * disjoint hot spots stay separate: an animation at the top, a footer at
-     * the bottom). Bounded at {@link #MAX_DAMAGE_RECTS} by merging the
-     * cheapest pair.
-     */
-    private static void mergeDamage(List<Rect> rects, Rect rect) {
-        boolean merged = true;
-        while (merged) { // a merge can bring the grown rect near another one
-            merged = false;
-            for (int i = 0; i < rects.size(); i++) {
-                Rect e = rects.get(i);
-                // Measured, not built. Every invalidate() in the frame reaches here and scans up
-                // to MAX_DAMAGE_RECTS entries; constructing the union to ask its area and then
-                // dropping it was a Rect per candidate on the busiest path in the scene.
-                if (unionWaste(e, rect) <= 0.5f * (area(e) + area(rect))) {
-                    rects.remove(i);
-                    rect = e.union(rect); // now it is the answer, so now it is worth an object
-                    merged = true;
-                    break;
-                }
-            }
-        }
-        rects.add(rect);
-        while (rects.size() > MAX_DAMAGE_RECTS) {
-            mergeCheapestPair(rects);
-        }
-    }
-
-    private static void mergeCheapestPair(List<Rect> rects) {
-        int bestA = 0;
-        int bestB = 1;
-        float bestWaste = Float.MAX_VALUE;
-        for (int i = 0; i < rects.size(); i++) {
-            for (int j = i + 1; j < rects.size(); j++) {
-                float waste = unionWaste(rects.get(i), rects.get(j));
-                if (waste < bestWaste) {
-                    bestWaste = waste;
-                    bestA = i;
-                    bestB = j;
-                }
-            }
-        }
-        Rect u = rects.get(bestA).union(rects.get(bestB));
-        rects.remove(bestB); // higher index first
-        rects.remove(bestA);
-        rects.add(u);
-    }
-
-    private static float area(Rect r) {
-        return r.width() * r.height();
-    }
-
-    /**
-     * Extra area the union of {@code a} and {@code b} would cover beyond the two of them
-     * (negative when they overlap): the same number {@code area(a.union(b)) - area(a) - area(b)}
-     * gives, without the union.
-     */
-    private static float unionWaste(Rect a, Rect b) {
-        float width = Math.max(a.right(), b.right()) - Math.min(a.x(), b.x());
-        float height = Math.max(a.bottom(), b.bottom()) - Math.min(a.y(), b.y());
-        return width * height - area(a) - area(b);
+        pendingDamage.add(x, y, w, h); // merging and bounding: see DamageRects
     }
 
     @SuppressWarnings("unchecked")
@@ -2937,33 +2879,39 @@ public final class Scene implements WindowInput {
             updateHover(hitAt(mouseX, mouseY));
         }
         accessibilityStep(rePresent);
-        List<Rect> repaint; // rects to repaint; null = the whole frame, empty = nothing
+        DamageRects repaint = repaintRegion; // whole = the whole frame, empty = nothing
         if (rePresent) {
             // Identical frame into the other buffer: repaint exactly what the
             // last content frame painted, so both double buffers converge.
-            repaint = partialRendering ? lastRepaintRegion : null;
+            if (partialRendering) {
+                repaint.copyFrom(lastRepaintRegion);
+            } else {
+                repaint.setWhole();
+            }
         } else {
-            List<Rect> fresh = consumeFreshDamage(canvas);
+            DamageRects fresh = freshDamage;
+            consumeFreshDamage(canvas, fresh);
             // Widened BEFORE it is stored as this frame's damage, so the next frame's union
             // carries the backdrop rects too: the other buffer needs them for the same reason
             // this one does.
-            fresh = withBackdropDependants(fresh);
+            withBackdropDependants(fresh);
             // Double buffering: the back buffer holds the frame from two
             // presents ago, so the previous frame's damage repaints too.
-            repaint = unionDamage(fresh, frameDamage1);
-            frameDamage1 = fresh;
+            repaint.unionOf(fresh, frameDamage1);
+            frameDamage1.copyFrom(fresh);
             if (damageDebug) {
-                List<Rect> flashNow = updateDamageFlashes(fresh, canvas);
-                repaint = unionDamage(repaint, flashNow);
-                repaint = unionDamage(repaint, flashPrev1);
-                repaint = unionDamage(repaint, flashPrev2);
+                List<Rect> flashNow = updateDamageFlashes(fresh.isWhole() ? null : fresh.toList(),
+                        canvas);
+                repaint.unionWith(flashNow);
+                repaint.unionWith(flashPrev1);
+                repaint.unionWith(flashPrev2);
                 flashPrev2 = flashPrev1;
                 flashPrev1 = flashNow;
             }
-            if (!partialRendering || coversWholeCanvas(repaint, canvas)) {
-                repaint = null;
+            if (!partialRendering || repaint.coversWhole(canvas.width(), canvas.height())) {
+                repaint.setWhole();
             }
-            lastRepaintRegion = repaint;
+            lastRepaintRegion.copyFrom(repaint);
         }
         if (!rePresent) {
             // Animation state advances once per frame; the per-pass paints
@@ -2971,7 +2919,7 @@ public final class Scene implements WindowInput {
             updateModalScrim();
             updateTooltipFade();
         }
-        if (repaint == null) {
+        if (repaint.isWhole()) {
             canvas.damageScissorHint(0, 0, 0, 0); // disabled: the frame is full
             canvas.clear(background);
             paintFramePass(canvas);
@@ -2983,15 +2931,17 @@ public final class Scene implements WindowInput {
             float sx1 = -Float.MAX_VALUE;
             float sy1 = -Float.MAX_VALUE;
             for (int i = 0; i < repaint.size(); i++) {
-                Rect r = repaint.get(i);
-                sx0 = Math.min(sx0, r.x());
-                sy0 = Math.min(sy0, r.y());
-                sx1 = Math.max(sx1, r.right());
-                sy1 = Math.max(sy1, r.bottom());
+                sx0 = Math.min(sx0, repaint.x(i));
+                sy0 = Math.min(sy0, repaint.y(i));
+                sx1 = Math.max(sx1, repaint.right(i));
+                sy1 = Math.max(sy1, repaint.bottom(i));
             }
             canvas.damageScissorHint(sx0, sy0, sx1 - sx0, sy1 - sy0);
             for (int i = 0; i < repaint.size(); i++) {
-                Rect pass = repaint.get(i);
+                float px = repaint.x(i);
+                float py = repaint.y(i);
+                float pw = repaint.width(i);
+                float ph = repaint.height(i);
                 // The restore is in a finally for the same reason endPaintCull's is: a frame crash
                 // is CONTAINED rather than fatal, so the loop carries on with a canvas that would
                 // otherwise still be holding this pass's clip. The next pass would then paint
@@ -2999,12 +2949,12 @@ public final class Scene implements WindowInput {
                 // reported against nobody, because whatever threw is long out of the stack.
                 canvas.save();
                 try {
-                    canvas.clipRect(pass);
+                    canvas.clipRect(px, py, pw, ph);
                     // clear() ignores the clip; clearRect REPLACES exactly this
                     // pass (works on translucent popup framebuffers too, where a
                     // blended fill could never write alpha back to 0).
-                    canvas.clearRect(pass.x(), pass.y(), pass.width(), pass.height(), background);
-                    beginPaintCull(pass);
+                    canvas.clearRect(px, py, pw, ph, background);
+                    beginPaintCull(px, py, pw, ph);
                     try {
                         paintFramePass(canvas);
                     } finally {
@@ -3035,83 +2985,51 @@ public final class Scene implements WindowInput {
             // conservatively requests one for every drained UI task); they do
             // no work, and counting them would make the FPS gauge report
             // near-free wakeups as if they were real paints.
-            if (repaint == null || !repaint.isEmpty()) {
+            if (!repaint.isEmpty()) { // whole, or some passes: the frame painted
                 metrics.recordFrameTime((float) ((clock.getAsLong() - frameStart) / 1_000_000.0));
                 // A full frame is one region, which is what makes the two readings
                 // comparable across the partial-rendering switch rather than showing
                 // a dash on one side of it.
-                metrics.recordPaintedFrame(repaint == null ? 1 : repaint.size());
+                metrics.recordPaintedFrame(repaint.isWhole() ? 1 : repaint.size());
             }
         }
     }
 
     /**
-     * Resolves and resets the damage accumulated since the last content frame:
-     * {@code null} = the whole scene, empty = nothing. Rects are clamped and
+     * Resolves and resets the damage accumulated since the last content frame into
+     * {@code out}: whole = the whole scene, empty = nothing. Rects are clamped and
      * snapped outward to whole logical pixels.
      */
-    private List<Rect> consumeFreshDamage(Canvas canvas) {
+    private void consumeFreshDamage(Canvas canvas, DamageRects out) {
         float scrimTarget = window != null && window.isModalBlocked() ? SCRIM_MAX_ALPHA : 0f;
         boolean full = fullDamagePending
                 || scrimAlpha != scrimTarget; // scrim mid-fade retints the whole window
         fullDamagePending = false;
         if (full) {
             pendingDamage.clear();
-            return null;
+            out.setWhole();
+            return;
         }
+        out.clear();
         if (pendingDamage.isEmpty()) {
-            return List.of();
+            return;
         }
         // Snap outward to the DEVICE pixel grid: pass clips then have hard,
         // whole-pixel edges (no fractional AA coverage at the seam), which is
         // what lets clearRect replace exactly the pixels the pass repaints.
         // Required on translucent backgrounds, exact everywhere else.
         float s = canvas.contentScale();
-        List<Rect> fresh = new ArrayList<>(pendingDamage.size());
         for (int i = 0; i < pendingDamage.size(); i++) {
-            Rect r = pendingDamage.get(i);
-            float x = Math.max(0, (float) Math.floor(r.x() * s) / s);
-            float y = Math.max(0, (float) Math.floor(r.y() * s) / s);
-            float right = Math.min(canvas.width(), (float) Math.ceil(r.right() * s) / s);
-            float bottom = Math.min(canvas.height(), (float) Math.ceil(r.bottom() * s) / s);
+            float x = Math.max(0, (float) Math.floor(pendingDamage.x(i) * s) / s);
+            float y = Math.max(0, (float) Math.floor(pendingDamage.y(i) * s) / s);
+            float right = Math.min(canvas.width(), (float) Math.ceil(pendingDamage.right(i) * s) / s);
+            float bottom = Math.min(canvas.height(),
+                    (float) Math.ceil(pendingDamage.bottom(i) * s) / s);
             if (right > x && bottom > y) {
-                fresh.add(new Rect(x, y, right - x, bottom - y));
+                out.append(x, y, right - x, bottom - y);
             }
         }
         pendingDamage.clear();
-        return fresh;
-    }
-
-    /** List union where {@code null} means the whole scene; merges near/overlapping rects. */
-    private static List<Rect> unionDamage(List<Rect> a, List<Rect> b) {
-        if (a == null || b == null) {
-            return null;
-        }
-        if (b.isEmpty()) {
-            return a;
-        }
-        if (a.isEmpty()) {
-            return b;
-        }
-        List<Rect> result = new ArrayList<>(a);
-        for (int i = 0; i < b.size(); i++) {
-            mergeDamage(result, b.get(i));
-        }
-        return result;
-    }
-
-    private static boolean coversWholeCanvas(List<Rect> repaint, Canvas canvas) {
-        if (repaint == null) {
-            return false; // already "whole frame"
-        }
-        for (int i = 0; i < repaint.size(); i++) {
-            Rect r = repaint.get(i);
-            if (r.x() <= 0 && r.y() <= 0
-                    && r.right() >= canvas.width() && r.bottom() >= canvas.height()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -3158,12 +3076,12 @@ public final class Scene implements WindowInput {
     private float cullX1;
     private float cullY1;
 
-    private void beginPaintCull(Rect pass) {
+    private void beginPaintCull(float x, float y, float width, float height) {
         cullActive = true;
-        cullX0 = pass.x();
-        cullY0 = pass.y();
-        cullX1 = pass.right();
-        cullY1 = pass.bottom();
+        cullX0 = x;
+        cullY0 = y;
+        cullX1 = x + width;  // the float operation Rect.right() performed
+        cullY1 = y + height;
     }
 
     private void endPaintCull() {

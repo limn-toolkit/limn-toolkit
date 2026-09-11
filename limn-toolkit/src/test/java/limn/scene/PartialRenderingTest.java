@@ -329,12 +329,15 @@ class PartialRenderingTest extends SceneTestBase {
 
     @Test
     void popupScenesInheritTheOwnerSceneFlags() {
-        scene.setPartialRendering(true);
+        // The owner set against the default on both flags, so that inheriting is visible: a
+        // popup that merely kept its own defaults would pass a test written the other way round.
+        scene.setPartialRendering(false);
         scene.setDamageDebug(true);
         Scene popup = new Scene(new PaintCountingBox(50, 50));
-        assertFalse(popup.isPartialRendering());
+        assertTrue(popup.isPartialRendering(), "a scene starts with partial rendering on (ADR 043)");
+        assertFalse(popup.isDamageDebug());
         popup.inheritRenderingFlags(scene);
-        assertTrue(popup.isPartialRendering());
+        assertFalse(popup.isPartialRendering(), "the owner's choice travels to its popup");
         assertTrue(popup.isDamageDebug());
     }
 

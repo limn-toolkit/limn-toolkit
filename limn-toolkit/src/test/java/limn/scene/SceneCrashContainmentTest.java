@@ -114,6 +114,11 @@ class SceneCrashContainmentTest extends SceneTestBase {
         CrashingBox box = new CrashingBox();
         RecordingWindow window = new RecordingWindow();
         Scene scene = boundScene(box, window);
+        // Whole frames, so that every frame reaches the crashing box and the count below is the
+        // containment's. Under partial rendering a frame past the limit has no damage, never
+        // paints the box and so never crashes again -- which is the better outcome, and would
+        // make this count measure the damage rather than the containment.
+        scene.setPartialRendering(false);
         int baseline = window.frameRequests;
 
         for (int i = 0; i < RECOVERY_LIMIT + 5; i++) {
