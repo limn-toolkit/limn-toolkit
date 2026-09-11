@@ -274,12 +274,24 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
    runs **every** scene with the mode on, set where it binds its scene, so every manual pass and
    every `--screenshot` run exercises it; the same scene captured both ways is byte-identical.
 
-   The **gallery capture harness deliberately does not**, and that is a finding rather than an
-   omission. `Scene.setFrontPainter` documents that what a front painter draws outside the damaged
-   region is clipped away, and that "the capture harness renders whole frames and so does not have
-   to" mark damage itself — the harness draws its pointer layer through exactly that seam. A
-   capture harness is a fifth member of §5's list: it paints over the whole window on somebody
-   else's schedule.
+   The **gallery capture harness deliberately does not**, and that is a choice, not a constraint.
+   It is not a member of §5's list: those are the paths where a partial frame *cannot* be right,
+   and §9.3's measurement below shows that here it is right to one level in 255.
+
+   **An earlier draft of this section gave the pointer as the reason, and it is not one.** The
+   harness draws the filmed mouse pointer through `Scene.setFrontPainter`, whose contract says
+   that what a front painter draws outside the damaged region is clipped away, and the draft read
+   that as "turn the mode on and the published arrow gets cut". But the same contract says what a
+   caller that moves what it draws has to do about it — mark the scene damaged itself, which
+   `requestRender()` does — and `PointerLayer.setPointer` already ends in exactly that call, with a
+   comment saying why. Every move of the arrow is a whole frame in either mode. The A/B agrees: the
+   theme-editor film drags the pointer across the whole window, and none of the fifteen frames
+   that differ below is the pointer.
+
+   **What is left is the decision, and it is a short one.** A capture harness gains nothing from the
+   cheaper mode — nobody is waiting on its frames or its battery — and whole frames are the most
+   conservative thing a pipeline of reference images can do. Choosing them costs nothing; the
+   alternative is now priced, which is what makes it a choice.
 
    **What the mode would cost there is now measured, and the measurement took a harness fix
    first.** The A/B could not be run at all, because two consecutive runs of the capture command
@@ -310,7 +322,7 @@ per pass — against, in a form, ninety-eight per cent of the pixels not drawn.
 
    So the honest statement, which is no longer a shrug: **across one pass over the whole widget
    set, partial rendering changes one antialiased edge by one level for the length of one fade.**
-   The harness still stays full-frame, for §5's reason and not for that one.
+   The harness stays full-frame by choice, with that price known.
 
    ### 9.3.1 The harness fix, because the next person will hit the same wall
 

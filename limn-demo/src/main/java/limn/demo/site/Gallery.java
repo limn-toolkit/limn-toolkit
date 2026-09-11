@@ -904,13 +904,15 @@ public final class Gallery {
             limn.graphics.Fonts.setDefaultFamily(null);
             built = shot.entry().builder().get();
             scene = built.scene();
-            // NOT setPartialRendering(true), and the reason is written down rather than
-            // assumed: a capture harness paints over the whole window on somebody else's
-            // schedule (ADR 043 §5, §9.3), and this one draws its pointer through
-            // Scene.setFrontPainter, whose contract clips what a front painter draws outside
-            // the damaged region. What the mode WOULD cost here is measured rather than
-            // guessed: turning it on changes 15 of 4633 published images -- fifteen
-            // consecutive frames of one film, one 10x100 device-pixel box, one level in 255.
+            // NOT setPartialRendering(true), and that is a choice rather than a constraint. A
+            // capture harness gains nothing from the cheaper mode -- nobody is waiting on its
+            // frames -- and whole frames are the most conservative thing a pipeline of reference
+            // images can do. It is NOT the pointer: PointerLayer draws through
+            // Scene.setFrontPainter, whose contract clips outside the damage, but setPointer ends
+            // in requestRender(), so every move of the arrow is already a whole frame. What the
+            // mode would cost here is measured (ADR 043 §9.3): 15 of 4633 published images,
+            // fifteen consecutive frames of one film, one 10x100 device-pixel box, one level in
+            // 255 -- and none of them the pointer.
             scene.bind(window);
             // AFTER bind, never before: bind installs a frame callback of its own, and a
             // callback set only at start-up is silently replaced by the first bind.
