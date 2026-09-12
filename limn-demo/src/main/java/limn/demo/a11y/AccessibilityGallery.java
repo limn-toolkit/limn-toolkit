@@ -202,6 +202,12 @@ public final class AccessibilityGallery {
                 new Entry("Table with a header and rows", List.of(Table.class),
                         List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL),
                         AccessibilityGallery::table),
+                // LIST and LIST_ITEM, not TREE: the roles this widget owes wait on an AT-SPI
+                // number that has to be read off a guest (ADR 044 §4), and this entry is what
+                // the live run will be pointed at the day it is.
+                new Entry("Tree, one branch open", List.of(limn.components.tree.Tree.class),
+                        List.of(Role.LIST, Role.LIST_ITEM),
+                        AccessibilityGallery::tree),
                 new Entry("Calendar grid", List.of(CalendarView.class),
                         List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL, Role.BUTTON),
                         AccessibilityGallery::calendar),
@@ -450,6 +456,43 @@ public final class AccessibilityGallery {
                 "Rockies", "Urals", "Zagros"));
         list.setSelectedIndex(2);
         page.add(Labelled.above("Mountain ranges", list, new SizedBox(SizedBox.UNSET, 160, list)));
+        return new Built(page);
+    }
+
+    /**
+     * A tree with one branch open, a closed branch beside it and a leaf: the three states a row
+     * can be in, which is what a reader has to be able to tell apart.
+     */
+    private static Built tree() {
+        Column page = page();
+        record Node(String name, List<Node> kids) {
+        }
+        List<Node> roots = List.of(
+                new Node("Europe", List.of(new Node("Alps", List.of()),
+                        new Node("Pyrenees", List.of()))),
+                new Node("Asia", List.of(new Node("Himalayas", List.of()))),
+                new Node("Africa", List.of()));
+        limn.components.tree.Tree<Node> tree = new limn.components.tree.Tree<>(
+                new limn.components.tree.Tree.Model<Node>() {
+                    @Override
+                    public List<Node> roots() {
+                        return roots;
+                    }
+
+                    @Override
+                    public List<Node> children(Node node) {
+                        return node.kids();
+                    }
+
+                    @Override
+                    public limn.scene.Widget cellFor(Node node) {
+                        return new limn.components.Label(node.name());
+                    }
+                });
+        tree.expand(roots.get(0));
+        tree.setSelected(roots.get(0).kids().get(0));
+        page.add(Labelled.above("Mountains by region", tree,
+                new SizedBox(SizedBox.UNSET, 180, tree)));
         return new Built(page);
     }
 

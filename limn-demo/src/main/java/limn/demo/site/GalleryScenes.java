@@ -153,6 +153,7 @@ final class GalleryScenes {
                 new GalleryEntry("list-view", "ListView", "gallery:list-view",
                         GalleryScenes::listView),
                 new GalleryEntry("table", "Table", "gallery:table", GalleryScenes::table),
+                new GalleryEntry("tree", "Tree", "gallery:tree", GalleryScenes::tree),
                 new GalleryEntry("scroll-view", "ScrollView and ScrollBar",
                         "gallery:scroll-view", GalleryScenes::scrollView),
                 new GalleryEntry("dialog", "Dialog", "gallery:dialog", GalleryScenes::dialog),
@@ -542,6 +543,43 @@ final class GalleryScenes {
             }
         });
         return scene(new SizedBox(320, 130, list));
+    }
+    // #endregion
+
+    // #region gallery:tree
+    static Built tree() {
+        record Node(String name, java.util.List<Node> kids) {
+        }
+        // The model answers three questions about the application's own objects: where the tree
+        // starts, what is under a node, and what widget draws one. Nothing here is a node type
+        // the toolkit owns.
+        java.util.List<Node> roots = List.of(
+                new Node("Documents", List.of(
+                        new Node("Reports", List.of(new Node("2026.pdf", List.of()))),
+                        new Node("notes.md", List.of()))),
+                new Node("Media", List.of(new Node("clip.mp4", List.of()))),
+                new Node("archive.zip", List.of()));
+        limn.components.tree.Tree<Node> tree = new limn.components.tree.Tree<>(
+                new limn.components.tree.Tree.Model<Node>() {
+                    @Override
+                    public java.util.List<Node> roots() {
+                        return roots;
+                    }
+
+                    @Override
+                    public java.util.List<Node> children(Node node) {
+                        return node.kids();
+                    }
+
+                    @Override
+                    public Widget cellFor(Node node) {
+                        return new Padding(limn.scene.Insets.symmetric(6, 4),
+                                new Label(node.name()));
+                    }
+                });
+        tree.expand(roots.get(0));
+        tree.setSelected(roots.get(0).kids().get(1));
+        return scene(new SizedBox(300, 190, tree));
     }
     // #endregion
 

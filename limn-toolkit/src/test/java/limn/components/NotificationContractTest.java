@@ -361,7 +361,55 @@ class NotificationContractTest extends ComponentTestBase {
                             (scene, w) -> {
                                 scene.requestFocus(w);
                                 key(scene, Keys.DOWN);
+                            })),
+            new Row("limn.components.tree.Tree",
+                    NotificationContractTest::treeFixture,
+                    w -> selectSecondRow(w), Change.Aspect.SELECTION,
+                    new Gesture(Change.Aspect.SELECTION,
+                            (w, ran) -> asTree(w).onSelect(node -> ran.run()),
+                            (scene, w) -> {
+                                scene.requestFocus(w);
+                                key(scene, Keys.DOWN);
                             })));
+
+    /** The fixture's node type, shared by the builder and the write below. */
+    private record TreeNode(String name, List<TreeNode> kids) {
+    }
+
+    private static final List<TreeNode> TREE_ROOTS = List.of(
+            new TreeNode("one", List.of(new TreeNode("one.a", List.of()))),
+            new TreeNode("two", List.of()),
+            new TreeNode("three", List.of()));
+
+    @SuppressWarnings("unchecked")
+    private static limn.components.tree.Tree<TreeNode> asTree(Widget w) {
+        return (limn.components.tree.Tree<TreeNode>) w;
+    }
+
+    /** A caller's write: the second root, which is not what any gesture below selects. */
+    private static void selectSecondRow(Widget w) {
+        asTree(w).setSelected(TREE_ROOTS.get(1));
+    }
+
+    private static Widget treeFixture() {
+        return new limn.components.tree.Tree<TreeNode>(
+                new limn.components.tree.Tree.Model<TreeNode>() {
+                    @Override
+                    public List<TreeNode> roots() {
+                        return TREE_ROOTS;
+                    }
+
+                    @Override
+                    public List<TreeNode> children(TreeNode node) {
+                        return node.kids();
+                    }
+
+                    @Override
+                    public Widget cellFor(TreeNode node) {
+                        return new Label(node.name());
+                    }
+                });
+    }
 
     // -------------------------------------------------------------------------- helpers
 

@@ -95,6 +95,25 @@ the same way, so what you learn on one holds for the rest:
 Arrow keys are not bound by the first rule: arrowing past either end lands on the end,
 because that is what the key means.
 
+## Trees
+
+When the rows are a hierarchy, a `Tree` is an outline over children you provide: an indent, a
+disclosure triangle where a row can open, and your own cell widget beside it. The order is a
+traversal of what is expanded rather than a list, and only the rows the viewport reaches are
+realized, so a tree over a deep directory costs what a list over its visible rows does.
+
+{% snippet guide:tree %}
+
+The model answers three questions about your own objects: where the tree starts, what is under a
+node, and what draws one. **A node whose children are not known yet answers `null`** — that keeps
+its triangle, because a folder nobody has read is not a file — and `load` hands back a
+`Work` the tree runs when the row opens, cancelling it if the row closes first. What arrives is
+kept, so opening the same row twice fetches once.
+
+Right opens a closed row and steps into an open one; Left closes an open row and steps out to its
+parent. Selection is by node, so it survives an expansion that renumbers every row below it, and
+a row hidden by a collapse is still selected when its parent opens again.
+
 ## Tables
 
 When every row has the same shape, a `Table` is a `ListView` with columns: a header that

@@ -341,7 +341,45 @@ class DamageContractTest extends ComponentTestBase {
                 table.setRows(List.of("a", "b", "c", "d", "e", "f", "g", "h"));
                 return table;
             }, 360, 240, List.of(focus().ceiling(0.2f), key("DOWN", Keys.DOWN).ceiling(0.2f),
-                    click().ceiling(0.5f)), null));
+                    click().ceiling(0.5f)), null),
+            // Right is the gesture only a tree has, and it is the expensive one by construction:
+            // opening the first row moves every row under it, so the band runs from that row to
+            // the foot of the viewport. Measured at 101% of the box — the whole of it plus the
+            // antialiasing margin the damage carries — and the ceiling says so rather than
+            // pretending a tree can open a row for less (ADR 044 §7).
+            new Row("limn.components.tree.Tree", DamageContractTest::treeFixture, 360, 240,
+                    List.of(focus().ceiling(0.2f), key("DOWN", Keys.DOWN).ceiling(0.3f),
+                            key("RIGHT", Keys.RIGHT).ceiling(1.05f), click().ceiling(0.5f)), null));
+
+    /** A two-level forest: enough rows to scroll, and a first row that can open. */
+    private static Widget treeFixture() {
+        record Node(String name, List<Node> kids) {
+        }
+        // Enough rows to fill the 240-point box, so the click at its centre lands on one: a
+        // gesture that reaches nothing repaints nothing, and a ceiling over it asserts nothing.
+        List<Node> roots = new ArrayList<>();
+        roots.add(new Node("one", List.of(new Node("one.a", List.of()),
+                new Node("one.b", List.of()))));
+        for (int i = 2; i <= 20; i++) {
+            roots.add(new Node("row " + i, List.of()));
+        }
+        return new limn.components.tree.Tree<Node>(new limn.components.tree.Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return roots;
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.kids();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name());
+            }
+        });
+    }
 
     // ------------------------------------------------------------------------------ harness
 
