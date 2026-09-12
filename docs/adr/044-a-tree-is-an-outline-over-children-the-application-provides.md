@@ -36,6 +36,24 @@ traversal, and its row count changes when a row opens.
 triangle where a row can open, and whatever the application's cell draws. No column headers, no
 column model, no horizontal virtualization.
 
+**Amendment, 2026-09-12: the outline scrolls sideways, which is not the same thing as horizontal
+virtualization.** The sentence above rules out realizing part of a row's width; it was read once
+as ruling out a horizontal offset too, and that reading cost a real defect. Depth charges an
+indent per level and never gives it back, so past some depth the cell carrying the name begins
+beyond the far edge of the box. The shipped answer clamped the indent, which makes a deep tree
+lie about its own shape — level twelve drawn where level eight sits, flattening exactly the
+structure someone navigating deeply is reading. The content is now as wide as the deepest row
+needs (`max(viewport, depth × indent + band + menuMinWidth)`) and the box scrolls over it, with
+the horizontal bar, the wheel convention and the mirrored offset all the table's. Every mounted
+row is still laid out at its full width: nothing about a row's width is virtualized.
+
+The consequence is worth stating because it cannot be had both ways: **widening the content moves
+where a cell ellipsizes**, from the edge of the box to the edge of the content. A tree deep
+enough to scroll sideways is a tree whose long names run on until the content ends. Where nothing
+is deep the maximum is the viewport, the content is exactly the box, and the cell widths and the
+ellipsis are unchanged — which is what keeps the shallow case identical to what this record
+originally specified.
+
 The reason is that the two hard parts of a tree — an order that is a traversal and a row that can
 open — are separable from the two hard parts of a table, which are columns and a focus cell, and
 a first record that took all four would decide the cheap half badly. A `TreeTable` is §9.
@@ -150,6 +168,9 @@ expand/collapse gesture named in its row ([ADR 043](043-a-frame-repaints-what-ch
   owned a tri-state parent rule would own a data model it does not have.
 - **No filtering or search.** A filtered tree is a different traversal, and it should be one the
   application computes.
+- **No horizontal virtualization**, which survives the 2026-09-12 amendment to §1: the outline
+  scrolls sideways, but every mounted row is laid out at the content's full width. A row whose
+  own width is realized in parts waits for a caller that needs it.
 
 ## 9. Phases
 

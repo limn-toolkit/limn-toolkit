@@ -3,6 +3,8 @@ package limn.components;
 import limn.components.tree.Tree;
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
+import limn.graphics.Paint;
+import limn.graphics.Path2D;
 import limn.input.Keys;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -406,6 +408,194 @@ class TreeTest extends ComponentTestBase {
         small.scrolled(0, -3, shortTree.localToSceneX() + 10, shortTree.localToSceneY() + 10);
         small.inputBatchEnded();
         assertEquals(1, shortTree.visibleRowCount(), "nothing moved, and nothing was consumed");
+    }
+
+    /** A chain of {@code levels} nodes, one child each: the shape that runs out of width. */
+    private static Node chain(int levels) {
+        Node node = Node.leaf("level-" + levels);
+        for (int i = levels - 1; i >= 1; i--) {
+            node = Node.of("level-" + i, node);
+        }
+        return node;
+    }
+
+    /** The chain, open to the bottom, in a scene 220 wide; the cells are collected by name. */
+    private Tree<Node> openedChain(int levels, Map<String, Widget> cells) {
+        Node top = chain(levels);
+        Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(top);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                Label cell = new Label(node.name());
+                cells.put(node.name(), cell);
+                return cell;
+            }
+        });
+        scene = new Scene(tree);
+        scene.setTextRuler(RULER);
+        for (Node node = top; node != null;
+                node = node.children().isEmpty() ? null : node.children().get(0)) {
+            tree.expand(node);
+        }
+        scene.layoutPass(220, 200);
+        canvas = new RecordingTestCanvas(220, 200);
+        scene.renderFrame(canvas);
+        return tree;
+    }
+
+    /**
+     * Depth is the thing a list never has to scroll for: every level charges an indent and
+     * nothing gives it back, so the outline outgrows its box sideways while still fitting in it
+     * vertically.
+     */
+    @Test
+    void aDeepBranchOutgrowsTheBoxSidewaysAndTheWheelWalksIt() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells);
+
+        Widget deepest = cells.get("level-14");
+        float before = deepest.x();
+        wheelSideways(tree, -1);
+        scene.layoutPass(220, 200);
+        assertTrue(deepest.x() < before,
+                "a sideways notch has to walk the outline: the deepest cell sat at " + before
+                        + " and is at " + deepest.x());
+
+        // And it stops at the end rather than scrolling into nothing.
+        for (int i = 0; i < 40; i++) {
+            wheelSideways(tree, -1);
+        }
+        scene.layoutPass(220, 200);
+        float atEnd = deepest.x();
+        wheelSideways(tree, -1);
+        scene.layoutPass(220, 200);
+        assertEquals(atEnd, deepest.x(), 0.01f, "the offset is clamped to the content's end");
+    }
+
+    /**
+     * The shallow case is the one every existing capture and every existing cell width depends
+     * on: with nothing deep the content is exactly the box, so there is nothing to scroll and a
+     * cell is measured at the width it always was — which is what keeps its ellipsis on the box's
+     * edge (ADR 044 §1, amended).
+     */
+    @Test
+    void aShallowTreeIsExactlyItsBoxSoNothingMovesSideways() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(2, cells);
+
+        Widget cell = cells.get("level-1");
+        float before = cell.x();
+        float width = cell.width();
+        wheelSideways(tree, -3);
+        scene.layoutPass(220, 200);
+        assertEquals(before, cell.x(), 0.01f, "a shallow tree has nowhere to go sideways");
+        assertEquals(width, cell.width(), 0.01f, "and its cells keep the width they had");
+    }
+
+    /**
+     * A triangle painted where the hit test does not look is a control that cannot be pressed,
+     * and a sideways offset is exactly the kind of change that separates the two. The band sits
+     * immediately before the cell, so the press is aimed from the cell's own position rather than
+     * by re-deriving the indent here.
+     */
+    /** Where each stroked path was painted, which for these fixtures is only the triangles. */
+    private static final class TwistyCanvas extends ComponentTestBase.FakeCanvas {
+
+        /** The leading point of one painted path, in the tree's own coordinates. */
+        record Painted(float x, float y) {
+        }
+
+        final List<Painted> twisties = new ArrayList<>();
+
+        TwistyCanvas(float width, float height) {
+            super(width, height);
+        }
+
+        @Override
+        public void drawPath(Path2D path, float strokeWidth, Paint paint) {
+            float[] leading = {Float.MAX_VALUE, 0};
+            path.flatten(0.05f, new Path2D.Flattened() {
+                @Override
+                public void moveTo(float x, float y) {
+                    at(x, y);
+                }
+
+                @Override
+                public void lineTo(float x, float y) {
+                    at(x, y);
+                }
+
+                @Override
+                public void closePath() {
+                }
+
+                private void at(float x, float y) {
+                    if (x < leading[0]) {
+                        leading[0] = x;
+                        leading[1] = y;
+                    }
+                }
+            });
+            twisties.add(new Painted(leading[0], leading[1]));
+        }
+    }
+
+    /**
+     * A triangle painted where the press is not looked for is a control nobody can open, and a
+     * sideways offset applied to one and not the other is exactly how that happens — it did
+     * happen here, and a still caught it after a test aimed from the cell's own position had
+     * passed. So this one aims the press at the <b>painted</b> triangle.
+     */
+    @Test
+    void theTriangleIsPaintedWhereThePressIsLookedForAfterAScrollSideways() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells);
+
+        Widget cell = cells.get("level-5");
+        wheelSideways(tree, -1);
+        scene.layoutPass(220, 200);
+
+        TwistyCanvas painted = new TwistyCanvas(220, 200);
+        scene.requestRender(); // a settled frame damages nothing, and would record nothing
+        scene.renderFrame(painted);
+
+        float rowMid = cell.y() + cell.height() / 2;
+        float triangleX = Float.NaN;
+        for (TwistyCanvas.Painted mark : painted.twisties) {
+            if (Math.abs(mark.y() - rowMid) <= cell.height() / 2) {
+                triangleX = mark.x();
+                break;
+            }
+        }
+        assertTrue(!Float.isNaN(triangleX), "the row's triangle has to be painted at all");
+
+        float x = tree.localToSceneX() + triangleX + 2;
+        float y = tree.localToSceneY() + rowMid;
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+
+        assertTrue(tree.visibleRowCount() < 14,
+                "pressing the triangle where it is drawn has to close the row: "
+                        + tree.visibleRowCount() + " rows are still visible");
+    }
+
+    private void wheelSideways(Tree<Node> tree, float notches) {
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        scene.mouseMoved(x, y);
+        scene.scrolled(notches, 0, x, y);
+        scene.inputBatchEnded();
     }
 
     private void wheel(Tree<Node> tree, float notches) {

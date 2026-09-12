@@ -172,6 +172,7 @@ public class Tree<T> extends Widget implements Scrollable {
 
     private final Model<T> model;
     private final ScrollBar vBar;
+    private final ScrollBar hBar;
     private final ScrollGutters gutters = new ScrollGutters();
     private final Path2D twisty = new Path2D();
 
@@ -215,6 +216,18 @@ public class Tree<T> extends Widget implements Scrollable {
     private float anchorTop;
     /** Mean measured row height, or 0 until a pass has measured one; the step's seed stands in. */
     private float measuredRowHeight;
+    /**
+     * How far the outline is scrolled sideways, in points from its leading edge.
+     *
+     * <p>Depth is what makes this necessary and a list never needs it: every level charges an
+     * indent and nothing gives it back, so past some depth the cell carrying the name would begin
+     * beyond the far edge of the box.
+     */
+    private float offsetX;
+    /** The deepest row in the traversal, recomputed with {@link #rows} and read at every layout. */
+    private int maxDepth;
+    /** The content width the last pass settled on, which is what the horizontal bar reports. */
+    private float contentWidth;
 
     private SelectionMode selectionMode = SelectionMode.SINGLE;
     private final Set<T> selected = new LinkedHashSet<>();
@@ -254,6 +267,28 @@ public class Tree<T> extends Widget implements Scrollable {
             }
         });
         add(vBar);
+        hBar = new ScrollBar(ScrollBar.Orientation.HORIZONTAL, new ScrollBar.Model() {
+            @Override
+            public float contentLength() {
+                return contentWidth;
+            }
+
+            @Override
+            public float viewportLength() {
+                return gutters.viewportWidth(width());
+            }
+
+            @Override
+            public float offset() {
+                return offsetX;
+            }
+
+            @Override
+            public void setOffset(float value) {
+                scrollHorizontallyBy(value - offsetX);
+            }
+        });
+        add(hBar);
         rebuildRows();
     }
 
@@ -380,6 +415,13 @@ public class Tree<T> extends Widget implements Scrollable {
         for (T root : model.roots()) {
             appendRow(root, 0);
         }
+        // Here rather than in the layout: the deepest row is what decides how wide the content
+        // is, and the only thing that moves it is what is open, which is decided here.
+        int deepest = 0;
+        for (Row<T> row : rows) {
+            deepest = Math.max(deepest, row.depth);
+        }
+        maxDepth = deepest;
     }
 
     private void appendRow(T node, int depth) {
@@ -407,6 +449,22 @@ public class Tree<T> extends Widget implements Scrollable {
     /** @return how many rows are visible, which is a traversal of what is open */
     public int visibleRowCount() {
         return rows.size();
+    }
+
+    /**
+     * Sets when the scroll bars are shown (default {@link ScrollBar.Policy#AUTO}), the table's
+     * setter under the table's name.
+     *
+     * @param policy the policy
+     * @return this tree
+     */
+    public Tree<T> setScrollbarPolicy(ScrollBar.Policy policy) {
+        Ui.checkUiThread();
+        vBar.setPolicy(policy);
+        hBar.setPolicy(policy);
+        markNeedsLayout();
+        invalidate();
+        return this;
     }
 
     // ------------------------------------------------------------------------ selection
@@ -633,6 +691,26 @@ public class Tree<T> extends Widget implements Scrollable {
         return Math.max(0, anchorIndex * avgRowHeight(t) - anchorTop);
     }
 
+    /**
+     * How wide the outline is, which is the viewport itself until the indent outgrows it.
+     *
+     * <p>The deepest row decides it. The alternative, and what this widget shipped with, is to
+     * clamp the indent so a row can never start past the edge — which makes a deep tree lie about
+     * its own shape, drawing level twelve where level eight sits and flattening exactly the
+     * structure someone navigating deeply is reading. The content grows instead, and the box
+     * scrolls over it.
+     *
+     * <p>The deepest row keeps {@code menuMinWidth} of cell: the toolkit's existing floor for the
+     * narrowest strip a row of text may be read in, and capped by the viewport so a narrow tree
+     * never asks for more content than one screenful. Where nothing is deep the maximum is the
+     * viewport and this returns exactly that — so a shallow tree has no horizontal bar, no offset,
+     * and the cell widths (and the ellipsis) it has always had.
+     */
+    private float estimatedContentWidth(SizeTokens t, float viewW) {
+        float deepest = maxDepth * indent(t) + twistyBand(t) + Math.min(viewW, t.menuMinWidth());
+        return Math.max(viewW, deepest);
+    }
+
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = tokens();
@@ -650,11 +728,20 @@ public class Tree<T> extends Widget implements Scrollable {
             return;
         }
         boolean rtl = isRightToLeft();
-        gutters.resolve(box, h, vBar, null,
-                (viewW, viewH) -> new Size(viewW, estimatedContentHeight(tokens())));
+        SizeTokens t = tokens();
+        gutters.resolve(box, h, vBar, hBar, (viewW, viewH) ->
+                new Size(estimatedContentWidth(tokens(), viewW), estimatedContentHeight(tokens())));
         float w = gutters.viewportWidth(box);
-        vBar.measure(Constraints.tight(ScrollBar.thickness(), h));
-        vBar.layoutBox(rtl ? 0 : box - ScrollBar.thickness(), 0, ScrollBar.thickness(), h);
+        float viewH = gutters.viewportHeight(h);
+        // Settled before anything is placed, because every row's width and every row's x are
+        // measured against it, and the offset has to be clamped to whatever it just became.
+        contentWidth = estimatedContentWidth(t, w);
+        offsetX = Math.max(0, Math.min(offsetX, Math.max(0, contentWidth - w)));
+        float barT = ScrollBar.thickness();
+        vBar.measure(Constraints.tight(barT, viewH));
+        vBar.layoutBox(rtl ? 0 : box - barT, 0, barT, viewH);
+        hBar.measure(Constraints.tight(w, barT));
+        hBar.layoutBox(rtl ? box - w : 0, h - barT, w, barT);
         float rowX = rtl ? box - w : 0;
 
         int count = rows.size();
@@ -662,23 +749,28 @@ public class Tree<T> extends Widget implements Scrollable {
             recycleExcept(0, 0, 0);
             anchorIndex = 0;
             anchorTop = 0;
+            vBar.refresh();
+            hBar.refresh();
             return;
         }
         anchorIndex = Math.min(anchorIndex, count - 1);
 
-        normalizeUp(w);
-        normalizeDown(count, w);
-        float bottom = placeDown(count, rowX, w, h);
-        if (bottom < h && !(anchorIndex == 0 && anchorTop >= 0)) {
-            anchorTop += h - bottom;
-            normalizeUp(w);
-            normalizeDown(count, w);
-            bottom = placeDown(count, rowX, w, h);
+        // The content width and not the viewport: a row is measured at the width it will be laid
+        // out at, which past the clamp is wider than the box.
+        normalizeUp(contentWidth);
+        normalizeDown(count, contentWidth);
+        float bottom = placeDown(count, rowX, w, viewH);
+        if (bottom < viewH && !(anchorIndex == 0 && anchorTop >= 0)) {
+            anchorTop += viewH - bottom;
+            normalizeUp(contentWidth);
+            normalizeDown(count, contentWidth);
+            bottom = placeDown(count, rowX, w, viewH);
         }
         recycleExcept(placedFrom, placedTo, count);
         placeKeptOutside(rowX, w, bottom);
         updateAverageHeight();
         vBar.refresh();
+        hBar.refresh();
     }
 
     private void normalizeUp(float w) {
@@ -703,21 +795,35 @@ public class Tree<T> extends Widget implements Scrollable {
         }
     }
 
-    private float placeDown(int count, float rowX, float w, float viewport) {
+    private float placeDown(int count, float rowX, float viewW, float viewport) {
         SizeTokens t = tokens();
+        boolean rtl = isRightToLeft();
         float y = anchorTop;
         int i = anchorIndex;
         while (i < count && y < viewport) {
-            float rowH = measuredHeight(i, w);
+            float rowH = measuredHeight(i, contentWidth);
             Widget cell = cellFor(i);
-            float lead = cellLeft(t, i, w);
-            cell.layoutBox(rowX + (isRightToLeft() ? 0 : lead), y, Math.max(0, w - lead), rowH);
+            float lead = cellLeft(t, i, contentWidth);
+            float cellW = Math.max(0, contentWidth - lead);
+            cell.layoutBox(cellX(rowX, viewW, lead, cellW, rtl), y, cellW, rowH);
             y += rowH;
             i++;
         }
         placedFrom = anchorIndex;
         placedTo = i;
         return y;
+    }
+
+    /**
+     * Where a row's cell sits on the width axis once the outline is scrolled.
+     *
+     * <p>The mirrored form is the table's, for the table's reason: read right to left the content
+     * hangs off the box's trailing edge, so the same offset has to walk the cells the other way.
+     * With nothing to scroll both arms collapse to what this widget did before there was an
+     * offset at all — {@code rowX + lead} one way, {@code rowX} the other.
+     */
+    private float cellX(float rowX, float viewW, float lead, float cellW, boolean rtl) {
+        return rtl ? rowX + viewW - (lead + cellW) + offsetX : rowX + lead - offsetX;
     }
 
     /** How much of the row's width the indent and the triangle take before the cell starts. */
@@ -759,7 +865,7 @@ public class Tree<T> extends Widget implements Scrollable {
         while (at < mountedCount && mountedRows[at] < index) {
             at++;
         }
-        add(at + 1, cell); // the bar is children() zero
+        add(at + 2, cell); // the two bars are children() zero and one
         if (mountedCount == mountedRows.length) {
             mountedRows = Arrays.copyOf(mountedRows, mountedCount * 2);
             mountedCells = Arrays.copyOf(mountedCells, mountedCount * 2);
@@ -813,18 +919,19 @@ public class Tree<T> extends Widget implements Scrollable {
     }
 
     /** Puts a spared row wholly outside the viewport, on the side its index lies. */
-    private void placeKeptOutside(float rowX, float w, float bottom) {
+    private void placeKeptOutside(float rowX, float viewW, float bottom) {
         SizeTokens t = tokens();
+        boolean rtl = isRightToLeft();
         for (int i = 0; i < mountedCount; i++) {
             int row = mountedRows[i];
             if (row >= placedFrom && row < placedTo) {
                 continue;
             }
             Widget cell = mountedCells[i];
-            float lead = cellLeft(t, row, w);
+            float lead = cellLeft(t, row, contentWidth);
+            float cellW = Math.max(0, contentWidth - lead);
             float y = row < placedFrom ? Math.min(anchorTop, 0) - cell.height() : Math.max(bottom, height());
-            cell.layoutBox(rowX + (isRightToLeft() ? 0 : lead), y,
-                    Math.max(0, w - lead), cell.height());
+            cell.layoutBox(cellX(rowX, viewW, lead, cellW, rtl), y, cellW, cell.height());
         }
     }
 
@@ -861,6 +968,29 @@ public class Tree<T> extends Widget implements Scrollable {
         vBar.onScrolled();
     }
 
+    /**
+     * Scrolls sideways by a delta in logical points, positive toward the trailing edge. A tree
+     * whose content fits its box has nothing to do here. UI thread only.
+     */
+    public void scrollHorizontallyBy(float dx) {
+        Ui.checkUiThread();
+        float max = Math.max(0, contentWidth - gutters.viewportWidth(width()));
+        float next = Math.min(Math.max(0, offsetX + dx), max);
+        if (next == offsetX) {
+            return;
+        }
+        float applied = next - offsetX;
+        offsetX = next;
+        float sign = isRightToLeft() ? 1 : -1;
+        for (int i = 0; i < mountedCount; i++) {
+            Widget cell = mountedCells[i];
+            moveChild(cell, cell.x() + sign * applied, cell.y());
+        }
+        markNeedsContainedLayout();
+        invalidate();
+        hBar.onScrolled();
+    }
+
     @Override
     public void revealRect(float x, float y, float rectWidth, float rectHeight) {
         Ui.checkUiThread();
@@ -868,6 +998,18 @@ public class Tree<T> extends Widget implements Scrollable {
             scrollBy(y);
         } else if (y + rectHeight > height()) {
             scrollBy(Math.min(y, y + rectHeight - height()));
+        }
+        // The rectangle is in viewport coordinates, so the sideways correction is the distance it
+        // sits outside the viewport, and mirrored it points the other way.
+        float viewW = gutters.viewportWidth(width());
+        float dx = 0;
+        if (x < 0) {
+            dx = x;
+        } else if (x + rectWidth > viewW) {
+            dx = Math.min(x, x + rectWidth - viewW);
+        }
+        if (dx != 0) {
+            scrollHorizontallyBy(isRightToLeft() ? -dx : dx);
         }
     }
 
@@ -1035,8 +1177,22 @@ public class Tree<T> extends Widget implements Scrollable {
                 // dense tree and a roomy one, so the step is locked rather than tabled. Gated
                 // on there being something to scroll, so a short tree lets the wheel through to
                 // whatever holds it.
-                if (event.scrollY() != 0 && estimatedContentHeight(tokens()) > height()) {
-                    scrollBy(-event.scrollY() * Strokes.WHEEL_STEP);
+                //
+                // Sideways is the table's convention, and two devices reach it by different
+                // roads: a trackpad sends a horizontal gesture as scrollX, while a mouse with
+                // one wheel says the same thing by holding Shift.
+                boolean sideways = event.scrollX() != 0
+                        || (event.modifiers() & Keys.MOD_SHIFT) != 0;
+                float dx = sideways ? -(event.scrollX() != 0 ? event.scrollX() : event.scrollY())
+                        * Strokes.WHEEL_STEP : 0;
+                float dy = sideways ? 0 : -event.scrollY() * Strokes.WHEEL_STEP;
+                boolean canY = estimatedContentHeight(tokens()) > height();
+                boolean canX = contentWidth > gutters.viewportWidth(width());
+                if (dy != 0 && canY) {
+                    scrollBy(dy);
+                    event.consume();
+                } else if (dx != 0 && canX) {
+                    scrollHorizontallyBy(dx);
                     event.consume();
                 }
                 return;
@@ -1045,6 +1201,7 @@ public class Tree<T> extends Widget implements Scrollable {
             // whole of how it reveals itself without a frame of its own.
             case MOVE, DRAG -> {
                 vBar.onHostActivity();
+                hBar.onHostActivity();
                 return;
             }
             default -> {
@@ -1071,18 +1228,23 @@ public class Tree<T> extends Widget implements Scrollable {
         }
     }
 
+    /**
+     * The leading edge of a row's triangle band on screen: indented for its depth, moved by the
+     * sideways offset, and mirrored where the reading direction is. One place, because a triangle
+     * that is painted somewhere the hit test does not look is a control that cannot be pressed.
+     */
+    private float twistyLeft(SizeTokens t, int depth) {
+        float lead = depth * indent(t);
+        return isRightToLeft()
+                ? width() - lead + offsetX - twistyBand(t)
+                : lead - offsetX;
+    }
+
     /** Whether a press at {@code localX} landed on the row's triangle rather than on its cell. */
     private boolean overTwisty(float localX, int index) {
         SizeTokens t = tokens();
-        float w = gutters.viewportWidth(width());
-        float lead = rows.get(index).depth * indent(t);
-        float band = twistyBand(t);
-        if (isRightToLeft()) {
-            float right = width() - lead;
-            return localX <= right && localX >= right - band;
-        }
-        float left = width() - w + lead;
-        return localX >= left - (width() - w) && localX <= lead + band;
+        float left = twistyLeft(t, rows.get(index).depth);
+        return localX >= left && localX <= left + twistyBand(t);
     }
 
     private int rowAtLocalY(float localY) {
@@ -1102,6 +1264,9 @@ public class Tree<T> extends Widget implements Scrollable {
             return null;
         }
         Widget barHit = vBar.hitTest(localX - vBar.x(), localY - vBar.y());
+        if (barHit == null) {
+            barHit = hBar.hitTest(localX - hBar.x(), localY - hBar.y());
+        }
         if (barHit != null) {
             return barHit;
         }
@@ -1110,7 +1275,7 @@ public class Tree<T> extends Widget implements Scrollable {
             return this; // the triangle is the tree's, not the cell's
         }
         for (Widget child : children()) {
-            if (child == vBar) {
+            if (child == vBar || child == hBar) {
                 continue;
             }
             Widget hit = child.hitTest(localX - child.x(), localY - child.y());
@@ -1163,12 +1328,14 @@ public class Tree<T> extends Widget implements Scrollable {
         } finally {
             canvas.restore();
         }
-        canvas.save();
-        try {
-            canvas.translate(vBar.x(), vBar.y());
-            vBar.paintWidget(canvas);
-        } finally {
-            canvas.restore();
+        for (ScrollBar bar : new ScrollBar[] {vBar, hBar}) {
+            canvas.save();
+            try {
+                canvas.translate(bar.x(), bar.y());
+                bar.paintWidget(canvas);
+            } finally {
+                canvas.restore();
+            }
         }
     }
 
@@ -1180,8 +1347,10 @@ public class Tree<T> extends Widget implements Scrollable {
         float halfW = t.chevronHalfW();
         float halfH = halfW / 2;
         float band = twistyBand(t);
-        float lead = row.depth * indent(t);
-        float cx = isRightToLeft() ? width() - lead - band / 2 : lead + band / 2;
+        // Through twistyLeft, which is also what the hit test asks: a triangle painted where the
+        // press is not looked for is a control nobody can open, and a sideways offset is exactly
+        // the change that pulls the two apart.
+        float cx = twistyLeft(t, row.depth) + band / 2;
         float cy = cell.y() + cell.height() / 2;
         twisty.reset();
         if (row.expanded) {
@@ -1214,8 +1383,9 @@ public class Tree<T> extends Widget implements Scrollable {
         float content = estimatedContentHeight(t);
         a.role(Accessible.Role.LIST);
         a.selection(selectionMode == SelectionMode.MULTI, false);
-        a.scrollFrom(0, 0, 1, 0, estimatedOffset(t), Math.max(0, content - viewport),
-                viewport, content);
+        float viewW = gutters.viewportWidth(width());
+        a.scrollFrom(offsetX, Math.max(0, contentWidth - viewW), viewW, contentWidth,
+                estimatedOffset(t), Math.max(0, content - viewport), viewport, content);
         if (lead != null) {
             a.action(Accessible.Action.PRESS);
             int index = indexOf(lead);

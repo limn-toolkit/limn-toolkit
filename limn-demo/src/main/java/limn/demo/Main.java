@@ -32,7 +32,7 @@ public final class Main {
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
             "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
-            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "form", "animations", "cursors",
+            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
             "newcontrols", "newcontrols-light", "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
@@ -232,6 +232,13 @@ public final class Main {
                 // A frame-1 hook is enough to run it, but not to photograph it: the bar fades
                 // in over wall time and the warmup frames carry none, so the capture path
                 // takes the scroll on a timer instead (see treeScrollCapture below).
+                afterLayout = screenshotMode ? null : built.afterLayout();
+                treeScroll = built.afterLayout();
+            } else if (scene.equals("tree-deep")) {
+                // One branch open to the bottom, so the indent outgrows the box and the outline
+                // has somewhere to go sideways. Same timing as tree-scroll, same reason.
+                TreeScene.Built built = TreeScene.deep();
+                widgetScene = built.scene();
                 afterLayout = screenshotMode ? null : built.afterLayout();
                 treeScroll = built.afterLayout();
             } else if (scene.equals("dates-months") || scene.equals("dates-years")) {
@@ -453,7 +460,8 @@ public final class Main {
             // fade-in and the hold are wall time (0.09 s and 1.1 s). The warmup frames are
             // pumped back to back and carry none of it, so a capture taken from them
             // photographs the bar at zero opacity -- which reads as a widget that has none.
-            boolean treeScrollCapture = scene.equals("tree-scroll") && screenshotMode;
+            boolean treeScrollCapture =
+                    (scene.equals("tree-scroll") || scene.equals("tree-deep")) && screenshotMode;
             // Charts animate their values in over half a second, and the tooltip is half
             // the API: settle, hover a bar, then capture.
             boolean chartsCapture = scene.startsWith("charts") && screenshotMode;

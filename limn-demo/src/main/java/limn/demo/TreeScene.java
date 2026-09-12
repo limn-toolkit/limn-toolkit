@@ -51,7 +51,7 @@ final class TreeScene {
     }
 
     /** The scene and the tree inside it, so a capture variant can drive the widget. */
-    private record Parts(Scene scene, Tree<Node> tree) {
+    private record Parts(Scene scene, Tree<Node> tree, Node deep) {
     }
 
     static Scene create() {
@@ -70,6 +70,24 @@ final class TreeScene {
         return new Built(parts.scene(), () -> parts.tree().scrollBy(120));
     }
 
+    /**
+     * The same tree with one branch open all the way down, which is what makes the outline wider
+     * than its box: every level charges an indent and nothing gives it back.
+     *
+     * <p>Its own scene rather than a deeper fixture for {@code --scene tree}, because the two
+     * cannot be photographed together: widening the content moves where a cell ellipsizes, from
+     * the edge of the box to the edge of the content (ADR 044 §1, amended). The shallow scene is
+     * where a name contains itself; this one is where depth runs out of width.
+     */
+    static Built deep() {
+        Parts parts = parts();
+        for (Node node = parts.deep(); node != null;
+                node = node.kids().isEmpty() ? null : node.kids().get(0)) {
+            parts.tree().expand(node);
+        }
+        return new Built(parts.scene(), () -> parts.tree().scrollHorizontallyBy(140));
+    }
+
     private static Parts parts() {
         // Long names on purpose: a row's cell is measured at the width the indent leaves, so
         // this is where a Label either contains itself or writes over the badge beside it.
@@ -82,7 +100,14 @@ final class TreeScene {
                 Node.leaf("clip.mp4"),
                 Node.leaf("cover artwork, 4000 by 4000, before the crop.png"));
         Node remote = new Node("Remote", List.of());
-        List<Node> roots = new java.util.ArrayList<>(List.of(docs, media, remote));
+        // A chain and not a bush: fourteen levels of one child each is the shape that runs out of
+        // width without running out of rows, which is the case horizontal scrolling exists for.
+        // Left closed in `--scene tree`, so that scene's content stays exactly its box.
+        Node deep = Node.leaf("level-14");
+        for (int i = 13; i >= 1; i--) {
+            deep = Node.of("level-" + String.format("%02d", i), deep);
+        }
+        List<Node> roots = new java.util.ArrayList<>(List.of(docs, media, remote, deep));
         // Enough rows that the outline is taller than its box: a bar with nothing to scroll
         // does not draw, so a short fixture photographs as "no scroll bar" and proves nothing.
         for (int i = 1; i <= 24; i++) {
@@ -168,6 +193,6 @@ final class TreeScene {
         Widget root = new Padding(Insets.all(24), page);
         Scene scene = new Scene(root);
         scene.setBackground(Theme.current().background);
-        return new Parts(scene, tree);
+        return new Parts(scene, tree, deep);
     }
 }

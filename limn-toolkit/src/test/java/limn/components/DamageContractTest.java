@@ -349,7 +349,13 @@ class DamageContractTest extends ComponentTestBase {
             // pretending a tree can open a row for less (ADR 044 §7).
             new Row("limn.components.tree.Tree", DamageContractTest::treeFixture, 360, 240,
                     List.of(focus().ceiling(0.2f), key("DOWN", Keys.DOWN).ceiling(0.3f),
-                            key("RIGHT", Keys.RIGHT).ceiling(1.05f), click().ceiling(0.5f)), null));
+                            key("RIGHT", Keys.RIGHT).ceiling(1.05f), click().ceiling(0.5f),
+                            // The gesture whose absence here is how a tree shipped with no wheel
+                            // handler at all, green the whole time. Measured at 101%: a scroll
+                            // moves every row, so it is the whole box plus the antialiasing
+                            // margin the damage carries, the same number and the same reason as
+                            // RIGHT above.
+                            wheel().ceiling(1.05f)), null));
 
     /** A two-level forest: enough rows to scroll, and a first row that can open. */
     private static Widget treeFixture() {
