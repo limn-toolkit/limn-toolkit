@@ -32,7 +32,7 @@ public final class Main {
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
             "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
-            "components", "components-light", "widgets", "list", "table", "tree", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "form", "animations", "cursors",
+            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
             "newcontrols", "newcontrols-light", "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
@@ -214,6 +214,7 @@ public final class Main {
             java.util.function.Supplier<limn.components.ComboBox> dialogComboRef = null;
             Runnable loadTrigger = null;
             Runnable afterLayout = null;
+            Runnable treeScroll = null;
             MenuScene.Built menuBuilt = null;
             if (scene.equals("widgets")) {
                 widgetScene = WidgetsScene.create();
@@ -223,6 +224,16 @@ public final class Main {
                 widgetScene = TableScene.create();
             } else if (scene.equals("tree")) {
                 widgetScene = TreeScene.create();
+            } else if (scene.equals("tree-scroll")) {
+                // Scrolled after the first layout, because a capture moves no pointer and an
+                // overlay bar shows itself for activity: this is the scene that photographs one.
+                TreeScene.Built built = TreeScene.scrolled();
+                widgetScene = built.scene();
+                // A frame-1 hook is enough to run it, but not to photograph it: the bar fades
+                // in over wall time and the warmup frames carry none, so the capture path
+                // takes the scroll on a timer instead (see treeScrollCapture below).
+                afterLayout = screenshotMode ? null : built.afterLayout();
+                treeScroll = built.afterLayout();
             } else if (scene.equals("dates-months") || scene.equals("dates-years")) {
                 widgetScene = DatesScene.create(false,
                         scene.equals("dates-months")
@@ -409,6 +420,7 @@ public final class Main {
             }
             limn.scene.Scene boundScene = widgetScene;
             Runnable afterFirstFrame = afterLayout;
+            Runnable treeScrollNow = treeScroll;
 
             boolean popupCapture = screenshotMode
                     && (scene.equals("forms-popup") || scene.equals("combo-overflow"));
@@ -437,6 +449,11 @@ public final class Main {
             boolean menuCapture = scene.startsWith("menu") && screenshotMode;
             // Tab overflow: the reveal scroll + indicator slide animate; capture settled.
             boolean tabsOverflowCapture = scene.equals("tabs-overflow") && screenshotMode;
+            // Tree: an overlay scroll bar is revealed by activity and fades, and both the
+            // fade-in and the hold are wall time (0.09 s and 1.1 s). The warmup frames are
+            // pumped back to back and carry none of it, so a capture taken from them
+            // photographs the bar at zero opacity -- which reads as a widget that has none.
+            boolean treeScrollCapture = scene.equals("tree-scroll") && screenshotMode;
             // Charts animate their values in over half a second, and the tooltip is half
             // the API: settle, hover a bar, then capture.
             boolean chartsCapture = scene.startsWith("charts") && screenshotMode;
@@ -452,7 +469,7 @@ public final class Main {
             boolean deferredCapture = datesCapture || popupCapture || dialogCapture || loadingCapture
                     || perfCapture || threeDCapture || controlsCapture || menuCapture
                     || tabsOverflowCapture || inSceneDialogCapture || splitCapture
-                    || chartsCapture;
+                    || chartsCapture || treeScrollCapture;
             AtomicInteger frames = new AtomicInteger();
             AtomicInteger frameNo = new AtomicInteger();
             // Scenes showcasing CJK, emoji or a complex script race the BACKGROUND
@@ -651,6 +668,19 @@ public final class Main {
                         System.out.println("Menu (in scene) screenshot: "
                                 + options.screenshotFile().toAbsolutePath());
                     }
+                }, 450);
+                Ui.postDelayed(window::requestClose, 650);
+            }
+
+            if (treeScrollCapture && treeScrollNow != null) {
+                // Scroll on wall time, then capture inside the hold: past the 0.09 s fade-in
+                // and well short of the 1.1 s the bar stays up before it fades again.
+                Runnable scroll = treeScrollNow;
+                Ui.postDelayed(scroll, 150);
+                Ui.postDelayed(() -> {
+                    window.captureNextFrame(options.screenshotFile());
+                    System.out.println("Tree scroll screenshot: "
+                            + options.screenshotFile().toAbsolutePath());
                 }, 450);
                 Ui.postDelayed(window::requestClose, 650);
             }

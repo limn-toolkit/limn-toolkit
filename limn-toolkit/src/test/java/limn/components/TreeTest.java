@@ -332,6 +332,90 @@ class TreeTest extends ComponentTestBase {
                         + " against " + parentLeft);
     }
 
+    /**
+     * The wheel scrolls the tree, and a tree with nothing to scroll lets the notch through.
+     *
+     * <p>It is the gesture every other scrolling widget in this toolkit answers to, and this one
+     * did not: the bar was there and worked under a drag, and a flick over the rows did nothing.
+     * Found by him asking whether the scroll was native, which is the question a widget cannot
+     * answer about itself.
+     */
+    @Test
+    void theWheelScrollsAndAShortTreeDoesNotSwallowTheNotch() {
+        List<Node> many = new ArrayList<>();
+        for (int i = 1; i <= 40; i++) {
+            many.add(Node.leaf("row " + i));
+        }
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree.Model<Node> model = new Tree.Model<>() {
+            @Override
+            public List<Node> roots() {
+                return many;
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                Label cell = new Label(node.name());
+                cells.put(node.name(), cell);
+                return cell;
+            }
+        };
+
+        Tree<Node> tree = new Tree<>(model);
+        scene = new Scene(tree);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 120);
+        canvas = new RecordingTestCanvas(220, 120);
+        scene.renderFrame(canvas);
+
+        float before = cells.get("row 1").y();
+        wheel(tree, -3);
+        scene.layoutPass(220, 120);
+        Widget first = cells.get("row 1");
+        assertTrue(first.y() < before,
+                "the wheel has to move the rows: row 1 sat at " + before + " and is at "
+                        + first.y());
+
+        // A tree shorter than its viewport keeps its hands off the notch, so a scroll view
+        // holding one still scrolls.
+        Tree<Node> shortTree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(Node.leaf("only"));
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name());
+            }
+        });
+        Scene small = new Scene(shortTree);
+        small.setTextRuler(RULER);
+        small.layoutPass(220, 200);
+        small.renderFrame(new RecordingTestCanvas(220, 200));
+        small.scrolled(0, -3, shortTree.localToSceneX() + 10, shortTree.localToSceneY() + 10);
+        small.inputBatchEnded();
+        assertEquals(1, shortTree.visibleRowCount(), "nothing moved, and nothing was consumed");
+    }
+
+    private void wheel(Tree<Node> tree, float notches) {
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        scene.mouseMoved(x, y);
+        scene.scrolled(0, notches, x, y);
+        scene.inputBatchEnded();
+    }
+
     private void press(int key) {
         scene.keyEvent(key, true, false, 0);
         scene.keyEvent(key, false, false, 0);

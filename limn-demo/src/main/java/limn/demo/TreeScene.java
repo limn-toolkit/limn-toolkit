@@ -46,13 +46,48 @@ final class TreeScene {
             "Remote", List.of(Node.leaf("index.json"), Node.leaf("manifest.json"),
                     Node.of("thumbnails", Node.leaf("01.png"), Node.leaf("02.png"))));
 
+    /** A scene and what to run once it has been laid out; the capture shape every variant uses. */
+    record Built(Scene scene, Runnable afterLayout) {
+    }
+
+    /** The scene and the tree inside it, so a capture variant can drive the widget. */
+    private record Parts(Scene scene, Tree<Node> tree) {
+    }
+
     static Scene create() {
+        return parts().scene();
+    }
+
+    /**
+     * The same tree, scrolled once it has a height.
+     *
+     * <p>A capture moves no pointer, and an overlay scroll bar reveals itself for activity and
+     * fades; scrolling after the first layout is what puts one in a still, and it is the only
+     * honest way to photograph the bar this widget actually has.
+     */
+    static Built scrolled() {
+        Parts parts = parts();
+        return new Built(parts.scene(), () -> parts.tree().scrollBy(120));
+    }
+
+    private static Parts parts() {
+        // Long names on purpose: a row's cell is measured at the width the indent leaves, so
+        // this is where a Label either contains itself or writes over the badge beside it.
         Node docs = Node.of("Documents",
-                Node.of("Reports", Node.leaf("2025.pdf"), Node.leaf("2026.pdf")),
-                Node.leaf("notes.md"));
-        Node media = Node.of("Media", Node.leaf("clip.mp4"), Node.leaf("cover.png"));
+                Node.of("Reports",
+                        Node.leaf("Q3 regional revenue and headcount, consolidated (final).pdf"),
+                        Node.leaf("2026.pdf")),
+                Node.leaf("meeting notes from the Tuesday planning session.md"));
+        Node media = Node.of("Media",
+                Node.leaf("clip.mp4"),
+                Node.leaf("cover artwork, 4000 by 4000, before the crop.png"));
         Node remote = new Node("Remote", List.of());
-        List<Node> roots = List.of(docs, media, remote);
+        List<Node> roots = new java.util.ArrayList<>(List.of(docs, media, remote));
+        // Enough rows that the outline is taller than its box: a bar with nothing to scroll
+        // does not draw, so a short fixture photographs as "no scroll bar" and proves nothing.
+        for (int i = 1; i <= 24; i++) {
+            roots.add(Node.leaf("archive-" + String.format("%02d", i) + ".zip"));
+        }
 
         Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
             @Override
@@ -95,13 +130,27 @@ final class TreeScene {
                 row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
                 row.add(limn.scene.layout.Expanded.of(text));
                 if (!node.kids().isEmpty()) {
+                    // A badge: a count the row carries, against the trailing edge.
                     row.add(new Label(String.valueOf(node.kids().size())).setMuted(true));
+                } else if (node.name().endsWith(".pdf")) {
+                    // And a real control beside it, because a row is a widget and not a string:
+                    // the button takes its own press, and the tree selects only what the cell
+                    // lets through.
+                    limn.components.Button open =
+                            new limn.components.Button("Open").setSecondary(true);
+                    // Not chained: setControlSize is Widget's and returns void, so a chain
+                    // would hand `add` a void expression.
+                    open.setControlSize(limn.scene.ControlSize.SMALL);
+                    row.add(open);
                 }
                 return row;
             }
         });
         tree.setSelectionMode(Tree.SelectionMode.MULTI);
         tree.expand(docs);
+        // Reports too: its children are the long names carrying a button, and a collapsed
+        // branch hides exactly the row this scene exists to show.
+        tree.expand(docs.kids().get(0));
 
         Column page = new Column();
         page.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -109,10 +158,16 @@ final class TreeScene {
         page.add(new Label("Arrows walk it: Right opens a row and steps into it, Left closes one "
                 + "and steps out. The command modifier adds a row to the selection.")
                 .setMuted(true));
-        page.add(new SizedBox(SizedBox.UNSET, 320, tree));
+        // A narrow box on purpose: a cell is measured at the width the indent leaves it, so
+        // this is the width at which a long name either contains itself or writes over the
+        // control beside it. The Row holds the box to its own width inside a column that
+        // stretches, and puts it against whichever edge leads.
+        limn.scene.layout.Row treeRow = new limn.scene.layout.Row();
+        treeRow.add(new SizedBox(360, 320, tree));
+        page.add(treeRow);
         Widget root = new Padding(Insets.all(24), page);
         Scene scene = new Scene(root);
         scene.setBackground(Theme.current().background);
-        return scene;
+        return new Parts(scene, tree);
     }
 }

@@ -1029,6 +1029,27 @@ public class Tree<T> extends Widget implements Scrollable {
 
     @Override
     protected void onMouseEvent(MouseEvent event) {
+        switch (event.type()) {
+            case WHEEL -> {
+                // A detent is a device unit: the same flick travels the same distance in a
+                // dense tree and a roomy one, so the step is locked rather than tabled. Gated
+                // on there being something to scroll, so a short tree lets the wheel through to
+                // whatever holds it.
+                if (event.scrollY() != 0 && estimatedContentHeight(tokens()) > height()) {
+                    scrollBy(-event.scrollY() * Strokes.WHEEL_STEP);
+                    event.consume();
+                }
+                return;
+            }
+            // What tells an overlay scroll bar that the pointer is over its host, which is the
+            // whole of how it reveals itself without a frame of its own.
+            case MOVE, DRAG -> {
+                vBar.onHostActivity();
+                return;
+            }
+            default -> {
+            }
+        }
         if (event.type() != MouseEvent.Type.PRESS || event.button() != Keys.MOUSE_LEFT) {
             return;
         }
