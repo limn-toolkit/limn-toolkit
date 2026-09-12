@@ -268,6 +268,70 @@ class TreeTest extends ComponentTestBase {
                         + tree.visibleRowCount() + " over " + tree.height() + " points");
     }
 
+    /**
+     * A row is whatever widget the model hands back, and the tree stretches it to the width the
+     * indent leaves: an icon before the text and a badge against the trailing edge are the
+     * application's own composition, not a feature this widget has to grow.
+     *
+     * <p>The two things the tree owes such a cell, and the two this pins: the cell is laid out at
+     * exactly the remaining width, so an {@code Expanded} in the middle really does push a badge
+     * to the edge; and it starts after the indent, so a child's badge is not where its parent's
+     * is.
+     */
+    @Test
+    void aRowIsWhateverWidgetTheModelBuildsAndGetsTheWidthTheIndentLeaves() {
+        Node root = Node.of("root", Node.leaf("child"));
+        List<Label> badges = new ArrayList<>();
+        Tree.Model<Node> composed = new Tree.Model<>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(root);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                Label text = new Label(node.name());
+                text.setIcon(null); // an icon would rasterize, and this harness has no rasterizer
+                Label badge = new Label("3");
+                badges.add(badge);
+                limn.scene.layout.Row row = new limn.scene.layout.Row();
+                row.gap(6).crossAlignment(limn.scene.layout.Flex.CrossAlignment.CENTER);
+                row.add(limn.scene.layout.Expanded.of(text));
+                row.add(badge);
+                return row;
+            }
+        };
+
+        Tree<Node> tree = new Tree<>(composed);
+        scene = new Scene(tree);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        canvas = new RecordingTestCanvas(220, 200);
+        scene.renderFrame(canvas);
+        tree.expand(root);
+        scene.layoutPass(220, 200);
+
+        assertEquals(2, tree.visibleRowCount());
+        assertEquals(2, badges.size(), "one cell per realized row, built by the model");
+
+        float rowRight = badges.get(0).localToSceneX() + badges.get(0).width();
+        float childRight = badges.get(1).localToSceneX() + badges.get(1).width();
+        assertEquals(rowRight, childRight, 0.5f,
+                "both badges sit against the same trailing edge: the cell is stretched to the "
+                        + "width the indent leaves, whatever the row's depth");
+
+        float parentLeft = badges.get(0).parent().localToSceneX();
+        float childLeft = badges.get(1).parent().localToSceneX();
+        assertTrue(childLeft > parentLeft,
+                "and a child's cell starts further in than its parent's: " + childLeft
+                        + " against " + parentLeft);
+    }
+
     private void press(int key) {
         scene.keyEvent(key, true, false, 0);
         scene.keyEvent(key, false, false, 0);

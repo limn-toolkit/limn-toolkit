@@ -573,8 +573,21 @@ final class GalleryScenes {
 
                     @Override
                     public Widget cellFor(Node node) {
-                        return new Padding(limn.scene.Insets.symmetric(6, 4),
-                                new Label(node.name()));
+                        // A row is whatever the application builds: the tree reserves the indent
+                        // and the triangle, and hands the rest of the width to this. An icon
+                        // before the text and a count against the trailing edge are composed
+                        // here, not configured on the widget.
+                        Label text = new Label(node.name());
+                        text.setIcon(limn.graphics.SvgIcon.fromResource(node.kids().isEmpty()
+                                ? "/limn/components/icons/info.svg"
+                                : "/limn/components/icons/settings.svg"));
+                        Row row = new Row();
+                        row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
+                        row.add(limn.scene.layout.Expanded.of(text));
+                        if (!node.kids().isEmpty()) {
+                            row.add(new Label(String.valueOf(node.kids().size())).setMuted(true));
+                        }
+                        return new Padding(limn.scene.Insets.symmetric(6, 4), row);
                     }
                 });
         tree.expand(roots.get(0));

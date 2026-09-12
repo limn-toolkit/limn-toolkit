@@ -83,7 +83,21 @@ final class TreeScene {
 
             @Override
             public Widget cellFor(Node node) {
-                return new Label(node.name());
+                // The cell is the application's, and it is an ordinary Row: the tree reserves
+                // the indent and the triangle and hands the rest of the width to this, so an
+                // Expanded in the middle puts the count against the trailing edge.
+                Label text = new Label(node.name());
+                text.setIcon(limn.graphics.SvgIcon.fromResource(
+                        node.kids().isEmpty() && !FETCHED.containsKey(node.name())
+                                ? "/limn/components/icons/info.svg"
+                                : "/limn/components/icons/settings.svg"));
+                limn.scene.layout.Row row = new limn.scene.layout.Row();
+                row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
+                row.add(limn.scene.layout.Expanded.of(text));
+                if (!node.kids().isEmpty()) {
+                    row.add(new Label(String.valueOf(node.kids().size())).setMuted(true));
+                }
+                return row;
             }
         });
         tree.setSelectionMode(Tree.SelectionMode.MULTI);
