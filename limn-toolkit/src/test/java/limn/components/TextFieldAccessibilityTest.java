@@ -792,8 +792,9 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(Accessible.Role.BUTTON, button.role(), describe(tree()));
         assertEquals("", button.name(),
                 "an operable control is never ignored, so the omission is visible in the tree "
-                        + "instead of being silent -- which is what every SearchField in the "
-                        + "toolkit publishes until its own step calls the named overload"
+                        + "instead of being silent -- which is what an application that reaches "
+                        + "for the two-argument overload publishes, and why SearchField calls "
+                        + "the named one"
                         + describe(tree()));
         assertTrue(button.actions().has(Accessible.Action.PRESS), describe(tree()));
     }

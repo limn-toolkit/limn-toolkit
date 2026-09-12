@@ -113,10 +113,9 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
      * The ramp names itself, so the walk has nothing to say about it: it must never be dropped as
      * a thing that paints and says nothing, and never published {@code UNKNOWN}.
      *
-     * <p>Scoped to this one class rather than to the picker, because the steppers and the hex
-     * field are still waiting for their own steps and warn under names of their own. The warning
-     * is logged once per class for the whole process, so whichever case runs first is the one that
-     * would see it, which is why this runs after every one.
+     * <p>Scoped to this one class rather than to the picker: the walk logs a warning once per
+     * class for the whole process, so whichever case runs first is the one that would see it,
+     * which is why this runs after every one.
      */
     @AfterEach
     void theLogNamesTheRamp() {

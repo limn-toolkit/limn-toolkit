@@ -120,8 +120,8 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
      * runs first is the one that would see it — hence the check after every one.
      *
      * <p>The class name is read from the record's parameter rather than matched inside the
-     * message: the inner classes still waiting for their own steps are named there too, and every
-     * one of them starts with this class's name.
+     * message: the chooser's inner classes are named there too, and every one of them starts
+     * with this class's name.
      */
     @AfterEach
     void theLogNamesThePicker() {

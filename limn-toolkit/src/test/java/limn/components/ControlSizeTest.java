@@ -16,8 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The control-size axis: the resolution rule, the coexistence contract, the measure-cache key
- * and the token table's structural invariants. Phase 0: no component consumes tokens yet, so
- * nothing here asserts a rendered pixel.
+ * and the token table's structural invariants. What a component then draws with the tokens it
+ * resolved belongs to that component's own tests; nothing here asserts a rendered pixel.
  */
 class ControlSizeTest extends ComponentTestBase {
 

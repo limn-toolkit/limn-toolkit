@@ -290,7 +290,8 @@ the CJK face they would start drawing the Latin of any line whose primary lacks 
 - **No layout direction.** `ShapedText.Direction` is the direction of a *run of text*, and there is
   no third constant meaning "decide later" — stating a direction and declining to state one are
   different `shape` overloads, so nothing can store the question in a field. Direction as a layout
-  axis is a separate ADR that has not been written.
+  axis is a separate record, ADR 032, which has since been written, accepted and implemented; see
+  `docs/design/direction-axis.md`.
 - **No shaping language.** The shaper is told the script and the direction and not the language,
   so the forms are the script's defaults. The epoch contract already reserves the invalidation this
   needs, which is the only part that would have been expensive to add later.

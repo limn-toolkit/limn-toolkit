@@ -72,5 +72,7 @@ test, and the `ownerException` → `hostSurface` rename. What is done here is th
 be decided before any of that could be pinned, and two of the four were behaviour changes worth
 having on their own.
 
-The remaining six questions are smaller and remain open; they are in
-`artifacts/modal-stack-2026-08/parecer.md`.
+The remaining six questions are smaller and remain open. The note that listed them,
+`artifacts/modal-stack-2026-08/parecer.md`, is not in this repository and no copy of it survives
+here, so the list has to be retaken before it can be worked through: what is recorded is that six
+remain, not which six.

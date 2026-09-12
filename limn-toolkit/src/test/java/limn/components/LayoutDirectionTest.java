@@ -24,8 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The layout-direction axis: the resolution rule, the coexistence contract, the measure-cache
- * key, and the two ways a direction change is allowed to reach a cached value. Phase 1: nothing
- * consumes the axis yet, so nothing here asserts a mirrored coordinate.
+ * key, and the two ways a direction change is allowed to reach a cached value. What each widget
+ * does with the direction it resolved is pinned by its own mirroring test (ADR 032); nothing
+ * here asserts a mirrored coordinate.
  *
  * <p>Written against {@link ControlSize}'s own contract deliberately. The two axes resolve
  * through the same chain in the same order for the same reasons, and a direction axis that

@@ -116,11 +116,10 @@ class ColorPickerChannelTrackAccessibilityTest extends AccessibleComponentTestBa
      * The rails are focusable and paint, so a step that dropped their role would publish ten
      * unknown tab stops and name a toolkit class in an application's log.
      *
-     * <p>Scoped to this one class rather than to the picker: the steppers, the hex field, the
-     * three painted parts and the strip buttons are all still waiting for their own steps, and
-     * every one of them warns under a name that starts with the picker's. Both warnings are logged
-     * once per class for the whole process, so whichever case runs first is the one that would see
-     * it, which is why the check runs after every one.
+     * <p>Scoped to this one class rather than to the picker: a warning about any part of the
+     * chooser is logged under a name that starts with the picker's, and the walk logs each one
+     * once per class for the whole process, so whichever case runs first is the one that would
+     * see it, which is why the check runs after every one.
      */
     @AfterEach
     void theLogNamesTheTrack() {
