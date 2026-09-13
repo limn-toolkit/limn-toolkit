@@ -350,6 +350,7 @@ class DamageContractTest extends ComponentTestBase {
             new Row("limn.components.tree.Tree", DamageContractTest::treeFixture, 360, 240,
                     List.of(focus().ceiling(0.2f), key("DOWN", Keys.DOWN).ceiling(0.3f),
                             key("RIGHT", Keys.RIGHT).ceiling(1.05f), click().ceiling(0.5f),
+                            loadingRowOpens(),
                             // The gesture whose absence here is how a tree shipped with no wheel
                             // handler at all, green the whole time. Measured at 101%: a scroll
                             // moves every row, so it is the whole box plus the antialiasing
@@ -357,7 +358,32 @@ class DamageContractTest extends ComponentTestBase {
                             // RIGHT above.
                             wheel().ceiling(1.05f)), null));
 
-    /** A two-level forest: enough rows to scroll, and a first row that can open. */
+    /**
+     * A row whose children have to be fetched is opened, and from then on only its spinner moves.
+     *
+     * <p>The keys walk from the top to "remote", the fixture's row that loads, which sits under
+     * "one" now that RIGHT has opened it, and open it. The first two frames are the opening: the
+     * loading line moves every row below, doubled by the double buffer, and the ceilings above
+     * already hold that. Every frame after that is the spinner turning on its own, since nothing
+     * in this harness lands the load, and the claim is that it repaints its band and nothing
+     * else.
+     *
+     * <p>Measured between 0.35% and 0.4% of the box: one row's triangle band plus the margin damage
+     * carries. The ceiling is 0.5%, which a spinner damaging its whole row (about 7% here) or the
+     * tree fails outright. The row's first run of this gesture is what found the tree registering
+     * its strings in the middle of its own layout, a full frame.
+     */
+    private static Gesture loadingRowOpens() {
+        return new Gesture("a row that loads opens, then only its spinner repaints", (s, w) -> {
+            for (int key : new int[] {Keys.HOME, Keys.DOWN, Keys.DOWN, Keys.DOWN, Keys.RIGHT}) {
+                s.keyEvent(key, true, false, 0);
+                s.keyEvent(key, false, false, 0);
+            }
+            s.inputBatchEnded();
+        }, 2, 0.005f, null);
+    }
+
+    /** A two-level forest: enough rows to scroll, a first row that can open, and one that loads. */
     private static Widget treeFixture() {
         record Node(String name, List<Node> kids) {
         }
@@ -366,7 +392,8 @@ class DamageContractTest extends ComponentTestBase {
         List<Node> roots = new ArrayList<>();
         roots.add(new Node("one", List.of(new Node("one.a", List.of()),
                 new Node("one.b", List.of()))));
-        for (int i = 2; i <= 20; i++) {
+        roots.add(new Node("remote", List.of()));
+        for (int i = 3; i <= 20; i++) {
             roots.add(new Node("row " + i, List.of()));
         }
         return new limn.components.tree.Tree<Node>(new limn.components.tree.Tree.Model<Node>() {
@@ -377,7 +404,12 @@ class DamageContractTest extends ComponentTestBase {
 
             @Override
             public List<Node> children(Node node) {
-                return node.kids();
+                return node.name().equals("remote") ? null : node.kids();
+            }
+
+            @Override
+            public limn.concurrent.Work<List<Node>> load(Node node) {
+                return limn.concurrent.Ui.work(progress -> List.of(new Node("fetched", List.of())));
             }
 
             @Override

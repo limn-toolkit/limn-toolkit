@@ -78,6 +78,25 @@ deliver into a row nobody is looking at. This is in phase 1 deliberately: a tree
 use is a file system or a remote catalogue and cannot load on demand is a tree that has to be
 rewritten by its second caller.
 
+**Amendment, 2026-09-13: what the busy state looks like, decided by him.** Phase 1a recorded that a
+row was loading and drew nothing for it, so an open row whose load had not landed looked exactly
+like an open row with no children. That is the statement a failed load closes its row to avoid.
+He chose all three of the following, from renders:
+
+- **A spinner where the open triangle goes**: a three-quarter arc with the triangle's pen, colour
+  and width, so nothing beside it moves when the children land. It turns once a second on wall
+  time, as the progress bar's sweep does, because the load does not pause with the scene's clock.
+  It damages only its band, and the damage ratchet holds a turning frame to 0.5% of the tree.
+- **And a muted "Loading…" line** one level in, where the children will go. The words come from
+  the tree's own catalog (`limn.tree.loading`, with the twenty-one translations). The line is the
+  tree's widget and not a node: it is not counted as a visible row, it is never handed to the
+  model to recycle, the arrows walk past it, and a click on it lands on the row it belongs to.
+- **Shown at once**, with no delay before a fast load would show it.
+
+To a reader the row is `BUSY`, and the line is not an item at all, so a reader never stands where
+the cursor cannot go, and "2 of 5" counts nodes. On Linux, AT-SPI's busy bit was already mapped.
+Windows and macOS map no busy state for any widget yet, and are the rest of this amendment's work.
+
 ## 3. Decision: the tree walks its own rows, and the shared engine is owed rather than taken
 
 ADR 041 §9 said the tree's arrival is when the shared part becomes a package-private engine. It is

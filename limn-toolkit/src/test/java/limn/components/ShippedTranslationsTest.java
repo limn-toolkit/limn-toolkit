@@ -56,6 +56,11 @@ class ShippedTranslationsTest extends ComponentTestBase {
                 // The role catalogue declares its keys the same way, and a domain missing from
                 // this list looks like a file full of keys nobody asks for.
                 RoleNames.englishOf(Accessible.Role.BUTTON));
+        // The two domains whose strings live in a package this test cannot reach, initialised by
+        // name. Without it they were declared only when an earlier test in the same JVM happened to
+        // build a date widget, so this class passed in the suite and failed on its own, calling
+        // every dates key an orphan.
+        initialise("limn.components.date.DateStrings", "limn.components.tree.TreeStrings");
         return I18n.declaredKeys().keySet().stream()
                 .filter(key -> key.startsWith("limn."))
                 .collect(Collectors.toCollection(TreeSet::new));
@@ -63,6 +68,16 @@ class ShippedTranslationsTest extends ComponentTestBase {
 
     private static void touch(Object... loaded) {
         // Referencing the constants is the point: it forces class initialisation.
+    }
+
+    private static void initialise(String... classNames) {
+        for (String name : classNames) {
+            try {
+                Class.forName(name, true, ShippedTranslationsTest.class.getClassLoader());
+            } catch (ClassNotFoundException e) {
+                throw new AssertionError("a string domain moved or was renamed: " + name, e);
+            }
+        }
     }
 
     @Test

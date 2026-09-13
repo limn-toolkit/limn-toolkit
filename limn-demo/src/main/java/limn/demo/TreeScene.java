@@ -51,7 +51,7 @@ final class TreeScene {
     }
 
     /** The scene and the tree inside it, so a capture variant can drive the widget. */
-    private record Parts(Scene scene, Tree<Node> tree, Node deep) {
+    private record Parts(Scene scene, Tree<Node> tree, Node deep, Node remote) {
     }
 
     static Scene create() {
@@ -114,6 +114,15 @@ final class TreeScene {
             parts.tree().expand(node);
         }
         return new Built(parts.scene(), () -> parts.tree().scrollHorizontallyBy(140));
+    }
+
+    /**
+     * The same tree with "Remote" opened once it has a height, and photographed before its load
+     * lands: the one moment a tree over a disk or a network owes the reader a busy row.
+     */
+    static Built loading() {
+        Parts parts = parts();
+        return new Built(parts.scene(), () -> parts.tree().expand(parts.remote()));
     }
 
     private static Parts parts() {
@@ -221,6 +230,6 @@ final class TreeScene {
         Widget root = new Padding(Insets.all(24), page);
         Scene scene = new Scene(root);
         scene.setBackground(Theme.current().background);
-        return new Parts(scene, tree, deep);
+        return new Parts(scene, tree, deep, remote);
     }
 }

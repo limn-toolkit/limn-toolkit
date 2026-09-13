@@ -32,7 +32,7 @@ public final class Main {
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
             "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
-            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reader", "tree-reserved", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "form", "animations", "cursors",
+            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reader", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
             "newcontrols", "newcontrols-light", "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
@@ -248,6 +248,13 @@ public final class Main {
                 // One branch open to the bottom, so the indent outgrows the box and the outline
                 // has somewhere to go sideways. Same timing as tree-scroll, same reason.
                 TreeScene.Built built = TreeScene.deep();
+                widgetScene = built.scene();
+                afterLayout = screenshotMode ? null : built.afterLayout();
+                treeScroll = built.afterLayout();
+            } else if (scene.equals("tree-loading")) {
+                // "Remote" opened on the same timer, which lands the capture 300 ms into a load
+                // that takes 600: the row is open and its children are not there yet.
+                TreeScene.Built built = TreeScene.loading();
                 widgetScene = built.scene();
                 afterLayout = screenshotMode ? null : built.afterLayout();
                 treeScroll = built.afterLayout();
@@ -471,7 +478,8 @@ public final class Main {
             // pumped back to back and carry none of it, so a capture taken from them
             // photographs the bar at zero opacity -- which reads as a widget that has none.
             boolean treeScrollCapture =
-                    (scene.equals("tree-scroll") || scene.equals("tree-deep")) && screenshotMode;
+                    (scene.equals("tree-scroll") || scene.equals("tree-deep")
+                            || scene.equals("tree-loading")) && screenshotMode;
             // Charts animate their values in over half a second, and the tooltip is half
             // the API: settle, hover a bar, then capture.
             boolean chartsCapture = scene.startsWith("charts") && screenshotMode;

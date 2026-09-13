@@ -558,6 +558,90 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                         + describe(tree()));
     }
 
+    // ------------------------------------------------------------------------------ loading
+
+    /**
+     * An open row whose children are on their way is {@code BUSY}, which is what the spinner and
+     * the "Loading…" line say to a sighted user (ADR 044 §2). Without it, an open row with nothing
+     * under it tells a reader the node is empty.
+     *
+     * <p>The line itself is not an item. It is not a node and cannot be selected, so a reader that
+     * walked onto it would stand somewhere the tree cannot put its cursor. The rows are numbered
+     * among the nodes, so the count does not include a line the reader never reaches either.
+     * When the children land, the row stops being busy and says so with a state change, which is
+     * what a bridge raises on the platform.
+     */
+    @Test
+    void aRowWhoseChildrenAreOnTheirWayIsBusyAndItsLoadingLineIsNotAnItem() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node remote = Node.leaf("remote");
+        Node below = Node.leaf("b");
+        List<Node> fetched = List.of(Node.leaf("one"), Node.leaf("two"));
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(remote, below);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node == remote ? null : node.children(); // "not known yet"
+            }
+
+            @Override
+            public limn.concurrent.Work<List<Node>> load(Node node) {
+                return limn.concurrent.Ui.work(progress -> fetched);
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Cell(ROW_H);
+            }
+
+            @Override
+            public I18nString nameOf(Node node) {
+                return node.name();
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+
+        tree.expand(remote);
+        frame();
+
+        List<AccessibleNode> rows = rowNodes();
+        assertEquals(List.of("remote", "b"), rows.stream().map(AccessibleNode::name).toList(),
+                "the loading line is not an item: " + describe(tree()));
+        assertFalse(describe(tree()).contains("Loading"),
+                "and it is nowhere else in the tree either: " + describe(tree()));
+        assertTrue(rows.get(0).has(Accessible.State.BUSY),
+                "the open row whose children are on their way is busy: " + describe(tree()));
+        assertTrue(rows.get(0).expand().expanded(), "and still open");
+        assertFalse(rows.get(1).has(Accessible.State.BUSY), "the row below is not");
+        assertEquals(2, rows.get(0).selectionItem().sizeOfSet(),
+                "numbered among the nodes, so the line is not counted: " + describe(tree()));
+        assertEquals(2, rows.get(1).selectionItem().positionInSet(),
+                "and the row below it is the second, not the third");
+        bridge.events.clear();
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        frame();
+
+        rows = rowNodes();
+        assertEquals(List.of("remote", "one", "two", "b"),
+                rows.stream().map(AccessibleNode::name).toList(), describe(tree()));
+        assertTrue(nodesWith(Accessible.State.BUSY).isEmpty(),
+                "once the children land nothing is busy: " + describe(tree()));
+        long remoteId = rows.get(0).id();
+        assertTrue(bridge.events.stream().anyMatch(event ->
+                        event.type() == limn.accessibility.AccessibleEvent.Type.STATE_CHANGED
+                                && event.state() == Accessible.State.BUSY
+                                && event.nodeId() == remoteId),
+                "and the row says it stopped, which is what a platform bridge raises: "
+                        + bridge.events);
+    }
+
     // ---------------------------------------------------------------------- what a quiet frame costs
 
     @Test

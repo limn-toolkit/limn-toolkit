@@ -82,6 +82,14 @@ class TreeTest extends ComponentTestBase {
             Label cell = new Label(node.name());
             return cell;
         }
+
+        /** Every cell handed back, so a case can check the model only ever gets its own. */
+        final List<Widget> recycled = new ArrayList<>();
+
+        @Override
+        public void recycle(Widget cell) {
+            recycled.add(cell);
+        }
     }
 
     private Scene scene;
@@ -363,6 +371,136 @@ class TreeTest extends ComponentTestBase {
     }
 
     /**
+     * An open row whose children are on their way says so under itself, in the place its children
+     * will take, and stops saying it when they land (ADR 044 §2, his choice of both a spinner and
+     * a line). Before, it sat open over nothing, which is what a node with no children looks like.
+     *
+     * <p>The line is the tree's own widget and not a node: it does not count as a visible row,
+     * and it is never handed to the model to recycle, since the model did not build it.
+     */
+    @Test
+    void anOpenRowWhoseChildrenAreOnTheirWaySaysSoUnderItselfUntilTheyLand() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node remote = new Node("remote", List.of());
+        CountingModel model = new CountingModel(List.of(remote, Node.leaf("b")),
+                Map.of("remote", List.of(Node.leaf("one"), Node.leaf("two"))));
+        Tree<Node> tree = mount(model);
+
+        tree.expand(remote);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("remote", "Loading…", "b"), drawn(tree),
+                "the line sits where the children will, and the row below moves down for it");
+        assertEquals(2, tree.visibleRowCount(), "the line is not a node");
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("remote", "one", "two", "b"), drawn(tree),
+                "and when the children land they take its place");
+        for (Widget cell : model.recycled) {
+            assertFalse(cell instanceof Label label && label.text().equals("Loading…"),
+                    "the line is the tree's, so the model is never handed it to pool");
+        }
+    }
+
+    /**
+     * The line is not a row anyone stands on. The arrows walk past it in the direction they
+     * travel, and a click on it lands on the row it belongs to.
+     *
+     * <p>Its node is its row's, which is what makes a click right. It is also what made Down
+     * wrong: stepping onto the line resolved to the row the cursor was already on, so Down from a
+     * loading row could never get below it.
+     */
+    @Test
+    void theArrowsWalkPastALoadingLineAndAClickOnItLandsOnItsRow() {
+        Node remote = new Node("remote", List.of());
+        Node below = Node.leaf("b");
+        CountingModel model = new CountingModel(List.of(remote, below),
+                Map.of("remote", List.of(Node.leaf("one"))));
+        Tree<Node> tree = mount(model);
+        scene.requestFocus(tree);
+
+        press(Keys.DOWN);  // onto remote
+        press(Keys.RIGHT); // opens it, and its load starts
+        assertTrue(tree.isExpanded(remote));
+        assertEquals(remote, tree.leadNode());
+
+        press(Keys.RIGHT);
+        assertEquals(remote, tree.leadNode(),
+                "Right into a row still loading has nothing to step onto, so it stays");
+
+        press(Keys.DOWN);
+        assertEquals(below, tree.leadNode(), "Down goes past the line to the next node");
+
+        press(Keys.UP);
+        assertEquals(remote, tree.leadNode(), "and Up comes back past it to the row it belongs to");
+
+        press(Keys.END);
+        assertEquals(below, tree.leadNode());
+
+        tree.setSelected(below);
+        Widget line = null;
+        for (Widget child : tree.children()) {
+            if (child instanceof Label label && !label.text().equals("remote")
+                    && !label.text().equals("b")) {
+                line = child;
+            }
+        }
+        assertTrue(line != null, "the loading line is mounted: " + drawn(tree));
+        float x = line.localToSceneX() + line.width() / 2;
+        float y = line.localToSceneY() + line.height() / 2;
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        scene.inputBatchEnded();
+        assertEquals(List.of(remote), tree.selectedNodes(),
+                "a click on the line selects the row it belongs to, the folder that is loading");
+    }
+
+    /**
+     * The spinner is drawn where the open triangle goes, turns on its own while the load runs,
+     * and gives the triangle back when the load lands. It turns on the scene's clock rather than
+     * on an input, so nothing but its own ticker damages the band in between.
+     */
+    @Test
+    void aLoadingRowTurnsAnArcWhereItsTriangleGoesAndGetsTheTriangleBackWhenItLands() {
+        Node remote = new Node("remote", List.of());
+        CountingModel model = new CountingModel(List.of(remote, Node.leaf("b")),
+                Map.of("remote", List.of(Node.leaf("one"))));
+        long[] now = {1_000_000_000L};
+        Tree<Node> tree = new Tree<>(model);
+        scene = new Scene(tree, () -> now[0]);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        scene.renderFrame(new RecordingTestCanvas(220, 200));
+
+        tree.expand(remote);
+        scene.layoutPass(220, 200);
+        TwistyCanvas opened = new TwistyCanvas(220, 200);
+        scene.renderFrame(opened);
+        assertEquals(1, opened.twisties.size(), "remote is the one row with a band to draw");
+        TwistyCanvas.Painted arc = opened.twisties.get(0);
+        assertTrue(arc.points() > 3,
+                "a curve where the triangle goes, not the triangle's three points: " + arc);
+
+        now[0] += 100_000_000L;
+        TwistyCanvas turned = new TwistyCanvas(220, 200);
+        scene.renderFrame(turned);
+        assertEquals(1, turned.twisties.size(),
+                "a tenth of a second later the spinner repaints its band by itself: " + turned.twisties);
+        TwistyCanvas.Painted later = turned.twisties.get(0);
+        assertTrue(Math.hypot(later.startX() - arc.startX(), later.startY() - arc.startY()) > 0.5,
+                "and the arc has turned: it started at " + arc + " and now at " + later);
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 3);
+        scene.layoutPass(220, 200);
+        scene.requestRender();
+        TwistyCanvas landed = new TwistyCanvas(220, 200);
+        scene.renderFrame(landed);
+        assertEquals(1, landed.twisties.size(), landed.twisties.toString());
+        assertEquals(3, landed.twisties.get(0).points(),
+                "once the children land the row is simply open, with its triangle back");
+    }
+
+    /**
      * The two gestures the damage ratchet drives, asserted here first: a key with the focus on
      * the tree and nothing else, and a click at the middle of the box. Both must reach a row —
      * a gesture that reaches nothing repaints nothing, and a ceiling over it asserts nothing.
@@ -635,8 +773,11 @@ class TreeTest extends ComponentTestBase {
     /** Where each stroked path was painted, which for these fixtures is only the triangles. */
     private static final class TwistyCanvas extends ComponentTestBase.FakeCanvas {
 
-        /** The leading point of one painted path, in the tree's own coordinates. */
-        record Painted(float x, float y) {
+        /**
+         * One painted path, in the tree's own coordinates: its leading point, where it starts,
+         * and how many points it flattens to — three for a triangle, many for an arc.
+         */
+        record Painted(float x, float y, float startX, float startY, int points) {
         }
 
         final List<Painted> twisties = new ArrayList<>();
@@ -648,6 +789,8 @@ class TreeTest extends ComponentTestBase {
         @Override
         public void drawPath(Path2D path, float strokeWidth, Paint paint) {
             float[] leading = {Float.MAX_VALUE, 0};
+            float[] start = {Float.NaN, Float.NaN};
+            int[] points = {0};
             path.flatten(0.05f, new Path2D.Flattened() {
                 @Override
                 public void moveTo(float x, float y) {
@@ -664,13 +807,17 @@ class TreeTest extends ComponentTestBase {
                 }
 
                 private void at(float x, float y) {
+                    if (points[0]++ == 0) {
+                        start[0] = x;
+                        start[1] = y;
+                    }
                     if (x < leading[0]) {
                         leading[0] = x;
                         leading[1] = y;
                     }
                 }
             });
-            twisties.add(new Painted(leading[0], leading[1]));
+            twisties.add(new Painted(leading[0], leading[1], start[0], start[1], points[0]));
         }
     }
 

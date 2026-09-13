@@ -158,18 +158,55 @@ public class Tree<T> extends Widget implements Scrollable {
         final boolean expandable;
         final boolean expanded;
         final boolean loading;
+        /**
+         * Whether this is the "Loading…" line under an open row whose children are on their way,
+         * rather than a node. {@link #node} is the row it belongs to, which is what makes every
+         * key and click that lands on the line land on that row instead: it is never itself
+         * selected, never the cursor, and never an item to a reader.
+         */
+        final boolean placeholder;
+        /** Where this row stands among the rows that are nodes, from one; zero for the line. */
+        final int item;
 
-        Row(T node, int depth, boolean expandable, boolean expanded, boolean loading) {
+        Row(T node, int depth, boolean expandable, boolean expanded, boolean loading,
+                boolean placeholder, int item) {
             this.node = node;
             this.depth = depth;
             this.expandable = expandable;
             this.expanded = expanded;
             this.loading = loading;
+            this.placeholder = placeholder;
+            this.item = item;
         }
+    }
+
+    /**
+     * The key a loading line is mounted under. It shares its node with the row above it, and a
+     * cell following its node must not follow that one onto the row.
+     */
+    private record LoadingKey(Object node) {
+    }
+
+    /**
+     * The cell of a loading line: the tree's own, and mounted under a {@link LoadingKey}, which is
+     * how a release knows not to hand it to the model to recycle.
+     */
+    private static Widget loadingLine() {
+        limn.components.Label line = new limn.components.Label(TreeStrings.LOADING);
+        line.setMuted(true);
+        // The row it belongs to says it is busy, on every platform; a line of text saying so again
+        // would be an item a reader can walk onto that is not a node.
+        line.setAccessibleIgnored(true);
+        return line;
     }
 
     /** Rows of intrinsic height when the height axis is unbounded; a count, not a length. */
     private static final int VISIBLE_ROWS_HINT = 8;
+
+    /** One turn of a loading spinner, in seconds of wall time. */
+    private static final double SPIN_SECONDS = 1.0;
+    /** How much of the circle the spinner's arc covers: three quarters, so its turning shows. */
+    private static final double SPIN_SWEEP = 1.5 * Math.PI;
 
     private final Model<T> model;
     private final ScrollBar vBar;
@@ -233,6 +270,16 @@ public class Tree<T> extends Widget implements Scrollable {
     private float offsetX;
     /** The deepest row in the traversal, recomputed with {@link #rows} and read at every layout. */
     private int maxDepth;
+    /** How many of {@link #rows} are nodes, which is every row but the loading lines. */
+    private int itemCount;
+    /**
+     * How far round the loading spinners are, in turns. One phase for every loading row, so that
+     * two rows loading at once turn together rather than drifting apart.
+     */
+    private double spinPhase;
+    private boolean spinning;
+    /** Bumped on detach, so a ticker still registered with the scene it left stops itself. */
+    private int spinGeneration;
     /** The content width the last pass settled on, which is what the horizontal bar reports. */
     private float contentWidth;
 
@@ -250,6 +297,11 @@ public class Tree<T> extends Widget implements Scrollable {
 
     /** A tree over {@code model}, which supplies the nodes and the widgets that draw them. */
     public Tree(Model<T> model) {
+        // Here and not where the loading line first needs its words: registering a bundle
+        // invalidates the language, which lays out and repaints every scene, and the first line is
+        // built in the middle of the tree's own contained layout. Left to that moment, the first
+        // row to load in a process repainted the whole window, which the damage ratchet caught.
+        TreeStrings.ensureRegistered();
         this.model = Objects.requireNonNull(model, "model");
         setFocusable(true);
         vBar = new ScrollBar(ScrollBar.Orientation.VERTICAL, new ScrollBar.Model() {
@@ -409,6 +461,7 @@ public class Tree<T> extends Widget implements Scrollable {
                 .deliverIf(() -> scene() != null)
                 .start();
         loading.put(node, job);
+        startSpinning();
     }
 
     private void cancelAllLoads() {
@@ -424,6 +477,7 @@ public class Tree<T> extends Widget implements Scrollable {
      */
     private void rebuildRows() {
         rows.clear();
+        itemCount = 0;
         for (T root : model.roots()) {
             appendRow(root, 0);
         }
@@ -463,7 +517,7 @@ public class Tree<T> extends Widget implements Scrollable {
         Arrays.fill(now, -1);
         int found = 0;
         for (int r = 0; r < rows.size() && found < mountedCount; r++) {
-            Integer slot = slotOf.get(rows.get(r).node);
+            Integer slot = slotOf.get(mountKey(rows.get(r)));
             if (slot != null && now[slot] < 0) {
                 now[slot] = r;
                 found++;
@@ -474,7 +528,7 @@ public class Tree<T> extends Widget implements Scrollable {
         for (int i = 0; i < mountedCount; i++) {
             Widget cell = mountedCells[i];
             if (now[i] <= last) { // gone, or moved against the traversal
-                unmount(cell, containsFocus(cell));
+                unmount(cell, mountedNodes[i], containsFocus(cell));
                 continue;
             }
             last = now[i];
@@ -501,13 +555,25 @@ public class Tree<T> extends Widget implements Scrollable {
             // children arrive later, and delivery is always posted, so nothing re-enters it.
             startLoadIfNeeded(node);
         }
-        rows.add(new Row<>(node, depth, !leaf, open, loading.containsKey(node)));
+        boolean busy = loading.containsKey(node);
+        rows.add(new Row<>(node, depth, !leaf, open, busy, false, ++itemCount));
         if (!open || leaf) {
             return;
         }
-        for (T child : childrenOf(node)) {
+        List<T> children = childrenOf(node);
+        if (busy && children.isEmpty()) {
+            // Open, and what it holds has not arrived: say so in the row's own place rather than
+            // leave it open over nothing, which reads as a node with nothing in it (ADR 044 §2).
+            rows.add(new Row<>(node, depth + 1, false, false, true, true, 0));
+            return;
+        }
+        for (T child : children) {
             appendRow(child, depth + 1);
         }
+    }
+
+    private static Object mountKey(Row<?> row) {
+        return row.placeholder ? new LoadingKey(row.node) : row.node;
     }
 
     /** The children to walk: what a load produced, else what the model already knows. */
@@ -520,9 +586,12 @@ public class Tree<T> extends Widget implements Scrollable {
         return known == null ? List.of() : known;
     }
 
-    /** @return how many rows are visible, which is a traversal of what is open */
+    /**
+     * @return how many nodes are visible, which is a traversal of what is open. The "Loading…"
+     *         line under a row whose children are on their way is not one of them.
+     */
     public int visibleRowCount() {
-        return rows.size();
+        return itemCount;
     }
 
     /**
@@ -955,8 +1024,9 @@ public class Tree<T> extends Widget implements Scrollable {
         SizeTokens t = tokens();
         Widget cell = cellFor(index);
         if (cell == null) {
-            cell = Objects.requireNonNull(model.cellFor(rows.get(index).node),
-                    "Model.cellFor returned null");
+            Row<T> row = rows.get(index);
+            cell = row.placeholder ? loadingLine()
+                    : Objects.requireNonNull(model.cellFor(row.node), "Model.cellFor returned null");
             mount(index, cell);
             cell.setVisible(true);
         }
@@ -995,7 +1065,7 @@ public class Tree<T> extends Widget implements Scrollable {
         System.arraycopy(mountedNodes, at, mountedNodes, at + 1, mountedCount - at);
         mountedRows[at] = index;
         mountedCells[at] = cell;
-        mountedNodes[at] = rows.get(index).node;
+        mountedNodes[at] = mountKey(rows.get(index));
         mountedCount++;
     }
 
@@ -1018,7 +1088,7 @@ public class Tree<T> extends Widget implements Scrollable {
                 kept++;
                 continue;
             }
-            unmount(cell, hasFocus);
+            unmount(cell, mountedNodes[i], hasFocus);
         }
         for (int i = kept; i < mountedCount; i++) {
             mountedCells[i] = null;
@@ -1031,9 +1101,11 @@ public class Tree<T> extends Widget implements Scrollable {
      * Takes a cell out of the tree and hands it back to the model, bringing the keyboard focus
      * back to the tree when it was inside, so a row that leaves does not take the focus with it.
      */
-    private void unmount(Widget cell, boolean hadFocus) {
+    private void unmount(Widget cell, Object key, boolean hadFocus) {
         remove(cell);
-        model.recycle(cell);
+        if (!(key instanceof LoadingKey)) {
+            model.recycle(cell); // a loading line is the tree's, and the model never built it
+        }
         if (hadFocus) {
             requestFocus();
         }
@@ -1187,7 +1259,7 @@ public class Tree<T> extends Widget implements Scrollable {
 
     private int indexOf(T node) {
         for (int i = 0; i < rows.size(); i++) {
-            if (rows.get(i).node.equals(node)) {
+            if (!rows.get(i).placeholder && rows.get(i).node.equals(node)) {
                 return i;
             }
         }
@@ -1208,7 +1280,7 @@ public class Tree<T> extends Widget implements Scrollable {
             case Keys.PAGE_DOWN -> consumeAnd(event, () -> moveLead(rowsPerPage(tokens())));
             case Keys.PAGE_UP -> consumeAnd(event, () -> moveLead(-rowsPerPage(tokens())));
             case Keys.HOME -> consumeAnd(event, () -> selectAt(0));
-            case Keys.END -> consumeAnd(event, () -> selectAt(rows.size() - 1));
+            case Keys.END -> consumeAnd(event, () -> selectAt(rows.size() - 1, -1));
             // Right opens a closed row and steps into an open one; Left closes an open row and
             // steps to the parent of a closed one. Reading right to left the two swap, as every
             // other pair of horizontal arrows in this toolkit does.
@@ -1251,8 +1323,8 @@ public class Tree<T> extends Widget implements Scrollable {
         if (opening) {
             if (row.expandable && !row.expanded) {
                 setExpanded(row.node, true, Change.Origin.USER);
-            } else if (row.expanded && index + 1 < rows.size()) {
-                selectAt(index + 1);
+            } else if (row.expanded && index + 1 < rows.size() && !rows.get(index + 1).placeholder) {
+                selectAt(index + 1); // and into a row still loading there is nothing to step to
             }
             return;
         }
@@ -1285,15 +1357,39 @@ public class Tree<T> extends Widget implements Scrollable {
             return;
         }
         int from = indexOf(lead);
-        selectAt(from < 0 ? anchorIndex : from + delta);
+        selectAt(from < 0 ? anchorIndex : from + delta, delta);
     }
 
     private void selectAt(int index) {
+        selectAt(index, 1);
+    }
+
+    /**
+     * Selects the row at {@code index}, or past a loading line there, the way the cursor was
+     * travelling: {@code toward} negative is upward.
+     *
+     * <p>A line's node is its row's, so without the skip Down from a loading row landed on the
+     * line, resolved to the row it was already on, and could never get below it. When no row lies
+     * that way (a line at the very end) the row above is taken, which is the line's own row; a
+     * root is never a line, so there always is one.
+     */
+    private void selectAt(int index, int toward) {
         if (rows.isEmpty()) {
             return;
         }
-        int clamped = Math.min(Math.max(0, index), rows.size() - 1);
-        selectOnly(rows.get(clamped).node, true, Change.Origin.USER);
+        int at = Math.min(Math.max(0, index), rows.size() - 1);
+        int step = toward < 0 ? -1 : 1;
+        int found = at;
+        while (found >= 0 && found < rows.size() && rows.get(found).placeholder) {
+            found += step;
+        }
+        if (found < 0 || found >= rows.size()) {
+            found = at;
+            while (rows.get(found).placeholder) {
+                found--;
+            }
+        }
+        selectOnly(rows.get(found).node, true, Change.Origin.USER);
     }
 
     /** A page is a viewport of rows: a count derived from the current estimate, not a token. */
@@ -1464,7 +1560,9 @@ public class Tree<T> extends Widget implements Scrollable {
                     continue; // the focused row a scroll spared
                 }
                 Row<T> row = rows.get(index);
-                if (selected.contains(row.node)) {
+                // Not under a loading line: its node is its row's, and a wash across both would
+                // read as two rows selected.
+                if (!row.placeholder && selected.contains(row.node)) {
                     canvas.fillRect(0, cell.y(), width(), cell.height(), selectionTint);
                 }
                 if (row.expandable) {
@@ -1506,7 +1604,14 @@ public class Tree<T> extends Widget implements Scrollable {
         float cx = twistyLeft(t, row.depth) + band / 2;
         float cy = cell.y() + cell.height() / 2;
         twisty.reset();
-        if (row.expanded) {
+        if (row.loading && row.expanded) {
+            // Loading: a turning arc where the open triangle goes, as wide as the triangle, so the
+            // band and the cell beside it do not move when the children land (ADR 044 §2).
+            float radius = halfW - Strokes.ARROW_PEN / 2;
+            double start = spinPhase * 2 * Math.PI;
+            appendArc(twisty, cx, cy, radius, start, start + SPIN_SWEEP);
+            startSpinning(); // re-armed here, as the progress bar's sweep is, when the row shows again
+        } else if (row.expanded) {
             // Open: pointing down, the same triangle the combo box draws for an open list.
             twisty.moveTo(cx - halfW, cy - halfH).lineTo(cx, cy + halfH).lineTo(cx + halfW, cy - halfH);
         } else if (isRightToLeft()) {
@@ -1516,6 +1621,97 @@ public class Tree<T> extends Widget implements Scrollable {
         }
         canvas.drawPath(twisty, Strokes.ARROW_PEN,
                 isEnabled() ? theme.textMuted : theme.disabledText);
+    }
+
+    /**
+     * Appends the arc from {@code a0} to {@code a1} radians around {@code (cx, cy)}, clockwise on
+     * screen, in cubic pieces of at most a quarter turn: past that a Bézier visibly flattens the
+     * circle. The donut chart's construction.
+     */
+    private static void appendArc(Path2D path, float cx, float cy, float radius, double a0,
+            double a1) {
+        int steps = Math.max(1, (int) Math.ceil(Math.abs(a1 - a0) / (Math.PI / 2)));
+        double step = (a1 - a0) / steps;
+        double kappa = 4.0 / 3.0 * Math.tan(step / 4);
+        double angle = a0;
+        path.moveTo((float) (cx + radius * Math.cos(angle)), (float) (cy + radius * Math.sin(angle)));
+        for (int i = 0; i < steps; i++) {
+            double next = angle + step;
+            float x0 = (float) (cx + radius * Math.cos(angle));
+            float y0 = (float) (cy + radius * Math.sin(angle));
+            float x1 = (float) (cx + radius * Math.cos(next));
+            float y1 = (float) (cy + radius * Math.sin(next));
+            path.cubicTo((float) (x0 - kappa * radius * Math.sin(angle)),
+                    (float) (y0 + kappa * radius * Math.cos(angle)),
+                    (float) (x1 + kappa * radius * Math.sin(next)),
+                    (float) (y1 - kappa * radius * Math.cos(next)), x1, y1);
+            angle = next;
+        }
+    }
+
+    // ------------------------------------------------------------------------- spinner
+
+    /**
+     * Turns the spinners while any row is loading, on wall time: the load it stands for does not
+     * stop because the application paused its scene's clock, and a spinner that stops reads as a
+     * load that hung. The progress bar's sweep, for its reasons.
+     *
+     * <p>Only the bands of the loading rows are damaged per frame, not the tree: the arc is the
+     * only thing that moves.
+     */
+    private void startSpinning() {
+        if (spinning || loading.isEmpty() || scene() == null || !isShowing()) {
+            return;
+        }
+        spinning = true;
+        int generation = ++spinGeneration;
+        scene().addRealTimeTicker(dt -> {
+            if (generation != spinGeneration) {
+                return false; // superseded by a detach: a newer ticker owns the spin, or none does
+            }
+            if (loading.isEmpty() || !isShowing()) {
+                spinning = false; // re-armed by the next load, attach or paint of a loading row
+                return false;
+            }
+            spinPhase = (spinPhase + dt / SPIN_SECONDS) % 1.0;
+            damageSpinners();
+            return true;
+        });
+    }
+
+    /** Damages the triangle band of every loading row on screen, and nothing else. */
+    private void damageSpinners() {
+        SizeTokens t = tokens();
+        float band = twistyBand(t);
+        for (int i = 0; i < mountedCount; i++) {
+            Row<T> row = rows.get(mountedRows[i]);
+            if (!row.loading || !row.expanded || row.placeholder) {
+                continue;
+            }
+            Widget cell = mountedCells[i];
+            // Clamped to the viewport and not the box: a band scrolled under a reserved bar strip
+            // is clipped out of the paint, and damaging the strip would repaint the bar for it.
+            float viewLeft = viewportLeft();
+            float top = Math.max(0, cell.y());
+            float bottom = Math.min(viewportHeight(), cell.y() + cell.height());
+            float left = Math.max(viewLeft, twistyLeft(t, row.depth));
+            float right = Math.min(viewLeft + gutters.viewportWidth(width()),
+                    twistyLeft(t, row.depth) + band);
+            if (bottom > top && right > left) {
+                invalidate(left, top, right - left, bottom - top);
+            }
+        }
+    }
+
+    @Override
+    protected void onAttached() {
+        startSpinning(); // a tree opened onto loading rows before it joined a scene still turns
+    }
+
+    @Override
+    protected void onDetached() {
+        spinGeneration++; // the ticker left behind in the old scene stops on its next frame
+        spinning = false;
     }
 
     // --------------------------------------------------------------------- accessibility
@@ -1564,15 +1760,25 @@ public class Tree<T> extends Widget implements Scrollable {
             return;
         }
         Row<T> row = rows.get(index);
+        if (row.placeholder) {
+            return; // the loading line ignores itself; its row carries BUSY instead
+        }
         a.key(idOf(row.node));
         a.role(Accessible.Role.TREE_ITEM);
         I18nString name = model.nameOf(row.node);
         if (name != null) {
             a.name(name);
         }
-        a.selectionItem(selected.contains(row.node), index + 1, rows.size());
+        // Numbered among the nodes, so a loading line a reader cannot reach is not counted either.
+        a.selectionItem(selected.contains(row.node), row.item, itemCount);
         if (row.expandable) {
             a.expand(row.expanded);
+        }
+        if (row.loading) {
+            // What the spinner and the loading line say to a sighted user: this row is open and
+            // what it holds has not arrived. Without it an open row with no children reads to a
+            // reader as a node with nothing in it (ADR 044 §2).
+            a.state(Accessible.State.BUSY);
         }
         if (row.node.equals(lead)) {
             a.state(Accessible.State.ACTIVE);
