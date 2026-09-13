@@ -95,7 +95,12 @@ He chose all three of the following, from renders:
 
 To a reader the row is `BUSY`, and the line is not an item at all, so a reader never stands where
 the cursor cannot go, and "2 of 5" counts nodes. On Linux, AT-SPI's busy bit was already mapped.
-Windows and macOS map no busy state for any widget yet, and are the rest of this amendment's work.
+UI Automation has no busy bit, so on Windows `BUSY` is the item's `ItemStatus` string. That is a
+phrase in the node's own language, from a new `StateNames` catalog (`limn.state.busy`, twenty-one
+translations), and a property-changed event is raised when the row starts and stops. No busy state
+had been mapped on Windows for any widget before this, so the progress bar's indeterminate `BUSY`
+now reaches it too. macOS is the rest of this amendment's work. Neither platform has been heard
+through a live reader: the guests were not up.
 
 ## 3. Decision: the tree walks its own rows, and the shared engine is owed rather than taken
 

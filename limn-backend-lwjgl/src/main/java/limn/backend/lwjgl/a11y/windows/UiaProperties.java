@@ -3,6 +3,7 @@ package limn.backend.lwjgl.a11y.windows;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.RoleNames;
+import limn.accessibility.StateNames;
 
 /**
  * What one node answers to {@code IRawElementProviderSimple::GetPropertyValue}.
@@ -137,6 +138,13 @@ final class UiaProperties {
             case UiaIds.IS_DIALOG:
                 return node.role() == Accessible.Role.DIALOG
                         || node.role() == Accessible.Role.ALERT;
+
+            // UI Automation has no busy bit; ItemStatus is its field for "the state of this item" as
+            // text a client reads out. So BUSY is a word here, in the node's own language, and an
+            // item that is not busy has no status at all rather than a status saying it is idle.
+            case UiaIds.ITEM_STATUS:
+                return node.has(Accessible.State.BUSY)
+                        ? StateNames.of(Accessible.State.BUSY, node.locale()) : null;
 
             default:
                 return null;

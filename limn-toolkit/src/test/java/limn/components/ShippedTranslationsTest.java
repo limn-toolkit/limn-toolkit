@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessible;
 import limn.accessibility.RoleNames;
+import limn.accessibility.StateNames;
 import limn.i18n.I18n;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -55,7 +56,8 @@ class ShippedTranslationsTest extends ComponentTestBase {
                 ThemeStrings.of(Theme.builtins().get(0)),
                 // The role catalogue declares its keys the same way, and a domain missing from
                 // this list looks like a file full of keys nobody asks for.
-                RoleNames.englishOf(Accessible.Role.BUTTON));
+                RoleNames.englishOf(Accessible.Role.BUTTON),
+                StateNames.englishOf(Accessible.State.BUSY));
         // The two domains whose strings live in a package this test cannot reach, initialised by
         // name. Without it they were declared only when an earlier test in the same JVM happened to
         // build a date widget, so this class passed in the suite and failed on its own, calling

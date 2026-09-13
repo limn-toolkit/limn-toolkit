@@ -4,6 +4,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.StateNames;
 import limn.backend.AccessibilityBridge;
 import limn.backend.lwjgl.a11y.PlatformBridge;
 import limn.concurrent.Threads;
@@ -421,24 +422,7 @@ public final class UiaBridge extends PlatformBridge {
         AccessibleTree tree = tree();
         int index = tree.indexOf(event.nodeId());
         AccessibleNode node = index < 0 ? null : tree.node(index);
-        int propertyId = switch (event.type()) {
-            case NAME_CHANGED -> UiaIds.NAME;
-            case DESCRIPTION_CHANGED -> UiaIds.HELP_TEXT;
-            case VALUE_CHANGED -> node != null && node.value() != null
-                    ? UiaIds.RANGE_VALUE_VALUE : UiaIds.VALUE_VALUE;
-            case STATE_CHANGED -> switch (event.state()) {
-                case CHECKED, MIXED -> UiaIds.TOGGLE_STATE;
-                case ENABLED -> UiaIds.IS_ENABLED;
-                case SELECTED -> UiaIds.SELECTION_ITEM_IS_SELECTED;
-                case EXPANDED -> UiaIds.EXPAND_COLLAPSE_EXPAND_COLLAPSE_STATE;
-                case READ_ONLY -> UiaIds.VALUE_IS_READ_ONLY;
-                default -> 0;
-            };
-            // A rectangle that moved is not raised: UI Automation watches an HWND's own bounds and
-            // a client re-reads a fragment's when it needs them, so raising it per node would be a
-            // storm of events during every drag for something nobody asked to be told.
-            default -> 0;
-        };
+        int propertyId = changedProperty(event, node);
         if (propertyId == 0) {
             return;
         }
@@ -447,8 +431,8 @@ public final class UiaBridge extends PlatformBridge {
         try {
             java.nio.ByteBuffer oldOne = MemoryUtil.memByteBuffer(before, UiaVariant.SIZE);
             java.nio.ByteBuffer newOne = MemoryUtil.memByteBuffer(after, UiaVariant.SIZE);
-            write(oldOne, propertyId, event.oldValue());
-            write(newOne, propertyId, event.newValue());
+            write(oldOne, propertyId, changedValue(propertyId, event.oldValue(), node));
+            write(newOne, propertyId, changedValue(propertyId, event.newValue(), node));
             int hresult = Uia.raisePropertyChangedEvent(element.pointer(), propertyId,
                     before, after);
             UiaWindow.say("property " + propertyId + " changed -> 0x"
@@ -459,6 +443,53 @@ public final class UiaBridge extends PlatformBridge {
             MemoryUtil.nmemFree(before);
             MemoryUtil.nmemFree(after);
         }
+    }
+
+    /**
+     * The property a change raises, or {@code 0} for one this platform is not told about.
+     *
+     * @param event what changed
+     * @param node  the node it changed on, or {@code null} when it is no longer in the tree
+     */
+    static int changedProperty(AccessibleEvent event, AccessibleNode node) {
+        return switch (event.type()) {
+            case NAME_CHANGED -> UiaIds.NAME;
+            case DESCRIPTION_CHANGED -> UiaIds.HELP_TEXT;
+            case VALUE_CHANGED -> node != null && node.value() != null
+                    ? UiaIds.RANGE_VALUE_VALUE : UiaIds.VALUE_VALUE;
+            case STATE_CHANGED -> switch (event.state()) {
+                case CHECKED, MIXED -> UiaIds.TOGGLE_STATE;
+                case ENABLED -> UiaIds.IS_ENABLED;
+                case SELECTED -> UiaIds.SELECTION_ITEM_IS_SELECTED;
+                case EXPANDED -> UiaIds.EXPAND_COLLAPSE_EXPAND_COLLAPSE_STATE;
+                case READ_ONLY -> UiaIds.VALUE_IS_READ_ONLY;
+                // The status string UiaProperties answers BUSY with; a client that caches it is
+                // told when the item starts and stops working, or it would go on reading a folder
+                // as loading after its children arrived.
+                case BUSY -> UiaIds.ITEM_STATUS;
+                default -> 0;
+            };
+            // A rectangle that moved is not raised: UI Automation watches an HWND's own bounds and
+            // a client re-reads a fragment's when it needs them, so raising it per node would be a
+            // storm of events during every drag for something nobody asked to be told.
+            default -> 0;
+        };
+    }
+
+    /**
+     * A change's value as the property carries it, where that is not the model's own type: BUSY
+     * moves as a boolean and ItemStatus is a string, the phrase while busy and empty after.
+     *
+     * @param propertyId the property {@link #changedProperty} chose
+     * @param value      the event's old or new value
+     * @param node       the node, for its locale, or {@code null} when it is gone
+     */
+    static Object changedValue(int propertyId, Object value, AccessibleNode node) {
+        if (propertyId == UiaIds.ITEM_STATUS && value instanceof Boolean busy) {
+            return busy ? StateNames.of(Accessible.State.BUSY,
+                    node != null ? node.locale() : java.util.Locale.ENGLISH) : "";
+        }
+        return value;
     }
 
     /**

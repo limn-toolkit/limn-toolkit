@@ -193,6 +193,44 @@ class UiaPropertiesTest {
                         + "on the machine, and answering here would replace it with ours");
     }
 
+    /**
+     * UI Automation has no busy bit, so a busy item says so in its status string: a tree row whose
+     * children are on their way (ADR 044 §2) is read as "busy" after its name. An item that is not
+     * busy has no status at all, rather than one saying it is idle.
+     */
+    @Test
+    void aBusyItemSaysSoInItsStatusAndAnIdleOneHasNone() {
+        AccessibleNode loading = control(publish(Accessible.Role.TREE_ITEM, "Remote", null,
+                Accessible.State.ENABLED, Accessible.State.BUSY));
+        assertEquals("busy", UiaProperties.valueOf(loading, UiaIds.ITEM_STATUS),
+                "the word the state is spoken as, in the node's own language");
+
+        AccessibleNode idle = control(publish(Accessible.Role.TREE_ITEM, "Remote", null,
+                Accessible.State.ENABLED));
+        assertNull(UiaProperties.valueOf(idle, UiaIds.ITEM_STATUS));
+    }
+
+    /**
+     * And the client is told when it starts and stops. Otherwise a client that cached the status
+     * would go on reading a folder as loading after its children arrived. The change is raised as
+     * the status string, not as the model's boolean: ItemStatus is text.
+     */
+    @Test
+    void aBusyStateThatMovesIsRaisedAsTheStatusStringBeforeAndAfter() {
+        AccessibleNode node = control(publish(Accessible.Role.TREE_ITEM, "Remote", null,
+                Accessible.State.ENABLED));
+        limn.accessibility.AccessibleEvent stopped =
+                limn.accessibility.AccessibleEvent.state(node.id(), Accessible.State.BUSY, false);
+
+        int property = UiaBridge.changedProperty(stopped, node);
+        assertEquals(UiaIds.ITEM_STATUS, property);
+        assertEquals("busy", UiaBridge.changedValue(property, Boolean.TRUE, node), "before");
+        assertEquals("", UiaBridge.changedValue(property, Boolean.FALSE, node),
+                "after: an empty status, which is the absence of one as a string");
+        assertEquals(Boolean.TRUE, UiaBridge.changedValue(UiaIds.IS_ENABLED, Boolean.TRUE, node),
+                "and a property that is a boolean keeps the model's boolean");
+    }
+
     @Test
     void anUnansweredPropertyIsEmptyRatherThanAGuess() {
         AccessibleNode node = control(publish(Accessible.Role.SWITCH, "Wrap lines", null,

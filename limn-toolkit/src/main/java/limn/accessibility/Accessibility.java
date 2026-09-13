@@ -53,8 +53,10 @@ public final class Accessibility {
         // user-interface thread. A bridge is the wrong first toucher: two of the three answer a
         // platform's questions from the platform's own threads, and one of those loading the
         // catalogue would throw inside a native callback. The walk is user-interface-thread by
-        // construction, so it is where the class is forced to load.
+        // construction, so it is where the class is forced to load. The state phrases, for the same
+        // reason and the same bridge.
         RoleNames.ensureRegistered();
+        StateNames.ensureRegistered();
     }
 
     /**
