@@ -47,9 +47,27 @@ final class AxNotifications {
         APPLICATION,
     }
 
-    /** A notification symbol and where to post it, or {@code null} for an event this platform is not told. */
-    record Posting(String notificationSymbol, Subject subject) {
+    /**
+     * A notification symbol and where to post it, or {@code null} for an event this platform is not
+     * told.
+     *
+     * @param notificationSymbol the AppKit global to resolve, or the name itself when {@code literal}
+     * @param subject            where it is posted
+     * @param literal            whether the name is a HIServices macro with no symbol to resolve
+     */
+    record Posting(String notificationSymbol, Subject subject, boolean literal) {
+        Posting(String notificationSymbol, Subject subject) {
+            this(notificationSymbol, subject, false);
+        }
     }
+
+    /**
+     * {@code kAXElementBusyChangedNotification}, which is a {@code CFSTR} macro in HIServices'
+     * {@code AXNotificationConstants.h} and not an AppKit global: there is nothing for {@code dlsym}
+     * to find, which is the constants rule's second exception after the announcement priorities.
+     * The value was read off this build's SDK on 2026-09-13, not recalled.
+     */
+    static final String BUSY_CHANGED = "AXElementBusyChanged";
 
     private static final Map<AccessibleEvent.Type, Posting> BY_TYPE =
             new EnumMap<>(AccessibleEvent.Type.class);
@@ -119,6 +137,24 @@ final class AxNotifications {
     }
 
     /**
+     * The same decision for one event, where the state that changed can decide it.
+     *
+     * <p>One state does: {@code BUSY} is not read back off {@code AXValue} as every other state is,
+     * but off the element's own busy attribute, which has a notification of its own. A value-changed
+     * posted for it would send a client to re-read an attribute that did not move.
+     *
+     * @param event the event
+     * @return how this platform is told, or {@code null} when it is not
+     */
+    static Posting of(AccessibleEvent event) {
+        if (event.type() == AccessibleEvent.Type.STATE_CHANGED
+                && event.state() == Accessible.State.BUSY) {
+            return new Posting(BUSY_CHANGED, Subject.NODE, true);
+        }
+        return of(event.type());
+    }
+
+    /**
      * The three announcement priorities, and the one place in three platforms where §12.3's
      * constants rule cannot be honoured.
      *
@@ -149,7 +185,7 @@ final class AxNotifications {
     static java.util.Set<String> symbols() {
         java.util.Set<String> symbols = new java.util.LinkedHashSet<>();
         for (Posting posting : BY_TYPE.values()) {
-            if (posting != null) symbols.add(posting.notificationSymbol());
+            if (posting != null && !posting.literal()) symbols.add(posting.notificationSymbol());
         }
         symbols.add(PRIORITY_KEY_SYMBOL);
         symbols.add(ANNOUNCEMENT_KEY_SYMBOL);

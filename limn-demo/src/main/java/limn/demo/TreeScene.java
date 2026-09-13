@@ -168,9 +168,11 @@ final class TreeScene {
             public Work<List<Node>> load(Node node) {
                 List<Node> fetched = FETCHED.get(node.name());
                 return Ui.work(progress -> {
-                    // A beat, so the busy state is something a person can actually see.
+                    // A beat, so the busy state is something a person can actually see. A reader
+                    // run lengthens it with -Dlimn.demo.treeLoadMillis, because a client that
+                    // walks the outline takes longer than the beat to reach the row.
                     try {
-                        Thread.sleep(600);
+                        Thread.sleep(Long.getLong("limn.demo.treeLoadMillis", 600));
                     } catch (InterruptedException interrupted) {
                         Thread.currentThread().interrupt();
                     }

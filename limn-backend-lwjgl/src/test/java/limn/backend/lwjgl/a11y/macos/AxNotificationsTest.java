@@ -33,6 +33,30 @@ class AxNotificationsTest {
                 "event types with no macOS row, not even a row saying 'nothing': " + undecided);
     }
 
+    /**
+     * A node that starts or stops being busy (a tree row whose children are on their way, ADR 044
+     * §2) posts AXElementBusyChanged, the notification of the attribute that carries it. Every
+     * other state change still posts value-changed, because every other state is read back off
+     * AXValue. BUSY's name is a HIServices macro with no symbol, so it travels as a literal, and
+     * the constants test is not asked to find it in AppKit.
+     */
+    @Test
+    void aBusyChangeIsPostedAsTheBusyAttributesOwnNotification() {
+        AxNotifications.Posting busy = AxNotifications.of(
+                AccessibleEvent.state(7, limn.accessibility.Accessible.State.BUSY, false));
+        assertEquals("AXElementBusyChanged", busy.notificationSymbol());
+        assertEquals(AxNotifications.Subject.NODE, busy.subject());
+        assertTrue(busy.literal(), "a macro, not a symbol dlsym could resolve");
+        assertTrue(!AxNotifications.symbols().contains("AXElementBusyChanged"),
+                "so the constants test does not look for it in the AppKit dump");
+
+        AxNotifications.Posting checked = AxNotifications.of(
+                AccessibleEvent.state(7, limn.accessibility.Accessible.State.CHECKED, true));
+        assertEquals("NSAccessibilityValueChangedNotification", checked.notificationSymbol(),
+                "and a state read back off AXValue is still a value change");
+        assertTrue(!checked.literal());
+    }
+
     @Test
     void aDestroyedNodeIsPostedByNobodyHere() {
         // §13.20, measured: AppKit posts AXUIElementDestroyed itself, once, however the client

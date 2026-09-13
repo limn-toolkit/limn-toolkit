@@ -8,6 +8,7 @@ import limn.backend.lwjgl.a11y.ClosureArgs;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Callback;
 import org.lwjgl.system.CallbackI;
+import org.lwjgl.system.JNI;
 import org.lwjgl.system.libffi.LibFFI;
 import org.lwjgl.system.macosx.ObjCRuntime;
 
@@ -104,6 +105,16 @@ final class AxElementClass {
     /** {@code NSAccessibilityElement}: what a released element is pointed back at. */
     private final long superclass;
     private final List<Callback> callbacks = new ArrayList<>();
+    /** The retained {@code NSString} {@link #BUSY_ATTRIBUTE}; zero until installed and after free. */
+    private long busyAttribute;
+
+    /**
+     * {@code kAXElementBusyAttribute}, a {@code CFSTR} macro in HIServices'
+     * {@code AXAttributeConstants.h} with no AppKit global behind it, so {@code dlsym} has nothing to
+     * find; read off this build's SDK on 2026-09-13, like its notification in
+     * {@link AxNotifications#BUSY_CHANGED}.
+     */
+    static final String BUSY_ATTRIBUTE = "AXElementBusy";
     /** The one view whose isa was re-pointed, and the class it had before; zero until then. */
     private long swizzledView;
     private long viewClassBefore;
@@ -171,6 +182,10 @@ final class AxElementClass {
     void free() {
         callbacks.forEach(Callback::free);
         callbacks.clear();
+        if (busyAttribute != NULL) {
+            ObjC.msgVoid(busyAttribute, "release");
+            busyAttribute = NULL;
+        }
     }
 
     private void addId(String selector, IdGetter body) {
@@ -249,6 +264,59 @@ final class AxElementClass {
         installFocusedElement();
         installActions();
         installTable();
+        installBusy();
+    }
+
+    /**
+     * {@code AXElementBusy}, the one attribute this bridge serves that AppKit's NSAccessibility
+     * protocol has no property for: a row of a tree whose children are on their way (ADR 044 §2).
+     *
+     * <p><b>So it goes through the legacy entry points</b>, {@code accessibilityAttributeValue:} and
+     * {@code accessibilityAttributeNames}, which every other attribute here leaves to AppKit. Both
+     * overrides answer the busy attribute themselves and hand everything else to the
+     * implementation {@code NSAccessibilityElement} already has, which is what maps an attribute
+     * name onto the protocol getters above. The inherited implementations are taken from the
+     * superclass before these are added to our class, so a forward reaches AppKit's and can never
+     * come back into this one. A superclass with no such method would make that forward
+     * {@code _objc_msgForward}, which is a crash rather than a missing attribute, so the class
+     * refuses to build instead.
+     */
+    private void installBusy() {
+        long valueSelector = ObjC.sel("accessibilityAttributeValue:");
+        long namesSelector = ObjC.sel("accessibilityAttributeNames");
+        if (ObjCRuntime.class_getInstanceMethod(superclass, valueSelector) == NULL
+                || ObjCRuntime.class_getInstanceMethod(superclass, namesSelector) == NULL) {
+            throw new IllegalStateException("NSAccessibilityElement answers no legacy attribute "
+                    + "entry point; AXElementBusy has nowhere to be served from");
+        }
+        long inheritedValue = ObjCRuntime.class_getMethodImplementation(superclass, valueSelector);
+        long inheritedNames = ObjCRuntime.class_getMethodImplementation(superclass, namesSelector);
+        busyAttribute = ObjC.msg(objc.string(BUSY_ATTRIBUTE), "retain");
+
+        AttributeGetter value = new AttributeGetter() {
+            @Override public long invoke(long self, long cmd, long attribute) {
+                if (attribute != NULL
+                        && (ObjC.msg(attribute, "isEqualToString:", busyAttribute) & 0xFF) != 0) {
+                    source.entered();
+                    AccessibleNode node = source.nodeFor(self);
+                    return node == null ? NULL : ObjC.msg(ObjC.cls("NSNumber"), "numberWithBool:",
+                            node.has(Accessible.State.BUSY) ? 1 : 0);
+                }
+                return JNI.invokePPPP(self, cmd, attribute, inheritedValue);
+            }
+        };
+        callbacks.add(value);
+        ObjCRuntime.class_addMethod(elementClass, valueSelector, value.address(),
+                objc.encodingOf("accessibilityAttributeValue:"));
+
+        addId("accessibilityAttributeNames", new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                long inherited = JNI.invokePPP(self, cmd, inheritedNames);
+                return inherited == NULL
+                        ? ObjC.msg(ObjC.cls("NSArray"), "arrayWithObject:", busyAttribute)
+                        : ObjC.msg(inherited, "arrayByAddingObject:", busyAttribute);
+            }
+        });
     }
 
     /**
@@ -634,6 +702,24 @@ final class AxElementClass {
 
     private abstract static class IdGetter extends Callback implements IdGetterI {
         protected IdGetter() { super(IdGetterI.DESCRIPTOR); }
+    }
+
+    /** {@code (id self, SEL _cmd, id) -> id}, encoding {@code @24@0:8@16}. */
+    private interface AttributeGetterI extends CallbackI {
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(AttributeGetterI.class,
+                MethodHandles.lookup(), APIUtil.apiCreateCIF(LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
+        @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
+        @Override default void callback(long ret, long args) {
+            APIUtil.apiClosureRetP(ret, invoke(ClosureArgs.pointer(args, 0),
+                    ClosureArgs.pointer(args, 1),
+                    ClosureArgs.pointer(args, 2)));
+        }
+        long invoke(long self, long cmd, long attribute);
+    }
+
+    private abstract static class AttributeGetter extends Callback implements AttributeGetterI {
+        protected AttributeGetter() { super(AttributeGetterI.DESCRIPTOR); }
     }
 
     /** {@code (id self, SEL _cmd) -> BOOL}, encoding {@code B16@0:8}. */

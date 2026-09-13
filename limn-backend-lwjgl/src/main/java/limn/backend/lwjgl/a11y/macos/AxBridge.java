@@ -349,7 +349,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         boolean collapsing = events.willCollapse();
         List<AccessibleEvent> drained = events.drain();
         for (AccessibleEvent event : drained) {
-            AxNotifications.Posting posting = AxNotifications.of(event.type());
+            AxNotifications.Posting posting = AxNotifications.of(event);
             // A null is a decision, not a gap: AppKit is already telling the client, or the event
             // names the window root this bridge elides.
             if (posting == null) continue;
@@ -359,7 +359,11 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             if (subject == 0) continue;
             posted.add(posting.notificationSymbol());
             postedNow++;
-            if (objc != null) objc.post(subject, objc.constant(posting.notificationSymbol()));
+            if (objc != null) {
+                objc.post(subject, posting.literal()
+                        ? objc.string(posting.notificationSymbol())
+                        : objc.constant(posting.notificationSymbol()));
+            }
         }
         if (collapsing) {
             elements.reconcile(liveNodeIds());

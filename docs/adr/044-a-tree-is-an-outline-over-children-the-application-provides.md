@@ -99,8 +99,19 @@ UI Automation has no busy bit, so on Windows `BUSY` is the item's `ItemStatus` s
 phrase in the node's own language, from a new `StateNames` catalog (`limn.state.busy`, twenty-one
 translations), and a property-changed event is raised when the row starts and stops. No busy state
 had been mapped on Windows for any widget before this, so the progress bar's indeterminate `BUSY`
-now reaches it too. macOS is the rest of this amendment's work. Neither platform has been heard
-through a live reader: the guests were not up.
+now reaches it too.
+
+AppKit's NSAccessibility protocol has no busy property either. So on macOS, `BUSY` is the legacy
+`AXElementBusy` attribute, served by overriding `accessibilityAttributeValue:` and
+`accessibilityAttributeNames` on the element class, with every other attribute forwarded to the
+implementation `NSAccessibilityElement` already has. `AXElementBusyChanged` is posted when the
+state moves. Both names are `CFSTR` macros in HIServices with no symbol behind them, which makes
+them the constants rule's second exception after the announcement priorities: they were read off
+this build's SDK, not recalled. On the development Mac, `scripts/a11y/macos/axbusy.swift` read
+the demo (`--scene tree-loading`, with the load lengthened) through the AX API: Remote answered
+`AXElementBusy` 1 while loading and 0 once its children landed, every row listed the attribute,
+and roles, subroles and titles still came through the forward. No reader has spoken any of this
+on either platform: VoiceOver was not run, and the Windows guest was not up.
 
 ## 3. Decision: the tree walks its own rows, and the shared engine is owed rather than taken
 

@@ -169,17 +169,19 @@ same tree, and a node stays the same node for as long as its own `equals` says s
 
 {% snippet guide:tree %}
 
-The model answers the three questions only your data can: where the tree starts (`roots`), what
-is under a node (`children`), and what draws one (`cellFor`). **A node whose children are not
-known yet answers `null`**, which is a different answer from an empty list. An empty list is a
-leaf; `null` is a promise. The row keeps its triangle, because a folder nobody has read is not a
-file, and opening it sends the tree to `load`, whose `Work` reads the folder off the UI thread and
-delivers on it. Close the row before the job lands and the job is cancelled, since a result nobody
-is looking at is one nobody should pay for; what does land is kept, so opening the row again costs
-nothing. A load that fails closes the row rather than leaving it open and empty, which would say
-the folder has nothing in it. The example overrides `isLeaf` because an entry already knows
-whether it is a folder; left alone, the tree reads `children` and calls a node a leaf only when
-its children are known and there are none.
+The model answers the three questions only your data can: where the tree starts (`roots`), what is
+under a node (`children`), and what draws one (`cellFor`). **A node whose children are not known
+yet answers `null`**, which is a different answer from an empty list. An empty list is a leaf;
+`null` is a promise. The row keeps its triangle, because a folder nobody has read is not a file,
+and opening it sends the tree to `load`, whose `Work` reads the folder off the UI thread and
+delivers on it. While it runs, the row shows a spinner where its triangle goes and a "Loading…"
+line where its children will be, and a screen reader hears the row as busy; you draw none of that,
+and the arrows walk past the line. Close the row before the job lands and the job is cancelled,
+since a result nobody is looking at is one nobody should pay for; what does land is kept, so
+opening the row again costs nothing. A load that fails closes the row rather than leaving it open
+and empty, which would say the folder has nothing in it. The example overrides `isLeaf` because an
+entry already knows whether it is a folder; left alone, the tree reads `children` and calls a node
+a leaf only when its children are known and there are none.
 
 Up and Down walk the rows that are showing. **Right opens a closed row and steps into an open one;
 Left closes an open row and steps out to its parent.** In a right-to-left language the two swap,
