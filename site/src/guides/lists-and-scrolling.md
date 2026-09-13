@@ -95,25 +95,6 @@ the same way, so what you learn on one holds for the rest:
 Arrow keys are not bound by the first rule: arrowing past either end lands on the end,
 because that is what the key means.
 
-## Trees
-
-When the rows are a hierarchy, a `Tree` is an outline over children you provide: an indent, a
-disclosure triangle where a row can open, and your own cell widget beside it. The order is a
-traversal of what is expanded rather than a list, and only the rows the viewport reaches are
-realized, so a tree over a deep directory costs what a list over its visible rows does.
-
-{% snippet guide:tree %}
-
-The model answers three questions about your own objects: where the tree starts, what is under a
-node, and what draws one. **A node whose children are not known yet answers `null`** — that keeps
-its triangle, because a folder nobody has read is not a file — and `load` hands back a
-`Work` the tree runs when the row opens, cancelling it if the row closes first. What arrives is
-kept, so opening the same row twice fetches once.
-
-Right opens a closed row and steps into an open one; Left closes an open row and steps out to its
-parent. Selection is by node, so it survives an expansion that renumbers every row below it, and
-a row hidden by a collapse is still selected when its parent opens again.
-
 ## Tables
 
 When every row has the same shape, a `Table` is a `ListView` with columns: a header that
@@ -178,6 +159,55 @@ What to do instead, each with what the toolkit already has:
 - **A control in a widget column** for one-gesture changes: a switch to flag a row, a button
   to open it, a checkbox to include it.
 - **A bulk action** over a `MULTI` selection when the same change applies to many rows.
+
+## Trees
+
+When the rows are a hierarchy, a `Tree` is an outline over nodes you already have: an indent, a
+disclosure triangle where a row can open, and your own widget beside it. The toolkit has no node
+type to wrap yours in, so a tree over `Path`, over a record or over a live domain object is the
+same tree, and a node stays the same node for as long as its own `equals` says so.
+
+{% snippet guide:tree %}
+
+The model answers the three questions only your data can: where the tree starts (`roots`), what
+is under a node (`children`), and what draws one (`cellFor`). **A node whose children are not
+known yet answers `null`**, which is a different answer from an empty list. An empty list is a
+leaf; `null` is a promise. The row keeps its triangle, because a folder nobody has read is not a
+file, and opening it sends the tree to `load`, whose `Work` reads the folder off the UI thread and
+delivers on it. Close the row before the job lands and the job is cancelled, since a result nobody
+is looking at is one nobody should pay for; what does land is kept, so opening the row again costs
+nothing. A load that fails closes the row rather than leaving it open and empty, which would say
+the folder has nothing in it. The example overrides `isLeaf` because an entry already knows
+whether it is a folder; left alone, the tree reads `children` and calls a node a leaf only when
+its children are known and there are none.
+
+Up and Down walk the rows that are showing. **Right opens a closed row and steps into an open one;
+Left closes an open row and steps out to its parent.** In a right-to-left language the two swap,
+because the indent grows from the right there and deeper is to the left. Selection is by node
+rather than by row number, so it survives an expansion that renumbers every row below it, and a row
+hidden by a collapse is still selected when its parent opens again.
+
+Rows are realized where the viewport reaches, as a `ListView`'s are, in the order of a walk over
+what is open, so a tree over a deep directory scrolls vertically the way a list does and costs what
+a list over its visible rows does. A tree too deep for its viewport scrolls sideways; the indent is
+never squeezed. Every level charges an indent and none gives it back, so past some depth a name
+would begin beyond the edge of the box, and squeezing the indent to keep it in would draw level
+twelve where level eight sits, flattening the very structure someone that deep is reading. The
+content grows as wide as the deepest open row needs instead, and the box scrolls over it: by the
+bar, by a sideways swipe on a trackpad, or by the wheel with Shift held.
+
+That has a price you can see. **Widening the content moves where a cell ellipsizes**, from the
+edge of the box to the edge of the content, so once a tree is deep enough to scroll sideways a long
+name runs on until the content ends and is cut there, possibly out of view. A tree with nothing
+that deep is exactly as wide as its box, shows no horizontal bar, and cuts its names where it
+always did: the trade arrives only with the depth that needs it.
+
+A cell is an ordinary widget. The tree keeps the indent and the triangle and hands the rest of the
+row's width to whatever `cellFor` returned, so an icon before the text is a `Label` with an icon,
+and a count or a button against the trailing edge is a `Row` whose text is `Expanded`. Nothing on
+`Tree` configures either, and nothing needs to: a row is composed the way any other part of a
+window is. A control in a cell is a real child, mounted and released with its row, and `recycle`
+hands a cell back when its row scrolls away, if you would rather pool the widget than build another.
 
 ## Splitting a window
 
