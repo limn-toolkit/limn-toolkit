@@ -6,6 +6,7 @@ import limn.accessibility.ScrollFacet;
 import limn.components.tree.Tree;
 import limn.i18n.I18nString;
 import limn.scene.Constraints;
+import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.ToDoubleFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -35,8 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>Geometry is read off what the scene published rather than re-derived from the indent: every
  * row's cell is laid out to the content's far edge, so where a row's box ends <em>is</em> how
- * wide the content is, less the sideways offset. The cases assert that invariant before relying
- * on it.
+ * wide the content is, less the sideways offset. Right to left the far edge is the left one and
+ * every row starts there instead. The cases assert whichever invariant they rely on first.
  *
  * <p>The roles are ADR 044 §4's step 1b, published once the AT-SPI numbers for {@code TREE} and
  * {@code TREE_ITEM} came off the Fedora guest; before that the tree said {@code LIST} and
@@ -120,8 +122,14 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Binds a tree over {@code roots} into a {@link #BOX_W} &times; {@link #BOX_H} box. */
     private Tree<Node> bindTree(float rowHeight, List<Node> roots) {
+        return bindTree(rowHeight, roots, LayoutDirection.LTR);
+    }
+
+    /** {@link #bindTree} with a layout direction set on the root before the first frame. */
+    private Tree<Node> bindTree(float rowHeight, List<Node> roots, LayoutDirection direction) {
         tree = new Tree<>(new Outline(rowHeight, roots));
         Column root = new Column();
+        root.setLayoutDirection(direction);
         root.add(new SizedBox(BOX_W, BOX_H, tree));
         bind(root);
         assertEquals(BOX_W, tree.width(), "the fixture really did size the tree");
@@ -140,8 +148,13 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
     /** The chain, bound and opened to the bottom. */
     private Tree<Node> bindOpenChain(int levels, float rowHeight) {
+        return bindOpenChain(levels, rowHeight, LayoutDirection.LTR);
+    }
+
+    /** {@link #bindOpenChain} in a layout direction. */
+    private Tree<Node> bindOpenChain(int levels, float rowHeight, LayoutDirection direction) {
         Node top = chain(levels);
-        bindTree(rowHeight, List.of(top));
+        bindTree(rowHeight, List.of(top), direction);
         for (Node node = top; !node.children().isEmpty(); node = node.children().get(0)) {
             tree.expand(node);
         }
@@ -166,25 +179,43 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         return found;
     }
 
-    /** Where a published row's box ends, measured from the tree's own leading edge. */
+    /** Where a published row's box starts, measured from the tree's own left edge. */
+    private double rowStart(AccessibleNode row) {
+        return row.x() - tree.localToSceneX();
+    }
+
+    /** Where a published row's box ends, measured from the tree's own left edge. */
     private double rowEnd(AccessibleNode row) {
-        return row.x() - tree.localToSceneX() + row.width();
+        return rowStart(row) + row.width();
     }
 
     /**
-     * Where every published row ends, asserted to be one place: a cell is laid out from its
-     * indent to the content's far edge, so that place is the content's width less the offset.
+     * Where every published row ends, asserted to be one place: left to right a cell is laid out
+     * from its indent to the content's far edge, so that place is the content's width less the
+     * offset.
      */
     private double commonRowEnd() {
+        return commonRowEdge(this::rowEnd);
+    }
+
+    /**
+     * Where every published row starts, asserted to be one place: right to left the content's far
+     * edge is its left one, and every cell runs from there to its indent.
+     */
+    private double commonRowStart() {
+        return commonRowEdge(this::rowStart);
+    }
+
+    private double commonRowEdge(ToDoubleFunction<AccessibleNode> edge) {
         List<AccessibleNode> rows = rowNodes();
         assertFalse(rows.isEmpty(), describe(tree()));
-        double end = rowEnd(rows.get(0));
+        double shared = edge.applyAsDouble(rows.get(0));
         for (AccessibleNode row : rows) {
-            assertEquals(end, rowEnd(row), 1e-3,
+            assertEquals(shared, edge.applyAsDouble(row), 1e-3,
                     "every row runs to the content's far edge, whatever its depth: "
                             + describe(tree()));
         }
-        return end;
+        return shared;
     }
 
     private static List<Node> leaves(int count) {
@@ -256,6 +287,49 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         assertEquals(1, treeNode().scroll().horizontalPercent(), EPS, "and one more push stays there");
+    }
+
+    /**
+     * The percent is published unflipped, the rule the scroll pane's and the tab strip's steps
+     * settled (ADR 039): the offset is a distance from the edge reading starts from, and the
+     * mirroring is in where the rows sit. A flipped percent would tell a reader that a tree resting
+     * on its roots is scrolled to the end.
+     */
+    @Test
+    void rightToLeftThePercentIsStillMeasuredFromTheLeadingEdgeWhileTheRowsMoveTheOtherWay() {
+        bindOpenChain(DEEP, ROW_H);
+        double content = commonRowEnd();
+        assertTrue(content > BOX_W, "the premise, read left to right: " + content);
+
+        bindOpenChain(DEEP, ROW_H, LayoutDirection.RTL);
+        assertTrue(tree.isRightToLeft(), "the fixture really did mirror the tree");
+
+        assertEquals(BOX_W - content, commonRowStart(), 1e-3,
+                "the same content hung off the other side: its leading edge is the box's right "
+                        + "edge and the rest runs out past the left: " + describe(tree()));
+        ScrollFacet atRest = treeNode().scroll();
+        assertTrue(atRest.horizontallyScrollable(), describe(tree()));
+        assertEquals(0, atRest.horizontalPercent(), EPS,
+                "zero is the leading edge, which is the right edge here: " + describe(tree()));
+        assertEquals(BOX_W / content, atRest.horizontalViewSize(), 1e-4,
+                "how much of the width is on screen does not depend on the direction");
+
+        double max = content - BOX_W;
+        tree.scrollHorizontallyBy((float) (max / 2));
+        frame();
+
+        assertEquals(0.5, treeNode().scroll().horizontalPercent(), 1e-4, describe(tree()));
+        assertEquals(BOX_W - content + max / 2, commonRowStart(), 1e-3,
+                "right to left, the rows move right by the offset: " + describe(tree()));
+
+        tree.scrollHorizontallyBy((float) content);
+        frame();
+
+        assertEquals(1, treeNode().scroll().horizontalPercent(), EPS,
+                "the same number as left to right at the same offset: " + describe(tree()));
+        assertEquals(0, commonRowStart(), 1e-3,
+                "which is where the content's far edge, the left one here, meets the box's: "
+                        + describe(tree()));
     }
 
     @Test
