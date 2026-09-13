@@ -1210,14 +1210,19 @@ public class Tree<T> extends Widget implements Scrollable {
         if (event.type() != MouseEvent.Type.PRESS || event.button() != Keys.MOUSE_LEFT) {
             return;
         }
-        int index = rowAtLocalY(event.y());
+        // The event is in scene coordinates and every row and triangle is in this widget's own,
+        // as the table and the list convert them. The two agree only for a tree at the scene's
+        // origin, which is where every test of this widget had mounted it.
+        float x = sceneToLocalX(event.x());
+        float y = sceneToLocalY(event.y());
+        int index = rowAtLocalY(y);
         if (index < 0) {
             return;
         }
         Row<T> row = rows.get(index);
         event.consume();
         requestFocus();
-        if (row.expandable && overTwisty(event.x(), index)) {
+        if (row.expandable && overTwisty(x, index)) {
             setExpanded(row.node, !row.expanded, Change.Origin.USER);
             return;
         }
