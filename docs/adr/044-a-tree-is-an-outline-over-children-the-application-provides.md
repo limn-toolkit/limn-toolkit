@@ -174,6 +174,17 @@ The recipes are `scripts/a11y/linux/run-tree-reader.sh` with `tree-check.py`,
 `axoutline.swift`. Until these are fixed and re-run, the tree is readable by a client and not yet
 navigable by a person using a screen reader.
 
+**Later the same day: two of those findings have one cause, and it was the widget's.** A realized
+row's cell was bound to its row's index, and nothing re-bound it when opening, closing or loading
+a row moved the rows below. The cell at an old index went on drawing and naming the node that used
+to be there, so opening a row after the tree was on screen drew `a, b, c, b, c` for `a, a.1, a.2,
+b, c`. Every per-row fact published by position then sat on the wrong row by exactly the rows
+inserted or hidden. That is the Windows offset above, and in a model whose cells name their rows,
+as the demo's do, it is also why Remote's children never appeared. The first tests built their
+trees already open, which is why none of them saw it. Cells now follow their nodes, and
+`TreeTest` and `TreeAccessibilityTest` read both shapes headless. The guests have not re-run, so
+whether this was all of either finding is still unconfirmed.
+
 ## 5. Keyboard
 
 Up and Down walk visible rows. **Right opens a closed row and steps into an open one; Left closes

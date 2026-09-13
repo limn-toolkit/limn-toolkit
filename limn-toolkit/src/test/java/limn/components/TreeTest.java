@@ -97,11 +97,22 @@ class TreeTest extends ComponentTestBase {
         return tree;
     }
 
-    /** The names of the rows the tree is showing, top to bottom. */
-    private static List<String> visible(Tree<Node> tree, CountingModel model) {
+    /**
+     * What the tree has laid out inside its box, top to bottom: the text of every cell that sits
+     * in the viewport. Read off the widgets and not the model, because a cell bound to the wrong
+     * row is exactly what a model-side count cannot see.
+     */
+    private static List<String> drawn(Tree<Node> tree) {
+        List<Widget> cells = new ArrayList<>();
+        for (Widget child : tree.children()) {
+            if (child instanceof Label && child.y() + child.height() > 0 && child.y() < tree.height()) {
+                cells.add(child);
+            }
+        }
+        cells.sort(java.util.Comparator.comparingDouble(Widget::y));
         List<String> names = new ArrayList<>();
-        for (int i = 0; i < tree.visibleRowCount(); i++) {
-            names.add(model.cellsBuilt.isEmpty() ? "?" : "");
+        for (Widget cell : cells) {
+            names.add(((Label) cell).text());
         }
         return names;
     }
@@ -143,6 +154,46 @@ class TreeTest extends ComponentTestBase {
         scene.layoutPass(220, 200);
         assertEquals(1, tree.visibleRowCount(),
                 "closing an ancestor takes every descendant with it, whatever their own state");
+    }
+
+    /**
+     * A row that opens once the tree is on screen moves every row below it, and the cells have to
+     * move with their nodes. They are mounted per row, so a cell left bound to its old position
+     * draws the node that used to be there: opening "a" showed "a, b, c, b, c", and its children
+     * were never drawn at all. The first case built the tree already open, which is why nothing
+     * saw it.
+     */
+    @Test
+    void theCellsFollowTheirNodesWhenARowOpensOrClosesAboveThem() {
+        Node a = Node.of("a", Node.leaf("a.1"), Node.leaf("a.2"));
+        CountingModel model = new CountingModel(List.of(a, Node.leaf("b"), Node.leaf("c")));
+        Tree<Node> tree = mount(model);
+        assertEquals(List.of("a", "b", "c"), drawn(tree));
+
+        tree.expand(a);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("a", "a.1", "a.2", "b", "c"), drawn(tree),
+                "the children are drawn where they are, and the rows below move down with them");
+
+        tree.collapse(a);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("a", "b", "c"), drawn(tree),
+                "and closing it moves them back up, drawing each node once");
+    }
+
+    /** The same, when the rows move because a load landed rather than because a row opened. */
+    @Test
+    void theCellsFollowTheirNodesWhenALoadLandsAboveThem() {
+        Node remote = new Node("remote", List.of());
+        CountingModel model = new CountingModel(List.of(remote, Node.leaf("b"), Node.leaf("c")),
+                Map.of("remote", List.of(Node.leaf("one"), Node.leaf("two"))));
+        Tree<Node> tree = mount(model);
+
+        tree.expand(remote);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 5);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("remote", "one", "two", "b", "c"), drawn(tree),
+                "what the load brought is drawn under the row that asked for it");
     }
 
     @Test

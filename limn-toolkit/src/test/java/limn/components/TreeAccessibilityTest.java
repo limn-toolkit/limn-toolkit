@@ -497,6 +497,67 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(treeNode().actions().actions().contains(Accessible.Action.EXPAND));
     }
 
+    /**
+     * A row opened after the tree is on screen, in a tree whose cells name their own rows — the
+     * demo's shape, where the model has no {@code nameOf} and a reader hears whatever the cell
+     * says.
+     *
+     * <p>Cells were bound to row positions, so opening a row left the cells below it where they
+     * were: the reader was told the old names at the new positions, and the opened row's children
+     * were never in the tree at all. That is the Windows finding in ADR 044 §4's 2026-09-13
+     * amendment (patterns offset by exactly the rows hidden) and the one all three platforms
+     * shared (Remote's loaded children never appeared), read here without a guest.
+     */
+    @Test
+    void aRowOpenedOnScreenPublishesItsChildrenAndMovesTheRowsBelowItWithTheirNames() {
+        Node a = Node.of("a", Node.of("a.1", Node.leaf("a.1.x")), Node.leaf("a.2"));
+        List<Node> roots = List.of(a, Node.leaf("b"), Node.of("c", Node.leaf("c.1")));
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return roots;
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name().english());
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.setTextRuler(RULER); // a label with no ruler measures no height, and rows overlap
+        frame();
+        assertEquals(List.of("a", "b", "c"), rowNodes().stream().map(AccessibleNode::name).toList(),
+                describe(tree()));
+
+        tree.expand(a);
+        frame();
+
+        List<AccessibleNode> rows = rowNodes();
+        assertEquals(List.of("a", "a.1", "a.2", "b", "c"),
+                rows.stream().map(AccessibleNode::name).toList(),
+                "the children are items, and every row below carries its own name: "
+                        + describe(tree()));
+        assertTrue(rows.get(0).expand().expanded(), describe(tree()));
+        assertNotNull(rows.get(1).expand(), "a.1 can open, and says so on its own row");
+        assertNull(rows.get(2).expand(), "a.2 is a leaf, and says so on its own row");
+        assertNull(rows.get(3).expand(), "b is a leaf wherever the shift carried it");
+        assertNotNull(rows.get(4).expand(), "c can open wherever the shift carried it");
+
+        tree.collapse(a);
+        frame();
+
+        assertEquals(List.of("a", "b", "c"), rowNodes().stream().map(AccessibleNode::name).toList(),
+                "and closing it takes the children out and moves the rows back: "
+                        + describe(tree()));
+    }
+
     // ---------------------------------------------------------------------- what a quiet frame costs
 
     @Test

@@ -206,6 +206,12 @@ public class Tree<T> extends Widget implements Scrollable {
      */
     private int[] mountedRows = new int[16];
     private Widget[] mountedCells = new Widget[16];
+    /**
+     * The node each mounted cell draws. A row index is only an address until the rows move, and
+     * opening, closing or loading a row moves every row below it; this is what lets a cell follow
+     * its node to the new address instead of drawing whichever node arrived at the old one.
+     */
+    private Object[] mountedNodes = new Object[16];
     private int mountedCount;
 
     /** The half-open run of rows the last pass laid out, which is what a recycle keeps. */
@@ -428,6 +434,60 @@ public class Tree<T> extends Widget implements Scrollable {
             deepest = Math.max(deepest, row.depth);
         }
         maxDepth = deepest;
+        followMountedNodes();
+    }
+
+    /**
+     * Re-binds every mounted cell to the row its node sits at now, and releases the cells whose
+     * node is no longer a row.
+     *
+     * <p>Without this a cell stays bound to its old index, so opening a row above it made it draw
+     * whatever node the shift carried there: the opened row's children were never drawn, the rows
+     * below were drawn twice, and every per-row fact published to a reader — the expand state, the
+     * name a cell supplies — sat on the wrong row by exactly the number of rows inserted.
+     *
+     * <p>Order is kept rather than re-sorted: a node that stays visible keeps its place relative
+     * to every other node that does, which is what {@code children()} being in traversal order
+     * relies on. A cell whose node moved against that order — a model that reordered itself
+     * without {@link #refresh} — is released instead, and the next layout mounts it afresh.
+     */
+    private void followMountedNodes() {
+        if (mountedCount == 0) {
+            return;
+        }
+        Map<Object, Integer> slotOf = new HashMap<>(mountedCount * 2);
+        for (int i = 0; i < mountedCount; i++) {
+            slotOf.putIfAbsent(mountedNodes[i], i);
+        }
+        int[] now = new int[mountedCount];
+        Arrays.fill(now, -1);
+        int found = 0;
+        for (int r = 0; r < rows.size() && found < mountedCount; r++) {
+            Integer slot = slotOf.get(rows.get(r).node);
+            if (slot != null && now[slot] < 0) {
+                now[slot] = r;
+                found++;
+            }
+        }
+        int kept = 0;
+        int last = -1;
+        for (int i = 0; i < mountedCount; i++) {
+            Widget cell = mountedCells[i];
+            if (now[i] <= last) { // gone, or moved against the traversal
+                unmount(cell, containsFocus(cell));
+                continue;
+            }
+            last = now[i];
+            mountedRows[kept] = now[i];
+            mountedCells[kept] = cell;
+            mountedNodes[kept] = mountedNodes[i];
+            kept++;
+        }
+        for (int i = kept; i < mountedCount; i++) {
+            mountedCells[i] = null;
+            mountedNodes[i] = null;
+        }
+        mountedCount = kept;
     }
 
     private void appendRow(T node, int depth) {
@@ -928,11 +988,14 @@ public class Tree<T> extends Widget implements Scrollable {
         if (mountedCount == mountedRows.length) {
             mountedRows = Arrays.copyOf(mountedRows, mountedCount * 2);
             mountedCells = Arrays.copyOf(mountedCells, mountedCount * 2);
+            mountedNodes = Arrays.copyOf(mountedNodes, mountedCount * 2);
         }
         System.arraycopy(mountedRows, at, mountedRows, at + 1, mountedCount - at);
         System.arraycopy(mountedCells, at, mountedCells, at + 1, mountedCount - at);
+        System.arraycopy(mountedNodes, at, mountedNodes, at + 1, mountedCount - at);
         mountedRows[at] = index;
         mountedCells[at] = cell;
+        mountedNodes[at] = rows.get(index).node;
         mountedCount++;
     }
 
@@ -951,19 +1014,29 @@ public class Tree<T> extends Widget implements Scrollable {
             if (inRun || (hasFocus && row < count)) {
                 mountedRows[kept] = row;
                 mountedCells[kept] = cell;
+                mountedNodes[kept] = mountedNodes[i];
                 kept++;
                 continue;
             }
-            remove(cell);
-            model.recycle(cell);
-            if (hasFocus) {
-                requestFocus();
-            }
+            unmount(cell, hasFocus);
         }
         for (int i = kept; i < mountedCount; i++) {
             mountedCells[i] = null;
+            mountedNodes[i] = null;
         }
         mountedCount = kept;
+    }
+
+    /**
+     * Takes a cell out of the tree and hands it back to the model, bringing the keyboard focus
+     * back to the tree when it was inside, so a row that leaves does not take the focus with it.
+     */
+    private void unmount(Widget cell, boolean hadFocus) {
+        remove(cell);
+        model.recycle(cell);
+        if (hadFocus) {
+            requestFocus();
+        }
     }
 
     /** Whether the keyboard focus is inside {@code cell}; the list's own test, for its reason. */
