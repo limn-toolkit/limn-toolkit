@@ -238,6 +238,80 @@ class TreeTest extends ComponentTestBase {
     }
 
     /**
+     * A refresh keeps what is open and drops what every load brought, so an open row whose
+     * children had to be fetched has to fetch them again. Otherwise it stays open with no
+     * children and no job, which reads as "this node has nothing in it" — the statement a failed
+     * load closes the row to avoid — and only closing and reopening it would ever read it again.
+     *
+     * <p>Both states a load can be in when the refresh comes: delivered, and still in flight.
+     */
+    @Test
+    void aRefreshFetchesAgainWhatAnOpenRowHadToLoad() {
+        Node lazy = new Node("remote", List.of());
+        CountingModel model = new CountingModel(List.of(lazy),
+                Map.of("remote", List.of(Node.leaf("one"), Node.leaf("two"))));
+        Tree<Node> tree = mount(model);
+
+        tree.expand(lazy);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 3);
+        scene.layoutPass(220, 200);
+        assertEquals(1, model.loadCalls);
+
+        tree.refresh(); // the load has delivered
+        scene.layoutPass(220, 200);
+        assertTrue(tree.isExpanded(lazy), "a refresh keeps what is open");
+        assertEquals(2, model.loadCalls,
+                "and an open row whose load had delivered loads again, because the refresh "
+                        + "dropped what it brought: " + tree.visibleRowCount() + " rows visible");
+
+        tree.refresh(); // the load the last refresh started has not been delivered yet
+        scene.layoutPass(220, 200);
+        assertTrue(tree.isExpanded(lazy), "cancelling a load is not closing its row");
+        assertEquals(3, model.loadCalls,
+                "an open row whose load was still in flight loads again, because the refresh "
+                        + "cancelled the job");
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 3);
+        scene.layoutPass(220, 200);
+        assertEquals(3, tree.visibleRowCount(), "the children arrive again and are rows again");
+        assertEquals(3, model.loadCalls, "and nothing is fetched twice for one refresh");
+    }
+
+    /**
+     * The open row that must load again may not be a row yet when the refresh comes: under a
+     * parent that also had to load, it only reappears once its parent's children arrive. So the
+     * reload has to follow the rows as they are walked, not just the rows the refresh can see.
+     */
+    @Test
+    void aRefreshFetchesAgainUnderAnOpenRowThatAlsoHadToLoad() {
+        Node inner = new Node("inner", List.of());
+        Node outer = new Node("outer", List.of());
+        CountingModel model = new CountingModel(List.of(outer),
+                Map.of("outer", List.of(inner), "inner", List.of(Node.leaf("deep"))));
+        Tree<Node> tree = mount(model);
+
+        tree.expand(outer);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 2);
+        tree.expand(inner);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 3);
+        scene.layoutPass(220, 200);
+        assertEquals(2, model.loadCalls);
+
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertEquals(3, model.loadCalls, "the outer row, which the refresh can see, loads again");
+
+        ui.pumpUntil(() -> tree.visibleRowCount() >= 2);
+        assertEquals(4, model.loadCalls,
+                "and the inner row, open again the moment its parent's children arrive, loads "
+                        + "again with them rather than sitting open and empty");
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 3);
+        scene.layoutPass(220, 200);
+        assertTrue(tree.isExpanded(inner), "still open, and showing what it has");
+    }
+
+    /**
      * The two gestures the damage ratchet drives, asserted here first: a key with the focus on
      * the tree and nothing else, and a click at the middle of the box. Both must reach a row —
      * a gesture that reaches nothing repaints nothing, and a ceiling over it asserts nothing.

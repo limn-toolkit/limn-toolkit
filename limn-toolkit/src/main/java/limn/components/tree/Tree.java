@@ -112,9 +112,10 @@ public class Tree<T> extends Widget implements Scrollable {
         /**
          * Fetches the children of a node that answered {@code null} to {@link #children}.
          *
-         * <p>Called at most once per node per expansion, on the UI thread, and the job it returns
-         * is cancelled if the row is collapsed before it lands. The tree caches what arrives, so
-         * a second expansion of the same node costs nothing.
+         * <p>Called at most once per node per expansion, and once more after each
+         * {@link Tree#refresh} while the row is open, on the UI thread; the job it returns is
+         * cancelled if the row is collapsed or the tree refreshed before it lands. The tree caches
+         * what arrives, so a second expansion of the same node costs nothing.
          *
          * @param node the node being opened
          * @return the job, or {@code null} when this model has nothing to load
@@ -296,7 +297,9 @@ public class Tree<T> extends Widget implements Scrollable {
 
     /**
      * Re-reads the model from the roots down, keeping what is expanded and dropping every cached
-     * child list: the application changed its data and the tree owns none of it. UI thread only.
+     * child list: the application changed its data and the tree owns none of it. An open row whose
+     * children the model has to fetch therefore fetches them again, cancelling a load still in
+     * flight for it. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
@@ -409,7 +412,10 @@ public class Tree<T> extends Widget implements Scrollable {
         loading.clear();
     }
 
-    /** Walks the model from the roots down, following what is open, into {@link #rows}. */
+    /**
+     * Walks the model from the roots down, following what is open, into {@link #rows}, starting
+     * the load of any open row whose children are neither known nor on their way.
+     */
     private void rebuildRows() {
         rows.clear();
         for (T root : model.roots()) {
@@ -427,6 +433,14 @@ public class Tree<T> extends Widget implements Scrollable {
     private void appendRow(T node, int depth) {
         boolean leaf = model.isLeaf(node);
         boolean open = expanded.contains(node);
+        if (open && !leaf) {
+            // Here and not only where a row opens: a refresh drops what every load brought while
+            // keeping the rows open, and an open row with no children and no job reads as a node
+            // with nothing in it, which is what a failed load closes the row to avoid. The walk
+            // is the one pass that meets every open row, including one under a parent whose own
+            // children arrive later, and delivery is always posted, so nothing re-enters it.
+            startLoadIfNeeded(node);
+        }
         rows.add(new Row<>(node, depth, !leaf, open, loading.containsKey(node)));
         if (!open || leaf) {
             return;
@@ -1125,7 +1139,7 @@ public class Tree<T> extends Widget implements Scrollable {
             // Right opens a closed row and steps into an open one; Left closes an open row and
             // steps to the parent of a closed one. Reading right to left the two swap, as every
             // other pair of horizontal arrows in this toolkit does.
-            case Keys.RIGHT -> consumeAnd(event, () -> (rtl ? this : this).stepOut(!rtl));
+            case Keys.RIGHT -> consumeAnd(event, () -> stepOut(!rtl));
             case Keys.LEFT -> consumeAnd(event, () -> stepOut(rtl));
             case Keys.ENTER -> {
                 if (lead != null) {
