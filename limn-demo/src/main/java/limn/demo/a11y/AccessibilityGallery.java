@@ -202,11 +202,11 @@ public final class AccessibilityGallery {
                 new Entry("Table with a header and rows", List.of(Table.class),
                         List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL),
                         AccessibilityGallery::table),
-                // LIST and LIST_ITEM, not TREE: the roles this widget owes wait on an AT-SPI
-                // number that has to be read off a guest (ADR 044 §4), and this entry is what
-                // the live run will be pointed at the day it is.
+                // TREE and TREE_ITEM since the AT-SPI numbers came off the Fedora guest on
+                // 2026-09-13 (ADR 044 §4). The live runs that day used `--scene tree-reader`,
+                // which drives the arrows itself; this entry has not had a reader pointed at it.
                 new Entry("Tree, one branch open", List.of(limn.components.tree.Tree.class),
-                        List.of(Role.LIST, Role.LIST_ITEM),
+                        List.of(Role.TREE, Role.TREE_ITEM),
                         AccessibilityGallery::tree),
                 new Entry("Calendar grid", List.of(CalendarView.class),
                         List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL, Role.BUTTON),

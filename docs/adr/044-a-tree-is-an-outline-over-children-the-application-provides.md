@@ -136,6 +136,44 @@ roles, depth and position-in-level, the macOS `ExpandFacet` consumer, and the li
 pass, once a guest is up. What 1a publishes is not a placeholder to be deleted: it is what the
 row says, minus the word "tree".
 
+**Amendment, 2026-09-13: the roles landed, and the first live runs found that no reader follows the
+cursor through the tree, on any platform.** `TREE` = 65 and `TREE_ITEM` = 91 and their names were
+read off the Fedora 44 guest (at-spi2-core 2.60.6, aarch64) and mapped to UI Automation's Tree and
+TreeItem and to AppKit's outline role and outline-row subrole, with a phrase and twenty-one
+translations. Every client reads them: libatspi sees `tree` and `tree item`, UI Automation `Tree`
+and `TreeItem`, the AX API an `AXOutline` described as "árvore" over rows described as "item de
+árvore" — and VoiceOver spoke those words. Depth, position-in-level and the macOS disclosure
+consumer are still owed, as above.
+
+The runs used `--scene tree-reader`, which puts the focus in the tree and drives fifteen arrows
+through the scene's own key path three seconds apart, so all three platforms hear the same
+sequence; each client snapshots at the demo's printed step lines. What they found, none of it
+visible headless and most of it not caused by the tree:
+
+- **Linux.** Orca's locus of focus stayed on the frame. It subscribed to
+  `state-changed:active`, `:selected`, `:expanded`, `active-descendant-changed` and
+  `selection-changed`, and received none of them after start-up, while libatspi snapshots taken in
+  the same seconds show those bits moving. The cause is not established; the desktop's flag, which
+  is this bridge's gate, was on. Separately: `EXPANDABLE` is not mapped, so a closed branch reads
+  exactly like a leaf (EXPANDABLE 9 and COLLAPSED 5 were read the same day); `ActiveDescendantChanged`
+  is sent with an integer where AT-SPI's `any_data` is the new descendant's object reference; and
+  the Selection interface is not served.
+- **Windows.** A client reads ExpandCollapse and SelectionItem correctly at first, but an item's
+  pattern set goes stale when rows above it are hidden or shown: after closing Reports, the two
+  rows that moved up carried ExpandCollapse and the two branches below lost it — the offset of the
+  two hidden rows exactly. The Tree itself serves no pattern. NVDA never had the demo in the
+  foreground (it read the launching terminal), so what it speaks for a tree is still untested.
+- **macOS.** VoiceOver announced the outline as a table and then one row, "item de árvore,
+  archive-01.zip, texto, (1 de 1)", unchanged while the lead moved through six rows: it does not
+  follow the selection, the outline answers no `AXRows`, and the rows answer no disclosure.
+- **All three.** Two seconds after Remote's load was due, none of the three clients saw its
+  children in the tree.
+
+The recipes are `scripts/a11y/linux/run-tree-reader.sh` with `tree-check.py`,
+`scripts/a11y/windows/walk-the-tree.ps1`, and `scripts/a11y/macos/guest-tree-reader.sh` with
+`axoutline.swift`. Until these are fixed and re-run, the tree is readable by a client and not yet
+navigable by a person using a screen reader.
+
 ## 5. Keyboard
 
 Up and Down walk visible rows. **Right opens a closed row and steps into an open one; Left closes

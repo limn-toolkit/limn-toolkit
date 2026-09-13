@@ -93,6 +93,11 @@ final class AtspiRoles {
         map(Accessible.Role.COLUMN_HEADER, 57, "table column header");
         map(Accessible.Role.ROW, 90, "table row");
         map(Accessible.Role.CELL, 56, "table cell");
+        // ADR 044 §4; both numbers and both names read off the Fedora 44 guest on 2026-09-13,
+        // at-spi2-core 2.60.6, aarch64, the same typelib the table's four came from. TREE_ITEM and
+        // not LIST_ITEM is what makes Orca speak a row's expanded state as a tree's.
+        map(Accessible.Role.TREE, 65, "tree");
+        map(Accessible.Role.TREE_ITEM, 91, "tree item");
         map(Accessible.Role.UNKNOWN, 0, "invalid");
     }
 

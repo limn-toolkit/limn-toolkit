@@ -162,6 +162,12 @@ final class UiaRoles {
         map(Accessible.Role.ROW, UiaIds.CONTROL_DATA_ITEM);
         map(Accessible.Role.CELL, UiaIds.CONTROL_DATA_ITEM);
 
+        // ADR 044 §4. Tree and TreeItem are the platform's own, and the ids were already read off
+        // the guest for the table's pass. A tree item's expanded state reaches a client through
+        // ExpandCollapse and its selection through SelectionItem, both served from the facets.
+        map(Accessible.Role.TREE, UiaIds.CONTROL_TREE);
+        map(Accessible.Role.TREE_ITEM, UiaIds.CONTROL_TREE_ITEM);
+
         // What the walk publishes for a widget that declared no role. Custom rather than Pane so
         // that it is visibly a gap when one appears, and no phrase, because there is nothing
         // truthful to say about it.

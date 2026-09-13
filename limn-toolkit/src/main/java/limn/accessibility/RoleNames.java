@@ -118,6 +118,8 @@ public final class RoleNames {
         say(Accessible.Role.COLUMN_HEADER, "column header");
         say(Accessible.Role.ROW, "row");
         say(Accessible.Role.CELL, "cell");
+        say(Accessible.Role.TREE, "tree");
+        say(Accessible.Role.TREE_ITEM, "tree item");
         // Spoken only where a bridge has nothing better, and §12.1 fails a build that publishes it.
         say(Accessible.Role.UNKNOWN, "unknown");
     }

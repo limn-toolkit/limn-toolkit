@@ -121,6 +121,10 @@ public final class Accessible {
         ROW,
         /** One cell of a {@link #ROW}. */
         CELL,
+        /** An outline of rows at a depth, where a row can open onto its children; ADR 044. */
+        TREE,
+        /** One row of a {@link #TREE}. */
+        TREE_ITEM,
         /**
          * Nothing better applies. A focusable node that publishes this is a defect: the toolkit
          * logs a warning naming the class, once per class.

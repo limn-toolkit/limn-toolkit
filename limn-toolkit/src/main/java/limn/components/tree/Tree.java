@@ -61,10 +61,10 @@ import java.util.function.Consumer;
  * editing, ever (ADR 041 §6), no drag to reorder, and no tri-state checkbox cascade over a data
  * model the toolkit does not own.
  *
- * <p>To a screen reader this is, for now, a list of items that can open: the {@code TREE} and
- * {@code TREE_ITEM} roles ADR 044 §4 specifies wait on one number that has to be read off a
- * Linux guest, and a role published with no AT-SPI number announces as "invalid". The expanded
- * state, the selection and the verbs are published today; the roles land with that reading.
+ * <p>To a screen reader this is a {@code TREE} of {@code TREE_ITEM}s, each carrying its expanded
+ * state and its selection, with the verbs on the tree acting on the lead row. What ADR 044 §4
+ * still owes it is depth and position-in-level — "level 3, 2 of 5" — which the facet model does
+ * not carry yet, and the disclosure attributes VoiceOver reads an outline row by.
  */
 public class Tree<T> extends Widget implements Scrollable {
 
@@ -1370,18 +1370,17 @@ public class Tree<T> extends Widget implements Scrollable {
     /**
      * The tree itself.
      *
-     * <p>{@code LIST} and not {@code TREE}: the role a tree owes exists on two of the three
-     * platforms this toolkit serves and its AT-SPI number has to be read off a guest before it
-     * can be published at all (ADR 044 §4). A list of items that can open is what all three can
-     * say truthfully today, and the expanded state, the depth-carrying names and the verbs below
-     * are what a reader actually acts on.
+     * <p>{@code TREE}, since 2026-09-13, when the AT-SPI number ADR 044 §4 was waiting on came off
+     * the Fedora guest. Until then it published {@code LIST}, because a role with no number
+     * announces as "invalid" on Linux and a list of items that can open was the truthful answer
+     * on all three platforms.
      */
     @Override
     protected void onAccessibility(Accessibility a) {
         SizeTokens t = tokens();
         float viewport = height();
         float content = estimatedContentHeight(t);
-        a.role(Accessible.Role.LIST);
+        a.role(Accessible.Role.TREE);
         a.selection(selectionMode == SelectionMode.MULTI, false);
         float viewW = gutters.viewportWidth(width());
         a.scrollFrom(offsetX, Math.max(0, contentWidth - viewW), viewW, contentWidth,
@@ -1413,7 +1412,7 @@ public class Tree<T> extends Widget implements Scrollable {
         }
         Row<T> row = rows.get(index);
         a.key(idOf(row.node));
-        a.role(Accessible.Role.LIST_ITEM);
+        a.role(Accessible.Role.TREE_ITEM);
         I18nString name = model.nameOf(row.node);
         if (name != null) {
             a.name(name);

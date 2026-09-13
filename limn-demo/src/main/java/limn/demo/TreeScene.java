@@ -79,6 +79,19 @@ final class TreeScene {
      * the edge of the box to the edge of the content (ADR 044 §1, amended). The shallow scene is
      * where a name contains itself; this one is where depth runs out of width.
      */
+    /**
+     * The same tree with the keyboard focus in it, for a screen reader to listen to.
+     *
+     * <p>A reader speaks what happens to the focus, and nothing injected from outside reaches a
+     * Wayland session the same way it reaches the other two desktops, so the demo drives its own
+     * arrows through the scene's key path — the path a person's keys take — and every platform
+     * hears the same sequence. {@code Main} schedules the steps; this only puts the focus there.
+     */
+    static Built reader() {
+        Parts parts = parts();
+        return new Built(parts.scene(), () -> parts.tree().requestFocus());
+    }
+
     static Built deep() {
         Parts parts = parts();
         for (Node node = parts.deep(); node != null;
