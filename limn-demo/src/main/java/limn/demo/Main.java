@@ -32,7 +32,7 @@ public final class Main {
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
             "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
-            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reader", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "form", "animations", "cursors",
+            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reader", "tree-reserved", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
             "newcontrols", "newcontrols-light", "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
@@ -242,6 +242,8 @@ public final class Main {
                 widgetScene = built.scene();
                 afterLayout = built.afterLayout();
                 treeReader = true;
+            } else if (scene.equals("tree-reserved")) {
+                widgetScene = TreeScene.reserved();
             } else if (scene.equals("tree-deep")) {
                 // One branch open to the bottom, so the indent outgrows the box and the outline
                 // has somewhere to go sideways. Same timing as tree-scroll, same reason.

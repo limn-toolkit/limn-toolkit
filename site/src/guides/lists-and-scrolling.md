@@ -206,8 +206,10 @@ A cell is an ordinary widget. The tree keeps the indent and the triangle and han
 row's width to whatever `cellFor` returned, so an icon before the text is a `Label` with an icon,
 and a count or a button against the trailing edge is a `Row` whose text is `Expanded`. Nothing on
 `Tree` configures either, and nothing needs to: a row is composed the way any other part of a
-window is. A control in a cell is a real child, mounted and released with its row, and `recycle`
-hands a cell back when its row scrolls away, if you would rather pool the widget than build another.
+window is. What the tree does owe such a row is to keep the scroll bar off it, which
+`setBarLayout(ScrollGutters.Layout.RESERVED)` asks for, as the scrollbar section below explains. A
+control in a cell is a real child, mounted and released with its row, and `recycle` hands a cell
+back when its row scrolls away, if you would rather pool the widget than build another.
 
 ## Splitting a window
 
@@ -252,11 +254,11 @@ approaches, so it is thin to look at and thick to grab.
 | `ON_SCROLL` | while scrolling, then fades |
 | `AUTO` | the same, plus while the pointer is over the host — `ListView`, `Table`, `Tree` and `ScrollView` |
 
-By default they are overlays, and in a `Table` or a `Tree` they have no other mode: a strip held
-open for a bar that is usually faded out is dead space. `ListView`, `ScrollView` and `TextArea` can
-give the bar a strip of its own with `setBarLayout(ScrollGutters.Layout.RESERVED)`, which is what a
-list of records usually wants, because the trailing edge of a row is where a count, a date or a
-status sits and a thumb over it is a defect. The strip is held for as long as the content
+By default they are overlays: a strip held open for a bar that is usually faded out is dead space.
+Any of the five can give its bars strips of their own with
+`setBarLayout(ScrollGutters.Layout.RESERVED)`, which is what a list of records, a table or a tree
+usually wants, because the trailing edge of a row is where a count, a date or a status sits and a
+thumb over it is a defect. The strip is held for as long as the content
 overflows, not for as long as the bar is drawn, so a fading bar never makes the content reflow
 under the pointer; pair it with `ALWAYS`, or the bar fades out of a strip that stays empty. A
 `HIDDEN` bar reserves nothing.

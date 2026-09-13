@@ -7,8 +7,15 @@ import java.util.Objects;
 /**
  * How much of a scrolling widget's box its scrollbars take, and the settling that
  * decides it. Owned by the widget, one instance each: {@link ScrollView},
- * {@link ListView} and {@link TextArea} all hold one, and so should anything else
- * that scrolls.
+ * {@link ListView}, {@link TextArea}, {@code Table} and {@code Tree} all hold one,
+ * and so should anything else that scrolls.
+ *
+ * <p>Holding one is not enough. Every length the widget scrolls, pages, reveals,
+ * clips or hit-tests against has to be the viewport this leaves rather than the
+ * widget's own box, because the two are the same number only while the bars
+ * overlay. A widget that reads {@code height()} anywhere in that list works under
+ * {@link Layout#OVERLAY} and scrolls its last row under a {@link Layout#RESERVED}
+ * strip, which is how {@code Tree} shipped.
  *
  * <pre>{@code
  * // in onLayout, where `content` re-measures into a viewport:

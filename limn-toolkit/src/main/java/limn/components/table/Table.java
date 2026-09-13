@@ -793,6 +793,11 @@ public class Table<T> extends Widget implements Scrollable {
         return this;
     }
 
+    /** Whether the scroll bars overlay the rows or reserve strips beside them. */
+    public ScrollGutters.Layout barLayout() {
+        return gutters.layout();
+    }
+
     // ------------------------------------------------------------------------- scrolling
 
     /**

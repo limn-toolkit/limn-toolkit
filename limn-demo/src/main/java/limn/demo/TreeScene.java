@@ -71,15 +71,6 @@ final class TreeScene {
     }
 
     /**
-     * The same tree with one branch open all the way down, which is what makes the outline wider
-     * than its box: every level charges an indent and nothing gives it back.
-     *
-     * <p>Its own scene rather than a deeper fixture for {@code --scene tree}, because the two
-     * cannot be photographed together: widening the content moves where a cell ellipsizes, from
-     * the edge of the box to the edge of the content (ADR 044 §1, amended). The shallow scene is
-     * where a name contains itself; this one is where depth runs out of width.
-     */
-    /**
      * The same tree with the keyboard focus in it, for a screen reader to listen to.
      *
      * <p>A reader speaks what happens to the focus, and nothing injected from outside reaches a
@@ -92,6 +83,30 @@ final class TreeScene {
         return new Built(parts.scene(), () -> parts.tree().requestFocus());
     }
 
+    /**
+     * The same tree with its bars in strips of their own, shown always.
+     *
+     * <p>The rows here end in a count or a button against the trailing edge, which is what an
+     * overlay thumb covers and the reason {@code setBarLayout} exists. ALWAYS rather than the
+     * default so a still shows the strip without a pointer to reveal it; the strips key on
+     * overflow, not on visibility, so the geometry is the default policy's too.
+     */
+    static Scene reserved() {
+        Parts parts = parts();
+        parts.tree().setBarLayout(limn.components.ScrollGutters.Layout.RESERVED)
+                .setScrollbarPolicy(limn.components.ScrollBar.Policy.ALWAYS);
+        return parts.scene();
+    }
+
+    /**
+     * The same tree with one branch open all the way down, which is what makes the outline wider
+     * than its box: every level charges an indent and nothing gives it back.
+     *
+     * <p>Its own scene rather than a deeper fixture for {@code --scene tree}, because the two
+     * cannot be photographed together: widening the content moves where a cell ellipsizes, from
+     * the edge of the box to the edge of the content (ADR 044 §1, amended). The shallow scene is
+     * where a name contains itself; this one is where depth runs out of width.
+     */
     static Built deep() {
         Parts parts = parts();
         for (Node node = parts.deep(); node != null;

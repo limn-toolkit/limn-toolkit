@@ -253,7 +253,7 @@ public class Tree<T> extends Widget implements Scrollable {
 
             @Override
             public float viewportLength() {
-                return height();
+                return viewportHeight();
             }
 
             @Override
@@ -465,6 +465,51 @@ public class Tree<T> extends Widget implements Scrollable {
         markNeedsLayout();
         invalidate();
         return this;
+    }
+
+    /**
+     * Sets whether the bars float over the rows or reserve strips of their own (default
+     * {@link ScrollGutters.Layout#OVERLAY}), the table's setter under the table's name.
+     *
+     * <p>Reserved is what a tree whose cells end in something usually wants: a count, a badge or
+     * a button against a row's trailing edge is exactly what a thumb covers. The strips key on
+     * overflow, so a deep tree takes the horizontal one only once it scrolls sideways.
+     *
+     * @param layout the layout
+     * @return this tree
+     */
+    public Tree<T> setBarLayout(ScrollGutters.Layout layout) {
+        Ui.checkUiThread();
+        gutters.setLayout(layout);
+        markNeedsLayout();
+        invalidate();
+        return this;
+    }
+
+    /** Whether the scroll bars overlay the rows or reserve strips beside them. */
+    public ScrollGutters.Layout barLayout() {
+        return gutters.layout();
+    }
+
+    /**
+     * The height rows are placed, scrolled and clipped against: the box, less the horizontal
+     * strip when one is reserved. Never {@link #height()} directly, which is the same number only
+     * while the bars overlay.
+     */
+    private float viewportHeight() {
+        return gutters.viewportHeight(height());
+    }
+
+    /** The viewport's left edge: zero, or past the vertical strip reading right to left. */
+    private float viewportLeft() {
+        return isRightToLeft() ? width() - gutters.viewportWidth(width()) : 0;
+    }
+
+    /** Whether a point is inside the viewport, rather than in a strip a bar has reserved. */
+    private boolean inViewport(float localX, float localY) {
+        float left = viewportLeft();
+        return localX >= left && localX < left + gutters.viewportWidth(width())
+                && localY >= 0 && localY < viewportHeight();
     }
 
     // ------------------------------------------------------------------------ selection
@@ -930,7 +975,8 @@ public class Tree<T> extends Widget implements Scrollable {
             Widget cell = mountedCells[i];
             float lead = cellLeft(t, row, contentWidth);
             float cellW = Math.max(0, contentWidth - lead);
-            float y = row < placedFrom ? Math.min(anchorTop, 0) - cell.height() : Math.max(bottom, height());
+            float y = row < placedFrom ? Math.min(anchorTop, 0) - cell.height()
+                    : Math.max(bottom, viewportHeight());
             cell.layoutBox(cellX(rowX, viewW, lead, cellW, rtl), y, cellW, cell.height());
         }
     }
@@ -953,7 +999,7 @@ public class Tree<T> extends Widget implements Scrollable {
         Ui.checkUiThread();
         SizeTokens t = tokens();
         float offset = estimatedOffset(t);
-        float max = Math.max(0, estimatedContentHeight(t) - height());
+        float max = Math.max(0, estimatedContentHeight(t) - viewportHeight());
         float applied = Math.min(Math.max(0, offset + dy), max) - offset;
         if (applied == 0) {
             return;
@@ -994,10 +1040,11 @@ public class Tree<T> extends Widget implements Scrollable {
     @Override
     public void revealRect(float x, float y, float rectWidth, float rectHeight) {
         Ui.checkUiThread();
+        float viewH = viewportHeight();
         if (y < 0) {
             scrollBy(y);
-        } else if (y + rectHeight > height()) {
-            scrollBy(Math.min(y, y + rectHeight - height()));
+        } else if (y + rectHeight > viewH) {
+            scrollBy(Math.min(y, y + rectHeight - viewH));
         }
         // The rectangle is in viewport coordinates, so the sideways correction is the distance it
         // sits outside the viewport, and mirrored it points the other way.
@@ -1164,7 +1211,7 @@ public class Tree<T> extends Widget implements Scrollable {
 
     /** A page is a viewport of rows: a count derived from the current estimate, not a token. */
     private int rowsPerPage(SizeTokens t) {
-        return Math.max(1, (int) (height() / Math.max(1, avgRowHeight(t))));
+        return Math.max(1, (int) (viewportHeight() / Math.max(1, avgRowHeight(t))));
     }
 
     // --------------------------------------------------------------------------- pointer
@@ -1186,7 +1233,7 @@ public class Tree<T> extends Widget implements Scrollable {
                 float dx = sideways ? -(event.scrollX() != 0 ? event.scrollX() : event.scrollY())
                         * Strokes.WHEEL_STEP : 0;
                 float dy = sideways ? 0 : -event.scrollY() * Strokes.WHEEL_STEP;
-                boolean canY = estimatedContentHeight(tokens()) > height();
+                boolean canY = estimatedContentHeight(tokens()) > viewportHeight();
                 boolean canX = contentWidth > gutters.viewportWidth(width());
                 if (dy != 0 && canY) {
                     scrollBy(dy);
@@ -1215,6 +1262,10 @@ public class Tree<T> extends Widget implements Scrollable {
         // origin, which is where every test of this widget had mounted it.
         float x = sceneToLocalX(event.x());
         float y = sceneToLocalY(event.y());
+        // A press on a reserved strip whose bar has faded is still the bar's, as hitTest says.
+        if (!inViewport(x, y)) {
+            return;
+        }
         int index = rowAtLocalY(y);
         if (index < 0) {
             return;
@@ -1275,6 +1326,12 @@ public class Tree<T> extends Widget implements Scrollable {
         if (barHit != null) {
             return barHit;
         }
+        // A reserved strip is the bar's even while the bar has faded and answers nothing, and a
+        // row can lie under it: the last one runs past the bottom, and a deep tree's cells past
+        // the side. Under OVERLAY the viewport is the box and this never fires.
+        if (!inViewport(localX, localY)) {
+            return this;
+        }
         int index = rowAtLocalY(localY);
         if (index >= 0 && rows.get(index).expandable && overTwisty(localX, index)) {
             return this; // the triangle is the tree's, not the cell's
@@ -1306,13 +1363,17 @@ public class Tree<T> extends Widget implements Scrollable {
             tintedFor = theme;
             selectionTint = theme.primary.withAlpha(0.18f);
         }
+        float viewH = viewportHeight();
         canvas.save();
         try {
-            canvas.clipRect(0, 0, width(), height());
+            // The viewport and not the box, as the table clips: under RESERVED the strips are the
+            // bars', and a row painted into one is a row under its bar. The same rectangle as the
+            // box while the bars overlay.
+            canvas.clipRect(viewportLeft(), 0, gutters.viewportWidth(width()), viewH);
             for (int i = 0; i < mountedCount; i++) {
                 int index = mountedRows[i];
                 Widget cell = mountedCells[i];
-                if (cell.y() >= height() || cell.y() + cell.height() <= 0) {
+                if (cell.y() >= viewH || cell.y() + cell.height() <= 0) {
                     continue; // the focused row a scroll spared
                 }
                 Row<T> row = rows.get(index);
@@ -1383,7 +1444,7 @@ public class Tree<T> extends Widget implements Scrollable {
     @Override
     protected void onAccessibility(Accessibility a) {
         SizeTokens t = tokens();
-        float viewport = height();
+        float viewport = viewportHeight();
         float content = estimatedContentHeight(t);
         a.role(Accessible.Role.TREE);
         a.selection(selectionMode == SelectionMode.MULTI, false);
