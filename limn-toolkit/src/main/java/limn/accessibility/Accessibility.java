@@ -511,8 +511,8 @@ public final class Accessibility {
      * <p>Two groups of states are <b>refused</b> here rather than stored, and refused loudly,
      * the way {@link #action(Accessible.Action)} refuses a verb that takes an argument (ADR 039
      * §1.2, amended 2026-09-14). The states a facet expresses — checked, mixed, expanded,
-     * selected, read-only — are derived from that facet, so one fact keeps one home: declare the
-     * facet. The five the publish step owns — enabled, visible, showing, focusable and focused —
+     * expandable, selected, read-only — are derived from that facet, so one fact keeps one home:
+     * declare the facet. The five the publish step owns — enabled, visible, showing, focusable and focused —
      * belong to the walk, because a widget's own flag answers only for itself while the tree has
      * to agree with a keyboard whose traversal stops at the first ancestor that is hidden or
      * disabled; a synthetic child narrows one of them through {@link #offScreen()}. Until this
@@ -528,7 +528,7 @@ public final class Accessibility {
         Objects.requireNonNull(state, "state");
         String owner = switch (state) {
             case CHECKED, MIXED -> "the toggle facet: call toggle()";
-            case EXPANDED -> "the expand facet: call expand()";
+            case EXPANDED, EXPANDABLE -> "the expand facet: call expand()";
             case SELECTED -> "the selection-item facet: call selectionItem()";
             case READ_ONLY -> "the text or value facet: pass readOnly there";
             case ENABLED, VISIBLE, SHOWING, FOCUSABLE, FOCUSED ->
@@ -702,6 +702,11 @@ public final class Accessibility {
     /**
      * Declares that this node opens and closes.
      *
+     * <p>The facet's presence is what makes the node {@link Accessible.State#EXPANDABLE}, on every
+     * node that declares it (decision 41: menu titles and submenu rows included), and its value is
+     * what makes it {@link Accessible.State#EXPANDED}; the Linux bridge derives its own
+     * {@code COLLAPSED} from the two. Neither bit is a widget's to set.
+     *
      * @param expanded whether it is open now
      */
     public void expand(boolean expanded) {
@@ -713,6 +718,7 @@ public final class Accessibility {
         } else {
             s.states &= ~bit;
         }
+        s.states |= 1L << Accessible.State.EXPANDABLE.ordinal();
     }
 
     /**

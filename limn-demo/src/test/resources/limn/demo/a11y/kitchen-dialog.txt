@@ -1,16 +1,16 @@
 == window "Limn kitchen sink" (blocked by a modal) ==
   1 window "Limn kitchen sink" (explicit) [disabled] window non-modal normal
   2   menu bar "Menu bar" [disabled, horizontal] selection=single
-  3     menu item "File" [disabled, has-popup] item 1 of 3 unselected collapsed actions: show menu
-  4     menu item "Edit" [disabled, has-popup] item 2 of 3 unselected collapsed actions: show menu
-  5     menu item "View" [disabled, has-popup] item 3 of 3 unselected collapsed actions: show menu
+  3     menu item "File" [disabled, expandable, has-popup] item 1 of 3 unselected collapsed actions: show menu
+  4     menu item "Edit" [disabled, expandable, has-popup] item 2 of 3 unselected collapsed actions: show menu
+  5     menu item "View" [disabled, expandable, has-popup] item 3 of 3 unselected collapsed actions: show menu
   6   heading "Limn UI: Kitchen Sink" [disabled]
   7   button "Load data" [disabled] actions: press
   8   progress bar "" [disabled, hidden, offscreen, read-only, horizontal] value=0 [0..100] read-only
-  9   combo box "English" [disabled, has-popup] value=0 [0..21 step 1] "English" collapsed actions: expand
- 10   combo box "LTR" [disabled, has-popup] value=0 [0..1 step 1] "LTR" collapsed actions: expand
- 11   combo box "MEDIUM" [disabled, has-popup] value=2 [0..4 step 1] "MEDIUM" collapsed actions: expand
- 12   combo box "Dark" [disabled, has-popup] value=1 [0..14 step 1] "Dark" collapsed actions: expand
+  9   combo box "English" [disabled, expandable, has-popup] value=0 [0..21 step 1] "English" collapsed actions: expand
+ 10   combo box "LTR" [disabled, expandable, has-popup] value=0 [0..1 step 1] "LTR" collapsed actions: expand
+ 11   combo box "MEDIUM" [disabled, expandable, has-popup] value=2 [0..4 step 1] "MEDIUM" collapsed actions: expand
+ 12   combo box "Dark" [disabled, expandable, has-popup] value=1 [0..14 step 1] "Dark" collapsed actions: expand
  13   tab list "" [disabled, horizontal] selection=single required scroll h=0% view 60%
  14     tab "Form" [disabled, selected] item 1 of 13 selected actions: press, select | controller for #30 "Form"
  15     tab "Text" [disabled] item 2 of 13 unselected actions: press, select | controller for #40 "Text"
@@ -35,7 +35,7 @@
  34     password field "Password" (placeholder) [disabled, editable, password] text="•••••••••" caret=9 actions: show menu
  35     switch "reveal" [disabled] toggle=off actions: toggle
  36     label "Favorite theme" [disabled]
- 37     combo box "Limn dark" [disabled, has-popup] value=0 [0..3 step 1] "Limn dark" collapsed actions: expand
+ 37     combo box "Limn dark" [disabled, expandable, has-popup] value=0 [0..3 step 1] "Limn dark" collapsed actions: expand
  38     check box "Notifications" [disabled, checked] toggle=on actions: toggle
  39     switch "Airplane mode" [disabled] toggle=off actions: toggle
  40   tab panel "Text" (label) [disabled, hidden, offscreen] | labelled by #15 "Text"
@@ -115,7 +115,7 @@
 114       radio button "PBR" [disabled, hidden, offscreen, selected, active] item 1 of 2 selected actions: select
 115       radio button "Shadows" [disabled, hidden, offscreen] item 2 of 2 unselected actions: select
 116     label "PBR metallic-roughness under 3 lights (directional + point + spot); click to select." [disabled, hidden, offscreen]
-117     combo box "Render 100%" desc "Renders the 3D target below device resolution and upsamples it; memory and fill cost fall with the square of the setting" [disabled, hidden, offscreen, has-popup] value=0 [0..3 step 1] "Render 100%" collapsed actions: expand
+117     combo box "Render 100%" desc "Renders the 3D target below device resolution and upsamples it; memory and fill cost fall with the square of the setting" [disabled, hidden, offscreen, expandable, has-popup] value=0 [0..3 step 1] "Render 100%" collapsed actions: expand
 118     canvas "" desc "3D unavailable (no GPU backend)" [disabled, hidden, offscreen]
 119     canvas "" desc "3D unavailable (no GPU backend)" [disabled, hidden, offscreen]
 120   scroll pane "Video" (label) [disabled, hidden, offscreen] scroll none | labelled by #21 "Video"
@@ -248,7 +248,7 @@
 2   dialog "Dialog: window-modal" desc "This is a window-modal dialog. Choose an option." actions: cancel
 3     scroll pane "" scroll none
 4       label "This is a window-modal dialog. Choose an option."
-5       combo box "Limn dark" [focusable, focused, has-popup] value=0 [0..3 step 1] "Limn dark" collapsed actions: expand, scroll into view, focus
+5       combo box "Limn dark" [focusable, focused, expandable, has-popup] value=0 [0..3 step 1] "Limn dark" collapsed actions: expand, scroll into view, focus
 6       button "Actions menu" [focusable] actions: press, scroll into view, focus
 7     button "Cancel" [focusable] actions: press, scroll into view, focus
 8     button "OK" [focusable, default] actions: press, scroll into view, focus

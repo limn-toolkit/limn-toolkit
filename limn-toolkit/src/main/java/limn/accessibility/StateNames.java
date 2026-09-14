@@ -48,6 +48,11 @@ public final class StateNames {
         // The word readers already use for a live region or a document that is still loading,
         // lower case like the role phrases, because it is spoken inside a reader's own sentence.
         say(Accessible.State.BUSY, "busy");
+        // Declared with the state (ADR 039 §1.2, amended 2026-09-14) so that every state a
+        // facet derives has its word in every shipped language; no platform reads it as text
+        // today -- UI Automation's ItemStatus is answered with BUSY alone, and the other two carry
+        // this as a bit or a pattern -- so this is the word on file, not a word spoken yet.
+        say(Accessible.State.EXPANDABLE, "expandable");
     }
 
     /**

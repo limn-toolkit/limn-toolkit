@@ -94,6 +94,29 @@ class AtspiConstantsTest {
         assertEquals(0, none, "nothing claimed, nothing published");
     }
 
+    /**
+     * A node that can open is {@code EXPANDABLE} here as in the model, and while it is closed it
+     * is also {@code COLLAPSED}, which is a state this platform has and the model does not: bits 9
+     * and 5, read off the Fedora KDE 44 guest on 2026-09-13 (decision 27).
+     */
+    @Test
+    void aClosedExpandableNodeIsCollapsedHereAndAnOpenOneIsNot() {
+        long closed = AtspiStates.setOf(s -> s == Accessible.State.EXPANDABLE);
+        assertTrue((closed & (1L << 9)) != 0, "expandable");
+        assertTrue((closed & (1L << 5)) != 0, "and collapsed, derived: expandable and not expanded");
+        assertTrue((closed & (1L << 10)) == 0, "not expanded");
+
+        long open = AtspiStates.setOf(
+                s -> s == Accessible.State.EXPANDABLE || s == Accessible.State.EXPANDED);
+        assertTrue((open & (1L << 9)) != 0, "expandable");
+        assertTrue((open & (1L << 10)) != 0, "expanded");
+        assertTrue((open & (1L << 5)) == 0, "and no longer collapsed");
+
+        long leaf = AtspiStates.setOf(s -> s == Accessible.State.ENABLED);
+        assertTrue((leaf & (1L << 5)) == 0,
+                "a node with no expand facet is not collapsed: it cannot open at all");
+    }
+
     @Test
     void aRoleCarriesThePlatformsOwnNameForIt() {
         assertEquals("push button", AtspiRoles.nameOf(Accessible.Role.BUTTON));

@@ -62,22 +62,62 @@ class AccessibleModelTest {
      * from checking anything.
      */
     private static List<String> rolesFromTheRecord() throws IOException {
+        return fencedListFromTheRecord("### 1.12 ", null);
+    }
+
+    /**
+     * The closed state list, from the fenced block that follows "The closed list of states" in
+     * §1.2 (amended 2026-09-14): a state added to the enum without the record saying so fails
+     * here, as a role does.
+     */
+    @Test
+    void theStateListIsTheOneTheRecordDecided() throws IOException {
+        List<String> declared = new ArrayList<>();
+        for (Accessible.State state : Accessible.State.values()) {
+            declared.add(state.name());
+        }
+        assertEquals(fencedListFromTheRecord("### 1.2 ", "The closed list of states"), declared,
+                "the state enum and ADR 039 §1.2's closed list have drifted apart");
+    }
+
+    /**
+     * A comma-separated list in a fenced block of ADR 039: the first fenced block of the section
+     * whose heading starts with {@code heading}, or, when {@code marker} is given, the first
+     * fenced block after the first line of that section containing the marker.
+     */
+    private static List<String> fencedListFromTheRecord(String heading, String marker)
+            throws IOException {
         Path record = RepositoryRoot.find().resolve("docs/adr")
                 .resolve("039-an-accessible-tree-is-a-snapshot-and-the-platform-reads-it-on-its-"
                         + "own-thread.md");
         List<String> lines = Files.readAllLines(record, StandardCharsets.UTF_8);
         int at = -1;
         for (int i = 0; i < lines.size(); i++) {
-            if (lines.get(i).startsWith("### 1.12 ")) {
+            if (lines.get(i).startsWith(heading)) {
                 at = i;
                 break;
             }
         }
-        assertTrue(at >= 0, "ADR 039 has no section 1.12");
+        assertTrue(at >= 0, "ADR 039 has no section " + heading);
+        if (marker != null) {
+            int found = -1;
+            for (int i = at + 1; i < lines.size() && !lines.get(i).startsWith("### "); i++) {
+                if (lines.get(i).contains(marker)) {
+                    found = i;
+                    break;
+                }
+            }
+            assertTrue(found >= 0, "ADR 039 section " + heading + " has no line saying \""
+                    + marker + "\"");
+            at = found;
+        }
         StringBuilder block = new StringBuilder();
         boolean inside = false;
-        for (int i = at; i < lines.size(); i++) {
+        for (int i = at + 1; i < lines.size(); i++) {
             String line = lines.get(i);
+            if (!inside && line.startsWith("### ")) {
+                break;          // the next section: the list was not in this one
+            }
             if (line.startsWith("```")) {
                 if (inside) {
                     break;
@@ -89,15 +129,89 @@ class AccessibleModelTest {
                 block.append(line).append(' ');
             }
         }
-        assertTrue(block.length() > 0, "ADR 039 section 1.12 has no fenced role list");
-        List<String> roles = new ArrayList<>();
+        assertTrue(block.length() > 0, "ADR 039 section " + heading + " has no fenced list"
+                + (marker == null ? "" : " after \"" + marker + "\""));
+        List<String> items = new ArrayList<>();
         for (String token : block.toString().split(",")) {
             String trimmed = token.trim();
             if (!trimmed.isEmpty()) {
-                roles.add(trimmed);
+                items.add(trimmed);
             }
         }
-        return roles;
+        return items;
+    }
+
+    /**
+     * {@code EXPANDABLE} is the expand facet's presence (ADR 039 §1.2, amended 2026-09-14;
+     * decisions 27 and 41): a node that declares the facet carries it open or closed, a node
+     * without the facet never does, a widget cannot set it, and a facet arriving raises the
+     * state's event from the diff like every other bit.
+     */
+    @Test
+    void expandableIsTheExpandFacetsPresenceAndNeverAWidgetsToSet() {
+        Accessibility a = new Accessibility();
+        long owner = a.mint();
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        a.begin(owner, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.MENU_BAR);
+        a.child(1);
+        a.role(Accessible.Role.MENU_ITEM);
+        a.bounds(0, 0, 50, 20);
+        assertThrows(IllegalArgumentException.class,
+                () -> a.state(Accessible.State.EXPANDABLE), "derived, never set");
+        a.endChild();
+        a.child(2);
+        a.role(Accessible.Role.MENU_ITEM);
+        a.bounds(50, 0, 50, 20);
+        a.expand(false);
+        a.endChild();
+        a.child(3);
+        a.role(Accessible.Role.MENU_ITEM);
+        a.bounds(100, 0, 50, 20);
+        a.expand(true);
+        a.endChild();
+        a.end();
+        AccessibleTree first = publish(a, target -> 0);
+        assertFalse(first.node(1).has(Accessible.State.EXPANDABLE), "no facet: cannot open");
+        assertNull(first.node(1).expand());
+        assertTrue(first.node(2).has(Accessible.State.EXPANDABLE), "closed, and can open");
+        assertFalse(first.node(2).has(Accessible.State.EXPANDED));
+        assertTrue(first.node(3).has(Accessible.State.EXPANDABLE), "open, and can open");
+        assertTrue(first.node(3).has(Accessible.State.EXPANDED));
+
+        // The first title gains a facet: one STATE_CHANGED(EXPANDABLE) on it, from the diff.
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        a.begin(owner, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.MENU_BAR);
+        a.child(1);
+        a.role(Accessible.Role.MENU_ITEM);
+        a.bounds(0, 0, 50, 20);
+        a.expand(false);
+        a.endChild();
+        a.child(2);
+        a.role(Accessible.Role.MENU_ITEM);
+        a.bounds(50, 0, 50, 20);
+        a.expand(false);
+        a.endChild();
+        a.child(3);
+        a.role(Accessible.Role.MENU_ITEM);
+        a.bounds(100, 0, 50, 20);
+        a.expand(true);
+        a.endChild();
+        a.end();
+        assertTrue(a.changed());
+        AccessibleTree second = publish(a, target -> 0);
+        List<AccessibleEvent> expandable = new ArrayList<>();
+        for (AccessibleEvent event : a.events()) {
+            if (event.type() == AccessibleEvent.Type.STATE_CHANGED) {
+                assertEquals(Accessible.State.EXPANDABLE, event.state(),
+                        "only the presence moved: " + a.events());
+                expandable.add(event);
+            }
+        }
+        assertEquals(1, expandable.size(), a.events().toString());
+        assertEquals(second.node(1).id(), expandable.get(0).nodeId());
+        assertEquals(Boolean.TRUE, expandable.get(0).newValue());
     }
 
 

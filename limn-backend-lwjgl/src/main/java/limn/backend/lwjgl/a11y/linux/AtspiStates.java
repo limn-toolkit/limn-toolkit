@@ -25,6 +25,19 @@ final class AtspiStates {
     /** The platform's own bit for a control that accepts input; it rides with {@code ENABLED}. */
     static final int SENSITIVE = 24;
 
+    /**
+     * The platform's own bit for a node that can open and is closed: {@code EXPANDABLE} without
+     * {@code EXPANDED}, which the toolkit carries as two facts and this platform as three
+     * (decision 27, 2026-09-14). Read with {@link #EXPANDABLE}'s bit off the Fedora KDE 44 guest
+     * (libatspi 2.60.6, {@code Atspi.StateType} typelib) on 2026-09-13 by
+     * {@code scripts/a11y/linux/dump-atspi-constants.py}, the same run that read
+     * {@link AtspiRoles}'s TREE numbers.
+     */
+    static final int COLLAPSED = 5;
+
+    /** {@code Atspi.StateType.EXPANDABLE}, from the same 2026-09-13 reading as {@link #COLLAPSED}. */
+    static final int EXPANDABLE = 9;
+
     private static final Map<Accessible.State, Integer> BIT = new EnumMap<>(Accessible.State.class);
 
     static {
@@ -39,6 +52,7 @@ final class AtspiStates {
         BIT.put(Accessible.State.MIXED, 32);            // INDETERMINATE
         BIT.put(Accessible.State.PRESSED, 20);
         BIT.put(Accessible.State.EXPANDED, 10);
+        BIT.put(Accessible.State.EXPANDABLE, EXPANDABLE);
         BIT.put(Accessible.State.HAS_POPUP, 42);
         BIT.put(Accessible.State.READ_ONLY, 43);
         BIT.put(Accessible.State.EDITABLE, 7);
@@ -80,6 +94,13 @@ final class AtspiStates {
             // Enabled and sensitive are one fact to this toolkit and two bits here; a reader that
             // checks only sensitivity would find every control inert without the second.
             out |= 1L << SENSITIVE;
+        }
+        if (has.test(Accessible.State.EXPANDABLE) && !has.test(Accessible.State.EXPANDED)) {
+            // Collapsed is what this platform calls a node that can open and has not: derived, so
+            // that Orca can say "collapsed" on a closed tree row rather than nothing (L3). The
+            // state-changed:collapsed event that should accompany an EXPANDED flip is the Linux
+            // lane's (phase 3); this is the set a client reads.
+            out |= 1L << COLLAPSED;
         }
         return out;
     }

@@ -135,8 +135,8 @@ public final class Accessible {
     /**
      * What is true of a node. Only what all three platforms carry as a flag is here; anything a
      * facet expresses is <em>derived</em> from that facet rather than stored twice, which is why
-     * {@link #CHECKED}, {@link #MIXED}, {@link #EXPANDED}, {@link #SELECTED} and {@link #READ_ONLY}
-     * are on this list and are still not a widget's to set directly.
+     * {@link #CHECKED}, {@link #MIXED}, {@link #EXPANDED}, {@link #EXPANDABLE}, {@link #SELECTED}
+     * and {@link #READ_ONLY} are on this list and are still not a widget's to set directly.
      *
      * <p>Three pairs are deliberately separate and are never conflated. {@link #ENABLED} against
      * {@link #READ_ONLY}: every platform separates them, and merging them makes a disabled field
@@ -175,6 +175,14 @@ public final class Accessible {
         PRESSED,
         /** This node is expanded. Derived from {@link ExpandFacet}. */
         EXPANDED,
+        /**
+         * This node opens and closes. Derived from the <em>presence</em> of an {@link ExpandFacet},
+         * on every node that carries one (a menu title, a submenu row, a combo box, a tree row, the
+         * calendar's title), so a reader on the one platform that speaks "collapsed" as a state of
+         * its own can be told the difference between a row that is closed and a row that cannot
+         * open; ADR 039 §1.2, amended 2026-09-14.
+         */
+        EXPANDABLE,
         /** Operating this node opens a menu or a list. */
         HAS_POPUP,
         /** This node's value may be read and not written. Derived from {@link TextFacet}. */

@@ -602,6 +602,28 @@ already refuses a verb that takes an argument, so the next dead line fails the f
 it. The two dead calls found by the audit are gone; `AccessibleModelTest` pins the refusal for every
 owned state and that a widget's own state still lands.
 
+**Amendment, 2026-09-14: `EXPANDABLE` joins the closed list, derived from the expand facet's
+presence.** The list above says `EXPANDED` derives from `ExpandFacet`; what it could not say was that
+a node *can* open, which is a fact AT-SPI2 carries as a state of its own (`EXPANDABLE`, bit 9, and
+`COLLAPSED`, bit 5, read off the Fedora KDE 44 guest, libatspi 2.60.6, on 2026-09-13; CRIT-9) and
+which Orca 50.2 speaks as "collapsed" on a closed row — nothing, until then, distinguished a tree row
+that is closed from a leaf that cannot open (L3). Windows and macOS already carry the fact through
+the ExpandCollapse pattern and the disclosure attribute, and change nothing here. The rule is one
+rule for every node (decision 41): **every node with an `ExpandFacet` is `EXPANDABLE`** — menu
+titles, submenu rows, combo boxes, tree rows and the calendar's title alike — and a widget can no
+more set it than it can set `EXPANDED`. The Linux bridge maps `EXPANDABLE` to bit 9 and derives
+`COLLAPSED` = `EXPANDABLE` ∧ ¬`EXPANDED` in its state set (`AtspiStates`); the state-changed
+event for the derived bit is the Linux lane's (phase 3). `STATE_CHANGED(EXPANDABLE)` comes from the
+diff like every other bit. The demo transcript prints it, so every golden line carrying an expand
+facet gained the word. The closed list of states, for `AccessibleModelTest` to read as it reads
+§1.12's roles:
+
+```text
+ENABLED, FOCUSABLE, FOCUSED, VISIBLE, SHOWING, SELECTABLE, SELECTED, CHECKED, MIXED, PRESSED,
+EXPANDED, EXPANDABLE, HAS_POPUP, READ_ONLY, EDITABLE, MULTI_LINE, PASSWORD, INVALID, REQUIRED,
+BUSY, MODAL, ACTIVE, DEFAULT, HORIZONTAL, VERTICAL
+```
+
 `ENABLED` and `READ_ONLY` are separate bits and are never conflated. Every platform separates them —
 UIA has `IsEnabled` against `ValuePattern.IsReadOnly`, AT-SPI2 has `SENSITIVE`/`ENABLED` against
 `READ_ONLY`/`EDITABLE`, AppKit has `accessibilityEnabled` against the text attributes — and merging
