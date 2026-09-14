@@ -1994,6 +1994,16 @@ public abstract class Widget {
      * identity is not decided here but in {@link #onAccessibilityChildIdentity}, which runs
      * first; {@link limn.accessibility.Accessibility#key(long)} refuses to be called from here.
      *
+     * <p><b>This is the only place {@link limn.accessibility.Accessibility#delegate} may be
+     * called</b> (ADR 039 §1.5, amended 2026-09-14): a verb this widget claims on the child —
+     * a list's {@code SELECT} on a row — is published on the child's node and routed to
+     * {@link #onAccessibilityChildAction}. The builder refuses a delegation from anywhere else,
+     * and refuses one here for a verb the child declared for itself, for a verb that takes an
+     * argument, and for {@code FOCUS} or {@code SCROLL_INTO_VIEW} on a focusable child, which the
+     * walk performs on its own. A verb <em>written</em> here with
+     * {@link limn.accessibility.Accessibility#action} would be dispatched to the child's own
+     * {@link #onAccessibilityAction}, which is why a child hook writes facts and delegates verbs.
+     *
      * @param child the child being described
      * @param a     the child's node
      */

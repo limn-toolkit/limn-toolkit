@@ -1245,6 +1245,60 @@ class AccessibleModelTest {
      * way round (decision 30): {@code disabled()} narrows the inherited bit as {@code offScreen()}
      * narrows SHOWING, is cleared for every child, and is refused on a widget's own node.
      */
+    /**
+     * The narrowing reaches through the nesting (the phase-1 critic's finding, 2026-09-14): a
+     * synthetic child declared inside a disabled synthetic child is no more enabled than that
+     * parent, so a cell of a refused row is refused with it, whether or not it said so itself.
+     */
+    @Test
+    void aSyntheticChildInsideADisabledOneIsDisabledWithIt() {
+        Accessibility a = new Accessibility();
+        long owner = a.mint();
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        a.begin(owner, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.TABLE);
+        a.child(1);
+        a.role(Accessible.Role.ROW);
+        a.bounds(0, 0, 100, 20);
+        a.disabled();
+        a.child(11);
+        a.role(Accessible.Role.CELL);
+        a.bounds(0, 0, 20, 20);
+        a.child(111);
+        a.role(Accessible.Role.LABEL);
+        a.bounds(0, 0, 10, 20);
+        a.endChild();
+        a.endChild();
+        a.endChild();
+        a.child(2);
+        a.role(Accessible.Role.ROW);
+        a.bounds(0, 20, 100, 20);
+        a.child(21);
+        a.role(Accessible.Role.CELL);
+        a.bounds(0, 0, 20, 20);
+        a.endChild();
+        a.endChild();
+        a.end();
+        for (int i = 1; i < a.nodeCount(); i++) {
+            a.inheritedAt(i, true, true, true);
+        }
+        AccessibleTree tree = publish(a, (kind, target) -> 0);
+
+        assertFalse(tree.node(1).has(Accessible.State.ENABLED), "the refused row");
+        assertFalse(tree.node(2).has(Accessible.State.ENABLED),
+                "its cell, which declared nothing, is no more enabled than the row it is in: "
+                        + tree.node(2).states());
+        assertFalse(tree.node(3).has(Accessible.State.ENABLED),
+                "and so on down: " + tree.node(3).states());
+        assertTrue(tree.node(4).has(Accessible.State.ENABLED), "the next row is untouched");
+        assertTrue(tree.node(5).has(Accessible.State.ENABLED),
+                "and so is its cell: " + tree.node(5).states());
+        for (int i = 1; i <= 5; i++) {
+            assertTrue(tree.node(i).has(Accessible.State.VISIBLE), "only the one bit narrows");
+            assertTrue(tree.node(i).has(Accessible.State.SHOWING));
+        }
+    }
+
     @Test
     void aSyntheticChildMayBeDisabledAndIsNeverMoreEnabledThanItsOwner() {
         Accessibility a = new Accessibility();
