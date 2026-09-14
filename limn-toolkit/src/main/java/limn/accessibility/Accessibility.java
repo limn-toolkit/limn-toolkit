@@ -2384,24 +2384,21 @@ public final class Accessibility {
      */
     private void addStructureChanges() {
         noteReorders();
-        for (int p = 0; p < count && structCount > 0; p++) {
-            boolean any = false;
-            for (int n = 0; n < structCount; n++) {
-                if (structParents[n] == p) {
-                    any = true;
-                    break;
-                }
-            }
-            if (!any) {
+        if (structCount == 0) {
+            return;
+        }
+        bucketBySlot(structParents, structCount);
+        for (int p = 0; p < count; p++) {
+            int from = bucketOffsets[p];
+            int to = bucketOffsets[p + 1];
+            if (from == to) {
                 continue;
             }
             List<AccessibleEvent.Child> added = new ArrayList<>();
             List<AccessibleEvent.Child> removed = new ArrayList<>();
             List<AccessibleEvent.Child> reordered = new ArrayList<>();
-            for (int n = 0; n < structCount; n++) {
-                if (structParents[n] != p) {
-                    continue;
-                }
+            for (int i = from; i < to; i++) {
+                int n = bucketOrder[i];
                 AccessibleEvent.Child child = new AccessibleEvent.Child(structChildren[n],
                         structIndices[n], structOthers[n]);
                 switch (structKinds[n]) {
@@ -2415,38 +2412,76 @@ public final class Accessibility {
         structCount = 0;
     }
 
+    // The notes of one kind grouped by the slot they are on, for the two passes above: after
+    // bucketBySlot the notes on slot s are bucketOrder[bucketOffsets[s] .. bucketOffsets[s + 1]),
+    // in the order they were noted. Grown once, reused; a publish with no notes touches neither.
+    private int[] bucketOffsets = new int[64];
+    private int[] bucketOrder = new int[16];
+
+    /**
+     * Groups {@code notes} notes by the slot each is on -- a counting sort over the slots,
+     * linear in the notes and the nodes -- so that a per-slot pass reads one contiguous run per
+     * slot instead of scanning every note for every node, which on a table whose sort moved
+     * fifty of five thousand rows was a quarter of a million comparisons per publish. Stable,
+     * so walk order survives into reading order.
+     *
+     * @param slotOfNote the slot each note is on, {@code [0, count)}
+     * @param notes      how many notes
+     */
+    private void bucketBySlot(int[] slotOfNote, int notes) {
+        int size = count + 2;
+        if (bucketOffsets.length < size) {
+            bucketOffsets = new int[Math.max(size, bucketOffsets.length * 2)];
+        }
+        if (bucketOrder.length < notes) {
+            bucketOrder = new int[Math.max(notes, bucketOrder.length * 2)];
+        }
+        java.util.Arrays.fill(bucketOffsets, 0, size, 0);
+        for (int n = 0; n < notes; n++) {
+            bucketOffsets[slotOfNote[n] + 2]++;
+        }
+        for (int s = 2; s < size; s++) {
+            bucketOffsets[s] += bucketOffsets[s - 1];
+        }
+        // Placed through the slot's start cursor, which each placement advances: when the last
+        // note is down, bucketOffsets[s] is slot s's start and bucketOffsets[s + 1] its end.
+        for (int n = 0; n < notes; n++) {
+            bucketOrder[bucketOffsets[slotOfNote[n] + 1]++] = n;
+        }
+    }
+
     /**
      * One {@code SELECTION_CHANGED} per container whose selection moved, in reading order of
      * the containers, carrying the members that entered and left it (decision 9; semantics 1).
      * The moves were noted in walk order, so the members come out in reading order too.
      */
     private void addSelectionChanges() {
-        for (int c = 0; c < count && moveCount > 0; c++) {
-            int entered = 0;
-            int left = 0;
-            for (int m = 0; m < moveCount; m++) {
-                if (moveContainers[m] == c) {
-                    if (moveEntered[m]) {
-                        entered++;
-                    } else {
-                        left++;
-                    }
-                }
-            }
-            if (entered == 0 && left == 0) {
+        if (moveCount == 0) {
+            return;
+        }
+        bucketBySlot(moveContainers, moveCount);
+        for (int c = 0; c < count; c++) {
+            int from = bucketOffsets[c];
+            int to = bucketOffsets[c + 1];
+            if (from == to) {
                 continue;
             }
+            int entered = 0;
+            for (int i = from; i < to; i++) {
+                if (moveEntered[bucketOrder[i]]) {
+                    entered++;
+                }
+            }
             long[] added = new long[entered];
-            long[] removed = new long[left];
+            long[] removed = new long[to - from - entered];
             int a = 0;
             int r = 0;
-            for (int m = 0; m < moveCount; m++) {
-                if (moveContainers[m] == c) {
-                    if (moveEntered[m]) {
-                        added[a++] = moveMembers[m];
-                    } else {
-                        removed[r++] = moveMembers[m];
-                    }
+            for (int i = from; i < to; i++) {
+                int m = bucketOrder[i];
+                if (moveEntered[m]) {
+                    added[a++] = moveMembers[m];
+                } else {
+                    removed[r++] = moveMembers[m];
                 }
             }
             reserve(AccessibleEvent.selection(slots[c].id, slots[c].multiSelectable, added,
