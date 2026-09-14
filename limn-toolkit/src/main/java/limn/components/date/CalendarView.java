@@ -1651,6 +1651,7 @@ public class CalendarView extends Widget {
         // year on show, which is the only thing "current" means there.
         boolean terminal = terminalChooser();
         int current = terminal ? -1 : currentChooserCell();
+        int[] stood = terminal ? chooserStands() : null;
         float focus = focusFade.value();
         int columns = columns();
         for (int i = 0; i < chooserText.length && i < cellCount(); i++) {
@@ -1659,7 +1660,7 @@ public class CalendarView extends Widget {
             float left = cellLeft(column, rtl);
             float top = gridY + row * cellH;
             boolean offered = enabled && isChooserCellOffered(i);
-            int stands = terminal ? periodSelection(i) : i == current ? 2 : 0;
+            int stands = terminal ? stood[i] : i == current ? 2 : 0;
             if (stands == 1) {
                 canvas.fillRect(left, top, cellW, cellH, theme.primary.withAlpha(0.18f));
             }
@@ -1682,6 +1683,51 @@ public class CalendarView extends Widget {
             }
         }
     }
+
+    /**
+     * {@link #periodSelection} for every cell of a terminal chooser, computed once per change of
+     * what it reads rather than per cell per frame: each answer converts the cell through the
+     * chronology and back, and the period's end once more, which for twenty-four cells was
+     * near a hundred allocations a frame while the popup fades. What it reads is held beside
+     * the answers and compared on every paint, so a stale answer is impossible by construction
+     * rather than by every selection path remembering to clear it.
+     */
+    private int[] chooserStands() {
+        int count = Math.min(chooserText.length, cellCount());
+        if (chooserStands.length == count
+                && Objects.equals(standsSelected, selected)
+                && Objects.equals(standsRange, selectedRange)
+                && Objects.equals(standsAnchor, rangeAnchor)
+                && standsMonthFirst == monthFirstEpoch
+                && standsView == view && standsGranularity == granularity
+                && standsChronology == gridChronology && standsMode == selectionMode) {
+            return chooserStands;
+        }
+        int[] stands = new int[count];
+        for (int i = 0; i < count; i++) {
+            stands[i] = periodSelection(i);
+        }
+        chooserStands = stands;
+        standsSelected = selected;
+        standsRange = selectedRange;
+        standsAnchor = rangeAnchor;
+        standsMonthFirst = monthFirstEpoch;
+        standsView = view;
+        standsGranularity = granularity;
+        standsChronology = gridChronology;
+        standsMode = selectionMode;
+        return stands;
+    }
+
+    private int[] chooserStands = new int[0];
+    private LocalDate standsSelected;
+    private DateRange standsRange;
+    private LocalDate standsAnchor;
+    private long standsMonthFirst;
+    private View standsView;
+    private View standsGranularity;
+    private Chronology standsChronology;
+    private SelectionMode standsMode;
 
     /** Which chooser cell holds what is on show: the visible month, or its year. */
     private int currentChooserCell() {

@@ -159,6 +159,18 @@ public class DateField extends Widget {
      */
     public static final int REFUSE_TWO_DIGIT_YEARS = -1;
 
+    /** The shapes a typed run and a paste are matched against: compiled once, not per keystroke. */
+    private static final java.util.regex.Pattern ISO_DAY_RUN =
+            java.util.regex.Pattern.compile("\\d{4}-\\d{2}-\\d{2}$");
+    private static final java.util.regex.Pattern ISO_MONTH_RUN =
+            java.util.regex.Pattern.compile("\\d{4}-\\d{2}$");
+    private static final java.util.regex.Pattern LONG_DIGIT_RUN =
+            java.util.regex.Pattern.compile("\\d{3,}");
+    private static final java.util.regex.Pattern TIME_OF_DAY =
+            java.util.regex.Pattern.compile("(\\d{1,2}):(\\d{2})(?::(\\d{2}))?");
+    private static final java.util.regex.Pattern DIGIT_RUN =
+            java.util.regex.Pattern.compile("\\d+");
+
     /** How many years back the century window for a two-digit year starts; see the setter. */
     private int twoDigitYearWindow = 80;
 
@@ -615,10 +627,26 @@ public class DateField extends Widget {
      * Whether the drawn calendar's years are spoken and typed with their era: Reiwa 8 and
      * Minguo 115 say nothing without it, where 2026, 2569 and 1448 do (era-year-width,
      * 2026-09-14). Read off the year of era today, never off a list of chronologies.
+     *
+     * <p>Held per chronology rather than derived on every call: the derivation reads the clock
+     * and converts today through the chronology, which is two allocations, and the answer was
+     * asked several times per frame of every date field (the year's width, its text, its
+     * bounds). The day moving cannot flip it -- a year of era moves by one a year and the
+     * threshold is a thousand -- so the held answer goes only with the chronology it was
+     * computed for, and with the clock, which {@link #setClock} resets.
      */
     private boolean eraCalendar() {
-        return CalendarChronology.yearsNameTheirEra(chronology(), today());
+        Chronology chronology = chronology();
+        if (chronology != eraYearsFor) {
+            eraYears = CalendarChronology.yearsNameTheirEra(chronology, today());
+            eraYearsFor = chronology;
+        }
+        return eraYears;
     }
+
+    /** The chronology {@link #eraYears} was computed for; see {@link #eraCalendar}. */
+    private Chronology eraYearsFor;
+    private boolean eraYears;
 
     // ------------------------------------------------------------------ bounds and validity
 
@@ -1173,6 +1201,7 @@ public class DateField extends Widget {
     public DateField setClock(Clock newClock) {
         Ui.checkUiThread();
         clock = newClock;
+        eraYearsFor = null; // today moved: see eraCalendar
         return this;
     }
 
@@ -1467,7 +1496,7 @@ public class DateField extends Widget {
                 // year in the twenties with no four-digit run anywhere in the text is a
                 // two-digit year and goes through the window (decision 57).
                 if (parsed.getYear() >= 0 && parsed.getYear() < 100 && !eraCalendar()
-                        && !java.util.regex.Pattern.compile("\\d{3,}").matcher(text).find()) {
+                        && !LONG_DIGIT_RUN.matcher(text).find()) {
                     int resolved = resolveTwoDigitYear(parsed.getYear());
                     return resolved == UNSET ? new Parsed(parsed, true)
                             : new Parsed(parsed.withYear(resolved), false);
@@ -1482,7 +1511,7 @@ public class DateField extends Widget {
 
     private LocalTime parseTime(String text) {
         java.util.regex.Matcher clock =
-                java.util.regex.Pattern.compile("(\\d{1,2}):(\\d{2})(?::(\\d{2}))?").matcher(text);
+                TIME_OF_DAY.matcher(text);
         if (!clock.find()) {
             return null;
         }
@@ -1516,7 +1545,7 @@ public class DateField extends Widget {
      */
     private boolean parseByDigitRuns(String text) {
         List<String> runs = new ArrayList<>();
-        java.util.regex.Matcher digits = java.util.regex.Pattern.compile("\\d+").matcher(text);
+        java.util.regex.Matcher digits = DIGIT_RUN.matcher(text);
         while (digits.find()) {
             runs.add(digits.group());
         }
@@ -1841,9 +1870,8 @@ public class DateField extends Widget {
         if (typedRun.length() > 16) {
             typedRun.delete(0, typedRun.length() - 16);
         }
-        java.util.regex.Matcher iso = java.util.regex.Pattern
-                .compile(granularity.holds(Granularity.DAY) ? "\\d{4}-\\d{2}-\\d{2}$" : "\\d{4}-\\d{2}$")
-                .matcher(typedRun);
+        java.util.regex.Matcher iso =
+                (granularity.holds(Granularity.DAY) ? ISO_DAY_RUN : ISO_MONTH_RUN).matcher(typedRun);
         if (!iso.find()) {
             return;
         }

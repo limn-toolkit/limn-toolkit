@@ -2,6 +2,8 @@ package limn.components;
 
 import limn.components.date.CalendarView;
 import limn.components.date.DateRange;
+import limn.graphics.Paint;
+import limn.graphics.RoundRect;
 import limn.i18n.I18n;
 import limn.input.Keys;
 import limn.scene.Change;
@@ -438,6 +440,41 @@ class CalendarViewTest extends ComponentTestBase {
         calendar.setSelectedDate(LocalDate.of(2026, 6, 15));
         assertEquals(LocalDate.of(2026, 6, 1), calendar.selectedDate(),
                 "a caller's day is held as its month");
+    }
+
+    /**
+     * The chooser's selection is painted from answers held between frames (they were derived
+     * per cell per frame, through the chronology and back), so what has to hold is that the
+     * held answers follow the selection: the solid cell is March, and after the selection moves
+     * it is June and March is plain.
+     */
+    @Test
+    void aMonthPickersSolidCellFollowsTheSelectionFromFrameToFrame() {
+        build();
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        calendar.setSelectedDate(LocalDate.of(2026, 3, 1));
+        List<RoundRect> solid = new ArrayList<>();
+        FakeCanvas recording = new FakeCanvas(400, 400) {
+            @Override
+            public void fillRoundRect(RoundRect roundRect, Paint paint) {
+                if (paint.equals(Theme.current().primary)) {
+                    solid.add(roundRect);
+                }
+            }
+        };
+        scene.layoutPass(400, 400);
+        scene.renderFrame(recording);
+        assertEquals(1, solid.size(), "one solid cell: the selected month");
+        RoundRect march = solid.get(0);
+
+        solid.clear();
+        calendar.setSelectedDate(LocalDate.of(2026, 6, 1));
+        scene.renderFrame(recording);
+        assertEquals(1, solid.size(), "still one, after the selection moved");
+        RoundRect june = solid.get(0);
+        assertTrue(june.y() > march.y(), "June is a row below March in a four-column chooser: "
+                + march + " -> " + june);
+        assertFalse(june.x() == march.x() && june.y() == march.y(), "and March is no longer solid");
     }
 
     @Test

@@ -479,6 +479,25 @@ class DateFieldTest extends ComponentTestBase {
         assertEquals(LocalDate.of(2027, 1, 2), field.date(), "Reiwa 9-01-02, the era from the clock");
     }
 
+    /**
+     * Whether the years carry their era is held per chronology rather than derived on every
+     * call (it read the clock and converted today through the chronology, several times a
+     * frame), so what has to hold is that the held answer goes with the chronology: a field
+     * moved from the Japanese calendar to ISO widens its year again and wants four digits.
+     */
+    @Test
+    void aFieldMovedOffAnEraCalendarWidensItsYearAgain() {
+        build(new DateField(), JAPANESE);
+        field.setClock(IN_2026);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        assertEquals("R8/9/9", field.text());
+        field.setChronology(java.time.chrono.IsoChronology.INSTANCE);
+        assertEquals("2026/09/09", field.text(), "the same day, in the language's ISO form");
+        key(Keys.HOME);
+        type("2027");           // four digits are a year again; three would have rolled on
+        assertEquals(LocalDate.of(2027, 9, 9), field.date());
+    }
+
     @Test
     void anEmptyEraFieldTypesIntoTheClocksEra() {
         build(new DateField(), JAPANESE);
