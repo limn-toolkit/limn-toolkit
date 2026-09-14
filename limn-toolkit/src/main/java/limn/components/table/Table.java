@@ -2252,7 +2252,10 @@ public class Table<T> extends Widget implements Scrollable {
                 a.role(Accessible.Role.CELL);
                 a.name(slot.texts[c], textEpoch, Accessible.NameFrom.CONTENT);
                 a.cell(row, s);
-                if (row == focusRow && s == focusColumn) {
+                if (row == focusRow && s == focusColumn && isFocused()) {
+                    // Only while the table holds the keyboard (ADR 039 §1.10, amended
+                    // 2026-09-14): the cursor is the focused node's, and the kept focus row
+                    // above already gates on the same fact.
                     a.state(Accessible.State.ACTIVE);
                 }
                 if (left + colW[s] <= rowX || left >= rowX + w) {

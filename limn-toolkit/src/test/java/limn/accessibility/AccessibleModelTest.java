@@ -523,6 +523,7 @@ class AccessibleModelTest {
         a.begin(ownerId, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
         a.role(Accessible.Role.MENU);
         a.selection(false, true);
+        a.inherited(true, true, true, true, true);
         a.child(7);
         a.role(Accessible.Role.MENU_ITEM);
         a.bounds(0, 0, 100, 20);
@@ -530,14 +531,138 @@ class AccessibleModelTest {
         a.state(Accessible.State.ACTIVE);
         a.endChild();
         a.end();
-        AccessibleTree tree = publish(a, target -> 0);
+        a.resolveRelations(target -> 0);
+        AccessibleTree tree = a.publish(ownerId, 0, 0, 1, true);
         assertEquals(2, tree.nodeCount());
         AccessibleNode row = tree.node(1);
         assertEquals(Accessible.Role.MENU_ITEM, row.role());
         assertNotNull(tree.root().selection());
-        assertEquals(row.id(), tree.root().selection().activeDescendant(),
-                "the container's active descendant is the node that declared itself active");
+        assertEquals(row.id(), tree.activeDescendant(),
+                "the focused menu's cursor is the node below it that declared itself active");
         return row.id();
+    }
+
+    /**
+     * Semantics 4 and decision 6 (ADR 039 §1.10, amended 2026-09-14): the cursor is the first
+     * {@code ACTIVE} node below the <em>focused</em> node, through any number of containers,
+     * and exactly one event names the focused node when it moves. A container nobody is in
+     * publishes no cursor and announces nothing, however many active descendants it holds; a
+     * newly focused node whose cursor differs from the last focused node's announces its own.
+     */
+    @Test
+    void theCursorIsTheFocusedNodesAndOneEventNamesItWhenItMoves() {
+        Accessibility a = new Accessibility();
+        long layer = a.mint();
+        long list = a.mint();
+        long elsewhere = a.mint();
+
+        // An unfocused list with an active row: no cursor, no event.
+        AccessibleTree first = describeNestedContainers(a, layer, list, elsewhere, 0, 0);
+        assertEquals(0, first.activeDescendant(), "nothing is focused, so nothing has a cursor");
+        assertEquals(0, first.effectiveFocus());
+        assertEquals(0, countOf(a, AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "an unfocused container announces no cursor: " + a.events());
+
+        // The layer takes the focus: its cursor is resolved through the list it holds, and the
+        // one event names the layer, not the list.
+        AccessibleTree second = describeNestedContainers(a, layer, list, elsewhere, layer, 0);
+        long rowOne = second.node(3).id();
+        assertEquals(rowOne, second.activeDescendant(),
+                "resolved through the nested container: " + describe(second));
+        assertEquals(rowOne, second.effectiveFocus());
+        List<AccessibleEvent> moved = eventsOf(a, AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(),
+                "one event on the focused node, not one per container: " + a.events());
+        assertEquals(layer, moved.get(0).nodeId());
+        assertEquals(0L, moved.get(0).oldValue());
+        assertEquals(rowOne, moved.get(0).newValue());
+
+        // The cursor moves to the other row: one event again, carrying both.
+        AccessibleTree third = describeNestedContainers(a, layer, list, elsewhere, layer, 1);
+        long rowTwo = third.node(4).id();
+        assertEquals(rowTwo, third.activeDescendant());
+        moved = eventsOf(a, AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(), a.events().toString());
+        assertEquals(layer, moved.get(0).nodeId());
+        assertEquals(rowOne, moved.get(0).oldValue());
+        assertEquals(rowTwo, moved.get(0).newValue());
+
+        // The focus leaves for a widget outside the layer: the list's rows are still active in
+        // the walk, but the focused node has nothing active below it, so the cursor is gone
+        // and the event that says so names the newly focused node.
+        AccessibleTree fourth = describeNestedContainers(a, layer, list, elsewhere, elsewhere, 1);
+        assertEquals(0, fourth.activeDescendant(), describe(fourth));
+        assertEquals(elsewhere, fourth.effectiveFocus(),
+                "with no cursor the focused node itself is where the user is");
+        moved = eventsOf(a, AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(), a.events().toString());
+        assertEquals(elsewhere, moved.get(0).nodeId());
+        assertEquals(rowTwo, moved.get(0).oldValue());
+        assertEquals(0L, moved.get(0).newValue());
+
+        // And nothing focused at all: no event, whatever is still active below the layer.
+        AccessibleTree fifth = describeNestedContainers(a, layer, list, elsewhere, 0, 1);
+        assertEquals(0, fifth.activeDescendant());
+        assertEquals(0, countOf(a, AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "a scene with no focused node announces no cursor: " + a.events());
+    }
+
+    /**
+     * A layer holding a list of two rows, one of them active, and a button beside the layer;
+     * whichever of the three widget nodes {@code focused} names is published focused.
+     */
+    private static AccessibleTree describeNestedContainers(Accessibility a, long layer, long list,
+                                                           long elsewhere, long focused,
+                                                           int activeRow) {
+        a.beginWalk(200, 200, Locale.ENGLISH);
+        long root = a.mint();
+        a.begin(root, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(layer, 0, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.GROUP);
+        a.selection(false, true);
+        a.inherited(true, true, true, true, focused == layer);
+        a.begin(list, 1, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.LIST);
+        a.selection(false, true);
+        a.inherited(true, true, true, false, false);
+        for (int i = 0; i < 2; i++) {
+            a.child(i);
+            a.role(Accessible.Role.LIST_ITEM);
+            a.bounds(0, i * 20, 100, 20);
+            a.selectionItem(i == activeRow, i + 1, 2);
+            if (i == activeRow) {
+                a.state(Accessible.State.ACTIVE);
+            }
+            a.endChild();
+        }
+        a.end();
+        a.end();
+        a.begin(elsewhere, 0, Locale.ENGLISH, 100, 0, 40, 20);
+        a.role(Accessible.Role.BUTTON);
+        a.inherited(true, true, true, true, focused == elsewhere);
+        a.end();
+        a.end();
+        a.resolveRelations(target -> 0);
+        return a.publish(focused, 0, 0, 1, true);
+    }
+
+    private static long countOf(Accessibility a, AccessibleEvent.Type type) {
+        return a.events().stream().filter(event -> event.type() == type).count();
+    }
+
+    private static List<AccessibleEvent> eventsOf(Accessibility a, AccessibleEvent.Type type) {
+        return a.events().stream().filter(event -> event.type() == type).toList();
+    }
+
+    private static String describe(AccessibleTree tree) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            out.append(i).append(": ").append(tree.node(i)).append(' ')
+                    .append(tree.node(i).states()).append('\n');
+        }
+        return out.toString();
     }
 
     /**

@@ -1,6 +1,7 @@
 package limn.components;
 
 import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.components.date.DateField;
 import limn.i18n.I18n;
@@ -143,6 +144,43 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
         perform(month.id(), Accessible.Action.DECREMENT, Accessible.Argument.NONE);
         assertEquals(LocalDate.of(2026, 11, 30), field.date(),
                 "the month stepped back, and the day followed the shorter month");
+    }
+
+    /**
+     * Decision 49 and semantics 4 (ADR 039 §1.10, amended 2026-09-14): the caret's segment is
+     * the field's cursor, and a digit that completes a segment and rolls the caret onto the
+     * next one moves it — one {@code ACTIVE_DESCENDANT_CHANGED} on the field, naming the
+     * segment the caret left and the one it landed on. The widget's own quiet flag on that
+     * roll-on gates only its ADR 040 observers; the tree's difference is what a reader follows.
+     */
+    @Test
+    void aDigitThatRollsTheCaretOntoTheNextSegmentMovesTheFieldsCursor() {
+        DateField field = bindField(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 12, 31));
+        scene.requestFocus(field);
+        frame();
+        List<AccessibleNode> segments = segmentNodes();
+        AccessibleNode day = segments.get(0);
+        AccessibleNode month = segments.get(1);
+        assertEquals(groupNode().id(), tree().focused(), describe(tree()));
+        assertEquals(day.id(), tree().activeDescendant(),
+                "the caret starts in the day segment: " + describe(tree()));
+        bridge.events.clear();
+
+        scene.charTyped('1');
+        scene.charTyped('5');
+        scene.inputBatchEnded();
+        frame();
+
+        assertEquals(LocalDate.of(2026, 12, 15), field.date(), "the day took the two digits");
+        assertEquals(month.id(), tree().activeDescendant(),
+                "and the caret rolled onto the month: " + describe(tree()));
+        List<AccessibleEvent> moved = bridge.eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(),
+                "one cursor event on the field, which is the focused node: " + bridge.events);
+        assertEquals(groupNode().id(), moved.get(0).nodeId());
+        assertEquals(day.id(), moved.get(0).oldValue());
+        assertEquals(month.id(), moved.get(0).newValue());
     }
 
     @Test

@@ -1801,7 +1801,10 @@ public class Tree<T> extends Widget implements Scrollable {
             // reader as a node with nothing in it (ADR 044 §2).
             a.state(Accessible.State.BUSY);
         }
-        if (row.node.equals(lead)) {
+        if (row.node.equals(lead) && isFocused()) {
+            // The cursor is the focused node's (ADR 039 §1.10, amended 2026-09-14): a tree
+            // nobody is in publishes no ACTIVE row, so it cannot hand the widget the user is
+            // actually in a cursor it does not have.
             a.state(Accessible.State.ACTIVE);
         }
     }

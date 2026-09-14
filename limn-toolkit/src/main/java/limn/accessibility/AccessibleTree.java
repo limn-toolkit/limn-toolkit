@@ -27,10 +27,11 @@ public final class AccessibleTree {
 
     /** The tree of a window that has nothing to say: no nodes, no stamp, no identifiers. */
     public static final AccessibleTree EMPTY = new AccessibleTree(
-            new AccessibleNode[0], 0, 0, 0, 1, false, 0, 0, Locale.ROOT, 0, 0);
+            new AccessibleNode[0], 0, 0, 0, 0, 1, false, 0, 0, Locale.ROOT, 0, 0);
 
     private final AccessibleNode[] nodes;
     private final long focused;
+    private final long activeDescendant;
     private final int screenX;
     private final int screenY;
     private final float logicalToScreenFactor;
@@ -41,12 +42,13 @@ public final class AccessibleTree {
     private final long generation;
     private final long sceneTag;
 
-    AccessibleTree(AccessibleNode[] nodes, long focused, int screenX, int screenY,
-                   float logicalToScreenFactor, boolean absolutePositioning,
+    AccessibleTree(AccessibleNode[] nodes, long focused, long activeDescendant, int screenX,
+                   int screenY, float logicalToScreenFactor, boolean absolutePositioning,
                    float sceneWidth, float sceneHeight, Locale locale, long generation,
                    long sceneTag) {
         this.nodes = nodes;
         this.focused = focused;
+        this.activeDescendant = activeDescendant;
         this.screenX = screenX;
         this.screenY = screenY;
         this.logicalToScreenFactor = logicalToScreenFactor;
@@ -78,8 +80,8 @@ public final class AccessibleTree {
                 && newFactor == logicalToScreenFactor && positioning == absolutePositioning) {
             return this;
         }
-        return new AccessibleTree(nodes, focused, newScreenX, newScreenY, newFactor, positioning,
-                sceneWidth, sceneHeight, locale, generation + 1, sceneTag);
+        return new AccessibleTree(nodes, focused, activeDescendant, newScreenX, newScreenY,
+                newFactor, positioning, sceneWidth, sceneHeight, locale, generation + 1, sceneTag);
     }
 
     /**
@@ -198,6 +200,61 @@ public final class AccessibleTree {
      */
     public long focused() {
         return focused;
+    }
+
+    /**
+     * The node the keyboard cursor is on inside the focused node: the first node published
+     * {@link Accessible.State#ACTIVE} strictly below {@link #focused()} in reading order,
+     * whichever containers lie between them (ADR 039 §1.10, amended 2026-09-14; semantics 4).
+     * Never the window node's own {@code ACTIVE}, and never resolved through a
+     * {@link SelectionFacet}: a container that is not the focused node, or below it, has no
+     * cursor to publish. When the focused node's own subtree holds no {@code ACTIVE} node and it
+     * opened a popup that is a window of its own, the cursor is read across the
+     * {@link Accessible.Relation#CONTROLLER_FOR} relation into that window's tree (decision 5),
+     * so the identifier here may belong to another window — {@link #holds(long)} says which.
+     *
+     * @return the identifier of the active descendant, or {@code 0} when the focused node has
+     *         none or nothing is focused
+     */
+    public long activeDescendant() {
+        return activeDescendant;
+    }
+
+    /**
+     * Where the user is, for a platform that puts its focus on the item rather than on the
+     * widget: the {@linkplain #activeDescendant() active descendant} when there is one, and the
+     * {@linkplain #focused() focused node} otherwise.
+     *
+     * @return the identifier of the node a reader should be standing on, or {@code 0} when
+     *         nothing in this window holds the focus
+     */
+    public long effectiveFocus() {
+        return activeDescendant != 0 ? activeDescendant : focused;
+    }
+
+    /**
+     * The first node published {@link Accessible.State#ACTIVE} strictly below a node, in reading
+     * order: what {@link #activeDescendant()} is resolved from, exposed so that the walk of a
+     * window whose focused node opened a popup can read the popup's cursor off the popup's own
+     * tree, and so that a bridge can ask the same of any subtree. Allocates nothing.
+     *
+     * @param index the index of the node whose subtree is searched; its own bit is never counted
+     * @return the identifier of the first active node below it, or {@code 0} when there is none
+     * @throws IndexOutOfBoundsException if the index is not one of this tree's
+     */
+    public long firstActiveBelow(int index) {
+        java.util.Objects.checkIndex(index, nodes.length);
+        for (int i = index + 1; i < nodes.length; i++) {
+            if (!nodes[i].has(Accessible.State.ACTIVE)) {
+                continue;
+            }
+            for (int at = nodes[i].parent(); at != AccessibleNode.NONE; at = nodes[at].parent()) {
+                if (at == index) {
+                    return nodes[i].id();
+                }
+            }
+        }
+        return 0;
     }
 
     /**

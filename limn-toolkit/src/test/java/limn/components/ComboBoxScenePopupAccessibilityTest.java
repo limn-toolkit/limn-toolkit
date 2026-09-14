@@ -209,16 +209,19 @@ class ComboBoxScenePopupAccessibilityTest extends AccessibleComponentTestBase {
                         + "members, and this is the node a bridge reads because it is the focused "
                         + "one" + describe(tree()));
         // The facet declares the container; which of its descendants the cursor is on is the
-        // first node in its subtree published ACTIVE, and the panel's own step is what marks
-        // that row. It is the HIGHLIGHTED option and not the selected one, which in a combo are
+        // tree's fact and not the facet's (ADR 039 §1.10, amended 2026-09-14): the first node
+        // below the FOCUSED node published ACTIVE, and the panel's own step is what marks that
+        // row. It is the HIGHLIGHTED option and not the selected one, which in a combo are
         // separate fields moved by separate paths: the highlight moves under the arrows and the
         // selection moves only on commit. open() sets the highlight to the selection, so on this
         // first frame they name the same row and the assertion below is written as the highlight
         // deliberately. What the highlight does when it moves is
         // limn.components.ComboBoxPopupAccessibilityTest's, at the node that carries it.
-        assertEquals(optionAt(combo.highlightedIndex()).id(), selection.activeDescendant(),
+        assertEquals(overlay().id(), tree().focused(),
                 "the layer that holds the keyboard is where a reader reads the cursor from"
                         + describe(tree()));
+        assertEquals(optionAt(combo.highlightedIndex()).id(), tree().activeDescendant(),
+                describe(tree()));
     }
 
     /**

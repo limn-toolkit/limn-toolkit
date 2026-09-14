@@ -1160,9 +1160,12 @@ public class ListView extends Widget implements Scrollable {
      * because here the selection <em>is</em> the cursor — there is no second highlight, unlike the
      * combo's — and the keyboard stays on the list while it moves, which is exactly what an active
      * descendant is for: without the bit a reader can enumerate the rows and never learn which one
-     * the user is on. The model's known cost comes with it, unchanged: a container takes the first
-     * active node anywhere in its subtree, so a list nested inside another list's row cell hands
-     * the outer list the inner one's selected row as its own cursor.
+     * the user is on. <b>Only while this list holds the keyboard</b> (ADR 039 §1.10, amended
+     * 2026-09-14; the settled active-state gate): the cursor is resolved from the focused node
+     * down, so an unfocused list that marked its selected row active would hand the widget the
+     * user is actually in a cursor it does not have — a list nested inside another list's row
+     * cell would have handed the outer list its selected row as the outer list's own cursor,
+     * which is the cost the earlier text of this paragraph accepted and this gate removes.
      *
      * <p>No verb, which is where the record's own survey was wrong — see {@link #onAccessibility}.
      *
@@ -1188,7 +1191,7 @@ public class ListView extends Widget implements Scrollable {
             }
         }
         a.selectionItem(index == selectedIndex, index + 1, describedRowCount);
-        if (index == selectedIndex) {
+        if (index == selectedIndex && isFocused()) {
             a.state(Accessible.State.ACTIVE);
         }
     }

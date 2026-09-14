@@ -6,31 +6,19 @@ package limn.accessibility;
  *
  * <p>Which descendants are selected is not stored here. It is on the descendants themselves, in
  * their {@link SelectionItemFacet}, so one fact has one home. What is here is the container's own
- * shape, plus the <b>active descendant</b>: the one node inside this container that a keyboard
- * walk is currently on, which is the fact a screen reader announces as the user arrows down a
- * menu or a list and which no per-item state can carry.
+ * shape and nothing else.
  *
- * <p>The active descendant is resolved by the publish step rather than declared here: it is the
- * first node in this container's subtree published with {@link Accessible.State#ACTIVE}. A widget
- * whose selection and cursor are one thing marks its selected child {@code ACTIVE} as well as
- * selected.
+ * <p>Where the keyboard cursor is inside a container is <b>not</b> a fact of the container either
+ * (ADR 039 §1.10, amended 2026-09-14; decision 6). It is the tree's: {@link
+ * AccessibleTree#activeDescendant()} is the first node published {@link Accessible.State#ACTIVE}
+ * below the focused node, whichever containers lie between, and one event names the focused node
+ * when it moves. Until that amendment this record carried an {@code activeDescendant} resolved
+ * per container, so a combo's layer and its list, or a menu surface and each of its columns,
+ * announced one arrow key two or three times over, and a container nobody was in announced a
+ * cursor nobody had.
  *
- * @param multiSelectable   whether more than one descendant may be selected at once
- * @param required          whether at least one descendant is always selected
- * @param activeDescendant  the identifier of the active descendant, or {@code 0} when there is
- *                          none
+ * @param multiSelectable whether more than one descendant may be selected at once
+ * @param required        whether at least one descendant is always selected
  */
-public record SelectionFacet(boolean multiSelectable, boolean required, long activeDescendant) {
-
-    /**
-     * The same facet with its active descendant filled in. Used by the publish step once the
-     * subtree beneath the container has been walked and its identifiers are known.
-     *
-     * @param id the active descendant's identifier, or {@code 0} for none
-     * @return this facet when the identifier is unchanged, and a new one otherwise
-     */
-    public SelectionFacet withActiveDescendant(long id) {
-        return id == activeDescendant ? this
-                : new SelectionFacet(multiSelectable, required, id);
-    }
+public record SelectionFacet(boolean multiSelectable, boolean required) {
 }

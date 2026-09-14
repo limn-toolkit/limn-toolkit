@@ -444,6 +444,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         bindTree(ROW_H, List.of(top));
         tree.expand(top);
         tree.setSelected(docs);
+        scene.requestFocus(tree);
         frame();
 
         AccessibleNode outline = treeNode();
@@ -472,10 +473,14 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertNull(rows.get(2).expand(), "a leaf has nothing to open, so no facet at all");
 
         assertTrue(rows.get(1).selectionItem().selected(), describe(tree()));
-        assertTrue(rows.get(1).has(Accessible.State.ACTIVE), "the selected row is the cursor");
+        assertTrue(rows.get(1).has(Accessible.State.ACTIVE),
+                "the selected row is the cursor while the tree holds the keyboard");
         assertFalse(rows.get(0).selectionItem().selected());
         assertFalse(rows.get(2).selectionItem().selected());
-        assertEquals(rows.get(1).id(), outline.selection().activeDescendant(), describe(tree()));
+        assertEquals(outline.id(), tree().focused(), describe(tree()));
+        assertEquals(rows.get(1).id(), tree().activeDescendant(),
+                "the tree's cursor is the first active node below the focused one: "
+                        + describe(tree()));
         assertTrue(outline.actions().actions().contains(Accessible.Action.EXPAND),
                 "the lead row is closed, so the tree offers to open it: " + describe(tree()));
 
@@ -495,6 +500,39 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(treeNode().actions().actions().contains(Accessible.Action.COLLAPSE),
                 "and the verb turns over with it: " + describe(tree()));
         assertFalse(treeNode().actions().actions().contains(Accessible.Action.EXPAND));
+    }
+
+    /**
+     * The settled active-state gate (ADR 039 §1.10, amended 2026-09-14): the cursor is the
+     * focused node's, resolved downward from it, so a tree nobody is in publishes no
+     * {@code ACTIVE} row and raises no cursor event — and the moment the keyboard arrives, the
+     * lead row is the cursor and one event on the tree says so.
+     */
+    @Test
+    void anUnfocusedTreeWithASelectedRowPublishesNoCursorAndTakingTheKeyboardAnnouncesIt() {
+        Node docs = Node.leaf("docs");
+        Node top = Node.of("root", docs, Node.leaf("readme"));
+        bindTree(ROW_H, List.of(top));
+        tree.expand(top);
+        tree.setSelected(docs);
+        frame();
+
+        assertTrue(nodesWith(Accessible.State.ACTIVE).isEmpty(),
+                "the selection stands, the cursor does not: " + describe(tree()));
+        assertEquals(0, tree().activeDescendant(), describe(tree()));
+        assertEquals(0, bridge.countOf(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "an unfocused container announces nothing: " + bridge.events);
+
+        scene.requestFocus(tree);
+        frame();
+
+        assertEquals(node("docs").id(), tree().activeDescendant(), describe(tree()));
+        List<limn.accessibility.AccessibleEvent> moved = bridge.eventsOf(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(), "one cursor event, on the focused node: " + bridge.events);
+        assertEquals(treeNode().id(), moved.get(0).nodeId());
+        assertEquals(node("docs").id(), moved.get(0).newValue());
     }
 
     /**

@@ -863,6 +863,17 @@ public final class Scene implements WindowInput {
         return accessibleWalk == null ? 0 : accessibleWalk.idOfWidget(widget);
     }
 
+    /**
+     * The tree this scene last published, for another window's walk that reads the cursor of a
+     * popup this scene draws (decision 5): a value, read from the user-interface thread like
+     * everything else the walk touches.
+     *
+     * @return the tree, or the empty one when nothing was published yet
+     */
+    limn.accessibility.AccessibleTree publishedTree() {
+        return publishedTree;
+    }
+
     /** The scene-side half a bridge holds, and the only way a platform reaches toolkit state. */
     private final class Host implements limn.backend.AccessibilityBridge.Host {
 

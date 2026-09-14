@@ -206,7 +206,7 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node.has(Accessible.State.HORIZONTAL),
                 "the strip is a row at every width and in both directions" + describe(tree()));
         assertFalse(node.has(Accessible.State.VERTICAL), describe(tree()));
-        assertEquals(new SelectionFacet(false, true, segments().get(0).id()), node.selection(),
+        assertEquals(new SelectionFacet(false, true), node.selection(),
                 "one index that swaps, and always exactly one selected: the constructor refuses "
                         + "an empty segment list and there is nothing to clear to"
                         + describe(tree()));
@@ -241,19 +241,48 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     @Test
-    void theSelectedSegmentIsAlsoTheCursorAndTheGroupResolvesItAsSuch() {
+    void theSelectedSegmentIsAlsoTheCursorAndTheTreeResolvesItAsSuch() {
         bindFitting();
+        scene.requestFocus(seg);
+        frame();
 
         List<AccessibleNode> children = segments();
         assertEquals(List.of(children.get(0)), nodesWith(Accessible.State.SELECTED),
                 "the first segment is selected at construction" + describe(tree()));
         assertEquals(List.of(children.get(0)), nodesWith(Accessible.State.ACTIVE),
-                "and is the cursor too: the arrows call the same private choose() the pointer "
-                        + "does, so the selection IS the cursor and there is no second highlight "
-                        + "for a reader to be told about" + describe(tree()));
-        assertEquals(children.get(0).id(), group().selection().activeDescendant(),
-                "resolved in the copy from that bit, which is the only route to an "
-                        + "active-descendant event when the strip is walked" + describe(tree()));
+                "and is the cursor too while the strip holds the keyboard: the arrows call the "
+                        + "same private choose() the pointer does, so the selection IS the cursor "
+                        + "and there is no second highlight for a reader to be told about"
+                        + describe(tree()));
+        assertEquals(group().id(), tree().focused(), describe(tree()));
+        assertEquals(children.get(0).id(), tree().activeDescendant(),
+                "resolved in the copy from that bit below the focused node, which is the only "
+                        + "route to a cursor event when the strip is walked" + describe(tree()));
+    }
+
+    /**
+     * The settled active-state gate (ADR 039 §1.10, amended 2026-09-14): the cursor is the
+     * focused node's, so a strip nobody is in publishes no {@code ACTIVE} segment and raises
+     * no cursor event, and the moment the keyboard arrives one event on the strip names it.
+     */
+    @Test
+    void anUnfocusedStripPublishesNoCursorAndTakingTheKeyboardAnnouncesIt() {
+        bindFitting();
+
+        assertEquals(1, nodesWith(Accessible.State.SELECTED).size(), describe(tree()));
+        assertTrue(nodesWith(Accessible.State.ACTIVE).isEmpty(),
+                "the selection stands, the cursor does not: " + describe(tree()));
+        assertEquals(0, tree().activeDescendant(), describe(tree()));
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "an unfocused container announces nothing: " + bridge.events);
+
+        scene.requestFocus(seg);
+        frame();
+
+        List<AccessibleEvent> moved = bridge.eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(), "one cursor event, on the focused node: " + bridge.events);
+        assertEquals(group().id(), moved.get(0).nodeId());
+        assertEquals(segments().get(0).id(), moved.get(0).newValue());
     }
 
     @Test
@@ -452,6 +481,9 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aSelectFromAPlatformThreadTellsTheApplicationExactlyAsAClickDoes() throws Exception {
         bindFitting();
+        scene.requestFocus(seg);
+        frame();
+        bridge.events.clear();
         List<Integer> fired = new ArrayList<>();
         seg.onSelect(fired::add);
         long groupId = group().id();
@@ -469,7 +501,7 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of(after.get(2)), nodesWith(Accessible.State.SELECTED),
                 describe(tree()));
         assertEquals(List.of(after.get(2)), nodesWith(Accessible.State.ACTIVE), describe(tree()));
-        assertEquals(after.get(2).id(), group().selection().activeDescendant(), describe(tree()));
+        assertEquals(after.get(2).id(), tree().activeDescendant(), describe(tree()));
 
         List<AccessibleEvent> selections = new ArrayList<>();
         for (AccessibleEvent event : bridge.events) {

@@ -111,8 +111,8 @@
 110       label "Disabled" [disabled, hidden, offscreen] | label for #107 "Disabled"
 111   scroll pane "3D" (label) [disabled, hidden, offscreen] scroll none | labelled by #20 "3D"
 112     label "3D showcase: subsystem capabilities" [disabled, hidden, offscreen]
-113     radio group "" [disabled, hidden, offscreen, horizontal] selection=single required active=#114 "PBR" scroll none
-114       radio button "PBR" [disabled, hidden, offscreen, selected, active] item 1 of 2 selected actions: select
+113     radio group "" [disabled, hidden, offscreen, horizontal] selection=single required scroll none
+114       radio button "PBR" [disabled, hidden, offscreen, selected] item 1 of 2 selected actions: select
 115       radio button "Shadows" [disabled, hidden, offscreen] item 2 of 2 unselected actions: select
 116     label "PBR metallic-roughness under 3 lights (directional + point + spot); click to select." [disabled, hidden, offscreen]
 117     combo box "Render 100%" desc "Renders the 3D target below device resolution and upsamples it; memory and fill cost fall with the square of the setting" [disabled, hidden, offscreen, expandable, has-popup] value=0 [0..3 step 1] "Render 100%" collapsed actions: expand
@@ -120,8 +120,8 @@
 119     canvas "" desc "3D unavailable (no GPU backend)" [disabled, hidden, offscreen]
 120   scroll pane "Video" (label) [disabled, hidden, offscreen] scroll none | labelled by #21 "Video"
 121     label "Video: decoded planes, converted on the device" [disabled, hidden, offscreen]
-122     radio group "" [disabled, hidden, offscreen, horizontal] selection=single required active=#123 "Bars" scroll none
-123       radio button "Bars" [disabled, hidden, offscreen, selected, active] item 1 of 2 selected actions: select
+122     radio group "" [disabled, hidden, offscreen, horizontal] selection=single required scroll none
+123       radio button "Bars" [disabled, hidden, offscreen, selected] item 1 of 2 selected actions: select
 124       radio button "MP4" [disabled, hidden, offscreen] item 2 of 2 unselected actions: select
 125     video "Decoded planes uploaded to a video surface and composited as one quad" (tooltip) desc "Video unavailable (no GPU backend)" [disabled, hidden, offscreen]
 126     tool bar "" [disabled, hidden, offscreen, horizontal] | controller for #125 "Decoded planes uploaded to a video surface and composited as one quad"
@@ -136,8 +136,8 @@
 135     button "Restart" desc "Play this source again from its first picture" [disabled, hidden, offscreen] actions: press
 136     button "Open…" desc "Play a file from this machine through the installed decoders" [disabled, hidden, offscreen] actions: press
 137     button "Open in window…" desc "Play a file in a resizable window of its own" [disabled, hidden, offscreen] actions: press
-138     radio group "Letterbox inside the box, crop to cover it, or stretch to it" (tooltip) [disabled, hidden, offscreen, horizontal] selection=single required active=#139 "Contain" scroll none
-139       radio button "Contain" [disabled, hidden, offscreen, selected, active] item 1 of 3 selected actions: select
+138     radio group "Letterbox inside the box, crop to cover it, or stretch to it" (tooltip) [disabled, hidden, offscreen, horizontal] selection=single required scroll none
+139       radio button "Contain" [disabled, hidden, offscreen, selected] item 1 of 3 selected actions: select
 140       radio button "Cover" [disabled, hidden, offscreen] item 2 of 3 unselected actions: select
 141       radio button "Fill" [disabled, hidden, offscreen] item 3 of 3 unselected actions: select
 142     switch "Soundtrack" desc "Decode on a thread of its own and time the pictures by the audio" [disabled, hidden, offscreen, checked] toggle=on actions: toggle

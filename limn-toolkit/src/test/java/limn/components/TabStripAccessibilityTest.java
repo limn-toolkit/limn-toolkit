@@ -187,14 +187,15 @@ class TabStripAccessibilityTest extends AccessibleComponentTestBase {
     void theSelectionFacetIsTheContainersOwnShapeAndClaimsNoCursor() {
         bindTabs(SCENE_WIDTH, "Alpha", "Beta", "Gamma");
 
-        assertEquals(new SelectionFacet(false, true, 0), stripNode().selection(),
-                "one index that swaps, a pane holding tabs always has one selected, and no active "
-                        + "descendant: only the selected header is a tab stop, so it is already "
-                        + "the focused node whenever the strip holds the keyboard, and the first "
-                        + "active node in a subtree is what an enclosing container would take"
-                        + describe(tree()));
+        assertEquals(new SelectionFacet(false, true), stripNode().selection(),
+                "one index that swaps, and a pane holding tabs always has one selected; the "
+                        + "cursor is the tree's fact and not the facet's (ADR 039 §1.10, "
+                        + "amended 2026-09-14)" + describe(tree()));
         assertEquals(List.of(), nodesWith(Accessible.State.ACTIVE),
-                "nothing in this pane marks a node active" + describe(tree()));
+                "nothing in this pane marks a node active: only the selected header is a tab "
+                        + "stop, so it is already the focused node whenever the strip holds the "
+                        + "keyboard" + describe(tree()));
+        assertEquals(0, tree().activeDescendant(), describe(tree()));
     }
 
     @Test
@@ -365,7 +366,7 @@ class TabStripAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode list = stripNode();
         assertEquals(List.of(), childrenOf(list),
                 "an empty pane is legal and an empty tab list is honest" + describe(tree()));
-        assertEquals(new SelectionFacet(false, false, 0), list.selection(),
+        assertEquals(new SelectionFacet(false, false), list.selection(),
                 "required is false here and not the unconditional true a combo may write: a combo "
                         + "refuses an empty item list and this pane documents the opposite"
                         + describe(tree()));

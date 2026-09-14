@@ -113,13 +113,36 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(row.selectionItem().selected());
         AccessibleNode cell = childrenOf(row).get(0);
         assertTrue(cell.has(Accessible.State.ACTIVE), "the focus cell is the cursor");
-        assertEquals(cell.id(), tableNode().selection().activeDescendant());
+        assertEquals(tableNode().id(), tree().focused());
+        assertEquals(cell.id(), tree().activeDescendant(),
+                "the tree's cursor is the first active node below the focused table");
         scene.keyEvent(Keys.RIGHT, true, false, 0);
         scene.inputBatchEnded();
         frame();
         AccessibleNode moved = childrenOf(rowNodes().get(3)).get(1);
         assertTrue(moved.has(Accessible.State.ACTIVE), "Right moves the cursor a column");
         assertEquals(1, nodesWith(Accessible.State.ACTIVE).size());
+        assertEquals(moved.id(), tree().activeDescendant());
+    }
+
+    /**
+     * The settled active-state gate (ADR 039 §1.10, amended 2026-09-14): a table nobody is in
+     * publishes no {@code ACTIVE} cell, so the widget the user is actually in is never handed a
+     * table's cursor as its own.
+     */
+    @Test
+    void anUnfocusedTableWithASelectedRowPublishesNoCursor() {
+        Table<Person> table = bindTable(30);
+        table.setSelectedRow(3);
+        frame();
+
+        assertTrue(rowNodes().get(3).selectionItem().selected(), describe(tree()));
+        assertTrue(nodesWith(Accessible.State.ACTIVE).isEmpty(),
+                "the selection stands, the cursor does not: " + describe(tree()));
+        assertEquals(0, tree().activeDescendant());
+        assertEquals(0, bridge.countOf(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "an unfocused container announces nothing: " + bridge.events);
     }
 
     @Test

@@ -272,15 +272,21 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         key(Keys.DOWN);
 
         List<AccessibleNode> options = options();
-        assertEquals(options.get(2).id(), list().selection().activeDescendant(),
-                "the arrows move the highlight, and the highlight is what a reader follows"
+        assertEquals(options.get(2).id(), tree().activeDescendant(),
+                "the arrows move the highlight, and the highlight is what a reader follows: the "
+                        + "tree's cursor, resolved below the layer that holds the keyboard and "
+                        + "not per container (ADR 039 §1.10, amended 2026-09-14)"
                         + describe(tree()));
         assertTrue(options.get(1).selectionItem().selected(),
                 "and the selection has not moved: in this widget the two are separate fields "
                         + "moved by separate paths, and only Enter commits" + describe(tree()));
-        assertTrue(bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED) > 0,
+        List<AccessibleEvent> moved = bridge.eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(),
                 "without this a reader can enumerate the options and never learn which one the "
-                        + "user is on: " + bridge.events);
+                        + "user is on; and once, on the focused node, not once per container "
+                        + "between it and the row: " + bridge.events);
+        assertEquals(tree().focused(), moved.get(0).nodeId(), bridge.events.toString());
+        assertEquals(options.get(2).id(), moved.get(0).newValue());
     }
 
     // ------------------------------------------------------------------------------- the boxes

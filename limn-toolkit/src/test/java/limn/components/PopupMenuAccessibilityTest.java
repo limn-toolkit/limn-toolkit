@@ -500,25 +500,26 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
                         + "root-column row and make the whole cascade silent" + describe(tree()));
         assertTrue(opener.selectionItem().selected(),
                 "the parent row stays selected, because that is where the cascade came from");
-        assertEquals(deep.id(), surface().selection().activeDescendant(),
-                "the node holding the focus resolves its cursor into the deepest column"
-                        + describe(tree()));
-        assertEquals(deep.id(), rootColumn().selection().activeDescendant(),
-                "and a parent column's own facet resolves into its open submenu, which is "
-                        + "truthful: that is where the cursor is" + describe(tree()));
+        assertEquals(surface().id(), tree().focused(), describe(tree()));
+        assertEquals(deep.id(), tree().activeDescendant(),
+                "the node holding the focus resolves its cursor into the deepest column, and "
+                        + "the cursor is the tree's fact and not any column's (ADR 039 §1.10, "
+                        + "amended 2026-09-14): a parent column has no cursor of its own to "
+                        + "publish, so an arrow inside a submenu is announced once and not "
+                        + "once per column above it" + describe(tree()));
     }
 
     @Test
     void anArrowKeyMovesTheCursorTheSurfacePublishes() {
         open(everyShape());
         long layer = surface().id();
-        long before = surface().selection().activeDescendant();
+        long before = tree().activeDescendant();
         assertEquals(rowsOf(rootColumn()).get(0).id(), before,
                 "the first selectable row is current the moment the menu opens" + describe(tree()));
 
         key(Keys.DOWN);
 
-        long now = surface().selection().activeDescendant();
+        long now = tree().activeDescendant();
         assertEquals(rowsOf(rootColumn()).get(1).id(), now, describe(tree()));
         List<AccessibleEvent> moved = bridge.events.stream()
                 .filter(event -> event.type() == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED

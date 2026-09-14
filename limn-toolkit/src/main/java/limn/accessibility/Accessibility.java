@@ -344,6 +344,17 @@ public final class Accessibility {
     /** How many names and descriptions were carried over from the last walk unresolved. */
     private long carriedOver;
 
+    /**
+     * The cursor as of the last publish — {@link AccessibleTree#activeDescendant()} of the tree
+     * published last — which is what the next publish's cursor is compared with, and the popup
+     * cursor the walk handed over for that publish, which is what a quiet frame compares with.
+     */
+    private long publishedActiveDescendant;
+    private long publishedForeignActiveDescendant;
+
+    /** What {@link #foreignActiveDescendant(long)} was told for the walk in progress. */
+    private long foreignActiveDescendant;
+
     private static Slot[] newSlots(int size) {
         Slot[] made = new Slot[size];
         for (int i = 0; i < size; i++) {
@@ -694,8 +705,10 @@ public final class Accessibility {
      * Declares that this node holds a selection among its descendants.
      *
      * <p>Which of them are selected is on the descendants, in their own facet. Which of them the
-     * keyboard cursor is on is the first descendant published with
-     * {@link Accessible.State#ACTIVE}, and the publish step fills that in.
+     * keyboard cursor is on is not this container's fact at all: it is the tree's, resolved by
+     * the publish step from the first descendant of the <em>focused</em> node published with
+     * {@link Accessible.State#ACTIVE} ({@link AccessibleTree#activeDescendant()}), which a widget
+     * publishes only while it holds the keyboard.
      *
      * @param multiSelectable whether more than one may be selected at once
      * @param required        whether at least one always is
@@ -1218,6 +1231,7 @@ public final class Accessibility {
         count = 0;
         current = AccessibleNode.NONE;
         walkSerial++;
+        foreignActiveDescendant = 0;
     }
 
     /**
@@ -1549,7 +1563,11 @@ public final class Accessibility {
                 return true;
             }
         }
-        return false;
+        // Every slot agrees, so a cursor inside this window is where it was; the one thing that
+        // can still have moved is a cursor read off a popup window's tree, and it counts only
+        // while the focused node's own subtree has none (decision 5).
+        return foreignActiveDescendant != publishedForeignActiveDescendant
+                && resolveActiveDescendant() != publishedActiveDescendant;
     }
 
     private static boolean differs(Slot a, Slot b) {
@@ -1663,7 +1681,10 @@ public final class Accessibility {
     public AccessibleTree publish(long focusedId, int screenX, int screenY, float factor,
                                   boolean positioning) {
         events.clear();
-        diff();
+        long activeDescendant = resolveActiveDescendant();
+        diff(activeDescendant);
+        publishedActiveDescendant = activeDescendant;
+        publishedForeignActiveDescendant = foreignActiveDescendant;
         AccessibleNode[] nodes = new AccessibleNode[count];
         int[] firstChild = new int[count];
         int[] lastChild = new int[count];
@@ -1716,8 +1737,9 @@ public final class Accessibility {
                     nextSibling[i], previousSibling[i]);
         }
         generation++;
-        AccessibleTree tree = new AccessibleTree(nodes, focusedId, screenX, screenY, factor,
-                positioning, sceneWidth, sceneHeight, sceneLocale, generation, sceneTag);
+        AccessibleTree tree = new AccessibleTree(nodes, focusedId, activeDescendant, screenX,
+                screenY, factor, positioning, sceneWidth, sceneHeight, sceneLocale, generation,
+                sceneTag);
         swap();
         return tree;
     }
@@ -1746,8 +1768,7 @@ public final class Accessibility {
         }
         SelectionFacet selection = null;
         if (s.hasSelection) {
-            selection = new SelectionFacet(s.multiSelectable, s.selectionRequired,
-                    activeDescendantOf(index));
+            selection = new SelectionFacet(s.multiSelectable, s.selectionRequired);
         }
         return new AccessibleNode(s.id, s.role, s.nameText, s.nameFrom, s.descriptionText,
                 s.locale, s.states, s.x, s.y, s.width, s.height, relations,
@@ -1783,9 +1804,75 @@ public final class Accessibility {
         return set;
     }
 
-    /** The first node inside {@code container}'s subtree that declared itself active. */
-    private long activeDescendantOf(int container) {
-        return activeDescendantIn(slots, count, container);
+    /**
+     * The node the keyboard cursor is on, resolved once per publish and once per quiet-frame
+     * comparison (ADR 039 §1.10, amended 2026-09-14; semantics 4): the first node published
+     * {@code ACTIVE} strictly below the focused node, or, when the focused node's own subtree has
+     * none, the cursor the walk read off the tree of a popup window that node opened. The
+     * window node's own {@code ACTIVE} — which says the window is the desktop's — is never
+     * counted, and no {@link SelectionFacet} is consulted on the way: a container that is not
+     * the focused node, or below it, has no cursor of its own to publish.
+     *
+     * @return the active descendant's identifier, or {@code 0}
+     */
+    private long resolveActiveDescendant() {
+        int focused = focusedIndex();
+        if (focused < 0) {
+            return 0;
+        }
+        long own = activeDescendantIn(slots, count, focused);
+        return own != 0 ? own : foreignActiveDescendant;
+    }
+
+    /** The index of the node published {@code FOCUSED} in this walk, or {@code -1}. */
+    private int focusedIndex() {
+        long bit = 1L << Accessible.State.FOCUSED.ordinal();
+        for (int i = 0; i < count; i++) {
+            if ((slots[i].states & bit) != 0) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Tells this walk where the cursor is inside a popup window the focused node opened, which
+     * the walk reads off that window's published tree (decision 5): the answer
+     * {@link AccessibleTree#activeDescendant()} falls back to when the focused node's own
+     * subtree holds no {@code ACTIVE} node. The publish step calls this once per walk, after the
+     * relations are resolved; {@code 0} when there is no such popup. Reset on every walk.
+     *
+     * @param id the identifier of the popup's cursor node, minted by the popup's own scene, or
+     *           {@code 0}
+     */
+    public void foreignActiveDescendant(long id) {
+        foreignActiveDescendant = id;
+    }
+
+    /**
+     * The popup window's node that a node of this walk, or one of its ancestors, is the
+     * controller for: the target of the nearest {@link Accessible.Relation#CONTROLLER_FOR}
+     * relation resolved to an identifier another scene minted, climbing from the node through
+     * its published parents. What the publish step asks for the focused node, so that it can
+     * read the popup's cursor off that scene's tree (decision 5). Allocates nothing.
+     *
+     * @param nodeId the node to climb from, by identifier
+     * @return the popup root's identifier, or {@code 0} when no such relation is published on
+     *         the node or above it, or the identifier names nothing this walk published
+     */
+    public long foreignControllerTargetFrom(long nodeId) {
+        for (int at = indexIn(slots, count, nodeId); at != AccessibleNode.NONE;
+                at = slots[at].parent) {
+            Slot s = slots[at];
+            for (int r = 0; r < s.relationCount; r++) {
+                long target = s.relationResolved[r];
+                if (s.relationKinds[r] == Accessible.Relation.CONTROLLER_FOR && target != 0
+                        && sceneTagOf(target) != sceneTag) {
+                    return target;
+                }
+            }
+        }
+        return 0;
     }
 
     /**
@@ -1797,7 +1884,7 @@ public final class Accessibility {
         return java.util.Collections.unmodifiableList(events);
     }
 
-    private void diff() {
+    private void diff(long activeDescendant) {
         int boundsChanges = 0;
         for (int i = 0; i < count; i++) {
             Slot now = slots[i];
@@ -1878,22 +1965,15 @@ public final class Accessibility {
                 add(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, previous[i].id));
             }
         }
-        // The active descendant is resolved in the copy, so it is diffed from the same place.
-        for (int i = 0; i < count; i++) {
-            if (!slots[i].hasSelection) {
-                continue;
-            }
-            Slot was = previousOf(slots[i].id, i);
-            if (was == null || !was.hasSelection) {
-                continue;
-            }
-            long now = activeDescendantOf(i);
-            long before = activeDescendantIn(previous, previousCount, indexIn(previous,
-                    previousCount, was.id));
-            if (now != before) {
-                add(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
-                        slots[i].id, before, now));
-            }
+        // Exactly one cursor event per publish, on the focused node, when the cursor it
+        // resolves moved -- a newly focused node whose cursor differs from the last focused
+        // node's included -- and none from an unfocused container or a scene with nothing
+        // focused (decision 6; semantics 4). The event carries the cursor as of the previous
+        // publish and now, so a bridge can address the node it is leaving as well.
+        int focused = focusedIndex();
+        if (focused >= 0 && activeDescendant != publishedActiveDescendant) {
+            add(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+                    slots[focused].id, publishedActiveDescendant, activeDescendant));
         }
         if (events.size() > EVENT_BUDGET) {
             events.clear();
@@ -1992,6 +2072,8 @@ public final class Accessibility {
      */
     public void forgetPublished() {
         previousCount = 0;
+        publishedActiveDescendant = 0;
+        publishedForeignActiveDescendant = 0;
     }
 
     private Slot slot() {

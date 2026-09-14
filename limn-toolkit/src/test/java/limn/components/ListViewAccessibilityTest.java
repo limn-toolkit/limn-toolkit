@@ -281,6 +281,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
     void theSelectedRowIsTheOneSelectedNodeAndIsAlsoTheListsCursor() {
         ListView list = bindPlain(500, 50);
         list.setSelectedIndex(2);
+        scene.requestFocus(list);
         frame();
 
         AccessibleNode node = listNode();
@@ -291,8 +292,10 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
                 "here the selection is the cursor and the keyboard stays on the list, so without "
                         + "the active bit a reader can enumerate the rows and never learn which "
                         + "one the user is on: " + describe(tree()));
-        assertEquals(selected.get(0).id(), node.selection().activeDescendant(),
-                "the container's cursor is resolved from that bit: " + describe(tree()));
+        assertEquals(node.id(), tree().focused(), describe(tree()));
+        assertEquals(selected.get(0).id(), tree().activeDescendant(),
+                "the tree's cursor is resolved from that bit, below the focused node: "
+                        + describe(tree()));
         assertFalse(node.selection().multiSelectable(), "one selectedIndex, and no more");
         assertFalse(node.selection().required(),
                 "a list genuinely rests with nothing selected, unlike a combo, which refuses an "
@@ -303,6 +306,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
     void clearingTheSelectionLeavesNoSelectedNodeAndNoCursor() {
         ListView list = bindPlain(500, 50);
         list.setSelectedIndex(2);
+        scene.requestFocus(list);
         frame();
         list.clearSelection();
         frame();
@@ -311,7 +315,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(nodesWith(Accessible.State.ACTIVE).stream()
                         .noneMatch(n -> n.selectionItem() != null),
                 "and no row is the cursor either: " + describe(tree()));
-        assertEquals(0, listNode().selection().activeDescendant(), describe(tree()));
+        assertEquals(0, tree().activeDescendant(), describe(tree()));
         assertFalse(listNode().selection().required(),
                 "which is the state `required` would have been lying about");
     }
@@ -320,6 +324,9 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
     void movingTheSelectionOnABoundSceneRaisesTheEventsThatNameTheRow() {
         ListView list = bindPlain(500, 50);
         long listId = listNode().id();
+        scene.requestFocus(list);
+        frame();
+        bridge.events.clear();
 
         list.setSelectedIndex(2);
         frame();
@@ -334,10 +341,32 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(bridge.eventsOf(AccessibleEvent.Type.SELECTION_CHANGED).stream()
                         .anyMatch(event -> event.nodeId() == listId),
                 "and the container is told its selection moved: " + bridge.events);
-        assertTrue(bridge.eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED).stream()
-                        .anyMatch(event -> event.nodeId() == listId
-                                && Long.valueOf(row.id()).equals(event.newValue())),
-                "and where the cursor went, which is the event a reader follows: " + bridge.events);
+        List<AccessibleEvent> moved = bridge.eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(),
+                "and where the cursor went, once, on the focused node, which is the event a "
+                        + "reader follows: " + bridge.events);
+        assertEquals(listId, moved.get(0).nodeId());
+        assertEquals(row.id(), moved.get(0).newValue());
+    }
+
+    /**
+     * The settled active-state gate (ADR 039 §1.10, amended 2026-09-14): the cursor is the
+     * focused node's, resolved downward from it, so a list nobody is in publishes no
+     * {@code ACTIVE} row and raises no cursor event; a list nested in another list's row would
+     * otherwise hand the outer one its selected row as the outer one's cursor.
+     */
+    @Test
+    void anUnfocusedListWithASelectedRowPublishesNoCursor() {
+        ListView list = bindPlain(500, 50);
+        list.setSelectedIndex(2);
+        frame();
+
+        assertEquals(1, nodesWith(Accessible.State.SELECTED).size(), describe(tree()));
+        assertTrue(nodesWith(Accessible.State.ACTIVE).isEmpty(),
+                "the selection stands, the cursor does not: " + describe(tree()));
+        assertEquals(0, tree().activeDescendant(), describe(tree()));
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "an unfocused container announces nothing: " + bridge.events);
     }
 
     // ---------------------------------------------------------------- identity across recycling

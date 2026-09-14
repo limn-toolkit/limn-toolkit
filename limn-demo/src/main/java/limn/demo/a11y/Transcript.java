@@ -174,9 +174,11 @@ public final class Transcript {
             if (selection.required()) {
                 out.append(" required");
             }
-            if (selection.activeDescendant() != 0) {
-                out.append(" active=").append(reference(selection.activeDescendant(), tree, lineOf));
-            }
+        }
+        if (node.id() == tree.focused() && tree.activeDescendant() != 0) {
+            // The cursor is the tree's fact and the focused node's line: the first ACTIVE node
+            // below the focused one (ADR 039 §1.10, amended 2026-09-14), never a container's.
+            out.append(" active=").append(reference(tree.activeDescendant(), tree, lineOf));
         }
         SelectionItemFacet item = node.selectionItem();
         if (item != null) {

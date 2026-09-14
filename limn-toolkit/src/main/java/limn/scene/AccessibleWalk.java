@@ -247,6 +247,38 @@ final class AccessibleWalk {
         // been walked, and before anything compares this walk with the last one: the comparison
         // reads what this fills in.
         builder.resolveRelations(resolver);
+        builder.foreignActiveDescendant(popupCursorOfFocused());
+    }
+
+    /**
+     * The cursor inside a popup window the focused node opened, read off that window's own
+     * published tree: what the tree's active descendant falls back to when the focused node's
+     * subtree holds no {@code ACTIVE} node (decision 5; semantics 4). The focused node, or an
+     * ancestor of it, is the controller of the popup's root, and identifiers are process-wide,
+     * so the number this answers names a node in the other window and the bridge tells the two
+     * trees apart by it. Allocates nothing: the popup's tree is the value its scene last
+     * published and the search is over its node array.
+     *
+     * @return the popup cursor's identifier, or {@code 0} when the focused node opened no popup
+     *         window, or the popup has published nothing yet, or its tree has no cursor
+     */
+    private long popupCursorOfFocused() {
+        if (focusedId == 0 || foreignCount == 0) {
+            return 0;
+        }
+        long target = builder.foreignControllerTargetFrom(focusedId);
+        if (target == 0) {
+            return 0;
+        }
+        for (int i = 0; i < foreignCount; i++) {
+            if (foreignScenes[i].accessibleIdOf(foreignRoots[i]) != target) {
+                continue;
+            }
+            AccessibleTree popup = foreignScenes[i].publishedTree();
+            int root = popup.indexOf(target);
+            return root == AccessibleNode.NONE ? 0 : popup.firstActiveBelow(root);
+        }
+        return 0;
     }
 
     /**
@@ -618,8 +650,24 @@ final class AccessibleWalk {
      * @return the tree
      */
     AccessibleTree publish(int screenX, int screenY, float factor, boolean positioning) {
-        return builder.publish(focusedId, screenX, screenY, factor, positioning);
+        AccessibleTree tree = builder.publish(focusedId, screenX, screenY, factor, positioning);
+        if (mirrorHost != null) {
+            // This window is a popup of another, whose focused node reads its cursor off this
+            // tree (decision 5). A cursor that moved here is a cursor that moved there, and
+            // nothing in the host's own scene would walk it again, so the host is told -- only
+            // when the cursor moved, because a popup publishes for other reasons too and a host
+            // walk per popup publish is a host walk per hover.
+            long cursor = tree.nodeCount() == 0 ? 0 : tree.firstActiveBelow(0);
+            if (cursor != lastPublishedCursor) {
+                lastPublishedCursor = cursor;
+                mirrorHost.invalidateAccessible();
+            }
+        }
+        return tree;
     }
+
+    /** The cursor this popup window last published, for the host to be told when it moves. */
+    private long lastPublishedCursor;
 
     /**
      * A relation's target, as an identifier.

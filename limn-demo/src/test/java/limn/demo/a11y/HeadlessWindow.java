@@ -40,9 +40,18 @@ public final class HeadlessWindow implements NativeWindow {
      */
     public static final TextRuler RULER = TestRulers.FIXED;
 
-    /** A bridge that listens and keeps the newest tree, and does nothing else. */
+    /**
+     * A bridge that listens, keeps the newest tree and every event it was handed, and does
+     * nothing else.
+     */
     public static final class CapturingBridge implements AccessibilityBridge {
         private volatile AccessibleTree tree = AccessibleTree.EMPTY;
+
+        /** Every event handed over, in order, across every publish. */
+        public final List<AccessibleEvent> events = new java.util.ArrayList<>();
+
+        /** How many trees were handed over. */
+        public int publishes;
 
         @Override
         public boolean isListening() {
@@ -52,15 +61,31 @@ public final class HeadlessWindow implements NativeWindow {
         @Override
         public void publish(AccessibleTree published, boolean reentrant) {
             tree = published;
+            publishes++;
         }
 
         @Override
         public void emit(AccessibleEvent event) {
+            events.add(event);
         }
 
         /** @return the newest tree the scene published, or the empty one */
         public AccessibleTree tree() {
             return tree;
+        }
+
+        /**
+         * @param type the kind to look for
+         * @return every event of that kind handed over so far, in order
+         */
+        public List<AccessibleEvent> eventsOf(AccessibleEvent.Type type) {
+            List<AccessibleEvent> found = new java.util.ArrayList<>();
+            for (AccessibleEvent event : events) {
+                if (event.type() == type) {
+                    found.add(event);
+                }
+            }
+            return found;
         }
     }
 
@@ -119,6 +144,21 @@ public final class HeadlessWindow implements NativeWindow {
             throw new IllegalStateException("no scene is bound to \"" + title + "\"");
         }
         input.windowFocusChanged(focused);
+        input.inputBatchEnded();
+    }
+
+    /**
+     * Presses and releases one key in this window, as the desktop delivers a keystroke: the
+     * press, the release, and the end of the input batch that dispatches both.
+     *
+     * @param key the key code, from {@link limn.input.Keys}
+     */
+    public void key(int key) {
+        if (input == null) {
+            throw new IllegalStateException("no scene is bound to \"" + title + "\"");
+        }
+        input.keyEvent(key, true, false, 0);
+        input.keyEvent(key, false, false, 0);
         input.inputBatchEnded();
     }
 

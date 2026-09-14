@@ -679,6 +679,17 @@ nothing on any platform** (semantics 6: UIA `VT_EMPTY`, no AT-SPI attribute, no 
 which is the bridge lanes' to apply and this record's to state; the §7 `RadioButton` row is
 corrected accordingly.
 
+**Amendment, 2026-09-14: `SelectionFacet` carries the container's shape and no cursor.** It used
+to carry an `activeDescendant`, resolved by the publish step per container as the first `ACTIVE`
+node anywhere in that container's subtree. That put the cursor in the wrong home twice over: a
+combo's overlay layer and its list, or a menu surface and each of its columns, each resolved the
+same row and each raised its own `ACTIVE_DESCENDANT_CHANGED` for one arrow key (MODEL-NEW-3); a
+`DateField`, which holds no selection, had nowhere to put its caret segment at all (D3); and a
+list nobody was in handed whatever container enclosed it a cursor nobody had. The cursor is now
+the tree's fact — `AccessibleTree#activeDescendant()`, §1.10's amendment of the same day — and
+the facet is `(multiSelectable, required)`. No bridge read the field (verified by grep before it
+went); the transcript prints `active=` on the focused node's line instead of the container's.
+
 `ENABLED` and `READ_ONLY` are separate bits and are never conflated. Every platform separates them —
 UIA has `IsEnabled` against `ValuePattern.IsReadOnly`, AT-SPI2 has `SENSITIVE`/`ENABLED` against
 `READ_ONLY`/`EDITABLE`, AppKit has `accessibilityEnabled` against the text attributes — and merging
@@ -1376,6 +1387,55 @@ would report the newest value under an older event, and the two would disagree f
 the queue is deep. The one thing an event may not carry is a `Widget`, for §1.2's reason.
 
 What each platform raises for each event is §2.4; when it raises it is here.
+
+#### Amendment 2026-09-14 — the cursor is the focused node's, published once
+
+**What was wrong.** The active descendant was a per-container fact: every node with a
+`SelectionFacet` resolved the first `ACTIVE` node anywhere in its subtree, and the differ raised
+`ACTIVE_DESCENDANT_CHANGED` on every such container whose answer moved. So one arrow key in an
+in-scene combo raised two events (the overlay layer's and the list's) and one in a submenu raised
+three (the surface's, the root column's, the submenu column's) — MODEL-NEW-3; a `DateField` holds
+no selection, so the segment its caret moved onto was never announced as a cursor at all — D3; and
+`Tree`, `ListView`, `Table` and `SegmentedControl` marked their cursor row `ACTIVE` whether or not
+they held the keyboard, so a list inside another list's row handed the outer list its own selected
+row as the outer list's cursor, and an unfocused widget could announce a cursor nobody was on.
+
+**The rule (semantics 4 of the 2026-09-13 pass; decisions 1, 5 and 6).** `AccessibleTree` gains
+`activeDescendant()`: the first node published `ACTIVE` strictly below `focused()` in reading
+order, through any number of containers, never the window node's own `ACTIVE` (which says the
+window is the desktop's) and never resolved through a `SelectionFacet`; and `effectiveFocus()`,
+which is the active descendant when there is one and the focused node otherwise — the answer a
+platform that puts its focus on the item (UIA `GetFocus` and `HasKeyboardFocus`, AppKit
+`accessibilityFocusedUIElement`) reads, while Linux keeps its focus on `focused()` and sends
+`ActiveDescendantChanged` with the item. Both are resolved once at publish, allocate nothing, and
+are stored in the tree. **`ACTIVE` is published only while the owning widget holds the keyboard**
+(the settled active-state gate: focused itself, or driven by a focused field or layer as
+`CalendarView` under a `DatePicker` is), so an unfocused nested widget cannot hijack the cursor;
+`Tree`, `ListView`, `Table` and `SegmentedControl` gained the gate `CalendarView`, `DateField` and
+`RadioButton` already had. **Exactly one `ACTIVE_DESCENDANT_CHANGED` per publish**, on the focused
+node, when its resolved cursor differs from the last publish's — a newly focused node whose cursor
+differs from the previous focused node's included — carrying the cursor as of the previous publish
+and now; none from an unfocused container, and none from a scene with nothing focused. A
+`DateField`'s caret rolling onto the next segment after a typed digit therefore raises the event
+on the field (decision 49); the widget's own quiet flag gates only its ADR 040 observers.
+
+**Across a popup window (decision 5).** When the focused node's own subtree holds no `ACTIVE`
+node and it, or an ancestor of it, is the `CONTROLLER_FOR` a native popup's root (§1.11), the
+cursor is read off the popup scene's published tree — the first `ACTIVE` node below the root the
+relation names — so the identifier `activeDescendant()` answers may belong to another window, and
+`holds(long)` says which. The popup's walk tells its host to walk again whenever the cursor it
+publishes moves, and only then, so the host's tree follows the popup's arrow keys without a host
+walk per popup publish. The three reader behaviours this depends on are the live assumptions
+decision 5 names and phase 5 measures.
+
+#### Amendment 2026-09-14 — what the amendment above changed in §7
+
+The `ListView`, `Table`, `Tree` and `SegmentedControl` rows of §7 say their cursor row or cell is
+`ACTIVE`; read "while the widget holds the keyboard". The `ComboBox.PopupPanel`, `ListView` and
+`PopupMenu.MenuSurface` rows say "`SelectionFacet` with an active descendant"; read
+"`SelectionFacet`", the cursor being the tree's. The "highlighted row" row under `PopupMenu` says
+"active descendant on its column"; read "the surface's cursor, resolved by the tree from the
+row's `ACTIVE`".
 
 ### 1.11 A popup's contents are described where they actually live
 

@@ -720,11 +720,13 @@ public class SegmentedControl extends Widget {
             // one string per segment per damaged frame.
             a.name(segments.get(i), Accessible.NameFrom.CONTENT);
             a.selectionItem(i == selected, i + 1, segments.size());
-            if (i == selected) {
+            if (i == selected && isFocused()) {
                 // Selection and cursor are one thing here: the arrows call choose(), which moves
                 // the selection itself, and there is no separate highlight. Without this bit the
-                // group's selection facet resolves no active descendant and walking the strip
-                // with Left and Right tells a reader nothing about where the user is.
+                // tree resolves no cursor below the group and walking the strip with Left and
+                // Right tells a reader nothing about where the user is. Only while the group
+                // holds the keyboard (ADR 039 §1.10, amended 2026-09-14): the cursor is the
+                // focused node's, and a strip nobody is in has none to publish.
                 a.state(Accessible.State.ACTIVE);
             }
             // Select and no press, as RadioButton answers: the two radio surfaces must answer
