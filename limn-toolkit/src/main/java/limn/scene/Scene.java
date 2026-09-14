@@ -836,6 +836,33 @@ public final class Scene implements WindowInput {
         return accessibilityHost;
     }
 
+    /**
+     * The walk that describes this scene, created on first use: another window's walk asks for
+     * it when a popup there names a widget here as its opener (ADR 039 §1.11), and the tests of
+     * the walk read its builder through it.
+     *
+     * @return this scene's walk
+     */
+    AccessibleWalk accessibleWalk() {
+        if (accessibleWalk == null) {
+            accessibleWalk = new AccessibleWalk();
+        }
+        return accessibleWalk;
+    }
+
+    /**
+     * The identifier this scene last published for one of its widgets, for a relation declared
+     * in another window's walk that names it: a native popup's root naming the field that opened
+     * it, or that field naming the popup's root back.
+     *
+     * @param widget a widget of this scene
+     * @return the identifier of its node in this scene's last walk, or {@code 0} when that walk
+     *         published none for it or no walk has run
+     */
+    long accessibleIdOf(Widget widget) {
+        return accessibleWalk == null ? 0 : accessibleWalk.idOfWidget(widget);
+    }
+
     /** The scene-side half a bridge holds, and the only way a platform reaches toolkit state. */
     private final class Host implements limn.backend.AccessibilityBridge.Host {
 
@@ -1108,9 +1135,7 @@ public final class Scene implements WindowInput {
      * @param reentrant whether the platform is on the stack, holding what this bridge vended
      */
     private void publishAccessibleTree(boolean reentrant) {
-        if (accessibleWalk == null) {
-            accessibleWalk = new AccessibleWalk();
-        }
+        accessibleWalk();
         try {
             accessibleWalk.walk(this, width, height);
         } catch (limn.backend.Crashes.ShutdownRequested shutdown) {
@@ -3532,6 +3557,11 @@ public final class Scene implements WindowInput {
             LOG.log(Level.ERROR, "accessibility bridge threw during window close; teardown continues",
                     error);
             limn.backend.Crashes.report(limn.backend.CrashPhase.WINDOW_CLOSE, error);
+        }
+        if (accessibleWalk != null) {
+            // What this window published answers nothing now, and the window that opened it (a
+            // native popup's owner) is told to stop naming it.
+            accessibleWalk.close();
         }
         bridge = limn.backend.AccessibilityBridge.NONE;
         publishedTree = limn.accessibility.AccessibleTree.EMPTY;

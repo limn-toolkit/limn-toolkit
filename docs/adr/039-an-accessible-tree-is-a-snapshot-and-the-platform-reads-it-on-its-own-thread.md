@@ -1229,6 +1229,32 @@ desktop would find the popup as a top-level, a client walking up from the popup 
 else, and the two paths would carry different `RuntimeId` prefixes, because UI Automation prefixes each
 with its own HWND's runtime id. The logical link is the relation and only the relation.
 
+**Amendment, 2026-09-14: the cross-window case is built, and this is how the two trees find each
+other.** Until today the walk resolved a relation's target only among the nodes of its own scene, so
+a native popup's root — a `ComboBox` list or a `DatePicker` calendar in a window of its own —
+resolved its `POPUP_FOR` to nothing and dropped it, and the opener never carried the mirror; the
+paragraph above about Windows and Linux publishing "the pair unchanged" described code that did not
+exist (CRIT-2, 2026-09-13). Two things make it true now. First, identifiers are process-wide (§1.3,
+amended the same day), so a target in another window is nameable at all. Second, the climb from a
+target through `parent()` and `inheritanceHost()` is allowed to cross into another scene: at a step
+that lands in a widget of another window, the walk asks **that scene's own last walk** for the
+identifier it published for the widget (`Scene#accessibleIdOf`), and takes it. The popup's root
+climbs through its inheritance host into the window that opened it and finds the opener's node
+there; nothing in either bridge is consulted and nothing is allocated. The mirror is the other
+half: a popup walk whose opener is not in its own scene tells the opener's scene to expect a
+`CONTROLLER_FOR` on that widget, naming the popup's root, and marks it for a walk; the host publishes
+the mirror on its next walk, resolving the root's identifier the same way, across scenes. When the
+popup's window closes, its walk withdraws the mirror and marks the host again, so the opener stops
+naming a window that is gone on the host's next publish rather than on its next unrelated change;
+a host walk also drops an entry whose popup no longer publishes its root. The relation's target
+therefore carries another window's tag, and a bridge routes it by `AccessibleTree#holds(id)` to the
+tree that has it — what each platform then does with a foreign element (a `ControllerFor` array
+entry from another HWND's provider, an AT-SPI `(bus name, path)` under the one application §2.3 is
+to become, AppKit's own window object where the root is elided) is phase 3's, per platform. Pinned
+by `NativePopupRelationTest` in the demo, where a `HeadlessBackend` opens the popup as a real
+second window: the list names the combo, the combo names the list, the calendar's card names the
+picker and the picker names the card; and a closed popup window leaves the picker with no mirror.
+
 ### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
 
 ```

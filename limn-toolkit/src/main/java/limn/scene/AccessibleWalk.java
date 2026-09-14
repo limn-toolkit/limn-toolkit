@@ -90,6 +90,28 @@ final class AccessibleWalk {
     private Widget[] popupOpeners = new Widget[8];
     private int popupCount;
 
+    /** The scene this walk describes, held for the length of a walk so relations can cross it. */
+    private Scene scene;
+
+    /**
+     * Popups in <em>other</em> windows whose root named one of this scene's widgets as its opener:
+     * the mirror half of a cross-window relation, which by definition is published here and not
+     * in the popup's own tree. Each entry is (the opener widget here, the popup's root widget
+     * there, the scene the root lives in). Grown once, reused; a few entries at most, because a
+     * window has one native popup open at a time and the entry leaves with the popup.
+     */
+    private Widget[] foreignOpeners = new Widget[4];
+    private Widget[] foreignRoots = new Widget[4];
+    private Scene[] foreignScenes = new Scene[4];
+    private int foreignCount;
+
+    /**
+     * The other scene holding this walk's own mirror, when this scene is a popup of another
+     * window: what a close has to withdraw from, so the opener does not keep naming a window
+     * that is gone.
+     */
+    private Scene mirrorHost;
+
     /** @return the builder every describe hook writes into */
     Accessibility builder() {
         return builder;
@@ -103,6 +125,7 @@ final class AccessibleWalk {
      * @param sceneHeight its height
      */
     void walk(Scene scene, float sceneWidth, float sceneHeight) {
+        this.scene = scene;
         Locale sceneLocale = scene.locale() != null ? scene.locale() : limn.i18n.I18n.processLocale();
         builder.beginWalk(sceneWidth, sceneHeight, sceneLocale);
         count = 0;
@@ -178,12 +201,124 @@ final class AccessibleWalk {
             if (opener >= 0) {
                 builder.relationAt(opener, Accessible.Relation.CONTROLLER_FOR,
                         owners[popupNodes[i]]);
+                continue;
+            }
+            // The opener is not in this walk. When it lives in another window's scene -- a
+            // native popup's root names the field that opened it, ADR 039 §1.11 -- the mirror
+            // belongs in that scene's tree, so that scene is told to expect it and to walk again.
+            // An opener this scene holds but did not publish (a transparent anchor) keeps today's
+            // answer: the relation resolves up through the deletions, and no mirror is emitted.
+            Scene home = popupOpeners[i].scene();
+            if (home != null && home != scene) {
+                home.accessibleWalk().expectMirror(popupOpeners[i], owners[popupNodes[i]], scene);
+                home.invalidateAccessible();
+                mirrorHost = home;
             }
         }
+        int kept = 0;
+        for (int i = 0; i < foreignCount; i++) {
+            // An entry outlives its popup only until the next walk here: the popup's walk answers
+            // no identifier for a root it no longer publishes, and a closed popup withdrew itself.
+            if (foreignScenes[i].accessibleIdOf(foreignRoots[i]) == 0) {
+                continue;
+            }
+            int opener = indexOfWidget(foreignOpeners[i]);
+            if (opener >= 0) {
+                builder.relationAt(opener, Accessible.Relation.CONTROLLER_FOR, foreignRoots[i]);
+            }
+            foreignOpeners[kept] = foreignOpeners[i];
+            foreignRoots[kept] = foreignRoots[i];
+            foreignScenes[kept] = foreignScenes[i];
+            kept++;
+        }
+        for (int i = kept; i < foreignCount; i++) {
+            foreignOpeners[i] = null;
+            foreignRoots[i] = null;
+            foreignScenes[i] = null;
+        }
+        foreignCount = kept;
         // Last, because a target's identifier is only knowable once every node it could name has
         // been walked, and before anything compares this walk with the last one: the comparison
         // reads what this fills in.
         builder.resolveRelations(resolver);
+    }
+
+    /**
+     * Records that a popup in another window named one of this scene's widgets as its opener, so
+     * that the next walk here publishes the {@code CONTROLLER_FOR} mirror on that widget's node.
+     *
+     * @param opener the widget here that opened the popup
+     * @param root   the popup's root widget, in the other scene
+     * @param home   the scene that root lives in
+     */
+    void expectMirror(Widget opener, Widget root, Scene home) {
+        for (int i = 0; i < foreignCount; i++) {
+            if (foreignOpeners[i] == opener && foreignRoots[i] == root) {
+                foreignScenes[i] = home;
+                return;
+            }
+        }
+        if (foreignCount == foreignOpeners.length) {
+            foreignOpeners = java.util.Arrays.copyOf(foreignOpeners, foreignCount * 2);
+            foreignRoots = java.util.Arrays.copyOf(foreignRoots, foreignCount * 2);
+            foreignScenes = java.util.Arrays.copyOf(foreignScenes, foreignCount * 2);
+        }
+        foreignOpeners[foreignCount] = opener;
+        foreignRoots[foreignCount] = root;
+        foreignScenes[foreignCount] = home;
+        foreignCount++;
+    }
+
+    /**
+     * Withdraws every mirror a popup scene asked for, because that scene's window is closing.
+     *
+     * @param home the popup scene going away
+     */
+    private void dropMirrors(Scene home) {
+        int kept = 0;
+        for (int i = 0; i < foreignCount; i++) {
+            if (foreignScenes[i] == home) {
+                continue;
+            }
+            foreignOpeners[kept] = foreignOpeners[i];
+            foreignRoots[kept] = foreignRoots[i];
+            foreignScenes[kept] = foreignScenes[i];
+            kept++;
+        }
+        for (int i = kept; i < foreignCount; i++) {
+            foreignOpeners[i] = null;
+            foreignRoots[i] = null;
+            foreignScenes[i] = null;
+        }
+        foreignCount = kept;
+    }
+
+    /**
+     * What a closing window does to its walk: nothing it published is answered any more, and the
+     * scene holding this window's mirror is told to drop it and walk again, so the opener stops
+     * naming a window that is gone on the host's next publish rather than on its next unrelated
+     * change.
+     */
+    void close() {
+        count = 0;
+        if (mirrorHost != null) {
+            Scene host = mirrorHost;
+            mirrorHost = null;
+            host.accessibleWalk().dropMirrors(scene);
+            host.invalidateAccessible();
+        }
+    }
+
+    /**
+     * The identifier this walk last published for a widget of its scene, for a relation in
+     * another window's walk that names it.
+     *
+     * @param widget a widget of this scene
+     * @return its node's identifier, or {@code 0} when the last walk published no node for it
+     */
+    long idOfWidget(Widget widget) {
+        int index = indexOfWidget(widget);
+        return index < 0 ? 0 : ids[index];
     }
 
     /**
@@ -445,6 +580,19 @@ final class AccessibleWalk {
         }
         for (Widget at = widget; at != null;
                 at = at.parent() != null ? at.parent() : at.inheritanceHost()) {
+            // A step of the climb that lands in another window's scene -- a native popup's root
+            // climbing through its inheritance host into the window that opened it, or the
+            // opener naming the popup's root back -- is answered by that scene's own last walk.
+            // Identifiers are process-wide (Accessibility#mint), so the answer names the node
+            // wherever it is published, and the bridge tells the two trees apart by the number.
+            Scene home = at.scene();
+            if (home != null && home != scene) {
+                long id = home.accessibleIdOf(at);
+                if (id != 0) {
+                    return id;
+                }
+                continue;
+            }
             int index = indexOfWidget(at);
             if (index >= 0) {
                 return ids[index];

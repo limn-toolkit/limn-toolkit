@@ -180,6 +180,16 @@ public final class HeadlessWindow implements NativeWindow {
     @Override public void captureNextFrame(Consumer<Image> sink) { }
     @Override public void setContentScaleListener(ContentScaleListener listener) { }
     @Override public void requestFrame() { }
-    @Override public void requestClose() { closed = true; }
-    @Override public void close() { closed = true; }
+    @Override public void requestClose() { close(); }
+
+    /** Closes as a desktop backend does: the bound scene is told, once, and the window is gone. */
+    @Override public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        if (input != null) {
+            input.windowClosed();
+        }
+    }
 }
