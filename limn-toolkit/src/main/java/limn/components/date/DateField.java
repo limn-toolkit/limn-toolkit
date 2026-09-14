@@ -154,8 +154,8 @@ public class DateField extends Widget {
     private Clock clock;
 
     /**
-     * The value for {@link #setTwoDigitYearWindow} that turns the guess off: a two-digit year
-     * pasted into the field is left blank and the field stays incomplete.
+     * The value for {@link #setTwoDigitYearWindow} that turns the guess off: a two-digit year,
+     * pasted into the field or typed and left, is left blank and the field stays incomplete.
      */
     public static final int REFUSE_TWO_DIGIT_YEARS = -1;
 
@@ -1189,8 +1189,9 @@ public class DateField extends Widget {
      * is 2026 and {@code 85} is 1985. A calendar whose years carry their era (Reiwa 8) is not
      * windowed: there a two-digit year is the whole year.
      *
-     * <p>{@link #REFUSE_TWO_DIGIT_YEARS} turns the guess off: a pasted two-digit year is left
-     * blank and the field stays incomplete, and a typed one stays exactly what was typed.
+     * <p>{@link #REFUSE_TWO_DIGIT_YEARS} turns the guess off: a two-digit year, pasted or typed
+     * and left, is left blank and the field stays incomplete (decision 57). A typed one stayed
+     * what was typed until 2026-09-14, which called "31/12/26" the valid year 26.
      *
      * @param yearsBack how far back the window starts, {@code 0} to {@code 99}, or
      *                  {@link #REFUSE_TWO_DIGIT_YEARS}
@@ -1867,8 +1868,9 @@ public class DateField extends Widget {
      * A two-digit year typed and left (a Right, a Home, a separator, a click into another
      * segment, or the focus going elsewhere) resolves through the window (decision 57): "26"
      * left in the year is 2026, as it is on every desktop date field. Four digits are what was
-     * meant; three are left alone too, and so is a year of era. With the guess off, what was
-     * typed stays.
+     * meant; three are left alone too, and so is a year of era. With the guess off the year is
+     * left blank and the field incomplete, as a pasted one is: a form that refuses to guess is
+     * not handed the year 26 as valid.
      */
     private void commitTypedYear() {
         DatePattern.FieldPart part = focusedField();
@@ -1877,7 +1879,7 @@ public class DateField extends Widget {
             return;
         }
         int resolved = resolveTwoDigitYear(year);
-        if (resolved == UNSET || resolved == year) {
+        if (resolved == year) {
             return;
         }
         year = resolved;

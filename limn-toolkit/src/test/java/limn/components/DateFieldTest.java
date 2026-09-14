@@ -432,9 +432,11 @@ class DateFieldTest extends ComponentTestBase {
         field.setClock(IN_2026);
         field.setTwoDigitYearWindow(DateField.REFUSE_TWO_DIGIT_YEARS);
         type("311226");
+        assertEquals(LocalDate.of(26, 12, 31), field.date(), "while the caret is still in the year");
         key(Keys.HOME);
-        assertEquals(LocalDate.of(26, 12, 31), field.date(),
-                "with the guess off a typed year is what was typed, and the bounds are the form's");
+        assertNull(field.date(), "with the guess off a typed two-digit year is left blank too");
+        assertEquals("31/12/----", field.text());
+        assertFalse(field.isValid(), "and the field is incomplete, as after a paste (decision 57)");
     }
 
     // ------------------------------------------------------------ eras (era-year-width, decision 38)
