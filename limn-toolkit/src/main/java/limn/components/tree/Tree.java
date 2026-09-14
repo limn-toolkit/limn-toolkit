@@ -470,7 +470,18 @@ public class Tree<T> extends Widget implements Scrollable {
             }
         }
         toggled = node;
+        T wasCursor = cursor;
         rebuildRows();
+        if (!open && cursor != null && indexOf(cursor) < 0) {
+            // The collapse hid the row the cursor was on: the cursor climbs to the row that
+            // closed, which is where Explorer, Finder and GTK put it, and the selection stays
+            // where it is in every mode (decision 21 of 2026-09-14; ADR 044 §6). Announced with
+            // the gesture's origin, so a reader on a child row hears the parent it landed on.
+            cursor = node;
+            rangeAnchor = node;
+            damageCursorMove(wasCursor);
+            announceCursor(wasCursor, origin);
+        }
         pruneSelection();
         // Contained, not global: opening a row changes which rows are mounted and where they
         // sit, and both are inside a box this widget clips and whose own size the expansion
@@ -777,8 +788,11 @@ public class Tree<T> extends Widget implements Scrollable {
     }
 
     /**
-     * Selects exactly {@code node}, moving the cursor onto it and revealing it. {@code null}
-     * clears the selection and leaves the cursor where it is.
+     * Selects exactly {@code node}, moving the cursor onto it and revealing it when it is a
+     * visible row. A node under a closed branch is selected where it is — re-opening its parent
+     * finds it selected — and neither revealed nor made the cursor, which stays on a row the user
+     * can see (decision 21 of 2026-09-14). {@code null} clears the selection and leaves the
+     * cursor where it is.
      */
     public Tree<T> setSelected(T node) {
         Ui.checkUiThread();
@@ -819,9 +833,11 @@ public class Tree<T> extends Widget implements Scrollable {
         }
         boolean same = selected.equals(before) && Objects.equals(lead, last);
         lead = last;
-        cursor = last;
-        rangeAnchor = last;
-        revealNode(last);
+        if (indexOf(last) >= 0) {
+            cursor = last; // a hidden node is selected where it is, and the cursor stays visible
+            rangeAnchor = last;
+            revealNode(last);
+        }
         damageSelectionChange(before, wasCursor);
         announceCursor(wasCursor, Change.Origin.CODE);
         if (!same) {
@@ -893,10 +909,11 @@ public class Tree<T> extends Widget implements Scrollable {
      */
     private void selectOnly(T node, boolean reveal, Change.Origin origin) {
         T wasCursor = cursor;
-        if (node != null) {
+        boolean visible = node != null && indexOf(node) >= 0;
+        if (visible) {
             cursor = node;
         }
-        if (reveal && node != null) {
+        if (reveal && visible) {
             revealNode(node);
         }
         if (selectionMode == SelectionMode.NONE) {
@@ -904,7 +921,7 @@ public class Tree<T> extends Widget implements Scrollable {
             announceCursor(wasCursor, origin);
             return;
         }
-        if (node != null) {
+        if (visible) {
             rangeAnchor = node;
         }
         boolean same = node == null ? selected.isEmpty()

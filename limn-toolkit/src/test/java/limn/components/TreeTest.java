@@ -663,6 +663,102 @@ class TreeTest extends ComponentTestBase {
         assertEquals(docs, tree.cursorNode());
     }
 
+    /** A press on {@code name}'s triangle: the band before the cell, at the row's middle. */
+    private void pressTriangle(Tree<Node> tree, String name) {
+        Widget cell = cellOf(tree, name);
+        // The band sits immediately before the cell; half a band back from the cell's edge is
+        // inside it at every depth, and the other test of this widget aims the same way.
+        float x = cell.localToSceneX() - 8;
+        float y = cell.localToSceneY() + cell.height() / 2;
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+    }
+
+    /**
+     * Closing the branch the cursor is in puts the cursor on the row that closed and leaves the
+     * selection where it is, in every mode (decision 21 of 2026-09-14; ADR 044 §6): what
+     * Explorer, Finder and GTK do. Before, the cursor stayed on the hidden row, where Left and
+     * Right were dead, Up and Down restarted at the viewport's top, no row was ACTIVE, and Enter
+     * activated something nobody could see (TREE-MISS-4).
+     */
+    @Test
+    void closingTheBranchTheCursorIsInPutsTheCursorOnTheBranch() {
+        Node root = forest();
+        Node readme = root.children().get(1);
+        Node two = Node.leaf("two");
+        CountingModel model = new CountingModel(List.of(root, two));
+        Tree<Node> tree = mount(model);
+        tree.expand(root);
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+        press(Keys.DOWN);
+        press(Keys.DOWN);
+        press(Keys.DOWN);
+        assertEquals(readme, tree.cursorNode(), "three arrows down land on readme");
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        pressTriangle(tree, "root");
+        assertFalse(tree.isExpanded(root), "the triangle closed the root: " + drawn(tree));
+        assertEquals(root, tree.cursorNode(), "and the cursor climbed onto it");
+        assertEquals(List.of(readme), tree.selectedNodes(), "while the selection stayed hidden");
+        assertEquals(readme, tree.leadNode());
+        assertTrue(changes.stream().anyMatch(c -> c.aspect() == limn.scene.Change.Aspect.ACTIVE
+                        && c.origin() == limn.scene.Change.Origin.USER),
+                "announced as the user's cursor move: " + changes);
+
+        press(Keys.DOWN);
+        assertEquals(two, tree.cursorNode(), "and the arrows walk on from the row it landed on");
+
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        tree.expand(root);
+        scene.layoutPass(220, 200);
+        press(Keys.UP); // from "two" back onto readme, under the re-opened root
+        assertEquals(readme, tree.cursorNode());
+        tree.collapse(root);
+        scene.layoutPass(220, 200);
+        assertEquals(root, tree.cursorNode(), "a collapse from code moves it the same way");
+    }
+
+    /**
+     * Selecting a node under a closed branch selects it where it is — re-opening the branch
+     * finds it selected — and neither reveals it nor moves the cursor, which stays on a row the
+     * user can see (decision 21). Before, the cursor moved onto the hidden node with all of
+     * TREE-MISS-4's consequences.
+     */
+    @Test
+    void selectingAHiddenNodeSelectsItWithoutMovingTheCursor() {
+        Node root = forest();
+        Node docs = root.children().get(0);
+        Node aMd = docs.children().get(0);
+        CountingModel model = new CountingModel(List.of(root));
+        Tree<Node> tree = mount(model);
+        tree.expand(root);
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+        press(Keys.DOWN);
+        assertEquals(root, tree.cursorNode());
+
+        tree.setSelected(aMd);
+        assertEquals(List.of(aMd), tree.selectedNodes(), "selected where it is");
+        assertEquals(aMd, tree.leadNode());
+        assertEquals(root, tree.cursorNode(), "the cursor stays on a row the user can see");
+        assertFalse(tree.isExpanded(docs), "and nothing opened to reveal it");
+
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectedNodes(List.of(root, aMd));
+        assertEquals(root, tree.cursorNode(), "the same for the programmatic set");
+
+        tree.expand(docs);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(root, aMd), tree.selectedNodes(), "re-opening the branch finds it");
+        press(Keys.DOWN);
+        press(Keys.DOWN);
+        assertEquals(aMd, tree.cursorNode(), "and the cursor can walk onto it now");
+    }
+
     @Test
     void aSelectionSurvivesTheRowBeingHiddenByACollapse() {
         Node root = forest();

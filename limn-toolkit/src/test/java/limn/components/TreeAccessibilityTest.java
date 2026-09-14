@@ -527,6 +527,39 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                 "the tree's PRESS activates the cursor row, which is not the selected one");
     }
 
+    /**
+     * A collapse that hides the cursor row moves the cursor onto the row that closed (decision
+     * 21), so a reader standing on a child row is told the parent it landed on rather than left
+     * with no cursor at all: exactly one {@code ACTIVE_DESCENDANT_CHANGED} on the tree, naming
+     * the collapsed row, and that row {@code ACTIVE}; the selection it hid stays selected.
+     */
+    @Test
+    void collapsingTheBranchTheCursorIsInMovesTheCursorOntoItAndSaysSo() throws Exception {
+        Node readme = Node.leaf("readme");
+        Node docs = Node.of("docs", Node.leaf("a.md"), Node.leaf("b.md"));
+        Node top = Node.of("root", docs, readme);
+        bindTree(ROW_H, List.of(top));
+        tree.expand(top);
+        tree.setSelected(readme);
+        scene.requestFocus(tree);
+        frame();
+        assertEquals(node("readme").id(), tree().activeDescendant(), describe(tree()));
+        bridge.events.clear();
+
+        assertTrue(perform(node("root").id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE));
+        frame();
+
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one row is the cursor: " + describe(tree()));
+        assertEquals("root", active.get(0).name(), "the row that closed: " + describe(tree()));
+        assertEquals(node("root").id(), tree().activeDescendant());
+        assertEquals(List.of(readme), tree.selectedNodes(), "the hidden selection stands");
+        List<limn.accessibility.AccessibleEvent> moved = bridge.eventsOf(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(), "one cursor event, on the tree: " + bridge.events);
+        assertEquals(node("root").id(), moved.get(0).newValue());
+    }
+
     /** {@code SCROLL_INTO_VIEW} on a row that sits half under the top edge brings it back. */
     @Test
     void scrollIntoViewOnARowRevealsIt() throws Exception {
