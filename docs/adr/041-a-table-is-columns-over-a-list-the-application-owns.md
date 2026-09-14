@@ -333,6 +333,15 @@ while the header holds the cursor, that cursor's move is the one announced, and 
 takes the header's stop away under it (the header hidden, or the last sortable column) hands the
 cursor to the focus cell and announces `ACTIVE`/`ADJUSTMENT` once. Pinned by
 `TableAccessibilityTest.hidingTheHeadersColumnKeepsItsCursorOnTheNearestShownColumn`.
+And "re-mounts the realized rows" above was more than the rule needed: every widget cell was
+rebuilt on any change to the shown set, hiding a value column included, and a switch holding the
+keyboard handed it to the table. The layout now releases only a hidden widget column's widgets
+and builds only a newly shown one's, each in its place among the children, and every other widget
+cell stays, a focused one included; `markNeedsLayout()` is the call that asks for that layout.
+`refresh()` still rebuilds every realized row, as `ListView`'s does and for its reason — a mounted
+widget is bound to a record the list may no longer hold — so a widget cell holding the keyboard
+still hands it to the table there; `Column.visible` says both. Pinned by
+`TableTest.aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre`.
 
 **The footer is a summary row**, pinned under the rows the way the header is pinned over them,
 and it exists as soon as one column has something for it: a fixed text, one of the aggregates a

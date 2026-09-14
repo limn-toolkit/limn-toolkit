@@ -1597,7 +1597,7 @@ public class Table<T> extends Widget implements Scrollable {
         System.arraycopy(shownIndex, 0, shownBefore, 0, n);
         shownBeforeCount = n;
         if (!first) {
-            unmountAll();
+            remountWidgetColumns();
             invalidate(); // the columns moved, whatever the cursor did
         }
         if (n == 0) {
@@ -1626,6 +1626,48 @@ public class Table<T> extends Widget implements Scrollable {
         headerColumn = Math.min(Math.max(0, s), Math.max(0, shownCount - 1));
         if (shownCount > 0) {
             headerColumnOf = shownIndex[headerColumn];
+        }
+    }
+
+    /**
+     * Brings the realized rows' widget cells in line with the shown set: a hidden widget
+     * column's widgets are released and a newly shown one's built, and every other widget cell
+     * stays where it is, the one holding the keyboard included (review of table-B, 2026-09-14:
+     * this re-mounted every row, so hiding a value column took the keyboard off the switch a
+     * user was on and rebuilt every widget cell). A released widget that held the keyboard hands
+     * it to the table, as a recycled row's does.
+     */
+    private void remountWidgetColumns() {
+        boolean handBack = false;
+        int childAt = 2; // the two bars come first
+        int count = rows.size();
+        for (int i = 0; i < mountedCount; i++) {
+            Slot slot = mountedSlots[i];
+            for (int c = 0; c < columns.size(); c++) {
+                Column<T> column = columns.get(c);
+                Widget widget = slot.widgets[c];
+                if (!column.isWidgetColumn()) {
+                    continue;
+                }
+                if (column.isVisible() && widget == null && slot.row < count
+                        && (view == null || slot.row < view.length)) {
+                    widget = column.widgetFor(rows.get(modelOf(slot.row)));
+                    slot.widgets[c] = widget;
+                    add(childAt, widget);
+                    slot.widgetCount++;
+                    childAt++;
+                } else if (!column.isVisible() && widget != null) {
+                    handBack |= holdsFocus(widget);
+                    remove(widget);
+                    slot.widgets[c] = null;
+                    slot.widgetCount--;
+                } else if (widget != null) {
+                    childAt++;
+                }
+            }
+        }
+        if (handBack) {
+            requestFocus();
         }
     }
 
@@ -1975,6 +2017,17 @@ public class Table<T> extends Widget implements Scrollable {
                 if (slot.widgets[c] == w) {
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+
+    /** @return whether the keyboard focus is on {@code cell} or inside it */
+    private boolean holdsFocus(Widget cell) {
+        Widget focused = scene() != null ? scene().focusedWidget() : null;
+        for (Widget w = focused; w != null; w = w.parent()) {
+            if (w == cell) {
+                return true;
             }
         }
         return false;

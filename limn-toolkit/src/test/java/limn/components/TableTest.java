@@ -828,6 +828,72 @@ class TableTest extends ComponentTestBase {
     }
 
     /**
+     * Review of table-B (2026-09-14): a change to the shown set re-mounted every realized row,
+     * so hiding a value column, with or without a refresh, rebuilt every widget cell and took
+     * the keyboard off the switch a user was on. The layout now releases only a hidden widget
+     * column's widgets and builds only a newly shown one's, in their places among the children;
+     * a refresh still rebuilds every row, as {@code ListView}'s does, and says so in
+     * {@code Column.visible}.
+     */
+    @Test
+    void aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre() {
+        List<Widget> opens = new ArrayList<>();
+        List<Widget> mores = new ArrayList<>();
+        Column<Person> age = ageColumn();
+        Column<Person> open = Column.<Person>widget("Open", p -> {
+            Button b = new Button("Open");
+            opens.add(b);
+            return b;
+        }).width(80);
+        Column<Person> more = Column.<Person>widget("More", p -> {
+            Button b = new Button("More");
+            mores.add(b);
+            return b;
+        }).width(80).visible(false);
+        Table<Person> table = new Table<>(List.of(nameColumn(), age, open, more));
+        table.setRows(people(50));
+        FakeCanvas canvas = new FakeCanvas(400, 200);
+        Scene scene = scene(table, canvas);
+        int built = opens.size();
+        assertTrue(built >= 3, "the viewport's worth of Open buttons: " + built);
+        Widget target = opens.get(1);
+        scene.requestFocus(target);
+        scene.renderFrame(canvas);
+        assertSame(target, scene.focusedWidget());
+
+        age.visible(false);
+        table.markNeedsLayout();
+        scene.renderFrame(canvas);
+        assertEquals(built, opens.size(), "hiding a value column builds no widget");
+        assertSame(target, scene.focusedWidget(), "and leaves the keyboard on the switch it was on");
+        assertTrue(table.children().contains(target), "which is still a child");
+
+        more.visible(true);
+        table.markNeedsLayout();
+        scene.renderFrame(canvas);
+        assertEquals(built, opens.size(), "showing a widget column rebuilds no other column's widget");
+        assertEquals(built, mores.size(), "and builds its own for each realized row");
+        assertSame(target, scene.focusedWidget());
+        List<Widget> children = table.children();
+        assertEquals(2 + 2 * built, children.size(), "the bars, then two cells per realized row");
+        for (int i = 0; i < built; i++) {
+            assertSame(opens.get(i), children.get(2 + 2 * i), "row " + i + "'s Open in data order");
+            assertSame(mores.get(i), children.get(3 + 2 * i), "and its More after it, by column");
+        }
+
+        more.visible(false);
+        table.markNeedsLayout();
+        scene.renderFrame(canvas);
+        assertEquals(2 + built, table.children().size(), "hidden again, its widgets are released");
+        assertSame(target, scene.focusedWidget(), "and the Open the user is on stays");
+
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertTrue(opens.size() > built, "a refresh rebuilds every row, as documented");
+        assertSame(table, scene.focusedWidget(), "and the released widget hands the keyboard to the table");
+    }
+
+    /**
      * TABLE-NEW-4 (2026-09-14): {@code onSortRequest} assigned its field directly, the one
      * registrar outside {@code Work} that skipped ADR 040's one-slot policy, and the slot
      * changing hands sorted nothing: a handler set over a toolkit sort left the permutation in
