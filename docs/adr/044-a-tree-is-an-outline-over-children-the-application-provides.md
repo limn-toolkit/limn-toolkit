@@ -70,6 +70,14 @@ with `Table`'s `List<T>`, the application's objects stay the application's:
   application whose nodes are records gets identity by value for free; one whose nodes are
   mutable gets reference identity, which is what a tree over a live model wants.
 
+**Amendment, 2026-09-14: the shipped model is the `Tree.Model` interface, and the bullets above
+are the record's first sketch of it (TREE-NEW-12).** `Tree<T>` is constructed over one
+`Model<T>` with three methods only the application can answer — `roots()`, `children(node)`,
+`cellFor(node)` — and four with defaults: `isLeaf(node)` (children known and empty), `load(node)`
+(`null`: nothing to fetch), `recycle(cell)` (nothing) and `nameOf(node)` (`null`: the cell names
+its row; a name from here wins over the cell's). There is no `Function<T, List<T>>` and no
+separate leaf predicate; the identity rule below stands as written.
+
 **Amendment, 2026-09-14: a node is unique within a tree, and the tree says so.** Identity by
 `equals` was written above as a gift to records and a convenience to live objects; what it also
 does is fold two equal nodes in two places into one — one selection, one expansion, one accessible

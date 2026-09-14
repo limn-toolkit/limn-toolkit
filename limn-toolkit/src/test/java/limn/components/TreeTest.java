@@ -22,7 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The three things a tree does that a list cannot: an order that is a traversal, a row that opens,
- * and a row that promises children before it can name them (ADR 044).
+ * and a row that promises children before it can name them (ADR 044) — and, since 2026-09-14,
+ * the cursor and the selection it leads (§6), the wheel and the free height (§3), the handlers
+ * and the mirrored arrows (§5).
  *
  * <p>Every case reads the widget's own answers — which rows are visible, what is selected, what
  * the model was asked — rather than pixels: what is drawn at a depth is the indent arithmetic,
@@ -1932,12 +1934,6 @@ class TreeTest extends ComponentTestBase {
                 "and the other way is the tree's");
     }
 
-    /**
-     * A triangle painted where the hit test does not look is a control that cannot be pressed,
-     * and a sideways offset is exactly the kind of change that separates the two. The band sits
-     * immediately before the cell, so the press is aimed from the cell's own position rather than
-     * by re-deriving the indent here.
-     */
     /** Where each stroked path was painted, which for these fixtures is only the triangles. */
     private static final class TwistyCanvas extends ComponentTestBase.FakeCanvas {
 

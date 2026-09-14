@@ -105,7 +105,7 @@ public class Tree<T> extends Widget implements Scrollable {
     /**
      * What the tree asks the application about its own data.
      *
-     * <p>Three of the six methods have defaults, and the three that do not are the ones only the
+     * <p>Four of the seven methods have defaults, and the three that do not are the ones only the
      * application can answer: where the tree starts, what is under a node, and what draws it.
      */
     public interface Model<T> {
@@ -165,8 +165,10 @@ public class Tree<T> extends Widget implements Scrollable {
         }
 
         /**
-         * What to call {@code node} for an assistive technology, when its own cell widget says
-         * nothing about itself.
+         * What to call {@code node} for an assistive technology. A name from here wins: it is
+         * published over whatever the cell widget says of itself, and over the name the tree
+         * would otherwise read off the cell's labels (ADR 044 §4, amended 2026-09-14). Answer
+         * {@code null} to let the cell name its row.
          *
          * <p><b>Hand back a string this model holds.</b> The tree compares a name by reference
          * to decide whether it has to be resolved again, so a string built inside this call
