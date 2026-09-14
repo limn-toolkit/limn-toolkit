@@ -1446,7 +1446,7 @@ public final class Accessibility {
         }
         generation++;
         AccessibleTree tree = new AccessibleTree(nodes, focusedId, screenX, screenY, factor,
-                positioning, sceneWidth, sceneHeight, sceneLocale, generation);
+                positioning, sceneWidth, sceneHeight, sceneLocale, generation, sceneTag);
         swap();
         return tree;
     }
@@ -1721,19 +1721,56 @@ public final class Accessibility {
 
     // --------------------------------------------------------- identity
 
+    /**
+     * How many low bits of an identifier are the serial minted inside one scene; the bits above
+     * them are the scene's tag. Forty-two bits is four trillion identifiers per window, which no
+     * window mints, and twenty-one bits above it is two million scenes per process, which no
+     * process opens; and a tag is never zero, so a serial minted here is never mistaken for one a
+     * test wrote by hand.
+     */
+    private static final int SERIAL_BITS = 42;
+
+    /** One tag per builder, which is one per scene, handed out for the life of the process. */
+    private static final java.util.concurrent.atomic.AtomicLong SCENES =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    private final long sceneTag = SCENES.incrementAndGet();
+
     private long nextIdentifier;
 
     /**
-     * Mints one identifier from the counter every node in the process shares.
+     * Mints one identifier that no node in any window of this process has had.
      *
      * <p>The publish step calls this for a widget's own serial; this class calls it for a
-     * synthetic child's. One counter and not two, because an identifier is the whole of identity
-     * on every platform and two counters would eventually hand out the same number twice.
+     * synthetic child's. The counter is this scene's and the identifier carries the scene's tag
+     * above it (ADR 039 §1.3, amended 2026-09-14): a relation can therefore name a node in another
+     * window &mdash; a native popup's root names the field that opened it &mdash; and a bridge
+     * holding several windows' trees can tell from the number alone which tree to ask
+     * ({@link AccessibleTree#holds(long)}), without a registry that would have to be kept in
+     * step with every publish.
      *
-     * @return an identifier no other node has had, and never {@code 0}
+     * @return an identifier no other node in the process has had, and never {@code 0}
      */
     public long mint() {
-        return ++nextIdentifier;
+        return (sceneTag << SERIAL_BITS) | ++nextIdentifier;
+    }
+
+    /**
+     * @return the tag every identifier this builder mints carries: the scene's, never {@code 0}
+     */
+    public long sceneTag() {
+        return sceneTag;
+    }
+
+    /**
+     * The tag of the scene that minted an identifier.
+     *
+     * @param id a node identifier
+     * @return the tag of the builder that minted it, or {@code 0} for an identifier no builder
+     *         minted
+     */
+    public static long sceneTagOf(long id) {
+        return id >>> SERIAL_BITS;
     }
 
     /**

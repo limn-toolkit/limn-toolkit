@@ -228,26 +228,84 @@ class AccessibleModelTest {
         return row.id();
     }
 
+    /**
+     * A relation names a node published in <em>some</em> window of the process, or it is dropped:
+     * a native popup's root names the field that opened it, which lives in another scene's tree,
+     * and that is kept; a target the resolver finds nowhere is worse than none (ADR 039 §1.11).
+     */
     @Test
     void aRelationNamingNothingPublishedIsDroppedRatherThanPublishedDangling() {
         Object opener = new Object();
-        Accessibility a = new Accessibility();
-        a.beginWalk(10, 10, Locale.ENGLISH);
-        a.begin(a.mint(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 10, 10);
-        a.role(Accessible.Role.MENU);
-        a.relation(Accessible.Relation.POPUP_FOR, opener);
-        a.end();
-        AccessibleTree dropped = publish(a, target -> 0);
-        assertTrue(dropped.root().relations().isEmpty());
+        Accessibility popup = new Accessibility();
+        popup.beginWalk(10, 10, Locale.ENGLISH);
+        popup.begin(popup.mint(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 10, 10);
+        popup.role(Accessible.Role.MENU);
+        popup.relation(Accessible.Relation.POPUP_FOR, opener);
+        popup.end();
+        AccessibleTree dropped = publish(popup, target -> 0);
+        assertTrue(dropped.root().relations().isEmpty(), "published nowhere: dropped");
 
-        a.beginWalk(10, 10, Locale.ENGLISH);
-        a.begin(a.mint(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 10, 10);
-        a.role(Accessible.Role.MENU);
-        a.relation(Accessible.Relation.POPUP_FOR, opener);
-        a.end();
-        AccessibleTree kept = publish(a, target -> 42);
+        // The opener is a node of ANOTHER scene of the process: kept, and the identifier says
+        // which scene's tree a bridge has to ask for it.
+        Accessibility host = new Accessibility();
+        host.beginWalk(10, 10, Locale.ENGLISH);
+        long combo = host.mint();
+        host.begin(combo, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 10, 10);
+        host.role(Accessible.Role.COMBO_BOX);
+        host.end();
+        AccessibleTree hostTree = publish(host, target -> 0);
+
+        popup.beginWalk(10, 10, Locale.ENGLISH);
+        popup.begin(popup.mint(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 10, 10);
+        popup.role(Accessible.Role.MENU);
+        popup.relation(Accessible.Relation.POPUP_FOR, opener);
+        popup.end();
+        AccessibleTree kept = publish(popup, target -> target == opener ? combo : 0);
         assertEquals(1, kept.root().relations().size());
-        assertEquals(42, kept.root().relations().get(0).target());
+        long target = kept.root().relations().get(0).target();
+        assertEquals(combo, target);
+        assertFalse(kept.holds(target), "the popup's own tree does not hold the opener");
+        assertTrue(hostTree.holds(target), "the host's does");
+        assertNotNull(hostTree.find(target));
+    }
+
+    /**
+     * Identifiers are process-wide: two scenes minting side by side never hand out the same
+     * number, and the number alone says which scene minted it, so a bridge holding several
+     * windows' trees can route an identifier without a registry (ADR 039 §1.3, amended
+     * 2026-09-14).
+     */
+    @Test
+    void twoScenesNeverMintTheSameIdentifierAndTheNumberSaysWhichSceneMintedIt() {
+        Accessibility first = new Accessibility();
+        Accessibility second = new Accessibility();
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        for (int i = 0; i < 100; i++) {
+            long a = first.mint();
+            long b = second.mint();
+            assertTrue(seen.add(a), "minted twice: " + a);
+            assertTrue(seen.add(b), "minted twice: " + b);
+            assertTrue(a != 0 && b != 0, "zero is never an identifier");
+            assertEquals(first.sceneTag(), Accessibility.sceneTagOf(a));
+            assertEquals(second.sceneTag(), Accessibility.sceneTagOf(b));
+        }
+        assertTrue(first.sceneTag() != second.sceneTag());
+        assertEquals(0, Accessibility.sceneTagOf(1000),
+                "an identifier a test wrote by hand belongs to no scene");
+        assertFalse(AccessibleTree.EMPTY.holds(first.mint()), "the empty tree holds nothing");
+
+        first.beginWalk(10, 10, Locale.ENGLISH);
+        long root = first.mint();
+        first.begin(root, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 10, 10);
+        first.role(Accessible.Role.WINDOW);
+        first.end();
+        AccessibleTree tree = publish(first, target -> 0);
+        assertEquals(first.sceneTag(), tree.sceneTag());
+        assertTrue(tree.holds(root));
+        assertFalse(tree.holds(second.mint()), "another scene's identifier is not this tree's");
+        assertTrue(tree.holds(first.mint()),
+                "holds() answers from the number alone, not from what this snapshot published; "
+                        + "find() says whether the node is in it");
     }
 
     @Test

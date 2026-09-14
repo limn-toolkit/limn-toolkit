@@ -716,6 +716,24 @@ until its refcount drops and answers `UIA_E_ELEMENTNOTAVAILABLE` meanwhile; its 
 `org.freedesktop.DBus.Error.UnknownObject` after a `Cache.RemoveAccessible` signal; its macOS element
 is posted `NSAccessibilityUIElementDestroyedNotification` and released.
 
+**Amendment, 2026-09-14: "process-wide" is now true by construction, and the number says which
+window.** The paragraph above promised one monotonic counter for the process and the code kept one
+per scene, so two windows minted the same identifiers and a relation could not name a node in another
+window at all — which §1.11 and §5.4 require of a native popup's `POPUP_FOR`, and which the
+2026-09-13 audit found unbuilt (CRIT-2, LINUX-NEW-8). The counter stays per scene, because a scene
+mints on its own thread's walk and a shared counter would be the one piece of cross-window state in
+the model; what changes is the shape of the number. **Every builder takes a tag when it is created,
+one per scene for the life of the process, and every identifier it mints is that tag above a
+forty-two-bit serial.** So an identifier names a node in any window of the process and never
+collides across scenes, and `AccessibleTree#sceneTag()` and `#holds(id)` answer "is this one of
+mine?" from the high bits alone — no registry, nothing kept in step with a publish, nothing allocated
+on a frame. `find(id)` stays per tree: `holds` says which tree to ask, `find` says whether the node
+is in that snapshot. A hand-written identifier (a test's `1000`) has tag `0` and belongs to no
+scene. The bridges' derived forms are unchanged in shape — a `long` split into two `int`s, a decimal
+path, a map key — and only grow in magnitude. `AccessibleModelTest` pins both halves: two scenes
+minting side by side never hand out one number twice, and a relation naming a node published in
+another scene is kept where one naming nothing published anywhere is still dropped.
+
 ### 1.4 The snapshot stores links, not child lists
 
 Each node holds `parent`, `firstChild`, `lastChild`, `nextSibling` and `previousSibling` as array

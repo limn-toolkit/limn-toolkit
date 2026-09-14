@@ -27,7 +27,7 @@ public final class AccessibleTree {
 
     /** The tree of a window that has nothing to say: no nodes, no stamp, no identifiers. */
     public static final AccessibleTree EMPTY = new AccessibleTree(
-            new AccessibleNode[0], 0, 0, 0, 1, false, 0, 0, Locale.ROOT, 0);
+            new AccessibleNode[0], 0, 0, 0, 1, false, 0, 0, Locale.ROOT, 0, 0);
 
     private final AccessibleNode[] nodes;
     private final long focused;
@@ -39,10 +39,12 @@ public final class AccessibleTree {
     private final float sceneHeight;
     private final Locale locale;
     private final long generation;
+    private final long sceneTag;
 
     AccessibleTree(AccessibleNode[] nodes, long focused, int screenX, int screenY,
                    float logicalToScreenFactor, boolean absolutePositioning,
-                   float sceneWidth, float sceneHeight, Locale locale, long generation) {
+                   float sceneWidth, float sceneHeight, Locale locale, long generation,
+                   long sceneTag) {
         this.nodes = nodes;
         this.focused = focused;
         this.screenX = screenX;
@@ -53,6 +55,7 @@ public final class AccessibleTree {
         this.sceneHeight = sceneHeight;
         this.locale = locale;
         this.generation = generation;
+        this.sceneTag = sceneTag;
     }
 
     /**
@@ -76,7 +79,31 @@ public final class AccessibleTree {
             return this;
         }
         return new AccessibleTree(nodes, focused, newScreenX, newScreenY, newFactor, positioning,
-                sceneWidth, sceneHeight, locale, generation + 1);
+                sceneWidth, sceneHeight, locale, generation + 1, sceneTag);
+    }
+
+    /**
+     * @return the tag every identifier minted for this window carries above its serial, which
+     *         is what makes an identifier process-wide (ADR 039 §1.3, amended 2026-09-14);
+     *         {@code 0} for the empty tree
+     */
+    public long sceneTag() {
+        return sceneTag;
+    }
+
+    /**
+     * Whether an identifier was minted for this window's scene, which is the question a bridge
+     * holding several windows' trees asks before {@link #find(long)}: a relation may name a node
+     * in another window &mdash; a native popup's root names the field that opened it &mdash; and
+     * the number alone says which tree to look in. Answered from the identifier's high bits and
+     * nothing else, so it costs no lookup and no registry; it does not say whether the node is
+     * in <em>this</em> snapshot, which {@link #find(long)} does.
+     *
+     * @param id a node identifier
+     * @return whether it belongs to this window's scene
+     */
+    public boolean holds(long id) {
+        return sceneTag != 0 && Accessibility.sceneTagOf(id) == sceneTag;
     }
 
     /** @return how many nodes this tree holds; {@code 0} for a window with nothing to say */
