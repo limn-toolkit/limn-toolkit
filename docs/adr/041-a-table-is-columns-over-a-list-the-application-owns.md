@@ -322,7 +322,10 @@ that holds the keyboard focus stays published wherever a scroll has taken the vi
 focus; since decision 22 the focus cell's row is also kept and published, off screen, while the
 table holds the keyboard — §2's amendment of the same date). The focus
 cell is the node published `ACTIVE`, so the table's active descendant is a cell and not a row — a
-reader that follows the active descendant lands on the value under the cursor. A `PRESS` on the
+reader that follows the active descendant lands on the value under the cursor (**amended
+2026-09-14:** true of a widget column's cell too since B1 — the control's own node, hung under
+its row by decision 3, is `ACTIVE` when the focus cell is on it; until then the ring was drawn
+there and the active descendant fell to nothing). A `PRESS` on the
 table activates the lead row; `SELECT` on a row selects it.
 
 **Amended 2026-09-14 (decisions 10, 11 and 32 of the 2026-09-13 pass; TABLE-NEW-13).** The

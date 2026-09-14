@@ -2794,6 +2794,12 @@ public class Table<T> extends Widget implements Scrollable {
             s++;
         }
         a.cell(slot.row, s);
+        if (slot.row == focusRow && s == focusColumn && s < shownCount && isFocused()) {
+            // The focus cell in a widget column is the cursor exactly as a value cell is (B1,
+            // 2026-09-14): the ring was drawn on it and the reader was told nothing, so the
+            // active descendant fell to nothing on every Right into a switch column.
+            a.state(Accessible.State.ACTIVE);
+        }
     }
 
     @Override

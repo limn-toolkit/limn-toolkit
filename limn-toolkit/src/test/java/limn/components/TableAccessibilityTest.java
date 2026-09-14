@@ -552,6 +552,41 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * B1 (2026-09-14): the focus ring was drawn on a widget column's cell and the reader was
+     * told nothing, so every Right into the "Flagged" column emptied the active descendant. The
+     * control's own node is the cursor there, exactly as a value cell is; found by its facet,
+     * not its position, and with the same one-event announcement.
+     */
+    @Test
+    void aFocusCellInAWidgetColumnIsTheActiveDescendant() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.<Person>widget("Open", p -> new Button(p.name())).width(80)));
+        table.setRows(people(30));
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(3);
+        frame();
+        bridge.events.clear();
+        scene.keyEvent(Keys.RIGHT, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one cursor: " + describe(tree()));
+        assertEquals(Accessible.Role.BUTTON, active.get(0).role(), "the control is the cursor");
+        assertEquals(new CellFacet(3, 1), active.get(0).cell());
+        assertEquals(active.get(0).id(), tree().activeDescendant());
+        assertEquals(1, bridge.countOf(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "one cursor move, announced once: " + bridge.events);
+        scene.keyEvent(Keys.LEFT, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(new CellFacet(3, 0), nodesWith(Accessible.State.ACTIVE).get(0).cell(),
+                "and Left brings the cursor back to the value cell");
+    }
+
+    /**
      * A wide table publishes a cell for every shown column of every realized row, off-screen
      * columns included, so nine rows over five hundred columns is more interned pairs than the
      * table started out holding; a quiet frame must still publish nothing (MODEL-NEW-7).
