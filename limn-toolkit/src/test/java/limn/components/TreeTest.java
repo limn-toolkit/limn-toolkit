@@ -17,6 +17,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -389,6 +390,277 @@ class TreeTest extends ComponentTestBase {
         assertTrue(changes.stream().anyMatch(c -> c.aspect() == limn.scene.Change.Aspect.ACTIVE
                         && c.origin() == limn.scene.Change.Origin.ADJUSTMENT),
                 "and the tree said so, as an adjustment of its own: " + changes);
+    }
+
+    // ------------------------------------------------------------------------- MULTI
+
+    /** The cell drawing {@code name}, found among the tree's children. */
+    private static Widget cellOf(Tree<Node> tree, String name) {
+        for (Widget child : tree.children()) {
+            if (child instanceof Label label && label.text().equals(name)) {
+                return child;
+            }
+        }
+        throw new AssertionError("no cell is drawing " + name);
+    }
+
+    /** A press and release at the middle of {@code name}'s cell, with {@code modifiers} held. */
+    private void click(Tree<Node> tree, String name, int modifiers) {
+        Widget cell = cellOf(tree, name);
+        float x = cell.localToSceneX() + cell.width() / 2;
+        float y = cell.localToSceneY() + cell.height() / 2;
+        scene.mouseButton(Keys.MOUSE_LEFT, true, modifiers, x, y);
+        scene.mouseButton(Keys.MOUSE_LEFT, false, modifiers, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+    }
+
+    private void press(int key, int modifiers) {
+        scene.keyEvent(key, true, false, modifiers);
+        scene.keyEvent(key, false, false, modifiers);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+    }
+
+    /** The open forest as rows: root, docs, a.md, b.md, readme. */
+    private Tree<Node> openForest(Node root) {
+        Tree<Node> tree = mount(new CountingModel(List.of(root, Node.leaf("two"))));
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.expand(root);
+        tree.expand(root.children().get(0));
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+        return tree;
+    }
+
+    /**
+     * The command modifier is the platform's — {@link Accelerator#commandModifier()}, Command
+     * on macOS and Control elsewhere — and not a fixed Super bit, which is what the press site
+     * read and what made the demo's "the command modifier adds a row" false on Windows and
+     * Linux (T1). The modifier is injected, so the case reads the same on this Mac and on CI's
+     * Ubuntu.
+     */
+    @Test
+    void aCommandClickAddsARowToAMultiSelection() {
+        Node root = forest();
+        Tree<Node> tree = openForest(root);
+        Node docs = root.children().get(0);
+        Node readme = root.children().get(1);
+
+        click(tree, "docs", 0);
+        click(tree, "readme", Accelerator.commandModifier());
+        assertEquals(List.of(docs, readme), tree.selectedNodes(),
+                "the second click, with the platform's command modifier, added a row");
+        assertEquals(readme, tree.leadNode());
+
+        click(tree, "docs", Accelerator.commandModifier());
+        assertEquals(List.of(readme), tree.selectedNodes(), "and a third took one away");
+        assertEquals(readme, tree.leadNode(), "the lead was already on the other row");
+        assertEquals(docs, tree.cursorNode(), "the cursor is on the row that was clicked");
+    }
+
+    /**
+     * Shift extends a range from the anchor over the visible rows, replacing the selection as
+     * {@code Table}'s does: Shift+click, then Shift+arrows from the same anchor (T2; decision 31).
+     * A node hidden under a closed branch is not between two visible rows and leaves when a
+     * range replaces the selection, though a collapse alone keeps it (ADR 044 §6).
+     */
+    @Test
+    void shiftClickAndShiftArrowsSelectARangeOverTheVisibleRows() {
+        Node root = forest();
+        Tree<Node> tree = openForest(root);
+        Node docs = root.children().get(0);
+        Node aMd = docs.children().get(0);
+        Node bMd = docs.children().get(1);
+        Node readme = root.children().get(1);
+
+        click(tree, "docs", 0);
+        click(tree, "readme", Keys.MOD_SHIFT);
+        assertEquals(List.of(docs, aMd, bMd, readme), tree.selectedNodes(),
+                "from the anchor to the row clicked, in traversal order, the children included");
+        assertEquals(readme, tree.leadNode());
+        assertEquals(readme, tree.cursorNode());
+
+        press(Keys.UP, Keys.MOD_SHIFT);
+        assertEquals(List.of(docs, aMd, bMd), tree.selectedNodes(),
+                "Shift+Up shrinks the range back toward the same anchor");
+        assertEquals(bMd, tree.cursorNode());
+
+        press(Keys.UP, Keys.MOD_SHIFT);
+        press(Keys.UP, Keys.MOD_SHIFT);
+        press(Keys.UP, Keys.MOD_SHIFT);
+        assertEquals(List.of(root, docs), tree.selectedNodes(),
+                "and past the anchor the range runs the other way from it");
+
+        press(Keys.END, Keys.MOD_SHIFT);
+        assertEquals(List.of(docs, aMd, bMd, readme, tree.cursorNode()), tree.selectedNodes(),
+                "Shift+End takes everything from the anchor to the last row");
+
+        tree.setSelected(bMd);
+        tree.collapse(docs);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(bMd), tree.selectedNodes(),
+                "a collapse alone keeps a hidden selection (ADR 044 §6)");
+        click(tree, "root", 0);
+        click(tree, "readme", Keys.MOD_SHIFT);
+        assertEquals(List.of(root, docs, readme), tree.selectedNodes(),
+                "a range replaces the selection, and the hidden node is not in it");
+    }
+
+    /**
+     * Ctrl+A or Cmd+A selects every open row and {@link Tree#selectAll()} enters the same seam
+     * as a caller's write: what is visible, so a node under a closed branch is not taken. In
+     * SINGLE the chord does nothing.
+     */
+    @Test
+    void commandASelectsEveryOpenRowAndSelectAllIsTheCallersWrite() {
+        Node root = forest();
+        Tree<Node> tree = openForest(root);
+        Node docs = root.children().get(0);
+        tree.collapse(docs);
+        scene.layoutPass(220, 200);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        press(Keys.A, Accelerator.commandModifier());
+        assertEquals(4, tree.selectedNodes().size(),
+                "the two roots and the open root's children: " + tree.selectedNodes());
+        assertEquals(List.of(root, docs, root.children().get(1)), tree.selectedNodes().subList(0, 3),
+                "every open row, in traversal order");
+        assertFalse(tree.selectedNodes().contains(docs.children().get(0)),
+                "a node under a closed branch is not an open row");
+        assertEquals(1, changes.size(), "announced once: " + changes);
+        assertEquals(limn.scene.Change.Origin.USER, changes.get(0).origin());
+        assertEquals(root, tree.leadNode(), "with nothing leading, the first row does");
+
+        tree.clearSelection();
+        changes.clear();
+        tree.selectAll();
+        assertEquals(4, tree.selectedNodes().size());
+        assertEquals(limn.scene.Change.Origin.CODE, changes.get(0).origin(),
+                "the caller's write announces as the caller's: " + changes);
+
+        tree.setSelectionMode(Tree.SelectionMode.SINGLE);
+        tree.setSelected(docs);
+        press(Keys.A, Accelerator.commandModifier());
+        assertEquals(List.of(docs), tree.selectedNodes(), "SINGLE has no select-all");
+    }
+
+    /**
+     * The programmatic set: {@link Tree#setSelectedNodes} replaces the selection with the nodes
+     * named, the last as the lead and under the cursor, and {@link Tree#clearSelection()} drops
+     * it and leaves the cursor; each announces once as {@code CODE}, and neither reaches
+     * {@code onSelect}, which is the user's. The modes that cannot hold the set refuse it.
+     */
+    @Test
+    void setSelectedNodesAndClearSelectionAnnounceOnceAsCode() {
+        Node root = forest();
+        Tree<Node> tree = openForest(root);
+        Node docs = root.children().get(0);
+        Node readme = root.children().get(1);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        int[] userHeard = {0};
+        tree.onSelect(() -> userHeard[0]++);
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        tree.setSelectedNodes(List.of(readme, docs));
+        assertEquals(List.of(readme, docs), tree.selectedNodes(), "in the order named");
+        assertEquals(docs, tree.leadNode(), "the last named leads");
+        assertEquals(docs, tree.cursorNode(), "and is under the cursor");
+        assertEquals(List.of(limn.scene.Change.Aspect.ACTIVE, limn.scene.Change.Aspect.SELECTION),
+                changes.stream().map(limn.scene.Change::aspect).toList(), changes.toString());
+        assertEquals(limn.scene.Change.Origin.CODE, changes.get(1).origin());
+
+        changes.clear();
+        tree.setSelectedNodes(List.of(readme, docs));
+        assertTrue(changes.isEmpty(), "the same set again moves nothing: " + changes);
+
+        tree.clearSelection();
+        assertTrue(tree.selectedNodes().isEmpty());
+        assertNull(tree.leadNode());
+        assertEquals(docs, tree.cursorNode(), "clearing the selection leaves the cursor");
+        assertEquals(List.of(limn.scene.Change.Aspect.SELECTION),
+                changes.stream().map(limn.scene.Change::aspect).toList(), changes.toString());
+        assertEquals(0, userHeard[0], "none of it was the user's");
+
+        tree.setSelectionMode(Tree.SelectionMode.SINGLE);
+        assertThrows(IllegalStateException.class,
+                () -> tree.setSelectedNodes(List.of(readme, docs)), "SINGLE holds one");
+        tree.setSelectedNodes(List.of(readme));
+        assertEquals(List.of(readme), tree.selectedNodes());
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        assertThrows(IllegalStateException.class, () -> tree.setSelectedNodes(List.of(readme)),
+                "NONE holds nothing");
+    }
+
+    /**
+     * A second press on the same row within the table's 400 ms activates it, like Enter
+     * (decision 46 of 2026-09-14); a press with a modifier does not, and one outside the window
+     * is a first press again.
+     */
+    @Test
+    void aDoubleClickActivatesTheRowLikeEnter() {
+        Node root = forest();
+        CountingModel model = new CountingModel(List.of(root, Node.leaf("two")));
+        long[] now = {1_000_000_000L};
+        Tree<Node> tree = new Tree<>(model);
+        scene = new Scene(tree, () -> now[0]);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        scene.renderFrame(new RecordingTestCanvas(220, 200));
+        List<Node> activated = new ArrayList<>();
+        tree.onActivate(activated::add);
+
+        click(tree, "root", 0);
+        now[0] += 200_000_000L;
+        click(tree, "root", 0);
+        assertEquals(List.of(root), activated, "two presses 200 ms apart on one row activate it");
+
+        now[0] += 200_000_000L;
+        click(tree, "root", 0);
+        assertEquals(List.of(root), activated,
+                "the third press starts over rather than activating again");
+
+        now[0] += 1_000_000_000L;
+        click(tree, "two", 0);
+        now[0] += 500_000_000L;
+        click(tree, "two", 0);
+        assertEquals(List.of(root), activated, "half a second apart is two clicks");
+
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        now[0] += 1_000_000_000L;
+        click(tree, "two", Accelerator.commandModifier());
+        now[0] += 100_000_000L;
+        click(tree, "two", Accelerator.commandModifier());
+        assertEquals(List.of(root), activated, "a modified double press toggles and activates nothing");
+    }
+
+    /**
+     * With several rows selected, toggling the lead off moves the lead to the row selected most
+     * recently that is still selected, as {@code Table} does (TREE-NEW-10); the cursor stays on
+     * the row that was toggled.
+     */
+    @Test
+    void aToggleOffMovesTheLeadToTheRowSelectedLastThatIsStillSelected() {
+        Node root = forest();
+        Tree<Node> tree = openForest(root);
+        Node docs = root.children().get(0);
+        Node readme = root.children().get(1);
+
+        click(tree, "root", 0);
+        click(tree, "docs", Accelerator.commandModifier());
+        click(tree, "readme", Accelerator.commandModifier());
+        assertEquals(List.of(root, docs, readme), tree.selectedNodes());
+        assertEquals(readme, tree.leadNode());
+
+        press(Keys.SPACE, 0); // toggles the cursor row, readme, off
+        assertEquals(List.of(root, docs), tree.selectedNodes());
+        assertEquals(docs, tree.leadNode(), "the lead falls back to the last row still selected");
+        assertEquals(readme, tree.cursorNode(), "and the cursor stays on the toggled row");
+
+        click(tree, "docs", Accelerator.commandModifier());
+        assertEquals(root, tree.leadNode());
+        assertEquals(docs, tree.cursorNode());
     }
 
     @Test

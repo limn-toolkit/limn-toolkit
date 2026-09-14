@@ -2,6 +2,7 @@ package limn.components.tree;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.Accelerator;
 import limn.components.ScrollBar;
 import limn.components.ScrollGutters;
 import limn.components.SizeTokens;
@@ -25,6 +26,7 @@ import limn.scene.event.MouseEvent;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -84,7 +86,10 @@ public class Tree<T> extends Widget implements Scrollable {
         NONE,
         /** One row. */
         SINGLE,
-        /** Any number of rows: the command modifier toggles one. */
+        /**
+         * Any number of rows: the command modifier toggles one, Shift extends a range over the
+         * visible rows, and Ctrl+A or Cmd+A takes every open row.
+         */
         MULTI
     }
 
@@ -225,6 +230,14 @@ public class Tree<T> extends Widget implements Scrollable {
 
     /** Rows of intrinsic height when the height axis is unbounded; a count, not a length. */
     private static final int VISIBLE_ROWS_HINT = 8;
+    /** Two presses on one row closer than this are a double click; the table's window. */
+    private static final long DOUBLE_CLICK_NANOS = 400_000_000L;
+    /**
+     * How many changed rows are still worth damaging one at a time before the whole tree is
+     * cheaper: the table's number, for the table's reason (the damage list merges past a
+     * handful of bands into the box anyway).
+     */
+    private static final int MAX_DAMAGED_ROWS = 6;
 
     /** One turn of a loading spinner, in seconds of wall time. */
     private static final double SPIN_SECONDS = 1.0;
@@ -322,6 +335,16 @@ public class Tree<T> extends Widget implements Scrollable {
      * {@code null} with nothing selected. Never a node outside {@link #selected}.
      */
     private T lead;
+    /**
+     * The node a Shift range extends from: where the last plain click, plain arrow or toggle
+     * put the cursor. A node and not a row index, because opening a row renumbers every row
+     * below it and the anchor has to survive that; hidden by a collapse it stands for nothing,
+     * and the next range starts at its own target.
+     */
+    private T rangeAnchor;
+    /** The last row pressed and when, for the double click. */
+    private T lastPressNode;
+    private long lastPressNanos;
     /** The node whose expansion a handler is about to be told of; see {@link #handleUserChange}. */
     private T toggled;
 
@@ -764,6 +787,104 @@ public class Tree<T> extends Widget implements Scrollable {
     }
 
     /**
+     * Selects exactly {@code nodes}, in that order, with the last as the lead and under the
+     * cursor: what an application restoring a saved selection calls. In
+     * {@link SelectionMode#SINGLE} only one node may be named. Announces {@code SELECTION}/{@code
+     * CODE} once when the set changed. UI thread only.
+     *
+     * @param nodes the nodes; none clears the selection
+     * @return this tree
+     * @throws IllegalStateException if the mode is {@link SelectionMode#NONE}, or SINGLE and
+     *                               more than one node is named
+     */
+    public Tree<T> setSelectedNodes(Collection<? extends T> nodes) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(nodes, "nodes");
+        if (nodes.isEmpty()) {
+            return clearSelection();
+        }
+        if (selectionMode == SelectionMode.NONE) {
+            throw new IllegalStateException("selection mode is NONE");
+        }
+        if (selectionMode == SelectionMode.SINGLE && nodes.size() > 1) {
+            throw new IllegalStateException("selection mode is SINGLE");
+        }
+        Set<T> before = new LinkedHashSet<>(selected);
+        T wasCursor = cursor;
+        selected.clear();
+        T last = null;
+        for (T node : nodes) {
+            selected.add(Objects.requireNonNull(node, "node"));
+            last = node;
+        }
+        boolean same = selected.equals(before) && Objects.equals(lead, last);
+        lead = last;
+        cursor = last;
+        rangeAnchor = last;
+        revealNode(last);
+        damageSelectionChange(before, wasCursor);
+        announceCursor(wasCursor, Change.Origin.CODE);
+        if (!same) {
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.CODE));
+        }
+        return this;
+    }
+
+    /**
+     * Drops the selection, announced as {@code SELECTION}/{@code CODE}; nothing happens when
+     * nothing is selected. The cursor stays where it is. UI thread only.
+     *
+     * @return this tree
+     */
+    public Tree<T> clearSelection() {
+        Ui.checkUiThread();
+        if (selected.isEmpty()) {
+            return this;
+        }
+        Set<T> before = new LinkedHashSet<>(selected);
+        selected.clear();
+        lead = null;
+        damageSelectionChange(before, cursor);
+        notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.CODE));
+        return this;
+    }
+
+    /**
+     * Selects every open row, in {@link SelectionMode#MULTI}: what is visible, so a node under
+     * a closed branch is not taken (decision 31 of 2026-09-14). The lead is kept where it is in
+     * the selection, or becomes the first row; the cursor does not move. A caller's write,
+     * announced as {@code SELECTION}/{@code CODE}; Ctrl+A or Cmd+A enters the same seam as the
+     * user's. UI thread only.
+     *
+     * @return this tree
+     */
+    public Tree<T> selectAll() {
+        Ui.checkUiThread();
+        selectAll(Change.Origin.CODE);
+        return this;
+    }
+
+    private void selectAll(Change.Origin origin) {
+        if (selectionMode != SelectionMode.MULTI || rows.isEmpty()) {
+            return;
+        }
+        Set<T> before = new LinkedHashSet<>(selected);
+        for (Row<T> row : rows) {
+            if (!row.placeholder) {
+                selected.add(row.node);
+            }
+        }
+        if (selected.equals(before)) {
+            return;
+        }
+        if (lead == null || !selected.contains(lead)) {
+            lead = rows.get(0).node;
+        }
+        damageSelectionChange(before, cursor);
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+    }
+
+    /**
      * The one place a single selection moves, and the one seam it announces from: the public
      * setter passes {@code CODE}, and every key and click passes {@code USER}. The cursor moves
      * first, in every mode, and is announced first as {@code ACTIVE} when it moved; the selection
@@ -782,6 +903,9 @@ public class Tree<T> extends Widget implements Scrollable {
             damageCursorMove(wasCursor);
             announceCursor(wasCursor, origin);
             return;
+        }
+        if (node != null) {
+            rangeAnchor = node;
         }
         boolean same = node == null ? selected.isEmpty()
                 : selected.size() == 1 && selected.contains(node);
@@ -821,6 +945,7 @@ public class Tree<T> extends Widget implements Scrollable {
         }
         T wasCursor = cursor;
         cursor = node;
+        rangeAnchor = node;
         if (!selected.remove(node)) {
             selected.add(node);
             lead = node;
@@ -832,6 +957,74 @@ public class Tree<T> extends Widget implements Scrollable {
         damageCursorMove(wasCursor);
         announceCursor(wasCursor, origin);
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+    }
+
+    /**
+     * Replaces the selection with the visible rows between the range anchor and the row at
+     * {@code index}, in traversal order, which is what Shift does in {@code MULTI} (decision 31
+     * of 2026-09-14: parity with {@code Table}). A selected node hidden under a closed branch is
+     * not between two visible rows and leaves, as {@code selectOnly} drops it; an anchor hidden
+     * the same way stands for nothing, and the range is the target alone. The cursor and the
+     * lead land on the target; the anchor stays.
+     */
+    private void selectRange(int index) {
+        int to = Math.min(Math.max(0, index), rows.size() - 1);
+        int from = rangeAnchor == null ? -1 : indexOf(rangeAnchor);
+        if (from < 0) {
+            from = to;
+        }
+        Set<T> before = new LinkedHashSet<>(selected);
+        T wasCursor = cursor;
+        selected.clear();
+        for (int i = Math.min(from, to); i <= Math.max(from, to); i++) {
+            Row<T> row = rows.get(i);
+            if (!row.placeholder) {
+                selected.add(row.node);
+            }
+        }
+        T target = rows.get(to).node; // a loading line's node is its row's, as a click's is
+        lead = target;
+        cursor = target;
+        revealNode(target);
+        damageSelectionChange(before, wasCursor);
+        announceCursor(wasCursor, Change.Origin.USER);
+        if (!selected.equals(before)) {
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
+        }
+    }
+
+    /**
+     * Damages what a selection move changed: every row that entered or left the selection, and
+     * the cursor's old and new bands — or the whole tree past {@link #MAX_DAMAGED_ROWS}, which
+     * is the honest answer for a select-all (the table's rule, ADR 043 §9.2).
+     */
+    private void damageSelectionChange(Set<T> before, T wasCursor) {
+        int changed = 0;
+        for (T node : before) {
+            if (!selected.contains(node)) {
+                changed++;
+            }
+        }
+        for (T node : selected) {
+            if (!before.contains(node)) {
+                changed++;
+            }
+        }
+        if (changed > MAX_DAMAGED_ROWS) {
+            invalidate();
+            return;
+        }
+        for (T node : before) {
+            if (!selected.contains(node)) {
+                damageNode(node);
+            }
+        }
+        for (T node : selected) {
+            if (!before.contains(node)) {
+                damageNode(node);
+            }
+        }
+        damageCursorMove(wasCursor);
     }
 
     /** The node selected most recently among those still selected, or {@code null}. */
@@ -943,8 +1136,8 @@ public class Tree<T> extends Widget implements Scrollable {
     }
 
     /**
-     * The application's response to the user opening the cursor row: Enter, an assistive
-     * technology's press. Handed the cursor row, which in {@code NONE} is a row that was never
+     * The application's response to the user opening the cursor row: Enter, a double click, an
+     * assistive technology's press. Handed the cursor row, which in {@code NONE} is a row that was never
      * selected. Never for {@link #activate()}, which is a caller's verb.
      *
      * @param handler the handler, or {@code null} to clear the slot
@@ -1421,13 +1614,22 @@ public class Tree<T> extends Widget implements Scrollable {
             return;
         }
         boolean rtl = isRightToLeft();
+        int mods = event.modifiers();
+        // Shift extends a range in MULTI, from the anchor to wherever the key lands (decision 31).
+        boolean extend = selectionMode == SelectionMode.MULTI && (mods & Keys.MOD_SHIFT) != 0;
         switch (event.key()) {
-            case Keys.DOWN -> consumeAnd(event, () -> moveLead(1));
-            case Keys.UP -> consumeAnd(event, () -> moveLead(-1));
-            case Keys.PAGE_DOWN -> consumeAnd(event, () -> moveLead(rowsPerPage(tokens())));
-            case Keys.PAGE_UP -> consumeAnd(event, () -> moveLead(-rowsPerPage(tokens())));
-            case Keys.HOME -> consumeAnd(event, () -> selectAt(0));
-            case Keys.END -> consumeAnd(event, () -> selectAt(rows.size() - 1, -1));
+            case Keys.DOWN -> consumeAnd(event, () -> moveLead(1, extend));
+            case Keys.UP -> consumeAnd(event, () -> moveLead(-1, extend));
+            case Keys.PAGE_DOWN -> consumeAnd(event, () -> moveLead(rowsPerPage(tokens()), extend));
+            case Keys.PAGE_UP -> consumeAnd(event, () -> moveLead(-rowsPerPage(tokens()), extend));
+            case Keys.HOME -> consumeAnd(event, () -> selectAt(0, 1, extend));
+            case Keys.END -> consumeAnd(event, () -> selectAt(rows.size() - 1, -1, extend));
+            case Keys.A -> {
+                if ((mods & Accelerator.commandModifier()) != 0
+                        && selectionMode == SelectionMode.MULTI) {
+                    consumeAnd(event, () -> selectAll(Change.Origin.USER));
+                }
+            }
             // Right opens a closed row and steps into an open one; Left closes an open row and
             // steps to the parent of a closed one. Reading right to left the two swap, as every
             // other pair of horizontal arrows in this toolkit does.
@@ -1495,20 +1697,20 @@ public class Tree<T> extends Widget implements Scrollable {
      * second. {@code ListView} answers the same way for the same reason — a dead-ended arrow is
      * not a programming error, and neither is a first one.
      */
-    private void moveLead(int delta) {
+    private void moveLead(int delta, boolean extend) {
         if (rows.isEmpty()) {
             return;
         }
         if (cursor == null) {
-            selectAt(anchorIndex);
+            selectAt(anchorIndex, 1, extend);
             return;
         }
         int from = indexOf(cursor);
-        selectAt(from < 0 ? anchorIndex : from + delta, delta);
+        selectAt(from < 0 ? anchorIndex : from + delta, delta, extend);
     }
 
     private void selectAt(int index) {
-        selectAt(index, 1);
+        selectAt(index, 1, false);
     }
 
     /**
@@ -1520,7 +1722,7 @@ public class Tree<T> extends Widget implements Scrollable {
      * that way (a line at the very end) the row above is taken, which is the line's own row; a
      * root is never a line, so there always is one.
      */
-    private void selectAt(int index, int toward) {
+    private void selectAt(int index, int toward, boolean extend) {
         if (rows.isEmpty()) {
             return;
         }
@@ -1536,7 +1738,11 @@ public class Tree<T> extends Widget implements Scrollable {
                 found--;
             }
         }
-        selectOnly(rows.get(found).node, true, Change.Origin.USER);
+        if (extend) {
+            selectRange(found);
+        } else {
+            selectOnly(rows.get(found).node, true, Change.Origin.USER);
+        }
     }
 
     /** A page is a viewport of rows: a count derived from the current estimate, not a token. */
@@ -1607,10 +1813,27 @@ public class Tree<T> extends Widget implements Scrollable {
             setExpanded(row.node, !row.expanded, Change.Origin.USER);
             return;
         }
-        if (selectionMode == SelectionMode.MULTI && (event.modifiers() & Keys.MOD_SUPER) != 0) {
+        // The platform's command modifier, not a fixed bit (T1): Command on macOS, Control
+        // elsewhere, which is what Table reads and what the demo's label promises.
+        int mods = event.modifiers();
+        boolean command = (mods & Accelerator.commandModifier()) != 0;
+        boolean shift = (mods & Keys.MOD_SHIFT) != 0;
+        long now = sceneNanos();
+        boolean second = row.node.equals(lastPressNode)
+                && now - lastPressNanos < DOUBLE_CLICK_NANOS;
+        lastPressNode = row.node;
+        lastPressNanos = second ? 0 : now;
+        if (selectionMode == SelectionMode.MULTI && command) {
             toggleSelection(row.node, Change.Origin.USER);
+        } else if (selectionMode == SelectionMode.MULTI && shift) {
+            selectRange(index);
         } else {
             selectOnly(row.node, true, Change.Origin.USER);
+        }
+        if (second && !command && !shift) {
+            // A double click activates, like Enter (decision 46 of 2026-09-14): an application
+            // that wants it to open the branch does so in onActivate.
+            activate(Change.Origin.USER);
         }
     }
 

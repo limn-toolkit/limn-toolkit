@@ -250,6 +250,38 @@ swap, as `Table`'s already do.
 into a list: a selection survives an expand that renumbers every row below it, and a collapse
 leaves a selected descendant selected and unrealized rather than silently dropping it.
 
+**Amendment, 2026-09-14: the cursor is not the selection, and `MULTI` has the table's gestures.**
+The sentence above named the modes and not the gestures, and the widget shipped with one field
+that was at once the keyboard row, the node `onSelect` reported and what Enter activated; in
+`NONE` it never moved. Decisions 14, 31, 32 and 46 of this date settle the shape, and this is
+exactly what is in:
+
+- **Two fields.** `cursorNode()` is the row the keyboard is on: it moves with the arrows in every
+  mode, `NONE` included, is `ACTIVE` to a reader while the tree holds the focus, and is what
+  Enter, a double click and a reader's `PRESS` activate — in `NONE` too, since it is the one row the
+  user pointed at. `leadNode()` is the selection's lead, the node selected last and still selected,
+  never one outside the set; `onSelect` takes no node, and the application reads `selectedNodes()`.
+  A row toggled off keeps the cursor and loses the lead, which falls back to the node selected most
+  recently that is still selected. The cursor is announced as `ACTIVE` before the selection it moved
+  with, as `Table`'s focus cell is (ADR 040 §7.2).
+- **`MULTI`.** The command modifier — `Accelerator.commandModifier()`, Command on macOS and Control
+  elsewhere, not a fixed Super bit — toggles one row. Shift+click and Shift with Up, Down, Page Up,
+  Page Down, Home and End select the visible rows between the anchor and the target in traversal
+  order, **replacing** the selection: a selected node hidden under a closed branch is not between
+  two visible rows and leaves, exactly as a plain click drops it, while a collapse alone still keeps
+  it (the paragraph above stands). The anchor is a node, set by every plain click, arrow or toggle,
+  so an expand that renumbers the rows does not move it; hidden by a collapse it stands for nothing
+  and the next range is its target alone. Ctrl+A or Cmd+A and `selectAll()` take every open row and
+  no hidden one. `setSelectedNodes(...)` and `clearSelection()` are the caller's writes, announced
+  once as `CODE`, and refuse a set the mode cannot hold.
+- **Double click** activates the cursor row within the table's 400 ms window, like Enter; an
+  application that wants it to open the branch does that in `onActivate`.
+- **Row verbs** (decision 20): each `TREE_ITEM` publishes what it accepts by state — `SELECT` unless
+  the mode is `NONE`, `ADD_TO_SELECTION` or `DESELECT` in `MULTI`, `EXPAND` or `COLLAPSE` where it can
+  open, and `FOCUS` and `SCROLL_INTO_VIEW` — performed by the tree through the delegation hook (ADR
+  039 §1.5, amended 2026-09-14). `FOCUS` moves the cursor without selecting, `EXPAND` and `COLLAPSE`
+  act like the triangle and move nothing. The tree's own node publishes `PRESS` alone.
+
 ## 7. Damage
 
 Expanding a row moves every row below it, so the frame damages the viewport from that row down and
