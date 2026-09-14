@@ -1371,6 +1371,21 @@ public class DateField extends Widget {
         return isFocused() || keyboardActive;
     }
 
+    /**
+     * Whether the picker's popup, and not this field, is where the keyboard is: the popup is
+     * open and the picker is not aiming here (decision 5, 2026-09-14). In a window of its own
+     * the popup takes no focus, so this field keeps it and its caret; but the calendar's cursor
+     * is what the arrows move, and the tree's effective focus falls through to that cursor in
+     * the popup's tree only when the focused node's own subtree holds no {@code ACTIVE} node
+     * (semantics 4). The caret segment therefore stops claiming {@code ACTIVE} for as long as
+     * the popup holds the keyboard, and claims it again the moment the popup closes or the
+     * picker aims back here. In the scene presentation the overlay holds the focus and the
+     * picker aims here for the digits, so nothing changes there.
+     */
+    private boolean popupHoldsKeyboard() {
+        return popupOpen != null && !keyboardActive && popupOpen.getAsBoolean();
+    }
+
     // ------------------------------------------------------------------ parsing a whole string
 
     /**
@@ -2011,7 +2026,7 @@ public class DateField extends Widget {
                             ? yearSpoken(field) : segmentText(field), valueRevision);
                 }
                 a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
-                if (slot == focusedSlot && caretShown()) {
+                if (slot == focusedSlot && caretShown() && !popupHoldsKeyboard()) {
                     a.state(Accessible.State.ACTIVE);
                 }
                 a.endChild();

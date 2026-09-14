@@ -96,6 +96,50 @@ class DatePickerNativePopupTest {
         assertTrue(offers(field, Accessible.Action.EXPAND));
     }
 
+    /**
+     * Decision 5 and semantics 4 in the same presentation: the field keeps the focus while the
+     * calendar is a window of its own, and the tree's effective focus falls through to the
+     * cursor in the popup's tree only when the focused node's own subtree holds no
+     * {@code ACTIVE} node. Until 2026-09-14 the field's caret segment stayed {@code ACTIVE}
+     * for as long as the field was focused, so the cross-window fallback could never fire for
+     * a date picker: a reader arrowing across the month was told the field's day segment.
+     */
+    @Test
+    void whileTheCalendarWindowHoldsTheKeyboardTheEffectiveFocusIsItsCursorNotTheFieldsCaret() {
+        DatePicker picker = new DatePicker();
+        picker.setDate(LocalDate.of(2026, 9, 9));
+        HeadlessWindow host = show(picker);
+        AccessibleTree tree = host.bridge().tree();
+        AccessibleNode field = fieldNode(tree);
+        long caret = tree.firstActiveBelow(tree.indexOf(field.id()));
+        assertTrue(caret != 0, "closed and focused, the caret segment is the active descendant "
+                + Transcript.of(tree));
+        assertEquals(caret, tree.effectiveFocus());
+
+        picker.open();
+        HeadlessWindow popup = popupWindow();
+        settle(host, popup);
+        assertTrue(picker.field().isFocused(), "the field keeps the focus");
+        tree = host.bridge().tree();
+        field = fieldNode(tree);
+        assertEquals(0, tree.firstActiveBelow(tree.indexOf(field.id())),
+                "open: the field's subtree claims no ACTIVE node " + Transcript.of(tree));
+        AccessibleTree popupTree = popup.bridge().tree();
+        long cursor = popupTree.firstActiveBelow(0);
+        assertTrue(cursor != 0, "the popup's tree holds the cursor " + Transcript.of(popupTree));
+        assertEquals(cursor, tree.effectiveFocus(),
+                "and the host tree's effective focus is that cursor, read across the windows");
+        assertEquals(field.id(), tree.focused(), "while the focused node is still the field");
+
+        picker.close();
+        settle(host, popup);
+        tree = host.bridge().tree();
+        field = fieldNode(tree);
+        assertEquals(caret, tree.firstActiveBelow(tree.indexOf(field.id())),
+                "closed again, the caret segment is active once more");
+        assertEquals(caret, tree.effectiveFocus());
+    }
+
     private HeadlessWindow show(limn.scene.Widget content) {
         Column root = new Column();
         root.add(content);

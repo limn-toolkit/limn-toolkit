@@ -400,6 +400,20 @@ closed" entry so the field is ratcheted as it stands in a form. Pinned by
 `DatePickerAccessibilityTest` and
 `CalendarViewAccessibilityTest.theTitleExpandsAndCollapsesAsWellAsPressesAndRefusesTheVerbItDoesNotPublish`.
 
+**Amendment, 2026-09-14 (decision 5, semantics 4 — the native presentation's effective focus):
+the caret yields to the popup's cursor.** With the calendar in a window of its own the field keeps
+the focus and the popup takes none, and the tree's effective focus falls through to the cursor
+in the popup's tree only when the focused node's own subtree holds no `ACTIVE` node. The field's
+caret segment therefore claims `ACTIVE` while the field holds the focus **except** while its own
+popup holds the keyboard (open, and the picker not aiming at the field), and claims it again
+the moment the popup closes; until this note the segment stayed `ACTIVE` throughout, so the
+cross-window fallback could never fire for a date picker and a reader arrowing across the month
+was told the field's day segment. The drawn caret is unchanged. The scene presentation is
+untouched: there the overlay holds the focus, the picker aims at the field for the digits, and
+the cursor is `ACTIVE` under the overlay. Pinned by limn-demo's
+`DatePickerNativePopupTest.whileTheCalendarWindowHoldsTheKeyboardTheEffectiveFocusIsItsCursorNotTheFieldsCaret`,
+which reads the host tree's effective focus across the two windows.
+
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and
 it is why the calendar could be built at all without reopening the bridges, which live in their own
