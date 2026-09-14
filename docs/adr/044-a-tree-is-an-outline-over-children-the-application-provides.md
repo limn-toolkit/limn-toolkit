@@ -314,6 +314,18 @@ Expanding a row moves every row below it, so the frame damages the viewport from
 not the window. That ceiling is what `DamageContractTest` will hold the widget to, with the
 expand/collapse gesture named in its row ([ADR 043](043-a-frame-repaints-what-changed-and-every-exception-is-named.md)).
 
+**Amendment, 2026-09-14: an expand repaints the tree's box, not a band, and the ratchet holds it
+to that.** The paragraph above promised a band from the opened row to the foot of the viewport;
+what the widget does is ask for a contained layout, and ADR 043's contract for one is that the
+damage is the widget's bounds (`Widget.markNeedsContainedLayout`). `DamageContractTest`'s tree row
+measured `RIGHT` on the first row at **101%** of the box — the whole of it plus the one-point
+feather every damage carries — in two identical runs on this date, and its ceiling of 1.05 says so.
+A band would need a contained layout that takes a rectangle, which is an ADR 043 mechanism change
+and not a tree-local one; it was weighed and not taken (TREE-NEW-4, settled `tree-expand-damage`).
+What a selection move damages is the moved rows' bands, clamped to the rows' viewport and never
+into a reserved scroll-bar strip, exactly as the spinner's damage already was (TREE-MISS-7, the
+same date; `ReservedBarStripTest` holds it).
+
 ## 8. What phase 1 is not
 
 - **No columns.** §9.

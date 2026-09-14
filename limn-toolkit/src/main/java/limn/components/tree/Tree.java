@@ -1791,11 +1791,13 @@ public class Tree<T> extends Widget implements Scrollable {
     /**
      * Damages one row's band rather than the tree, when what changed is that row's highlight.
      *
-     * <p>Full width and no outset: the wash is drawn across the row and inside its own box, so it
-     * reaches nothing this rectangle does not already hold. Clamped to the tree's own box,
-     * because damage is clipped by every ancestor that clips its children and a widget is not its
-     * own ancestor. A row that is not mounted has nothing on screen to damage, and the reveal
-     * that brings it on screen damages the tree on its own.
+     * <p>The viewport's width and no outset: the wash is drawn across the row and inside its own
+     * box, so it reaches nothing this rectangle does not already hold. Clamped to the viewport
+     * and not the box, as the spinner's damage is, because damage is clipped by every ancestor
+     * that clips its children and a widget is not its own ancestor: under a reserved strip the
+     * band is clipped out of the paint, and damaging the strip repainted the bar for it on
+     * every arrow (TREE-MISS-7). A row that is not mounted has nothing on screen to damage, and
+     * the reveal that brings it on screen damages the tree on its own.
      */
     private void damageNode(T node) {
         if (node == null) {
@@ -1807,9 +1809,9 @@ public class Tree<T> extends Widget implements Scrollable {
             return;
         }
         float top = Math.max(0, cell.y());
-        float bottom = Math.min(height(), cell.y() + cell.height());
+        float bottom = Math.min(viewportHeight(), cell.y() + cell.height());
         if (bottom > top) {
-            invalidate(0, top, width(), bottom - top);
+            invalidate(viewportLeft(), top, gutters.viewportWidth(width()), bottom - top);
         }
     }
 

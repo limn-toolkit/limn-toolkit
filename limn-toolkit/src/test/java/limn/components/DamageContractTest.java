@@ -343,10 +343,11 @@ class DamageContractTest extends ComponentTestBase {
             }, 360, 240, List.of(focus().ceiling(0.2f), key("DOWN", Keys.DOWN).ceiling(0.2f),
                     click().ceiling(0.5f)), null),
             // Right is the gesture only a tree has, and it is the expensive one by construction:
-            // opening the first row moves every row under it, so the band runs from that row to
-            // the foot of the viewport. Measured at 101% of the box — the whole of it plus the
-            // antialiasing margin the damage carries — and the ceiling says so rather than
-            // pretending a tree can open a row for less (ADR 044 §7).
+            // opening a row asks for a contained layout, and a contained layout damages the
+            // widget's bounds (ADR 043), wherever the row sits. Measured at 101% of the box —
+            // the whole of it plus the antialiasing margin the damage carries — and the ceiling
+            // says so rather than pretending a tree can open a row for less (ADR 044 §7, amended
+            // 2026-09-14: the box, not a band from the row down).
             new Row("limn.components.tree.Tree", DamageContractTest::treeFixture, 360, 240,
                     List.of(focus().ceiling(0.2f), key("DOWN", Keys.DOWN).ceiling(0.3f),
                             key("RIGHT", Keys.RIGHT).ceiling(1.05f), click().ceiling(0.5f),
