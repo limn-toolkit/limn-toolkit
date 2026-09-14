@@ -135,6 +135,20 @@ the demo (`--scene tree-loading`, with the load lengthened) through the AX API: 
 and roles, subroles and titles still came through the forward. No reader has spoken any of this
 on either platform: VoiceOver was not run, and the Windows guest was not up.
 
+**Amendment, 2026-09-14: a row whose load finds nothing stays open, over an "Empty" line.** The
+loading line used to vanish when an empty list landed and leave an open triangle over nothing,
+which is the statement a failed load closes its row to avoid (TREE-NEW-13). Decision 45
+(`tree-empty-load`, not the recommendation, which was to make such a row a leaf) keeps the row an
+open branch, the way Finder shows an empty folder, and puts a discreet muted **"Empty"** line one
+level in where the children would be — the loading line's place, style and rules: the tree's own
+widget, not a node, never recycled to the model, walked past by the arrows, a click on it lands
+on its row, and to a reader not an item (the row publishes the expanded state and no children,
+and is no longer `BUSY`). The words are `limn.tree.empty`, in the twenty-one tree locale files.
+For consistency the same line is shown under an eager branch the model calls a non-leaf over an
+empty list (`isLeaf` answering `false` for an empty folder, the guide's `Entry` shape); that half
+was offered to him on the renders (`renders/tree/`) to confirm. Right on such a row stays on it
+(§5). A cached empty answer opens onto the line at once, without a second load.
+
 ## 3. Decision: the tree walks its own rows, and the shared engine is owed rather than taken
 
 ADR 041 §9 said the tree's arrival is when the shared part becomes a package-private engine. It is
@@ -291,6 +305,11 @@ and the reason a tree cannot simply inherit the table's Left/Right, which move a
 Home and End go to the first and last visible row, the page keys move a viewport, Enter activates,
 and Space toggles selection where the mode allows it. In a right-to-left subtree the two arrows
 swap, as `Table`'s already do.
+
+**Amendment, 2026-09-14: Right into an open row steps only onto a child.** The step-in asked only
+that a next row existed and was not the loading line, so Right on an open row with nothing under
+it stepped onto a sibling or an ancestor's sibling (TREE-MISS-1). It now steps only onto a row one
+level deeper; on a row still loading or open over the "Empty" line (§2) it stays where it is.
 
 ## 6. Selection
 

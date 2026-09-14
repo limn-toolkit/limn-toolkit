@@ -56,7 +56,9 @@ import java.util.function.Consumer;
  * {@link Work} that fetches them: the row opens, shows that it is working, and fills in when the
  * job lands on the UI thread. Collapsing a row that is still loading cancels the job, because a
  * result nobody is looking at is a result nobody should pay for. A directory that has not been
- * read is therefore not a leaf — it has a triangle, and pressing it is what reads it.
+ * read is therefore not a leaf — it has a triangle, and pressing it is what reads it — and one
+ * that turns out to hold nothing stays open, with a muted "Empty" line where its children would
+ * be (decision 45 of 2026-09-14).
  *
  * <p><b>Rows are realized where the viewport reaches</b>, by the anchor-and-walk this toolkit's
  * list and table already use: a row's height is measured when it is first needed, the mean seeds
@@ -128,7 +130,8 @@ public class Tree<T> extends Widget implements Scrollable {
          * @return whether it can never have children, so no triangle is drawn. The default reads
          *         {@link #children}: a node whose children are known and empty is a leaf, and one
          *         whose children are not known yet is not — a directory nobody has read is not a
-         *         file.
+         *         file. A model that answers {@code false} for a node with no children, an empty
+         *         folder, gets a branch that opens onto the tree's "Empty" line.
          */
         default boolean isLeaf(T node) {
             List<T> known = children(node);
@@ -144,7 +147,9 @@ public class Tree<T> extends Widget implements Scrollable {
          * scene before it lands — a tree merely moved between containers loads its open rows
          * again when it arrives, which is the price of never leaving a row busy over a job that
          * was dropped. The tree caches what arrives, so a second expansion of the same node
-         * costs nothing.
+         * costs nothing. A load that finds no children leaves the row an open branch with an
+         * "Empty" line under it, where the "Loading…" line stood (decision 45 of 2026-09-14);
+         * a load that fails closes the row.
          *
          * @param node the node being opened
          * @return the job, or {@code null} when this model has nothing to load
@@ -194,10 +199,12 @@ public class Tree<T> extends Widget implements Scrollable {
         final boolean expanded;
         final boolean loading;
         /**
-         * Whether this is the "Loading…" line under an open row whose children are on their way,
-         * rather than a node. {@link #node} is the row it belongs to, which is what makes every
-         * key and click that lands on the line land on that row instead: it is never itself
-         * selected, never the cursor, and never an item to a reader.
+         * Whether this is a line under an open row rather than a node: the "Loading…" line
+         * while the row's children are on their way ({@link #loading}), or the "Empty" line
+         * under an open row that holds nothing (decision 45 of 2026-09-14). {@link #node} is the
+         * row it belongs to, which is what makes every key and click that lands on the line
+         * land on that row instead: it is never itself selected, never the cursor, and never an
+         * item to a reader.
          */
         final boolean placeholder;
         /** Where this row stands among the rows that are nodes, from one; zero for the line. */
@@ -225,20 +232,25 @@ public class Tree<T> extends Widget implements Scrollable {
     }
 
     /**
-     * The key a loading line is mounted under. It shares its node with the row above it, and a
-     * cell following its node must not follow that one onto the row.
+     * The key a line under a row is mounted under. It shares its node with the row above it, and
+     * a cell following its node must not follow that one onto the row; the loading and the empty
+     * line of one row are two keys, so the one replaces the other when a load lands on nothing.
      */
-    private record LoadingKey(Object node) {
+    private record LineKey(Object node, boolean loading) {
     }
 
     /**
-     * The cell of a loading line: the tree's own, and mounted under a {@link LoadingKey}, which is
-     * how a release knows not to hand it to the model to recycle.
+     * The cell of a line under a row: the tree's own, and mounted under a {@link LineKey}, which
+     * is how a release knows not to hand it to the model to recycle. "Loading…" while the row's
+     * children are on their way; "Empty" under an open row that holds nothing, so an open
+     * triangle over nothing does not read as a row that never loaded (decision 45).
      */
-    private static Widget loadingLine() {
-        limn.components.Label line = new limn.components.Label(TreeStrings.LOADING);
+    private static Widget lineUnderRow(boolean loading) {
+        limn.components.Label line = new limn.components.Label(
+                loading ? TreeStrings.LOADING : TreeStrings.EMPTY);
         line.setMuted(true);
-        // The row it belongs to says it is busy, on every platform; a line of text saying so again
+        // The row it belongs to says it is busy, on every platform, or open over no children (a
+        // TREE_ITEM with the expanded state and nothing under it); a line of text saying so again
         // would be an item a reader can walk onto that is not a node.
         line.setAccessibleIgnored(true);
         return line;
@@ -729,10 +741,13 @@ public class Tree<T> extends Widget implements Scrollable {
             return;
         }
         List<T> children = childrenOf(node);
-        if (busy && children.isEmpty()) {
-            // Open, and what it holds has not arrived: say so in the row's own place rather than
-            // leave it open over nothing, which reads as a node with nothing in it (ADR 044 §2).
-            rows.add(new Row<>(node, depth + 1, false, false, true, true, 0, 0, 0));
+        if (children.isEmpty()) {
+            // Open, and nothing under it: say why in the row's own place. While the children
+            // are on their way the line says so, rather than leaving the row open over nothing,
+            // which reads as a node with nothing in it (ADR 044 §2); once a load has found
+            // nothing, or for a branch the model calls a non-leaf over an empty list, the row
+            // stays an open branch and the line says it is empty (decision 45 of 2026-09-14).
+            rows.add(new Row<>(node, depth + 1, false, false, busy, true, 0, 0, 0));
             return;
         }
         for (int i = 0; i < children.size(); i++) {
@@ -741,7 +756,7 @@ public class Tree<T> extends Widget implements Scrollable {
     }
 
     private static Object mountKey(Row<?> row) {
-        return row.placeholder ? new LoadingKey(row.node) : row.node;
+        return row.placeholder ? new LineKey(row.node, row.loading) : row.node;
     }
 
     /** The children to walk: what a load produced, else what the model already knows. */
@@ -1605,7 +1620,7 @@ public class Tree<T> extends Widget implements Scrollable {
         Widget cell = cellFor(index);
         if (cell == null) {
             Row<T> row = rows.get(index);
-            cell = row.placeholder ? loadingLine()
+            cell = row.placeholder ? lineUnderRow(row.loading)
                     : Objects.requireNonNull(model.cellFor(row.node), "Model.cellFor returned null");
             mount(index, cell);
             cell.setVisible(true);
@@ -1704,8 +1719,8 @@ public class Tree<T> extends Widget implements Scrollable {
      */
     private void unmount(Widget cell, Object key, boolean hadFocus) {
         remove(cell);
-        if (!(key instanceof LoadingKey)) {
-            model.recycle(cell); // a loading line is the tree's, and the model never built it
+        if (!(key instanceof LineKey)) {
+            model.recycle(cell); // a line under a row is the tree's, and the model never built it
         }
         if (hadFocus) {
             requestFocus();
@@ -1974,8 +1989,12 @@ public class Tree<T> extends Widget implements Scrollable {
         if (opening) {
             if (row.expandable && !row.expanded) {
                 setExpanded(row.node, true, Change.Origin.USER);
-            } else if (row.expanded && index + 1 < rows.size() && !rows.get(index + 1).placeholder) {
-                selectAt(index + 1); // and into a row still loading there is nothing to step to
+            } else if (row.expanded && index + 1 < rows.size()
+                    && rows.get(index + 1).depth > row.depth && !rows.get(index + 1).placeholder) {
+                // Into the first child, and only a child: onto a line — still loading, or
+                // empty — or onto the next row of the same or a shallower depth there is
+                // nothing to step to, and the arrow stays on the row (TREE-MISS-1).
+                selectAt(index + 1);
             }
             return;
         }
@@ -2471,7 +2490,7 @@ public class Tree<T> extends Widget implements Scrollable {
             return null;
         }
         Row<T> row = rows.get(index);
-        return row.placeholder ? null : row; // the loading line ignores itself; its row is BUSY
+        return row.placeholder ? null : row; // a line ignores itself; its row is BUSY, or open
     }
 
     /**

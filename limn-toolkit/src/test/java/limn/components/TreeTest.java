@@ -268,12 +268,6 @@ class TreeTest extends ComponentTestBase {
     }
 
     /**
-     * {@code NONE} selects nothing and freezes nothing: the cursor walks the outline exactly as
-     * it does in the other two modes, and Enter activates the row it stands on (decisions 14 and
-     * 32 of 2026-09-14). Before, {@code selectOnly} returned before moving the cursor, so in NONE
-     * every arrow, Right, Left and Enter were dead — against the enum's own javadoc.
-     */
-    /**
      * The three handlers hear the user's gesture and never the caller's verb (ADR 040):
      * Right and Left reach {@code onExpand} and {@code onCollapse} with the row they opened or
      * closed, Enter reaches {@code onActivate} with the cursor row, and {@code expand()},
@@ -331,6 +325,12 @@ class TreeTest extends ComponentTestBase {
         assertFalse(tree.isExpanded(root), "and closes an open one");
     }
 
+    /**
+     * {@code NONE} selects nothing and freezes nothing: the cursor walks the outline exactly as
+     * it does in the other two modes, and Enter activates the row it stands on (decisions 14 and
+     * 32 of 2026-09-14). Before, {@code selectOnly} returned before moving the cursor, so in NONE
+     * every arrow, Right, Left and Enter were dead — against the enum's own javadoc.
+     */
     @Test
     void inNoneTheCursorStillMovesAndEnterActivatesTheRowItIsOn() {
         Node root = forest();
@@ -1396,6 +1396,118 @@ class TreeTest extends ComponentTestBase {
         scene.inputBatchEnded();
         assertEquals(List.of(remote), tree.selectedNodes(),
                 "a click on the line selects the row it belongs to, the folder that is loading");
+    }
+
+    /**
+     * A row whose load finds nothing stays an open branch, and the line under it says "Empty"
+     * where its children would be, in the place and the voice of the "Loading…" line it replaces
+     * (decision 45 of 2026-09-14). Before, the loading line simply vanished and left an open
+     * triangle over nothing, which reads as a row that never loaded (TREE-NEW-13). The cached
+     * empty answer opens onto the same line without a second load.
+     */
+    @Test
+    void aLoadThatFindsNothingLeavesAnOpenBranchWithAnEmptyLineUnderIt() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node trash = new Node("trash", List.of());
+        CountingModel model = new CountingModel(List.of(trash, Node.leaf("b")),
+                Map.of("trash", List.of()));
+        Tree<Node> tree = mount(model);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        tree.expand(trash);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("trash", "Loading…", "b"), drawn(tree));
+
+        ui.pumpUntil(() -> changes.stream().anyMatch(
+                c -> c.aspect() == limn.scene.Change.Aspect.CHILDREN
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT));
+        scene.layoutPass(220, 200);
+        assertTrue(tree.isExpanded(trash), "the row stays an open branch");
+        assertEquals(List.of("trash", "Empty", "b"), drawn(tree),
+                "and the line under it says it holds nothing");
+        assertEquals(2, tree.visibleRowCount(), "the line is not a node");
+
+        tree.collapse(trash);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("trash", "b"), drawn(tree), "closed, the line goes with the row");
+        tree.expand(trash);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("trash", "Empty", "b"), drawn(tree),
+                "and reopened it says so at once, from what the load already found");
+        assertEquals(1, model.loadCalls, "without asking the model to load it again");
+        for (Widget cell : model.recycled) {
+            assertFalse(cell instanceof Label label
+                            && (label.text().equals("Empty") || label.text().equals("Loading…")),
+                    "neither line is the model's to pool");
+        }
+    }
+
+    /**
+     * Right on an open row with nothing in it stays on the row, whether the model calls an empty
+     * folder a branch or a load found it empty (TREE-MISS-1, decision 45): the arrow that steps
+     * into a row has no child to step onto. Before, it stepped onto whatever row came next — a
+     * sibling, or an ancestor's sibling — because the step-in only asked that a next row existed.
+     * The arrows still walk past the line in both directions.
+     */
+    @Test
+    void rightOnAnOpenBranchWithNothingInItStaysOnIt() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node folder = new Node("folder", List.of());
+        Node next = Node.leaf("next");
+        Tree<Node> tree = mount(new Tree.Model<>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(folder, next);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public boolean isLeaf(Node node) {
+                // A folder is a branch whatever it holds, which is TreeExample's shape.
+                return node != folder && node.children().isEmpty();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name());
+            }
+        });
+        scene.requestFocus(tree);
+
+        press(Keys.DOWN);  // onto the folder
+        press(Keys.RIGHT); // opens it
+        assertTrue(tree.isExpanded(folder));
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("folder", "Empty", "next"), drawn(tree),
+                "an eager branch with nothing in it opens onto the same line");
+        press(Keys.RIGHT);
+        assertEquals(folder, tree.cursorNode(), "Right into an empty branch stays on it");
+        press(Keys.DOWN);
+        assertEquals(next, tree.cursorNode(), "Down walks past the line");
+        press(Keys.UP);
+        assertEquals(folder, tree.cursorNode(), "and Up back past it to its row");
+
+        Node trash = new Node("trash", List.of());
+        CountingModel lazy = new CountingModel(List.of(trash, Node.leaf("after")),
+                Map.of("trash", List.of()));
+        Tree<Node> loaded = mount(lazy);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+        scene.requestFocus(loaded);
+        press(Keys.DOWN);  // onto trash
+        press(Keys.RIGHT); // opens it, and its load starts
+        ui.pumpUntil(() -> changes.stream().anyMatch(
+                c -> c.aspect() == limn.scene.Change.Aspect.CHILDREN
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT));
+        scene.layoutPass(220, 200);
+        press(Keys.RIGHT);
+        assertEquals(trash, loaded.cursorNode(),
+                "and so does Right on a row whose load found nothing");
     }
 
     /**

@@ -1184,6 +1184,69 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * A row whose load found nothing is an open branch with no items under it and no longer
+     * busy (decision 45 of 2026-09-14): the "Empty" line says so to a sighted user, and to a
+     * reader the expanded state over no children says the same thing, so the line is not an
+     * item — one a reader could walk onto that is not a node — and the rows below are numbered
+     * as though it were not there.
+     */
+    @Test
+    void aRowWhoseLoadFoundNothingIsAnOpenBranchWithNoItemsAndItsEmptyLineIsNotOne() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node trash = Node.leaf("trash");
+        Node below = Node.leaf("b");
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(trash, below);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node == trash ? null : node.children(); // "not known yet"
+            }
+
+            @Override
+            public limn.concurrent.Work<List<Node>> load(Node node) {
+                return limn.concurrent.Ui.work(progress -> List.of());
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Cell(ROW_H);
+            }
+
+            @Override
+            public I18nString nameOf(Node node) {
+                return node.name();
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        tree.observeChanges((source, change) -> changes.add(change));
+
+        tree.expand(trash);
+        frame();
+        ui.pumpUntil(() -> changes.stream().anyMatch(
+                c -> c.aspect() == limn.scene.Change.Aspect.CHILDREN
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT));
+        frame();
+
+        List<AccessibleNode> rows = rowNodes();
+        assertEquals(List.of("trash", "b"), rows.stream().map(AccessibleNode::name).toList(),
+                "the empty line is not an item: " + describe(tree()));
+        assertFalse(describe(tree()).contains("Empty"),
+                "and it is nowhere else in the tree either: " + describe(tree()));
+        assertTrue(rows.get(0).expand().expanded(), "the row is still open: " + describe(tree()));
+        assertTrue(nodesWith(Accessible.State.BUSY).isEmpty(),
+                "and busy no longer: " + describe(tree()));
+        assertEquals(new limn.accessibility.HierarchyFacet(1, 2, 2), rows.get(1).hierarchy(),
+                "the row below is the second of the outline, not the third: " + describe(tree()));
+    }
+
+    /**
      * A load that lands after the tree is on screen, in the demo's exact shape — {@code Label}
      * cells and no {@code nameOf} — publishes the children under their own names, each with its
      * own expand state, and moves the rows below with theirs (T6's one missing headless pin,
