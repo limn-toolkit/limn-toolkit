@@ -325,6 +325,14 @@ it; hiding a column before it shifts the index and moves nothing a reader stands
 is announced. Pinned by `TableTest.aHiddenWidgetColumnBuildsNothingAndIsNoTabStop`,
 `TableAccessibilityTest.aHiddenColumnPublishesNoCell` and
 `TableAccessibilityTest.hidingTheFocusColumnKeepsACursorOnTheNearestShownColumn`.
+**Amended again 2026-09-14 (review of the same pass).** The header's column cursor (§4's
+decision 36 amendment) was left on a plain index clamp, so hiding its column put it on
+whichever column the index named next — an unsortable one included — and hiding a column
+before it slid it a column along, neither announced. It follows its column by the rule above;
+while the header holds the cursor, that cursor's move is the one announced, and a layout that
+takes the header's stop away under it (the header hidden, or the last sortable column) hands the
+cursor to the focus cell and announces `ACTIVE`/`ADJUSTMENT` once. Pinned by
+`TableAccessibilityTest.hidingTheHeadersColumnKeepsItsCursorOnTheNearestShownColumn`.
 
 **The footer is a summary row**, pinned under the rows the way the header is pinned over them,
 and it exists as soon as one column has something for it: a fixed text, one of the aggregates a

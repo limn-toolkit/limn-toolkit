@@ -845,6 +845,98 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(ageCell, nodesWith(Accessible.State.ACTIVE).get(0).id());
     }
 
+    /**
+     * The header's column cursor (decision 36) under the rule the focus cell follows when a
+     * column is hidden (review of table-B, 2026-09-14): it kept a plain index clamp, so hiding
+     * its column moved it onto whatever column the index now named, and hiding one before it
+     * slid it onto the next column, both unannounced. It follows its column now; and a layout
+     * that takes the header's stop away while it holds the cursor says so, the cursor back on
+     * the focus cell.
+     */
+    @Test
+    void hidingTheHeadersColumnKeepsItsCursorOnTheNearestShownColumn() {
+        Column<Person> name = Column.text("Name", Person::name).width(120);
+        Column<Person> age = Column.numeric("Age", Person::age).width(60);
+        Column<Person> again = Column.text("Again", Person::name).width(100);
+        Column<Person> note = Column.<Person>text("Note", p -> "-").width(60).sortable(false);
+        Table<Person> table = new Table<>(List.of(name, age, again, note));
+        table.setRows(people(30));
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(2);
+        frame();
+        scene.keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
+        scene.inputBatchEnded();
+        for (int i = 0; i < 2; i++) {
+            scene.keyEvent(Keys.RIGHT, true, false, 0);
+            scene.inputBatchEnded();
+        }
+        frame();
+        assertTrue(table.isHeaderFocused());
+        assertEquals(2, table.headerColumn());
+        assertEquals(new CellFacet(-1, 2), nodesWith(Accessible.State.ACTIVE).get(0).cell());
+        bridge.events.clear();
+        List<Change> heard = new ArrayList<>();
+        table.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.ACTIVE) {
+                heard.add(change);
+            }
+        });
+
+        again.visible(false);
+        table.refresh();
+        frame();
+        assertTrue(table.isHeaderFocused(), "the header is still a stop, and still holds the keyboard");
+        assertEquals(1, table.headerColumn(), "the nearest shown column, the one before on a tie");
+        assertEquals(1, heard.size(), "announced once to a watcher: " + heard);
+        assertEquals(Change.Origin.ADJUSTMENT, heard.get(0).origin());
+        heard.clear();
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one cursor: " + describe(tree()));
+        assertEquals(Accessible.Role.COLUMN_HEADER, active.get(0).role());
+        assertEquals(new CellFacet(-1, 1), active.get(0).cell());
+        assertEquals("Age", active.get(0).name());
+        assertEquals(active.get(0).id(), tree().activeDescendant());
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "the cursor moved once, and a reader was told: " + bridge.events);
+        long ageHeader = active.get(0).id();
+        bridge.events.clear();
+
+        // A column before the cursor hidden: the index shifts, the header cell does not move.
+        name.visible(false);
+        table.refresh();
+        frame();
+        assertEquals(0, table.headerColumn(), "the first shown column now");
+        active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "still one cursor: " + describe(tree()));
+        assertEquals(ageHeader, active.get(0).id(), "the same header cell");
+        assertEquals(new CellFacet(-1, 0), active.get(0).cell());
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "the cursor did not move, so nothing was announced: " + bridge.events);
+        assertEquals(List.of(), heard, "nor to a watcher");
+
+        // Shown again: the cursor stays on Age, the second shown column again.
+        name.visible(true);
+        table.refresh();
+        frame();
+        assertEquals(1, table.headerColumn());
+        assertEquals(ageHeader, nodesWith(Accessible.State.ACTIVE).get(0).id());
+        bridge.events.clear();
+
+        // The header hidden under the cursor: no stop, the keyboard is in the rows. The same
+        // layout path takes the stop away when the last sortable column is hidden; hiding a
+        // column is not used here because the focus cell's own column moving would announce
+        // it anyway and hide a silent header.
+        table.setShowHeader(false);
+        frame();
+        assertFalse(table.isHeaderFocused(), "a header that is not shown is not a stop");
+        assertEquals(1, heard.size(), "the cursor went back to the rows, announced once: " + heard);
+        active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one cursor: " + describe(tree()));
+        assertEquals(Accessible.Role.CELL, active.get(0).role(), "the focus cell, on the one shown column");
+        assertEquals(active.get(0).id(), tree().activeDescendant());
+    }
+
     private static List<Column<Person>> fiveColumns() {
         List<Column<Person>> columns = new ArrayList<>();
         for (int c = 0; c < 5; c++) {

@@ -180,6 +180,10 @@ public class Table<T> extends Widget implements Scrollable {
     // header is a stop only while it is shown and a shown column can be sorted.
     private boolean headerFocused;
     private int headerColumn;
+    // The column the header's cursor is on, by identity, as focusColumnOf is for the focus
+    // cell: a shown index alone slid onto the next column when one before it was hidden, and
+    // onto some other column, unannounced, when its own was (review of table-B, 2026-09-14).
+    private int headerColumnOf = -1;
 
     // Columns as shown: which, and where, resolved per layout; and the set the previous
     // layout resolved, so a column hidden or shown between two layouts is noticed by the next
@@ -1550,11 +1554,17 @@ public class Table<T> extends Widget implements Scrollable {
             x += colW[s];
         }
         contentWidth = total;
-        headerColumn = Math.min(Math.max(0, headerColumn), Math.max(0, n - 1));
+        boolean cursorMoved = false;
         if (headerFocused && !headerStopAvailable()) {
             headerFocused = false; // the header stopped being a stop: the rows have the keyboard
+            cursorMoved = isFocused();
+            invalidate();
         }
-        shownSetResolved(n);
+        cursorMoved |= shownSetResolved(n);
+        if (cursorMoved) {
+            // One announcement for the layout, however many of the cursors it moved.
+            notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.ADJUSTMENT));
+        }
     }
 
     /**
@@ -1565,15 +1575,20 @@ public class Table<T> extends Widget implements Scrollable {
      * resolved again from the column it stands on: the same column if it is still shown, else
      * the nearest shown one, announced as {@code ACTIVE}/{@code ADJUSTMENT} when the cell moved
      * (TABLE-NEW-5: until this date the cursor kept a shown index no column matched, so no ring
-     * was drawn and no cell was {@code ACTIVE} until a Left or Right re-clamped it).
+     * was drawn and no cell was {@code ACTIVE} until a Left or Right re-clamped it). The header's
+     * column cursor follows its column by the same rule (decision 36's cursor; review of
+     * table-B, 2026-09-14: it kept a plain index clamp, so it slid onto another column).
+     *
+     * @return whether a cursor a reader stands on moved to another column, for the caller to
+     *         announce as {@code ACTIVE}/{@code ADJUSTMENT}
      */
-    private void shownSetResolved(int n) {
+    private boolean shownSetResolved(int n) {
         boolean changed = n != shownBeforeCount;
         for (int s = 0; !changed && s < n; s++) {
             changed = shownIndex[s] != shownBefore[s];
         }
         if (!changed) {
-            return;
+            return false;
         }
         boolean first = shownBeforeCount < 0;
         if (shownBefore.length < n) {
@@ -1587,20 +1602,30 @@ public class Table<T> extends Widget implements Scrollable {
         }
         if (n == 0) {
             focusColumn = 0;
-            return;
+            headerColumn = 0;
+            return false;
         }
         int wasOf = focusColumnOf;
-        if (focusColumnOf < 0) {
-            focusColumn = Math.min(Math.max(0, focusColumn), n - 1);
-            focusColumnOf = shownIndex[focusColumn];
-        } else {
-            focusColumn = nearestShown(focusColumnOf);
-            focusColumnOf = shownIndex[focusColumn];
-        }
-        // Announced only when the cell changed, which is when the column did: a column hidden
-        // before the cursor shifts its shown index and moves nothing a reader stands on.
-        if (!first && focusRow >= 0 && focusColumnOf != wasOf) {
-            notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.ADJUSTMENT));
+        focusColumn = focusColumnOf < 0 ? Math.min(Math.max(0, focusColumn), n - 1)
+                : nearestShown(focusColumnOf);
+        focusColumnOf = shownIndex[focusColumn];
+        int wasHeaderOf = headerColumnOf;
+        headerColumn = headerColumnOf < 0 ? Math.min(Math.max(0, headerColumn), n - 1)
+                : nearestShown(headerColumnOf);
+        headerColumnOf = shownIndex[headerColumn];
+        // Announced only when the cell a reader stands on changed, which is when its column
+        // did: a column hidden before the cursor shifts its shown index and moves nothing, and
+        // while the header holds the cursor the focus cell is not where the reader is.
+        boolean header = headerHoldsCursor();
+        return !first && (header ? headerColumnOf != wasHeaderOf
+                : focusRow >= 0 && focusColumnOf != wasOf);
+    }
+
+    /** Puts the header's column cursor on shown column {@code s}, clamped, and remembers its column. */
+    private void setHeaderColumn(int s) {
+        headerColumn = Math.min(Math.max(0, s), Math.max(0, shownCount - 1));
+        if (shownCount > 0) {
+            headerColumnOf = shownIndex[headerColumn];
         }
     }
 
@@ -2668,7 +2693,7 @@ public class Table<T> extends Widget implements Scrollable {
                             // The pointer sorts and the keyboard stays where it was, in the
                             // rows; the header's cursor remembers the column, so a Tab into the
                             // header continues from where the pointer was.
-                            headerColumn = s;
+                            setHeaderColumn(s);
                             headerClicked(s);
                         }
                     }
@@ -2835,7 +2860,7 @@ public class Table<T> extends Widget implements Scrollable {
             return;
         }
         headerFocused = true;
-        headerColumn = Math.min(Math.max(0, s), Math.max(0, shownCount - 1));
+        setHeaderColumn(s);
         ensureColumnVisible(headerColumn);
         damageHeader();
         damageRow(focusRow);
@@ -2881,7 +2906,7 @@ public class Table<T> extends Widget implements Scrollable {
         if (next == headerColumn) {
             return;
         }
-        headerColumn = next;
+        setHeaderColumn(next);
         ensureColumnVisible(next);
         damageHeader();
         notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
@@ -2895,7 +2920,7 @@ public class Table<T> extends Widget implements Scrollable {
         // Tab enters at the header, the first stop; Shift+Tab, a click and code at the rows.
         headerFocused = focusArrivedByTraversal() && !focusArrivedBackward()
                 && headerStopAvailable();
-        headerColumn = Math.min(Math.max(0, headerColumn), Math.max(0, shownCount - 1));
+        setHeaderColumn(headerColumn);
         damageHeader();
         damageRow(focusRow);
         if (focusRow >= 0 && slotFor(focusRow) == null) {
@@ -3199,7 +3224,7 @@ public class Table<T> extends Widget implements Scrollable {
                 // header's cursor, so a Shift+Tab into the header after a reader's press on
                 // the Age title starts on Age; while the header holds the keyboard the cursor
                 // moves with the press, which the sort's own publish announces.
-                headerColumn = s;
+                setHeaderColumn(s);
                 headerClicked(s);
                 return true;
             }
