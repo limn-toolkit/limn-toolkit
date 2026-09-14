@@ -42,10 +42,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>The roles are ADR 044 §4's step 1b, published once the AT-SPI numbers for {@code TREE} and
  * {@code TREE_ITEM} came off the Fedora guest; before that the tree said {@code LIST} and
- * {@code LIST_ITEM}. Step 1b did not bring depth or position-in-level, so a row is still numbered
- * in traversal order against every visible row, not among its siblings. The role case pins that
- * too, and if the numbering ever moves to a level, it is the case that has to change,
- * deliberately.
+ * {@code LIST_ITEM}. Since 2026-09-14 a row is numbered among its siblings (decision 4) and
+ * carries its depth and its place in the outline through the hierarchy facet; the role case
+ * pins both.
  */
 class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
@@ -472,8 +471,15 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         }
     }
 
+    /**
+     * A row is numbered among its siblings — "2 of 5" counts the parent's children, not the
+     * outline — which is decision 4 of 2026-09-13 and what ADR 044 §4 always meant by "its
+     * position among its siblings". Until 2026-09-14 the row's place in the whole outline stood
+     * in for it, and the case that pinned that said the numbering was meant to move; where a row
+     * stands in the outline is the hierarchy facet's now (ADR 039 §1.2, amended).
+     */
     @Test
-    void aTreeIsATreeOfItemsThatOpenNumberedInTraversalOrder() {
+    void aTreeIsATreeOfItemsThatOpenNumberedAmongTheirSiblings() {
         Node readme = Node.leaf("readme");
         Node docs = Node.of("docs", Node.leaf("a.md"), Node.leaf("b.md"));
         Node top = Node.of("root", docs, readme);
@@ -489,16 +495,19 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         List<AccessibleNode> rows = rowNodes();
         assertEquals(3, rows.size(), describe(tree()));
         String[] names = {"root", "docs", "readme"};
+        int[] positions = {1, 1, 2};
+        int[] siblings = {1, 2, 2};
         for (int i = 0; i < rows.size(); i++) {
             AccessibleNode row = rows.get(i);
             assertEquals(Accessible.Role.TREE_ITEM, row.role(),
                     "every realized row is an item of the tree, since ADR 044's step 1b: "
                             + describe(tree()));
             assertEquals(names[i], row.name(), describe(tree()));
-            assertEquals(i + 1, row.selectionItem().positionInSet(),
-                    "numbered in traversal order: " + describe(tree()));
-            assertEquals(3, row.selectionItem().sizeOfSet(),
-                    "against the rows that are visible, which is what is open");
+            assertEquals(positions[i], row.selectionItem().positionInSet(),
+                    "numbered among its siblings, not the outline: " + describe(tree()));
+            assertEquals(siblings[i], row.selectionItem().sizeOfSet(),
+                    "against its parent's children: the root is 1 of 1, and both of its "
+                            + "children are of 2: " + describe(tree()));
             assertNotNull(row.actions(), "a row carries the verb the tree delegated onto it: "
                     + describe(tree()));
             assertEquals(java.util.Set.of(Accessible.Action.SELECT), row.actions().actions(),
@@ -532,9 +541,18 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(5, rows.size(), describe(tree()));
         AccessibleNode opened = node("docs");
         assertTrue(opened.expand().expanded(), describe(tree()));
-        assertEquals(5, opened.selectionItem().sizeOfSet(), "every row is renumbered against five");
-        assertEquals(5, node("readme").selectionItem().positionInSet(),
-                "and the rows below the opened one move down by its children: " + describe(tree()));
+        assertEquals(2, opened.selectionItem().sizeOfSet(),
+                "opening a row renumbers nothing: docs is still 1 of 2: " + describe(tree()));
+        assertEquals(1, opened.selectionItem().positionInSet());
+        assertEquals(2, node("readme").selectionItem().positionInSet(),
+                "and readme is still 2 of 2, whatever opened above it: " + describe(tree()));
+        assertEquals(1, node("a.md").selectionItem().positionInSet(),
+                "the children count among themselves: " + describe(tree()));
+        assertEquals(2, node("b.md").selectionItem().positionInSet());
+        assertEquals(2, node("b.md").selectionItem().sizeOfSet());
+        assertEquals(5, node("readme").hierarchy().row(),
+                "where readme stands in the outline moved down by the two rows that opened, "
+                        + "and that is the hierarchy facet's to say: " + describe(tree()));
         for (AccessibleNode row : rows) {
             assertEquals(Accessible.Role.TREE_ITEM, row.role(), describe(tree()));
         }
@@ -699,9 +717,11 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(rows.get(0).expand().expanded(), "and still open");
         assertFalse(rows.get(1).has(Accessible.State.BUSY), "the row below is not");
         assertEquals(2, rows.get(0).selectionItem().sizeOfSet(),
-                "numbered among the nodes, so the line is not counted: " + describe(tree()));
+                "numbered among the siblings, so the line is not counted: " + describe(tree()));
         assertEquals(2, rows.get(1).selectionItem().positionInSet(),
-                "and the row below it is the second, not the third");
+                "and the row below it is the second root, not the third");
+        assertEquals(2, rows.get(1).hierarchy().row(),
+                "nor is the line a row of the outline: " + describe(tree()));
         bridge.events.clear();
 
         ui.pumpUntil(() -> tree.visibleRowCount() == 4);
@@ -725,8 +745,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
      * Every row says how deep it is and which open row of the outline it is, through
      * {@code HierarchyFacet} (ADR 039 §1.2, amended 2026-09-14): one-based, the loading line not
      * counted, and renumbered when a branch opens. Where a row stands among its siblings is
-     * {@code SelectionItemFacet}'s and the Tree lane's (decision 4); the numbering pinned above is
-     * untouched here.
+     * {@code SelectionItemFacet}'s (decision 4), pinned in the role case above.
      */
     @Test
     void aTreeItemSaysItsLevelAndWhichOpenRowOfTheOutlineItIs() {

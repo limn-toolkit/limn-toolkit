@@ -157,6 +157,20 @@ model-numbered — so phase 1 adds them, and each of the three bridges gains the
 carries them. That is the largest single piece of this record's accessibility work, and it is the
 piece a reader actually hears: "level 3, 2 of 5" is how a tree is navigated without sight.
 
+**Amendment, 2026-09-14: depth and position-in-level exist in the facet model now, and the
+sentence above is history.** The model gained `HierarchyFacet(level, row, rowCount)` (ADR 039
+§1.2, amended 2026-09-14): the level from one, the row's flat one-based index among the open rows,
+and how many there are, published on every `TREE_ITEM` and never on the loading line. With it,
+`SelectionItemFacet` on a tree item counts **siblings** — position among the parent's children,
+size the parent's child count — which is the "2 of 5" a reader speaks and what "its position among
+its siblings" at the top of this section always meant; until this date the row's place in the whole
+outline stood in for it (decision 4 of 2026-09-13, `tree-hierarchy-facet`). What each bridge does
+with the two facets is phase 3's: Windows publishes UIA `Level` (30154, read off the guest
+2026-09-13) plus `PositionInSet`/`SizeOfSet` and nests `TreeItem` elements, because NVDA 2024.4.2
+derives level from `TreeItem` ancestors; Linux publishes the `level`/`posinset`/`setsize` object
+attributes Orca 50.2 reads first; macOS answers `accessibilityDisclosureLevel` from the level and
+`accessibilityIndex` from the row. A zero in any of the three publishes nothing on any platform.
+
 The live reader run on all three guests is part of phase 1 and not a follow-up, for the reason
 ADR 041 and ADR 042 both record: a headless tree says what the toolkit published, not what a
 reader speaks.
@@ -178,7 +192,8 @@ TreeItem and to AppKit's outline role and outline-row subrole, with a phrase and
 translations. Every client reads them: libatspi sees `tree` and `tree item`, UI Automation `Tree`
 and `TreeItem`, the AX API an `AXOutline` described as "árvore" over rows described as "item de
 árvore" — and VoiceOver spoke those words. Depth, position-in-level and the macOS disclosure
-consumer are still owed, as above.
+consumer were still owed at that date; the model half landed 2026-09-14 (the amendment above) and
+the bridge half is phase 3's.
 
 The runs used `--scene tree-reader`, which puts the focus in the tree and drives fifteen arrows
 through the scene's own key path three seconds apart, so all three platforms hear the same

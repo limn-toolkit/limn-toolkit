@@ -62,9 +62,10 @@ import java.util.function.Consumer;
  * model the toolkit does not own.
  *
  * <p>To a screen reader this is a {@code TREE} of {@code TREE_ITEM}s, each carrying its expanded
- * state and its selection, with the verbs on the tree acting on the lead row. What ADR 044 §4
- * still owes it is depth and position-in-level — "level 3, 2 of 5" — which the facet model does
- * not carry yet, and the disclosure attributes VoiceOver reads an outline row by.
+ * state, its selection numbered among its siblings ("2 of 5"), and its depth and flat row index
+ * through the hierarchy facet ("level 3"; ADR 039 §1.2, amended 2026-09-14). What ADR 044 §4
+ * still owes it is the three platforms carrying those numbers, and the disclosure attributes
+ * VoiceOver reads an outline row by.
  */
 public class Tree<T> extends Widget implements Scrollable {
 
@@ -139,10 +140,14 @@ public class Tree<T> extends Widget implements Scrollable {
          * What to call {@code node} for an assistive technology, when its own cell widget says
          * nothing about itself.
          *
-         * <p><b>Hand back a string this model holds.</b> The tree compares a name by reference,
-         * so a string built inside this call republishes the whole tree on every damaged frame;
-         * a field or an entry in the application's own data is what belongs here. The rule and
-         * the reason are {@code ListView.Adapter#rowName}'s.
+         * <p><b>Hand back a string this model holds.</b> The tree compares a name by reference
+         * to decide whether it has to be resolved again, so a string built inside this call
+         * costs one allocation and one resolution per realized row per walk — which is the
+         * zero-allocation promise of a quiet frame broken for that application, though never a
+         * republish: the walk compares the resolved text, and a name that reads the same
+         * publishes nothing and raises no event. A field or an entry in the application's own
+         * data is what belongs here. The rule and the reason are
+         * {@code ListView.Adapter#rowName}'s.
          *
          * @return the name, or {@code null} when the model has none to give
          */
@@ -167,9 +172,16 @@ public class Tree<T> extends Widget implements Scrollable {
         final boolean placeholder;
         /** Where this row stands among the rows that are nodes, from one; zero for the line. */
         final int item;
+        /**
+         * Where this row stands among its parent's children, from one, and how many of those
+         * there are: the "2 of 5" a reader speaks, which counts siblings and not the outline
+         * (decision 4 of 2026-09-13). Zero for the line.
+         */
+        final int position;
+        final int siblings;
 
         Row(T node, int depth, boolean expandable, boolean expanded, boolean loading,
-                boolean placeholder, int item) {
+                boolean placeholder, int item, int position, int siblings) {
             this.node = node;
             this.depth = depth;
             this.expandable = expandable;
@@ -177,6 +189,8 @@ public class Tree<T> extends Widget implements Scrollable {
             this.loading = loading;
             this.placeholder = placeholder;
             this.item = item;
+            this.position = position;
+            this.siblings = siblings;
         }
     }
 
@@ -478,8 +492,9 @@ public class Tree<T> extends Widget implements Scrollable {
     private void rebuildRows() {
         rows.clear();
         itemCount = 0;
-        for (T root : model.roots()) {
-            appendRow(root, 0);
+        List<T> roots = model.roots();
+        for (int i = 0; i < roots.size(); i++) {
+            appendRow(roots.get(i), 0, i + 1, roots.size());
         }
         // Here rather than in the layout: the deepest row is what decides how wide the content
         // is, and the only thing that moves it is what is open, which is decided here.
@@ -544,7 +559,11 @@ public class Tree<T> extends Widget implements Scrollable {
         mountedCount = kept;
     }
 
-    private void appendRow(T node, int depth) {
+    /**
+     * @param position where {@code node} stands among its parent's children, from one
+     * @param siblings how many children that parent has, {@code node} included
+     */
+    private void appendRow(T node, int depth, int position, int siblings) {
         boolean leaf = model.isLeaf(node);
         boolean open = expanded.contains(node);
         if (open && !leaf) {
@@ -556,7 +575,7 @@ public class Tree<T> extends Widget implements Scrollable {
             startLoadIfNeeded(node);
         }
         boolean busy = loading.containsKey(node);
-        rows.add(new Row<>(node, depth, !leaf, open, busy, false, ++itemCount));
+        rows.add(new Row<>(node, depth, !leaf, open, busy, false, ++itemCount, position, siblings));
         if (!open || leaf) {
             return;
         }
@@ -564,11 +583,11 @@ public class Tree<T> extends Widget implements Scrollable {
         if (busy && children.isEmpty()) {
             // Open, and what it holds has not arrived: say so in the row's own place rather than
             // leave it open over nothing, which reads as a node with nothing in it (ADR 044 §2).
-            rows.add(new Row<>(node, depth + 1, false, false, true, true, 0));
+            rows.add(new Row<>(node, depth + 1, false, false, true, true, 0, 0, 0));
             return;
         }
-        for (T child : children) {
-            appendRow(child, depth + 1);
+        for (int i = 0; i < children.size(); i++) {
+            appendRow(children.get(i), depth + 1, i + 1, children.size());
         }
     }
 
@@ -1787,11 +1806,13 @@ public class Tree<T> extends Widget implements Scrollable {
         if (name != null) {
             a.name(name);
         }
-        // Numbered among the nodes, so a loading line a reader cannot reach is not counted either.
-        a.selectionItem(selected.contains(row.node), row.item, itemCount);
+        // Numbered among its siblings, which is the "2 of 5" a reader speaks of a tree item
+        // (decision 4 of 2026-09-13; ADR 044 §4, amended 2026-09-14): a loading line is not a
+        // sibling, so it is never counted. Until 2026-09-14 this was the row's place in the
+        // whole outline, which the hierarchy facet below carries instead.
+        a.selectionItem(selected.contains(row.node), row.position, row.siblings);
         // The depth and the flat row index (ADR 039 §1.2, amended 2026-09-14): what a reader
-        // speaks as "level 2" and what the macOS outline addresses its rows by. The sibling
-        // numbering decision 4 gives selectionItem is the Tree lane's change.
+        // speaks as "level 2" and what the macOS outline addresses its rows by.
         a.hierarchy(row.depth + 1, row.item, itemCount);
         if (row.expandable) {
             a.expand(row.expanded);
