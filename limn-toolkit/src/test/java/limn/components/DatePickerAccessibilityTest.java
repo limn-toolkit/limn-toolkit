@@ -94,6 +94,12 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("Abrir calendário", button.name());
         assertNull(button.expand(), "a plain press: the popup's state is the field's to tell");
         assertTrue(offers(button, Accessible.Action.PRESS));
+        assertFalse(offers(button, Accessible.Action.EXPAND));
+        // Brief item 14: that the button refuses the verb it no longer publishes was a claim by
+        // reading. The host accepts any verb on a published node and leaves the list to the
+        // bridges (semantics 5), so what is asserted is the effect: nothing opens.
+        perform(button.id(), Accessible.Action.EXPAND, Accessible.Argument.NONE);
+        assertFalse(picker.isOpen(), "Expand on the button does nothing: its verb is Press");
 
         assertTrue(perform(field.id(), Accessible.Action.EXPAND, Accessible.Argument.NONE));
         assertTrue(picker.isOpen(), "Expand on the field opens the calendar");
