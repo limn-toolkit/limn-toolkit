@@ -1550,7 +1550,6 @@ public class Table<T> extends Widget implements Scrollable {
             x += colW[s];
         }
         contentWidth = total;
-        offsetX = Math.max(0, Math.min(offsetX, Math.max(0, contentWidth - viewW)));
         headerColumn = Math.min(Math.max(0, headerColumn), Math.max(0, n - 1));
         if (headerFocused && !headerStopAvailable()) {
             headerFocused = false; // the header stopped being a stop: the rows have the keyboard
@@ -1654,6 +1653,12 @@ public class Table<T> extends Widget implements Scrollable {
         float w = gutters.viewportWidth(box);
         float viewH = Math.max(0, gutters.viewportHeight(boxH) - headerH - footerH);
         resolveColumns(w);
+        // Clamped against the viewport the strips leave, and only here: the gutters measure
+        // the content first against the whole box, and a clamp in resolveColumns took that
+        // probe's width for the viewport, so a table scrolled to its last column lost a
+        // vertical strip's width of it for good (under RESERVED, the last column's left edge
+        // sat under the strip right to left, and its right edge under it left to right).
+        offsetX = Math.max(0, Math.min(offsetX, Math.max(0, contentWidth - w)));
         float barT = ScrollBar.thickness();
         vBar.measure(Constraints.tight(barT, viewH));
         vBar.layoutBox(rtl ? 0 : box - barT, headerH, barT, viewH);

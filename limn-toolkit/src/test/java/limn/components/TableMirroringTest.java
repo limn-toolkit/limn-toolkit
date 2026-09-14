@@ -328,7 +328,33 @@ class TableMirroringTest extends ComponentTestBase {
         assertEquals(BOX - padH - 20, widgetX(), EPS, "the first column still ends at the right edge");
         assertTrue(widgetX() >= STRIP, "and no widget cell lies under the strip");
         float title = canvas.text("C1").x();
-        assertTrue(title >= STRIP && title + 20 <= BOX, "the header stays clear of it too: " + title);
+        assertEquals(BOX - 120 - padH - 20, title, EPS,
+                "the second column's title ends at its cell's right padding: " + canvas.texts());
+
+        // At the end of the sideways scroll the last column's left edge is the strip's edge,
+        // not the box's: the one place where a paint, a hit test or a clip that forgot the
+        // strip would put a cell under it. Every assertion above holds either way, because the
+        // columns start at the right edge, away from the strip (review of table-B, 2026-09-14).
+        table.scrollBy(1000, 0);
+        frame();
+        assertEquals(STRIP + 120 - padH - 20, canvas.text("C4").x(), EPS,
+                "scrolled to the end, the last title sits at its cell's right padding, the cell "
+                        + "starting past the strip: " + canvas.texts());
+        List<Float> edges = new ArrayList<>();
+        for (TablePaintCanvas.Line line : canvas.verticalLines()) {
+            if (line.width() == Strokes.HAIRLINE) {
+                edges.add(line.x1());
+                assertTrue(line.x1() >= STRIP - EPS, "no divider under the strip: " + line);
+            }
+        }
+        assertTrue(edges.contains(STRIP), "the last column's divider is at the strip's edge: " + edges);
+        float rowY = headerHeight() + 2;
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, STRIP + 118, rowY);
+        scene.inputBatchEnded();
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, STRIP + 118, rowY);
+        scene.inputBatchEnded();
+        assertEquals(4, table.focusColumn(),
+                "a click just inside the last column's right edge lands on the last column");
 
         buildWide(LayoutDirection.LTR, 40);
         table.setBarLayout(ScrollGutters.Layout.RESERVED)
@@ -336,5 +362,15 @@ class TableMirroringTest extends ComponentTestBase {
         frame();
         assertEquals(BOX - STRIP, bar(true).x(), EPS, "the default must not have moved");
         assertEquals(0, bar(false).x(), EPS);
+        table.scrollBy(1000, 0);
+        frame();
+        assertEquals(BOX - STRIP - 120 + tokens().padH(), canvas.text("C4").x(), EPS,
+                "left to right the end of the scroll puts the last column's right edge at the "
+                        + "strip: " + canvas.texts());
+        for (TablePaintCanvas.Line line : canvas.verticalLines()) {
+            if (line.width() == Strokes.HAIRLINE) {
+                assertTrue(line.x1() <= BOX - STRIP + EPS, "no divider under the strip: " + line);
+            }
+        }
     }
 }
