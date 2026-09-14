@@ -209,6 +209,21 @@ Three details are decisions rather than mechanics:
   and publishes `VALIDITY` as invalid; it does not guess a year. Guessing is what makes a form
   submit something nobody typed.
 
+**Amendment, 2026-09-14 (era-year-width, decision 38 — DATES-NEW-7, DATES-NEW-10): the widening
+stops at eras, and the era rides in the year's spoken text.** The four-digit widening above
+removes a two-digit year's ambiguity; a year of era inside a named era has none, so in a calendar
+whose years need their era — read off the year of era today being under a thousand (Japanese,
+Minguo), never off a list — the year is drawn at its own width ("R8/9/9", "民國115/9/9", not
+"R0008") and typed with one to three digits: "115" rolls on, "8" waits for a Right. The era of an
+empty field is today's **by the widget's clock** (§1), not the wall clock's: a field under a clock
+set to 2018 types into Heisei. "It is read out" was false until now — the era segment is not
+editable and so was never a node — and stays true a different way: the era is no node of its own
+(ADR 039 §7's DateField row corrected), and reaches a reader as part of the year segment's value
+text, "令和8" for the "8" that is drawn, formatted by the JDK with no string of this toolkit's.
+Pinned by `DateFieldTest.anEraYearIsDrawnAtItsOwnWidthAndTypedWithUpToThreeDigits`,
+`anEmptyEraFieldTypesIntoTheClocksEra` and
+`DateFieldAccessibilityTest.anEraCalendarsYearSegmentSpeaksItsEra`.
+
 ## 4. The grid is a table, and that is why it can already be read
 
 `CalendarView` lays out six week rows of seven day cells, plus a weekday header row and, when asked,

@@ -227,6 +227,37 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
                 "the first step from empty is today's month by the field's clock");
     }
 
+    /**
+     * Decision 38 (DATES-NEW-7): the era is no node of its own — it is drawn as a read-only piece
+     * of the pattern — and reaches a reader in the year segment's spoken text, "令和8" for the "8"
+     * that is drawn, with no string of this toolkit's. A calendar whose years are whole years
+     * (ISO, Buddhist, Hijri) speaks the bare number as before.
+     */
+    @Test
+    void anEraCalendarsYearSegmentSpeaksItsEra() {
+        DateField field = bindField(new DateField(), Locale.forLanguageTag("ja-JP-u-ca-japanese"));
+        field.setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-09-09T12:00:00Z"),
+                java.time.ZoneOffset.UTC));
+        field.setDate(LocalDate.of(2026, 9, 9));
+        frame();
+        List<AccessibleNode> segments = segmentNodes();
+        assertEquals(3, segments.size(), "year, month, day: the era is no segment " + describe(tree()));
+        assertEquals("令和8", segments.get(0).value().text());
+        assertEquals(8, segments.get(0).value().value());
+        assertEquals("R8/9/9", field.text(), "drawn with the era's one letter");
+
+        DateField minguo = bindField(new DateField(), Locale.forLanguageTag("zh-TW-u-ca-roc"));
+        minguo.setDate(LocalDate.of(2026, 9, 9));
+        frame();
+        assertEquals("民國115", segmentNodes().get(0).value().text());
+
+        DateField thai = bindField(new DateField(), Locale.forLanguageTag("th-TH-u-ca-buddhist"));
+        thai.setDate(LocalDate.of(2026, 9, 9));
+        frame();
+        List<String> texts = segmentNodes().stream().map(node -> node.value().text()).toList();
+        assertTrue(texts.contains("2569"), "a whole year speaks as itself: " + texts);
+    }
+
     @Test
     void aSetValueFromOutsideClampsToTheSegmentsOwnRange() throws InterruptedException {
         DateField field = bindField(new DateField(), PT_BR);

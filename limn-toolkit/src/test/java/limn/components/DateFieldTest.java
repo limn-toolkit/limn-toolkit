@@ -295,6 +295,59 @@ class DateFieldTest extends ComponentTestBase {
         assertTrue(field.text().contains("--"), field.text());
     }
 
+    // ------------------------------------------------------------ eras (era-year-width, decision 38)
+
+    private static final Locale JAPANESE = Locale.forLanguageTag("ja-JP-u-ca-japanese");
+    private static final Locale MINGUO = Locale.forLanguageTag("zh-TW-u-ca-roc");
+    private static final Clock IN_2026 =
+            Clock.fixed(Instant.parse("2026-09-09T12:00:00Z"), ZoneOffset.UTC);
+
+    /**
+     * ADR 042 §3's four-digit widening removes a two-digit year's ambiguity; a year of era inside
+     * a named era has none, so it is drawn at its own width and typed with one to three digits.
+     * Before 2026-09-14 the field drew "R0008/9/9" and "民國0115/9/9" and waited for four digits.
+     */
+    @Test
+    void anEraYearIsDrawnAtItsOwnWidthAndTypedWithUpToThreeDigits() {
+        build(new DateField(), JAPANESE);
+        field.setClock(IN_2026);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        assertEquals("R8/9/9", field.text());
+        assertEquals(LocalDate.of(2026, 9, 9), field.date(), "the value is ISO either way");
+
+        build(new DateField(), MINGUO);
+        field.setClock(IN_2026);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        assertEquals("民國115/9/9", field.text(), "the Republic's 115th year, at its own width");
+        type("116");            // three digits fill the year and roll on to the month
+        type("3");
+        key(Keys.RIGHT);
+        type("4");
+        assertEquals(LocalDate.of(2027, 3, 4), field.date(), "Minguo 116-03-04");
+
+        build(new DateField(), JAPANESE);
+        field.setClock(IN_2026);
+        type("9");              // one digit: the year waits for a Right rather than a fourth digit
+        key(Keys.RIGHT);
+        type("1");
+        key(Keys.RIGHT);
+        type("2");
+        assertEquals(LocalDate.of(2027, 1, 2), field.date(), "Reiwa 9-01-02, the era from the clock");
+    }
+
+    @Test
+    void anEmptyEraFieldTypesIntoTheClocksEra() {
+        build(new DateField(), JAPANESE);
+        field.setClock(Clock.fixed(Instant.parse("2018-06-01T12:00:00Z"), ZoneOffset.UTC));
+        type("30");             // Heisei 30 by that clock; Reiwa 30 (2048) by the wall clock's era
+        key(Keys.RIGHT);
+        type("6");
+        key(Keys.RIGHT);
+        type("1");
+        assertEquals(LocalDate.of(2018, 6, 1), field.date());
+        assertEquals("H30/6/1", field.text());
+    }
+
     @Test
     void aDateOutsideTheBoundsIsHeldAndReportedRatherThanSnapped() {
         build(new DateField(), PT_BR);

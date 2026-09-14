@@ -562,13 +562,29 @@ public class DateField extends Widget {
         ChronoLocalDate reference = dateValue != null
                 ? CalendarChronology.date(chronology, dateValue) : null;
         if (reference == null) {
-            try {
-                reference = chronology.dateNow();
-            } catch (DateTimeException e) {
+            // Today by the widget's clock (ADR 042 §1), not the wall clock: an empty Japanese
+            // field under a clock set to 2018 types into Heisei, and a capture pinned to a day
+            // types into that day's era (DATES-NEW-10, 2026-09-14).
+            reference = CalendarChronology.date(chronology, today());
+            if (reference == null) {
                 return null;
             }
         }
         return reference.getEra();
+    }
+
+    /** Today, by this field's clock. */
+    private LocalDate today() {
+        return clock == null ? LocalDate.now() : LocalDate.now(clock);
+    }
+
+    /**
+     * Whether the drawn calendar's years are spoken and typed with their era: Reiwa 8 and
+     * Minguo 115 say nothing without it, where 2026, 2569 and 1448 do (era-year-width,
+     * 2026-09-14). Read off the year of era today, never off a list of chronologies.
+     */
+    private boolean eraCalendar() {
+        return CalendarChronology.yearsNameTheirEra(chronology(), today());
     }
 
     // ------------------------------------------------------------------ bounds and validity
@@ -847,7 +863,7 @@ public class DateField extends Widget {
     private String widestFieldForm(DatePattern.FieldPart field, Locale locale) {
         return switch (field.field()) {
             case MONTH -> field.width() >= 3 ? widestMonthName(locale) : "88";
-            case YEAR -> "8888";
+            case YEAR -> eraCalendar() ? "888" : "8888";
             case DAY_PERIOD -> widestDayPeriod(locale);
             case ERA -> widestEra(locale);
             case OTHER -> "";
@@ -896,7 +912,12 @@ public class DateField extends Widget {
      */
     private String segmentText(DatePattern.FieldPart field) {
         return switch (field.field()) {
-            case YEAR -> year == UNSET ? "----" : pad(year, Math.max(4, field.width()));
+            // Widened to four in a calendar whose year is the whole year; drawn at its own width
+            // in one whose years carry an era (Reiwa 8, not 0008): the widening removes a
+            // two-digit year's ambiguity, and a year of era inside a named era has none
+            // (ADR 042 §3, amended 2026-09-14).
+            case YEAR -> year == UNSET ? (eraCalendar() ? "--" : "----")
+                    : eraCalendar() ? pad(year, 1) : pad(year, Math.max(4, field.width()));
             case MONTH -> monthText(field);
             case DAY -> day == UNSET ? "--" : pad(day, field.width());
             case HOUR24 -> hour == UNSET ? "--" : pad(hour, field.width());
@@ -1011,8 +1032,11 @@ public class DateField extends Widget {
     private int segmentMax(DatePattern.Field field) {
         return switch (field) {
             // Not 9999: a year is bounded by what the calendar being drawn can hold, and Hijri
-            // stops at 1600. Asked of the chronology rather than assumed.
-            case YEAR -> (int) Math.min(9999, chronology().range(ChronoField.YEAR_OF_ERA).getMaximum());
+            // stops at 1600. Asked of the chronology rather than assumed. A year of era that
+            // needs its era is one to three digits (era-year-width), which is what lets a typed
+            // "115" roll on and a typed "8" wait for a Right.
+            case YEAR -> eraCalendar() ? 999
+                    : (int) Math.min(9999, chronology().range(ChronoField.YEAR_OF_ERA).getMaximum());
             case MONTH -> 12;
             case DAY -> daysInCurrentMonth();
             case HOUR24 -> 23;
@@ -1147,7 +1171,7 @@ public class DateField extends Widget {
             return;
         }
         DatePattern.Field field = part.field();
-        int width = field == DatePattern.Field.YEAR ? 4 : 2;
+        int width = field == DatePattern.Field.YEAR ? (eraCalendar() ? 3 : 4) : 2;
         int current = segmentValue(field);
         int next = typedDigits == 0 || current == UNSET ? digit : current * 10 + digit;
         if (next > segmentMax(field) && typedDigits > 0) {
@@ -1751,7 +1775,8 @@ public class DateField extends Widget {
                     a.valueText(DateStrings.SEGMENT_EMPTY.get(), valueRevision);
                 } else {
                     a.value(value, segmentMin(field.field()), segmentMax(field.field()), 1);
-                    a.valueText(segmentText(field), valueRevision);
+                    a.valueText(field.field() == DatePattern.Field.YEAR
+                            ? yearSpoken(field) : segmentText(field), valueRevision);
                 }
                 a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
                 if (slot == focusedSlot && caretShown()) {
@@ -1761,6 +1786,29 @@ public class DateField extends Widget {
                 slot++;
             }
             x += pieceWidth;
+        }
+    }
+
+    /**
+     * What a reader is told the year segment holds: the year as drawn, or, in a calendar whose
+     * years need their era, the era with it &mdash; "令和8", "民國115" (decision 38, 2026-09-14).
+     * The era is drawn as its own read-only piece of the pattern ("R8/9/9") and is no node of its
+     * own; the year's spoken text is where it reaches a reader, so drawn and spoken agree without
+     * a string of this toolkit's. Built from the segments rather than the value, so a year typed
+     * ahead of its month is spoken with its era too.
+     */
+    private String yearSpoken(DatePattern.FieldPart field) {
+        if (!eraCalendar() || year == UNSET) {
+            return segmentText(field);
+        }
+        Chronology chronology = chronology();
+        try {
+            Era era = eraForBuilding(chronology);
+            ChronoLocalDate first = era == null
+                    ? chronology.date(year, 1, 1) : chronology.date(era, year, 1, 1);
+            return CalendarChronology.eraYear(chronology, first, locale(), false);
+        } catch (DateTimeException | ArithmeticException e) {
+            return segmentText(field);
         }
     }
 
