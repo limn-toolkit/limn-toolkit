@@ -90,7 +90,14 @@ preferred width, minimum and weight (§5), so the x of every column is a prefix 
 is rarely longer than thirty. The band of columns that intersect the viewport is what is shaped and
 painted; a column scrolled out of view costs nothing, and a row realized while it was out of view
 shapes its text the first time it enters. The header is pinned: it scrolls with the columns and not
-with the rows.
+with the rows. (**Corrected 2026-09-14, B3:** "costs nothing" is loose — `mount` reads and holds
+the *text* of every column of a realized row, hidden and out-of-view ones included, and a `CELL`
+node is published for every shown column of every realized row, off screen when out of view; what
+a column out of view saves is the shaping and the painting, which is what the sentence meant.
+Pinned by `TableTest.aWideTableScrollsSidewaysAndShapesAndPaintsOnlyTheColumnsInView`,
+`theFocusCellBringsItsColumnIntoView` and
+`TableAccessibilityTest.aColumnScrolledAwayIsPublishedOffScreen`; the mirrored half by
+`TableMirroringTest`, the class §10 promised and B2 found missing.)
 
 **Both scroll bars are the shared `ScrollBar`**, resolved through `ScrollGutters` exactly as
 `ScrollView` resolves them, so a table and a scroll view reserve, overlay and fade their bars the

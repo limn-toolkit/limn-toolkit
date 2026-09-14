@@ -4,6 +4,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.CellFacet;
+import limn.accessibility.ScrollFacet;
 import limn.accessibility.SelectionItemFacet;
 import limn.accessibility.TableFacet;
 import limn.components.table.Column;
@@ -842,5 +843,99 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertEquals(1, table.focusColumn());
         assertEquals(ageCell, nodesWith(Accessible.State.ACTIVE).get(0).id());
+    }
+
+    private static List<Column<Person>> fiveColumns() {
+        List<Column<Person>> columns = new ArrayList<>();
+        for (int c = 0; c < 5; c++) {
+            final int n = c;
+            columns.add(Column.<Person>text("C" + c, p -> "P" + p.age() + "c" + n).width(120));
+        }
+        return columns;
+    }
+
+    /**
+     * B3 (2026-09-14): every shown column of a realized row is published, in view or not, and
+     * the ones outside the horizontal viewport are published without {@code SHOWING} — header
+     * cells, cells and footer cells alike — with the horizontal scroll on the table node.
+     */
+    @Test
+    void aColumnScrolledAwayIsPublishedOffScreen() {
+        List<Column<Person>> columns = fiveColumns();
+        columns.get(4).footerCount();
+        Table<Person> table = new Table<>(columns);
+        table.setRows(people(30));
+        bind(table); // 400 points wide: three columns in view, the fourth cut, the fifth out
+        ScrollFacet scroll = tableNode().scroll();
+        assertTrue(scroll.horizontallyScrollable());
+        assertEquals(0, scroll.horizontalPercent(), 1e-4);
+        assertEquals(400.0 / 600, scroll.horizontalViewSize(), 1e-4);
+        List<AccessibleNode> headers = childrenOf(headerGroup());
+        assertEquals(5, headers.size(), "every shown column, in view or not");
+        assertTrue(headers.get(3).has(Accessible.State.SHOWING), "the cut column is on screen");
+        assertFalse(headers.get(4).has(Accessible.State.SHOWING), "the one past the edge is not");
+        List<AccessibleNode> cells = childrenOf(rowNodes().get(0));
+        assertEquals(5, cells.size());
+        assertTrue(cells.get(0).has(Accessible.State.SHOWING));
+        assertFalse(cells.get(4).has(Accessible.State.SHOWING), "a cell off the edge: " + cells.get(4));
+        long lastCell = cells.get(4).id();
+        List<AccessibleNode> footer = childrenOf(footerGroup());
+        assertEquals(1, footer.size(), "the one column with a footer");
+        assertEquals(new CellFacet(-2, 4), footer.get(0).cell());
+        assertFalse(footer.get(0).has(Accessible.State.SHOWING), "the footer cell is off the edge too");
+
+        table.scrollBy(200, 0);
+        frame();
+        assertEquals(1, tableNode().scroll().horizontalPercent(), 1e-4, "200 of a maximum of 200");
+        headers = childrenOf(headerGroup());
+        assertFalse(headers.get(0).has(Accessible.State.SHOWING), "scrolled out on the left");
+        assertTrue(headers.get(4).has(Accessible.State.SHOWING));
+        cells = childrenOf(rowNodes().get(0));
+        assertFalse(cells.get(0).has(Accessible.State.SHOWING));
+        assertTrue(cells.get(4).has(Accessible.State.SHOWING));
+        assertEquals(lastCell, cells.get(4).id(), "the same cell, in view now");
+        assertTrue(childrenOf(footerGroup()).get(0).has(Accessible.State.SHOWING));
+    }
+
+    /** The last {@code GROUP} child of the table: the footer's, after the rows (the bars follow). */
+    private AccessibleNode footerGroup() {
+        List<AccessibleNode> children = childrenOf(tableNode());
+        for (int i = children.size() - 1; i >= 0; i--) {
+            if (children.get(i).role() == Accessible.Role.GROUP) {
+                assertTrue(i > 0, "the footer group comes after the header group");
+                return children.get(i);
+            }
+        }
+        throw new AssertionError("no footer group among " + children);
+    }
+
+    /**
+     * The percent is published unflipped, the rule the scroll pane, the tab strip and the tree
+     * settled (ADR 039): the offset is a distance from the edge reading starts from, and the
+     * mirroring is in where the columns sit. A flipped percent would tell a reader that a table
+     * resting on its first column is scrolled to the end.
+     */
+    @Test
+    void theHorizontalPercentIsNotFlippedRightToLeft() {
+        Table<Person> table = new Table<>(fiveColumns());
+        table.setRows(people(30));
+        table.setLayoutDirection(limn.scene.LayoutDirection.RTL);
+        bind(table);
+        assertTrue(table.isRightToLeft(), "the fixture really did mirror the table");
+        List<AccessibleNode> headers = childrenOf(headerGroup());
+        assertEquals(400, headers.get(0).x() + headers.get(0).width(), 1e-3,
+                "the first column ends at the right edge: " + describe(tree()));
+        assertEquals(0, tableNode().scroll().horizontalPercent(), 1e-4,
+                "zero is the leading edge, which is the right edge here");
+        assertFalse(headers.get(4).has(Accessible.State.SHOWING), "the last column hangs off the left");
+
+        table.scrollBy(200, 0);
+        frame();
+        assertEquals(1, tableNode().scroll().horizontalPercent(), 1e-4,
+                "the end is one, whichever side it is on");
+        headers = childrenOf(headerGroup());
+        assertFalse(headers.get(0).has(Accessible.State.SHOWING), "the first column went off the right");
+        assertTrue(headers.get(4).has(Accessible.State.SHOWING), "and the last came in from the left");
+        assertEquals(0, headers.get(4).x(), 1e-3);
     }
 }

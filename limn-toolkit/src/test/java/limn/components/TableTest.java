@@ -11,6 +11,10 @@ import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.SizedBox;
+import limn.graphics.Font;
+import limn.graphics.ShapedText;
+import limn.graphics.TextMetrics;
+import limn.graphics.TextRuler;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -1059,5 +1063,123 @@ class TableTest extends ComponentTestBase {
                 EPS);
         assertThrows(IllegalArgumentException.class, () -> table.setVisibleRows(0));
         assertEquals(3, table.visibleRows(), "refused, and unchanged");
+    }
+
+    // ------------------------------------------------------ horizontal scrolling (B3)
+
+    /** Five text columns of 120 points: "P3c1" is row 3's cell in column 1, short so nothing ellipsizes. */
+    private static List<Column<Person>> fiveColumns() {
+        List<Column<Person>> columns = new ArrayList<>();
+        for (int c = 0; c < 5; c++) {
+            final int n = c;
+            columns.add(Column.<Person>text("C" + c,
+                    p -> "P" + p.name().substring("Person ".length()) + "c" + n).width(120));
+        }
+        return columns;
+    }
+
+    /** {@link #RULER}, counting the lines it shaped by text. */
+    private static final class CountingRuler implements TextRuler {
+        final List<String> shaped = new ArrayList<>();
+
+        @Override
+        public TextMetrics measure(String text, Font font) {
+            return RULER.measure(text, font);
+        }
+
+        @Override
+        public ShapedText shape(String text, Font font, ShapedText.Direction base) {
+            shaped.add(text);
+            return TextRuler.super.shape(text, font, base);
+        }
+
+        int shapedCount(String text) {
+            int n = 0;
+            for (String s : shaped) {
+                if (s.equals(text)) {
+                    n++;
+                }
+            }
+            return n;
+        }
+    }
+
+    /**
+     * B3 (2026-09-14): nothing had ever scrolled a table sideways. The band of columns that
+     * intersect the viewport is what is shaped and painted (ADR 041 §2): a column wholly
+     * outside is neither, its text is shaped the first time it enters and held after, and the
+     * offset clamps at the content's end.
+     */
+    @Test
+    void aWideTableScrollsSidewaysAndShapesAndPaintsOnlyTheColumnsInView() {
+        Table<Person> table = new Table<>(fiveColumns());
+        table.setRows(people(20));
+        CountingRuler ruler = new CountingRuler();
+        TablePaintCanvas canvas = new TablePaintCanvas(300, 200);
+        Scene scene = new Scene(table);
+        scene.setTextRuler(ruler);
+        scene.renderFrame(canvas);
+        float padH = Theme.current().tokensFor(table).padH();
+        assertTrue(canvas.drew("P0c0") && canvas.drew("P0c2"),
+                "the columns in view, the cut one included: " + canvas.texts());
+        assertFalse(canvas.drew("P0c3"), "a column wholly outside the viewport is not painted");
+        assertFalse(canvas.drew("C3"), "nor its header");
+        assertEquals(0, ruler.shapedCount("P0c3"), "nor shaped");
+        assertTrue(ruler.shapedCount("P0c0") > 0, "the fixture counts: " + ruler.shaped);
+
+        table.scrollBy(1000, 0);
+        canvas.reset();
+        scene.renderFrame(canvas);
+        assertTrue(canvas.drew("P0c3") && canvas.drew("P0c4") && canvas.drew("C4"),
+                "clamped at the content's end, the last columns are in view: " + canvas.texts());
+        assertFalse(canvas.drew("P0c0"), "and the first is out");
+        assertEquals(300 - 120 + padH, canvas.text("C4").x(), EPS,
+                "the last column ends at the viewport's edge: 600 points of columns, 300 shown");
+        assertEquals(1, ruler.shapedCount("P0c3"), "shaped the first time it entered");
+
+        table.scrollBy(-1000, 0);
+        canvas.reset();
+        scene.renderFrame(canvas);
+        assertEquals(padH, canvas.text("C0").x(), EPS, "back at the origin");
+        table.scrollBy(1000, 0);
+        canvas.reset();
+        scene.renderFrame(canvas);
+        assertEquals(1, ruler.shapedCount("P0c3"), "and held while it was out, not shaped again");
+    }
+
+    /** B3: Right past the viewport brings the focus column into view, as a consequence of the key. */
+    @Test
+    void theFocusCellBringsItsColumnIntoView() {
+        Table<Person> table = new Table<>(fiveColumns());
+        table.setRows(people(20));
+        TablePaintCanvas canvas = new TablePaintCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        scene.requestFocus(table);
+        table.setSelectedRow(0);
+        List<Change> heard = new ArrayList<>();
+        table.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.VALUE) {
+                heard.add(change);
+            }
+        });
+        for (int i = 0; i < 3; i++) {
+            key(scene, Keys.RIGHT);
+        }
+        assertEquals(3, table.focusColumn());
+        canvas.reset();
+        scene.renderFrame(canvas);
+        float padH = Theme.current().tokensFor(table).padH();
+        assertEquals(300 - 120 + padH, canvas.text("C3").x(), EPS,
+                "the column was scrolled in to end at the viewport's edge: " + canvas.texts());
+        assertEquals(2, heard.size(), "the cut third column and the fourth each scrolled once: " + heard);
+        for (Change change : heard) {
+            assertEquals(Change.Origin.ADJUSTMENT, change.origin(), "a consequence of the key");
+        }
+        for (int i = 0; i < 3; i++) {
+            key(scene, Keys.LEFT);
+        }
+        canvas.reset();
+        scene.renderFrame(canvas);
+        assertEquals(padH, canvas.text("C0").x(), EPS, "and Left back brings the first column home");
     }
 }
