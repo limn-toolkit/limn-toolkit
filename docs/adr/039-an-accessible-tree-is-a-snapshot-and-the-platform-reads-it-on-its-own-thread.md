@@ -692,6 +692,20 @@ which already walks. The carried flags are exactly where §1.13's modal subtract
 two rules are one mechanism and one traversal, and `AccessibleFocusOrderTest`'s equality becomes an
 identity rather than a coincidence that holds until someone disables a `Row`.
 
+**Amendment, 2026-09-14: a synthetic child may narrow `ENABLED`, and only narrow it.** The rule
+above carries the owner's enabled bit down onto every synthetic child, which is right for a menu row
+inside a disabled menu and wrong for a day the calendar's bounds refuse inside an enabled calendar,
+or a scroll chevron with nothing left to scroll: those published `ENABLED` and carried no verb, and a
+reader arrowing onto one heard an operable cell that did nothing (DATES-NEW-6, decision 30;
+SegmentedControl's dead chevron). `Accessibility#disabled()` is the answer, in `#offScreen()`'s
+shape and for its reason: a declaration from inside the synthetic child, clear by default and
+cleared for every child, that the publish step ANDs into the inherited bit — so a child can be less
+enabled than its owner and never more, and the owner's bit stays the keyboard's. A disabled child
+still carries no verb of its own accord; that stays the widget's to leave out, as the refused day
+leaves out `SELECT`, and a bridge reads the absence (semantics 5). `CalendarView` and
+`SegmentedControl` using it are the widget lanes' changes; `AccessibleModelTest` pins the narrowing
+both ways.
+
 The whole node is a value. It holds no `Widget` reference and no `Runnable`, because a UI Automation
 client can hold an element for minutes and a snapshot that pinned a detached subtree through it would
 be a leak the garbage collector cannot see.

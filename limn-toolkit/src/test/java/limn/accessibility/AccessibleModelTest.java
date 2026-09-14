@@ -745,6 +745,73 @@ class AccessibleModelTest {
         a.end();
     }
 
+    /**
+     * A synthetic child may be published not-ENABLED inside an enabled owner and never the other
+     * way round (decision 30): {@code disabled()} narrows the inherited bit as {@code offScreen()}
+     * narrows SHOWING, is cleared for every child, and is refused on a widget's own node.
+     */
+    @Test
+    void aSyntheticChildMayBeDisabledAndIsNeverMoreEnabledThanItsOwner() {
+        Accessibility a = new Accessibility();
+        long owner = a.mint();
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        a.begin(owner, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        assertThrows(IllegalStateException.class, a::disabled,
+                "a widget's own enabled bit is the walk's");
+        a.role(Accessible.Role.TABLE);
+        a.child(1);
+        a.role(Accessible.Role.CELL);
+        a.bounds(0, 0, 20, 20);
+        a.disabled();
+        a.endChild();
+        a.child(2);
+        a.role(Accessible.Role.CELL);
+        a.bounds(20, 0, 20, 20);
+        a.action(Accessible.Action.SELECT);
+        a.endChild();
+        a.end();
+        for (int i = 1; i < a.nodeCount(); i++) {
+            a.inheritedAt(i, true, true, true);
+        }
+        AccessibleTree enabledOwner = publish(a, target -> 0);
+        assertFalse(enabledOwner.node(1).has(Accessible.State.ENABLED), "the refused day");
+        assertTrue(enabledOwner.node(2).has(Accessible.State.ENABLED),
+                "cleared for the next child: " + enabledOwner.node(2).states());
+        assertTrue(enabledOwner.node(1).has(Accessible.State.VISIBLE), "only the one bit narrows");
+        assertTrue(enabledOwner.node(1).has(Accessible.State.SHOWING));
+
+        // The owner disabled: neither child is enabled, whatever it declared -- narrowing only.
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        a.begin(owner, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.TABLE);
+        a.child(1);
+        a.role(Accessible.Role.CELL);
+        a.bounds(0, 0, 20, 20);
+        a.endChild();
+        a.child(2);
+        a.role(Accessible.Role.CELL);
+        a.bounds(20, 0, 20, 20);
+        a.action(Accessible.Action.SELECT);
+        a.endChild();
+        a.end();
+        for (int i = 1; i < a.nodeCount(); i++) {
+            a.inheritedAt(i, false, true, true);
+        }
+        AccessibleTree disabledOwner = publish(a, target -> 0);
+        assertFalse(disabledOwner.node(1).has(Accessible.State.ENABLED));
+        assertFalse(disabledOwner.node(2).has(Accessible.State.ENABLED));
+        int enabledEvents = 0;
+        for (AccessibleEvent event : a.events()) {
+            if (event.type() == AccessibleEvent.Type.STATE_CHANGED
+                    && event.state() == Accessible.State.ENABLED) {
+                enabledEvents++;
+                assertEquals(disabledOwner.node(2).id(), event.nodeId(),
+                        "only the second child moved; the first was disabled both times");
+            }
+        }
+        assertEquals(1, enabledEvents, a.events().toString());
+    }
+
     @Test
     void aTextFacetCarriesItsCaretAffinityAndAnEmptyTreeCarriesNothing() {
         assertEquals(0, AccessibleTree.EMPTY.nodeCount());

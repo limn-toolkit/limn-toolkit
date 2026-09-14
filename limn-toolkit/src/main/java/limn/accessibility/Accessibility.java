@@ -126,6 +126,7 @@ public final class Accessibility {
         boolean hosted;
         boolean roleDeclared;
         boolean offScreen;
+        boolean disabled;
 
         int toggle;                     // -1 none, else a ToggleFacet.State ordinal
         boolean hasValue;
@@ -215,6 +216,7 @@ public final class Accessibility {
             hosted = false;
             roleDeclared = false;
             offScreen = false;
+            disabled = false;
             toggle = -1;
             hasValue = false;
             valueReadOnly = false;
@@ -525,9 +527,9 @@ public final class Accessibility {
      * declare the facet. The five the publish step owns — enabled, visible, showing, focusable and focused —
      * belong to the walk, because a widget's own flag answers only for itself while the tree has
      * to agree with a keyboard whose traversal stops at the first ancestor that is hidden or
-     * disabled; a synthetic child narrows one of them through {@link #offScreen()}. Until this
-     * amendment such a call was dropped in silence, and a widget carried a dead line for months
-     * that no reader ever heard.
+     * disabled; a synthetic child narrows two of them through {@link #offScreen()} and
+     * {@link #disabled()}. Until this amendment such a call was dropped in silence, and a widget
+     * carried a dead line for months that no reader ever heard.
      *
      * @param state what to set; never {@code null}
      * @param on    whether it holds
@@ -1039,6 +1041,33 @@ public final class Accessibility {
     }
 
     /**
+     * Says that the synthetic child being described cannot be operated even though its owner
+     * can: a calendar day the bounds or the filter refuse, a scroll chevron with nothing left to
+     * scroll (decision 30, 2026-09-14). It publishes without {@code ENABLED} while its owner
+     * keeps it.
+     *
+     * <p>{@link #offScreen()}'s shape, for {@link #offScreen()}'s reason: enabled is one of the
+     * states the publish step owns and a widget cannot set, and the step inherits it from the
+     * owner down onto every synthetic child, which is right for a menu row inside a disabled menu
+     * and wrong for a refused day inside an enabled calendar. So this is <b>narrowing only</b>: a
+     * child may be less enabled than its owner and never more, because the owner's bit is the
+     * keyboard's and a child published operable inside a disabled owner would be refused by
+     * §1.9's gate with nothing said about why. Clear by default and cleared for every child.
+     *
+     * <p>A disabled child carries no verb of its own accord: that is the widget's to leave out,
+     * as the refused day leaves out its {@code SELECT}, and a bridge reads the absence.
+     *
+     * @throws IllegalStateException if no synthetic child is open
+     */
+    public void disabled() {
+        Slot s = slot();
+        if (!s.synthetic) {
+            throw new IllegalStateException("disabled outside a synthetic child");
+        }
+        s.disabled = true;
+    }
+
+    /**
      * Gives the child about to be described the identity key its parent chose for it, from inside
      * the parent's <em>identity</em> hook and nowhere else.
      *
@@ -1377,7 +1406,8 @@ public final class Accessibility {
      * that is larger than the set the keyboard reaches is the disagreement the modal rule states.
      *
      * @param index   the node's index in this walk, which the publish step already holds
-     * @param enabled whether the owner and every ancestor of it are enabled
+     * @param enabled whether the owner and every ancestor of it are enabled; a child that called
+     *                {@link #disabled()} publishes without it either way
      * @param visible whether the owner and every ancestor of it are visible
      * @param showing whether the owner has pixels on screen; a child that called
      *                {@link #offScreen()} publishes without it either way
@@ -1386,7 +1416,7 @@ public final class Accessibility {
     public void inheritedAt(int index, boolean enabled, boolean visible, boolean showing) {
         Objects.checkIndex(index, count);
         Slot s = slots[index];
-        s.states = set(s.states, Accessible.State.ENABLED, enabled);
+        s.states = set(s.states, Accessible.State.ENABLED, enabled && !s.disabled);
         s.states = set(s.states, Accessible.State.VISIBLE, visible);
         s.states = set(s.states, Accessible.State.SHOWING, showing && !s.offScreen);
     }
