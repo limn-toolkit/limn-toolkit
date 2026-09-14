@@ -600,7 +600,10 @@ hidden columns, columns published off screen and the unflipped horizontal percen
 `TableFocusedRowTest` (six cases) the two kept rows and the clip; `TableMirroringTest` (eight
 cases) the right-to-left placement; and `DamageContractTest`'s Table row the wheel on both axes
 and a horizontal focus move, under ceilings measured on 2026-09-14. The gallery's transcript is
-committed as `limn-demo/src/test/resources/limn/demo/a11y/table.txt`, read aloud before it was.
+committed as `limn-demo/src/test/resources/limn/demo/a11y/table.txt` on 2026-09-14, read line by
+line and explained in its commit, but **not read aloud**: the read-aloud this section asks for
+before a transcript is committed is the owner's, and is owed before phase 5's live run (this
+amendment first said it had been done; it had not, and the sentence was corrected the same day).
 Still owed: a live screen-reader run over the table on each guest (B9, phase 5) — the 2026-09-09
 runs were client walks through the probe scripts, and no reader has yet spoken a Limn table;
 its recipe should include Shift+Tab into the header, Right, Space, Right into the switch column,
