@@ -145,6 +145,33 @@ selected — `rangeAnchor` — which is the lead only until a Shift extension mo
 range's end and leaves the anchor where it was; that is the platform's grammar, and the words are
 what changes.
 
+**Amended 2026-09-14 (decision 23: a row is its record).** "Selection is a set of model indices"
+held across a `refresh()` by number, so the documented `onSortRequest` recipe — reorder the list,
+call `refresh()` — and any insert, remove or reorder before a `refresh()` moved the selection onto
+whatever records now stood at those numbers (TABLE-NEW-3), and §6's "the selection is by model
+row and stays where it was" held only for in-place edits. The selection, the lead, the focus
+cell and the range anchor are now **followed by record**: model indices between two refreshes,
+records across one. A record is the row itself, by `equals`, unless `Table.rowKey(Function)`
+names its identity (`rowKey(Order::id)`); keys are taken when a row enters one of the four,
+because the list is the application's and has already changed when `refresh()` runs, and records
+with equal keys are told apart by occurrence — the third equal record stays the third, and an
+insert of an equal record above it makes it the fourth, which is what "occurrence" can say. A
+selected record the list no longer holds leaves the selection with one
+`SELECTION`/`ADJUSTMENT`; a vanished lead hands the lead to the last selected row; a vanished
+focus row or anchor keeps its position, clamped. A focus row that moved is announced as
+`ACTIVE`/`ADJUSTMENT` and revealed with the least scroll. Costs, written down: `refresh()` with
+something to follow reads the rows once, stopping at the last record found (nothing to follow,
+nothing read); selecting a row without a `rowKey` reads the rows before it once, to place it
+among equal records; `selectAll()` reads every row once for its key. Reader verbs still name a
+row by the model index the snapshot published, performed on the UI thread after that frame on
+the record at that index then. Pinned by `TableTest.aServerSortKeepsTheSelectionOnItsRecords`,
+`refreshFollowsTheRecordsThroughAnInsertARemoveAndAReorder`,
+`equalRecordsAreToldApartByOccurrenceAndARowKeyNamesIdentity` and
+`TableAccessibilityTest.refreshKeepsTheCursorOnTheRecordItWasOn`. §4's "keeps selection stable
+across a sort" and §6's sentence are true again by this rule rather than by index; §4's
+"rebuilt ... on `setSort`, on `refresh` and on nothing else" was already loose — `setRows`
+resorts too.
+
 ---
 
 ## 4. The toolkit sorts, and the application may take that over

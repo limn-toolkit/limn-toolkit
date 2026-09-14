@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 
 /**
@@ -50,6 +51,8 @@ import java.util.function.IntConsumer;
  * <p><b>Selection</b> is by row and by <b>model</b> index, in one of three
  * {@linkplain SelectionMode modes}, and it survives a sort because a sort is a
  * {@linkplain #setSort permutation} over the application's list and never a reordering of it.
+ * A row is its record: across a {@link #refresh()} the selection follows the records it named,
+ * wherever the list holds them now, by {@code equals} or by a {@linkplain #rowKey key}.
  * Separately, the arrow keys move a <b>focus cell</b>, which is what a screen reader's cursor
  * stands on. Enter and a double click {@linkplain #onActivate activate} the lead row.
  *
@@ -119,6 +122,12 @@ public class Table<T> extends Widget implements Scrollable {
     private int rangeAnchor = -1;   // view index a Shift range extends from
     private Runnable onSelect;
     private IntConsumer onActivate;
+    // A row is its record (decision 23 of 2026-09-14): the selection, the lead, the focus row and
+    // the anchor are addressed by model index between two refreshes and followed by record
+    // across one. The records are held as keys, taken when a row enters one of the four, because
+    // the list is the application's and has already changed when refresh() is called.
+    private Function<? super T, ?> rowKey;
+    private final Records records = new Records();
     // The header the last click asked to sort by, and the order it asked for: what onSortRequest
     // is told, read back here because a request for the model's order leaves sortColumn null.
     private Column<T> sortRequestColumn;
@@ -196,6 +205,232 @@ public class Table<T> extends Widget implements Scrollable {
             fittedWidth = new float[columns];
             widgets = new Widget[columns];
         }
+    }
+
+    /**
+     * The records the table follows across {@link #refresh()}: one entry per model row that is
+     * selected, the lead, the focus row or the anchor, in model order. Each holds the row's key
+     * and its <b>ordinal</b> among the rows before it with an equal key, which is what tells
+     * two equal records apart when the list comes back reordered: the third "Lee" stays the
+     * third "Lee". Parallel arrays and a spare set to merge into, so a keyboard walk that moves
+     * the selection one row at a time allocates nothing once they are sized.
+     */
+    private static final class Records {
+        int[] models = new int[8];
+        Object[] keys = new Object[8];
+        int[] ordinals = new int[8];
+        int size;
+        int[] spareModels = new int[8];
+        Object[] spareKeys = new Object[8];
+        int[] spareOrdinals = new int[8];
+        int[] added = new int[8];
+        int addedCount;
+        final int[] extras = new int[3];
+
+        void clear() {
+            Arrays.fill(keys, 0, size, null);
+            size = 0;
+        }
+
+        void ensureSpare(int n) {
+            if (spareModels.length < n) {
+                int grown = Math.max(n, spareModels.length * 2);
+                spareModels = new int[grown];
+                spareKeys = new Object[grown];
+                spareOrdinals = new int[grown];
+            }
+        }
+
+        void swapInSpare(int n) {
+            int[] m = models;
+            Object[] k = keys;
+            int[] o = ordinals;
+            models = spareModels;
+            keys = spareKeys;
+            ordinals = spareOrdinals;
+            spareModels = m;
+            spareKeys = k;
+            spareOrdinals = o;
+            Arrays.fill(spareKeys, 0, size, null);
+            size = n;
+        }
+
+        void noteAdded(int model) {
+            if (addedCount == added.length) {
+                added = Arrays.copyOf(added, added.length * 2);
+            }
+            added[addedCount++] = model;
+        }
+    }
+
+    /** @return the key {@code row} is followed by: the record itself unless {@link #rowKey} says */
+    private Object keyOf(T row) {
+        return rowKey == null ? row : rowKey.apply(row);
+    }
+
+    /** A model row the four tracked positions name, or {@code -1}; view positions are converted. */
+    private int trackedModel(int viewIndex) {
+        return viewIndex >= 0 && viewIndex < rows.size() ? modelOf(viewIndex) : -1;
+    }
+
+    /**
+     * Brings the tracked records in line with the selection, the lead, the focus row and the
+     * anchor after a seam moved one of them: rows that left are forgotten, rows that arrived are
+     * read once for their key and their ordinal. The four sources are walked in model order
+     * against the entries held, so the merge is one pass and allocates nothing once the arrays
+     * fit.
+     */
+    private void syncRecords() {
+        int count = rows.size();
+        int a = trackedModel(focusRow);
+        int b = trackedModel(rangeAnchor);
+        int c = lead >= 0 && lead < count ? lead : -1;
+        // The three extras, sorted and deduplicated, merged with the selection's set bits.
+        int e0 = Math.min(a, Math.min(b, c));
+        int e2 = Math.max(a, Math.max(b, c));
+        int e1 = a + b + c - e0 - e2;
+        int wanted = 0;
+        int selectedBit = selected.nextSetBit(0);
+        int extra = 0;
+        int[] extras = records.extras;
+        extras[0] = e0;
+        extras[1] = e1;
+        extras[2] = e2;
+        int t = 0;
+        records.addedCount = 0;
+        records.ensureSpare(selected.cardinality() + 3);
+        while (true) {
+            while (extra < 3 && (extras[extra] < 0 || (wanted > 0
+                    && extras[extra] == records.spareModels[wanted - 1]))) {
+                extra++;
+            }
+            int next;
+            if (selectedBit >= 0 && selectedBit < count
+                    && (extra >= 3 || selectedBit <= extras[extra])) {
+                next = selectedBit;
+                if (extra < 3 && extras[extra] == selectedBit) {
+                    extra++;
+                }
+                selectedBit = selected.nextSetBit(selectedBit + 1);
+            } else if (extra < 3) {
+                next = extras[extra++];
+            } else {
+                break;
+            }
+            while (t < records.size && records.models[t] < next) {
+                t++; // left the four: forgotten
+            }
+            if (t < records.size && records.models[t] == next) {
+                records.spareModels[wanted] = next;
+                records.spareKeys[wanted] = records.keys[t];
+                records.spareOrdinals[wanted] = records.ordinals[t];
+                t++;
+            } else {
+                records.spareModels[wanted] = next;
+                records.spareKeys[wanted] = keyOf(rows.get(next));
+                records.spareOrdinals[wanted] = 0;
+                records.noteAdded(wanted);
+            }
+            wanted++;
+        }
+        records.swapInSpare(wanted);
+        if (rowKey == null && records.addedCount > 0) {
+            ordinalsOfAdded();
+        }
+    }
+
+    /**
+     * The ordinal of every entry that just arrived: how many rows before it carry an equal key.
+     * A read of the rows before each, which is the price of telling equal records apart when no
+     * {@link #rowKey} promises they differ; a handful of arrivals scan for themselves, and many
+     * (a range, a select-all) share one pass over the rows with a map of their keys.
+     */
+    private void ordinalsOfAdded() {
+        int n = records.addedCount;
+        if (n <= 16) {
+            for (int i = 0; i < n; i++) {
+                int at = records.added[i];
+                Object key = records.keys[at];
+                int model = records.models[at];
+                int ordinal = 0;
+                for (int m = 0; m < model; m++) {
+                    if (Objects.equals(keyOf(rows.get(m)), key)) {
+                        ordinal++;
+                    }
+                }
+                records.ordinals[at] = ordinal;
+            }
+            return;
+        }
+        java.util.HashMap<Object, int[]> seen = new java.util.HashMap<>(n * 2);
+        for (int i = 0; i < n; i++) {
+            seen.putIfAbsent(records.keys[records.added[i]], new int[1]);
+        }
+        int last = records.models[records.added[n - 1]];
+        int nextAdded = 0;
+        for (int m = 0; m <= last; m++) {
+            Object key = keyOf(rows.get(m));
+            int[] counter = seen.get(key);
+            if (counter == null) {
+                continue;
+            }
+            if (records.models[records.added[nextAdded]] == m) {
+                records.ordinals[records.added[nextAdded]] = counter[0];
+                nextAdded++;
+            }
+            counter[0]++;
+        }
+    }
+
+    /**
+     * Finds every tracked record in the list as it is now: one pass over the rows, matching
+     * each key's entries in ordinal order, so equal records are told apart by occurrence and a
+     * record the list no longer holds is reported as gone. The pass stops once the last entry
+     * has been found.
+     *
+     * @return the model row each entry stands at now, or {@code -1} for one that vanished, by
+     *         entry
+     */
+    private int[] rediscover() {
+        int size = records.size;
+        int[] now = new int[size];
+        Arrays.fill(now, -1);
+        if (size == 0) {
+            return now;
+        }
+        // Each key's entries chained in model order, which is ordinal order: {first, last, seen}.
+        java.util.HashMap<Object, int[]> groups = new java.util.HashMap<>(size * 2);
+        int[] next = new int[size];
+        Arrays.fill(next, -1);
+        for (int t = 0; t < size; t++) {
+            int[] group = groups.get(records.keys[t]);
+            if (group == null) {
+                groups.put(records.keys[t], new int[] {t, t, 0});
+            } else {
+                next[group[1]] = t;
+                group[1] = t;
+            }
+        }
+        int count = rows.size();
+        int found = 0;
+        for (int m = 0; m < count && found < size; m++) {
+            int[] group = groups.get(keyOf(rows.get(m)));
+            if (group == null) {
+                continue;
+            }
+            int occurrence = group[2]++;
+            int cursor = group[0];
+            while (cursor >= 0 && records.ordinals[cursor] < occurrence) {
+                cursor = next[cursor]; // an equal record before this one is gone
+            }
+            if (cursor >= 0 && records.ordinals[cursor] == occurrence) {
+                now[cursor] = m;
+                found++;
+                cursor = next[cursor];
+            }
+            group[0] = cursor;
+        }
+        return now;
     }
 
     /**
@@ -287,6 +522,7 @@ public class Table<T> extends Widget implements Scrollable {
         lead = -1;
         rangeAnchor = -1;
         focusRow = -1;
+        records.clear();
         anchorIndex = 0;
         anchorTop = 0;
         resort();
@@ -343,39 +579,109 @@ public class Table<T> extends Widget implements Scrollable {
 
     /**
      * Re-reads the rows and re-lays out: call after the list's contents change, or after a
-     * column's width, visibility or alignment does. The sort is re-applied, a selected row the
-     * list no longer has is dropped, and the scroll position is kept, clamped. Announces
-     * {@code CHILDREN}/{@code CODE}, after a {@code SELECTION}/{@code ADJUSTMENT} when the
-     * selection collapsed; neither reaches a handler. UI thread only.
+     * column's width, visibility or alignment does. The sort is re-applied and the scroll
+     * position is kept, clamped.
+     *
+     * <p><b>A row is its record</b> (decision 23 of 2026-09-14; ADR 041 §3 amended): the
+     * selection, the lead, the focus cell and the range anchor follow their records to wherever
+     * the list holds them now, after an insert, a remove, a reorder or the application's own
+     * sort ({@link #onSortRequest}). A record is found again by its {@linkplain #rowKey key} —
+     * the record itself, by {@code equals}, unless one is set — and records with equal keys are
+     * told apart by occurrence: the third equal record stays the third. Finding them is one
+     * read of the rows, stopping at the last one found; a table with nothing selected and no
+     * focus cell reads nothing. A selected record the list no longer holds leaves the selection,
+     * announced as {@code SELECTION}/{@code ADJUSTMENT}; a vanished lead makes the last selected
+     * row the lead; a vanished focus row or anchor keeps its position, clamped. A focus row that
+     * moved is announced as {@code ACTIVE}/{@code ADJUSTMENT} and revealed with the least scroll,
+     * as a sort does. Then {@code CHILDREN}/{@code CODE}; nothing reaches a handler. UI thread
+     * only.
      */
     public void refresh() {
         Ui.checkUiThread();
         int count = rows.size();
         boolean moved = false;
-        int dropped = selected.nextSetBit(count);
-        if (dropped >= 0) {
-            selected.clear(count, Integer.MAX_VALUE);
-            moved = true;
+        int wasFocusRow = focusRow;
+        if (records.size > 0) {
+            int focusModel = trackedModel(focusRow);
+            int anchorModel = trackedModel(rangeAnchor);
+            int[] now = rediscover();
+            int newLead = -1;
+            int newFocus = -1;
+            int newAnchor = -1;
+            boolean leadVanished = false;
+            BitSet was = (BitSet) selected.clone();
+            selected.clear();
+            for (int t = 0; t < records.size; t++) {
+                int old = records.models[t];
+                int at = now[t];
+                if (was.get(old)) {
+                    if (at >= 0) {
+                        selected.set(at);
+                    } else {
+                        moved = true;
+                    }
+                }
+                if (old == lead) {
+                    newLead = at;
+                    leadVanished = at < 0;
+                }
+                if (old == focusModel) {
+                    newFocus = at;
+                }
+                if (old == anchorModel) {
+                    newAnchor = at;
+                }
+            }
+            if (leadVanished) {
+                moved = true;
+            }
+            lead = newLead >= 0 ? newLead : (selected.isEmpty() ? -1 : selected.length() - 1);
+            resort();
+            focusRow = newFocus >= 0 ? viewOf(newFocus) : Math.min(focusRow, count - 1);
+            rangeAnchor = newAnchor >= 0 ? viewOf(newAnchor) : Math.min(rangeAnchor, count - 1);
+            records.clear();
+            syncRecords();
+        } else {
+            if (focusRow >= count) {
+                focusRow = count - 1;
+            }
+            rangeAnchor = Math.min(rangeAnchor, count - 1);
+            resort();
         }
-        if (lead >= count) {
-            lead = selected.isEmpty() ? -1 : selected.length() - 1;
-            moved = true;
-        }
-        if (focusRow >= count) {
-            focusRow = count - 1;
-        }
-        rangeAnchor = Math.min(rangeAnchor, count - 1);
-        resort();
         anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, count - 1)));
         unmountAll();
         textEpoch++;
         recomputeFooter();
         markNeedsLayout();
         invalidate();
+        if (focusRow >= 0 && focusRow != wasFocusRow) {
+            pendingEnsureVisible = focusRow;
+        }
         if (moved) {
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         }
+        announceFocusCell(wasFocusRow, Change.Origin.ADJUSTMENT);
         notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+    }
+
+    /**
+     * Names what makes a row the record it is, for {@link #refresh()} to follow the selection,
+     * the lead, the focus cell and the anchor across a change to the list: {@code Order::id} for
+     * rows that are records with an identity, or nothing, in which case the record itself is the
+     * key and equal records are told apart by occurrence. A key is taken when a row enters one
+     * of the four and compared by {@code equals}; keys are expected to be unique, and when two
+     * rows share one the first found wins. Setting it re-reads the keys of every row the table
+     * is following. UI thread only.
+     *
+     * @param key the function from a row to its key, or {@code null} for the record itself
+     * @return this table
+     */
+    public Table<T> rowKey(Function<? super T, ?> key) {
+        Ui.checkUiThread();
+        this.rowKey = key;
+        records.clear();
+        syncRecords();
+        return this;
     }
 
     // ------------------------------------------------------------------------ selection
@@ -399,6 +705,9 @@ public class Table<T> extends Widget implements Scrollable {
             selected.clear();
             selected.set(lead);
             moved = true;
+        }
+        if (moved) {
+            syncRecords();
         }
         invalidate();
         if (moved) {
@@ -473,6 +782,7 @@ public class Table<T> extends Widget implements Scrollable {
         lead = last;
         focusRow = viewOf(last);
         rangeAnchor = focusRow;
+        syncRecords();
         ensureVisible(focusRow);
         invalidate();
         announceFocusCell(wasFocusRow, Change.Origin.CODE);
@@ -495,6 +805,7 @@ public class Table<T> extends Widget implements Scrollable {
         }
         selected.clear();
         lead = -1;
+        syncRecords();
         invalidate();
         notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.CODE));
         return this;
@@ -524,6 +835,9 @@ public class Table<T> extends Widget implements Scrollable {
         if (lead < 0) {
             lead = modelOf(0);
         }
+        // Every row is followed now, so every row is read once for its key: the price of a
+        // selection that survives the list changing under it (decision 23 of 2026-09-14).
+        syncRecords();
         invalidate();
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
@@ -724,7 +1038,8 @@ public class Table<T> extends Widget implements Scrollable {
 
     /**
      * Hands header clicks to the application instead of sorting: the handler is told the column
-     * and the order the click asks for, orders the list itself and calls {@link #refresh()}. The
+     * and the order the click asks for, orders the list itself and calls {@link #refresh()},
+     * which carries the selection and the focus cell to where their records are now. The
      * header shows the order the click asked for from the click itself. {@code null} restores the
      * table's own sort. A handler, so it answers the user's click and never {@link #setSort}.
      *
@@ -1547,11 +1862,13 @@ public class Table<T> extends Widget implements Scrollable {
             ensureVisible(viewIndex);
         }
         if (selectionMode == SelectionMode.NONE) {
+            syncRecords();
             damageSelectionChange(before, wasFocusRow);
             announceFocusCell(wasFocusRow, origin);
             return;
         }
         if (lead == modelIndex && selected.cardinality() == 1 && selected.get(modelIndex)) {
+            syncRecords();
             damageSelectionChange(before, wasFocusRow);
             announceFocusCell(wasFocusRow, origin);
             return;
@@ -1559,6 +1876,7 @@ public class Table<T> extends Widget implements Scrollable {
         selected.clear();
         selected.set(modelIndex);
         lead = modelIndex;
+        syncRecords();
         damageSelectionChange(before, wasFocusRow);
         announceFocusCell(wasFocusRow, origin);
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
@@ -1575,6 +1893,7 @@ public class Table<T> extends Widget implements Scrollable {
         }
         lead = modelOf(viewIndex);
         focusRow = viewIndex;
+        syncRecords();
         ensureVisible(viewIndex);
         damageSelectionChange(before, wasFocusRow);
         announceFocusCell(wasFocusRow, Change.Origin.USER);
@@ -1591,6 +1910,7 @@ public class Table<T> extends Widget implements Scrollable {
                 ? selected.length() - 1 : lead);
         focusRow = viewIndex;
         rangeAnchor = viewIndex;
+        syncRecords();
         ensureVisible(viewIndex);
         damageSelectionChange(before, wasFocusRow);
         announceFocusCell(wasFocusRow, Change.Origin.USER);

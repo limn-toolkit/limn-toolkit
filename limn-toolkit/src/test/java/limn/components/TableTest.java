@@ -416,6 +416,135 @@ class TableTest extends ComponentTestBase {
                 "under fr the symbol follows the amount: " + french);
     }
 
+    /**
+     * TABLE-NEW-3 (decision 23 of 2026-09-14): the documented {@code onSortRequest} recipe —
+     * reorder the list, call {@code refresh()} — kept the selection by row number, so it moved
+     * onto whatever records the application's sort had put at those numbers. A row is its
+     * record now: the selection, the lead and the focus cell follow Carol to where she is.
+     */
+    @Test
+    void aServerSortKeepsTheSelectionOnItsRecords() {
+        Column<Person> name = nameColumn();
+        Table<Person> table = new Table<>(List.of(name, ageColumn()));
+        List<Person> rows = new ArrayList<>(List.of(new Person("Carol", 3),
+                new Person("Alice", 1), new Person("Bob", 2)));
+        table.setRows(rows);
+        table.onSortRequest((column, order) -> {
+            rows.sort(order == SortOrder.DESCENDING
+                    ? java.util.Comparator.comparing(Person::name).reversed()
+                    : java.util.Comparator.comparing(Person::name));
+            table.refresh();
+        });
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        scene.requestFocus(table);
+        table.setSelectedRow(0); // Carol
+        click(scene, 50, headerHeight(table) / 2, 0);
+        scene.renderFrame(canvas);
+        assertEquals("Carol", rows.get(2).name(), "the application sorted its list");
+        assertEquals(2, table.selectedRow(), "and the selection followed her record");
+        assertEquals(2, table.focusRow(), "as did the focus cell");
+        scene.keyEvent(Keys.UP, true, false, 0);
+        scene.inputBatchEnded();
+        assertEquals("Bob", rows.get(table.selectedRow()).name(), "Up from Carol is Bob");
+    }
+
+    /**
+     * Decision 23 of 2026-09-14, the general case: any insert, remove or reorder followed by
+     * {@code refresh()} keeps the selection, the lead, the focus cell and the range anchor on
+     * their records; a record the list no longer holds leaves the selection with one
+     * {@code SELECTION}/{@code ADJUSTMENT}, and the handler hears nothing, since no user chose.
+     */
+    @Test
+    void refreshFollowsTheRecordsThroughAnInsertARemoveAndAReorder() {
+        List<Person> rows = new ArrayList<>(people(6));
+        Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));
+        table.setRows(rows);
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        AtomicInteger handled = new AtomicInteger();
+        table.onSelect(handled::incrementAndGet);
+        List<String> heard = new ArrayList<>();
+        table.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.SELECTION
+                    || change.aspect() == Change.Aspect.ACTIVE) {
+                heard.add(change.aspect() + "/" + change.origin());
+            }
+        });
+        FakeCanvas canvas = new FakeCanvas(300, 300);
+        Scene scene = scene(table, canvas);
+        scene.requestFocus(table);
+        table.setSelectedRows(1, 3); // Person 1 and Person 3, the lead and the focus row
+        heard.clear();
+
+        rows.add(0, new Person("Newcomer", 99));
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertArrayEquals(new int[] {2, 4}, table.selectedRows(), "both moved down one");
+        assertEquals(4, table.selectedRow(), "the lead is still Person 3");
+        assertEquals(4, table.focusRow(), "and so is the focus cell");
+        assertEquals(List.of("ACTIVE/ADJUSTMENT"), heard,
+                "the cursor's move is announced; the selection's records are the same set");
+        heard.clear();
+
+        rows.remove(4); // Person 3, the lead, is gone
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertArrayEquals(new int[] {2}, table.selectedRows(), "the vanished record left");
+        assertEquals(2, table.selectedRow(), "the last selected row is the lead now");
+        assertEquals(4, table.focusRow(), "the focus cell keeps its position");
+        assertEquals(List.of("SELECTION/ADJUSTMENT"), heard, "one announcement, a consequence");
+        assertEquals(0, handled.get(), "and no handler: no user chose a row");
+        heard.clear();
+
+        java.util.Collections.reverse(rows);
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertArrayEquals(new int[] {3}, table.selectedRows(), "Person 1 is fourth of six now");
+        assertEquals("Person 1", rows.get(table.selectedRow()).name());
+        assertEquals(1, table.focusRow(), "the focus row's record, Person 4, is second now");
+        scene.keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT);
+        scene.inputBatchEnded();
+        assertArrayEquals(new int[] {0, 1}, table.selectedRows(),
+                "Shift+Up extends from the anchor, which followed Person 4 too");
+    }
+
+    /**
+     * Decision 23's rule for records that are equal: they are told apart by occurrence, so the
+     * third "a" stays the third "a" after an insert above it; and a {@link Table#rowKey} names
+     * what identity is when {@code equals} does not — here the name, so an edited record with
+     * the same name is the same row.
+     */
+    @Test
+    void equalRecordsAreToldApartByOccurrenceAndARowKeyNamesIdentity() {
+        Table<String> letters = new Table<>(List.of(Column.<String>text("Letter", s -> s)));
+        List<String> as = new ArrayList<>(List.of("a", "a", "a", "b"));
+        letters.setRows(as);
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(letters, canvas);
+        letters.setSelectedRow(2); // the third "a"
+        as.add(0, "b");
+        letters.refresh();
+        scene.renderFrame(canvas);
+        assertEquals(3, letters.selectedRow(), "still the third \"a\", which sits fourth now");
+        as.remove(1); // an "a" before it is gone, so there is no third "a" any more
+        letters.refresh();
+        assertEquals(-1, letters.selectedRow(),
+                "occurrence is all that tells equal records apart: the third \"a\" is gone");
+
+        Table<Person> people = new Table<>(List.of(nameColumn(), ageColumn()));
+        List<Person> rows = new ArrayList<>(List.of(new Person("Carol", 3),
+                new Person("Alice", 1), new Person("Bob", 2)));
+        people.setRows(rows);
+        people.rowKey(Person::name);
+        scene(people, canvas);
+        people.setSelectedRow(2); // Bob
+        rows.set(2, new Person("Bob", 40));
+        rows.add(0, rows.remove(2));
+        people.refresh();
+        assertEquals(0, people.selectedRow(), "Bob, older and first now, is still selected");
+        assertEquals(40, rows.get(people.selectedRow()).age());
+    }
+
     @Test
     void refreshDropsASelectionTheListNoLongerHas() {
         List<Person> rows = new ArrayList<>(people(4));

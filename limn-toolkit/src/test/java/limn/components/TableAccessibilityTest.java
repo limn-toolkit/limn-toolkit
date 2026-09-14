@@ -207,6 +207,34 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * Decision 23 of 2026-09-14 seen from the reader's side: after the application inserts a row
+     * above and calls {@code refresh()}, the cursor is still on the record it was on, one row
+     * further down, and that row is the selected one.
+     */
+    @Test
+    void refreshKeepsTheCursorOnTheRecordItWasOn() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        List<Person> rows = new ArrayList<>(people(30));
+        table.setRows(rows);
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(3);
+        frame();
+        assertEquals("Person 3", nodesWith(Accessible.State.ACTIVE).get(0).name());
+        rows.add(0, new Person("Newcomer", 1));
+        table.refresh();
+        frame();
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), describe(tree()));
+        assertEquals("Person 3", active.get(0).name(), "the cursor followed its record");
+        assertEquals(new CellFacet(4, 0), active.get(0).cell(), "one row further down");
+        assertTrue(rowNodes().get(4).selectionItem().selected());
+        assertFalse(rowNodes().get(3).selectionItem().selected(), "the newcomer is not");
+    }
+
+    /**
      * MODEL-NEW-4 (ADR 039 §1.10, amended 2026-09-14): a sort keeps every row's identifier and
      * moves the rows, and a client holding the old order has to be told — one
      * {@code STRUCTURE_CHANGED} on the table, naming the rows that stand at another rank than
