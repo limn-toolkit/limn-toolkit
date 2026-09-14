@@ -366,7 +366,7 @@ class NotificationContractTest extends ComponentTestBase {
                     NotificationContractTest::treeFixture,
                     w -> selectSecondRow(w), Change.Aspect.SELECTION,
                     new Gesture(Change.Aspect.SELECTION,
-                            (w, ran) -> asTree(w).onSelect(node -> ran.run()),
+                            (w, ran) -> asTree(w).onSelect(ran),
                             (scene, w) -> {
                                 scene.requestFocus(w);
                                 key(scene, Keys.DOWN);

@@ -459,10 +459,14 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
         assertEquals(List.of(readme), tree.selectedNodes(), "the row addressed, not the lead");
         assertEquals(readme, tree.leadNode());
+        assertEquals(readme, tree.cursorNode(), "and the cursor moved with it, as a click's does");
         assertTrue(node("readme").selectionItem().selected(), describe(tree()));
-        assertEquals(1, changes.size(), "announced once, as a click is: " + changes);
+        assertEquals(List.of(limn.scene.Change.Aspect.ACTIVE, limn.scene.Change.Aspect.SELECTION),
+                changes.stream().map(limn.scene.Change::aspect).toList(),
+                "announced as a click is, the cursor first and then the selection: " + changes);
         assertEquals(limn.scene.Change.Origin.USER, changes.get(0).origin(),
                 "and from the user, which is who a reader is");
+        assertEquals(limn.scene.Change.Origin.USER, changes.get(1).origin());
 
         tree.setSelectionMode(Tree.SelectionMode.NONE);
         frame();

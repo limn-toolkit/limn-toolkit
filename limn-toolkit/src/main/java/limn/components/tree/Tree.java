@@ -61,9 +61,15 @@ import java.util.function.Consumer;
  * editing, ever (ADR 041 §6), no drag to reorder, and no tri-state checkbox cascade over a data
  * model the toolkit does not own.
  *
+ * <p><b>The cursor is not the selection.</b> The row the keyboard is on ({@link #cursorNode()})
+ * moves with the arrows in every mode and is what Enter activates; the selection
+ * ({@link #selectedNodes()}, led by {@link #leadNode()}) follows it where the mode allows, and in
+ * {@code MULTI} a row toggled off keeps the cursor. {@code Table} keeps the same pair.
+ *
  * <p>To a screen reader this is a {@code TREE} of {@code TREE_ITEM}s, each carrying its expanded
  * state, its selection numbered among its siblings ("2 of 5"), and its depth and flat row index
- * through the hierarchy facet ("level 3"; ADR 039 §1.2, amended 2026-09-14). What ADR 044 §4
+ * through the hierarchy facet ("level 3"; ADR 039 §1.2, amended 2026-09-14), the cursor row
+ * {@code ACTIVE} while the tree holds the keyboard. What ADR 044 §4
  * still owes it is the three platforms carrying those numbers, and the disclosure attributes
  * VoiceOver reads an outline row by.
  */
@@ -71,7 +77,10 @@ public class Tree<T> extends Widget implements Scrollable {
 
     /** How many rows may be selected at once. */
     public enum SelectionMode {
-        /** None: the cursor still moves and nothing is ever selected. */
+        /**
+         * None: the cursor still moves, Enter still activates the row it is on, and nothing is
+         * ever selected.
+         */
         NONE,
         /** One row. */
         SINGLE,
@@ -299,12 +308,24 @@ public class Tree<T> extends Widget implements Scrollable {
 
     private SelectionMode selectionMode = SelectionMode.SINGLE;
     private final Set<T> selected = new LinkedHashSet<>();
-    /** The row the keyboard is on, and the one a verb without a target acts on. */
+    /**
+     * The row the keyboard is on: what the arrows move, what Enter and a reader's {@code PRESS}
+     * act on, and the row that is {@code ACTIVE} while the tree holds the focus. It moves in
+     * every mode, {@link SelectionMode#NONE} included, and it is not the selection: in
+     * {@code MULTI} the cursor can stand on a row that was just toggled off, and in {@code NONE}
+     * nothing is ever selected (decision 14 of 2026-09-14; {@code Table} keeps the same two
+     * fields as {@code focusRow} and {@code lead}).
+     */
+    private T cursor;
+    /**
+     * The selection's lead: the node the user selected last that is still selected, or
+     * {@code null} with nothing selected. Never a node outside {@link #selected}.
+     */
     private T lead;
     /** The node whose expansion a handler is about to be told of; see {@link #handleUserChange}. */
     private T toggled;
 
-    private Consumer<T> onSelect;
+    private Runnable onSelect;
     private Consumer<T> onActivate;
     private Consumer<T> onExpand;
     private Consumer<T> onCollapse;
@@ -676,18 +697,24 @@ public class Tree<T> extends Widget implements Scrollable {
 
     // ------------------------------------------------------------------------ selection
 
-    /** How many rows may be selected at once; the default is {@link SelectionMode#SINGLE}. */
+    /**
+     * How many rows may be selected at once; the default is {@link SelectionMode#SINGLE}. The
+     * cursor stays where it is in every mode: {@code NONE} empties the selection, not the row the
+     * keyboard is on.
+     */
     public Tree<T> setSelectionMode(SelectionMode mode) {
         Ui.checkUiThread();
         this.selectionMode = Objects.requireNonNull(mode, "mode");
         if (mode == SelectionMode.NONE && !selected.isEmpty()) {
             selected.clear();
+            lead = null;
             invalidate();
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         } else if (mode == SelectionMode.SINGLE && selected.size() > 1) {
             T keep = lead != null && selected.contains(lead) ? lead : selected.iterator().next();
             selected.clear();
             selected.add(keep);
+            lead = keep;
             invalidate();
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         }
@@ -703,12 +730,31 @@ public class Tree<T> extends Widget implements Scrollable {
         return List.copyOf(selected);
     }
 
-    /** @return the node the keyboard is on, or {@code null} */
+    /**
+     * @return the row the keyboard is on, or {@code null} before the keyboard was in the tree:
+     *         what the arrows move, what Enter activates, and the row a reader's cursor stands
+     *         on. It moves in every mode, {@link SelectionMode#NONE} included, and is not the
+     *         selection; see {@link #leadNode()} for that.
+     */
+    public T cursorNode() {
+        return cursor;
+    }
+
+    /**
+     * @return the selection's lead — the node the user selected last that is still selected —
+     *         or {@code null} when nothing is selected. Until 2026-09-14 this was also the row the
+     *         keyboard was on, which {@link #cursorNode()} answers now (decision 14): the two part
+     *         in {@code MULTI}, where a row toggled off keeps the cursor and loses the lead, and in
+     *         {@code NONE}, where the cursor moves and this is always {@code null}.
+     */
     public T leadNode() {
         return lead;
     }
 
-    /** Selects exactly {@code node}, revealing it. {@code null} clears the selection. */
+    /**
+     * Selects exactly {@code node}, moving the cursor onto it and revealing it. {@code null}
+     * clears the selection and leaves the cursor where it is.
+     */
     public Tree<T> setSelected(T node) {
         Ui.checkUiThread();
         selectOnly(node, true, Change.Origin.CODE);
@@ -716,21 +762,31 @@ public class Tree<T> extends Widget implements Scrollable {
     }
 
     /**
-     * The one place the selection moves, and the one seam it announces from: the public setter
-     * passes {@code CODE}, a collapse that swallowed a selected row passes {@code ADJUSTMENT},
-     * and every key and click passes {@code USER}. Announces only when it moved.
+     * The one place a single selection moves, and the one seam it announces from: the public
+     * setter passes {@code CODE}, and every key and click passes {@code USER}. The cursor moves
+     * first, in every mode, and is announced first as {@code ACTIVE} when it moved; the selection
+     * follows where the mode allows one, announced only when it moved — the order {@code Table}
+     * settled under ADR 040 §7.2.
      */
     private void selectOnly(T node, boolean reveal, Change.Origin origin) {
+        T wasCursor = cursor;
+        if (node != null) {
+            cursor = node;
+        }
+        if (reveal && node != null) {
+            revealNode(node);
+        }
         if (selectionMode == SelectionMode.NONE) {
+            damageCursorMove(wasCursor);
+            announceCursor(wasCursor, origin);
             return;
         }
         boolean same = node == null ? selected.isEmpty()
                 : selected.size() == 1 && selected.contains(node);
-        lead = node;
         if (same) {
-            if (reveal && node != null) {
-                revealNode(node);
-            }
+            lead = node;
+            damageCursorMove(wasCursor);
+            announceCursor(wasCursor, origin);
             return;
         }
         // The rows whose highlight moved, and only those: an arrow key that repainted the whole
@@ -743,38 +799,75 @@ public class Tree<T> extends Widget implements Scrollable {
         if (node != null) {
             selected.add(node);
         }
-        if (reveal && node != null) {
-            revealNode(node);
-        }
+        lead = node;
         damageNode(node);
+        damageCursorMove(wasCursor);
+        announceCursor(wasCursor, origin);
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
-    /** Adds or removes one node, which is what the command modifier does in {@code MULTI}. */
+    /**
+     * Adds or removes one node, which is what the command modifier and Space do in {@code MULTI}.
+     * The cursor lands on the node either way; the lead leaves a node toggled off and falls back
+     * to the most recently selected node still in the selection, as {@code Table}'s does, so a
+     * handler reading the lead is never handed the row that was just deselected.
+     */
     private void toggleSelection(T node, Change.Origin origin) {
         if (selectionMode != SelectionMode.MULTI) {
             selectOnly(node, true, origin);
             return;
         }
+        T wasCursor = cursor;
+        cursor = node;
         if (!selected.remove(node)) {
             selected.add(node);
+            lead = node;
+        } else if (Objects.equals(lead, node)) {
+            lead = lastSelected();
         }
-        lead = node;
         revealNode(node);
         damageNode(node);
+        damageCursorMove(wasCursor);
+        announceCursor(wasCursor, origin);
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+    }
+
+    /** The node selected most recently among those still selected, or {@code null}. */
+    private T lastSelected() {
+        T last = null;
+        for (T node : selected) {
+            last = node;
+        }
+        return last;
+    }
+
+    /** {@code ACTIVE}, with the gesture's origin, when the cursor moved; nothing otherwise. */
+    private void announceCursor(T wasCursor, Change.Origin origin) {
+        if (!Objects.equals(cursor, wasCursor)) {
+            notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
+        }
+    }
+
+    /** The bands the cursor left and reached, when it moved. */
+    private void damageCursorMove(T wasCursor) {
+        if (!Objects.equals(cursor, wasCursor)) {
+            damageNode(wasCursor);
+            damageNode(cursor);
+        }
     }
 
     /**
      * Drops from the selection every node that is no longer reachable — a collapse hides
-     * descendants, and a refresh may have removed nodes outright.
+     * descendants, and a refresh may have removed nodes outright — and takes the cursor off one
+     * the model no longer has, whether or not anything is selected: a cursor left on a removed
+     * node would activate it and publish it {@code ACTIVE}.
      *
      * <p>A collapse does <b>not</b> deselect what it hides: the row is still in the tree, and
      * re-opening its parent finds it selected, which is what a file manager does. Only a node the
      * model no longer has is dropped.
      */
     private void pruneSelection() {
-        if (selected.isEmpty()) {
+        if (selected.isEmpty() && cursor == null) {
             return;
         }
         Set<T> reachable = new LinkedHashSet<>();
@@ -782,9 +875,13 @@ public class Tree<T> extends Widget implements Scrollable {
             collectReachable(root, reachable);
         }
         boolean moved = selected.retainAll(reachable);
-        if (lead != null && !reachable.contains(lead)) {
-            lead = null;
-            moved = true;
+        if (lead != null && !selected.contains(lead)) {
+            lead = lastSelected();
+        }
+        if (cursor != null && !reachable.contains(cursor)) {
+            cursor = null;
+            invalidate();
+            notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.ADJUSTMENT));
         }
         if (moved) {
             invalidate();
@@ -801,28 +898,57 @@ public class Tree<T> extends Widget implements Scrollable {
         }
     }
 
-    /** Announces that the lead row was opened, the way Enter does. UI thread only. */
+    /**
+     * Announces that the cursor row was opened, as {@code INVOKED}/{@code CODE}: a caller's verb,
+     * which reaches a watcher and <b>not</b> {@link #onActivate}, the way Enter does. Nothing
+     * without a cursor row. UI thread only.
+     */
     public void activate() {
         Ui.checkUiThread();
         activate(Change.Origin.CODE);
     }
 
+    /**
+     * The seam Enter and a reader's {@code PRESS} enter at {@code USER}: the cursor row, in every
+     * mode (decision 32 of 2026-09-14) — in {@code NONE} the row the keyboard is on is what
+     * activates, because it is the one row the user has pointed at.
+     */
     private void activate(Change.Origin origin) {
-        if (lead != null) {
+        if (cursor != null) {
             notifyChange(Change.of(Change.Aspect.INVOKED, origin));
         }
     }
 
     // ------------------------------------------------------------------------- handlers
 
-    /** Runs when the user moves the selection; not called for a programmatic change. */
-    public Tree<T> onSelect(Consumer<T> handler) {
+    /**
+     * The application's response to the user changing the selection: a click, a key, an
+     * assistive technology's select. The selection is read back from {@link #selectedNodes()},
+     * and the lead from {@link #leadNode()}; the handler takes no node because a selection is a
+     * set, and the node a toggle removed is not one to hand anybody (decision 14 of 2026-09-14).
+     * Never for {@link #setSelected}, or a {@link #refresh()} or {@link #setSelectionMode} that
+     * moved it, which are the caller's or the tree's own; to hear every change whatever caused
+     * it, {@linkplain #observeChanges watch} the tree.
+     *
+     * @param handler the handler, or {@code null} to clear the slot
+     * @return this tree
+     * @throws IllegalStateException if a handler is already registered
+     */
+    public Tree<T> onSelect(Runnable handler) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, handler, "Tree.onSelect");
         return this;
     }
 
-    /** Runs when the user opens the lead row with Enter. */
+    /**
+     * The application's response to the user opening the cursor row: Enter, an assistive
+     * technology's press. Handed the cursor row, which in {@code NONE} is a row that was never
+     * selected. Never for {@link #activate()}, which is a caller's verb.
+     *
+     * @param handler the handler, or {@code null} to clear the slot
+     * @return this tree
+     * @throws IllegalStateException if a handler is already registered
+     */
     public Tree<T> onActivate(Consumer<T> handler) {
         Ui.checkUiThread();
         this.onActivate = Checks.handlerSlot(onActivate, handler, "Tree.onActivate");
@@ -848,12 +974,12 @@ public class Tree<T> extends Widget implements Scrollable {
         switch (aspect) {
             case SELECTION -> {
                 if (onSelect != null) {
-                    onSelect.accept(lead);
+                    onSelect.run();
                 }
             }
             case INVOKED -> {
                 if (onActivate != null) {
-                    onActivate.accept(lead);
+                    onActivate.accept(cursor);
                 }
             }
             case EXPANDED -> {
@@ -1306,13 +1432,13 @@ public class Tree<T> extends Widget implements Scrollable {
             case Keys.RIGHT -> consumeAnd(event, () -> stepOut(!rtl));
             case Keys.LEFT -> consumeAnd(event, () -> stepOut(rtl));
             case Keys.ENTER -> {
-                if (lead != null) {
+                if (cursor != null) {
                     consumeAnd(event, () -> activate(Change.Origin.USER));
                 }
             }
             case Keys.SPACE -> {
-                if (lead != null && selectionMode == SelectionMode.MULTI) {
-                    consumeAnd(event, () -> toggleSelection(lead, Change.Origin.USER));
+                if (cursor != null && selectionMode == SelectionMode.MULTI) {
+                    consumeAnd(event, () -> toggleSelection(cursor, Change.Origin.USER));
                 }
             }
             default -> {
@@ -1330,11 +1456,11 @@ public class Tree<T> extends Widget implements Scrollable {
      * arrow that goes deeper, false the one that comes back.
      */
     private void stepOut(boolean opening) {
-        if (lead == null) {
+        if (cursor == null) {
             selectAt(0);
             return;
         }
-        int index = indexOf(lead);
+        int index = indexOf(cursor);
         if (index < 0) {
             return;
         }
@@ -1371,11 +1497,11 @@ public class Tree<T> extends Widget implements Scrollable {
         if (rows.isEmpty()) {
             return;
         }
-        if (lead == null) {
+        if (cursor == null) {
             selectAt(anchorIndex);
             return;
         }
-        int from = indexOf(lead);
+        int from = indexOf(cursor);
         selectAt(from < 0 ? anchorIndex : from + delta, delta);
     }
 
@@ -1753,12 +1879,13 @@ public class Tree<T> extends Widget implements Scrollable {
         float viewW = gutters.viewportWidth(width());
         a.scrollFrom(offsetX, Math.max(0, contentWidth - viewW), viewW, contentWidth,
                 estimatedOffset(t), Math.max(0, content - viewport), viewport, content);
-        if (lead != null) {
+        if (cursor != null) {
+            // PRESS stays on the tree and acts on the cursor row, in every mode (decision 32).
             a.action(Accessible.Action.PRESS);
-            int index = indexOf(lead);
+            int index = indexOf(cursor);
             if (index >= 0 && rows.get(index).expandable) {
-                // These two sit on the tree and act on the lead row. A row's own verbs reach the
-                // tree by delegation (onAccessibilityChildAction, ADR 039 §1.5 amended
+                // These two sit on the tree and act on the cursor row. A row's own verbs reach
+                // the tree by delegation (onAccessibilityChildAction, ADR 039 §1.5 amended
                 // 2026-09-14): SELECT is delegated below; EXPAND and COLLAPSE per row are the
                 // Tree lane's (decision 20).
                 a.action(rows.get(index).expanded
@@ -1823,7 +1950,7 @@ public class Tree<T> extends Widget implements Scrollable {
             // reader as a node with nothing in it (ADR 044 §2).
             a.state(Accessible.State.BUSY);
         }
-        if (row.node.equals(lead) && isFocused()) {
+        if (row.node.equals(cursor) && isFocused()) {
             // The cursor is the focused node's (ADR 039 §1.10, amended 2026-09-14): a tree
             // nobody is in publishes no ACTIVE row, so it cannot hand the widget the user is
             // actually in a cursor it does not have.
@@ -1856,7 +1983,7 @@ public class Tree<T> extends Widget implements Scrollable {
 
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        if (lead == null) {
+        if (cursor == null) {
             return false;
         }
         switch (action) {
@@ -1865,11 +1992,11 @@ public class Tree<T> extends Widget implements Scrollable {
                 return true;
             }
             case EXPAND -> {
-                setExpanded(lead, true, Change.Origin.USER);
+                setExpanded(cursor, true, Change.Origin.USER);
                 return true;
             }
             case COLLAPSE -> {
-                setExpanded(lead, false, Change.Origin.USER);
+                setExpanded(cursor, false, Change.Origin.USER);
                 return true;
             }
             default -> {

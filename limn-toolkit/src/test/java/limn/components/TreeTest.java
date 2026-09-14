@@ -237,20 +237,158 @@ class TreeTest extends ComponentTestBase {
         scene.requestFocus(tree);
 
         press(Keys.DOWN);   // onto the root
-        assertEquals(root, tree.leadNode(), "the first arrow lands on the first row");
+        assertEquals(root, tree.cursorNode(), "the first arrow lands on the first row");
 
         press(Keys.RIGHT);  // opens it
         assertTrue(tree.isExpanded(root), "Right opens a closed row");
-        assertEquals(root, tree.leadNode(), "and stays on it");
+        assertEquals(root, tree.cursorNode(), "and stays on it");
 
         press(Keys.RIGHT);  // steps into it
-        assertEquals(docs, tree.leadNode(), "Right again steps into an open row");
+        assertEquals(docs, tree.cursorNode(), "Right again steps into an open row");
 
         press(Keys.LEFT);   // docs is closed, so this goes to the parent
-        assertEquals(root, tree.leadNode(), "Left on a closed row goes to its parent");
+        assertEquals(root, tree.cursorNode(), "Left on a closed row goes to its parent");
 
         press(Keys.LEFT);   // closes the root
         assertFalse(tree.isExpanded(root), "Left on an open row closes it");
+    }
+
+    /**
+     * {@code NONE} selects nothing and freezes nothing: the cursor walks the outline exactly as
+     * it does in the other two modes, and Enter activates the row it stands on (decisions 14 and
+     * 32 of 2026-09-14). Before, {@code selectOnly} returned before moving the cursor, so in NONE
+     * every arrow, Right, Left and Enter were dead — against the enum's own javadoc.
+     */
+    @Test
+    void inNoneTheCursorStillMovesAndEnterActivatesTheRowItIsOn() {
+        Node root = forest();
+        Node docs = root.children().get(0);
+        CountingModel model = new CountingModel(List.of(root));
+        Tree<Node> tree = mount(model);
+        List<Node> activated = new ArrayList<>();
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        tree.onActivate(activated::add);
+        scene.requestFocus(tree);
+
+        press(Keys.DOWN);
+        assertEquals(root, tree.cursorNode(), "the first arrow lands on the first row");
+        assertTrue(tree.selectedNodes().isEmpty(), "and selects nothing");
+        assertNull(tree.leadNode(), "so there is no lead");
+
+        press(Keys.RIGHT);
+        assertTrue(tree.isExpanded(root), "Right opens the row the cursor is on");
+        press(Keys.DOWN);
+        assertEquals(docs, tree.cursorNode(), "Down walks into it");
+        assertTrue(tree.selectedNodes().isEmpty());
+
+        press(Keys.ENTER);
+        assertEquals(List.of(docs), activated,
+                "Enter activates the cursor row, which was never selected");
+    }
+
+    /**
+     * The cursor is announced as {@code ACTIVE} before the selection that moved with it, with
+     * the gesture's origin, the way {@code Table} announces its focus cell (ADR 040 §7.2); and
+     * where nothing is selected the cursor is still announced, so a watcher hears a cursor move
+     * in {@code NONE} too. Before, the tree never announced {@code ACTIVE} at all.
+     */
+    @Test
+    void theCursorMovingIsAnnouncedAsActiveBeforeTheSelection() {
+        Node root = forest();
+        CountingModel model = new CountingModel(List.of(root, Node.leaf("two")));
+        Tree<Node> tree = mount(model);
+        scene.requestFocus(tree);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        press(Keys.DOWN);
+        assertEquals(List.of(limn.scene.Change.Aspect.ACTIVE, limn.scene.Change.Aspect.SELECTION),
+                changes.stream().map(limn.scene.Change::aspect).toList(),
+                "the cursor first, then the selection: " + changes);
+        assertEquals(limn.scene.Change.Origin.USER, changes.get(0).origin());
+        assertEquals(limn.scene.Change.Origin.USER, changes.get(1).origin());
+
+        changes.clear();
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        changes.clear();
+        press(Keys.DOWN);
+        assertEquals(List.of(limn.scene.Change.Aspect.ACTIVE),
+                changes.stream().map(limn.scene.Change::aspect).toList(),
+                "in NONE the cursor moved and nothing else did: " + changes);
+
+        changes.clear();
+        press(Keys.DOWN); // past the end: the cursor stays on the last row
+        assertTrue(changes.isEmpty(), "a cursor that did not move is not announced: " + changes);
+    }
+
+    /**
+     * Space in {@code MULTI} toggles the cursor row off and leaves the cursor on it: a lead that
+     * followed the toggle would hand {@code onSelect}'s reader the row that was just deselected,
+     * which is what {@code leadNode()} used to answer. The cursor stays so Space can toggle it
+     * back and Enter still activates it (decision 14).
+     */
+    @Test
+    void aToggleOffKeepsTheCursorOnTheRowAndTakesTheLeadOffIt() {
+        Node root = forest();
+        CountingModel model = new CountingModel(List.of(root, Node.leaf("two")));
+        Tree<Node> tree = mount(model);
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        List<Node> activated = new ArrayList<>();
+        List<List<Node>> selections = new ArrayList<>();
+        tree.onActivate(activated::add);
+        tree.onSelect(() -> selections.add(tree.selectedNodes()));
+        scene.requestFocus(tree);
+
+        press(Keys.DOWN);
+        assertEquals(List.of(root), tree.selectedNodes());
+        assertEquals(root, tree.leadNode());
+
+        press(Keys.SPACE);
+        assertTrue(tree.selectedNodes().isEmpty(), "Space toggled the cursor row off");
+        assertNull(tree.leadNode(), "so nothing leads the selection");
+        assertEquals(root, tree.cursorNode(), "and the cursor is still on the row");
+        assertEquals(List.of(List.of(root), List.of()), selections,
+                "the handler heard both moves and read the selection back");
+
+        press(Keys.SPACE);
+        assertEquals(List.of(root), tree.selectedNodes(), "Space toggles it back on");
+        assertEquals(root, tree.leadNode());
+
+        press(Keys.SPACE);
+        press(Keys.ENTER);
+        assertEquals(List.of(root), activated, "Enter activates the cursor row, selected or not");
+    }
+
+    /**
+     * A refresh that drops the node the cursor stands on takes the cursor off it even when
+     * nothing is selected — after a toggle-off, or in {@code NONE}, where nothing ever is.
+     * Before, {@code pruneSelection} returned on an empty selection before it looked at the
+     * cursor, so Enter and a reader's {@code PRESS} went on activating a node the model no longer
+     * had.
+     */
+    @Test
+    void aRefreshTakesTheCursorOffANodeTheModelDropped() {
+        Node keep = Node.leaf("keep");
+        Node drop = Node.leaf("drop");
+        List<Node> roots = new ArrayList<>(List.of(keep, drop));
+        CountingModel model = new CountingModel(roots);
+        Tree<Node> tree = mount(model);
+        List<limn.scene.Change> changes = new ArrayList<>();
+
+        tree.setSelected(drop);
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        assertEquals(drop, tree.cursorNode(), "NONE keeps the cursor where it was");
+        assertTrue(tree.selectedNodes().isEmpty());
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        roots.remove(drop);
+        tree.refresh();
+        scene.layoutPass(220, 200);
+
+        assertNull(tree.cursorNode(), "the cursor cannot stand on a node the model dropped");
+        assertTrue(changes.stream().anyMatch(c -> c.aspect() == limn.scene.Change.Aspect.ACTIVE
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT),
+                "and the tree said so, as an adjustment of its own: " + changes);
     }
 
     @Test
@@ -293,7 +431,8 @@ class TreeTest extends ComponentTestBase {
         assertEquals(1, tree.visibleRowCount());
         assertTrue(tree.selectedNodes().isEmpty(),
                 "a node the model no longer has is not a selection");
-        assertNull(tree.leadNode(), "and the cursor does not stand on it either");
+        assertNull(tree.leadNode(), "and nothing leads it");
+        assertNull(tree.cursorNode(), "and the cursor does not stand on it either");
     }
 
     /**
@@ -422,20 +561,20 @@ class TreeTest extends ComponentTestBase {
         press(Keys.DOWN);  // onto remote
         press(Keys.RIGHT); // opens it, and its load starts
         assertTrue(tree.isExpanded(remote));
-        assertEquals(remote, tree.leadNode());
+        assertEquals(remote, tree.cursorNode());
 
         press(Keys.RIGHT);
-        assertEquals(remote, tree.leadNode(),
+        assertEquals(remote, tree.cursorNode(),
                 "Right into a row still loading has nothing to step onto, so it stays");
 
         press(Keys.DOWN);
-        assertEquals(below, tree.leadNode(), "Down goes past the line to the next node");
+        assertEquals(below, tree.cursorNode(), "Down goes past the line to the next node");
 
         press(Keys.UP);
-        assertEquals(remote, tree.leadNode(), "and Up comes back past it to the row it belongs to");
+        assertEquals(remote, tree.cursorNode(), "and Up comes back past it to the row it belongs to");
 
         press(Keys.END);
-        assertEquals(below, tree.leadNode());
+        assertEquals(below, tree.cursorNode());
 
         tree.setSelected(below);
         Widget line = null;
@@ -514,7 +653,7 @@ class TreeTest extends ComponentTestBase {
         scene.requestFocus(tree);
 
         press(Keys.DOWN);
-        assertEquals(root, tree.leadNode(), "the first arrow has to land somewhere");
+        assertEquals(root, tree.cursorNode(), "the first arrow has to land somewhere");
 
         press(Keys.RIGHT);
         assertTrue(tree.isExpanded(root), "Right on a closed, expandable row opens it");

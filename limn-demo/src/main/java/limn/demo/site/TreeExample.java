@@ -91,7 +91,13 @@ public final class TreeExample {
             }
         });
         tree.setSelectionMode(Tree.SelectionMode.MULTI);
-        tree.onSelect(entry -> status.setText(entry == null ? "Nothing selected" : entry.name()));
+        // The selection is a set, read back from the tree: the handler is told that it moved,
+        // not which row, because in MULTI "which row" is not one answer.
+        tree.onSelect(() -> {
+            List<Entry> chosen = tree.selectedNodes();
+            status.setText(chosen.isEmpty() ? "Nothing selected"
+                    : chosen.size() + " selected, last " + tree.leadNode().name());
+        });
         tree.onExpand(entry -> status.setText("Opened " + entry.name()));
         return tree;
     }
