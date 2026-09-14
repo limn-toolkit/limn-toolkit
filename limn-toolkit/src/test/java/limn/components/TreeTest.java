@@ -899,6 +899,41 @@ class TreeTest extends ComponentTestBase {
     }
 
     /**
+     * A hidden node's recorded path is the chain of its own ancestors and nothing of the branch
+     * before it: a selection under a row that follows an open deeper branch is recorded at
+     * {@code [b, b.1]} and confirmed by a refresh. The paths are read off one pass over the rows
+     * carrying the ancestors by depth, and a chain that never shed the earlier branch would have
+     * looked for {@code b} under {@code a.1.1} and dropped the selection (tree-A review,
+     * 2026-09-14).
+     */
+    @Test
+    void aRefreshKeepsASelectionHiddenUnderARowThatFollowsADeeperBranch() {
+        Node aOne = Node.of("a.1", Node.leaf("a.1.1"));
+        Node a = Node.of("a", aOne);
+        Node bOne = Node.leaf("b.1");
+        Node b = Node.of("b", bOne);
+        CountingModel model = new CountingModel(List.of(a, b));
+        Tree<Node> tree = mount(model);
+        tree.expand(a);
+        tree.expand(aOne);
+        tree.expand(b);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("a", "a.1", "a.1.1", "b", "b.1"), drawn(tree));
+        tree.setSelected(bOne);
+        tree.collapse(b);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(bOne), tree.selectedNodes(), "hidden by the collapse, still selected");
+        assertEquals(b, tree.cursorNode(), "the cursor climbed onto the row that closed over it");
+
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(bOne), tree.selectedNodes(),
+                "the model still has it under b, at the path it was recorded at; asked: "
+                        + model.childrenAsked);
+        assertEquals(b, tree.cursorNode());
+    }
+
+    /**
      * A refresh under an open row whose children have to be fetched again keeps the selection
      * and the cursor while the load is in flight, and confirms them when it lands: the
      * file-manager case, where a watcher's refresh deselected the user's file on every change

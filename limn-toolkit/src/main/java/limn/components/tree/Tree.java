@@ -27,7 +27,6 @@ import limn.scene.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -1155,37 +1154,33 @@ public class Tree<T> extends Widget implements Scrollable {
      * at: called before a collapse or a refresh takes rows away, so what is hidden can later be
      * verified without a walk. Paths of nodes that stay rows are dropped again by
      * {@link #forgetRevealedPaths}.
+     *
+     * <p>One pass over the rows, carrying the chain of ancestors by depth: the rows are in
+     * traversal order, so the row at depth {@code d} is the current ancestor at that depth for
+     * every row after it until another at {@code d} or shallower arrives. Each recorded path is
+     * read off the chain, which costs the rows once plus the paths' own length — a walk back up
+     * from each recorded row to its root cost the rows once per recorded node, and a select-all
+     * over an open tree followed by one collapse scanned quadratically.
      */
     private void recordPaths() {
         if (selected.isEmpty() && expanded.isEmpty() && cursor == null) {
             return;
         }
-        Map<T, Integer> at = rowIndexByNode();
-        recordPath(cursor, at);
-        for (T node : selected) {
-            recordPath(node, at);
-        }
-        for (T node : expanded) {
-            recordPath(node, at);
-        }
-    }
-
-    private void recordPath(T node, Map<T, Integer> at) {
-        Integer index = node == null ? null : at.get(node);
-        if (index == null) {
-            return;
-        }
-        List<T> path = new ArrayList<>();
-        int depth = rows.get(index).depth;
-        for (int i = index; i >= 0 && depth >= 0; i--) {
+        List<T> chain = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
             Row<T> row = rows.get(i);
-            if (!row.placeholder && row.depth == depth) {
-                path.add(row.node);
-                depth--;
+            if (row.placeholder) {
+                continue; // the loading line is not a node, and its row is the chain already
+            }
+            while (chain.size() > row.depth) {
+                chain.remove(chain.size() - 1);
+            }
+            chain.add(row.node);
+            T node = row.node;
+            if (node.equals(cursor) || selected.contains(node) || expanded.contains(node)) {
+                hiddenPaths.put(node, new ArrayList<>(chain));
             }
         }
-        Collections.reverse(path);
-        hiddenPaths.put(node, path);
     }
 
     /** Forgets the path of every node that is a row again: a row is its own confirmation. */
