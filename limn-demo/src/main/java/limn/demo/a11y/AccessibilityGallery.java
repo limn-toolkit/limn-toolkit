@@ -511,7 +511,7 @@ public final class AccessibilityGallery {
         Table<Range> table = new Table<>(List.of(
                 limn.components.table.Column.text("Range", Range::name).width(120).weight(1)
                         .footerCount(),
-                limn.components.table.Column.text("Continent", Range::continent).width(130),
+                limn.components.table.Column.text("Continent", Range::continent).width(150),
                 limn.components.table.Column.numeric("Summit", Range::summit).width(100)
                         .footerMax(),
                 limn.components.table.Column.<Range>widget("Visited", range ->
