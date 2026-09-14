@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -262,6 +263,40 @@ class DatePickerTest extends ComponentTestBase {
         key(Keys.ESCAPE, 0);
         assertFalse(picker.isOpen());
         assertEquals(LocalDateTime.of(2026, 9, 15, 9, 6), picker.dateTime());
+    }
+
+    /**
+     * The card is built for the level it opened at: its time row is a child added when the card
+     * was made. A level changed while the card is showing used to leave the old row on it (and
+     * a new row off it) until the next open; the popup is now rebuilt around the change.
+     */
+    @Test
+    void aLevelChangedWhileTheCalendarIsOpenRebuildsTheCardWithOrWithoutItsTimeRow() {
+        build(new DatePicker().setGranularity(DateField.Granularity.MINUTE));
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
+        picker.open();
+        limn.scene.Widget card = picker.calendar().parent();
+        assertEquals(2, card.children().size(), "the grid and the time row");
+        limn.scene.Widget row = card.children().get(1);
+
+        picker.setGranularity(DateField.Granularity.DAY);
+        assertTrue(picker.isOpen(), "still open");
+        limn.scene.Widget rebuilt = picker.calendar().parent();
+        assertNotSame(card, rebuilt, "a card built for the new level");
+        assertEquals(List.of(picker.calendar()), rebuilt.children(), "the grid alone on it");
+        assertNotSame(rebuilt, row.parent(), "and the old row is not on the card that is showing");
+        assertEquals("09/09/2026", picker.field().text());
+
+        picker.setGranularity(DateField.Granularity.MINUTE);
+        assertTrue(picker.isOpen());
+        assertEquals(2, picker.calendar().parent().children().size(),
+                "a row again, on the card that is showing");
+        for (int i = 0; i < 4; i++) {
+            key(Keys.TAB, 0);
+        }
+        type("0905");
+        assertEquals(LocalTime.of(9, 5), picker.time(), "and it is the row the keyboard reaches");
     }
 
     @Test

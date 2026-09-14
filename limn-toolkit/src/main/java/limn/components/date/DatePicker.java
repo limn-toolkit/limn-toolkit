@@ -255,6 +255,15 @@ public class DatePicker extends Widget {
         if (field.granularity() == level) {
             return this;
         }
+        // A card already showing was built for the old level -- its time row is a child added
+        // when the card was made, and a row that goes or arrives with the level would be left
+        // on it, or off it, until the next open. So the popup is closed and reopened around the
+        // change, through the same state machine a person's close-then-open takes (and the
+        // release of the grid that path already handles), rather than patched in place.
+        boolean showing = open;
+        if (showing) {
+            setOpen(false, Change.Origin.CODE);
+        }
         field.setGranularity(level);
         if (endField != null) {
             endField.setGranularity(level);
@@ -285,6 +294,9 @@ public class DatePicker extends Widget {
         }
         calendar.setTabLeavesAtEnds(timeRow != null);
         syncCalendarFromFields();
+        if (showing) {
+            setOpen(true, Change.Origin.CODE);
+        }
         return this;
     }
 
