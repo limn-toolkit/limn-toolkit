@@ -54,7 +54,8 @@ import java.util.function.IntConsumer;
  * A row is its record: across a {@link #refresh()} the selection follows the records it named,
  * wherever the list holds them now, by {@code equals} or by a {@linkplain #rowKey key}.
  * Separately, the arrow keys move a <b>focus cell</b>, which is what a screen reader's cursor
- * stands on. Enter and a double click {@linkplain #onActivate activate} the lead row.
+ * stands on. Enter and a double click {@linkplain #onActivate activate} the cursor row — the
+ * focus cell's row, which is the lead in {@code SINGLE} and may differ from it in {@code MULTI}.
  *
  * <p><b>Cells are not edited in place, and will not be.</b> In-place editing is a spreadsheet's
  * interaction and reads as one everywhere else: a field that appears where a value was, a save
@@ -907,8 +908,9 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     /**
-     * The application's response to the user opening the lead row: Enter, a double click, an
-     * assistive technology's press. Never for {@link #activate()}, which is a caller's verb.
+     * The application's response to the user opening the cursor row (the focus cell's row):
+     * Enter, a double click, an assistive technology's press. Never for {@link #activate()},
+     * which is a caller's verb.
      *
      * @param handler the handler, or {@code null} to clear the slot
      * @return this table

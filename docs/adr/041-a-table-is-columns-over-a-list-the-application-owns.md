@@ -143,6 +143,12 @@ Enter, and a double click on a row, fire `onActivate` with the lead row, the "op
 `ListView` has. Cell selection — a rectangle of cells, as a spreadsheet has — is not in this
 record; §10.
 
+**Amended 2026-09-14 (decision 32 of the 2026-09-13 pass).** Enter and a double click open the
+**cursor row** — the focus cell's row — and so does a reader's `PRESS` on the table; `onActivate`
+receives that row, which is the lead in `SINGLE` and may differ from it in `MULTI` after a toggle
+or a Shift range. The sentence above stands as the record of what was decided; §7's amendment of
+the same date carries the change and its tests.
+
 **Amended 2026-09-14 (decisions 23 and 40 of the 2026-09-13 pass).** The focus cell and the
 range anchor are view positions, and until this date a sort left both where they stood: the
 permutation moved the records and the cursor stayed on view row *n*, so "the focus cell's row is
