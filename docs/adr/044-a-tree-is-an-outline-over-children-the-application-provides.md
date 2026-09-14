@@ -367,6 +367,20 @@ exactly what is in:
   039 §1.5, amended 2026-09-14). `FOCUS` moves the cursor without selecting, `EXPAND` and `COLLAPSE`
   act like the triangle and move nothing. The tree's own node publishes `PRESS` alone.
 
+**Amendment, 2026-09-14: the cursor row wears a focus ring.** The tree painted the selection wash
+and nothing else, so keyboard focus arriving was invisible, and so was the cursor wherever the
+selection was not on it — in `NONE`, on a row toggled off in `MULTI`, on any row of a multiple
+selection (TREE-MISS-5). Decision 52 (`tree-focus-mark`) asked for three marks rendered before
+choosing: the list's ring that fades in with focus across the row, the table's thin ring across
+the cursor row, and a thin ring around the cell only, with the indent and the triangle outside it.
+All three were rendered in light, dark, right to left, scrolled sideways, `MULTI` with the cursor
+outside the selection, and `NONE` (`renders/tree/focus-mark/`). The third, the one the research
+recommended, is implemented so the branch is whole: `FOCUS_RING_THIN` in `theme.focusRing` at
+`radiusSmall`, around the cursor row's cell inset by its own weight, only while the tree holds the
+keyboard, clipped to the viewport where the cell runs past it. It stays inside the band a cursor
+move already damaged, and the damage ratchet's shares for the tree row did not move (DOWN 6%,
+click 12%, command-click 6%, measured twice). His pick on the renders may replace it.
+
 ## 7. Damage
 
 Expanding a row moves every row below it, so the frame damages the viewport from that row down and

@@ -77,7 +77,9 @@ import java.util.function.Consumer;
  * <p><b>The cursor is not the selection.</b> The row the keyboard is on ({@link #cursorNode()})
  * moves with the arrows in every mode and is what Enter activates; the selection
  * ({@link #selectedNodes()}, led by {@link #leadNode()}) follows it where the mode allows, and in
- * {@code MULTI} a row toggled off keeps the cursor. {@code Table} keeps the same pair.
+ * {@code MULTI} a row toggled off keeps the cursor. {@code Table} keeps the same pair. While the
+ * tree holds the keyboard the cursor row's cell wears a thin focus ring, which is how the cursor
+ * is seen where the selection wash is not on it.
  *
  * <p>To a screen reader this is a {@code TREE} of {@code TREE_ITEM}s, each carrying its expanded
  * state, its selection numbered among its siblings ("2 of 5"), and its depth and flat row index
@@ -2353,6 +2355,7 @@ public class Tree<T> extends Widget implements Scrollable {
                     canvas.restore();
                 }
             }
+            paintCursorRing(canvas, theme, t, viewH);
         } finally {
             canvas.restore();
         }
@@ -2364,6 +2367,41 @@ public class Tree<T> extends Widget implements Scrollable {
             } finally {
                 canvas.restore();
             }
+        }
+    }
+
+    /**
+     * The focus mark: a thin ring in the focus colour around the cursor row's cell, while the
+     * tree holds the keyboard (decision 52 of 2026-09-14; TREE-MISS-5). Before, the tree drew
+     * the selection wash and nothing else, so focus arriving was invisible, and so was the
+     * cursor whenever it was not the one selected row: in {@code NONE}, after Space toggled a row
+     * off in {@code MULTI}, or on any row of a multiple selection.
+     *
+     * <p>Around the cell and not the row: the indent and the triangle are the outline's, and a
+     * ring across the full width reads as a second selection wash on a tree whose rows are
+     * already a band. Table's weight and corner ({@code FOCUS_RING_THIN}, {@code radiusSmall}),
+     * inset by its own weight so it stays inside the band a cursor move damages; clipped to the
+     * viewport where the cell runs past it, so a row scrolled sideways keeps a closed ring on
+     * what can be seen. Painted over the cell, as the list's ring is. One of three marks
+     * rendered for him; his pick may replace it.
+     */
+    private void paintCursorRing(Canvas canvas, Theme theme, SizeTokens t, float viewH) {
+        if (cursor == null || !isFocused()) {
+            return;
+        }
+        int index = indexOf(cursor);
+        Widget cell = index < 0 ? null : cellFor(index);
+        if (cell == null || cell.y() >= viewH || cell.y() + cell.height() <= 0) {
+            return; // not a row, or the cursor row the tree keeps realized outside the box
+        }
+        float inset = Strokes.FOCUS_RING_THIN;
+        float left = viewportLeft();
+        float from = Math.max(left, cell.x()) + inset;
+        float to = Math.min(left + gutters.viewportWidth(width()), cell.x() + cell.width()) - inset;
+        float height = cell.height() - 2 * inset;
+        if (to > from && height > 0) {
+            canvas.drawRoundRect(from, cell.y() + inset, to - from, height, t.radiusSmall(),
+                    Strokes.FOCUS_RING_THIN, theme.focusRing);
         }
     }
 
@@ -2497,7 +2535,8 @@ public class Tree<T> extends Widget implements Scrollable {
     @Override
     protected void onFocusGained() {
         // The cursor row is kept realized only while the tree holds the keyboard, and a pass is
-        // what mounts or releases it; contained, because nothing outside the box moves.
+        // what mounts or releases it; contained, because nothing outside the box moves. The
+        // cursor's band is damaged for its focus ring, which is drawn only while focused.
         markNeedsContainedLayout();
         damageNode(cursor);
     }

@@ -58,7 +58,7 @@ final class TreeScene {
 
     /** The scene and the tree inside it, so a capture variant can drive the widget. */
     private record Parts(Scene scene, Tree<Node> tree, Node deep, Node remote, Node trash,
-                         Node emptyFolder) {
+                         Node emptyFolder, Node documents, Node reports, Node pdf) {
     }
 
     /**
@@ -84,7 +84,35 @@ final class TreeScene {
      */
     static Built scrolled() {
         Parts parts = parts();
-        return new Built(parts.scene(), () -> parts.tree().scrollBy(120));
+        Tree<Node> tree = parts.tree();
+        return switch (variant()) {
+            case "focus" -> new Built(parts.scene(), () -> {
+                // The keyboard in the tree, the cursor and the selection on "Reports".
+                tree.requestFocus();
+                tree.setSelected(parts.reports());
+            });
+            case "multi" -> new Built(parts.scene(), () -> {
+                // MULTI with the cursor outside the selection: "Documents" and "2026.pdf"
+                // selected, then Space toggles "2026.pdf" off and the cursor stays on it.
+                tree.requestFocus();
+                tree.setSelectedNodes(List.of(parts.documents(), parts.pdf()));
+                parts.scene().keyEvent(limn.input.Keys.SPACE, true, false, 0);
+                parts.scene().keyEvent(limn.input.Keys.SPACE, false, false, 0);
+                parts.scene().inputBatchEnded();
+            });
+            case "none" -> new Built(parts.scene(), () -> {
+                // NONE: nothing is ever selected, and the cursor walks: three Downs from nowhere
+                // land on "Q3 regional revenue…".
+                tree.setSelectionMode(Tree.SelectionMode.NONE);
+                tree.requestFocus();
+                for (int i = 0; i < 3; i++) {
+                    parts.scene().keyEvent(limn.input.Keys.DOWN, true, false, 0);
+                    parts.scene().keyEvent(limn.input.Keys.DOWN, false, false, 0);
+                    parts.scene().inputBatchEnded();
+                }
+            });
+            default -> new Built(parts.scene(), () -> tree.scrollBy(120));
+        };
     }
 
     /**
@@ -295,6 +323,7 @@ final class TreeScene {
         Widget root = new Padding(Insets.all(24), page);
         Scene scene = new Scene(root);
         scene.setBackground(Theme.current().background);
-        return new Parts(scene, tree, deep, remote, trash, emptyFolder);
+        return new Parts(scene, tree, deep, remote, trash, emptyFolder, docs,
+                docs.kids().get(0), docs.kids().get(0).kids().get(1));
     }
 }

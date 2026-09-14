@@ -2304,6 +2304,111 @@ class TreeTest extends ComponentTestBase {
         }
     }
 
+    /** Every stroked round rectangle, in the tree's own coordinates, with its paint. */
+    private static final class RingCanvas extends ComponentTestBase.FakeCanvas {
+
+        record Ring(limn.graphics.RoundRect rect, float strokeWidth, Paint paint) {
+        }
+
+        final List<Ring> rings = new ArrayList<>();
+
+        RingCanvas(float width, float height) {
+            super(width, height);
+        }
+
+        @Override
+        public void drawRoundRect(limn.graphics.RoundRect roundRect, float strokeWidth, Paint paint) {
+            rings.add(new Ring(roundRect, strokeWidth, paint));
+        }
+    }
+
+    /** The focus-coloured rings the next frame paints. */
+    private List<RingCanvas.Ring> focusRings() {
+        scene.layoutPass(220, 200);
+        RingCanvas painted = new RingCanvas(220, 200);
+        scene.requestRender(); // a settled frame damages nothing, and would record nothing
+        scene.renderFrame(painted);
+        List<RingCanvas.Ring> found = new ArrayList<>();
+        for (RingCanvas.Ring ring : painted.rings) {
+            if (ring.paint().equals(Theme.current().focusRing)) {
+                found.add(ring);
+            }
+        }
+        return found;
+    }
+
+    /**
+     * While the tree holds the keyboard its cursor row's cell wears a thin focus ring — the cell
+     * and not the row, so the indent and the triangle stay outside it (decision 52 of
+     * 2026-09-14; TREE-MISS-5) — and the ring follows the cursor wherever the selection is not:
+     * onto a row Space just toggled off in {@code MULTI}, and in {@code NONE}, where nothing is
+     * selected at all. It leaves with the keyboard. Before, the tree painted no mark of its
+     * own, so none of those cursors could be seen.
+     */
+    @Test
+    void theCursorRowsCellWearsAFocusRingWhileTheTreeHoldsTheKeyboard() {
+        Node root = forest();
+        Tree<Node> tree = mount(new CountingModel(List.of(root)));
+        tree.expand(root);
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        assertTrue(focusRings().isEmpty(), "no ring before the keyboard is in the tree");
+
+        scene.requestFocus(tree);
+        press(Keys.DOWN); // onto the root, selecting it
+        Widget rootCell = cellOf(tree, "root");
+        List<RingCanvas.Ring> rings = focusRings();
+        assertEquals(1, rings.size(), "one ring, on the cursor row: " + rings);
+        limn.graphics.RoundRect ring = rings.get(0).rect();
+        float inset = Strokes.FOCUS_RING_THIN;
+        assertEquals(rootCell.x() + inset, ring.x(), 0.01f,
+                "it starts at the cell, past the indent and the triangle, inset by its weight");
+        assertEquals(rootCell.y() + inset, ring.y(), 0.01f);
+        assertEquals(rootCell.height() - 2 * inset, ring.height(), 0.01f,
+                "and stays inside the row's band, which a cursor move damages");
+        assertEquals(Strokes.FOCUS_RING_THIN, rings.get(0).strokeWidth(), 0.001f);
+
+        press(Keys.SPACE); // toggles the root off; the cursor stays on it
+        assertTrue(tree.selectedNodes().isEmpty());
+        rings = focusRings();
+        assertEquals(1, rings.size(), "a cursor outside the selection still wears it: " + rings);
+        assertEquals(rootCell.y() + inset, rings.get(0).rect().y(), 0.01f);
+
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        press(Keys.DOWN); // onto docs
+        Widget docsCell = cellOf(tree, "docs");
+        rings = focusRings();
+        assertEquals(1, rings.size(), "in NONE the ring is the only mark the cursor has: " + rings);
+        assertEquals(docsCell.x() + inset, rings.get(0).rect().x(), 0.01f,
+                "and it moved with the cursor, one indent further in");
+        assertEquals(docsCell.y() + inset, rings.get(0).rect().y(), 0.01f);
+
+        scene.requestFocus(null);
+        assertTrue(focusRings().isEmpty(), "and it leaves with the keyboard");
+    }
+
+    /**
+     * Scrolled sideways past the start of a deep row, the ring closes on the part of the cell
+     * the viewport shows rather than running off the box with no edge on that side.
+     */
+    @Test
+    void aRingOnARowScrolledSidewaysClosesInsideTheViewport() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells);
+        scene.requestFocus(tree);
+        press(Keys.DOWN); // onto level-1
+        for (int i = 0; i < 80; i++) {
+            wheelSideways(tree, -1);
+        }
+        Widget top = mounted(cells, "level-1");
+        List<RingCanvas.Ring> rings = focusRings();
+        assertTrue(top.x() < 0, "the root's cell starts left of the box: " + top.x());
+        assertEquals(1, rings.size(), rings.toString());
+        limn.graphics.RoundRect ring = rings.get(0).rect();
+        float inset = Strokes.FOCUS_RING_THIN;
+        assertEquals(inset, ring.x(), 0.01f, "it closes at the viewport's leading edge");
+        assertEquals(220 - inset, ring.x() + ring.width(), 0.01f, "and at its trailing edge");
+    }
+
     /**
      * A triangle painted where the press is not looked for is a control nobody can open, and a
      * sideways offset applied to one and not the other is exactly how that happens — it did
