@@ -2010,10 +2010,21 @@ public abstract class Widget {
      * application exactly as a click does and no component has to grow a public method that
      * re-derives a guard it already has.
      *
-     * @param action what was asked; one of the sixteen, including the four that carry an argument
+     * <p><b>The platform is not told the answer.</b> It was answered from the published snapshot
+     * before this ran (ADR 039 §1.9, §1.5's amendment of 2026-09-14): the bridge accepts a verb
+     * the node publishes and refuses one it does not, synchronously, and the post that reaches
+     * here carries no reply back. So {@code false} here is honest bookkeeping and nothing more
+     * &mdash; a refused {@code PRESS} raises no {@code INVOKED} &mdash; and the one contract a
+     * reader can see is the published one: a node accepts exactly the parameterless verbs in its
+     * action facet plus the setters its writable facets imply. A widget that would answer
+     * {@code true} for a verb it did not publish is a defect the gallery ratchet in
+     * {@code limn-demo} reports; a widget that accepts a synonym publishes it.
+     *
+     * @param action what was asked; one of the seventeen, including the four that carry an
+     *               argument
      * @param arg    the argument, or {@link limn.accessibility.Accessible.Argument#NONE}
      * @return whether this widget did it. {@code false} is the honest answer for a verb it does
-     *         not offer, and the platform is told the action failed.
+     *         not offer.
      */
     protected boolean onAccessibilityAction(limn.accessibility.Accessible.Action action,
                                             limn.accessibility.Accessible.Argument arg) {

@@ -54,8 +54,13 @@ facet. A widget that publishes a `ToggleFacet` gets `IToggleProvider`, `AXValue`
 
 **Two free verbs come from the walk, not from the widget.** Every focusable node advertises `FOCUS`
 and `SCROLL_INTO_VIEW`, and the scene performs them itself through `requestFocus()` and
-`revealInView()`. Do not implement them in a hook: the walk is their authority, and a widget that
-answered for a verb it never declared would silently swallow one the tree had already promised.
+`revealInView()`, *instead of* asking the widget's hook rather than after it. Do not implement them
+in a hook: the walk is their authority, and a hook is never asked about them — a container may not
+delegate either onto a focusable child for the same reason. And **no hook's answer reaches the
+platform**: a bridge accepts or refuses a verb synchronously from the published snapshot, then
+posts, and the `false` a hook answers later is bookkeeping nobody hears. So the only refusal a
+reader can see is the published one — a node accepts exactly the parameterless verbs it publishes
+plus the setters its writable facets imply, and a widget that accepts a synonym publishes it.
 
 **Transparent and ignored are different, and getting them the wrong way round deletes controls.**
 Transparent is no node with the children **hoisted into the parent's place**; ignored is no node
