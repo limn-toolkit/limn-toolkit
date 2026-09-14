@@ -305,7 +305,15 @@ public class Tree<T> extends Widget implements Scrollable {
      * its node to the new address instead of drawing whichever node arrived at the old one.
      */
     private Object[] mountedNodes = new Object[16];
+    /**
+     * The name the tree derived for each mounted cell that names itself no other way — the text
+     * of its labels, in order — kept so a quiet frame compares and allocates nothing
+     * (TREE-ROW-NAME); {@code null} where the cell or the model names the row.
+     */
+    private String[] mountedNames = new String[16];
     private int mountedCount;
+    /** Reused per walk to assemble a row's derived name before comparing it with the kept one. */
+    private final StringBuilder nameBuilder = new StringBuilder();
 
     /** The half-open run of rows the last pass laid out, which is what a recycle keeps. */
     private int placedFrom;
@@ -663,11 +671,13 @@ public class Tree<T> extends Widget implements Scrollable {
             mountedRows[kept] = now[i];
             mountedCells[kept] = cell;
             mountedNodes[kept] = mountedNodes[i];
+            mountedNames[kept] = mountedNames[i];
             kept++;
         }
         for (int i = kept; i < mountedCount; i++) {
             mountedCells[i] = null;
             mountedNodes[i] = null;
+            mountedNames[i] = null;
         }
         mountedCount = kept;
     }
@@ -1574,13 +1584,16 @@ public class Tree<T> extends Widget implements Scrollable {
             mountedRows = Arrays.copyOf(mountedRows, mountedCount * 2);
             mountedCells = Arrays.copyOf(mountedCells, mountedCount * 2);
             mountedNodes = Arrays.copyOf(mountedNodes, mountedCount * 2);
+            mountedNames = Arrays.copyOf(mountedNames, mountedCount * 2);
         }
         System.arraycopy(mountedRows, at, mountedRows, at + 1, mountedCount - at);
         System.arraycopy(mountedCells, at, mountedCells, at + 1, mountedCount - at);
         System.arraycopy(mountedNodes, at, mountedNodes, at + 1, mountedCount - at);
+        System.arraycopy(mountedNames, at, mountedNames, at + 1, mountedCount - at);
         mountedRows[at] = index;
         mountedCells[at] = cell;
         mountedNodes[at] = mountKey(rows.get(index));
+        mountedNames[at] = null;
         mountedCount++;
     }
 
@@ -1606,6 +1619,7 @@ public class Tree<T> extends Widget implements Scrollable {
                 mountedRows[kept] = row;
                 mountedCells[kept] = cell;
                 mountedNodes[kept] = mountedNodes[i];
+                mountedNames[kept] = mountedNames[i];
                 kept++;
                 continue;
             }
@@ -1614,6 +1628,7 @@ public class Tree<T> extends Widget implements Scrollable {
         for (int i = kept; i < mountedCount; i++) {
             mountedCells[i] = null;
             mountedNodes[i] = null;
+            mountedNames[i] = null;
         }
         mountedCount = kept;
     }
@@ -2340,20 +2355,77 @@ public class Tree<T> extends Widget implements Scrollable {
         }
     }
 
-    /** The row a mounted cell shows, or {@code null} for the bars and the loading line. */
-    private Row<T> rowOfCell(Widget child) {
-        int index = -1;
+    /** The mounted slot a cell sits in, or {@code -1} for the bars. */
+    private int slotOfCell(Widget child) {
         for (int i = 0; i < mountedCount; i++) {
             if (mountedCells[i] == child) {
-                index = mountedRows[i];
-                break;
+                return i;
             }
         }
+        return -1;
+    }
+
+    /** The row a mounted cell shows, or {@code null} for the bars and the loading line. */
+    private Row<T> rowOfCell(Widget child) {
+        return rowOfSlot(slotOfCell(child));
+    }
+
+    private Row<T> rowOfSlot(int slot) {
+        int index = slot < 0 ? -1 : mountedRows[slot];
         if (index < 0 || index >= rows.size()) {
             return null;
         }
         Row<T> row = rows.get(index);
         return row.placeholder ? null : row; // the loading line ignores itself; its row is BUSY
+    }
+
+    /**
+     * The name a row gets when neither the model nor the cell gives one: the text of the cell's
+     * labels, in reading order, separated by a space — an icon, a name and a count read as the
+     * name and the count. A composite cell has no name of its own, and a screen reader that is
+     * handed a nameless tree item speaks nothing for it: Orca's name generator yields nothing
+     * for such a row and never spoke one on the Fedora guest (TREE-ROW-NAME, 2026-09-14).
+     *
+     * <p>Assembled into one reused builder and compared with the string kept for the slot, so a
+     * quiet frame allocates nothing; a new string is built only when the text moved, and the
+     * string's identity is then the witness the builder wants.
+     *
+     * @return the name, or {@code null} when the cell holds no label text
+     */
+    private String derivedName(int slot, Widget cell) {
+        nameBuilder.setLength(0);
+        appendLabelText(cell);
+        String kept = mountedNames[slot];
+        if (nameBuilder.length() == 0) {
+            mountedNames[slot] = null;
+            return null;
+        }
+        if (kept != null && kept.contentEquals(nameBuilder)) {
+            return kept;
+        }
+        String fresh = nameBuilder.toString();
+        mountedNames[slot] = fresh;
+        return fresh;
+    }
+
+    private void appendLabelText(Widget widget) {
+        if (!widget.isVisible()) {
+            return;
+        }
+        if (widget instanceof limn.components.Label label) {
+            String text = label.text();
+            if (!text.isEmpty()) {
+                if (nameBuilder.length() > 0) {
+                    nameBuilder.append(' ');
+                }
+                nameBuilder.append(text);
+            }
+            return;
+        }
+        List<Widget> children = widget.children();
+        for (int i = 0; i < children.size(); i++) { // indexed: an iterator is an allocation
+            appendLabelText(children.get(i));
+        }
     }
 
     /**
@@ -2370,14 +2442,22 @@ public class Tree<T> extends Widget implements Scrollable {
 
     @Override
     protected void onAccessibilityChild(Widget child, Accessibility a) {
-        Row<T> row = rowOfCell(child);
+        int slot = slotOfCell(child);
+        Row<T> row = rowOfSlot(slot);
         if (row == null) {
             return;
         }
         a.role(Accessible.Role.TREE_ITEM);
+        // The model's name first; else the cell's own, which a Label cell has said already; else
+        // the text of the cell's labels, so a composite row is never a nameless item.
         I18nString name = model.nameOf(row.node);
         if (name != null) {
             a.name(name);
+        } else if (!a.hasName()) {
+            String derived = derivedName(slot, child);
+            if (derived != null) {
+                a.name(derived, System.identityHashCode(derived), Accessible.NameFrom.CONTENT);
+            }
         }
         // Numbered among its siblings, which is the "2 of 5" a reader speaks of a tree item
         // (decision 4 of 2026-09-13; ADR 044 §4, amended 2026-09-14): a loading line is not a

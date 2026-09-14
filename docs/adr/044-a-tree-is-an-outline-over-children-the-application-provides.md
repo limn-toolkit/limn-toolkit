@@ -185,6 +185,18 @@ derives level from `TreeItem` ancestors; Linux publishes the `level`/`posinset`/
 attributes Orca 50.2 reads first; macOS answers `accessibilityDisclosureLevel` from the level and
 `accessibilityIndex` from the row. A zero in any of the three publishes nothing on any platform.
 
+**Amendment, 2026-09-14: a tree item always has a name.** The L4 baseline on the Fedora guest read
+every row of the reader scene as `name=''`: the demo's cells are composites — an icon, a label and
+a count or a button in a `Row` — and the text sat in a `Label` child, so Orca's name generator
+yielded nothing for the item and never spoke a row (TREE-ROW-NAME). A `TREE_ITEM` is now named in
+this order: the model's `nameOf` where it gives one; else the cell's own name, which a `Label` cell
+has; else the text of the cell's visible labels in reading order, joined by a space, so the demo's
+folder reads as "Documents 2". The derived name is kept per mounted cell and compared before it is
+rebuilt, so a quiet frame allocates nothing. All three bridges answer a node's name from the same
+field (UIA `Name`, AT-SPI `Name`, AppKit `accessibilityLabel`/`accessibilityTitle`), so what
+Windows and macOS got for those rows was the same empty string, by reading; what each reader now
+speaks is phase 5's.
+
 The live reader run on all three guests is part of phase 1 and not a follow-up, for the reason
 ADR 041 and ADR 042 both record: a headless tree says what the toolkit published, not what a
 reader speaks.

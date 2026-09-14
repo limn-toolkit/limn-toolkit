@@ -642,6 +642,106 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         return new java.lang.ref.WeakReference<>(drop);
     }
 
+    /**
+     * A row whose cell is a composite — an icon, a label and a count in a {@code Row}, the
+     * demo's shape — is named from the text of its labels, since neither the cell nor the model
+     * names it: a nameless tree item is one a reader never speaks (TREE-ROW-NAME, from the L4
+     * baseline on Fedora: Orca's name generator yielded nothing for such rows). The model's
+     * {@code nameOf} wins where it gives one, a cell that names itself keeps its name, and the
+     * derived name follows the labels when they change.
+     */
+    @Test
+    void aRowWhoseCellIsACompositeIsNamedFromItsLabels() {
+        Node docs = Node.of("Documents", Node.leaf("notes.md"), Node.leaf("todo.md"));
+        Node readme = Node.leaf("README");
+        Label[] badge = new Label[1]; // the newest: a cell built before the ruler was set is released
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(docs, readme);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                if (node.children().isEmpty()) {
+                    return new Label(node.name().english()); // names itself
+                }
+                limn.scene.layout.Row row = new limn.scene.layout.Row();
+                row.add(limn.scene.layout.Expanded.of(new Label(node.name().english())));
+                Label count = new Label(String.valueOf(node.children().size())).setMuted(true);
+                badge[0] = count;
+                row.add(count);
+                return row;
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.setTextRuler(RULER);
+        frame();
+
+        List<AccessibleNode> rows = rowNodes();
+        assertEquals(List.of("Documents 2", "README"),
+                rows.stream().map(AccessibleNode::name).toList(),
+                "the composite row is named from its labels, the label row by itself: "
+                        + describe(tree()));
+        assertEquals(Accessible.NameFrom.CONTENT, rows.get(0).nameFrom());
+        int published = bridge.published.size();
+        for (int i = 0; i < 3; i++) {
+            tree.invalidate();
+            frame();
+        }
+        assertEquals(published, bridge.published.size(),
+                "a name read the same is not a change: nothing was published again");
+
+        badge[0].setText("3");
+        frame();
+        assertEquals("Documents 3", rowNodes().get(0).name(),
+                "and the name follows the label: " + describe(tree()));
+    }
+
+    /** The model's name wins over the cell's labels, as it does over a cell that names itself. */
+    @Test
+    void theModelsNameWinsOverTheCellsLabels() {
+        Node docs = Node.of("Documents", Node.leaf("notes.md"));
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(docs);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                limn.scene.layout.Row row = new limn.scene.layout.Row();
+                row.add(new Label(node.name().english()));
+                row.add(new Label("1"));
+                return row;
+            }
+
+            @Override
+            public I18nString nameOf(Node node) {
+                return I18nString.literal("Documents folder");
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.setTextRuler(RULER);
+        frame();
+
+        assertEquals("Documents folder", rowNodes().get(0).name(), describe(tree()));
+    }
+
     /** {@code SCROLL_INTO_VIEW} on a row that sits half under the top edge brings it back. */
     @Test
     void scrollIntoViewOnARowRevealsIt() throws Exception {
