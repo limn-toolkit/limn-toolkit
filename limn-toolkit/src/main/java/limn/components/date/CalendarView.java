@@ -259,9 +259,16 @@ public class CalendarView extends Widget {
     private Chronology gridChronology = IsoChronology.INSTANCE;
     private DayOfWeek gridFirstDay = DayOfWeek.MONDAY;
     private View gridView = View.DAYS;
+    /** Whether the drawn calendar's years carry their era; {@link CalendarChronology#yearsNameTheirEra}. */
+    private boolean gridEraCalendar;
     private String headerTitle = "";
     /** One label per chooser cell: twelve month names, or a block of years. */
     private String[] chooserText = new String[0];
+    /**
+     * What a reader is told each chooser cell is: the month name, or the year <em>with its era</em>
+     * where the calendar's years need one ("令和8"), which the drawn label abbreviates to fit.
+     */
+    private String[] chooserName = new String[0];
     private final String[] dayText = new String[CELLS];
     private final String[] weekText = new String[WEEKS];
     private final String[] weekdayText = new String[DAYS_IN_WEEK];
@@ -444,9 +451,18 @@ public class CalendarView extends Widget {
         });
     }
 
-    /** @return the first day of the month currently drawn */
+    /**
+     * @return the ISO date of the first day of the month currently drawn, <b>in the calendar being
+     *         drawn</b>: for a Hijri grid that is the first of the Hijri month, which is most
+     *         often the middle of an ISO one (DATES-NEW-1, 2026-09-14)
+     */
     public LocalDate visibleMonth() {
-        return visibleMonth.withDayOfMonth(1);
+        return firstOfMonth(visibleMonth);
+    }
+
+    /** The drawn calendar's first day of the month holding {@code day}, as an ISO date. */
+    private LocalDate firstOfMonth(LocalDate day) {
+        return CalendarChronology.firstOfMonth(chronology(), day);
     }
 
     /**
@@ -481,8 +497,8 @@ public class CalendarView extends Widget {
         Ui.checkUiThread();
         clock = newClock;
         if (!monthChosen) {
-            LocalDate first = today().withDayOfMonth(1);
-            if (!visibleMonth.withDayOfMonth(1).equals(first)) {
+            LocalDate first = firstOfMonth(today());
+            if (!visibleMonth().equals(first)) {
                 visibleMonth = first;
                 markNeedsLayout();
                 notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.CODE));
@@ -497,10 +513,16 @@ public class CalendarView extends Widget {
         return clock == null ? LocalDate.now() : LocalDate.now(clock);
     }
 
+    /**
+     * Shows the month holding a day, <b>the drawn calendar's month</b>. Normalized to that
+     * month's first day so two days of one Hijri month compare equal here, and so a Hijri "next"
+     * lands on the next Hijri month rather than on a day whose ISO first is the one already
+     * shown, which is what made paging a no-op for most of the year (DATES-NEW-1, 2026-09-14).
+     */
     private CalendarView showMonth(LocalDate day, Change.Origin origin) {
         monthChosen = true; // every path here is somebody choosing: code, a page, a pick, a cursor
-        LocalDate first = day.withDayOfMonth(1);
-        if (visibleMonth.withDayOfMonth(1).equals(first)) {
+        LocalDate first = firstOfMonth(day);
+        if (visibleMonth().equals(first)) {
             return this;
         }
         visibleMonth = first;
@@ -517,8 +539,8 @@ public class CalendarView extends Widget {
      */
     private void pageMonths(int months, Change.Origin origin) {
         Chronology chronology = chronology();
-        ChronoLocalDate current = CalendarChronology.date(chronology, visibleMonth.withDayOfMonth(1));
-        LocalDate next = current == null ? visibleMonth.plusMonths(months)
+        ChronoLocalDate current = CalendarChronology.date(chronology, visibleMonth());
+        LocalDate next = current == null ? visibleMonth().plusMonths(months)
                 : CalendarChronology.iso(current.plus(months, ChronoUnit.MONTHS));
         if (next != null) {
             showMonth(next, origin);
@@ -947,8 +969,11 @@ public class CalendarView extends Widget {
             return selectedRange.start();
         }
         LocalDate today = today();
-        return visibleMonth.withDayOfMonth(1).getMonth() == today.getMonth()
-                && visibleMonth.getYear() == today.getYear() ? today : visibleMonth.withDayOfMonth(1);
+        LocalDate first = visibleMonth();
+        // "The month on show holds today" in the calendar being drawn, not in ISO: a Hijri month
+        // spans two ISO ones, and the ISO comparison put the cursor on the first day of a month
+        // whose second half was the month with today in it.
+        return firstOfMonth(today).equals(first) ? today : first;
     }
 
     // ------------------------------------------------------------------ the grid memo
@@ -968,29 +993,25 @@ public class CalendarView extends Widget {
         Chronology chronology = CalendarChronology.usableFor(
                 CalendarChronology.resolve(declaredChronology, locale), visibleMonth);
         DayOfWeek firstDay = firstDayOfWeek();
-        LocalDate first = visibleMonth.withDayOfMonth(1);
+        // The first of the month IN THE CALENDAR BEING DRAWN, which is a different day from the
+        // ISO first whenever the two disagree. Re-derived here rather than trusted from the
+        // field, because the chronology can move between two layouts (a locale switch) and the
+        // month then has to be re-read in the calendar it is now drawn in.
+        LocalDate first = CalendarChronology.firstOfMonth(chronology, visibleMonth);
         ChronoLocalDate chronoFirst = CalendarChronology.date(chronology, first);
-        if (chronoFirst != null) {
-            // The first of the month IN THE CALENDAR BEING DRAWN, which is a different day from the
-            // ISO first whenever the two disagree, and is the whole reason this is not
-            // first.withDayOfMonth(1).
-            chronoFirst = chronoFirst.with(ChronoField.DAY_OF_MONTH, 1);
-            first = CalendarChronology.iso(chronoFirst);
-        }
-        if (first == null) {
-            first = visibleMonth.withDayOfMonth(1);
-        }
+        boolean eraCalendar = CalendarChronology.yearsNameTheirEra(chronology, today());
         int shift = Math.floorMod(first.getDayOfWeek().getValue() - firstDay.getValue(), DAYS_IN_WEEK);
         LocalDate start = first.minusDays(shift);
         boolean languageMoved = textLanguage.moved();
         if (!languageMoved && gridStartEpoch == start.toEpochDay()
                 && gridChronology.equals(chronology) && gridFirstDay == firstDay
-                && gridView == view) {
+                && gridView == view && gridEraCalendar == eraCalendar) {
             return;
         }
         gridStartEpoch = start.toEpochDay();
         gridChronology = chronology;
         gridFirstDay = firstDay;
+        gridEraCalendar = eraCalendar;
         monthFirstEpoch = first.toEpochDay();
         int monthLength = chronoFirst != null ? chronoFirst.lengthOfMonth() : first.lengthOfMonth();
         monthLastEpoch = monthFirstEpoch + monthLength - 1;
@@ -999,8 +1020,9 @@ public class CalendarView extends Widget {
         previousFirstEpoch = monthFirstEpoch - previousLength;
 
         gridView = view;
+        chooserText = buildChooserLabels(chronology, chronoFirst, locale, true);
+        chooserName = buildChooserLabels(chronology, chronoFirst, locale, false);
         headerTitle = buildTitle(chronology, chronoFirst, locale);
-        chooserText = buildChooserLabels(chronology, chronoFirst, locale);
         for (int i = 0; i < CELLS; i++) {
             dayText[i] = I18n.localizeDigits(Integer.toString(dayNumber(gridStartEpoch + i)));
         }
@@ -1036,10 +1058,16 @@ public class CalendarView extends Widget {
         }
         return switch (view) {
             case DAYS -> capitalize(CalendarChronology.monthHeader(chronology, chronoFirst, locale));
-            case MONTHS -> yearLabel(chronoFirst);
+            case MONTHS -> yearLabel(chronology, chronoFirst, locale);
             case YEARS -> {
-                int first = yearBlockStart(chronoFirst);
-                yield I18n.localizeDigits(first + " \u2013 " + (first + YEARS_PER_PAGE - 1));
+                // The block's two ends, each labelled as a year of this calendar is: a Japanese
+                // block that crosses an era reads "\u5e73\u621028 \u2013 \u4ee4\u548c21", not two bare numbers that
+                // would say the block runs backwards.
+                ChronoLocalDate first = yearCell(chronoFirst, 0);
+                ChronoLocalDate last = yearCell(chronoFirst, YEARS_PER_PAGE - 1);
+                String from = first == null ? "" : yearLabel(chronology, first, locale);
+                String to = last == null ? "" : yearLabel(chronology, last, locale);
+                yield from + " \u2013 " + to;
             }
         };
     }
@@ -1053,13 +1081,30 @@ public class CalendarView extends Widget {
         return I18n.toUpperCase(text.substring(0, width)) + text.substring(width);
     }
 
-    private static String yearLabel(ChronoLocalDate date) {
+    /**
+     * A year as this calendar writes one: the bare year of era where that is a whole year
+     * ("2026", "2569", "1448"), and the era with it where it is not ("令和8", "民國115"; decision
+     * 38 and era-year-width, 2026-09-14).
+     */
+    private String yearLabel(Chronology chronology, ChronoLocalDate date, Locale locale) {
+        if (gridEraCalendar) {
+            return CalendarChronology.eraYear(chronology, date, locale, false);
+        }
         return I18n.localizeDigits(Integer.toString(date.get(ChronoField.YEAR_OF_ERA)));
     }
 
-    /** The first year of the block a year falls in, so paging lands on the same twenty-four. */
+    /**
+     * The first year of the block a year falls in, so paging lands on the same twenty-four.
+     *
+     * <p>Blocked by the <b>proleptic</b> year and not the year of era. Blocking by the year of
+     * era made every Japanese block start at a year-of-era multiple of 24 &mdash; Reiwa 0, which
+     * is not a year &mdash; and paging back from Reiwa's block landed on Heisei's with the years
+     * 2012 to 2018 in neither (DATES-NEW-1). The proleptic year is the one number every
+     * chronology counts without a gap: for ISO, Thai and Hijri it equals the year of era, for
+     * Minguo it is the ROC year, and for Japanese it is the ISO year.
+     */
     private static int yearBlockStart(ChronoLocalDate date) {
-        int year = date.get(ChronoField.YEAR_OF_ERA);
+        int year = date.get(ChronoField.YEAR);
         return year - Math.floorMod(year, YEARS_PER_PAGE);
     }
 
@@ -1067,9 +1112,14 @@ public class CalendarView extends Widget {
      * The labels of whichever chooser is showing, built with the grid rather than per paint: twelve
      * month names in the calendar being drawn (the eighth month of a Hijri year is not August), or
      * twenty-four years.
+     *
+     * @param drawn whether the labels are the ones painted in the cells, which abbreviate an era
+     *              to its one letter and drop it while the block stays inside one era, or the
+     *              ones a reader is told, which always carry the whole era where the calendar's
+     *              years need one
      */
     private String[] buildChooserLabels(Chronology chronology, ChronoLocalDate chronoFirst,
-                                        Locale locale) {
+                                        Locale locale, boolean drawn) {
         if (view == View.DAYS || chronoFirst == null) {
             return new String[0];
         }
@@ -1085,9 +1135,25 @@ public class CalendarView extends Widget {
             return names;
         }
         String[] years = new String[YEARS_PER_PAGE];
-        int first = yearBlockStart(chronoFirst);
+        ChronoLocalDate first = yearCell(chronoFirst, 0);
+        ChronoLocalDate last = yearCell(chronoFirst, YEARS_PER_PAGE - 1);
+        // Drawn with the era's one letter only when the block crosses an era: inside one era the
+        // era is the title's business and twenty-four "R"s would be noise in a small cell.
+        boolean crossesEra = gridEraCalendar && first != null && last != null
+                && !first.getEra().equals(last.getEra());
         for (int i = 0; i < YEARS_PER_PAGE; i++) {
-            years[i] = I18n.localizeDigits(Integer.toString(first + i));
+            ChronoLocalDate year = yearCell(chronoFirst, i);
+            if (year == null) {
+                years[i] = "";
+            } else if (!gridEraCalendar) {
+                years[i] = I18n.localizeDigits(Integer.toString(year.get(ChronoField.YEAR_OF_ERA)));
+            } else if (drawn) {
+                years[i] = crossesEra
+                        ? CalendarChronology.eraYear(chronology, year, locale, true)
+                        : I18n.localizeDigits(Integer.toString(year.get(ChronoField.YEAR_OF_ERA)));
+            } else {
+                years[i] = CalendarChronology.eraYear(chronology, year, locale, false);
+            }
         }
         return years;
     }
@@ -1102,28 +1168,36 @@ public class CalendarView extends Widget {
         }
     }
 
-    /** The first day of year {@code index} (zero-based) of the block on show, or null. */
-    private ChronoLocalDate yearCell(ChronoLocalDate reference, int index) {
+    /**
+     * The first day of year {@code index} (zero-based) of the block on show, or null.
+     *
+     * <p>Through {@code dateYearDay} on the proleptic year rather than {@code with(YEAR_OF_ERA)}
+     * and two more {@code with}s: the latter stepped a Reiwa reference back to Heisei 31 when the
+     * month was rewound across the era's start, so the cell labelled "1" opened 2019 in the wrong
+     * era. The first day of a proleptic year is one call in every chronology.
+     */
+    private static ChronoLocalDate yearCell(ChronoLocalDate reference, int index) {
         try {
-            return reference.with(ChronoField.YEAR_OF_ERA, yearBlockStart(reference) + (long) index)
-                    .with(ChronoField.MONTH_OF_YEAR, 1)
-                    .with(ChronoField.DAY_OF_MONTH, 1);
+            return reference.getChronology().dateYearDay(yearBlockStart(reference) + index, 1);
         } catch (RuntimeException e) {
             return null;
         }
     }
 
-    /** The ISO day a chooser cell stands for, or null where the calendar has no such date. */
-    private LocalDate chooserDate(int index) {
+    /** The first day of the month or year a chooser cell stands for, in the drawn calendar, or null. */
+    private ChronoLocalDate chooserCell(int index) {
         Chronology chronology = gridChronology;
         ChronoLocalDate reference = CalendarChronology.date(chronology,
                 LocalDate.ofEpochDay(monthFirstEpoch));
         if (reference == null) {
             return null;
         }
-        ChronoLocalDate cell = view == View.MONTHS
-                ? monthCell(reference, index) : yearCell(reference, index);
-        return CalendarChronology.iso(cell);
+        return view == View.MONTHS ? monthCell(reference, index) : yearCell(reference, index);
+    }
+
+    /** The ISO day a chooser cell stands for, or null where the calendar has no such date. */
+    private LocalDate chooserDate(int index) {
+        return CalendarChronology.iso(chooserCell(index));
     }
 
     private static int previousMonthLength(Chronology chronology, ChronoLocalDate chronoFirst,
@@ -1403,22 +1477,35 @@ public class CalendarView extends Widget {
         if (view == View.MONTHS) {
             return reference.get(ChronoField.MONTH_OF_YEAR) - 1;
         }
-        return reference.get(ChronoField.YEAR_OF_ERA) - yearBlockStart(reference);
+        return reference.get(ChronoField.YEAR) - yearBlockStart(reference);
     }
 
     /**
      * Whether a chooser cell leads anywhere: a month or a year with no selectable day in it is
      * drawn disabled and refuses a click, the same rule a day out of bounds follows.
+     *
+     * <p>The period's last day is the drawn calendar's, not ISO's: the Hijri month that starts on
+     * 14 August ends on 11 September, and asking ISO August for its length would have refused a
+     * month whose second half is well inside the bounds.
      */
     private boolean isChooserCellOffered(int index) {
         LocalDate day = chooserDate(index);
-        if (day == null) {
+        LocalDate last = chooserPeriodEnd(index);
+        if (day == null || last == null) {
             return false;
         }
-        LocalDate last = view == View.MONTHS
-                ? day.withDayOfMonth(day.lengthOfMonth()) : day.withDayOfYear(day.lengthOfYear());
         return (minDate == null || !last.isBefore(minDate))
                 && (maxDate == null || !day.isAfter(maxDate));
+    }
+
+    /** The ISO date of the last day of the month or year a chooser cell stands for, or null. */
+    private LocalDate chooserPeriodEnd(int index) {
+        ChronoLocalDate cell = chooserCell(index);
+        if (cell == null) {
+            return null;
+        }
+        int length = view == View.MONTHS ? cell.lengthOfMonth() : cell.lengthOfYear();
+        return CalendarChronology.iso(cell.plus(length - 1, ChronoUnit.DAYS));
     }
 
     private void paintHeader(Canvas canvas, Theme theme, SizeTokens t, TextRuler ruler,
@@ -2226,7 +2313,7 @@ public class CalendarView extends Widget {
                 a.child(index);
                 a.bounds(cellLeft(column, rtl), top, cellW, cellH);
                 a.role(Accessible.Role.CELL);
-                a.name(chooserText[index], textEpoch, Accessible.NameFrom.CONTENT);
+                a.name(chooserName[index], textEpoch, Accessible.NameFrom.CONTENT);
                 a.cell(row, column);
                 if (isEnabled() && isChooserCellOffered(index)) {
                     a.action(Accessible.Action.SELECT);

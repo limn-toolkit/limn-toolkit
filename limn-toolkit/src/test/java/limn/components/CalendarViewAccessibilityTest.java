@@ -43,11 +43,35 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
     private static final LocalDate ANCHOR = LocalDate.of(2026, 9, 9);
 
     private CalendarView bindCalendar() {
-        I18n.setLocale(Locale.forLanguageTag("pt-BR"));
+        return bindCalendar(Locale.forLanguageTag("pt-BR"));
+    }
+
+    private CalendarView bindCalendar(Locale locale) {
+        I18n.setLocale(locale);
         CalendarView calendar = new CalendarView();
         calendar.setVisibleMonth(ANCHOR);
         bind(calendar);
         return calendar;
+    }
+
+    /** English, drawing the Umm al-Qura calendar: the month names are readable in an assertion. */
+    private static final Locale HIJRI = Locale.forLanguageTag("en-US-u-ca-islamic-umalqura");
+    private static final Locale JAPANESE = Locale.forLanguageTag("ja-JP-u-ca-japanese");
+
+    /** The three header buttons in tree order: the arrow back, the arrow on, the title. */
+    private List<AccessibleNode> headerButtons() {
+        List<AccessibleNode> buttons = childrenOf(gridNode()).stream()
+                .filter(child -> child.role() == Accessible.Role.BUTTON).toList();
+        assertEquals(3, buttons.size(), describe(tree()));
+        return buttons;
+    }
+
+    private AccessibleNode titleNode() {
+        return headerButtons().get(2);
+    }
+
+    private AccessibleNode pagingButton(boolean next) {
+        return headerButtons().get(next ? 1 : 0);
     }
 
     @AfterEach
@@ -366,6 +390,88 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
                 .filter(day -> day.name().startsWith("15 de setembro")).findFirst().orElseThrow();
         assertTrue(perform(fifteenth.id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
         assertEquals(LocalDate.of(2026, 9, 15), calendar.selectedDate());
+    }
+
+    // ------------------------------------------------ the drawn calendar's own months (DATES-NEW-1)
+
+    /**
+     * The visible month is a month of the calendar being drawn. Before 2026-09-14 it was the ISO
+     * month holding the drawn month's first day, so "next" from a Hijri month computed a day whose
+     * ISO first was the one already shown and did nothing, for 95 of the 132 ISO months of a
+     * decade (the cluster's replay); this presses the real button and reads the real title.
+     */
+    @Test
+    void aHijriGridPagesByHijriMonths() throws InterruptedException {
+        CalendarView calendar = bindCalendar(HIJRI);
+        assertEquals(LocalDate.of(2026, 8, 14), calendar.visibleMonth(),
+                "September 9 is in Rabiʻ I 1448, which began on 14 August");
+        assertTrue(titleNode().name().contains("1448"), titleNode().name());
+
+        assertTrue(perform(pagingButton(true).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE));
+        frame();
+        assertEquals(LocalDate.of(2026, 9, 12), calendar.visibleMonth(),
+                "the next Hijri month, whose first day is 12 September, not the same month again");
+        assertTrue(titleNode().name().startsWith("Rabiʻ II"), titleNode().name());
+        assertTrue(dayNodes().stream().anyMatch(day -> day.name().startsWith("Rabiʻ II 1, 1448")),
+                "the first of the month is on the grid: " + dayNodes().get(0).name());
+    }
+
+    @Test
+    void aSelectedHijriDayIsOnTheGrid() {
+        CalendarView calendar = bindCalendar(HIJRI);
+        // 25 September is Rabiʻ II 14; the grid of the ISO month "September" ran out on the 19th.
+        calendar.setSelectedDate(LocalDate.of(2026, 9, 25));
+        frame();
+        List<AccessibleNode> selected = dayNodes().stream()
+                .filter(day -> day.selectionItem() != null && day.selectionItem().selected())
+                .toList();
+        assertEquals(1, selected.size(), "the selected day is a published cell: " + describe(tree()));
+        assertTrue(selected.get(0).name().startsWith("Rabiʻ II 14, 1448"), selected.get(0).name());
+    }
+
+    @Test
+    void aHijriMonthPickedInTheChooserIsTheMonthShown() throws InterruptedException {
+        CalendarView calendar = bindCalendar(HIJRI);
+        calendar.setView(CalendarView.View.MONTHS);
+        frame();
+        AccessibleNode fourth = dayNodes().get(3);
+        assertTrue(fourth.name().startsWith("Rab"), "the fourth month, abbreviated: " + fourth.name());
+        assertTrue(perform(fourth.id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
+        assertEquals(CalendarView.View.DAYS, calendar.view());
+        assertEquals(LocalDate.of(2026, 9, 12), calendar.visibleMonth(),
+                "the month picked is the month drawn; 117 of 120 picks landed elsewhere before");
+    }
+
+    /**
+     * The year chooser blocks by the proleptic year and labels each cell with the year of era,
+     * with its era where a block crosses one: blocking by the year of era put Reiwa 0 at the
+     * head of a block and left 2012 to 2018 in no block at all.
+     */
+    @Test
+    void aJapaneseYearChooserPagesWithoutSkippingYearsAndNamesTheEra() throws InterruptedException {
+        CalendarView calendar = bindCalendar(JAPANESE);
+        calendar.setView(CalendarView.View.YEARS);
+        frame();
+        assertEquals("平成28 – 令和21", titleNode().name(), "2016 to 2039, each in its own era");
+        List<AccessibleNode> cells = dayNodes();
+        assertEquals(24, cells.size());
+        assertEquals("平成28", cells.get(0).name());
+        assertEquals("平成31", cells.get(3).name(), "2019 opens in Heisei, the era of its first day");
+        assertEquals("令和2", cells.get(4).name());
+
+        assertTrue(perform(pagingButton(false).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE));
+        frame();
+        assertEquals("平成4 – 平成27", titleNode().name(), "1992 to 2015: nothing skipped");
+        assertEquals("平成27", dayNodes().get(23).name());
+
+        assertTrue(perform(dayNodes().get(23).id(), Accessible.Action.SELECT,
+                Accessible.Argument.NONE));
+        assertEquals(CalendarView.View.MONTHS, calendar.view());
+        assertEquals(LocalDate.of(2015, 1, 1), calendar.visibleMonth());
+        frame();
+        assertEquals("平成27", titleNode().name(), "the month chooser's title is the era's year too");
     }
 
     @Test

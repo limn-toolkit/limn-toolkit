@@ -77,6 +77,19 @@ Three consequences are worth stating because each is a bug that did not happen:
   calendar for that widget rather than throwing inside a frame. The guard is in one place
   (`CalendarChronology.convert`) and both widgets go through it.
 
+**Amendment, 2026-09-14 (DATES-NEW-1): the visible month is the drawn calendar's month.**
+`CalendarView.visibleMonth()` answers the ISO date of the first day of the month *in the calendar
+being drawn*, and every path that chooses a month — `setVisibleMonth`, paging, a chooser pick, a
+cursor walking off the grid, `setClock` — normalizes to that day. The first implementation
+normalized to the ISO month's first day and then drew the chronology month holding it, which is
+right for ISO and wrong for every calendar whose months start mid-way through ISO ones: "next"
+from a Hijri month computed a day whose ISO first was the one already shown and did nothing (95 of
+the 132 ISO months of a decade), a selected day could fall off the grid, and a month picked in the
+chooser drew the month before it. The guard sentence above is also corrected: the one place is
+`CalendarChronology.date`/`iso`/`usableFor` (there is no `convert`), and `firstOfMonth` beside
+them is the normalization. Pinned by `CalendarViewAccessibilityTest` (Hijri paging, a Hijri day
+on the grid, a Hijri month picked).
+
 **Rejected: a value type of our own.** A `limn.time.CalendarDate` would decouple the toolkit from
 the JDK and would cost every application a conversion at every boundary, to buy nothing: `java.time`
 is in `java.base`, it is the type every persistence layer, every JSON binding and every SQL driver
@@ -187,6 +200,17 @@ button: days climb to the twelve months of the year, months climb to a block of 
 and each pick descends one step. `setView` lets an application open at any level, which is what a
 birth-date picker wants. Descending is navigation and not a choice: no selection is announced and no
 handler runs until a **day** is picked.
+
+**Amendment, 2026-09-14 (DATES-NEW-1, DATES-NEW-10): the year chooser blocks by the proleptic
+year and names the era.** A block of twenty-four is aligned on `ChronoField.YEAR`, the one number
+every chronology counts without a gap, and not on the year of era: aligned on the year of era, a
+Japanese block began at "Reiwa 0", which is not a year, and paging back from Reiwa's block landed
+on Heisei's with 2012–2018 in neither. In a calendar whose years are short enough to need their
+era — read off the year of era today being under a thousand (Japanese, Minguo), never off a list
+of chronologies — a cell is spoken with its era ("平成31", "令和2"), drawn with the era's one
+letter only while the block crosses an era ("H31", "R2"), and the title names both ends ("平成28 –
+令和21"); the month chooser's title is the same era-qualified year. Pinned by
+`CalendarViewAccessibilityTest.aJapaneseYearChooserPagesWithoutSkippingYearsAndNamesTheEra`.
 
 The month is paged by the two header buttons, by PageUp and PageDown, and by arrowing off an edge.
 Arrow keys move by a day and a week, Home and End go to the first and last day **of the week**
