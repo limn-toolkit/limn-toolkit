@@ -1,5 +1,7 @@
 package limn.accessibility;
 
+import java.util.List;
+
 /**
  * One thing an assistive technology has to be told: a property that moved, a node that appeared or
  * went away, a window that opened, or something the application said out loud.
@@ -39,7 +41,15 @@ public final class AccessibleEvent {
          * is read off the tree the event was handed with.
          */
         VALUE_CHANGED,
-        /** What this node has selected changed. */
+        /**
+         * What this container has selected changed: one per container per publish, carrying
+         * the members that entered and left its selection ({@link #addedMembers()},
+         * {@link #removedMembers()}) and whether it selects more than one at once. The
+         * container is the member's by semantics 1: the nearest ancestor with a
+         * {@link SelectionFacet}, climbed to from the member's published parent through
+         * synthetic ancestors only. A member that arrived selected in this publish and one that
+         * left the tree selected are counted too.
+         */
         SELECTION_CHANGED,
         /** This node's text changed; the offsets say where. */
         TEXT_CHANGED,
@@ -84,10 +94,21 @@ public final class AccessibleEvent {
     private final int offset;
     private final int removed;
     private final int inserted;
+    private final List<Long> addedMembers;
+    private final List<Long> removedMembers;
+    private final boolean multiSelectable;
 
     private AccessibleEvent(Type type, long nodeId, Accessible.State state,
                             Accessible.Politeness politeness, Object oldValue, Object newValue,
                             int offset, int removed, int inserted) {
+        this(type, nodeId, state, politeness, oldValue, newValue, offset, removed, inserted,
+                List.of(), List.of(), false);
+    }
+
+    private AccessibleEvent(Type type, long nodeId, Accessible.State state,
+                            Accessible.Politeness politeness, Object oldValue, Object newValue,
+                            int offset, int removed, int inserted, List<Long> addedMembers,
+                            List<Long> removedMembers, boolean multiSelectable) {
         this.type = type;
         this.nodeId = nodeId;
         this.state = state;
@@ -97,6 +118,9 @@ public final class AccessibleEvent {
         this.offset = offset;
         this.removed = removed;
         this.inserted = inserted;
+        this.addedMembers = addedMembers;
+        this.removedMembers = removedMembers;
+        this.multiSelectable = multiSelectable;
     }
 
     /**
@@ -162,6 +186,33 @@ public final class AccessibleEvent {
                                        String oldText, String newText) {
         return new AccessibleEvent(Type.TEXT_CHANGED, nodeId, null, null, oldText, newText,
                 offset, removed, inserted);
+    }
+
+    /**
+     * A container's selection moved (ADR 039 §1.10, amended 2026-09-14; decision 9).
+     *
+     * @param containerId     the container the members belong to, by semantics 1
+     * @param multiSelectable whether it selects more than one member at once
+     * @param added           the members that entered its selection in this publish, in reading
+     *                        order; a member new in this publish included
+     * @param removed         the members that left it, in the previous publish's reading order;
+     *                        a member that left the tree included
+     * @return the event
+     * @throws NullPointerException if either array is {@code null}
+     */
+    public static AccessibleEvent selection(long containerId, boolean multiSelectable,
+                                            long[] added, long[] removed) {
+        return new AccessibleEvent(Type.SELECTION_CHANGED, containerId, null, null, null, null,
+                0, 0, 0, boxed(added), boxed(removed), multiSelectable);
+    }
+
+    private static List<Long> boxed(long[] ids) {
+        java.util.Objects.requireNonNull(ids, "ids");
+        Long[] out = new Long[ids.length];
+        for (int i = 0; i < ids.length; i++) {
+            out[i] = ids[i];
+        }
+        return List.of(out);
     }
 
     /**
@@ -236,6 +287,33 @@ public final class AccessibleEvent {
         return inserted;
     }
 
+    /**
+     * @return for a {@link Type#SELECTION_CHANGED}, the members that entered the container's
+     *         selection in this publish, in reading order; empty for every other kind. Never
+     *         modifiable.
+     */
+    public List<Long> addedMembers() {
+        return addedMembers;
+    }
+
+    /**
+     * @return for a {@link Type#SELECTION_CHANGED}, the members that left the container's
+     *         selection in this publish, a member that left the tree included; empty for every
+     *         other kind. Never modifiable.
+     */
+    public List<Long> removedMembers() {
+        return removedMembers;
+    }
+
+    /**
+     * @return for a {@link Type#SELECTION_CHANGED}, whether the container selects more than one
+     *         member at once, which is what decides between a platform's single-selection and
+     *         add-to/remove-from-selection events; {@code false} for every other kind
+     */
+    public boolean multiSelectable() {
+        return multiSelectable;
+    }
+
     @Override
     public String toString() {
         StringBuilder out = new StringBuilder("AccessibleEvent[").append(type);
@@ -248,6 +326,10 @@ public final class AccessibleEvent {
         if (type == Type.TEXT_CHANGED) {
             out.append(" at=").append(offset).append(" -").append(removed).append(" +")
                     .append(inserted);
+        }
+        if (type == Type.SELECTION_CHANGED) {
+            out.append(multiSelectable ? " multi" : " single")
+                    .append(" +").append(addedMembers).append(" -").append(removedMembers);
         }
         if (oldValue != null || newValue != null) {
             out.append(' ').append(oldValue).append(" -> ").append(newValue);

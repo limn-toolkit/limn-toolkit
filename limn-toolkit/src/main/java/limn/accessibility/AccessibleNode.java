@@ -57,6 +57,7 @@ public final class AccessibleNode {
     private final int lastChild;
     private final int nextSibling;
     private final int previousSibling;
+    private final int selectionContainer;
 
     AccessibleNode(long id, Accessible.Role role, String name, Accessible.NameFrom nameFrom,
                    String description, Locale locale, long states,
@@ -67,7 +68,7 @@ public final class AccessibleNode {
                    ScrollFacet scroll, WindowFacet window, TableFacet table, CellFacet cell,
                    HierarchyFacet hierarchy, ActionFacet actions,
                    int parent, int firstChild, int lastChild,
-                   int nextSibling, int previousSibling) {
+                   int nextSibling, int previousSibling, int selectionContainer) {
         this.id = id;
         this.role = role;
         this.name = name;
@@ -97,6 +98,7 @@ public final class AccessibleNode {
         this.lastChild = lastChild;
         this.nextSibling = nextSibling;
         this.previousSibling = previousSibling;
+        this.selectionContainer = selectionContainer;
     }
 
     /**
@@ -288,6 +290,24 @@ public final class AccessibleNode {
     /** @return the index of the sibling before this one, or {@link #NONE} when it is the first */
     public int previousSibling() {
         return previousSibling;
+    }
+
+    /**
+     * The container whose selection this node is a member of (semantics 1 of the 2026-09-13
+     * pass; ADR 039 §1.2, amended 2026-09-14): the nearest ancestor carrying a
+     * {@link SelectionFacet}, reached from this node's published parent by climbing only through
+     * synthetic ancestors that lack one — so a calendar day belongs to the grid and not to the
+     * week row it hangs under, a tab header to the strip, a list row to the list. Resolved once
+     * at publish; what the differ addresses {@code SELECTION_CHANGED} to, and what a bridge
+     * answers for the member's container and the container's members.
+     *
+     * @return the container's index, or {@link #NONE} when this node carries no
+     *         {@link SelectionItemFacet}, declared itself
+     *         {@linkplain SelectionItemFacet#containerless() containerless}, or the climb
+     *         reached a widget node or the root without finding a container
+     */
+    public int selectionContainer() {
+        return selectionContainer;
     }
 
     @Override

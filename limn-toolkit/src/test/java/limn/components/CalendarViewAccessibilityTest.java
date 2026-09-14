@@ -5,6 +5,7 @@ import java.time.ZoneOffset;
 import java.time.Instant;
 import java.time.Clock;
 import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.CellFacet;
 import limn.accessibility.SelectionItemFacet;
@@ -222,6 +223,52 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
                 .filter(day -> day.selectionItem() != null && day.selectionItem().selected())
                 .toList();
         assertEquals(3, inBand.size(), "the two ends and the day between them");
+    }
+
+    /**
+     * D2 (ADR 039 §1.10, amended 2026-09-14; semantics 1): a day hangs under a synthetic week
+     * row, but the row holds no selection — the grid does — so the selection change is the
+     * grid's, carrying the day that entered and the day that left; a band in {@code RANGE} is
+     * one event on the grid naming every day of it.
+     */
+    @Test
+    void choosingADayTellsTheGridItsSelectionMovedAndNotTheWeekRow() {
+        CalendarView calendar = bindCalendar();
+        frame();
+        bridge.events.clear();
+
+        calendar.setSelectedDate(LocalDate.of(2026, 9, 15));
+        frame();
+
+        AccessibleNode fifteenth = dayNodes().stream()
+                .filter(day -> day.name().startsWith("15 de setembro")).findFirst().orElseThrow();
+        assertTrue(fifteenth.selectionContainer() != AccessibleNode.NONE,
+                "the day belongs to a container: " + describe(tree()));
+        assertEquals(gridNode().id(), tree().node(fifteenth.selectionContainer()).id(),
+                "the day's container is the grid, climbed to through the synthetic row: "
+                        + describe(tree()));
+        List<AccessibleEvent> moved = bridge.eventsOf(AccessibleEvent.Type.SELECTION_CHANGED);
+        assertEquals(1, moved.size(), "one selection change: " + bridge.events);
+        assertEquals(gridNode().id(), moved.get(0).nodeId(),
+                "on the grid, not the week row: " + bridge.events);
+        assertEquals(List.of(fifteenth.id()), moved.get(0).addedMembers(), bridge.events.toString());
+        assertEquals(List.of(), moved.get(0).removedMembers(), bridge.events.toString());
+        assertFalse(moved.get(0).multiSelectable());
+
+        calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
+        calendar.setSelectedRange(new DateRange(LocalDate.of(2026, 9, 21),
+                LocalDate.of(2026, 9, 23)));
+        bridge.events.clear();
+        frame();
+
+        moved = bridge.eventsOf(AccessibleEvent.Type.SELECTION_CHANGED);
+        assertEquals(1, moved.size(), "a band is one selection change: " + bridge.events);
+        assertEquals(gridNode().id(), moved.get(0).nodeId(), bridge.events.toString());
+        assertTrue(moved.get(0).multiSelectable(), "the grid selects a band in RANGE");
+        assertEquals(3, moved.get(0).addedMembers().size(),
+                "the two ends and the day between them entered: " + bridge.events);
+        assertEquals(List.of(fifteenth.id()), moved.get(0).removedMembers(),
+                "and the day chosen before left: " + bridge.events);
     }
 
     @Test

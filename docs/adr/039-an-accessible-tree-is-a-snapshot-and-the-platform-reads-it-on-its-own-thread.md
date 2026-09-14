@@ -1428,6 +1428,35 @@ publishes moves, and only then, so the host's tree follows the popup's arrow key
 walk per popup publish. The three reader behaviours this depends on are the live assumptions
 decision 5 names and phase 5 measures.
 
+#### Amendment 2026-09-14 — a selection change is the container's, and carries the members
+
+**What was wrong.** `SELECTION_CHANGED` was raised once per member whose selected bit flipped, on
+the member's published parent, carrying nothing. For a calendar day that parent is the synthetic
+week `ROW`, which holds no selection — the grid does — so every platform was told a row's
+selection moved (D2); a single-select move raised two identical events and a range band one per
+day; a member that arrived selected in the same publish (End onto an unrealized list row, which
+publishes a brand-new node) raised nothing at all, and neither did a selected member that left
+the tree (MODEL-NEW-6); and Windows, raising `SelectionItem_ElementSelected` on the event's node,
+raised an item event on a container.
+
+**The rule (semantics 1 and decision 9 of the 2026-09-13 pass).** A member's container is
+resolved once at publish and published on the node as `AccessibleNode#selectionContainer()`: the
+nearest ancestor with a `SelectionFacet`, reached from the member's published parent by climbing
+only through synthetic ancestors that lack one — a widget ancestor carrying the facet counts (the
+tab strip for a tab header), a widget ancestor without one ends the climb with no container, and
+a member that declared itself containerless (`RadioButton`, §1.2's amendment) is not climbed
+for. A member with no container raises no `SELECTION_CHANGED`; its own `STATE_CHANGED(SELECTED)`
+is the whole of its announcement. `SELECTION_CHANGED` is **one event per container per publish**,
+addressed to the container, carrying `addedMembers()` — the members that entered its selection,
+a member new in this publish included — `removedMembers()` — the members that left it, a member
+gone from the tree included — and `multiSelectable()`, the container's own flag, which is what a
+bridge chooses its platform event by: Windows raises `ElementSelected` for a single-select
+container and `ElementAddedToSelection` / `ElementRemovedFromSelection` on the members of a
+multi-select one, or `Selection_Invalidated` for a bulk change; Linux and macOS address the
+container (§2.4's row is read accordingly; the bridge mappings are phase 3's). No `STATE_CHANGED`
+is raised for a member new in the publish: a client reads a new node's states when it discovers
+it.
+
 #### Amendment 2026-09-14 — what the amendment above changed in §7
 
 The `ListView`, `Table`, `Tree` and `SegmentedControl` rows of §7 say their cursor row or cell is

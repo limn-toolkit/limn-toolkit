@@ -6,6 +6,7 @@ import limn.accessibility.AccessibleNode;
 import limn.accessibility.ScrollFacet;
 import limn.graphics.Canvas;
 import limn.i18n.I18nString;
+import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
 import limn.scene.Size;
@@ -347,6 +348,45 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
                         + "reader follows: " + bridge.events);
         assertEquals(listId, moved.get(0).nodeId());
         assertEquals(row.id(), moved.get(0).newValue());
+    }
+
+    /**
+     * MODEL-NEW-6 (ADR 039 §1.10, amended 2026-09-14): End moves the selection onto a row the
+     * list had not realized, which publishes a brand-new selected node — and the container's
+     * selection moved as surely as if the row had been there. One event on the list, naming the
+     * row that entered its selection and the row that left it (the old one, unrealized by the
+     * scroll and so gone from the tree in the same publish).
+     */
+    @Test
+    void aSelectionMovedOntoARowThatWasNotRealizedIsASelectionChange() {
+        ListView list = bindPlain(200, 50);
+        long listId = listNode().id();
+        list.setSelectedIndex(0);
+        scene.requestFocus(list);
+        frame();
+        long first = rowNode(0).id();
+        assertTrue(rowNodes().size() < 100, "only the rows that fit are realized: " + describe(tree()));
+        bridge.events.clear();
+
+        scene.keyEvent(Keys.END, true, false, 0);
+        scene.keyEvent(Keys.END, false, false, 0);
+        scene.inputBatchEnded();
+        frame();
+
+        assertEquals(199, list.selectedIndex());
+        AccessibleNode last = rowNode(199);
+        assertNotNull(last, "the last row is realized now: " + describe(tree()));
+        assertTrue(last.selectionItem().selected());
+        assertEquals(listNode().id(), tree().node(last.selectionContainer()).id(),
+                "the row's container is the list: " + describe(tree()));
+        List<AccessibleEvent> moved = bridge.eventsOf(AccessibleEvent.Type.SELECTION_CHANGED);
+        assertEquals(1, moved.size(), "one selection change, on the list: " + bridge.events);
+        assertEquals(listId, moved.get(0).nodeId());
+        assertEquals(List.of(last.id()), moved.get(0).addedMembers(),
+                "the row the selection landed on, new in this publish: " + bridge.events);
+        assertEquals(List.of(first), moved.get(0).removedMembers(),
+                "and the row it left, gone from the tree in the same publish: " + bridge.events);
+        assertFalse(moved.get(0).multiSelectable());
     }
 
     /**

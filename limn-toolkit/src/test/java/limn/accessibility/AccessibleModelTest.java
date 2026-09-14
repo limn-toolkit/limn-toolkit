@@ -648,6 +648,101 @@ class AccessibleModelTest {
         return a.publish(focused, 0, 0, 1, true);
     }
 
+    /**
+     * Semantics 1 and decision 9 (ADR 039 §1.10, amended 2026-09-14): a member's container is
+     * the nearest ancestor with a {@code SelectionFacet}, climbed to through synthetic ancestors
+     * only, and one {@code SELECTION_CHANGED} per container per publish carries the members that
+     * entered and left — a member new in this publish and one that left the tree included
+     * (MODEL-NEW-6). A member whose climb reaches a widget without the facet has no container
+     * and raises nothing but its own state change.
+     */
+    @Test
+    void aSelectionChangeNamesTheMembersContainerAndCarriesTheMembersThatMoved() {
+        Accessibility a = new Accessibility();
+        long grid = a.mint();
+        long plain = a.mint();
+        long loner = a.mint();
+
+        AccessibleTree first = describeGrid(a, grid, plain, loner, 0, false, false);
+        AccessibleNode dayOne = first.node(2);
+        assertEquals(0, dayOne.selectionContainer(),
+                "a day belongs to the grid, climbed to through the week row: " + describe(first));
+        assertEquals(grid, first.node(dayOne.selectionContainer()).id());
+        assertEquals(AccessibleNode.NONE, first.node(5).selectionContainer(),
+                "a member under a widget that holds no selection has no container");
+        assertEquals(AccessibleNode.NONE, first.node(1).selectionContainer(),
+                "the week row is no member of anything");
+
+        AccessibleTree second = describeGrid(a, grid, plain, loner, 1, true, false);
+        List<AccessibleEvent> moved = eventsOf(a, AccessibleEvent.Type.SELECTION_CHANGED);
+        assertEquals(1, moved.size(), "one per container: " + a.events());
+        assertEquals(grid, moved.get(0).nodeId(), "on the grid, not the week row");
+        assertEquals(List.of(second.node(3).id()), moved.get(0).addedMembers());
+        assertEquals(List.of(second.node(2).id()), moved.get(0).removedMembers());
+        assertFalse(moved.get(0).multiSelectable());
+        assertTrue(a.events().stream().anyMatch(event ->
+                        event.type() == AccessibleEvent.Type.STATE_CHANGED
+                                && event.state() == Accessible.State.SELECTED
+                                && event.nodeId() == second.node(5).id()),
+                "the containerless member's own state change is the whole of its announcement: "
+                        + a.events());
+
+        // Day two leaves the tree selected and a third day arrives selected: both are the
+        // grid's, and the removed one is named though it is gone.
+        long dayTwo = second.node(3).id();
+        AccessibleTree third = describeGrid(a, grid, plain, loner, 2, true, true);
+        moved = eventsOf(a, AccessibleEvent.Type.SELECTION_CHANGED);
+        assertEquals(1, moved.size(), a.events().toString());
+        assertEquals(grid, moved.get(0).nodeId());
+        assertEquals(List.of(third.node(2).id()), moved.get(0).addedMembers(),
+                "the day that arrived selected: " + a.events());
+        assertEquals(List.of(dayTwo), moved.get(0).removedMembers(),
+                "the day that left the tree selected: " + a.events());
+        assertTrue(moved.get(0).multiSelectable());
+    }
+
+    /**
+     * A grid with a selection facet holding one synthetic week row, which holds one or two
+     * synthetic days; beside it a plain widget without a facet holding one widget member.
+     *
+     * @param selectedDay which day is selected, from zero; {@code 2} selects a third day and
+     *                    drops the second
+     * @param lonerSelected whether the member under the plain widget is selected
+     * @param multi         whether the grid selects a band
+     */
+    private static AccessibleTree describeGrid(Accessibility a, long grid, long plain, long loner,
+                                               int selectedDay, boolean lonerSelected,
+                                               boolean multi) {
+        a.beginWalk(200, 200, Locale.ENGLISH);
+        a.begin(grid, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
+        a.role(Accessible.Role.TABLE);
+        a.selection(multi, false);
+        a.child(100);
+        a.role(Accessible.Role.ROW);
+        a.bounds(0, 0, 200, 20);
+        for (int day = selectedDay == 2 ? 1 : 0; day < (selectedDay == 2 ? 3 : 2); day++) {
+            if (selectedDay == 2 && day == 1) {
+                continue; // day two is gone
+            }
+            a.child(day);
+            a.role(Accessible.Role.CELL);
+            a.bounds(day * 20, 0, 20, 20);
+            a.selectionItem(day == selectedDay, day + 1, 3);
+            a.endChild();
+        }
+        a.endChild();
+        a.begin(plain, 0, Locale.ENGLISH, 0, 100, 200, 40);
+        a.role(Accessible.Role.GROUP);
+        a.begin(loner, 1 + (selectedDay == 2 ? 2 : 3), Locale.ENGLISH, 0, 100, 40, 20);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.selectionItem(lonerSelected, 1, 1);
+        a.end();
+        a.end();
+        a.end();
+        a.resolveRelations(target -> 0);
+        return a.publish(0, 0, 0, 1, true);
+    }
+
     private static long countOf(Accessibility a, AccessibleEvent.Type type) {
         return a.events().stream().filter(event -> event.type() == type).count();
     }

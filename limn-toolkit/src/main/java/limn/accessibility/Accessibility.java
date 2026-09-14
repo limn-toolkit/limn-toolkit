@@ -146,6 +146,10 @@ public final class Accessibility {
         int positionInSet;
         int sizeOfSet;
         boolean selectionContainerless;
+        // The container this member belongs to (semantics 1), as an index into the same walk;
+        // resolved by the publish step, never declared, and never compared: it is a function of
+        // the facets and the parents, which are.
+        int selectionContainer;
         int expand;                     // -1 none, 0 collapsed, 1 expanded
         boolean hasText;
         String text;
@@ -236,6 +240,7 @@ public final class Accessibility {
             positionInSet = 0;
             sizeOfSet = 0;
             selectionContainerless = false;
+            selectionContainer = AccessibleNode.NONE;
             expand = -1;
             hasText = false;
             text = null;
@@ -1681,6 +1686,7 @@ public final class Accessibility {
     public AccessibleTree publish(long focusedId, int screenX, int screenY, float factor,
                                   boolean positioning) {
         events.clear();
+        resolveSelectionContainers();
         long activeDescendant = resolveActiveDescendant();
         diff(activeDescendant);
         publishedActiveDescendant = activeDescendant;
@@ -1791,7 +1797,35 @@ public final class Accessibility {
                 s.hasHierarchy ? new HierarchyFacet(s.level, s.hierarchyRow, s.hierarchyRowCount)
                         : null,
                 s.verbs == 0 ? null : new ActionFacet(verbsOf(s.verbs), s.keyBinding),
-                s.parent, firstChild, lastChild, nextSibling, previousSibling);
+                s.parent, firstChild, lastChild, nextSibling, previousSibling,
+                s.selectionContainer);
+    }
+
+    /**
+     * Resolves every member's selection container (semantics 1; ADR 039 §1.2, amended
+     * 2026-09-14): the nearest ancestor with a {@link SelectionFacet}, climbing from the
+     * member's published parent only through synthetic ancestors that lack one. A widget
+     * ancestor carrying the facet counts (the tab strip for a tab header); a widget ancestor
+     * without one ends the climb with no container, as the root does, and a member that
+     * declared itself containerless is not climbed for. Once per publish, allocating nothing.
+     */
+    private void resolveSelectionContainers() {
+        for (int i = 0; i < count; i++) {
+            Slot s = slots[i];
+            s.selectionContainer = AccessibleNode.NONE;
+            if (!s.hasSelectionItem || s.selectionContainerless) {
+                continue;
+            }
+            for (int at = s.parent; at != AccessibleNode.NONE; at = slots[at].parent) {
+                if (slots[at].hasSelection) {
+                    s.selectionContainer = at;
+                    break;
+                }
+                if (!slots[at].synthetic) {
+                    break;
+                }
+            }
+        }
     }
 
     private static EnumSet<Accessible.Action> verbsOf(int mask) {
@@ -1892,6 +1926,14 @@ public final class Accessibility {
             if (was == null) {
                 long parentId = now.parent == AccessibleNode.NONE ? 0 : slots[now.parent].id;
                 add(AccessibleEvent.of(AccessibleEvent.Type.STRUCTURE_CHANGED, parentId));
+                if (now.hasSelectionItem && now.selectionContainer != AccessibleNode.NONE) {
+                    // A member that arrived selected is a selection that moved onto it: End
+                    // onto an unrealized row publishes a brand-new selected node, and the
+                    // container's selection changed as surely as if the row had been there
+                    // (MODEL-NEW-6). No STATE_CHANGED for a new node: a client reads a node's
+                    // states when it discovers it.
+                    noteSelectionMove(now, null);
+                }
                 continue;
             }
             if (!now.nameText.equals(was.nameText)) {
@@ -1926,13 +1968,8 @@ public final class Accessibility {
                 add(AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, now.id,
                         was.value, now.value));
             }
-            if (now.hasSelectionItem && was.hasSelectionItem && !now.selectionContainerless
-                    && now.parent != AccessibleNode.NONE && now.selected != was.selected) {
-                // A member that declared it belongs to no container raises nothing here: its
-                // own STATE_CHANGED(SELECTED) above is the whole of it, and its published
-                // parent is a layout node that holds no selection (semantics 1).
-                add(AccessibleEvent.of(AccessibleEvent.Type.SELECTION_CHANGED,
-                        slots[now.parent].id));
+            if (now.hasSelectionItem && now.selectionContainer != AccessibleNode.NONE) {
+                noteSelectionMove(now, was);
             }
             if (now.hasText && was.hasText) {
                 if (now.textWitness != was.textWitness && !now.text.equals(was.text)) {
@@ -1961,10 +1998,21 @@ public final class Accessibility {
             add(AccessibleEvent.of(AccessibleEvent.Type.BOUNDS_CHANGED, 0));
         }
         for (int i = 0; i < previousCount; i++) {
-            if (currentOf(previous[i].id, i) == null) {
-                add(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, previous[i].id));
+            Slot gone = previous[i];
+            if (currentOf(gone.id, i) == null) {
+                add(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, gone.id));
+                if (gone.hasSelectionItem && gone.selected
+                        && gone.selectionContainer != AccessibleNode.NONE) {
+                    // A selected member that left the tree left its container's selection too,
+                    // and the container, when it survives, is told (MODEL-NEW-6).
+                    int container = indexIn(slots, count, previous[gone.selectionContainer].id);
+                    if (container >= 0) {
+                        noteSelectionMove(container, gone.id, false);
+                    }
+                }
             }
         }
+        addSelectionChanges();
         // Exactly one cursor event per publish, on the focused node, when the cursor it
         // resolves moved -- a newly focused node whose cursor differs from the last focused
         // node's included -- and none from an unfocused container or a scene with nothing
@@ -1985,6 +2033,99 @@ public final class Accessibility {
         if (events.size() <= EVENT_BUDGET) {
             events.add(event);
         }
+    }
+
+    // The selection moves one publish found, before they are grouped per container: the
+    // container's index in this walk, the member's identifier, and whether it entered or left.
+    // Grown once, reused; a publish that moves no selection touches none of it.
+    private int[] moveContainers = new int[16];
+    private long[] moveMembers = new long[16];
+    private boolean[] moveEntered = new boolean[16];
+    private int moveCount;
+
+    /**
+     * Notes what a surviving or new member did to its container's selection this publish: a
+     * member whose container is the same as last time and whose selected bit flipped entered
+     * or left it; one whose container changed left the old one (when that survives) and entered
+     * the new one when selected; one that is new entered it when selected.
+     */
+    private void noteSelectionMove(Slot now, Slot was) {
+        int container = now.selectionContainer;
+        if (was == null) {
+            if (now.selected) {
+                noteSelectionMove(container, now.id, true);
+            }
+            return;
+        }
+        long wasContainerId = was.selectionContainer == AccessibleNode.NONE
+                ? 0 : previous[was.selectionContainer].id;
+        if (wasContainerId == slots[container].id) {
+            if (now.selected != was.selected) {
+                noteSelectionMove(container, now.id, now.selected);
+            }
+            return;
+        }
+        if (was.selected && wasContainerId != 0) {
+            int former = indexIn(slots, count, wasContainerId);
+            if (former >= 0) {
+                noteSelectionMove(former, now.id, false);
+            }
+        }
+        if (now.selected) {
+            noteSelectionMove(container, now.id, true);
+        }
+    }
+
+    private void noteSelectionMove(int container, long member, boolean entered) {
+        if (moveCount == moveContainers.length) {
+            int grown = moveCount * 2;
+            moveContainers = java.util.Arrays.copyOf(moveContainers, grown);
+            moveMembers = java.util.Arrays.copyOf(moveMembers, grown);
+            moveEntered = java.util.Arrays.copyOf(moveEntered, grown);
+        }
+        moveContainers[moveCount] = container;
+        moveMembers[moveCount] = member;
+        moveEntered[moveCount] = entered;
+        moveCount++;
+    }
+
+    /**
+     * One {@code SELECTION_CHANGED} per container whose selection moved, in reading order of
+     * the containers, carrying the members that entered and left it (decision 9; semantics 1).
+     * The moves were noted in walk order, so the members come out in reading order too.
+     */
+    private void addSelectionChanges() {
+        for (int c = 0; c < count && moveCount > 0; c++) {
+            int entered = 0;
+            int left = 0;
+            for (int m = 0; m < moveCount; m++) {
+                if (moveContainers[m] == c) {
+                    if (moveEntered[m]) {
+                        entered++;
+                    } else {
+                        left++;
+                    }
+                }
+            }
+            if (entered == 0 && left == 0) {
+                continue;
+            }
+            long[] added = new long[entered];
+            long[] removed = new long[left];
+            int a = 0;
+            int r = 0;
+            for (int m = 0; m < moveCount; m++) {
+                if (moveContainers[m] == c) {
+                    if (moveEntered[m]) {
+                        added[a++] = moveMembers[m];
+                    } else {
+                        removed[r++] = moveMembers[m];
+                    }
+                }
+            }
+            add(AccessibleEvent.selection(slots[c].id, slots[c].multiSelectable, added, removed));
+        }
+        moveCount = 0;
     }
 
     private void addTextChange(Slot now, Slot was) {
