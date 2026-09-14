@@ -1455,7 +1455,11 @@ container and `ElementAddedToSelection` / `ElementRemovedFromSelection` on the m
 multi-select one, or `Selection_Invalidated` for a bulk change; Linux and macOS address the
 container (§2.4's row is read accordingly; the bridge mappings are phase 3's). No `STATE_CHANGED`
 is raised for a member new in the publish: a client reads a new node's states when it discovers
-it.
+it. And a member that arrives selected under a container that is itself new in the publish — the
+first publish of a scene, a popup opening with an option chosen — raises nothing either: the
+container's arrival is reported by the structure change on its surviving ancestor, and its
+selection is read with the rest of it (measured: the kitchen sink's first publish raised four
+`SELECTION_CHANGED` for tab strips and segmented controls nobody had touched, until this clause).
 
 #### Amendment 2026-09-14 — a structure change is per surviving parent, and says which children
 

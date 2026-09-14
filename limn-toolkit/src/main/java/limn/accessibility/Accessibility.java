@@ -2165,8 +2165,13 @@ public final class Accessibility {
      */
     private void noteSelectionMove(Slot now, Slot was) {
         int container = now.selectionContainer;
+        // A container that is itself new in this publish is read on discovery, its selection
+        // with it: the first publish of a scene, or a popup opening with an option chosen, is
+        // not a selection that moved, and the structure change that reports the container's
+        // arrival is the whole of it (as a new node's states are not diffed either).
+        boolean containerSurvived = previousOf(slots[container].id, container) != null;
         if (was == null) {
-            if (now.selected) {
+            if (now.selected && containerSurvived) {
                 noteSelectionMove(container, now.id, true);
             }
             return;
@@ -2185,7 +2190,7 @@ public final class Accessibility {
                 noteSelectionMove(former, now.id, false);
             }
         }
-        if (now.selected) {
+        if (now.selected && containerSurvived) {
             noteSelectionMove(container, now.id, true);
         }
     }

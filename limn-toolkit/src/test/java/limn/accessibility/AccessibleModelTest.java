@@ -664,6 +664,9 @@ class AccessibleModelTest {
         long loner = a.mint();
 
         AccessibleTree first = describeGrid(a, grid, plain, loner, 0, false, false);
+        assertEquals(0, countOf(a, AccessibleEvent.Type.SELECTION_CHANGED),
+                "a member that arrives selected under a container that is itself new is read "
+                        + "on discovery, like the container's other facts: " + a.events());
         AccessibleNode dayOne = first.node(2);
         assertEquals(0, dayOne.selectionContainer(),
                 "a day belongs to the grid, climbed to through the week row: " + describe(first));
