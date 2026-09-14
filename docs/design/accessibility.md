@@ -324,9 +324,12 @@ repository facts, so they are not here.
 ADR 039 §11 is the full list with the cost of each stated in terms of what a blind user loses. The
 ones most likely to be mistaken for bugs: no range-to-rectangle text geometry on any platform (so
 character review and braille cursor routing are degraded); no UI Automation `TextPattern`; a list
-or tree row carries only the verbs its container delegated onto it (`SELECT` today; ADR 039 §11's
-"not per-row actuation" was reversed on 2026-09-14), so a reader cannot yet open a particular row
-with the row's own verb; no data table behind a chart; no occlusion model, so a scrim hand-rolled
-inside a `Stack` is not modal to a reader where `pushOverlay` and `Dialog` are; no MSAA; and the
-system accessibility *settings* — high contrast, reduced motion, a system text scale — which are a
-different decision with a different shape and would tangle a tree with a theme.
+row carries only the verbs its container delegated onto it (`SELECT` today, for `ListView`; ADR 039
+§11's "not per-row actuation" was reversed on 2026-09-14), so a reader cannot yet open a particular
+list row with the row's own verb — a tree row carries its own since the same day (`SELECT`,
+`ADD_TO_SELECTION` or `DESELECT`, `EXPAND` or `COLLAPSE`, `FOCUS`, `SCROLL_INTO_VIEW`, each by
+state; ADR 039 §7's `Tree` row), so a reader can open a particular tree row; no data table behind a
+chart; no occlusion model, so a scrim hand-rolled inside a `Stack` is not modal to a reader where
+`pushOverlay` and `Dialog` are; no MSAA; and the system accessibility *settings* — high contrast,
+reduced motion, a system text scale — which are a different decision with a different shape and
+would tangle a tree with a theme.
