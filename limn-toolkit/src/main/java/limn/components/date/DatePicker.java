@@ -578,8 +578,7 @@ public class DatePicker extends Widget {
             return;
         }
         field.setDate(day);
-        setOpen(false, Change.Origin.USER);
-        field.requestFocus();
+        closeTo(field, Change.Origin.USER);
         notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
     }
 
@@ -589,9 +588,37 @@ public class DatePicker extends Widget {
         }
         field.setDate(picked.start());
         endField.setDate(picked.end());
-        setOpen(false, Change.Origin.USER);
-        (fillingEnd ? endField : field).requestFocus();
+        closeTo(fillingEnd ? endField : field, Change.Origin.USER);
         notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+    }
+
+    /**
+     * The field to hand the focus to once the popup is actually gone; see {@link #closeTo}.
+     * Taken by {@link #dismiss} when the removal is deferred to the end of a fade, and
+     * performed by {@link #closeTo} itself otherwise.
+     */
+    private DateField refocus;
+
+    /**
+     * Closes the popup and puts the focus on a field <em>once the popup is actually gone</em>.
+     *
+     * <p>In the scene presentation the overlay is removed at the end of its fade-out, and a
+     * focus request made while it is still the top layer is refused: the scene confines the
+     * focus to the layer that owns input. So the request that used to follow the close was
+     * refused in every real window, and the overlay's removal then returned the focus to
+     * whatever held it when the overlay was pushed &mdash; the calendar button, when the
+     * popup was opened from it with Tab and Enter &mdash; rather than to the field the pick
+     * had just filled. Headless, and in a window of its own, nothing defers the removal and
+     * the request is made here.
+     */
+    private void closeTo(DateField target, Change.Origin origin) {
+        refocus = target;
+        setOpen(false, origin);
+        DateField pending = refocus;
+        refocus = null;
+        if (pending != null) {
+            pending.requestFocus();
+        }
     }
 
     /**
@@ -708,8 +735,7 @@ public class DatePicker extends Widget {
                 repaintPopup();
             }
             case Keys.ESCAPE, Keys.ENTER -> {
-                setOpen(false, Change.Origin.USER);
-                filling().requestFocus();
+                closeTo(filling(), Change.Origin.USER);
                 event.consume();
             }
             case Keys.UP, Keys.DOWN, Keys.LEFT, Keys.RIGHT, Keys.HOME, Keys.END,
@@ -1039,6 +1065,8 @@ public class DatePicker extends Widget {
                 releaseCalendar();
                 return;
             }
+            DateField pending = refocus; // the fade's end is where the focus can move: closeTo
+            refocus = null;
             owner.addRealTimeTicker(dt -> {
                 sceneFade = (float) Math.max(0, sceneFade - dt / Theme.current().animWindow);
                 closing.invalidate();
@@ -1049,6 +1077,9 @@ public class DatePicker extends Widget {
                 // Released here rather than at the start of the fade, so the card fades out with
                 // the grid still on it; the next open takes it back whether this ran or not.
                 releaseCalendar();
+                if (pending != null) {
+                    pending.requestFocus();
+                }
                 return false;
             });
         }

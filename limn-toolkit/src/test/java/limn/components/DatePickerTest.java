@@ -381,6 +381,39 @@ class DatePickerTest extends ComponentTestBase {
         assertNotNull(picker.calendar().parent(), "the grid is in the new popup, not the old one");
     }
 
+    /**
+     * DATES-NEW-3's second correction: over a window the in-scene card fades out and the
+     * overlay is removed at the fade's end, so the focus request that followed a pick was made
+     * while the overlay was still the top layer and refused; the removal then returned the
+     * focus to what held it when the popup opened -- the button, when it was opened from
+     * there -- and the field the pick had just filled was left unfocused.
+     */
+    @Test
+    void aPickMadeOverAWindowHandsTheFocusToTheFieldOnceTheCardHasFaded() {
+        build(new DatePicker());
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        picker.setDate(ANCHOR);
+        scene.bind(new StubWindow());
+        scene.layoutPass(400, 320);
+        scene.renderFrame(new FakeCanvas(400, 320));
+        limn.scene.Widget affordance = picker.children().stream()
+                .filter(child -> child != picker.field() && child.isFocusable())
+                .findFirst().orElseThrow();
+        scene.requestFocus(affordance);
+        key(Keys.ENTER, 0);
+        assertTrue(picker.isOpen(), "opened from the button");
+        assertFalse(picker.field().isFocused(), "the overlay holds the focus while it is open");
+        settle();
+        key(Keys.RIGHT, 0);
+        key(Keys.ENTER, 0);
+        assertFalse(picker.isOpen());
+        assertEquals(ANCHOR.plusDays(1), picker.date(), "the pick reached the field");
+        settle();       // the card fades out and the overlay is actually removed
+        assertTrue(picker.field().isFocused(),
+                "and the field has the focus, not the button the calendar was opened from");
+        assertFalse(affordance.isFocused());
+    }
+
     /** Real time passes, so a fade-out finishes and the overlay is actually taken down. */
     private void settle() {
         for (int i = 0; i < 60; i++) {
