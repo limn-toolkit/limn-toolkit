@@ -813,12 +813,20 @@ public final class MenuBar extends Widget {
                 // From the popup and not from openIndex: the index is set before the popup is
                 // asked to show, and the ask is routinely refused.
                 a.expand(i == openIndex && showing);
-                // The single-argument form; the variable-argument one allocates an array per
-                // call. One verb, because expand and collapse are accepted below without being
-                // advertised: one platform derives its expand/collapse pattern from the facet
-                // above and needs somewhere to route it, while another reads the action list
-                // aloud, where three synonyms for one gesture are noise.
-                a.action(Accessible.Action.SHOW_MENU);
+                // The verbs the title accepts, by its state, and no other (ADR 039 §1.5,
+                // amended 2026-09-14; decision 2): a closed title opens on SHOW_MENU and on its
+                // synonym EXPAND, and the open one closes on COLLAPSE alone, which is exactly
+                // what onSyntheticAction answers below. The published list is the only refusal
+                // a platform can see -- Host#perform answers from the snapshot and a later
+                // refusal on the UI thread reaches nobody -- so a synonym accepted in silence
+                // was a control one platform invoked through its expand pattern and another
+                // could not see; PRESS was accepted the same way and is refused now. The two-
+                // argument form; the variable-argument one allocates an array per call.
+                if (i == openIndex) {
+                    a.action(Accessible.Action.COLLAPSE);
+                } else {
+                    a.action(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND);
+                }
                 if (entry.binding() != null) {
                     a.keyBinding(entry.binding());
                 }
@@ -849,6 +857,12 @@ public final class MenuBar extends Widget {
      * cascade down and builds another one, which the pointer never does. And a collapse addressed
      * to a title that is not the open one is refused rather than quietly closing whatever is.
      *
+     * <p>The verbs answered are exactly the verbs {@link #onAccessibility} publishes for the
+     * title's state: {@code SHOW_MENU} and {@code EXPAND} open a closed title, {@code COLLAPSE}
+     * closes the open one, and {@code PRESS} — accepted here as a third synonym until 2026-09-14
+     * — is refused, because a verb a node performs without publishing is one a reader cannot see
+     * and one platform invokes by accident (ADR 039 §1.5, amended that day; decision 2).
+     *
      * <p>The answer to an open is whether a cascade is on screen, not whether the bar now believes
      * one is: the show is refused outright over a window that cannot host a popup, and answering
      * true there would report an action that did nothing.
@@ -866,7 +880,7 @@ public final class MenuBar extends Widget {
             return false;
         }
         switch (action) {
-            case SHOW_MENU, EXPAND, PRESS -> {
+            case SHOW_MENU, EXPAND -> {
                 if (i == openIndex) {
                     return false;
                 }

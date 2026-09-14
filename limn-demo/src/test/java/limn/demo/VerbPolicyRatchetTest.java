@@ -78,17 +78,9 @@ class VerbPolicyRatchetTest {
      * accepting a verb, and semantics 5 closes it on the bridge.
      */
     static final List<Exemption> ALLOWLIST = List.of(
-            new Exemption("CRIT-1 (other-widgets lane): a menu title accepts EXPAND and PRESS as "
-                    + "synonyms of SHOW_MENU without publishing them; decision 2 says publish them",
-                    "Menu bar", Accessible.Role.MENU_ITEM, "File",
-                    Set.of(Accessible.Action.PRESS, Accessible.Action.EXPAND)),
-            new Exemption("CRIT-1 (other-widgets lane): the same on the second title",
-                    "Menu bar", Accessible.Role.MENU_ITEM, "View",
-                    Set.of(Accessible.Action.PRESS, Accessible.Action.EXPAND)),
-            new Exemption("CRIT-1 (other-widgets lane): a submenu row accepts EXPAND and PRESS "
-                    + "as synonyms of SHOW_MENU without publishing them",
-                    "Popup menu, open", Accessible.Role.MENU_ITEM, "Transform",
-                    Set.of(Accessible.Action.PRESS, Accessible.Action.EXPAND)),
+            // The three CRIT-1 lines (menu titles and a submenu row accepting EXPAND and PRESS
+            // unpublished) were struck on 2026-09-14: the titles and the rows publish EXPAND
+            // while closed and COLLAPSE while open, and refuse PRESS.
             new Exemption("TABLE-NEW-13 (Table lane): every cell accepts SELECT, which only the "
                     + "row publishes, and the cell's key is read as a row index, so a reader's "
                     + "select on cell (0, 1) selects row 1",

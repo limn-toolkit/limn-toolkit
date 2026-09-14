@@ -344,21 +344,50 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(bar.isOpen(), describe(tree()));
     }
 
+    /**
+     * A title publishes exactly the verbs it accepts, by its state (ADR 039 §1.5, amended
+     * 2026-09-14; decision 2; CRIT-1): the published list is the only refusal a platform can see,
+     * because {@code Host#perform} answers from the snapshot and a later refusal on the UI thread
+     * reaches nobody. Until that day the title published {@code SHOW_MENU} alone and accepted
+     * {@code EXPAND}, {@code COLLAPSE} and {@code PRESS} in silence — a control one platform
+     * invoked through its expand pattern and another could not see.
+     */
     @Test
-    void expandAndCollapseAreAcceptedWithoutBeingAdvertised() throws Exception {
-        bindBar(new NoPopupWindow());
+    void aTitlePublishesTheVerbsItAcceptsAndNoOtherByState() throws Exception {
+        bindBar();
 
-        assertEquals(java.util.Set.of(Accessible.Action.SHOW_MENU),
-                titles().get(0).actions().actions(),
-                "one platform derives its expand/collapse pattern from the facet and needs "
-                        + "somewhere to route it; another reads this list aloud, where three "
-                        + "words for one gesture are noise" + describe(tree()));
+        assertEquals(java.util.Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND),
+                titles().get(1).actions().actions(),
+                "closed: the verb and the synonym that both open it, and not the collapse it "
+                        + "would refuse" + describe(tree()));
 
         perform(titles().get(1).id(), Accessible.Action.EXPAND, Accessible.Argument.NONE);
         frame();
 
-        assertTrue(bar.isOpen(), "and the unadvertised verb is still dispatched" + describe(tree()));
-        assertEquals(List.of("Edit"), activeNames(), describe(tree()));
+        assertTrue(bar.isOpen(), "the published synonym is dispatched" + describe(tree()));
+        assertTrue(titles().get(1).has(Accessible.State.ACTIVE), describe(tree()));
+        assertEquals(java.util.Set.of(Accessible.Action.COLLAPSE),
+                titles().get(1).actions().actions(),
+                "open: the one verb it accepts now, and neither of the two it would refuse"
+                        + describe(tree()));
+        assertEquals(java.util.Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND),
+                titles().get(0).actions().actions(),
+                "the other titles are still closed" + describe(tree()));
+    }
+
+    @Test
+    void pressIsNoLongerASynonymATitleAnswersInSilence() throws Exception {
+        bindBar();
+        int published = bridge.published.size();
+
+        perform(titles().get(1).id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        frame();
+
+        assertFalse(bar.isOpen(),
+                "a verb the title does not publish is one it does not perform: a reader cannot "
+                        + "see it, and one platform would send it by accident" + describe(tree()));
+        assertEquals(published, bridge.published.size(), describe(tree()));
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED), bridge.events.toString());
     }
 
     // ------------------------------------------------------------------------ the cursor

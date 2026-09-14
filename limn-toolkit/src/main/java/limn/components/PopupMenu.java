@@ -1702,20 +1702,33 @@ public final class PopupMenu {
                     a.state(Accessible.State.HAS_POPUP);
                     boolean expanded = c + 1 < cols.size() && cols.get(c + 1).parentItem == i;
                     a.expand(expanded);
-                    // One verb, the menu bar's rule: EXPAND, COLLAPSE and PRESS are accepted
-                    // below without being advertised, because one platform derives its
-                    // expand/collapse pattern from the facet and needs somewhere to route it
-                    // while another reads this list aloud.
-                    a.action(Accessible.Action.SHOW_MENU);
+                    // The menu bar's rule (ADR 039 §1.5, amended 2026-09-14; decision 2): the
+                    // verbs the row accepts, by its state, and no other. A closed submenu row
+                    // opens on SHOW_MENU and on its synonym EXPAND, an open one closes on
+                    // COLLAPSE alone, and chooseRow answers exactly that. The published list is
+                    // the only refusal a platform can see, so the three synonyms accepted in
+                    // silence until that day were a control one platform invoked through its
+                    // expand pattern and another could not see; PRESS is refused now.
+                    if (expanded) {
+                        a.action(Accessible.Action.COLLAPSE);
+                    } else {
+                        a.action(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND);
+                    }
                     if (expanded) {
                         describeColumn(a, c + 1);
                     }
                 } else if (item.isSelectable() && item.kind() != MenuItem.Kind.SUBMENU) {
-                    // TOGGLE is accepted below and not advertised either: choosing a check row in
-                    // a menu is one gesture, and it is the gesture the pointer makes. A submenu
-                    // row with nothing in it gets no verb at all -- hasSubmenu() is false there
+                    // A check row publishes TOGGLE beside PRESS, because it accepts both below
+                    // (the same rule): choosing it is one gesture, and it is the gesture the
+                    // pointer makes, but a platform that routes its toggle pattern by the facet
+                    // needs the verb it sends to be one the row says it takes. A submenu row
+                    // with nothing in it gets no verb at all -- hasSubmenu() is false there
                     // while isSelectable() stays true and activate() is a no-op.
-                    a.action(Accessible.Action.PRESS);
+                    if (item.kind() == MenuItem.Kind.CHECK) {
+                        a.action(Accessible.Action.PRESS, Accessible.Action.TOGGLE);
+                    } else {
+                        a.action(Accessible.Action.PRESS);
+                    }
                     if (col.accel[i] != null) {
                         // The string the column resolved when it was built, which is also what
                         // its width was measured against; accelerator().display() would build one
@@ -1831,6 +1844,15 @@ public final class PopupMenu {
          * hook that answered true there would report an action that did nothing. A band press is
          * answered by whether the scroll actually moved.
          *
+         * <p>And the verbs answered are exactly the verbs {@link #describeColumn} publishes for
+         * the row's state (ADR 039 §1.5, amended 2026-09-14; decision 2): {@code SHOW_MENU} and
+         * {@code EXPAND} open a closed submenu row, {@code COLLAPSE} closes the open one,
+         * {@code PRESS} chooses a command or check row and {@code TOGGLE} a check row alone.
+         * {@code PRESS} on a submenu row and {@code TOGGLE} on a command row were accepted as
+         * unpublished synonyms until that day and are refused now, because a verb a node
+         * performs without publishing is one a reader cannot see and one platform invokes by
+         * accident.
+         *
          * @param key    a column key, a band key, or a row's serial
          * @param action what is being asked
          * @param arg    unused; every verb here is parameterless
@@ -1869,7 +1891,7 @@ public final class PopupMenu {
             boolean open = c + 1 < cols.size() && cols.get(c + 1).parentItem == i;
             if (item.hasSubmenu()) {
                 switch (action) {
-                    case SHOW_MENU, EXPAND, PRESS -> {
+                    case SHOW_MENU, EXPAND -> {
                         if (open) {
                             return false;
                         }
@@ -1889,7 +1911,9 @@ public final class PopupMenu {
                     }
                 }
             }
-            if (action != Accessible.Action.PRESS && action != Accessible.Action.TOGGLE) {
+            boolean toggle = action == Accessible.Action.TOGGLE
+                    && item.kind() == MenuItem.Kind.CHECK;
+            if (action != Accessible.Action.PRESS && !toggle) {
                 return false;
             }
             if (!item.isSelectable() || item.kind() == MenuItem.Kind.SUBMENU) {

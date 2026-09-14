@@ -1,9 +1,9 @@
 == window "Limn kitchen sink" (blocked by a modal) ==
   1 window "Limn kitchen sink" (explicit) [disabled] window non-modal normal
   2   menu bar "Menu bar" [disabled, horizontal] selection=single
-  3     menu item "File" [disabled, expandable, has-popup] item 1 of 3 unselected collapsed actions: show menu
-  4     menu item "Edit" [disabled, expandable, has-popup] item 2 of 3 unselected collapsed actions: show menu
-  5     menu item "View" [disabled, expandable, has-popup] item 3 of 3 unselected collapsed actions: show menu
+  3     menu item "File" [disabled, expandable, has-popup] item 1 of 3 unselected collapsed actions: expand, show menu
+  4     menu item "Edit" [disabled, expandable, has-popup] item 2 of 3 unselected collapsed actions: expand, show menu
+  5     menu item "View" [disabled, expandable, has-popup] item 3 of 3 unselected collapsed actions: expand, show menu
   6   heading "Limn UI: Kitchen Sink" [disabled]
   7   button "Load data" [disabled] actions: press
   8   progress bar "" [disabled, hidden, offscreen, read-only, horizontal] value=0 [0..100] read-only
