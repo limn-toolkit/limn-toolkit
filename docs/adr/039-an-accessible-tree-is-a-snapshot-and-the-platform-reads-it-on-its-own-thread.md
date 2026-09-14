@@ -816,7 +816,9 @@ hook, `onAccessibilityChildIdentity(Widget child, Accessibility a)`, runs before
 hook and is the only place a parent may call `Accessibility#key(long)` and `#under(long)`; the
 identity key moved there from `onAccessibilityChild`, for the reasons §1.3's amendment of the same
 day gives. `onAccessibilityChild` keeps everything else it wrote — role, position, selected state —
-and refuses the key.
+and refuses the key; and the identity hook refuses everything but the key and the host, because
+the node open while it runs is the parent's, so a role or a name written from it would have landed
+there silently (`AccessibleModelTest` pins both refusals).
 
 `onAccessibility` fills in this widget's node and declares its synthetic children.
 `onAccessibilityChild` lets a container add what only it knows about a child — `ListView` gives a

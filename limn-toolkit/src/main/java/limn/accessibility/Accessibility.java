@@ -1189,8 +1189,10 @@ public final class Accessibility {
 
     /**
      * Opens the window in which a parent's identity hook may call {@link #key(long)} and
-     * {@link #under(long)} for the child the publish step is about to begin. The publish step
-     * calls this; a widget never does.
+     * {@link #under(long)} for the child the publish step is about to begin, and may call
+     * nothing else: the node open meanwhile is the parent's, so every describe setter throws
+     * until {@link #endChildIdentity()} rather than writing onto it. The publish step calls
+     * this; a widget never does.
      */
     public void beginChildIdentity() {
         namingChild = true;
@@ -1856,6 +1858,15 @@ public final class Accessibility {
     }
 
     private Slot slot() {
+        if (namingChild) {
+            // The node open right now is the PARENT's, and the identity hook is running for a
+            // child that has no slot yet: a role or a name written here would land on the parent
+            // silently. The hook answers key() and under(), which read no slot, and nothing else;
+            // refused in the same voice key() uses when called from the wrong hook.
+            throw new IllegalStateException(
+                    "onAccessibilityChildIdentity answers only key() and under(): describe the "
+                            + "child from onAccessibilityChild, and the parent from onAccessibility");
+        }
         if (current == AccessibleNode.NONE) {
             throw new IllegalStateException("no node is being described");
         }

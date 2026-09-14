@@ -143,6 +143,53 @@ class AccessibleModelTest {
                 "ENABLED is the publish step's, never a widget's");
     }
 
+    /**
+     * The identity hook answers a child's key and host and nothing else (ADR 039 §1.5, amended
+     * 2026-09-14). While it runs the node open in the builder is the <em>parent's</em>, so a role
+     * or a name written from it would land on the parent silently; the builder refuses every
+     * describe setter there, in the voice {@code key()} uses when called from the wrong hook,
+     * and the two identity calls still go through.
+     */
+    @Test
+    void theIdentityHookMayAnswerOnlyAKeyAndAHostAndNothingLandsOnTheParent() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        long parent = a.mint();
+        a.begin(parent, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.LIST);
+        a.child(7);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.endChild();
+
+        a.beginChildIdentity();
+        assertThrows(IllegalStateException.class, () -> a.role(Accessible.Role.BUTTON),
+                "a role from the identity hook");
+        assertThrows(IllegalStateException.class,
+                () -> a.name(I18nString.literal("stray"), Accessible.NameFrom.CONTENT),
+                "a name from the identity hook");
+        assertThrows(IllegalStateException.class, () -> a.state(Accessible.State.ACTIVE),
+                "a state from the identity hook");
+        assertThrows(IllegalStateException.class, () -> a.action(Accessible.Action.PRESS),
+                "a verb from the identity hook");
+        assertThrows(IllegalStateException.class, () -> a.selectionItem(true, 1, 1),
+                "a facet from the identity hook");
+        a.key(3);
+        a.under(7);
+        assertTrue(a.hasPendingKey());
+        assertEquals(3, a.pendingKey());
+        assertTrue(a.hasPendingHost());
+        assertEquals(1, a.pendingHostIndex(0));
+        a.endChildIdentity();
+
+        a.role(Accessible.Role.LIST);   // the parent's again, once the window is closed
+        a.end();
+        AccessibleTree tree = publish(a, target -> 0);
+        assertEquals(Accessible.Role.LIST, tree.root().role(), "nothing stray landed on the parent");
+        assertEquals("", tree.root().name());
+        assertNull(tree.root().actions());
+        assertNull(tree.root().selectionItem());
+    }
+
     @Test
     void theTreeLinksAgreeWithTheOrderItWasWalkedIn() {
         Accessibility a = new Accessibility();
