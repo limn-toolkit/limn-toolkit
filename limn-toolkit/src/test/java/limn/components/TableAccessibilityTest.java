@@ -601,6 +601,39 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * The shape the header-group rule rests on (settled as header-group-rule; ADR 041 §7's
+     * amendment of 2026-09-14, TABLE-NEW-11): a table with no header and a footer publishes
+     * exactly one {@code GROUP}, the footer, whose cells all carry row {@code -2}, and no
+     * {@code COLUMN_HEADER} anywhere; a headerless table has no header group rather than an
+     * empty one. The three bridges' header lookups move to that rule in phase 3 and read this.
+     */
+    @Test
+    void aHeaderlessTableWithAFooterPublishesOnlyTheFooterGroup() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120).footer("Total"),
+                Column.numeric("Age", Person::age).width(60).footerSum()));
+        table.setRows(people(3));
+        table.setShowHeader(false);
+        bind(table);
+        List<AccessibleNode> groups = new ArrayList<>();
+        for (AccessibleNode child : childrenOf(tableNode())) {
+            if (child.role() == Accessible.Role.GROUP) {
+                groups.add(child);
+            }
+        }
+        assertEquals(1, groups.size(), "one group, the footer: " + describe(tree()));
+        List<AccessibleNode> cells = childrenOf(groups.get(0));
+        assertEquals(2, cells.size(), "a cell per shown column");
+        for (int c = 0; c < cells.size(); c++) {
+            assertEquals(new CellFacet(-2, c), cells.get(c).cell(), "a footer cell: " + cells.get(c));
+        }
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            assertFalse(tree().node(i).role() == Accessible.Role.COLUMN_HEADER,
+                    "no column header anywhere: " + describe(tree()));
+        }
+    }
+
+    /**
      * A widget cell hangs under the {@code ROW} it sits in, in column order, keyed by its column
      * and identified through the row (decision 3 and decision 33 of 2026-09-13; ADR 039 §1.3 and
      * §7.1 amended 2026-09-14). Until then it was a child of the {@code TABLE}, after every row,
