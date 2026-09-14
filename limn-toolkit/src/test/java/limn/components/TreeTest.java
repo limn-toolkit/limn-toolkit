@@ -1647,6 +1647,233 @@ class TreeTest extends ComponentTestBase {
         assertEquals(width, cell.width(), 0.01f, "and its cells keep the width they had");
     }
 
+    private static limn.scene.Constraints unbounded() {
+        return new limn.scene.Constraints(0, limn.scene.Constraints.UNBOUNDED_LIMIT, 0,
+                limn.scene.Constraints.UNBOUNDED_LIMIT);
+    }
+
+    /**
+     * Under an unbounded height the tree is a count of seed rows tall, and stays so once its
+     * rows are measured (decision 44 of 2026-09-14). It shipped answering the mean of the rows
+     * it happened to have mounted, which is the seed before the first pass and the rows' own
+     * height after it, so its first contained layout inside a column moved its size and every
+     * later scroll that mounted rows of another height moved it again (T5).
+     */
+    @Test
+    void theUnboundedHeightIsTheSeedsAndDoesNotMoveOnceRowsAreMeasured() {
+        for (limn.scene.ControlSize step : limn.scene.ControlSize.values()) {
+            SizeTokens t = SizeTokens.of(step);
+            List<Node> many = new ArrayList<>();
+            for (int i = 1; i <= 100; i++) {
+                many.add(Node.leaf("row " + i));
+            }
+            Tree<Node> tree = mount(new CountingModel(many));
+            tree.setControlSize(step);
+            scene.layoutPass(220, 200);
+            assertFalse(tree.children().size() <= 2, "the fixture has to have measured rows");
+
+            assertEquals(8 * t.listRowSeed(), tree.measure(unbounded()).height(), 0.01f,
+                    step + ": rows of the ruler's height were measured and the preference did"
+                            + " not move");
+            wheel(tree, -10);
+            scene.layoutPass(220, 200);
+            assertEquals(8 * t.listRowSeed(), tree.measure(unbounded()).height(), 0.01f,
+                    step + ": nor after a scroll realized other rows");
+        }
+    }
+
+    @Test
+    void setVisibleRowsChangesTheUnboundedHeightAndRefusesLessThanOne() {
+        List<Node> many = new ArrayList<>();
+        for (int i = 1; i <= 100; i++) {
+            many.add(Node.leaf("row " + i));
+        }
+        Tree<Node> tree = mount(new CountingModel(many));
+        SizeTokens t = SizeTokens.of(limn.scene.ControlSize.MEDIUM);
+        assertEquals(8, tree.visibleRows(), "the default is the table's");
+
+        tree.setVisibleRows(3);
+
+        assertEquals(3 * t.listRowSeed(), tree.measure(unbounded()).height(), 0.01f,
+                "three seed rows: a count of the seed, never of the realized rows");
+        assertEquals(t.listWidth(), tree.measure(unbounded()).width(), 0.01f,
+                "the width is untouched");
+        assertThrows(IllegalArgumentException.class, () -> tree.setVisibleRows(0));
+        assertEquals(3, tree.visibleRows(), "a refused count changes nothing");
+        assertEquals(200, tree.measure(new limn.scene.Constraints(0, 300, 0, 200)).height(),
+                0.01f, "a bounded height from the parent wins over the preference");
+    }
+
+    /**
+     * The chain with enough leaves after it to overflow the box downward as well: the fixture
+     * that scrolls both ways, wrapped in a scroll pane that scrolls only where the tree cannot.
+     * The pane's content is the tree at its unbounded preference over a tall filler, so a detent
+     * the tree lets through has somewhere visible to go.
+     */
+    private Tree<Node> chainInAPane(Map<String, Widget> cells) {
+        Node top = chain(14);
+        List<Node> roots = new ArrayList<>();
+        roots.add(top);
+        for (int i = 1; i <= 40; i++) {
+            roots.add(Node.leaf("row " + i));
+        }
+        Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return roots;
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                Label cell = new Label(node.name());
+                cells.put(node.name(), cell);
+                return cell;
+            }
+        });
+        for (Node node = top; node != null;
+                node = node.children().isEmpty() ? null : node.children().get(0)) {
+            tree.expand(node);
+        }
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(tree);
+        column.add(new Widget() {
+            @Override
+            protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
+                return c.constrain(c.maxWidth(), 400);
+            }
+        });
+        scene = new Scene(new ScrollView(column));
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        canvas = new RecordingTestCanvas(220, 200);
+        scene.renderFrame(canvas);
+        return tree;
+    }
+
+    /**
+     * The cell drawing {@code name} right now: the map holds the newest one the model built,
+     * and a row that scrolled out and back comes back as a new cell, so a case reads it after
+     * every step rather than holding one.
+     */
+    private static Widget mounted(Map<String, Widget> cells, String name) {
+        Widget cell = cells.get(name);
+        assertTrue(cell != null && cell.parent() != null, name + " has to be a mounted row");
+        return cell;
+    }
+
+    /**
+     * A trackpad flick carries both axes in one event, and the tree scrolls both: the version
+     * that shipped read scrollX first and dropped the scrollY beside it, so a diagonal flick
+     * over a deep tree walked sideways and never down (the table's TABLE-NEW-12, in the same
+     * code). Shift still turns a one-wheel mouse's notch sideways. Read off the deepest row,
+     * which stays in view across the notches here; the rows above it scroll out and are
+     * recycled.
+     */
+    @Test
+    void aWheelCarryingBothAxesScrollsBoth() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = chainInAPane(cells);
+        Widget deepest = mounted(cells, "level-14");
+        float xBefore = deepest.x();
+        float yBefore = deepest.y();
+
+        float x = tree.localToSceneX() + 20;
+        float y = tree.localToSceneY() + 20;
+        scene.mouseMoved(x, y);
+        scene.scrolled(-1, -1, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+
+        deepest = mounted(cells, "level-14");
+        assertEquals(xBefore - Strokes.WHEEL_STEP, deepest.x(), 0.01f,
+                "the sideways half of the flick walked the outline");
+        assertEquals(yBefore - Strokes.WHEEL_STEP, deepest.y(), 0.01f,
+                "and the vertical half scrolled the rows in the same event");
+
+        scene.scrolled(0, -1, x, y);
+        scene.inputBatchEnded();
+        scene.keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
+        scene.scrolled(0, -1, x, y); // a plain vertical notch, Shift held
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        deepest = mounted(cells, "level-14");
+        assertEquals(xBefore - 2 * Strokes.WHEEL_STEP, deepest.x(), 0.01f,
+                "Shift turns a vertical notch sideways");
+        assertEquals(yBefore - 2 * Strokes.WHEEL_STEP, deepest.y(), 0.01f,
+                "and the plain notch before it scrolled down alone");
+    }
+
+    /**
+     * Decision 44's second half, the tree's copy: a detent that finds the tree at either end of
+     * its scroll is left for the scroller that holds it, so a tree inside a scroll pane is not a
+     * wall the wheel cannot get past. The tree consumed every detent while its content
+     * overflowed, whichever way the detent pointed; a short tree already let them through.
+     */
+    @Test
+    void aWheelAtEitherEndOfTheTreePassesToTheScrollerThatHoldsIt() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = chainInAPane(cells);
+        ScrollView pane = (ScrollView) scene.root();
+        float x = tree.localToSceneX() + 20;
+        float y = tree.localToSceneY() + 20;
+        scene.mouseMoved(x, y);
+
+        // Up at the top: the tree has nowhere to go, so the pane takes the detent — and it too is
+        // at its top, so nothing moves and nothing broke.
+        scene.scrolled(0, 1, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        assertEquals(0, mounted(cells, "level-1").y(), 0.01f, "the tree stayed at its first row");
+        assertEquals(0, pane.offsetY(), 0.01f, "and the pane had nowhere to go either");
+
+        // Down: the tree takes every detent until it rests on its last row, then the pane moves.
+        int notches = 0;
+        while (pane.offsetY() == 0 && notches < 100) {
+            scene.scrolled(0, -1, x, y);
+            scene.inputBatchEnded();
+            scene.layoutPass(220, 200);
+            notches++;
+        }
+        assertTrue(notches > 1 && notches < 100,
+                "the tree scrolled itself first and then let a detent through: " + notches);
+        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), 0.01f, "one notch of the pane");
+        Widget last = mounted(cells, "row 40");
+        assertTrue(last.y() + last.height() <= tree.height() + 0.01f,
+                "the tree is at its end when the pane starts moving");
+
+        // Up: the tree is at its end and not at its top, so it takes the detent back first.
+        scene.scrolled(0, 1, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), 0.01f,
+                "the tree could move up, so it did and the pane did not");
+
+        // Up to the top and past it: the pane takes what the tree cannot. Then sideways at the
+        // leading edge, which nothing can use, and toward the trailing edge, which the tree can.
+        for (int i = 0; i < 40; i++) {
+            scene.scrolled(0, 1, x, y);
+            scene.inputBatchEnded();
+        }
+        scene.layoutPass(220, 200);
+        assertEquals(0, pane.offsetY(), 0.01f, "the pane took the detents the tree could not");
+        float atStart = mounted(cells, "level-14").x();
+        scene.scrolled(1, 0, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        assertEquals(atStart, mounted(cells, "level-14").x(), 0.01f,
+                "a sideways notch at the leading edge moves nothing");
+        scene.scrolled(-1, 0, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        assertEquals(atStart - Strokes.WHEEL_STEP, mounted(cells, "level-14").x(), 0.01f,
+                "and the other way is the tree's");
+    }
+
     /**
      * A triangle painted where the hit test does not look is a control that cannot be pressed,
      * and a sideways offset is exactly the kind of change that separates the two. The band sits

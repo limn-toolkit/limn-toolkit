@@ -145,6 +145,20 @@ package-private engine, and that record decides its shape with three real caller
 of one imagined one. Until then, a change to the anchor rule has to be made in three places, and
 this paragraph is what tells the next person that.
 
+**Amendment, 2026-09-14: the tree under a parent that gives it no height, and the wheel at its
+ends (decision 44, `rows-unbounded-height`; the same rule in `ListView` and `Table`).** Under an
+unbounded height the tree is `visibleRows` (default 8, `setVisibleRows`) seed rows tall — the size
+step's `listRowSeed`, never the mean of the rows it happens to have mounted. It shipped answering
+the mean, which is the seed before the first pass and the rows' own height after it, so its first
+contained layout inside a column moved its size, escalated to the parent, and every later scroll
+that mounted rows of another height moved it again (T5). The wheel is consumed only where the
+tree moved: a detent that finds the tree at either end of its scroll, on the axis the detent
+points along, is left for the scroller that holds it, as a tree whose content fits already left
+every detent; and one event carrying both axes — a trackpad's diagonal flick — scrolls both
+(TABLE-NEW-12, the same code in the table), where before the sideways half was taken and the
+vertical half dropped. Headless, `TreeTest` holds all of it over a tree inside a `ScrollView`;
+a trackpad's momentum events over the same fixture are phase 5's live check.
+
 ## 4. Accessibility: two new roles, and what they cost
 
 A tree publishes `TREE`, with one `TREE_ITEM` per realized row carrying `ExpandFacet`, its depth,

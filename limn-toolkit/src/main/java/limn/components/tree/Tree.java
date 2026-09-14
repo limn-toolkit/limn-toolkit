@@ -60,7 +60,9 @@ import java.util.function.Consumer;
  *
  * <p><b>Rows are realized where the viewport reaches</b>, by the anchor-and-walk this toolkit's
  * list and table already use: a row's height is measured when it is first needed, the mean seeds
- * the scroll estimate, and two rows are kept mounted even when a scroll carries them outside:
+ * the scroll estimate (never the tree's own preferred height, which is {@link #setVisibleRows}
+ * seed rows under an unbounded parent), and two rows are kept mounted even when a scroll carries
+ * them outside:
  * the one holding the keyboard focus (ADR 039 §13.29), and the cursor row while the tree itself
  * holds the keyboard, so a reader's cursor survives a wheel, a refresh and a reorder (decision 22
  * of 2026-09-14). The order rows are walked in is a traversal of what is expanded, which is the
@@ -240,7 +242,11 @@ public class Tree<T> extends Widget implements Scrollable {
         return line;
     }
 
-    /** Rows of intrinsic height when the height axis is unbounded; a count, not a length. */
+    /**
+     * Rows of intrinsic height when the height axis is unbounded, until {@link #setVisibleRows}
+     * says otherwise; a count, not a length: it multiplies the step's seed row height, so it
+     * must not move with the step. The table's number.
+     */
     private static final int VISIBLE_ROWS_HINT = 8;
     /** Two presses on one row closer than this are a double click; the table's window. */
     private static final long DOUBLE_CLICK_NANOS = 400_000_000L;
@@ -345,6 +351,13 @@ public class Tree<T> extends Widget implements Scrollable {
     private int spinGeneration;
     /** The content width the last pass settled on, which is what the horizontal bar reports. */
     private float contentWidth;
+    /**
+     * How many seed rows tall this tree prefers to be under an unbounded height (decision 44 of
+     * 2026-09-14). Multiplied by the token's seed and never by the realized average: the average
+     * moves as rows of other heights scroll in, and a preference that moved with it re-laid out
+     * the parent on every such scroll and made a tree inside a scroll pane jitter (T5).
+     */
+    private int visibleRows = VISIBLE_ROWS_HINT;
 
     private SelectionMode selectionMode = SelectionMode.SINGLE;
     private final Set<T> selected = new LinkedHashSet<>();
@@ -773,6 +786,34 @@ public class Tree<T> extends Widget implements Scrollable {
     /** Whether the scroll bars overlay the rows or reserve strips beside them. */
     public ScrollGutters.Layout barLayout() {
         return gutters.layout();
+    }
+
+    /**
+     * Sets how many seed rows tall the tree prefers to be when its parent gives it no height
+     * (default 8, the table's number): inside a column or a scroll pane, that is its height.
+     * A count of the size step's seed row, never of the rows realized, so the preference stands
+     * whatever scrolls in (decision 44 of 2026-09-14). A bounded height from the parent wins.
+     * UI thread only.
+     *
+     * @param rows the count, at least one
+     * @return this tree
+     * @throws IllegalArgumentException if {@code rows} is below one
+     */
+    public Tree<T> setVisibleRows(int rows) {
+        Ui.checkUiThread();
+        if (rows < 1) {
+            throw new IllegalArgumentException("visible rows must be at least 1, not " + rows);
+        }
+        if (rows != visibleRows) {
+            visibleRows = rows;
+            markNeedsLayout();
+        }
+        return this;
+    }
+
+    /** How many seed rows tall this tree prefers to be under an unbounded height. */
+    public int visibleRows() {
+        return visibleRows;
     }
 
     /**
@@ -1422,8 +1463,12 @@ public class Tree<T> extends Widget implements Scrollable {
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = tokens();
         float w = constraints.hasBoundedWidth() ? constraints.maxWidth() : t.listWidth();
+        // The seed and not the realized average: a preference that moved with the mean of
+        // whatever rows happened to be mounted changed the tree's size on every scroll that
+        // mounted rows of another height, and a contained layout that moves the widget's size
+        // escalates to the parent (decision 44 of 2026-09-14).
         float h = constraints.hasBoundedHeight() ? constraints.maxHeight()
-                : VISIBLE_ROWS_HINT * avgRowHeight(t);
+                : visibleRows * t.listRowSeed();
         return constraints.constrain(w, h);
     }
 
@@ -1729,6 +1774,20 @@ public class Tree<T> extends Widget implements Scrollable {
         vBar.onScrolled();
     }
 
+    /** Whether a scroll of {@code dy} would move anything: not at the end it points to. */
+    private boolean canScrollBy(float dy) {
+        SizeTokens t = tokens();
+        float offset = estimatedOffset(t);
+        float max = Math.max(0, estimatedContentHeight(t) - viewportHeight());
+        return dy < 0 ? offset > 0 : offset < max;
+    }
+
+    /** Whether a sideways scroll of {@code dx} would move anything. */
+    private boolean canScrollHorizontallyBy(float dx) {
+        float max = Math.max(0, contentWidth - gutters.viewportWidth(width()));
+        return dx < 0 ? offsetX > 0 : offsetX < max;
+    }
+
     /**
      * Scrolls sideways by a delta in logical points, positive toward the trailing edge. A tree
      * whose content fits its box has nothing to do here. UI thread only.
@@ -1975,25 +2034,33 @@ public class Tree<T> extends Widget implements Scrollable {
         switch (event.type()) {
             case WHEEL -> {
                 // A detent is a device unit: the same flick travels the same distance in a
-                // dense tree and a roomy one, so the step is locked rather than tabled. Gated
-                // on there being something to scroll, so a short tree lets the wheel through to
-                // whatever holds it.
+                // dense tree and a roomy one, so the step is locked rather than tabled.
                 //
                 // Sideways is the table's convention, and two devices reach it by different
-                // roads: a trackpad sends a horizontal gesture as scrollX, while a mouse with
-                // one wheel says the same thing by holding Shift.
-                boolean sideways = event.scrollX() != 0
-                        || (event.modifiers() & Keys.MOD_SHIFT) != 0;
-                float dx = sideways ? -(event.scrollX() != 0 ? event.scrollX() : event.scrollY())
-                        * Strokes.WHEEL_STEP : 0;
-                float dy = sideways ? 0 : -event.scrollY() * Strokes.WHEEL_STEP;
-                boolean canY = estimatedContentHeight(tokens()) > viewportHeight();
-                boolean canX = contentWidth > gutters.viewportWidth(width());
-                if (dy != 0 && canY) {
+                // roads: a trackpad sends a horizontal gesture as scrollX, beside whatever
+                // scrollY the same flick carries, while a mouse with one wheel says the same
+                // thing by holding Shift. Both axes of one event are applied, each where the
+                // tree can still move that way: a diagonal flick that scrolled one axis and
+                // dropped the other was the table's TABLE-NEW-12, and the same code sat here.
+                //
+                // Consumed only where something moved, so a detent that finds the tree at
+                // either end of its scroll — or a tree whose content fits — reaches the
+                // scroller that holds it (decision 44 of 2026-09-14). Before, the wheel was
+                // swallowed whenever the tree could scroll at all, and a tree inside a scroll
+                // pane was a wall the wheel could not get past.
+                boolean shift = (event.modifiers() & Keys.MOD_SHIFT) != 0;
+                float dx = -(shift ? event.scrollY() : event.scrollX()) * Strokes.WHEEL_STEP;
+                float dy = shift ? 0 : -event.scrollY() * Strokes.WHEEL_STEP;
+                boolean moved = false;
+                if (dy != 0 && canScrollBy(dy)) {
                     scrollBy(dy);
-                    event.consume();
-                } else if (dx != 0 && canX) {
+                    moved = true;
+                }
+                if (dx != 0 && canScrollHorizontallyBy(dx)) {
                     scrollHorizontallyBy(dx);
+                    moved = true;
+                }
+                if (moved) {
                     event.consume();
                 }
                 return;
