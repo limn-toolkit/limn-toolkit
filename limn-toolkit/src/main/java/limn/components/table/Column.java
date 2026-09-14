@@ -361,7 +361,10 @@ public final class Column<T> {
 
     /**
      * Shows or hides the column. A hidden column takes no space, is not published to a screen
-     * reader, and keeps its widths for when it returns.
+     * reader, builds no widget for its cells when it is a {@linkplain #widget widget column},
+     * and keeps its widths for when it returns. The change is picked up by the table's next
+     * layout, which re-reads its realized rows: {@link Table#refresh()} is the call that asks
+     * for one. A focus cell on the hidden column moves to the nearest shown column.
      *
      * @param visible whether the column is shown
      * @return this column

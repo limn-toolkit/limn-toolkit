@@ -258,6 +258,24 @@ is. A resized column's width is held on the column object, so it survives a `ref
 `Column.width()` answers. Columns may be hidden and shown. Reordering columns by drag is not in
 this record: it wants the internal drag-and-drop the toolkit does not have, and §10 records it.
 
+**Amended 2026-09-14 (B6 and TABLE-NEW-5 of the 2026-09-13 pass; settled as
+table-hidden-columns).** "Hidden and shown" was true of the band and false of a widget column:
+`mount` built a widget for every widget column, hidden or not, and the never-laid-out widget was
+a child — a Tab stop nobody could see, and a published node whose `CellFacet` column was the
+table's column count, which the Windows GridItem pattern handed out as an out-of-range column
+(B6). A hidden widget column now builds nothing. A column's visibility is read by the next
+layout, which compares the shown set with the previous layout's and re-mounts the realized rows
+when it differs, releasing a hidden column's widgets and building a shown one's; `refresh()` is
+the call that asks for that layout, and a widget that held the keyboard hands it back to the
+table as a recycled row's always has. And the focus cell, which was a shown index alone, follows
+its **column** (TABLE-NEW-5): hiding the column it stands on moves it to the nearest shown
+column — the one before on a tie — announced as `ACTIVE`/`ADJUSTMENT`, where before it kept an
+index no column matched, drew no ring and made no cell `ACTIVE` until a Left or Right re-clamped
+it; hiding a column before it shifts the index and moves nothing a reader stands on, so nothing
+is announced. Pinned by `TableTest.aHiddenWidgetColumnBuildsNothingAndIsNoTabStop`,
+`TableAccessibilityTest.aHiddenColumnPublishesNoCell` and
+`TableAccessibilityTest.hidingTheFocusColumnKeepsACursorOnTheNearestShownColumn`.
+
 **The footer is a summary row**, pinned under the rows the way the header is pinned over them,
 and it exists as soon as one column has something for it: a fixed text, one of the aggregates a
 numeric column offers (sum, average, min, max), the row count any column may carry, or a value the

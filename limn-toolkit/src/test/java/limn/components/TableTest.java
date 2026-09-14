@@ -771,4 +771,51 @@ class TableTest extends ComponentTestBase {
         }
         assertTrue(table.firstVisibleRow() > 50);
     }
+
+    /**
+     * B6 (2026-09-14): a hidden widget column built a widget per realized row all the same,
+     * never laid out but a child, so a Button in it was a Tab stop nobody could see and a
+     * published node with a column index past the table's. Now a hidden widget column builds
+     * nothing; showing it is picked up by the next layout, which is what {@code refresh()}
+     * asks for, and hiding it again releases the widgets the same way.
+     */
+    @Test
+    void aHiddenWidgetColumnBuildsNothingAndIsNoTabStop() {
+        AtomicInteger built = new AtomicInteger();
+        Column<Person> button = Column.<Person>widget("Open", p -> {
+            built.incrementAndGet();
+            return new Button("Open");
+        }).width(80).visible(false);
+        Table<Person> table = new Table<>(List.of(nameColumn(), button));
+        table.setRows(people(50));
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        assertEquals(0, built.get(), "a hidden widget column builds no widget");
+        assertEquals(2, table.children().size(), "the two bars and nothing else");
+        scene.requestFocus(table);
+        scene.focusTraverse(false);
+        scene.renderFrame(canvas);
+        assertFalse(scene.focusedWidget() instanceof Button, "no widget, so no Tab stop: "
+                + scene.focusedWidget());
+
+        button.visible(true);
+        table.refresh();
+        scene.renderFrame(canvas);
+        int rowsThatFit = (int) Math.ceil((200 - headerHeight(table)) / rowHeight(table));
+        assertTrue(built.get() >= 3 && built.get() <= rowsThatFit + 1,
+                "shown, it builds the viewport's worth and no more: " + built);
+        assertEquals(2 + built.get(), table.children().size(), "and each is a child");
+        scene.requestFocus(table);
+        scene.focusTraverse(false);
+        scene.renderFrame(canvas);
+        assertTrue(scene.focusedWidget() instanceof Button, "a shown widget cell is a Tab stop");
+
+        // Hidden again, with no refresh: the next layout is enough, and the focused widget's
+        // release hands the keyboard back to the table rather than dropping it.
+        button.visible(false);
+        table.setShowHeader(false);
+        scene.renderFrame(canvas);
+        assertEquals(2, table.children().size(), "the next layout released the widgets");
+        assertSame(table, scene.focusedWidget(), "the keyboard came back to the table");
+    }
 }

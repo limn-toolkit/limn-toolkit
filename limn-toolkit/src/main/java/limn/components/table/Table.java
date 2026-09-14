@@ -152,15 +152,25 @@ public class Table<T> extends Widget implements Scrollable {
     // The focus cell: a view row and a shown column, or -1 before anything was focused.
     private int focusRow = -1;
     private int focusColumn;
+    // The column the focus cell is on, by identity (its index among columns(), hidden ones
+    // included), or -1 before a layout resolved one: a shown index alone went stale when a
+    // column was hidden and the cursor sat on no shown column at all (TABLE-NEW-5,
+    // 2026-09-14). resolveColumns brings the two back in line.
+    private int focusColumnOf = -1;
     // The header's own focus stop (decision 36 of 2026-09-14): while the table holds the keyboard
     // it is either in the rows or in the header, whose column cursor is a shown column. The
     // header is a stop only while it is shown and a shown column can be sorted.
     private boolean headerFocused;
     private int headerColumn;
 
-    // Columns as shown: which, and where, resolved per layout.
+    // Columns as shown: which, and where, resolved per layout; and the set the previous
+    // layout resolved, so a column hidden or shown between two layouts is noticed by the next
+    // one (B6, 2026-09-14): a hidden widget column's widgets are released and a shown one's
+    // built by re-mounting the rows.
     private int shownCount;
     private int[] shownIndex = new int[0];
+    private int[] shownBefore = new int[0];
+    private int shownBeforeCount = -1;
     private float[] colX = new float[0];
     private float[] colW = new float[0];
     private float contentWidth;
@@ -992,7 +1002,11 @@ public class Table<T> extends Widget implements Scrollable {
         return focusRow;
     }
 
-    /** @return the focus cell's column, as an index among the shown columns */
+    /**
+     * @return the focus cell's column, as an index among the shown columns; when the column it
+     *         stood on is hidden the cell moves to the nearest shown column, and when a column
+     *         before it is hidden the index shifts and the cell stays on its column
+     */
     public int focusColumn() {
         return focusColumn;
     }
@@ -1459,6 +1473,72 @@ public class Table<T> extends Widget implements Scrollable {
         if (headerFocused && !headerStopAvailable()) {
             headerFocused = false; // the header stopped being a stop: the rows have the keyboard
         }
+        shownSetResolved(n);
+    }
+
+    /**
+     * The shown set was just resolved: when it differs from the previous layout's, the rows are
+     * re-mounted so that a hidden widget column's widgets are released and a newly shown one's
+     * are built (B6: until 2026-09-14 a hidden widget column built a widget per row that was a
+     * Tab stop and a published node with a column past the table's), and the focus column is
+     * resolved again from the column it stands on: the same column if it is still shown, else
+     * the nearest shown one, announced as {@code ACTIVE}/{@code ADJUSTMENT} when the cell moved
+     * (TABLE-NEW-5: until this date the cursor kept a shown index no column matched, so no ring
+     * was drawn and no cell was {@code ACTIVE} until a Left or Right re-clamped it).
+     */
+    private void shownSetResolved(int n) {
+        boolean changed = n != shownBeforeCount;
+        for (int s = 0; !changed && s < n; s++) {
+            changed = shownIndex[s] != shownBefore[s];
+        }
+        if (!changed) {
+            return;
+        }
+        boolean first = shownBeforeCount < 0;
+        if (shownBefore.length < n) {
+            shownBefore = new int[n];
+        }
+        System.arraycopy(shownIndex, 0, shownBefore, 0, n);
+        shownBeforeCount = n;
+        if (!first) {
+            unmountAll();
+            invalidate(); // the columns moved, whatever the cursor did
+        }
+        if (n == 0) {
+            focusColumn = 0;
+            return;
+        }
+        int wasOf = focusColumnOf;
+        if (focusColumnOf < 0) {
+            focusColumn = Math.min(Math.max(0, focusColumn), n - 1);
+            focusColumnOf = shownIndex[focusColumn];
+        } else {
+            focusColumn = nearestShown(focusColumnOf);
+            focusColumnOf = shownIndex[focusColumn];
+        }
+        // Announced only when the cell changed, which is when the column did: a column hidden
+        // before the cursor shifts its shown index and moves nothing a reader stands on.
+        if (!first && focusRow >= 0 && focusColumnOf != wasOf) {
+            notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.ADJUSTMENT));
+        }
+    }
+
+    /**
+     * @return the shown index of column {@code c}, or of the shown column nearest to it by
+     *         position when it is hidden — the one before it on a tie; {@code shownCount} is
+     *         at least one
+     */
+    private int nearestShown(int c) {
+        int best = 0;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int s = 0; s < shownCount; s++) {
+            int distance = Math.abs(shownIndex[s] - c);
+            if (distance < bestDistance) {
+                best = s;
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
 
     /** The left edge of shown column {@code s} in this widget's coordinates, for this pass. */
@@ -1664,10 +1744,15 @@ public class Table<T> extends Widget implements Scrollable {
         for (int c = 0; c < columns.size(); c++) {
             Column<T> column = columns.get(c);
             if (column.isWidgetColumn()) {
-                Widget widget = column.widgetFor(row);
-                slot.widgets[c] = widget;
-                add(insertAt + slot.widgetCount, widget);
-                slot.widgetCount++;
+                // A hidden widget column builds nothing (B6, 2026-09-14): its widget was never
+                // laid out, but it was a child, and so a Tab stop and a published node. The
+                // next layout to show the column re-mounts the rows and builds it then.
+                if (column.isVisible()) {
+                    Widget widget = column.widgetFor(row);
+                    slot.widgets[c] = widget;
+                    add(insertAt + slot.widgetCount, widget);
+                    slot.widgetCount++;
+                }
             } else {
                 slot.texts[c] = column.text(row, locale);
             }
@@ -2212,8 +2297,8 @@ public class Table<T> extends Widget implements Scrollable {
                         }
                         continue;
                     }
-                    if (slot.texts[c].isEmpty()) {
-                        continue;
+                    if (slot.texts[c] == null || slot.texts[c].isEmpty()) {
+                        continue; // a widget column has no text; its widget was painted above
                     }
                     ShapedText shaped = shapedCell(slot, c, ruler, body);
                     float available = Math.max(0, colW[s] - 2 * padH);
@@ -2501,6 +2586,7 @@ public class Table<T> extends Widget implements Scrollable {
                 int s = columnAt(x);
                 if (s >= 0) {
                     focusColumn = s;
+                    focusColumnOf = shownIndex[s];
                 }
                 int mods = event.modifiers();
                 boolean command = (mods & Accelerator.commandModifier()) != 0;
@@ -2604,6 +2690,7 @@ public class Table<T> extends Widget implements Scrollable {
             return;
         }
         focusColumn = next;
+        focusColumnOf = shownIndex[next];
         // Before the damage: a horizontal scroll invalidates the table itself, and a single row
         // band would then be short of it.
         ensureColumnVisible(next);
@@ -2864,7 +2951,7 @@ public class Table<T> extends Widget implements Scrollable {
             }
             for (int s = 0; s < shownCount; s++) {
                 int c = shownIndex[s];
-                if (slot.widgets[c] != null) {
+                if (slot.widgets[c] != null || slot.texts[c] == null) {
                     continue; // a real child, described in onAccessibilityChild
                 }
                 float left = columnLeft(s, rowX, w, rtl);
@@ -2961,9 +3048,11 @@ public class Table<T> extends Widget implements Scrollable {
         while (s < shownCount && shownIndex[s] != c) {
             s++;
         }
+        if (s == shownCount) {
+            return; // the column was hidden since the last layout; the next one releases it
+        }
         a.cell(slot.row, s);
-        if (slot.row == focusRow && s == focusColumn && s < shownCount && isFocused()
-                && !headerFocused) {
+        if (slot.row == focusRow && s == focusColumn && isFocused() && !headerFocused) {
             // The focus cell in a widget column is the cursor exactly as a value cell is (B1,
             // 2026-09-14): the ring was drawn on it and the reader was told nothing, so the
             // active descendant fell to nothing on every Right into a switch column.
@@ -3080,6 +3169,7 @@ public class Table<T> extends Widget implements Scrollable {
         int wasColumn = focusColumn;
         focusRow = Math.min(Math.max(0, viewIndex), count - 1);
         focusColumn = Math.min(Math.max(0, shownColumn), shownCount - 1);
+        focusColumnOf = shownIndex[focusColumn];
         rangeAnchor = focusRow;
         syncRecords();
         ensureVisible(focusRow);

@@ -1,6 +1,7 @@
 package limn.components;
 
 import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.CellFacet;
 import limn.accessibility.SelectionItemFacet;
@@ -10,6 +11,7 @@ import limn.components.table.SortOrder;
 import limn.components.table.Table;
 import limn.i18n.I18n;
 import limn.input.Keys;
+import limn.scene.Change;
 import limn.testing.AllocationProbe;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
@@ -738,5 +740,107 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(rowNodes().get(0).actions() == null
                 || !rowNodes().get(0).actions().actions().contains(Accessible.Action.SELECT),
                 "nothing to select in NONE");
+    }
+
+    /**
+     * B6 (2026-09-14): a hidden widget column's never-laid-out widget was published as a node
+     * with a {@code CellFacet} column equal to the table's column count, which on Windows reached
+     * the GridItem pattern as an out-of-range column. A hidden column, widget or value, is not
+     * published at all, and the table's column count is the shown count.
+     */
+    @Test
+    void aHiddenColumnPublishesNoCell() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60).visible(false),
+                Column.<Person>widget("Open", p -> new Button(p.name())).width(80)
+                        .visible(false)));
+        table.setRows(people(30));
+        bind(table);
+        assertEquals(1, tableNode().table().columnCount(), "the shown count");
+        assertEquals(1, childrenOf(headerGroup()).size(), "one header cell");
+        int cells = 0;
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            AccessibleNode n = tree().node(i);
+            assertTrue(n.role() != Accessible.Role.BUTTON, "no widget, so no node: " + n);
+            if (n.cell() != null) {
+                cells++;
+                assertTrue(n.cell().column() < 1, "a cell of a hidden column: " + n);
+            }
+        }
+        assertTrue(cells > 3, "the shown column's cells are still there: " + cells);
+    }
+
+    /**
+     * TABLE-NEW-5 (2026-09-14): hiding the column the focus cell stood on left {@code
+     * focusColumn} pointing at a shown index no column matched, so no ring was drawn and no
+     * cell was {@code ACTIVE} until a Left or Right re-clamped it; hiding a column before it
+     * silently shifted the cursor onto the next column's cell. The focus cell now follows its
+     * column: hidden, it moves to the nearest shown column and says so; a column hidden before
+     * it shifts the index and the cell stays on its record and its column.
+     */
+    @Test
+    void hidingTheFocusColumnKeepsACursorOnTheNearestShownColumn() {
+        Column<Person> name = Column.text("Name", Person::name).width(120);
+        Column<Person> age = Column.numeric("Age", Person::age).width(60);
+        Column<Person> again = Column.text("Again", Person::name).width(100);
+        Table<Person> table = new Table<>(List.of(name, age, again));
+        table.setRows(people(30));
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(2);
+        frame();
+        for (int i = 0; i < 2; i++) {
+            scene.keyEvent(Keys.RIGHT, true, false, 0);
+            scene.inputBatchEnded();
+            frame();
+        }
+        assertEquals(2, table.focusColumn());
+        assertEquals(new CellFacet(2, 2), nodesWith(Accessible.State.ACTIVE).get(0).cell());
+        bridge.events.clear();
+        List<Change> heard = new ArrayList<>();
+        table.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.ACTIVE) {
+                heard.add(change);
+            }
+        });
+
+        again.visible(false);
+        table.refresh();
+        frame();
+        assertEquals(1, table.focusColumn(), "clamped to the nearest shown column");
+        assertEquals(1, heard.size(), "announced once to a watcher: " + heard);
+        assertEquals(Change.Origin.ADJUSTMENT, heard.get(0).origin(),
+                "as a consequence of the column going, not a gesture");
+        heard.clear();
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one cursor: " + describe(tree()));
+        assertEquals(new CellFacet(2, 1), active.get(0).cell());
+        assertEquals("22", active.get(0).name(), "Person 2's age, the column beside the hidden one");
+        assertEquals(active.get(0).id(), tree().activeDescendant());
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "the cursor moved once, and a reader was told: " + bridge.events);
+        long ageCell = active.get(0).id();
+        bridge.events.clear();
+
+        // A column before the cursor hidden: the index shifts, the cell does not move.
+        name.visible(false);
+        table.refresh();
+        frame();
+        assertEquals(0, table.focusColumn(), "the first shown column now");
+        active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "still one cursor: " + describe(tree()));
+        assertEquals(ageCell, active.get(0).id(), "the same cell, on the same record");
+        assertEquals(new CellFacet(2, 0), active.get(0).cell());
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "the cursor did not move, so nothing was announced: " + bridge.events);
+        assertEquals(List.of(), heard, "nor to a watcher");
+
+        // Shown again: the cursor stays on its column, which is the second shown one again.
+        name.visible(true);
+        table.refresh();
+        frame();
+        assertEquals(1, table.focusColumn());
+        assertEquals(ageCell, nodesWith(Accessible.State.ACTIVE).get(0).id());
     }
 }
