@@ -64,7 +64,8 @@ public final class DatesExample {
         DatePicker picker = new DatePicker();              // a date, with a calendar
         picker.setDate(LocalDate.of(2026, 9, 9));
 
-        DatePicker moment = DatePicker.ofDateTime();       // both, with a calendar
+        DatePicker moment = new DatePicker()               // both, with a calendar
+                .setGranularity(DateField.Granularity.MINUTE);
         moment.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 0));
 
         column.add(field("Invoice date", typed));

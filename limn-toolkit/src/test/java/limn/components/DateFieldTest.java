@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The segmented editor: what the locale orders, what typing does, and what an incomplete field is. */
@@ -202,17 +203,21 @@ class DateFieldTest extends ComponentTestBase {
     }
 
     @Test
-    void secondsAreShownOnlyWhenAsked() {
+    void secondsAreShownOnlyAtTheSecondLevelAndAMinuteFieldHoldsNone() {
+        build(DateField.ofTime().setGranularity(DateField.Granularity.SECOND), PT_BR);
+        field.setTime(LocalTime.of(14, 30, 45));
+        assertEquals("14:30:45", field.text());
+
         build(DateField.ofTime(), PT_BR);
         field.setTime(LocalTime.of(14, 30, 45));
         assertEquals("14:30", field.text());
-        field.setShowSeconds(true);
-        assertEquals("14:30:45", field.text());
+        assertEquals(LocalTime.of(14, 30), field.time(),
+                "the value is what the segments say, never a second the segments cannot show");
     }
 
     @Test
     void aDateAndTimeFieldAnswersBothHalvesAndNeverInventsOne() {
-        build(DateField.ofDateTime(), PT_BR);
+        build(new DateField().setGranularity(DateField.Granularity.MINUTE), PT_BR);
         assertNull(field.dateTime());
         field.setDateTime(LocalDateTime.of(2026, 12, 31, 18, 5));
         assertEquals(LocalDate.of(2026, 12, 31), field.date());
@@ -222,6 +227,72 @@ class DateFieldTest extends ComponentTestBase {
         build(new DateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 12, 31));
         assertNull(field.dateTime(), "a date-only field answers null here rather than midnight");
+    }
+
+    // ------------------------------------------------------------ granularity (decision 12, 51)
+
+    @Test
+    void aMonthFieldShowsAMonthAndAYearAndAnswersTheFirstOfTheMonth() {
+        build(new DateField().setGranularity(DateField.Granularity.MONTH), PT_BR);
+        field.setDate(LocalDate.of(2026, 6, 15));
+        assertEquals("06/2026", field.text(), "the day and its slash are cut from the pattern");
+        assertEquals(LocalDate.of(2026, 6, 1), field.date(),
+                "a month field told 15 June holds June and answers the 1st");
+        type("072027");
+        assertEquals(LocalDate.of(2027, 7, 1), field.date(), "two segments, typed as one run");
+
+        build(new DateField().setGranularity(DateField.Granularity.MONTH), EN_US);
+        field.setDate(LocalDate.of(2026, 6, 15));
+        assertEquals("6/2026", field.text(), "M/d/yy loses its middle day and the slash before it");
+
+        build(new DateField().setGranularity(DateField.Granularity.MONTH),
+                Locale.forLanguageTag("ko-KR"));
+        field.setDate(LocalDate.of(2026, 6, 15));
+        assertEquals("2026. 6.", field.text(),
+                "Korean keeps the full stop that closes the date and loses the one before the day");
+    }
+
+    @Test
+    void aYearFieldIsTheYearAloneAndAnswersItsFirstDay() {
+        build(new DateField().setGranularity(DateField.Granularity.YEAR), PT_BR);
+        field.setDate(LocalDate.of(2026, 6, 15));
+        assertEquals("2026", field.text());
+        assertEquals(LocalDate.of(2026, 1, 1), field.date());
+    }
+
+    @Test
+    void anHourFieldDropsTheMinuteAndItsColon() {
+        build(DateField.ofTime().setGranularity(DateField.Granularity.HOUR), PT_BR);
+        field.setTime(LocalTime.of(14, 30));
+        assertEquals("14", field.text());
+        assertEquals(LocalTime.of(14, 0), field.time(), "the hour's first minute");
+
+        build(new DateField().setGranularity(DateField.Granularity.HOUR), PT_BR);
+        field.setDateTime(LocalDateTime.of(2026, 9, 9, 14, 30));
+        assertEquals("09/09/2026 14", field.text(), "a date field down to the hour");
+    }
+
+    @Test
+    void aTimeFieldRefusesADateLevelRatherThanShowingNothing() {
+        build(DateField.ofTime(), PT_BR);
+        assertThrows(IllegalArgumentException.class,
+                () -> field.setGranularity(DateField.Granularity.DAY));
+        assertEquals(DateField.Granularity.MINUTE, field.granularity(), "and stays where it was");
+    }
+
+    @Test
+    void aFieldMadeCoarserDropsTheSegmentsItLostAndAnnouncesTheValueThatMoved() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 6, 15));
+        List<Change.Aspect> heard = new ArrayList<>();
+        field.observeChanges((widget, change) -> heard.add(change.aspect()));
+        field.setGranularity(DateField.Granularity.MONTH);
+        assertEquals(LocalDate.of(2026, 6, 1), field.date());
+        assertTrue(heard.contains(Change.Aspect.VALUE), "the 15th became the 1st: " + heard);
+        heard.clear();
+        field.setGranularity(DateField.Granularity.DAY);
+        assertNull(field.date(), "the day segment is back and empty, so there is no date yet");
+        assertTrue(field.text().contains("--"), field.text());
     }
 
     @Test

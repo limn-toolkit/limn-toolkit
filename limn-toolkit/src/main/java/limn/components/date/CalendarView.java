@@ -176,6 +176,13 @@ public class CalendarView extends Widget {
 
     private SelectionMode selectionMode = SelectionMode.SINGLE;
     private View view = View.DAYS;
+    /**
+     * The finest view this calendar picks in: {@link View#DAYS} for a calendar, {@link View#MONTHS}
+     * for a month picker, {@link View#YEARS} for a year picker (decisions 12 and 47, 2026-09-14).
+     * The chooser at this level is <b>terminal</b>: a pick there is a selection and not a step
+     * down, and the view never goes below it.
+     */
+    private View granularity = View.DAYS;
     /** Where the keyboard is inside a chooser, as a flat cell index; meaningless in DAYS. */
     private int chooserCursor;
 
@@ -274,6 +281,13 @@ public class CalendarView extends Widget {
     private final String[] weekdayText = new String[DAYS_IN_WEEK];
     private final DayOfWeek[] weekdays = new DayOfWeek[DAYS_IN_WEEK];
 
+    /**
+     * Whether Tab off either end of the header walk is declined rather than wrapped while a
+     * picker drives this grid: the picker's popup has a time row after the grid (decision 19),
+     * and the walk running off its end is what hands the keyboard to it.
+     */
+    private boolean tabLeavesAtEnds;
+
     /** The picker's, not an application's: see {@link #keyboardActive}. */
     void setKeyboardActive(boolean active) {
         if (keyboardActive == active) {
@@ -286,6 +300,23 @@ public class CalendarView extends Widget {
         }
         focusFade.to(active ? 1 : 0);
         invalidate();
+    }
+
+    /** The picker's: see {@link #tabLeavesAtEnds}. */
+    void setTabLeavesAtEnds(boolean leaves) {
+        tabLeavesAtEnds = leaves;
+    }
+
+    /**
+     * The picker's: the keyboard arrives from the thing after this grid in the popup's Tab cycle,
+     * walking backwards, so it lands on the last header control rather than on the grid.
+     */
+    void enterFromEnd() {
+        setKeyboardActive(true);
+        Part from = part;
+        part = Part.NEXT;
+        damagePartChange(from, part);
+        notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
     }
 
     /**
@@ -322,6 +353,7 @@ public class CalendarView extends Widget {
     public CalendarView setSelectedDate(LocalDate day) {
         Ui.checkUiThread();
         if (day != null) {
+            day = periodStart(day); // a month picker told 15 June holds June, and answers the 1st
             setVisibleMonth(day);
         }
         if (Objects.equals(selected, day)) {
@@ -354,6 +386,7 @@ public class CalendarView extends Widget {
     public CalendarView setSelectedRange(DateRange range) {
         Ui.checkUiThread();
         if (range != null) {
+            range = periodRange(range.start(), range.end());
             setVisibleMonth(range.start());
         }
         if (Objects.equals(selectedRange, range)) {
@@ -429,10 +462,16 @@ public class CalendarView extends Widget {
      *
      * @param wanted what to show
      * @return this
+     * @throws IllegalArgumentException for a view finer than the {@link #granularity()}: a month
+     *         picker has no days to show
      */
     public CalendarView setView(View wanted) {
         Ui.checkUiThread();
         Objects.requireNonNull(wanted, "view");
+        if (wanted.compareTo(granularity) < 0) {
+            throw new IllegalArgumentException("a calendar picking " + granularity
+                    + " cannot show " + wanted + "; set the granularity first");
+        }
         if (view == wanted) {
             return this;
         }
@@ -442,12 +481,67 @@ public class CalendarView extends Widget {
         return this;
     }
 
-    /** The header's own verb: days climb to months, months to years, and years come back down. */
+    /** @return the finest view this calendar picks in; {@link View#DAYS} unless it was changed */
+    public View granularity() {
+        return granularity;
+    }
+
+    /**
+     * What this calendar picks: a day, a month or a year (decisions 12, 47 and 48, 2026-09-14).
+     *
+     * <p>A {@link View#MONTHS} calendar is a month picker: it opens on the twelve months, a pick
+     * there is the selection (the first day of the month, as an ISO date) rather than a step
+     * down to days it cannot pick, and the title climbs only to the years and back. A
+     * {@link View#YEARS} calendar is a year picker the same way. A period at either level runs
+     * from the first day of its first month or year to the last day of its last (decision 51),
+     * so a range of March to June answers 1 March to 30 June.
+     *
+     * <p>Takes a {@link View} rather than the field's finer list on purpose: an hour is nothing a
+     * grid can show, so an hour granularity here does not compile. {@link DatePicker} converts.
+     *
+     * <p>Changing the level drops the selection, for {@link #setSelectionMode}'s reason: a day is
+     * not a month, and carrying one across as the other would be inventing a choice.
+     *
+     * @param level the finest view
+     * @return this
+     */
+    public CalendarView setGranularity(View level) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(level, "granularity");
+        if (granularity == level) {
+            return this;
+        }
+        granularity = level;
+        boolean had = selected != null || selectedRange != null;
+        selected = null;
+        selectedRange = null;
+        rangeAnchor = null;
+        rangePreview = null;
+        if (view.compareTo(level) < 0) {
+            view = level;
+            chooserCursor = -1;
+        }
+        markNeedsLayout();
+        if (had) {
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
+        }
+        return this;
+    }
+
+    /** Whether the view on show is the one this calendar picks in: a pick there selects. */
+    private boolean terminalChooser() {
+        return view != View.DAYS && view == granularity;
+    }
+
+    /**
+     * The header's own verb: days climb to months, months to years, and years come back down to
+     * the finest view there is.
+     */
     private void climb() {
         setView(switch (view) {
             case DAYS -> View.MONTHS;
             case MONTHS -> View.YEARS;
-            case YEARS -> View.DAYS;
+            case YEARS -> granularity;
         });
     }
 
@@ -872,6 +966,117 @@ public class CalendarView extends Widget {
             }
         }
         return true;
+    }
+
+    /**
+     * A pick in the chooser this calendar picks in: the month or the year is the selection
+     * (decision 48). The same two-step in {@code RANGE} as {@link #pick}, and the same seam
+     * &mdash; a click, Enter on the cursor and an assistive technology's {@code SELECT} all land
+     * here &mdash; with the period's bounds taken as decision 51 says: a range of March to June is
+     * 1 March to 30 June, in the calendar being drawn.
+     */
+    private boolean pickPeriod(int index, Change.Origin origin) {
+        if (!isChooserCellOffered(index)) {
+            return false;
+        }
+        LocalDate start = chooserDate(index);
+        if (start == null) {
+            return false;
+        }
+        chooserCursor = index;
+        showMonth(start, Change.Origin.ADJUSTMENT);
+        switch (selectionMode) {
+            case SINGLE -> {
+                if (start.equals(selected)) {
+                    return true;
+                }
+                selected = start;
+                invalidate();
+                notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+            }
+            case RANGE -> {
+                if (rangeAnchor == null) {
+                    rangeAnchor = start;
+                    rangePreview = start;
+                    selectedRange = null;
+                } else {
+                    selectedRange = periodRange(rangeAnchor, start);
+                    rangeAnchor = null;
+                    rangePreview = null;
+                }
+                invalidate();
+                notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+            }
+            default -> {
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The first day of the period a day falls in at this calendar's {@link #granularity()}: the
+     * day itself, the first of its month, or the first of its year, in the calendar being drawn.
+     */
+    private LocalDate periodStart(LocalDate day) {
+        return switch (granularity) {
+            case DAYS -> day;
+            case MONTHS -> firstOfMonth(day);
+            case YEARS -> {
+                ChronoLocalDate drawn = CalendarChronology.date(chronology(), day);
+                LocalDate first = drawn == null ? null
+                        : CalendarChronology.iso(drawn.with(ChronoField.DAY_OF_YEAR, 1));
+                yield first != null ? first : day.withDayOfYear(1);
+            }
+        };
+    }
+
+    /** The last day of the period a day falls in: the 30th or the 31st, the 28th or the 29th. */
+    private LocalDate periodEnd(LocalDate day) {
+        if (granularity == View.DAYS) {
+            return day;
+        }
+        LocalDate first = periodStart(day);
+        ChronoLocalDate drawn = CalendarChronology.date(chronology(), first);
+        int length = granularity == View.MONTHS
+                ? drawn != null ? drawn.lengthOfMonth() : first.lengthOfMonth()
+                : drawn != null ? drawn.lengthOfYear() : first.lengthOfYear();
+        return first.plusDays(length - 1L);
+    }
+
+    /**
+     * A period spanning two days' periods, in either order, widened to whole months or years at
+     * this calendar's granularity (decision 51): the start is the first day of the earlier
+     * period and the end the last day of the later one.
+     */
+    private DateRange periodRange(LocalDate a, LocalDate b) {
+        DateRange ordered = DateRange.of(a, b);
+        return granularity == View.DAYS ? ordered
+                : new DateRange(periodStart(ordered.start()), periodEnd(ordered.end()));
+    }
+
+    /**
+     * How a chooser cell stands to the selection, when the chooser is the one this calendar picks
+     * in: {@code 2} for an end of it (or the whole of a single pick, or the anchor of a period
+     * being built), {@code 1} for a period inside a range, {@code 0} for none.
+     */
+    private int periodSelection(int index) {
+        LocalDate start = chooserDate(index);
+        if (start == null) {
+            return 0;
+        }
+        if (selectionMode == SelectionMode.SINGLE) {
+            return start.equals(selected) ? 2 : 0;
+        }
+        if (selectionMode != SelectionMode.RANGE) {
+            return 0;
+        }
+        if (selectedRange != null) {
+            if (start.equals(selectedRange.start()) || start.equals(periodStart(selectedRange.end()))) {
+                return 2;
+            }
+            return selectedRange.contains(start) ? 1 : 0;
+        }
+        return start.equals(rangeAnchor) ? 2 : 0;
     }
 
     /** Moves the keyboard cursor, paging the grid if it walked off the month. */
@@ -1438,7 +1643,11 @@ public class CalendarView extends Widget {
         TextMetrics fm = ruler.measure("Hg", font);
         float radius = t.radiusSmall();
         float inset = Strokes.HALF_PIXEL_INSET;
-        int current = currentChooserCell();
+        // A terminal chooser fills the SELECTION the way the day grid does, ends solid and the
+        // periods between them washed; a chooser somebody is passing through fills the month or
+        // year on show, which is the only thing "current" means there.
+        boolean terminal = terminalChooser();
+        int current = terminal ? -1 : currentChooserCell();
         float focus = focusFade.value();
         int columns = columns();
         for (int i = 0; i < chooserText.length && i < cellCount(); i++) {
@@ -1447,7 +1656,11 @@ public class CalendarView extends Widget {
             float left = cellLeft(column, rtl);
             float top = gridY + row * cellH;
             boolean offered = enabled && isChooserCellOffered(i);
-            if (i == current) {
+            int stands = terminal ? periodSelection(i) : i == current ? 2 : 0;
+            if (stands == 1) {
+                canvas.fillRect(left, top, cellW, cellH, theme.primary.withAlpha(0.18f));
+            }
+            if (stands == 2) {
                 canvas.fillRoundRect(left + inset, top + inset, cellW - 2 * inset,
                         cellH - 2 * inset, radius, enabled ? theme.primary : theme.disabledFill);
             } else if (i == hoverChooserCell && offered) {
@@ -1456,7 +1669,7 @@ public class CalendarView extends Widget {
             }
             String text = chooserText[i];
             ShapedText line = ruler.shape(text, font, ShapedText.Direction.of(text, neutral));
-            Color ink = !offered ? theme.disabledText : i == current ? theme.onPrimary : theme.text;
+            Color ink = !offered ? theme.disabledText : stands == 2 ? theme.onPrimary : theme.text;
             canvas.drawText(line, left + (cellW - line.metrics().width()) / 2,
                     top + (cellH - fm.height()) / 2 + fm.ascent(), ink);
             if (focus > 0.001f && i == chooserCursor) {
@@ -1870,6 +2083,10 @@ public class CalendarView extends Widget {
      * form's handler does not run while somebody is still navigating towards the year they want.
      */
     private void descend(int index) {
+        if (terminalChooser()) {
+            pickPeriod(index, Change.Origin.USER);
+            return;
+        }
         if (!isChooserCellOffered(index)) {
             return;
         }
@@ -1938,7 +2155,9 @@ public class CalendarView extends Widget {
             // who was only stepping out of the header, which is the report this branch answers.
             // A calendar sitting in a page is not a place you are in -- it is one control among
             // others -- so there the key has to be declined or focus could never move past it.
-            if (!keyboardActive) {
+            // A popup with a time row after the grid declines it too, and the picker carries the
+            // keyboard on to the row (decision 19).
+            if (!keyboardActive || tabLeavesAtEnds) {
                 return false;
             }
             next = Math.floorMod(next, TAB_ORDER.length);
@@ -2089,7 +2308,10 @@ public class CalendarView extends Widget {
                 return;
             }
             if (event.key() == Keys.DOWN) {
-                setView(view == View.YEARS ? View.MONTHS : View.DAYS);
+                View below = view == View.YEARS ? View.MONTHS : View.DAYS;
+                if (below.compareTo(granularity) >= 0) {
+                    setView(below); // never below what this calendar picks in
+                }
                 event.consume();
                 return;
             }
@@ -2119,8 +2341,10 @@ public class CalendarView extends Widget {
                 return;
             }
             case Keys.ESCAPE -> {
-                setView(View.DAYS);
-                event.consume();
+                if (view != granularity) {
+                    setView(granularity); // out of a chooser, back to the finest view there is
+                    event.consume();
+                }
                 return;
             }
             default -> {
@@ -2192,7 +2416,7 @@ public class CalendarView extends Widget {
         int columns = days && showWeekNumbers ? DAYS_IN_WEEK + 1 : columns();
         a.role(Accessible.Role.TABLE);
         a.table(rows(), columns);
-        a.selection(days && selectionMode == SelectionMode.RANGE, false);
+        a.selection((days || terminalChooser()) && selectionMode == SelectionMode.RANGE, false);
 
         float pad = t.spacingSmall();
         float buttonW = t.calendarCell();
@@ -2294,12 +2518,16 @@ public class CalendarView extends Widget {
      * The chooser as the same table: rows of cells, each named with the month or the year it
      * stands for, each carrying the verb that descends, and the keyboard cursor marked active.
      *
-     * <p>No selection facet on the cells: descending into a month is navigation and not a choice,
-     * and telling a reader that a month is "selected" would be telling them the form now holds a
-     * value it does not.
+     * <p>No selection facet on the cells of a chooser somebody is passing through: descending
+     * into a month is navigation and not a choice, and telling a reader that a month is
+     * "selected" would be telling them the form now holds a value it does not. The chooser this
+     * calendar picks in is the exception and carries a real one (decision 48): there the month
+     * <em>is</em> the value.
      */
     private void describeChooser(Accessibility a, boolean rtl) {
         int columns = columns();
+        boolean terminal = terminalChooser() && selectionMode != SelectionMode.NONE;
+        int count = Math.min(chooserText.length, cellCount());
         for (int row = 0; row < rows(); row++) {
             float top = gridY + row * cellH;
             a.child(KEY_ROW_BASE - row);
@@ -2315,6 +2543,9 @@ public class CalendarView extends Widget {
                 a.role(Accessible.Role.CELL);
                 a.name(chooserName[index], textEpoch, Accessible.NameFrom.CONTENT);
                 a.cell(row, column);
+                if (terminal) {
+                    a.selectionItem(periodSelection(index) > 0, index + 1, count);
+                }
                 if (isEnabled() && isChooserCellOffered(index)) {
                     a.action(Accessible.Action.SELECT);
                 }

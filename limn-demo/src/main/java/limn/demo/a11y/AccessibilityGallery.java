@@ -544,7 +544,7 @@ public final class AccessibilityGallery {
         DateField date = new DateField();
         date.setDate(java.time.LocalDate.of(2026, 9, 9));
         page.add(Labelled.above("Invoice date", date));
-        DateField moment = DateField.ofDateTime();
+        DateField moment = new DateField().setGranularity(DateField.Granularity.MINUTE);
         moment.setDateTime(java.time.LocalDateTime.of(2026, 9, 9, 14, 30));
         page.add(Labelled.above("Appointment", moment));
         return new Built(page);

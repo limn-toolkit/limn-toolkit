@@ -132,6 +132,36 @@ its own for a screen that shows a month rather than filling a field.
 - **`DatePicker`** composes them: it *holds a `DateField` as a real child* and opens a
   `CalendarView` in a popup.
 
+**Amendment, 2026-09-14 (decisions 12, 47, 48, 51 — DT6): two starts and one knob decide the
+shape, and the table above is superseded.** The factories named above never existed as written
+(`dateTime()`/`time()`/`range()` are value getters; the shapes were `DateField.ofTime`,
+`DateField.ofDateTime`, `DatePicker.ofDateTime`, `DatePicker.ofRange`), and `ofDateTime` and
+`setShowSeconds` are gone: a field starts at the year (`new DateField()`, `new DatePicker()`) or
+at the hour (`DateField.ofTime()`), and `setGranularity(Granularity)` — a closed enum `YEAR`,
+`MONTH`, `DAY`, `HOUR`, `MINUTE`, `SECOND` — says which segment is its last. A time field refuses
+the three date levels loudly. The picker fans the level out to its field (both ends of a period)
+and its calendar, which takes its level as a `CalendarView.View` (`setGranularity(View)`; an hour
+does not compile there). Segments below the level are cut from the locale's own pattern together
+with the literal that joined them (`DatePattern.without`: `dd/MM/y` → `MM/y`, `yy. M. d.` →
+`yy. M.`), and the value is what the segments say: a month field told 15 June answers the 1st.
+
+| granularity | `DateField` | `DatePicker` popup | a `RANGE` at this level (decision 51) |
+|---|---|---|---|
+| `YEAR` | the year alone | the year chooser is terminal: a pick there is the selection | 1 January of the first year to 31 December of the last, in the drawn calendar |
+| `MONTH` | month and year | the month chooser is terminal (decision 48: its cells carry a real selection) | the 1st of the first month to the last day (28/29/30/31) of the last |
+| `DAY` | the default | the day grid | the two days |
+| `HOUR` | plus the hour | the day grid **and a time row under it**; Tab cycles grid → header → row (decision 19) | the start at hh:00:00, the end at hh:59:59 |
+| `MINUTE` | plus the minute (`ofTime()`'s default) | as `HOUR` | the end at :59 seconds |
+| `SECOND` | plus the second | as `HOUR` | the two instants |
+
+The end of a period is the *end field's* business: `DatePicker.ofRange()` marks its second field
+as the end of a period, so it holds "June" and answers the 30th, and a range picker at an hour
+granularity answers the last representable instant of its end hour. Pinned by `DateFieldTest`
+(the six levels, the refusal, a coarser level dropping the segments it lost), `CalendarViewTest`
+(a month picker's terminal pick, Gregorian March–June → 03-01..06-30, a leap February → 02-29, a
+year range → 01-01..12-31) and `DatePickerTest` (the time row and its Tab cycle, a month range
+picker, an hour range 00:00..23:59:59).
+
 **Why composition rather than one class with modes.** A single `DatePicker` with
 `Mode.DATE | TIME | DATE_TIME` and `setCalendarEnabled(false)` is one import and one Javadoc, and
 that is the whole of its case. Against it: half its state is mutually exclusive at any moment, its
@@ -356,6 +386,19 @@ worse than one that never made it.
   segmented time editor inside a surface that cannot be focused would need either a focus contract
   this record has no business changing or a second key-forwarding path. `DatePicker.dateTime()`
   therefore edits its time in the field, which is where a keyboard user would type it anyway.
+
+  **Amendment, 2026-09-14 (decision 19; DT6, DATES-NEW-3): withdrawn.** The second forwarding
+  path existed already — the picker forwards Tab into the calendar's header — and it now carries
+  characters too. A picker at `HOUR` or finer has a time row under the grid: a real `DateField`
+  that never takes the focus, driven exactly as the grid is (the keys and the digits are handed to
+  it while Tab has put the keyboard on it), and Tab cycles grid → paging arrows and title → time
+  row → grid in both presentations. What it types goes into the field through the row's own
+  origin, so the application's handler runs as if the person had typed into the field. The
+  in-scene presentation, where the overlay holds the focus, forwards every key and character it
+  does not answer to the field whose caret is showing, which is what a day typed over an open
+  calendar needed and did not have (DATES-NEW-3: the digits died at the overlay's root). Pinned by
+  `DatePickerTest.aPickerDownToTheMinuteCarriesATimeRowInItsPopupAndTabCyclesThroughIt` and
+  `whileTheInSceneCalendarIsOpenTypedDigitsAndBackspaceStillReachTheField`.
 - **A footer of shortcuts** — "Today", "Clear", "last 7 days". Cheap to add and deliberately not
   added: which shortcuts a form wants is an application's decision, and a toolkit that ships three
   guesses ships three that are wrong somewhere.

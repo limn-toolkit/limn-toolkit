@@ -150,6 +150,46 @@ final class DatePattern {
     }
 
     /**
+     * A pattern with one field cut out of it, together with the one literal that joined it to its
+     * neighbour: the day and its separator go for a month field, the minute and its colon for an
+     * hour field (ADR 042 &sect;2, amended 2026-09-14).
+     *
+     * <p>Which literal goes is the rule {@code CalendarChronology.monthYearPattern} already
+     * applies to the long pattern, read the other way round: the one <em>before</em> the field
+     * unless the field is the first part, in which case the one after it. So {@code dd/MM/y} loses
+     * its leading day and the slash after it ({@code MM/y}), {@code M/d/yy} loses the middle day
+     * and the slash before it ({@code M/yy}), and the Korean {@code yy. M. d.} loses the day and
+     * the {@code ". "} before it while keeping the full stop that closes the date
+     * ({@code yy. M.}), which is how Korean writes a year and a month.
+     *
+     * @param parts a pattern taken apart
+     * @param field the field to cut
+     * @return the same parts without that field and its joining literal; {@code parts} itself
+     *         when the field is not there
+     */
+    static List<Part> without(List<Part> parts, Field field) {
+        int at = -1;
+        for (int i = 0; i < parts.size(); i++) {
+            if (parts.get(i) instanceof FieldPart f && f.field() == field) {
+                at = i;
+                break;
+            }
+        }
+        if (at < 0) {
+            return parts;
+        }
+        int companion = at > 0 && parts.get(at - 1) instanceof Literal ? at - 1
+                : at + 1 < parts.size() && parts.get(at + 1) instanceof Literal ? at + 1 : -1;
+        List<Part> cut = new ArrayList<>();
+        for (int i = 0; i < parts.size(); i++) {
+            if (i != at && i != companion) {
+                cut.add(parts.get(i));
+            }
+        }
+        return List.copyOf(cut);
+    }
+
+    /**
      * Splits a CLDR pattern into literals and field runs.
      *
      * <p>The three cases are the three the format has: a quoted run, where {@code ''} is one

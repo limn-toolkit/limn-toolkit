@@ -474,6 +474,34 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("平成27", titleNode().name(), "the month chooser's title is the era's year too");
     }
 
+    /**
+     * Decision 48: the chooser a calendar picks in carries a real selection, because there the
+     * month is the value; a chooser somebody is passing through still carries none.
+     */
+    @Test
+    void aMonthPickersCellsCarryASelectionAndAPickMovesIt() throws InterruptedException {
+        CalendarView calendar = bindCalendar();
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        calendar.setSelectedDate(LocalDate.of(2026, 9, 15));
+        frame();
+        List<AccessibleNode> months = dayNodes();
+        assertEquals(12, months.size());
+        assertNotNull(months.get(8).selectionItem(), "September carries a selection item");
+        assertTrue(months.get(8).selectionItem().selected(), "and is the one selected");
+        assertFalse(months.get(2).selectionItem().selected());
+        assertTrue(perform(months.get(2).id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
+        assertEquals(LocalDate.of(2026, 3, 1), calendar.selectedDate());
+        assertEquals(CalendarView.View.MONTHS, calendar.view(), "a pick, not a descent");
+        frame();
+        assertTrue(dayNodes().get(2).selectionItem().selected());
+        assertFalse(dayNodes().get(8).selectionItem().selected());
+
+        calendar.setView(CalendarView.View.YEARS);
+        frame();
+        assertNull(dayNodes().get(0).selectionItem(),
+                "the year chooser above a month picker is navigation and carries none");
+    }
+
     @Test
     void selectingADayTheGridRefusesIsRefusedRatherThanReportedDone() throws InterruptedException {
         CalendarView calendar = bindCalendar();

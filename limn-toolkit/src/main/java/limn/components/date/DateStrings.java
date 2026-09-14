@@ -79,6 +79,12 @@ final class DateStrings {
     /** What the popup itself is, for a reader that lands in it rather than walking into it. */
     static final I18nString CALENDAR = new I18nString("limn.date.calendar", "Calendar");
 
+    /**
+     * The time row under the grid of a picker whose granularity has a clock (decision 19): a
+     * field with no application to name it, so the toolkit does.
+     */
+    static final I18nString TIME_OF_DAY = new I18nString("limn.date.timeOfDay", "Time of day");
+
     /** The two ends of a period, which are two fields and need telling apart. */
     static final I18nString RANGE_START = new I18nString("limn.date.rangeStart", "Start date");
 

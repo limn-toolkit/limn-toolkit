@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The month grid: paging, the cursor, selection, periods, bounds and the calendar it draws. */
@@ -392,6 +393,85 @@ class CalendarViewTest extends ComponentTestBase {
         key(Keys.ENTER);
         assertEquals(CalendarView.View.MONTHS, calendar.view(),
                 "a month that leads nowhere refuses, the way a day out of bounds does");
+    }
+
+    // ------------------------------------------------- a month or year picker (decisions 47, 48, 51)
+
+    @Test
+    void aMonthPickerOpensOnTheMonthsAndAPickThereIsTheSelection() {
+        build();
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        assertEquals(CalendarView.View.MONTHS, calendar.view(), "nothing finer to show");
+        List<LocalDate> picked = new ArrayList<>();
+        calendar.onSelect(picked::add);
+        scene.requestFocus(calendar);
+        key(Keys.HOME);      // the cursor arrives on September; Home is the first of its row
+        key(Keys.UP);
+        key(Keys.UP);        // January
+        key(Keys.ENTER);
+        assertEquals(LocalDate.of(2026, 1, 1), calendar.selectedDate(),
+                "the month is the value, as the first day of it");
+        assertEquals(List.of(LocalDate.of(2026, 1, 1)), picked, "and the handler ran for it");
+        assertEquals(CalendarView.View.MONTHS, calendar.view(),
+                "a pick in the chooser the calendar picks in is not a step down");
+        key(Keys.ESCAPE);
+        assertEquals(CalendarView.View.MONTHS, calendar.view(), "and Escape has nowhere lower to go");
+        assertThrows(IllegalArgumentException.class,
+                () -> calendar.setView(CalendarView.View.DAYS), "a month picker has no days to show");
+        calendar.setSelectedDate(LocalDate.of(2026, 6, 15));
+        assertEquals(LocalDate.of(2026, 6, 1), calendar.selectedDate(),
+                "a caller's day is held as its month");
+    }
+
+    @Test
+    void aPeriodOfMonthsRunsFromTheFirstToTheLastDayOfItsEnds() {
+        build();
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
+        AtomicReference<DateRange> closed = new AtomicReference<>();
+        calendar.onSelectRange(closed::set);
+        scene.requestFocus(calendar);
+        key(Keys.UP);        // September -> May
+        key(Keys.LEFT);
+        key(Keys.LEFT);      // March
+        key(Keys.ENTER);
+        assertNull(calendar.selectedRange(), "one end is not a period");
+        key(Keys.RIGHT);
+        key(Keys.RIGHT);
+        key(Keys.RIGHT);     // June
+        key(Keys.ENTER);
+        assertEquals(new DateRange(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 6, 30)),
+                calendar.selectedRange(), "1 March to 30 June (decision 51)");
+        assertEquals(calendar.selectedRange(), closed.get());
+    }
+
+    @Test
+    void aLeapFebruaryEndsOnTheTwentyNinth() {
+        build();
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
+        calendar.setVisibleMonth(LocalDate.of(2028, 2, 10));
+        scene.requestFocus(calendar);
+        key(Keys.ENTER);     // the cursor arrives on the month on show: February 2028
+        key(Keys.ENTER);
+        assertEquals(new DateRange(LocalDate.of(2028, 2, 1), LocalDate.of(2028, 2, 29)),
+                calendar.selectedRange());
+    }
+
+    @Test
+    void aPeriodOfYearsRunsFromNewYearsDayToNewYearsEve() {
+        build();
+        calendar.setGranularity(CalendarView.View.YEARS);
+        calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
+        scene.requestFocus(calendar);
+        key(Keys.ENTER);     // 2026, the year on show
+        key(Keys.RIGHT);     // 2027
+        key(Keys.ENTER);
+        assertEquals(new DateRange(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 12, 31)),
+                calendar.selectedRange());
+        calendar.setSelectedRange(new DateRange(LocalDate.of(2020, 5, 5), LocalDate.of(2021, 5, 5)));
+        assertEquals(new DateRange(LocalDate.of(2020, 1, 1), LocalDate.of(2021, 12, 31)),
+                calendar.selectedRange(), "a caller's period is widened the same way");
     }
 
     @Test
