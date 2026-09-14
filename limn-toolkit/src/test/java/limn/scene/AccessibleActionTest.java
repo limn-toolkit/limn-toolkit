@@ -307,10 +307,43 @@ class AccessibleActionTest extends AccessibleTestBase {
         assertNull(bridge.first(AccessibleEvent.Type.INVOKED));
     }
 
+    /**
+     * {@code FOCUS} on an item is the item's own verb and not the walk's free one (ADR 039 §1.5,
+     * amended 2026-09-14; decision 11): a widget that paints its rows publishes it on a row where
+     * the cursor and the selection are separate things, and the scene hands it to the synthetic
+     * hook with the row's key -- it moves the widget's cursor, not the keyboard -- while the same
+     * verb on the widget's own node stays the scene's {@code requestFocus()}.
+     */
+    @Test
+    void theFocusVerbOnAnItemReachesTheSyntheticHookAndNotTheScenesFreeVerb() throws Exception {
+        Group root = new Group();
+        Menu menu = new Menu();
+        menu.setFocusable(true);
+        root.add(menu);
+        bind(root);
+        frame();
+        assertTrue(node("Open").actions().has(Accessible.Action.FOCUS),
+                "the row publishes it" + describe(tree()));
+        assertFalse(menu.isFocused(), "the fixture starts with the focus nowhere");
+
+        assertTrue(performOffThread(node("Open").id(), Accessible.Action.FOCUS,
+                Accessible.Argument.NONE));
+
+        assertEquals(List.of("child 17: FOCUS"), menu.performed,
+                "the row's own verb, with the row's key");
+        assertFalse(menu.isFocused(), "and not the keyboard moving to the widget");
+
+        performOffThread(node("File").id(), Accessible.Action.FOCUS,
+                Accessible.Argument.NONE);
+
+        assertTrue(menu.isFocused(), "on the widget itself it is still the walk's free verb");
+        assertEquals(List.of("child 17: FOCUS"), menu.performed, "which no hook is asked about");
+    }
+
     /** A widget that draws its own rows and never instantiated one of them as a widget. */
     private static final class Menu extends Probe {
         Menu() {
-            role = Accessible.Role.MENU;
+            super(Accessible.Role.MENU, "File");
         }
 
         @Override
@@ -320,7 +353,7 @@ class AccessibleActionTest extends AccessibleTestBase {
             a.role(Accessible.Role.MENU_ITEM);
             a.name(limn.i18n.I18nString.literal("Open"));
             a.bounds(0, 0, 40, 10);
-            a.action(Accessible.Action.PRESS);
+            a.action(Accessible.Action.PRESS, Accessible.Action.FOCUS);
             a.endChild();
         }
     }
