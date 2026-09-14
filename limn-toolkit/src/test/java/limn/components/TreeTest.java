@@ -1056,6 +1056,32 @@ class TreeTest extends ComponentTestBase {
         assertEquals(List.of("remote"), drawn(tree), "closed, with no line under it");
     }
 
+    /**
+     * A node is unique within a tree, by {@code equals}: two equal nodes in two places would
+     * share one selection, one expansion and one accessible identity, all quietly wrong, so the
+     * tree refuses them the moment both are visible and names the node (decision 15 of
+     * 2026-09-14). Before, the second row was a silent shadow of the first (TREE-NEW-7).
+     */
+    @Test
+    void twoEqualNodesVisibleAtOnceAreRefusedByName() {
+        Node shared = Node.leaf("README.md");
+        Node a = Node.of("a", shared);
+        Node b = Node.of("b", shared);
+        CountingModel model = new CountingModel(List.of(a, b));
+        Tree<Node> tree = mount(model);
+
+        tree.expand(a);
+        scene.layoutPass(220, 200);
+        assertEquals(3, tree.visibleRowCount(), "one README.md is fine");
+
+        IllegalStateException refused = assertThrows(IllegalStateException.class,
+                () -> tree.expand(b), "the second README.md, equal to the first, is refused");
+        assertTrue(refused.getMessage().contains("README.md"),
+                "and the refusal names the node: " + refused.getMessage());
+        assertTrue(refused.getMessage().contains("path identity"),
+                "and says what to do about it: " + refused.getMessage());
+    }
+
     @Test
     void aSelectionSurvivesTheRowBeingHiddenByACollapse() {
         Node root = forest();

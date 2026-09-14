@@ -70,6 +70,20 @@ with `Table`'s `List<T>`, the application's objects stay the application's:
   application whose nodes are records gets identity by value for free; one whose nodes are
   mutable gets reference identity, which is what a tree over a live model wants.
 
+**Amendment, 2026-09-14: a node is unique within a tree, and the tree says so.** Identity by
+`equals` was written above as a gift to records and a convenience to live objects; what it also
+does is fold two equal nodes in two places into one — one selection, one expansion, one accessible
+identifier, and under partial rendering a second row whose wash goes stale while the first is
+damaged (TREE-NEW-7). The guide's own example produced that shape: every folder read off a disk
+answered a `classes` and a `reports`. Decision 15 (`tree-node-identity`) keeps `equals` as the
+identity and makes the contract explicit instead of changing it: **a node must be unique by
+`equals` within a tree.** Building the visible rows refuses a duplicate as soon as both are
+visible, with an `IllegalStateException` naming the node and the remedy; a model whose values
+repeat under different parents gives its nodes path identity, which is what the guide's `Entry`
+does now (its path is the record's identity, its name is what the row shows). Path identity was
+weighed and not taken: it would have changed the public meaning of `setSelected`, `expand`,
+`isExpanded` and every identifier, for every model, to solve a shape the application can name.
+
 **A row may promise children before it can name them.** The provider has an asynchronous form:
 the application hands back a `Work<List<T>>` ([ADR 020](020-background-work-is-a-job-with-a-lifecycle.md)),
 the row shows a busy state while it runs, and the children arrive on the UI thread. Cancelling is

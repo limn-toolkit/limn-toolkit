@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +46,11 @@ import java.util.function.Consumer;
  * type of this toolkit's: a tree over {@code Path}, over a record, or over a live domain object is
  * the same tree. Identity is the node's own {@code equals}, which gives value semantics to records
  * and reference semantics to mutable objects, and both are what the application that chose them
- * wanted.
+ * wanted. <b>A node is unique within a tree</b>: two equal nodes in two places would share one
+ * selection, one expansion and one accessible identity, so the tree refuses them the moment both
+ * are visible, with an {@link IllegalStateException} naming the node (decision 15 of 2026-09-14).
+ * A model whose values repeat under different parents — a file named the same in two folders —
+ * gives its nodes path identity, the way the guide's example does.
  *
  * <p><b>A row may promise children before it can name them.</b> {@link Model#children} answers
  * {@code null} for a node whose children are not known yet, and {@link Model#load} hands back a
@@ -111,7 +116,9 @@ public class Tree<T> extends Widget implements Scrollable {
          * @param node a node the tree is showing
          * @return its children, or {@code null} when they are not known yet and {@link #load}
          *         is what fetches them. An empty list means a node with no children, which is
-         *         a leaf; {@code null} is a promise, not an absence.
+         *         a leaf; {@code null} is a promise, not an absence. No child may equal any other
+         *         node of the tree: a node is unique by {@code equals} within a tree, and the
+         *         tree refuses a duplicate as soon as both are visible.
          */
         List<T> children(T node);
 
@@ -597,8 +604,16 @@ public class Tree<T> extends Widget implements Scrollable {
         // Here rather than in the layout: the deepest row is what decides how wide the content
         // is, and the only thing that moves it is what is open, which is decided here.
         int deepest = 0;
+        Set<T> seen = new HashSet<>(rows.size() * 2);
         for (Row<T> row : rows) {
             deepest = Math.max(deepest, row.depth);
+            if (!row.placeholder && !seen.add(row.node)) {
+                // Fail fast, and by name: two equal nodes in two places would share a selection,
+                // an expansion and one accessible identity, and every one of those would be
+                // wrong quietly (decision 15 of 2026-09-14; ADR 044 §2).
+                throw new IllegalStateException("a node must be unique within a tree, and "
+                        + row.node + " is visible in two places: give such nodes path identity");
+            }
         }
         maxDepth = deepest;
         followMountedNodes();
