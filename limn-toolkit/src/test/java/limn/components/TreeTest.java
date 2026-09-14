@@ -1739,6 +1739,15 @@ class TreeTest extends ComponentTestBase {
 
     /** The chain, open to the bottom, in a scene 220 wide; the cells are collected by name. */
     private Tree<Node> openedChain(int levels, Map<String, Widget> cells) {
+        return openedChain(levels, cells, 0, limn.scene.LayoutDirection.LTR);
+    }
+
+    /**
+     * {@link #openedChain(int, Map)} over a model declaring {@code maxCellWidth} (zero: none),
+     * read in {@code direction}.
+     */
+    private Tree<Node> openedChain(int levels, Map<String, Widget> cells, float maxCellWidth,
+            limn.scene.LayoutDirection direction) {
         Node top = chain(levels);
         Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
             @Override
@@ -1757,7 +1766,13 @@ class TreeTest extends ComponentTestBase {
                 cells.put(node.name(), cell);
                 return cell;
             }
+
+            @Override
+            public float maxCellWidth() {
+                return maxCellWidth;
+            }
         });
+        tree.setLayoutDirection(direction);
         scene = new Scene(tree);
         scene.setTextRuler(RULER);
         for (Node node = top; node != null;
@@ -1817,6 +1832,198 @@ class TreeTest extends ComponentTestBase {
         scene.layoutPass(220, 200);
         assertEquals(before, cell.x(), 0.01f, "a shallow tree has nowhere to go sideways");
         assertEquals(width, cell.width(), 0.01f, "and its cells keep the width they had");
+    }
+
+    /**
+     * A model that knows its cells declares how wide the deepest one has to be, and the outline
+     * is exactly that much wider than the deepest row's indent and triangle: level fourteen gets
+     * the declared width and every shallower row one indent more per level, to the same far edge
+     * (decision 50 of 2026-09-14). Undeclared, the tree keeps its guess — the menu's minimum width
+     * capped by the viewport — which is what the chain below measures first. Before, there was no
+     * way to say it, and a deep row of a name and a badge ellipsized at 168 points (T4).
+     */
+    @Test
+    void theDeepestCellIsAsWideAsTheModelDeclares() {
+        Map<String, Widget> guessed = new java.util.HashMap<>();
+        openedChain(14, guessed);
+        float indent = guessed.get("level-2").x() - guessed.get("level-1").x();
+        float guess = guessed.get("level-14").width();
+        assertEquals(Theme.current().tokensFor(guessed.get("level-14")).menuMinWidth(), guess, 0.01f,
+                "undeclared, the deepest cell is the menu's minimum width, as it always was");
+
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells, 300, limn.scene.LayoutDirection.LTR);
+        assertEquals(300, mounted(cells, "level-14").width(), 0.01f,
+                "the deepest cell is as wide as the model declares, wider than the box itself");
+        assertEquals(300 + 13 * indent, mounted(cells, "level-1").width(), 0.01f,
+                "and a row thirteen levels up one indent wider per level, to the same far edge");
+
+        for (int i = 0; i < 80; i++) {
+            wheelSideways(tree, -1);
+        }
+        scene.layoutPass(220, 200);
+        Widget deepest = mounted(cells, "level-14");
+        assertEquals(220, deepest.x() + deepest.width(), 0.01f,
+                "scrolled to the end, the declared width ends exactly at the box's edge");
+
+        Map<String, Widget> shallow = new java.util.HashMap<>();
+        openedChain(2, shallow, 100, limn.scene.LayoutDirection.LTR);
+        float before = shallow.get("level-1").x();
+        wheelSideways(tree, -3);
+        scene.layoutPass(220, 200);
+        assertEquals(before, shallow.get("level-1").x(), 0.01f,
+                "a declared width the box already holds leaves a shallow tree exactly its box");
+        assertEquals(220 - before, shallow.get("level-1").width(), 0.01f);
+    }
+
+    /**
+     * The keyboard brings a deep row's name into view: End onto level fourteen scrolls the
+     * outline sideways until the row's triangle band and the leading part of its cell are
+     * inside the box, and Home, from the far end, scrolls back to the root's (TREE-NEW-5). Before,
+     * the reveal passed a zero-width rectangle at x = 0 and never moved sideways, so End left the
+     * name 88 points past the box's edge. The walk is minimal: Down onto a row whose start is still
+     * inside moves nothing sideways, rather than the outline jumping on every arrow.
+     */
+    @Test
+    void theKeyboardBringsADeepRowsNameIntoView() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells);
+        scene.requestFocus(tree);
+
+        press(Keys.END);
+        Widget deepest = mounted(cells, "level-14");
+        assertEquals("level-14", tree.cursorNode().name());
+        assertTrue(deepest.x() >= 0 && deepest.x() + 40 <= tree.width(),
+                "the deepest row's name is in the box: its cell starts at " + deepest.x());
+
+        for (int i = 0; i < 80; i++) {
+            wheelSideways(tree, -1);
+        }
+        scene.layoutPass(220, 200);
+        assertTrue(mounted(cells, "level-1").x() < 0, "the wheel took the root's start out of view");
+        press(Keys.HOME);
+        Widget top = mounted(cells, "level-1");
+        assertEquals("level-1", tree.cursorNode().name());
+        assertTrue(top.x() > 0 && top.x() < 40,
+                "Home brings the root's triangle and name back into view: " + top.x());
+
+        // Minimal: level two's start is inside the box beside the root's, so Down onto it moves
+        // nothing sideways. Up from the far end cannot show this — there the offset is already at
+        // its clamp — which is why the walk is checked downward from the root.
+        float rootX = top.x();
+        press(Keys.DOWN);
+        assertEquals("level-2", tree.cursorNode().name());
+        assertEquals(rootX, mounted(cells, "level-1").x(), 0.01f,
+                "Down onto a row whose start is still in view moves nothing sideways");
+    }
+
+    /**
+     * The same walk read right to left, where the outline hangs off the box's trailing edge and
+     * the offset walks the cells the other way — and under reserved strips, where the viewport's
+     * left edge is the vertical bar's strip and not the box's, which the reveal measured from
+     * until 2026-09-14.
+     */
+    @Test
+    void rightToLeftTheKeyboardBringsADeepRowsNameIntoViewPastAReservedStrip() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells, 0, limn.scene.LayoutDirection.RTL);
+        scene.requestFocus(tree);
+
+        press(Keys.END);
+        Widget deepest = mounted(cells, "level-14");
+        float end = deepest.x() + deepest.width();
+        assertTrue(end <= tree.width() && end - 40 >= 0,
+                "the deepest row's name is in the box reading right to left: its cell ends at "
+                        + end);
+
+        press(Keys.HOME);
+        Widget top = mounted(cells, "level-1");
+        float topEnd = top.x() + top.width();
+        assertTrue(topEnd < tree.width() && topEnd > tree.width() - 40,
+                "and Home brings the root's back: " + topEnd);
+
+        Map<String, Widget> reserved = new java.util.HashMap<>();
+        List<Node> roots = new ArrayList<>();
+        Node chainTop = chain(14);
+        roots.add(chainTop);
+        for (int i = 1; i <= 30; i++) {
+            roots.add(Node.leaf("row " + i));
+        }
+        Tree<Node> strips = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return roots;
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                Label cell = new Label(node.name());
+                reserved.put(node.name(), cell);
+                return cell;
+            }
+        });
+        strips.setLayoutDirection(limn.scene.LayoutDirection.RTL);
+        strips.setBarLayout(ScrollGutters.Layout.RESERVED);
+        for (Node node = chainTop; node != null;
+                node = node.children().isEmpty() ? null : node.children().get(0)) {
+            strips.expand(node);
+        }
+        scene = new Scene(strips);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        scene.renderFrame(new RecordingTestCanvas(220, 200));
+        scene.requestFocus(strips);
+        press(Keys.DOWN); // onto the root
+        float strip = ScrollBar.thickness();
+        for (int i = 0; i < 13; i++) {
+            press(Keys.DOWN);
+        }
+        Widget leaf = mounted(reserved, "level-14");
+        assertEquals("level-14", strips.cursorNode().name());
+        float promised = Theme.current().tokensFor(strips).menuMinWidth();
+        assertTrue(leaf.x() + leaf.width() - promised >= strip - 0.01f,
+                "the leading " + promised + " points of the leaf's cell are right of the reserved "
+                        + "strip at " + strip + ", not under it: its cell ends at "
+                        + (leaf.x() + leaf.width()));
+    }
+
+    /**
+     * A press does not move the outline sideways: the pointer is on a part of the row the user
+     * can already see, and the outline sliding under it to show the row's start would move what
+     * was just clicked. Only the keyboard, a reader and a caller reveal a row's start.
+     */
+    @Test
+    void aPressOnADeepRowDoesNotMoveTheOutlineSideways() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells);
+        for (int i = 0; i < 80; i++) {
+            wheelSideways(tree, -1);
+        }
+        scene.layoutPass(220, 200);
+        Widget top = mounted(cells, "level-1");
+        float before = top.x();
+        assertTrue(before < 0, "the root's start is out of view: " + before);
+
+        float x = tree.localToSceneX() + 200;
+        float y = top.localToSceneY() + top.height() / 2;
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        assertEquals("level-1", tree.leadNode().name(), "the press selected the row");
+        assertEquals(before, mounted(cells, "level-1").x(), 0.01f,
+                "and left the outline where the user had scrolled it");
+
+        tree.setSelected(tree.selectedNodes().get(0).children().get(0));
+        scene.layoutPass(220, 200);
+        assertTrue(mounted(cells, "level-2").x() >= 0,
+                "a caller's selection does reveal the row's start: "
+                        + mounted(cells, "level-2").x());
     }
 
     private static limn.scene.Constraints unbounded() {

@@ -54,6 +54,23 @@ is deep the maximum is the viewport, the content is exactly the box, and the cel
 ellipsis are unchanged — which is what keeps the shallow case identical to what this record
 originally specified.
 
+**Amendment, 2026-09-14: the model may declare the deepest cell's width, and the keyboard reveals a
+deep row sideways.** The `menuMinWidth` in the formula above was a guess borrowed from a menu
+token (168 points at the default size), and a model whose rows are a name and a badge had no way
+to say its cells need more (T4). Decision 50 (`tree-deep-cell-width`) adds a defaulted
+`Model.maxCellWidth()`: a positive, finite answer replaces the guess, so the content is
+`max(viewport, depth × indent + band + maxCellWidth)` and the deepest open row's cell is exactly
+that wide; zero, the default, keeps `min(viewport, menuMinWidth)` and today's behaviour. Cells are
+still laid out to the content's far edge, so a shallower row is one indent wider per level — the
+renders of `--scene tree-deep` (`renders/tree/deep-after-*`) show what that costs a row ending in a
+button, and decision 50 lets him move to "cap and unstretched cells" on them. Separately, the
+reveal that follows the cursor used to pass a zero-width rectangle and never moved sideways, so End
+onto a deep row left its name past the box's edge (TREE-NEW-5): a keyboard, reader or caller move
+now also reveals the row's triangle band plus the leading part of its cell (as wide as the deepest
+cell is promised, never wider than the viewport), by the least that shows it, measured from the
+viewport's own edge past a reserved strip. A pointer press does not reveal sideways, because the
+pointer is already on a visible part of the row.
+
 The reason is that the two hard parts of a tree — an order that is a traversal and a row that can
 open — are separable from the two hard parts of a table, which are columns and a focus cell, and
 a first record that took all four would decide the cheap half badly. A `TreeTable` is §9.
@@ -76,7 +93,8 @@ are the record's first sketch of it (TREE-NEW-12).** `Tree<T>` is constructed ov
 `cellFor(node)` — and four with defaults: `isLeaf(node)` (children known and empty), `load(node)`
 (`null`: nothing to fetch), `recycle(cell)` (nothing) and `nameOf(node)` (`null`: the cell names
 its row; a name from here wins over the cell's). There is no `Function<T, List<T>>` and no
-separate leaf predicate; the identity rule below stands as written.
+separate leaf predicate; the identity rule below stands as written. Later the same day a fifth default
+joined them, `maxCellWidth()` (§1's amendment of that date).
 
 **Amendment, 2026-09-14: a node is unique within a tree, and the tree says so.** Identity by
 `equals` was written above as a gift to records and a convenience to live objects; what it also

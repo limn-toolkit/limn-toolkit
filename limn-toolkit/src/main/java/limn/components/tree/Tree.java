@@ -107,7 +107,7 @@ public class Tree<T> extends Widget implements Scrollable {
     /**
      * What the tree asks the application about its own data.
      *
-     * <p>Four of the seven methods have defaults, and the three that do not are the ones only the
+     * <p>Five of the eight methods have defaults, and the three that do not are the ones only the
      * application can answer: where the tree starts, what is under a node, and what draws it.
      */
     public interface Model<T> {
@@ -188,6 +188,29 @@ public class Tree<T> extends Widget implements Scrollable {
          */
         default I18nString nameOf(T node) {
             return null;
+        }
+
+        /**
+         * How wide a row's cell needs to be, in points, once the tree is deep enough to scroll
+         * sideways: the outline is made as wide as its deepest open row's indent and triangle
+         * plus this, so the cell at the deepest level gets exactly this width and every
+         * shallower cell, laid out to the same far edge, more (decision 50 of 2026-09-14; ADR
+         * 044 §1, amended). Where the box is wider than that, the outline is the box and
+         * nothing scrolls sideways.
+         *
+         * <p>Declare it when the model knows its cells — a name and a badge, a name and a
+         * button — because the tree cannot: a row holding an {@code Expanded} has no width of
+         * its own to measure, and measuring the realized rows would move the content, the bar
+         * and every cell as a vertical scroll mounted rows of other widths. Read at every layout
+         * pass, so a constant or a field, not a computation. The number is in points at every
+         * control size; a model that follows the size step derives it from the tree's tokens.
+         *
+         * @return the width, or zero (the default) to let the tree choose, which is the menu's
+         *         minimum width capped by the viewport: the narrowest strip this toolkit reads a
+         *         row of text in. A negative or non-finite answer is taken as zero.
+         */
+        default float maxCellWidth() {
+            return 0;
         }
     }
 
@@ -406,6 +429,11 @@ public class Tree<T> extends Widget implements Scrollable {
      * and the next range starts at its own target.
      */
     private T rangeAnchor;
+    /**
+     * Whether the selection moving now is a pointer press's, which reveals its row vertically
+     * and never sideways; see {@link #revealNode}.
+     */
+    private boolean pointerPress;
     /** The last row pressed and when, for the double click. */
     private T lastPressNode;
     private long lastPressNanos;
@@ -1477,15 +1505,27 @@ public class Tree<T> extends Widget implements Scrollable {
      * structure someone navigating deeply is reading. The content grows instead, and the box
      * scrolls over it.
      *
-     * <p>The deepest row keeps {@code menuMinWidth} of cell: the toolkit's existing floor for the
-     * narrowest strip a row of text may be read in, and capped by the viewport so a narrow tree
-     * never asks for more content than one screenful. Where nothing is deep the maximum is the
-     * viewport and this returns exactly that — so a shallow tree has no horizontal bar, no offset,
-     * and the cell widths (and the ellipsis) it has always had.
+     * <p>The deepest row keeps {@link #deepestCellWidth} of cell: what the model declares
+     * through {@link Model#maxCellWidth}, or else {@code menuMinWidth} — the toolkit's existing
+     * floor for the narrowest strip a row of text may be read in, capped by the viewport so a
+     * narrow tree never asks for more content than one screenful. Where nothing is deep the
+     * maximum is the viewport and this returns exactly that — so a shallow tree has no horizontal
+     * bar, no offset, and the cell widths (and the ellipsis) it has always had.
      */
     private float estimatedContentWidth(SizeTokens t, float viewW) {
-        float deepest = maxDepth * indent(t) + twistyBand(t) + Math.min(viewW, t.menuMinWidth());
+        float deepest = maxDepth * indent(t) + twistyBand(t) + deepestCellWidth(t, viewW);
         return Math.max(viewW, deepest);
+    }
+
+    /**
+     * The width the deepest row's cell is promised: the model's declared width when it gave a
+     * usable one (decision 50 of 2026-09-14), else the menu's minimum capped by the viewport,
+     * which is what the tree guessed before a model could say.
+     */
+    private float deepestCellWidth(SizeTokens t, float viewW) {
+        float declared = model.maxCellWidth();
+        return declared > 0 && Float.isFinite(declared)
+                ? declared : Math.min(viewW, t.menuMinWidth());
     }
 
     @Override
@@ -1854,27 +1894,51 @@ public class Tree<T> extends Widget implements Scrollable {
     @Override
     public void revealRect(float x, float y, float rectWidth, float rectHeight) {
         Ui.checkUiThread();
+        revealVertically(y, rectHeight);
+        revealSideways(x, rectWidth);
+    }
+
+    private void revealVertically(float y, float rectHeight) {
         float viewH = viewportHeight();
         if (y < 0) {
             scrollBy(y);
         } else if (y + rectHeight > viewH) {
             scrollBy(Math.min(y, y + rectHeight - viewH));
         }
-        // The rectangle is in viewport coordinates, so the sideways correction is the distance it
-        // sits outside the viewport, and mirrored it points the other way.
+    }
+
+    /**
+     * The sideways half of a reveal: the distance the span sits outside the viewport, measured
+     * from the viewport's own left edge — past the reserved strip reading right to left, where
+     * the box's edge is the bar's — and mirrored it points the other way. Nothing moves while the
+     * span is inside.
+     */
+    private void revealSideways(float x, float rectWidth) {
+        float left = viewportLeft();
         float viewW = gutters.viewportWidth(width());
         float dx = 0;
-        if (x < 0) {
-            dx = x;
-        } else if (x + rectWidth > viewW) {
-            dx = Math.min(x, x + rectWidth - viewW);
+        if (x < left) {
+            dx = x - left;
+        } else if (x + rectWidth > left + viewW) {
+            dx = Math.min(x - left, x + rectWidth - (left + viewW));
         }
         if (dx != 0) {
             scrollHorizontallyBy(isRightToLeft() ? -dx : dx);
         }
     }
 
-    /** Scrolls the minimum so {@code node}'s row is visible, if it is one. */
+    /**
+     * Scrolls the minimum so {@code node}'s row is visible, if it is one: its band vertically,
+     * and sideways the row's triangle band plus the leading part of its cell — as much of it as
+     * the deepest row is promised, never more than the viewport — so the keyboard walking onto a
+     * deep row brings its name into view (TREE-NEW-5, decision 50 of 2026-09-14). Minimal both
+     * ways: walking Up and Down through rows of mixed depth moves the outline sideways only when
+     * a row's start is outside the box, not on every arrow.
+     *
+     * <p>Not sideways for a press of the pointer, which is set around a press's own selection
+     * ({@link #pointerPress}): the pointer is already on a part of the row the user can see, and
+     * an outline that jumped under it to show the row's start would move what was just clicked.
+     */
     private void revealNode(T node) {
         int index = indexOf(node);
         if (index < 0) {
@@ -1884,7 +1948,16 @@ public class Tree<T> extends Widget implements Scrollable {
         float rowH = avgRowHeight(t);
         Widget cell = cellFor(index);
         float top = cell != null ? cell.y() : (index - anchorIndex) * rowH + anchorTop;
-        revealRect(0, top, 0, cell != null ? cell.height() : rowH);
+        revealVertically(top, cell != null ? cell.height() : rowH);
+        if (pointerPress) {
+            return;
+        }
+        float viewW = gutters.viewportWidth(width());
+        float band = twistyBand(t);
+        float cellW = Math.max(0, contentWidth - cellLeft(t, index, contentWidth));
+        float span = Math.min(viewW, band + Math.min(cellW, deepestCellWidth(t, viewW)));
+        float bandLeft = twistyLeft(t, rows.get(index).depth);
+        revealSideways(isRightToLeft() ? bandLeft + band - span : bandLeft, span);
     }
 
     /**
@@ -2152,12 +2225,17 @@ public class Tree<T> extends Widget implements Scrollable {
                 && now - lastPressNanos < DOUBLE_CLICK_NANOS;
         lastPressNode = row.node;
         lastPressNanos = second ? 0 : now;
-        if (selectionMode == SelectionMode.MULTI && command) {
-            toggleSelection(row.node, Change.Origin.USER);
-        } else if (selectionMode == SelectionMode.MULTI && shift) {
-            selectRange(index);
-        } else {
-            selectOnly(row.node, true, Change.Origin.USER);
+        pointerPress = true;
+        try {
+            if (selectionMode == SelectionMode.MULTI && command) {
+                toggleSelection(row.node, Change.Origin.USER);
+            } else if (selectionMode == SelectionMode.MULTI && shift) {
+                selectRange(index);
+            } else {
+                selectOnly(row.node, true, Change.Origin.USER);
+            }
+        } finally {
+            pointerPress = false;
         }
         if (second && !command && !shift) {
             // A double click activates, like Enter (decision 46 of 2026-09-14): an application

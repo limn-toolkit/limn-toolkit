@@ -63,7 +63,8 @@ final class TreeScene {
 
     /**
      * A render variant asked for through {@code LIMN_TREE_DEMO}, so a reviewer can reproduce a
-     * still without a scene name per state: {@code empty} opens the two rows that hold nothing.
+     * still without a scene name per state: {@code empty} opens the two rows that hold nothing,
+     * and {@code walk} walks the deep scene down its chain with the keyboard.
      */
     private static String variant() {
         String value = System.getenv("LIMN_TREE_DEMO");
@@ -122,12 +123,28 @@ final class TreeScene {
      * cannot be photographed together: widening the content moves where a cell ellipsizes, from
      * the edge of the box to the edge of the content (ADR 044 §1, amended). The shallow scene is
      * where a name contains itself; this one is where depth runs out of width.
+     *
+     * <p>With {@code LIMN_TREE_DEMO=walk} the keyboard goes into the tree instead of the scroll:
+     * the cursor is put on level one and Down is pressed thirteen times, so it lands on level
+     * fourteen and the outline has moved sideways, row by row, by the least that shows each row's
+     * triangle and the start of its name (TREE-NEW-5).
      */
     static Built deep() {
         Parts parts = parts();
         for (Node node = parts.deep(); node != null;
                 node = node.kids().isEmpty() ? null : node.kids().get(0)) {
             parts.tree().expand(node);
+        }
+        if (variant().equals("walk")) {
+            return new Built(parts.scene(), () -> {
+                parts.tree().requestFocus();
+                parts.tree().setSelected(parts.deep());
+                for (int i = 0; i < 13; i++) {
+                    parts.scene().keyEvent(limn.input.Keys.DOWN, true, false, 0);
+                    parts.scene().keyEvent(limn.input.Keys.DOWN, false, false, 0);
+                    parts.scene().inputBatchEnded();
+                }
+            });
         }
         return new Built(parts.scene(), () -> parts.tree().scrollHorizontallyBy(140));
     }
@@ -215,6 +232,14 @@ final class TreeScene {
                     }
                     return fetched == null ? List.of() : fetched;
                 });
+            }
+
+            @Override
+            public float maxCellWidth() {
+                // This model knows its cells: an icon, a name and a count or a button. Declared,
+                // the deepest open row keeps this much width for them rather than the tree's
+                // guess of a menu's minimum, 168 points here (decision 50).
+                return 240;
             }
 
             @Override
