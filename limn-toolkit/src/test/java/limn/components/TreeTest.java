@@ -759,6 +759,55 @@ class TreeTest extends ComponentTestBase {
         assertEquals(aMd, tree.cursorNode(), "and the cursor can walk onto it now");
     }
 
+    /** Whether some cell is drawing {@code name}, mounted anywhere. */
+    private static boolean hasCell(Tree<Node> tree, String name) {
+        for (Widget child : tree.children()) {
+            if (child instanceof Label label && label.text().equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The cursor row is kept realized while the tree holds the keyboard: spared by a scroll,
+     * and mounted again, fresh from the model, after a refresh released every cell (decision 22
+     * of 2026-09-14). When the focus leaves, the next pass releases it like any other row.
+     */
+    @Test
+    void theCursorRowIsKeptRealizedWhileTheTreeHoldsTheKeyboardAndReleasedWhenItLeaves() {
+        List<Node> many = new ArrayList<>();
+        for (int i = 1; i <= 40; i++) {
+            many.add(Node.leaf("row " + i));
+        }
+        CountingModel model = new CountingModel(many);
+        Tree<Node> tree = mount(model);
+        scene.requestFocus(tree);
+        press(Keys.DOWN);
+        press(Keys.DOWN);
+        assertEquals(many.get(1), tree.cursorNode());
+        int builtBefore = java.util.Collections.frequency(model.cellsBuilt, "row 2");
+
+        tree.scrollBy(10_000);
+        scene.layoutPass(220, 200);
+        assertTrue(hasCell(tree, "row 40"), "the wheel reached the end: " + drawn(tree));
+        assertTrue(hasCell(tree, "row 2"), "and the cursor row was spared, outside the box");
+        assertFalse(drawn(tree).contains("row 2"), "outside, not drawn among the visible rows");
+        assertEquals(builtBefore, java.util.Collections.frequency(model.cellsBuilt, "row 2"),
+                "spared, so not built again");
+
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertTrue(hasCell(tree, "row 2"), "a refresh releases every cell and mounts it back");
+        assertEquals(builtBefore + 1, java.util.Collections.frequency(model.cellsBuilt, "row 2"),
+                "fresh from the model, since the refresh may have changed what it draws");
+
+        scene.requestFocus(null);
+        scene.layoutPass(220, 200);
+        assertFalse(hasCell(tree, "row 2"), "with the focus gone it is released: " + drawn(tree));
+        assertEquals(many.get(1), tree.cursorNode(), "though the cursor still stands on it");
+    }
+
     @Test
     void aSelectionSurvivesTheRowBeingHiddenByACollapse() {
         Node root = forest();

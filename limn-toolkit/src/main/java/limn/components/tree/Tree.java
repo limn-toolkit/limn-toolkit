@@ -55,9 +55,11 @@ import java.util.function.Consumer;
  *
  * <p><b>Rows are realized where the viewport reaches</b>, by the anchor-and-walk this toolkit's
  * list and table already use: a row's height is measured when it is first needed, the mean seeds
- * the scroll estimate, and the row holding the keyboard focus is kept mounted even when a scroll
- * carries it outside (ADR 039 §13.29). The order rows are walked in is a traversal of what is
- * expanded, which is the one thing a tree does that a list cannot.
+ * the scroll estimate, and two rows are kept mounted even when a scroll carries them outside:
+ * the one holding the keyboard focus (ADR 039 §13.29), and the cursor row while the tree itself
+ * holds the keyboard, so a reader's cursor survives a wheel, a refresh and a reorder (decision 22
+ * of 2026-09-14). The order rows are walked in is a traversal of what is expanded, which is the
+ * one thing a tree does that a list cannot.
  *
  * <p><b>What this is not:</b> no columns — a {@code TreeTable} is ADR 044 §9 — no in-place
  * editing, ever (ADR 041 §6), no drag to reorder, and no tri-state checkbox cascade over a data
@@ -1312,6 +1314,7 @@ public class Tree<T> extends Widget implements Scrollable {
             bottom = placeDown(count, rowX, w, viewH);
         }
         recycleExcept(placedFrom, placedTo, count);
+        keepCursorRowRealized(count);
         placeKeptOutside(rowX, w, bottom);
         updateAverageHeight();
         vBar.refresh();
@@ -1429,16 +1432,22 @@ public class Tree<T> extends Widget implements Scrollable {
     /**
      * Recycles every mounted row outside {@code [from, toExclusive)}, sparing the one holding the
      * keyboard focus while its index is still below {@code count} — a reader whose cursor follows
-     * the focus loses its place when the node it stands on leaves the tree (ADR 039 §13.29).
+     * the focus loses its place when the node it stands on leaves the tree (ADR 039 §13.29) —
+     * and, while the tree itself holds the keyboard, the cursor row: the reader's cursor is that
+     * row's {@code ACTIVE} node, and a wheel that recycled it took the cursor away (decision 22
+     * of 2026-09-14; TREE-NEW-6). Released by the first pass after the focus leaves.
      */
     private void recycleExcept(int from, int toExclusive, int count) {
         int kept = 0;
+        boolean keepCursor = cursor != null && isFocused();
         for (int i = 0; i < mountedCount; i++) {
             int row = mountedRows[i];
             Widget cell = mountedCells[i];
             boolean inRun = row >= from && row < toExclusive;
             boolean hasFocus = !inRun && containsFocus(cell);
-            if (inRun || (hasFocus && row < count)) {
+            boolean isCursor = !inRun && keepCursor && row < count
+                    && !rows.get(row).placeholder && rows.get(row).node.equals(cursor);
+            if (inRun || (hasFocus && row < count) || isCursor) {
                 mountedRows[kept] = row;
                 mountedCells[kept] = cell;
                 mountedNodes[kept] = mountedNodes[i];
@@ -1477,6 +1486,25 @@ public class Tree<T> extends Widget implements Scrollable {
             }
         }
         return false;
+    }
+
+    /**
+     * Mounts the cursor row when the tree holds the keyboard and the pass left it unrealized: a
+     * refresh releases every cell, because each is bound to data the model may have replaced,
+     * and a reorder releases a cell that moved against the traversal; the cursor row comes back
+     * fresh from the model either way, placed outside the viewport by {@link #placeKeptOutside}
+     * (decision 22 of 2026-09-14). Nothing to do while the row is in the placed run, which is
+     * where a scroll that did not spare it would have put it.
+     */
+    private void keepCursorRowRealized(int count) {
+        if (cursor == null || !isFocused()) {
+            return;
+        }
+        int index = indexOf(cursor);
+        if (index < 0 || index >= count || cellFor(index) != null) {
+            return;
+        }
+        measuredHeight(index, contentWidth); // mounts it, measured at the content width
     }
 
     /** Puts a spared row wholly outside the viewport, on the side its index lies. */
@@ -2093,6 +2121,20 @@ public class Tree<T> extends Widget implements Scrollable {
     @Override
     protected void onAttached() {
         startSpinning(); // a tree opened onto loading rows before it joined a scene still turns
+    }
+
+    @Override
+    protected void onFocusGained() {
+        // The cursor row is kept realized only while the tree holds the keyboard, and a pass is
+        // what mounts or releases it; contained, because nothing outside the box moves.
+        markNeedsContainedLayout();
+        damageNode(cursor);
+    }
+
+    @Override
+    protected void onFocusLost() {
+        markNeedsContainedLayout();
+        damageNode(cursor);
     }
 
     @Override

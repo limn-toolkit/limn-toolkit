@@ -560,6 +560,51 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(node("root").id(), moved.get(0).newValue());
     }
 
+    /**
+     * While the tree holds the keyboard its cursor row stays realized across a wheel scroll that
+     * carries it out of the box: published, not {@code SHOWING}, still {@code ACTIVE}, so the
+     * reader's cursor never resolves to nothing because of a scroll (decision 22 of 2026-09-14;
+     * ADR 039 §1.10's effective-focus rule). It is released when the focus leaves. Before, only
+     * a cell holding the focus was spared, and the tree itself holds it, so a wheel recycled the
+     * cursor row and the tree lost its active descendant (TREE-NEW-6).
+     */
+    @Test
+    void theCursorRowStaysPublishedAcrossAWheelScrollWhileTheTreeHoldsTheKeyboard() {
+        bindTree(ROW_H, leaves(40));
+        scene.requestFocus(tree);
+        tree.setSelected(Node.leaf("row 2"));
+        frame();
+        long cursorId = node("row 2").id();
+        assertTrue(node("row 2").has(Accessible.State.ACTIVE), describe(tree()));
+        assertTrue(node("row 2").has(Accessible.State.SHOWING));
+
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        scene.scrolled(0, -20, x, y); // twenty notches: well past the box, clamped to the end
+        scene.inputBatchEnded();
+        frame();
+
+        assertTrue(treeNode().scroll().verticalPercent() > 0.9,
+                "the wheel carried the tree to its end: " + describe(tree()));
+        AccessibleNode kept = node("row 2");
+        assertEquals(cursorId, kept.id(), "the same node, not a re-minted one");
+        assertFalse(kept.has(Accessible.State.SHOWING),
+                "outside the box, and it says so: " + describe(tree()));
+        assertTrue(kept.has(Accessible.State.ACTIVE), "still the cursor: " + describe(tree()));
+        assertEquals(cursorId, tree().activeDescendant(),
+                "the tree's cursor never resolves to nothing because of a scroll: "
+                        + describe(tree()));
+        assertTrue(node("row 40").has(Accessible.State.SHOWING), describe(tree()));
+
+        scene.requestFocus(null);
+        frame();
+
+        assertNull(limn.testing.AccessibleTrees.named(tree(), "row 2"),
+                "with the focus gone the row is released like any other: " + describe(tree()));
+        assertEquals(List.of(Node.leaf("row 2")), tree.selectedNodes(), "the selection stands");
+        assertEquals(Node.leaf("row 2"), tree.cursorNode(), "and so does the cursor");
+    }
+
     /** {@code SCROLL_INTO_VIEW} on a row that sits half under the top edge brings it back. */
     @Test
     void scrollIntoViewOnARowRevealsIt() throws Exception {
