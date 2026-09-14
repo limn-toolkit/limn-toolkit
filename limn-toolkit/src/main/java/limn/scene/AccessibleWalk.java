@@ -211,8 +211,13 @@ final class AccessibleWalk {
             // answer: the relation resolves up through the deletions, and no mirror is emitted.
             Scene home = popupOpeners[i].scene();
             if (home != null && home != scene) {
-                home.accessibleWalk().expectMirror(popupOpeners[i], owners[popupNodes[i]], scene);
-                home.invalidateAccessible();
+                // Told to walk again only when the entry is new or moved scene: a popup walks
+                // on every arrow key while it is open, and the mirror it asks for is the same
+                // one each time, so a host walk per popup walk would be a host walk per key.
+                if (home.accessibleWalk().expectMirror(popupOpeners[i], owners[popupNodes[i]],
+                        scene)) {
+                    home.invalidateAccessible();
+                }
                 mirrorHost = home;
             }
         }
@@ -251,12 +256,18 @@ final class AccessibleWalk {
      * @param opener the widget here that opened the popup
      * @param root   the popup's root widget, in the other scene
      * @param home   the scene that root lives in
+     * @return whether this changed anything: the entry is new, or the root moved to another
+     *         scene; {@code false} when the same mirror was already expected, which is the
+     *         answer on every walk of the popup after its first
      */
-    void expectMirror(Widget opener, Widget root, Scene home) {
+    boolean expectMirror(Widget opener, Widget root, Scene home) {
         for (int i = 0; i < foreignCount; i++) {
             if (foreignOpeners[i] == opener && foreignRoots[i] == root) {
+                if (foreignScenes[i] == home) {
+                    return false;
+                }
                 foreignScenes[i] = home;
-                return;
+                return true;
             }
         }
         if (foreignCount == foreignOpeners.length) {
@@ -268,6 +279,7 @@ final class AccessibleWalk {
         foreignRoots[foreignCount] = root;
         foreignScenes[foreignCount] = home;
         foreignCount++;
+        return true;
     }
 
     /**

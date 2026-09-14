@@ -103,6 +103,67 @@ class AccessibleRelationTest extends AccessibleTestBase {
     }
 
     /**
+     * A popup that is a window of its own asks the scene holding its opener to publish the
+     * {@code CONTROLLER_FOR} mirror, and asks once: the popup walks on every arrow key while it
+     * is open, and the mirror it asks for on each of those walks is the one the host already
+     * expects, so the host is neither told to walk again nor bought a frame for it. Before
+     * {@code expectMirror} said whether it changed anything, every popup walk invalidated the
+     * host — one O(n) host walk, and one frame request, per key while a reader listened.
+     */
+    @Test
+    void aNativePopupsRepeatedWalksDoNotWalkTheHostAgain() {
+        Group root = new Group();
+        Probe opener = new Probe(Accessible.Role.BUTTON, "Open");
+        root.add(opener);
+        bind(root);
+
+        // The popup's own scene over its own window, as a native popup is (ADR 039 §1.11), with
+        // its root naming the opener in THIS scene as its inheritance host.
+        Group menu = new Group();
+        menu.setAccessibleRole(Accessible.Role.MENU);
+        menu.setAccessibleName("File");
+        menu.setInheritanceHost(opener);
+        RecordingWindow popupWindow = new RecordingWindow();
+        limn.testing.RecordingAccessibilityBridge popupBridge =
+                limn.testing.RecordingAccessibilityBridge.listening();
+        popupWindow.accessibility = popupBridge;
+        Scene popup = new Scene(menu, nanos::get);
+        popup.bind(popupWindow);
+        popup.renderFrame(canvas);
+        frame();
+        assertEquals(node("File", popupBridge.tree()).id(),
+                relationOf(node("Open"), Accessible.Relation.CONTROLLER_FOR).target(),
+                "the host publishes the mirror after the popup's first walk: " + describe(tree()));
+
+        int hostFrames = window.frameRequests;
+        int hostPublished = bridge.published.size();
+        long carried = scene.accessibleWalk().builder().carriedOver();
+        for (int i = 0; i < 3; i++) {
+            menu.invalidate();
+            popup.renderFrame(canvas);
+            frame();
+        }
+
+        assertEquals(hostFrames, window.frameRequests,
+                "three more popup walks bought the host no frame");
+        assertEquals(carried, scene.accessibleWalk().builder().carriedOver(),
+                "and walked nothing in it: the opener's name was not carried over again");
+        assertEquals(hostPublished, bridge.published.size());
+        assertEquals(node("File", popupBridge.tree()).id(),
+                relationOf(node("Open"), Accessible.Relation.CONTROLLER_FOR).target(),
+                "while the mirror stands");
+    }
+
+    private static AccessibleNode node(String name, limn.accessibility.AccessibleTree tree) {
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            if (name.equals(tree.node(i).name())) {
+                return tree.node(i);
+            }
+        }
+        throw new AssertionError("no node named " + name + " in " + describe(tree));
+    }
+
+    /**
      * A relation is declared as a target and published as an identifier, and the walk is what turns
      * one into the other. Doing that inside the publish — which only runs once a difference has
      * been found — leaves the comparison reading an identifier this walk never filled in: the frame
