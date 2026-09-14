@@ -471,6 +471,33 @@ class TableTest extends ComponentTestBase {
     }
 
     /**
+     * A refresh that answers a sort request is the application's sort, so it reveals the focus
+     * row as the table's own sort does (decision 40); a plain refresh keeps the scroll position
+     * it promises, which {@code TableFocusedRowTest} pins from the reader's side.
+     */
+    @Test
+    void aSortRequestsRefreshRevealsTheFocusRowAsTheTablesOwnSortDoes() {
+        Column<Person> name = nameColumn();
+        Table<Person> table = new Table<>(List.of(name, ageColumn()));
+        List<Person> rows = new ArrayList<>(people(60));
+        table.setRows(rows);
+        table.onSortRequest((column, order) -> {
+            java.util.Collections.reverse(rows);
+            table.refresh();
+        });
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        scene.requestFocus(table);
+        table.setSelectedRow(0);
+        click(scene, 50, headerHeight(table) / 2, 0);
+        scene.renderFrame(canvas);
+        scene.renderFrame(canvas);
+        assertEquals(59, table.focusRow(), "Person 0 is last now");
+        assertTrue(table.firstVisibleRow() > 40,
+                "and the table scrolled to show it: " + table.firstVisibleRow());
+    }
+
+    /**
      * Decision 23 of 2026-09-14, the general case: any insert, remove or reorder followed by
      * {@code refresh()} keeps the selection, the lead, the focus cell and the range anchor on
      * their records; a record the list no longer holds leaves the selection with one

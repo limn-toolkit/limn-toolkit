@@ -145,6 +145,8 @@ public class Table<T> extends Widget implements Scrollable {
     // is told, read back here because a request for the model's order leaves sortColumn null.
     private Column<T> sortRequestColumn;
     private SortOrder sortRequestOrder = SortOrder.NONE;
+    // While the handler runs: a refresh() it calls is a sort, and reveals the focus row as one.
+    private boolean answeringSortRequest;
 
     // The focus cell: a view row and a shown column, or -1 before anything was focused.
     private int focusRow = -1;
@@ -204,6 +206,8 @@ public class Table<T> extends Widget implements Scrollable {
     private static final class Slot {
         int row;
         float height;
+        /** The top the last layout placed it at, in this widget's coordinates; NaN before one. */
+        float top = Float.NaN;
         final String[] texts;
         final ShapedText[] shaped;
         final ShapedText[] fitted;
@@ -608,9 +612,10 @@ public class Table<T> extends Widget implements Scrollable {
      * focus cell reads nothing. A selected record the list no longer holds leaves the selection,
      * announced as {@code SELECTION}/{@code ADJUSTMENT}; a vanished lead makes the last selected
      * row the lead; a vanished focus row or anchor keeps its position, clamped. A focus row that
-     * moved is announced as {@code ACTIVE}/{@code ADJUSTMENT} and revealed with the least scroll,
-     * as a sort does. Then {@code CHILDREN}/{@code CODE}; nothing reaches a handler. UI thread
-     * only.
+     * moved is announced as {@code ACTIVE}/{@code ADJUSTMENT}; when the refresh answers a
+     * {@linkplain #onSortRequest sort request} it is also revealed with the least scroll, as the
+     * table's own sort does, and otherwise the scroll position is kept. Then {@code CHILDREN}/
+     * {@code CODE}; nothing reaches a handler. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
@@ -670,7 +675,10 @@ public class Table<T> extends Widget implements Scrollable {
         recomputeFooter();
         markNeedsLayout();
         invalidate();
-        if (focusRow >= 0 && focusRow != wasFocusRow) {
+        if (answeringSortRequest && focusRow >= 0 && focusRow != wasFocusRow) {
+            // A refresh that answers a sort request is the application's sort, and reveals the
+            // focus row as the table's own does (decision 40); any other refresh keeps the
+            // scroll position it promised to keep.
             pendingEnsureVisible = focusRow;
         }
         if (moved) {
@@ -927,7 +935,12 @@ public class Table<T> extends Widget implements Scrollable {
                     Column<T> column = sortRequestColumn;
                     SortOrder order = sortRequestOrder;
                     sortRequestColumn = null;
-                    onSortRequest.accept(column, order);
+                    answeringSortRequest = true;
+                    try {
+                        onSortRequest.accept(column, order);
+                    } finally {
+                        answeringSortRequest = false;
+                    }
                 }
             }
             default -> super.handleUserChange(aspect);
@@ -1481,6 +1494,12 @@ public class Table<T> extends Widget implements Scrollable {
             bottom = placeDown(count, rowX, w, viewH, headerH, rtl, t);
         }
         recycleExcept(placedFrom, placedTo, count);
+        if (isFocused() && focusRow >= 0 && focusRow < count && slotFor(focusRow) == null) {
+            // The focus cell's row is realized wherever the viewport is while the table holds the
+            // keyboard (decision 22 of 2026-09-14): a refresh or a sort unmounted everything, and
+            // a reader's cursor stands on that cell whether or not it is in view.
+            mount(focusRow);
+        }
         placeKeptOutside(rowX, w, headerH, bottom, rtl, t);
         updateAverageHeight();
         vBar.refresh();
@@ -1533,6 +1552,7 @@ public class Table<T> extends Widget implements Scrollable {
     private void placeRow(Slot slot, float rowY, float rowH, float rowX, float w, boolean rtl,
                           SizeTokens t) {
         slot.height = rowH;
+        slot.top = rowY;
         for (int s = 0; s < shownCount; s++) {
             int c = shownIndex[s];
             Widget widget = slot.widgets[c];
@@ -1649,18 +1669,23 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     /**
-     * Releases every mounted row outside {@code [from, toExclusive)} except the one holding the
-     * keyboard focus, which stays mounted while its index is still below {@code count}; the
-     * reason is {@code ListView}'s (ADR 039 §13.29).
+     * Releases every mounted row outside {@code [from, toExclusive)} except two: the one holding
+     * the keyboard focus in a widget cell, which stays mounted while its index is still below
+     * {@code count} — the reason is {@code ListView}'s (ADR 039 §13.29) — and, while the table
+     * itself holds the keyboard, the focus cell's row (decision 22 of 2026-09-14): a reader's
+     * cursor stands on that cell, and a wheel that recycled it left the reader on nothing until
+     * the next arrow key. Released by the first pass after the focus leaves.
      */
     private void recycleExcept(int from, int toExclusive, int count) {
         int kept = 0;
+        boolean cursorKept = isFocused();
         for (int i = 0; i < mountedCount; i++) {
             int row = mountedRows[i];
             Slot slot = mountedSlots[i];
             boolean inRun = row >= from && row < toExclusive;
             boolean hasFocus = !inRun && containsFocus(slot);
-            if (inRun || (hasFocus && row < count)) {
+            boolean isCursor = !inRun && cursorKept && row == focusRow;
+            if (inRun || ((hasFocus || isCursor) && row < count)) {
                 mountedRows[kept] = row;
                 mountedSlots[kept] = slot;
                 kept++;
@@ -2535,11 +2560,44 @@ public class Table<T> extends Widget implements Scrollable {
         // the top row the way it does in ListView, rather than on the row below it. So what
         // appears is one ring in one row, and that is all this damages.
         damageRow(focusRow);
+        if (focusRow >= 0 && slotFor(focusRow) == null) {
+            markNeedsContainedLayout(); // the cursor row is realized while the keyboard is here
+        }
     }
 
     @Override
     protected void onFocusLost() {
         damageRow(focusRow);
+        if (focusRow >= 0 && !isPlaced(focusRow)) {
+            markNeedsContainedLayout(); // and released by the first pass after it leaves
+        }
+    }
+
+    // The rows' viewport is what the rows and their widget cells are clipped to, and the bars
+    // are clipped to the box (TABLE-NEW-10, 2026-09-14): until this the default answered the
+    // whole box for every child, so a switch scrolled under the header or the footer, or lying
+    // in a reserved gutter, was isShowing() and published SHOWING in a rectangle this table
+    // never paints it in, a reader could toggle it, and a point on the header resolved to it.
+    // The four run for every node of every accessible walk and allocate nothing.
+
+    @Override
+    protected float clipX(Widget child) {
+        return child == vBar || child == hBar ? 0 : rowsLeft();
+    }
+
+    @Override
+    protected float clipY(Widget child) {
+        return child == vBar || child == hBar ? 0 : rowsTop();
+    }
+
+    @Override
+    protected float clipWidth(Widget child) {
+        return child == vBar || child == hBar ? width() : gutters.viewportWidth(width());
+    }
+
+    @Override
+    protected float clipHeight(Widget child) {
+        return child == vBar || child == hBar ? height() : rowsViewportHeight();
     }
 
     // ---------------------------------------------------------------------- accessibility
@@ -2605,9 +2663,16 @@ public class Table<T> extends Widget implements Scrollable {
             float top = rowTop(row);
             boolean shown = !Float.isNaN(top);
             if (!shown) {
-                // The focused row a scroll spared: published where the estimate puts it.
-                top = row < placedFrom ? headerH - slot.height : headerH + viewH;
+                // The kept row a scroll spared: published where the layout put it, outside the
+                // rows' viewport, so the ROW and a widget cell inside it agree on a box
+                // (TABLE-NEW-9, 2026-09-14); before a layout has placed it, where the estimate
+                // would.
+                top = Float.isNaN(slot.top)
+                        ? (row < placedFrom ? headerH - slot.height : headerH + viewH)
+                        : slot.top;
             }
+            boolean rowOffScreen = !shown || top + slot.height <= headerH
+                    || top >= headerH + viewH;
             a.child(model);
             a.bounds(rowX, top, w, slot.height);
             a.role(Accessible.Role.ROW);
@@ -2626,7 +2691,7 @@ public class Table<T> extends Widget implements Scrollable {
                 }
             }
             a.action(Accessible.Action.FOCUS);
-            if (!shown || top + slot.height <= headerH || top >= headerH + viewH) {
+            if (rowOffScreen) {
                 a.offScreen();
             }
             for (int s = 0; s < shownCount; s++) {
@@ -2647,7 +2712,10 @@ public class Table<T> extends Widget implements Scrollable {
                     // above already gates on the same fact.
                     a.state(Accessible.State.ACTIVE);
                 }
-                if (left + colW[s] <= rowX || left >= rowX + w) {
+                // Off screen with its row as well as with its column: the bit is per node, and
+                // nothing is inherited from a synthetic parent, so a kept row's cells were
+                // published SHOWING over the header band (TABLE-NEW-9, 2026-09-14).
+                if (rowOffScreen || left + colW[s] <= rowX || left >= rowX + w) {
                     a.offScreen();
                 }
                 a.endChild();

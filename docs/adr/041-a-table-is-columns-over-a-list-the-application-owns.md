@@ -103,6 +103,24 @@ mounted run is contiguous by construction, `children()` is the bars and then the
 data order, and the row holding the keyboard focus is kept realized outside the viewport for as
 long as it holds it (ADR 039 §13.29).
 
+**Amended 2026-09-14 (decision 22 of the 2026-09-13 pass; TABLE-NEW-9, TABLE-NEW-10).** Two rows
+are kept outside the viewport, not one: the row whose widget cell holds the keyboard focus, as
+above, and — while the table itself holds the keyboard — the focus cell's row, which a wheel or
+a bar drag used to recycle, emptying a reader's cursor until the next arrow key (B8). The cursor
+row is realized by every layout while the table is focused, so a `refresh()` or a sort that
+unmounted everything realizes it again wherever its record went; the first pass after the focus
+leaves releases it. A kept row is published where the layout put it, outside the rows' viewport,
+so the `ROW` and a widget cell inside it agree on a box, and its cells are published off screen
+with it (TABLE-NEW-9: the bit is per node, and nothing is inherited from a synthetic parent, so
+a kept row's cells were `SHOWING` over the header band). And the table now declares the per-child
+clip `Widget#clipX` and its three siblings ask for (TABLE-NEW-10): its widget cells are clipped to
+the rows' viewport and its bars to the box, which is what `paintChildren` clips to, so a switch
+scrolled under the header or the footer, or lying in a reserved gutter, is neither `isShowing()`
+nor published `SHOWING`, a reader cannot toggle it, and a point on the header does not resolve to
+it; the accessors allocate nothing. Pinned by `TableFocusedRowTest` (six cases, the widget-column
+quiet-frame ratchet among them). The rule exists in three copies (ADR 044 §3); `ListView` and
+`Tree` take theirs in their own lanes.
+
 ---
 
 ## 3. Selection is by row, and the keyboard has a cell
@@ -159,7 +177,9 @@ insert of an equal record above it makes it the fourth, which is what "occurrenc
 selected record the list no longer holds leaves the selection with one
 `SELECTION`/`ADJUSTMENT`; a vanished lead hands the lead to the last selected row; a vanished
 focus row or anchor keeps its position, clamped. A focus row that moved is announced as
-`ACTIVE`/`ADJUSTMENT` and revealed with the least scroll. Costs, written down: `refresh()` with
+`ACTIVE`/`ADJUSTMENT`; a `refresh()` that answers a sort request also reveals it with the least
+scroll, as the table's own sort does, and any other `refresh()` keeps the scroll position it
+promises. Costs, written down: `refresh()` with
 something to follow reads the rows once, stopping at the last record found (nothing to follow,
 nothing read); selecting a row without a `rowKey` reads the rows before it once, to place it
 among equal records; `selectAll()` reads every row once for its key. Reader verbs still name a
@@ -297,7 +317,10 @@ title `I18nString`. A row has no name of its own: all three platforms compose a 
 when the cells are named, and a name here would be spoken twice.
 
 **Publishing.** Only realized rows are published, as `ListView`'s are (ADR 039 §11), and the row
-that holds the keyboard focus stays published wherever a scroll has taken the viewport. The focus
+that holds the keyboard focus stays published wherever a scroll has taken the viewport
+(**amended 2026-09-14:** read literally this held only for a row whose *widget cell* held the
+focus; since decision 22 the focus cell's row is also kept and published, off screen, while the
+table holds the keyboard — §2's amendment of the same date). The focus
 cell is the node published `ACTIVE`, so the table's active descendant is a cell and not a row — a
 reader that follows the active descendant lands on the value under the cursor. A `PRESS` on the
 table activates the lead row; `SELECT` on a row selects it.
