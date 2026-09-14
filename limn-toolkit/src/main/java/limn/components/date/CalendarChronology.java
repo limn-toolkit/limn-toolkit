@@ -2,6 +2,7 @@ package limn.components.date;
 
 import limn.i18n.I18n;
 
+import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.chrono.ChronoLocalDate;
@@ -11,6 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.FormatStyle;
 import java.time.format.TextStyle;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.WeekFields;
 import java.util.List;
 import java.util.Locale;
@@ -113,6 +115,21 @@ final class CalendarChronology {
         try {
             return LocalDate.from(date);
         } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * {@code date.plus(amount, unit)}, or {@code null} where the calendar has no such date: a
+     * Hijri month before AH 1300 or after AH 1600 throws {@code DateTimeException} out of the
+     * JDK, and a grid standing at either end of the range asks for exactly that month -- for
+     * the leading cells, for the paging arrows, for a chooser cell's period end. Every caller
+     * has an ISO fallback for a null, the way {@link #date} and {@link #iso} already give them.
+     */
+    static ChronoLocalDate plus(ChronoLocalDate date, long amount, ChronoUnit unit) {
+        try {
+            return date.plus(amount, unit);
+        } catch (DateTimeException e) {
             return null;
         }
     }

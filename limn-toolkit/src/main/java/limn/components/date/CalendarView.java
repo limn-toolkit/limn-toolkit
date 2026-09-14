@@ -667,8 +667,12 @@ public class CalendarView extends Widget {
     private void pageMonths(int months, Change.Origin origin) {
         Chronology chronology = chronology();
         ChronoLocalDate current = CalendarChronology.date(chronology, visibleMonth());
-        LocalDate next = current == null ? visibleMonth().plusMonths(months)
-                : CalendarChronology.iso(current.plus(months, ChronoUnit.MONTHS));
+        ChronoLocalDate stepped = current == null ? null
+                : CalendarChronology.plus(current, months, ChronoUnit.MONTHS);
+        // Past either end of the calendar's range the step is ISO's, and the grid there falls
+        // back to drawing the ISO month (rebuildGrid), rather than a page that throws or sticks.
+        LocalDate next = stepped == null ? visibleMonth().plusMonths(months)
+                : CalendarChronology.iso(stepped);
         if (next != null) {
             showMonth(next, origin);
         }
@@ -1453,8 +1457,12 @@ public class CalendarView extends Widget {
 
     private static int previousMonthLength(Chronology chronology, ChronoLocalDate chronoFirst,
                                            LocalDate isoFirst) {
-        if (chronoFirst != null) {
-            ChronoLocalDate previous = chronoFirst.minus(1, ChronoUnit.MONTHS);
+        // The month before the first month a chronology holds is a month it cannot make (AH
+        // 1299 threw out of a frame); its leading cells are ISO days the calendar cannot name
+        // anyway, and they are numbered against the ISO month's length instead.
+        ChronoLocalDate previous = chronoFirst == null ? null
+                : CalendarChronology.plus(chronoFirst, -1, ChronoUnit.MONTHS);
+        if (previous != null) {
             return previous.lengthOfMonth();
         }
         return isoFirst.minusMonths(1).lengthOfMonth();
@@ -1810,7 +1818,7 @@ public class CalendarView extends Widget {
             return null;
         }
         int length = view == View.MONTHS ? cell.lengthOfMonth() : cell.lengthOfYear();
-        return CalendarChronology.iso(cell.plus(length - 1, ChronoUnit.DAYS));
+        return CalendarChronology.iso(CalendarChronology.plus(cell, length - 1, ChronoUnit.DAYS));
     }
 
     private void paintHeader(Canvas canvas, Theme theme, SizeTokens t, TextRuler ruler,
@@ -2471,8 +2479,10 @@ public class CalendarView extends Widget {
     private void stepPage(LocalDate from, int months, boolean extend) {
         Chronology chronology = chronology();
         ChronoLocalDate current = CalendarChronology.date(chronology, from);
-        LocalDate next = current == null ? from.plusMonths(months)
-                : CalendarChronology.iso(current.plus(months, ChronoUnit.MONTHS));
+        ChronoLocalDate stepped = current == null ? null
+                : CalendarChronology.plus(current, months, ChronoUnit.MONTHS);
+        LocalDate next = stepped == null ? from.plusMonths(months) // past the range: ISO's step
+                : CalendarChronology.iso(stepped);
         if (next != null) {
             moveCursor(next, extend);
         }

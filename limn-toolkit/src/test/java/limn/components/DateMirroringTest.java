@@ -173,4 +173,27 @@ class DateMirroringTest extends AccessibleComponentTestBase {
         scene.inputBatchEnded();
         frame();
     }
+
+    /**
+     * ADR 042 §9: the paging buttons swap ends reading right to left, so "previous" is on the
+     * side the reader comes from. Read off the published boxes, which are the paint's.
+     */
+    @Test
+    void thePagingButtonsSwapEndsReadingRightToLeft() {
+        bindCalendar(LayoutDirection.LTR);
+        List<AccessibleNode> ltr = pagingButtons();
+        assertTrue(ltr.get(0).x() < ltr.get(1).x(), "previous leads next, left to right");
+
+        bindCalendar(LayoutDirection.RTL);
+        List<AccessibleNode> rtl = pagingButtons();
+        assertTrue(rtl.get(0).x() > rtl.get(1).x(), "and trails it on the screen the other way");
+    }
+
+    /** The two arrows in tree order, which is reading order: back, then on. */
+    private List<AccessibleNode> pagingButtons() {
+        List<AccessibleNode> buttons = childrenOf(node(Accessible.Role.TABLE)).stream()
+                .filter(child -> child.role() == Accessible.Role.BUTTON).toList();
+        assertEquals(3, buttons.size());
+        return buttons.subList(0, 2);
+    }
 }

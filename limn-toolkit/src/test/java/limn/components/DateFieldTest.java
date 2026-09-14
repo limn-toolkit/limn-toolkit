@@ -588,4 +588,24 @@ class DateFieldTest extends ComponentTestBase {
         assertEquals(1, heard.size());
         assertEquals(field.date(), heard.get(0));
     }
+
+    /**
+     * ADR 042 §3: the era is drawn and never edited, and the caret never stops on it -- Home
+     * lands on the year beside it, Left from there stays, and what is typed there is the year.
+     */
+    @Test
+    void theCaretNeverStopsOnTheEra() {
+        build(new DateField(), JAPANESE);
+        field.setClock(IN_2026);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        key(Keys.END);
+        key(Keys.HOME);
+        assertEquals(0, field.focusedSegment(), "the first editable segment is the year");
+        key(Keys.LEFT);
+        assertEquals(0, field.focusedSegment(), "and there is nothing editable before it");
+        type("9");
+        key(Keys.RIGHT);
+        assertEquals("R9/9/9", field.text(), "the digit went into the year, not the era");
+        assertEquals(LocalDate.of(2027, 9, 9), field.date());
+    }
 }

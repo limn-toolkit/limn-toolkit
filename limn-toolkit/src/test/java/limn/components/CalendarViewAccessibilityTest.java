@@ -732,4 +732,197 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(position + " of " + size, item.positionInSet() + " of " + item.sizeOfSet(),
                 cell.name());
     }
+
+    // ------------------------------------------------------------ DT3: pins on what was untested
+
+    private static final Clock SEPTEMBER_9 =
+            Clock.fixed(Instant.parse("2026-09-09T12:00:00Z"), ZoneOffset.UTC);
+
+    private void key(int keyCode, int modifiers) {
+        scene.keyEvent(keyCode, true, false, modifiers);
+        scene.keyEvent(keyCode, false, false, modifiers);
+        scene.inputBatchEnded();
+    }
+
+    /** The centre of a published cell, which is where a click on it lands. */
+    private void pointerTo(AccessibleNode cell, boolean click) {
+        float x = cell.x() + cell.width() / 2;
+        float y = cell.y() + cell.height() / 2;
+        scene.mouseMoved(x, y);
+        if (click) {
+            scene.mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, x, y);
+            scene.mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, x, y);
+        }
+        scene.inputBatchEnded();
+    }
+
+    private List<AccessibleNode> selectedDays() {
+        return dayNodes().stream()
+                .filter(day -> day.selectionItem() != null && day.selectionItem().selected())
+                .toList();
+    }
+
+    /**
+     * ADR 042 §6: Shift with an arrow extends the band from the anchor without closing the
+     * period, and the days it covers say so to a reader while the application still holds no
+     * range; Enter closes it. Shift with PageDown extends it by a year the same way, which ADR
+     * 042 §4 did not record until this pinned it.
+     */
+    @Test
+    void shiftWithAnArrowPreviewsTheBandFromTheAnchorWithoutClosingIt() {
+        CalendarView calendar = bindCalendar();
+        calendar.setClock(SEPTEMBER_9);
+        calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
+        scene.requestFocus(calendar);
+        key(limn.input.Keys.ENTER, 0); // the anchor, on today's cell
+        key(limn.input.Keys.RIGHT, limn.input.Keys.MOD_SHIFT);
+        key(limn.input.Keys.RIGHT, limn.input.Keys.MOD_SHIFT);
+        key(limn.input.Keys.RIGHT, limn.input.Keys.MOD_SHIFT);
+        frame();
+        assertNull(calendar.selectedRange(), "a half-made period is not a period");
+        assertEquals(4, selectedDays().size(), "the anchor and the three days the band reached");
+        assertEquals(LocalDate.of(2026, 9, 12), calendar.focusedDate());
+        key(limn.input.Keys.ENTER, 0);
+        assertEquals(new DateRange(ANCHOR, LocalDate.of(2026, 9, 12)), calendar.selectedRange());
+        frame();
+        assertEquals(4, selectedDays().size(), "and the closed period says the same");
+
+        key(limn.input.Keys.ENTER, 0); // a new anchor, on the 12th
+        key(limn.input.Keys.PAGE_DOWN, limn.input.Keys.MOD_SHIFT);
+        assertEquals(LocalDate.of(2027, 9, 12), calendar.focusedDate(), "Shift+PageDown is a year");
+        assertNull(calendar.selectedRange());
+        frame();
+        assertTrue(dayNodes().get(0).selectionItem().selected(),
+                "and the band it previews runs the whole year back to the anchor");
+    }
+
+    /** ADR 042 §6: moving the pointer before the second click previews the band. */
+    @Test
+    void aPointerMovePreviewsTheBand() {
+        CalendarView calendar = bindCalendar();
+        calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
+        List<AccessibleNode> days = dayNodes();
+        pointerTo(days.get(10), true); // 9 September: the first click is the anchor
+        assertNull(calendar.selectedRange());
+        pointerTo(days.get(12), false); // the pointer over the 11th, nothing pressed
+        frame();
+        assertEquals(3, selectedDays().size(), "the 9th, 10th and 11th are the band it would make");
+        assertNull(calendar.selectedRange(), "and it is still only a preview");
+        pointerTo(dayNodes().get(12), true);
+        assertEquals(new DateRange(ANCHOR, LocalDate.of(2026, 9, 11)), calendar.selectedRange());
+    }
+
+    /** ADR 042 §4: picking a leading or trailing day pages the grid to that day's month. */
+    @Test
+    void pickingALeadingOrTrailingDayPagesTheGrid() throws InterruptedException {
+        CalendarView calendar = bindCalendar();
+        AccessibleNode october1 = dayNodes().get(32);
+        assertTrue(october1.name().startsWith("1 de outubro de 2026"), october1.name());
+        assertTrue(perform(october1.id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
+        assertEquals(LocalDate.of(2026, 10, 1), calendar.selectedDate());
+        assertEquals(LocalDate.of(2026, 10, 1), calendar.visibleMonth(), "the grid paged with it");
+        frame();
+        assertTrue(dayNodes().get(0).name().startsWith("27 de setembro de 2026"),
+                "October's grid, with September's last days leading it: " + dayNodes().get(0).name());
+        assertEquals(1, selectedDays().size());
+    }
+
+    /**
+     * ADR 042 §7: the week number is the language's own convention and not ISO's. The first
+     * week of 2027 is week 1 in the United States (Sunday start, one day is enough) and week 53
+     * of 2026 in Germany (Monday start, four days needed).
+     */
+    @Test
+    void theWeekNumberIsTheLanguagesOwn() {
+        CalendarView calendar = bindCalendar(Locale.US);
+        calendar.setShowWeekNumbers(true);
+        calendar.setVisibleMonth(LocalDate.of(2027, 1, 5));
+        frame();
+        assertEquals("1", childrenOf(rowNodes().get(0)).get(0).name());
+
+        calendar = bindCalendar(Locale.GERMANY);
+        calendar.setShowWeekNumbers(true);
+        calendar.setVisibleMonth(LocalDate.of(2027, 1, 5));
+        frame();
+        assertEquals("53", childrenOf(rowNodes().get(0)).get(0).name());
+    }
+
+    /**
+     * The Minguo calendar, which ADR 042 §12 named as verified and no test exercised: the year
+     * of the Republic with its era, in the title as in the field.
+     */
+    @Test
+    void aMinguoCalendarNamesTheRepublicsYear() {
+        CalendarView calendar = bindCalendar(Locale.forLanguageTag("zh-TW-u-ca-roc"));
+        assertEquals("Minguo", calendar.chronology().getId());
+        assertTrue(titleNode().name().contains("115"), titleNode().name());
+        calendar.setView(CalendarView.View.MONTHS);
+        frame();
+        assertEquals("民國115", titleNode().name(), "the year of the Republic, with its era");
+        calendar.setView(CalendarView.View.YEARS);
+        frame();
+        assertTrue(dayNodes().stream().map(AccessibleNode::name)
+                .anyMatch(name -> name.startsWith("民國115,")),
+                "the year on show, with its era and the (Traditional Chinese) word: " + describe(tree()));
+    }
+
+    /**
+     * The Hijri range's two ends, which ADR 042 §12 named and the fallback test in
+     * {@code CalendarViewTest} did not reach (it pointed the grid at 1750, well outside): the
+     * first and last months the chronology holds are drawn and named in it, with the leading
+     * cells before AH 1300 and the trailing cells past AH 1600 named from their ISO dates, and
+     * the month just past either end falls back to the ISO calendar rather than throwing.
+     */
+    @Test
+    void aHijriGridAtTheEndsOfItsRange() {
+        CalendarView calendar = bindCalendar(HIJRI);
+        java.time.chrono.HijrahChronology hijrah = java.time.chrono.HijrahChronology.INSTANCE;
+        LocalDate first = LocalDate.from(hijrah.date(1300, 1, 1));
+        LocalDate last = LocalDate.from(hijrah.date(1600, 12, 1));
+
+        calendar.setVisibleMonth(first);
+        frame();
+        assertTrue(titleNode().name().contains("1300"), titleNode().name());
+        assertEquals(first, calendar.visibleMonth());
+        List<AccessibleNode> days = dayNodes();
+        int firstCell = -1;
+        for (int i = 0; i < days.size(); i++) {
+            if (days.get(i).name().startsWith("Muharram 1, 1300")) {
+                firstCell = i;
+            }
+        }
+        assertTrue(firstCell >= 0, "the first day of the range is a named cell: " + describe(tree()));
+        if (firstCell > 0) {
+            assertEquals(first.minusDays(1).toString(), days.get(firstCell - 1).name(),
+                    "a day the chronology cannot hold is named from its ISO date");
+        }
+
+        calendar.setVisibleMonth(last);
+        frame();
+        assertTrue(titleNode().name().contains("1600"), titleNode().name());
+        AccessibleNode trailing = dayNodes().get(41);
+        assertTrue(trailing.name().startsWith(LocalDate.from(hijrah.date(1600, 12, 30))
+                .plusDays(1).getYear() + "-"),
+                "a trailing cell past the range is named from its ISO date: " + trailing.name());
+
+        for (LocalDate outside : List.of(first.minusDays(1), last.plusDays(40))) {
+            calendar.setVisibleMonth(outside);
+            frame();
+            String title = titleNode().name();
+            assertTrue(title.contains(String.valueOf(outside.getYear())),
+                    "no Hijri month to draw, so the ISO one is: " + title);
+        }
+
+        // Paging off either end is ISO's step and lands on the ISO month, rather than a step
+        // the chronology refuses.
+        calendar.setVisibleMonth(first);
+        frame();
+        scene.requestFocus(calendar);
+        key(limn.input.Keys.PAGE_UP, 0);
+        frame();
+        assertEquals(LocalDate.of(1882, 10, 1), calendar.visibleMonth(), titleNode().name());
+        key(limn.input.Keys.PAGE_DOWN, 0);
+        frame();
+        assertEquals(first, calendar.visibleMonth(), "and back into the range: " + titleNode().name());
+    }
 }

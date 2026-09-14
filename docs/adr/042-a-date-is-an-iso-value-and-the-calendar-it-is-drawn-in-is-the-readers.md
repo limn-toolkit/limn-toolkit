@@ -284,6 +284,13 @@ Arrow keys move by a day and a week, Home and End go to the first and last day *
 that is not the selection: it moves with the arrows and commits with Enter or Space. A grid where
 arrowing selected would fire a form's handler seven times crossing a week.
 
+**Amendment, 2026-09-14 (DT3, DT4): Home and End do not mirror, and Shift with a Page key is a
+year.** The parenthesis above contradicts §9 and the code: Home and End name the first and last
+day of the week, not a side of the row, so they do not mirror (`DateMirroringTest.upAndDownAndHomeAndEndDoNotMirror`);
+the cross-reference is §9, not §8. Shift with PageUp or PageDown steps the cursor a year, and in
+`RANGE` extends the band from the anchor as Shift with an arrow does — a binding the code always
+had and this record did not name (`CalendarViewAccessibilityTest.shiftWithAnArrowPreviewsTheBandFromTheAnchorWithoutClosingIt`).
+
 ## 5. Bounds are two dates and a predicate, and all three are enforced twice
 
 `setMinDate`, `setMaxDate` and `setDateFilter(Predicate<LocalDate>)` exist on `CalendarView`, on
@@ -319,7 +326,11 @@ by `CalendarViewTest.theCursorStopsOnARefusedDayAndEnterIsRefusedThere` and
 `CalendarView.setSelectionMode(RANGE)` makes the grid select a period: the first click sets an
 anchor, the second closes the range, the cells between them are drawn as a band, and moving the
 pointer or the keyboard cursor before the second click previews the band it would make. Shift with
-an arrow extends from the anchor. A range is `DateRange`, a record of two inclusive `LocalDate`
+an arrow extends from the anchor. (**Corrected 2026-09-14, DT4:** the pointer previews, and the
+keyboard previews only with Shift held — a plain arrow moves the cursor and leaves the band alone,
+so arrowing away from a half-made period does not drag it along; pinned by
+`CalendarViewAccessibilityTest.aPointerMovePreviewsTheBand` and
+`shiftWithAnArrowPreviewsTheBandFromTheAnchorWithoutClosingIt`.) A range is `DateRange`, a record of two inclusive `LocalDate`
 ends, normalized so `start` is never after `end`; a half-made range is not a `DateRange` and is not
 published as one — `selectedRange()` answers `null` until the period is closed.
 
@@ -584,6 +595,47 @@ correction above.
 nothing for it to land on, so the whole date published on the field's group was silently reaching
 nobody. Found by `DateFieldAccessibilityTest`, which asked the tree for it. The group now publishes
 no value at all and the segments carry them, which is §8 as it now reads.
+
+**Amendment, 2026-09-14 (DT3): what is really tested, by name.** The first paragraph of this
+section claimed more than the tests held, and seven implemented behaviours had no test at all.
+As of this date: the segment parser is `DatePatternTest`, where
+`everyPatternTheProbeRecordedParsesIntoItsOwnOrderAndSeparators` parses all eight patterns named
+above verbatim (`dd.MM.yy` and `d.M.y` were named and parsed by no test until it), beside the
+short-date orders of pt-BR, en-US, ja, ko and ar through the JDK. The chronology
+axis: `CalendarViewTest.theCalendarDrawnIsIsoUntilTheLocaleOrTheApplicationSaysOtherwise`
+(Japanese by locale, Thai Buddhist by call) and `aChronologyThatCannotHoldTheMonthFallsBackRatherThanThrowing`
+(1750, outside the Hijri range); Hijrah in `CalendarViewAccessibilityTest.aHijriGridPagesByHijriMonths`,
+`aSelectedHijriDayIsOnTheGrid`, `aHijriMonthPickedInTheChooserIsTheMonthShown` and
+`aHijriGridAtTheEndsOfItsRange` — the AH 1300 and 1600 ends this section named and no test
+reached, and writing that test found that the month before AH 1300 threw `DateTimeException` out
+of a frame (`previousMonthLength`), so every chronology step at a range's end now falls back to
+ISO (`CalendarChronology.plus`); Minguo in `aMinguoCalendarNamesTheRepublicsYear` and
+`DateFieldAccessibilityTest.anEraCalendarsYearSegmentSpeaksItsEra`; Japanese in
+`aJapaneseYearChooserPagesWithoutSkippingYearsAndNamesTheEra`,
+`DateFieldTest.anEraYearIsDrawnAtItsOwnWidthAndTypedWithUpToThreeDigits` and
+`theCaretNeverStopsOnTheEra`. Geometry and paging: `CalendarViewTest.theArrowsMoveByADayAndAWeekAndThePageKeysByAMonth`,
+`homeAndEndAreTheEndsOfTheWeekAndFollowTheLocalesFirstDay`,
+`theArrowsPageAYearInTheMonthChooserAndABlockInTheYearChooser`,
+`CalendarViewAccessibilityTest.theCellsAreCentredOnTheWidgetInEveryView` and
+`pickingALeadingOrTrailingDayPagesTheGrid`. The band: `CalendarViewTest.aPeriodTakesTwoPicksAndTheHandlerOnlyRunsForTheSecond`,
+`aPeriodPickedBackwardsIsStillOrdered`, `CalendarViewAccessibilityTest.shiftWithAnArrowPreviewsTheBandFromTheAnchorWithoutClosingIt`
+(Shift+arrow, and Shift+PageDown a year), `aPointerMovePreviewsTheBand` and
+`aSelectedDayAndEveryDayInAPeriodSaysSo`. Bounds and the filter: `CalendarViewTest.theCursorStopsOnARefusedDayAndEnterIsRefusedThere`,
+`aFilteredDayIsNotSelectableInEitherMode`, `aMonthOrYearWithNoSelectableDayInItIsNotOffered`,
+`DateFieldTest.aDateOutsideTheBoundsIsHeldAndReportedRatherThanSnapped` and
+`aFilteredDateIsInvalidWithItsOwnMessage`. Week numbers and marks:
+`theWeekNumberColumnAddsAColumnAndNotARow`, `theWeekNumberIsTheLanguagesOwn` (week 1 in en-US
+and 53 in de-DE for the same row) and `whatAMarkSaysReachesTheReaderAndNotOnlyTheEye`. Paste and
+typed runs: `DateFieldTest.aPastedTwoDigitYearIsTheSameCenturyEveryWayItIsWritten`,
+`aPastedRunKeepsItsLeadingZero`, `anOverlongPasteChangesNothingAndThrowsNothing`,
+`aPastedImpossibleMonthOrDayIsRefusedWhole` and `aTypedIsoRunCommitsTheSameDayAsTheLanguagesForm`.
+The accessible trees: the four `*AccessibilityTest` classes (`DatePickerAccessibilityTest` since
+decision 55) and limn-demo's `DatePickerNativePopupTest`; the mirroring: `DateMirroringTest` (columns, the week column, tree
+order, Left and Right, Up/Down/Home/End, the field's run, and now the paging buttons' ends); the
+ADR 040 obligations: the three rows of `NotificationContractTest`. Two test names overclaimed and
+were corrected the same day: `DatePickerTest.whileTheGridIsOpenTheNavigationKeysDriveItAndTheDigitsStillReachTheField`
+now types the digits it names, and `boundsAndTheFilterRefuseADayRatherThanMovingIt`, which
+pressed no key, is `theCursorStopsOnARefusedDayAndEnterIsRefusedThere`.
 
 **Still owed, and named so it is not forgotten:** a live reader run on each of the three guests over
 the demo's date scene — the same discipline ADR 039 and ADR 041 were held to, which is what found
