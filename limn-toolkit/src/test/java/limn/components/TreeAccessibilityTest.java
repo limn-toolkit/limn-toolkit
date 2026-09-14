@@ -471,8 +471,185 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         tree.setSelectionMode(Tree.SelectionMode.NONE);
         frame();
         for (AccessibleNode row : rowNodes()) {
-            assertNull(row.actions(), "nothing to select, so no verb on any row: " + describe(tree()));
+            assertFalse(row.actions().has(Accessible.Action.SELECT),
+                    "nothing to select, so no SELECT on any row: " + describe(tree()));
+            assertTrue(row.actions().has(Accessible.Action.FOCUS),
+                    "but the cursor still moves, so FOCUS stays: " + describe(tree()));
         }
+    }
+
+    /**
+     * Every verb a row publishes reaches the tree and does what the equivalent gesture does
+     * (decisions 7, 20 and 11 of 2026-09-14; ADR 039 §1.5 amended): EXPAND and COLLAPSE act like
+     * the triangle and leave the cursor where it is; FOCUS moves the cursor and nothing else,
+     * and takes the keyboard so the cursor is published; SCROLL_INTO_VIEW reveals the row; the
+     * tree's own PRESS activates the cursor row. Before, a row carried SELECT alone and EXPAND
+     * and COLLAPSE sat on the tree, acting on whatever row the cursor was on.
+     */
+    @Test
+    void aRowsVerbsReachTheTreeAndActOnThatRowNotTheCursor() throws Exception {
+        Node readme = Node.leaf("readme");
+        Node docs = Node.of("docs", Node.leaf("a.md"), Node.leaf("b.md"));
+        Node top = Node.of("root", docs, readme);
+        bindTree(ROW_H, List.of(top));
+        tree.expand(top);
+        tree.setSelected(readme);
+        List<Node> activated = new ArrayList<>();
+        tree.onActivate(activated::add);
+        frame();
+
+        assertTrue(perform(node("docs").id(), Accessible.Action.EXPAND, Accessible.Argument.NONE));
+        frame();
+        assertTrue(tree.isExpanded(docs), "EXPAND on the row opened it: " + describe(tree()));
+        assertEquals(readme, tree.cursorNode(), "like the triangle, without moving the cursor");
+        assertEquals(List.of(readme), tree.selectedNodes(), "or the selection");
+        assertTrue(node("docs").actions().has(Accessible.Action.COLLAPSE), describe(tree()));
+
+        assertTrue(perform(node("docs").id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE));
+        frame();
+        assertFalse(tree.isExpanded(docs), "COLLAPSE on the row closed it: " + describe(tree()));
+        assertEquals(readme, tree.cursorNode());
+
+        assertTrue(nodesWith(Accessible.State.ACTIVE).isEmpty(),
+                "nobody is in the tree yet, so no row is the cursor: " + describe(tree()));
+        assertTrue(perform(node("docs").id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        frame();
+        assertEquals(docs, tree.cursorNode(), "FOCUS moved the cursor onto the row");
+        assertEquals(List.of(readme), tree.selectedNodes(), "and selected nothing (decision 11)");
+        assertEquals(treeNode().id(), tree().focused(), "and took the keyboard: " + describe(tree()));
+        assertTrue(node("docs").has(Accessible.State.ACTIVE),
+                "so the row is published as the cursor: " + describe(tree()));
+        assertEquals(node("docs").id(), tree().activeDescendant(), describe(tree()));
+
+        assertTrue(perform(treeNode().id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(docs), activated,
+                "the tree's PRESS activates the cursor row, which is not the selected one");
+    }
+
+    /** {@code SCROLL_INTO_VIEW} on a row that sits half under the top edge brings it back. */
+    @Test
+    void scrollIntoViewOnARowRevealsIt() throws Exception {
+        bindTree(ROW_H, leaves(40));
+        tree.scrollBy(ROW_H / 2);
+        frame();
+        AccessibleNode first = node("row 1");
+        assertEquals(-ROW_H / 2, first.y() - tree.localToSceneY(), 1e-3,
+                "half of the first row is above the box: " + describe(tree()));
+        assertTrue(first.actions().has(Accessible.Action.SCROLL_INTO_VIEW), describe(tree()));
+
+        assertTrue(perform(first.id(), Accessible.Action.SCROLL_INTO_VIEW, Accessible.Argument.NONE));
+        frame();
+
+        assertEquals(0, node("row 1").y() - tree.localToSceneY(), 1e-3,
+                "and the reveal scrolled it back into the box: " + describe(tree()));
+    }
+
+    /**
+     * In {@code MULTI} an unselected row publishes {@code ADD_TO_SELECTION} and a selected one
+     * {@code DESELECT} (decisions 10 and 20), each performed as the command-click that toggles
+     * the row; the one a row did not publish does nothing, which is what the published list
+     * promises (semantics 5).
+     */
+    @Test
+    void inMultiARowOffersToJoinOrLeaveTheSelectionByItsState() throws Exception {
+        Node one = Node.leaf("one");
+        Node two = Node.leaf("two");
+        bindTree(ROW_H, List.of(one, two, Node.leaf("three")));
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelected(one);
+        frame();
+        assertTrue(treeNode().selection().multiSelectable(), describe(tree()));
+        assertTrue(node("one").actions().has(Accessible.Action.DESELECT), describe(tree()));
+        assertFalse(node("one").actions().has(Accessible.Action.ADD_TO_SELECTION));
+        assertTrue(node("two").actions().has(Accessible.Action.ADD_TO_SELECTION), describe(tree()));
+        assertFalse(node("two").actions().has(Accessible.Action.DESELECT));
+
+        assertTrue(perform(node("two").id(), Accessible.Action.ADD_TO_SELECTION,
+                Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(one, two), tree.selectedNodes(), "two joined, one stayed");
+        assertEquals(two, tree.leadNode());
+        assertEquals(two, tree.cursorNode());
+        assertTrue(node("two").actions().has(Accessible.Action.DESELECT),
+                "and its verb turned over: " + describe(tree()));
+
+        assertTrue(perform(node("one").id(), Accessible.Action.ADD_TO_SELECTION,
+                Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(one, two), tree.selectedNodes(),
+                "a verb the row did not publish does nothing: " + describe(tree()));
+
+        assertTrue(perform(node("one").id(), Accessible.Action.DESELECT, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(two), tree.selectedNodes(), "one left");
+        assertEquals(two, tree.leadNode(), "the lead was already elsewhere");
+        assertEquals(one, tree.cursorNode(), "and the cursor is on the row that was addressed");
+
+        tree.setSelectionMode(Tree.SelectionMode.SINGLE);
+        frame();
+        for (AccessibleNode row : rowNodes()) {
+            assertFalse(row.actions().has(Accessible.Action.ADD_TO_SELECTION),
+                    "SINGLE has nothing to add to: " + describe(tree()));
+            assertFalse(row.actions().has(Accessible.Action.DESELECT));
+        }
+    }
+
+    /**
+     * A control inside a cell keeps its own verbs: the tree claims the row's verbs on the cell
+     * and nothing on what the cell holds, so a reader's {@code PRESS} on a button in a row
+     * reaches the button, and {@code SELECT} on the row reaches the tree.
+     */
+    @Test
+    void aControlInsideACellKeepsItsOwnVerbs() throws Exception {
+        Node one = Node.leaf("one");
+        Node two = Node.leaf("two");
+        List<String> pressed = new ArrayList<>();
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(one, two);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                limn.scene.layout.Row row = new limn.scene.layout.Row();
+                row.add(limn.scene.layout.Expanded.of(new Label(node.name().english())));
+                Button open = new Button("Open " + node.name().english());
+                open.onAction(() -> pressed.add(node.name().english()));
+                row.add(open);
+                return row;
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.setTextRuler(RULER);
+        frame();
+
+        AccessibleNode rowTwo = rowNodes().get(1);
+        AccessibleNode button = node("Open two");
+        assertTrue(button.actions().has(Accessible.Action.PRESS), describe(tree()));
+        assertFalse(button.actions().has(Accessible.Action.SELECT),
+                "the row's verbs are the cell's, not the button's: " + describe(tree()));
+        assertTrue(rowTwo.actions().has(Accessible.Action.SELECT), describe(tree()));
+        assertFalse(rowTwo.actions().has(Accessible.Action.PRESS),
+                "and the button's is not the row's: " + describe(tree()));
+
+        assertTrue(perform(button.id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of("two"), pressed, "the button's own handler ran");
+        assertTrue(tree.selectedNodes().isEmpty(), "and the tree selected nothing for it");
+
+        assertTrue(perform(rowTwo.id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(two), tree.selectedNodes(), "SELECT on the row reached the tree");
+        assertEquals(List.of("two"), pressed, "and pressed nothing");
     }
 
     /**
@@ -512,13 +689,21 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             assertEquals(siblings[i], row.selectionItem().sizeOfSet(),
                     "against its parent's children: the root is 1 of 1, and both of its "
                             + "children are of 2: " + describe(tree()));
-            assertNotNull(row.actions(), "a row carries the verb the tree delegated onto it: "
+            assertNotNull(row.actions(), "a row carries the verbs the tree delegated onto it: "
                     + describe(tree()));
-            assertEquals(java.util.Set.of(Accessible.Action.SELECT), row.actions().actions(),
-                    "a row carries the one verb the tree delegated onto it (ADR 039 §1.5, "
-                            + "amended 2026-09-14); the rest stays the tree's until the Tree "
-                            + "lane's row verb set: " + describe(tree()));
         }
+        // The row verb set (decision 20): SELECT in SINGLE, EXPAND or COLLAPSE by state on a row
+        // that can open, and the free pair on every row, because a cell is not focusable and
+        // the cursor is not the selection (decision 11). PRESS is the tree's.
+        assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.COLLAPSE,
+                        Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW),
+                rows.get(0).actions().actions(), "an open row: " + describe(tree()));
+        assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.EXPAND,
+                        Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW),
+                rows.get(1).actions().actions(), "a closed row: " + describe(tree()));
+        assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.FOCUS,
+                        Accessible.Action.SCROLL_INTO_VIEW),
+                rows.get(2).actions().actions(), "a leaf: " + describe(tree()));
 
         assertNotNull(rows.get(0).expand(), describe(tree()));
         assertTrue(rows.get(0).expand().expanded(), "the root is open");
@@ -535,8 +720,12 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(rows.get(1).id(), tree().activeDescendant(),
                 "the tree's cursor is the first active node below the focused one: "
                         + describe(tree()));
-        assertTrue(outline.actions().actions().contains(Accessible.Action.EXPAND),
-                "the lead row is closed, so the tree offers to open it: " + describe(tree()));
+        assertTrue(outline.actions().has(Accessible.Action.PRESS),
+                "the tree's one verb of its own acts on the cursor row: " + describe(tree()));
+        assertFalse(outline.actions().has(Accessible.Action.EXPAND),
+                "opening and closing a row are the row's, not the tree's (decision 20): "
+                        + describe(tree()));
+        assertFalse(outline.actions().has(Accessible.Action.COLLAPSE));
 
         tree.expand(docs);
         frame();
@@ -560,9 +749,9 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         for (AccessibleNode row : rows) {
             assertEquals(Accessible.Role.TREE_ITEM, row.role(), describe(tree()));
         }
-        assertTrue(treeNode().actions().actions().contains(Accessible.Action.COLLAPSE),
-                "and the verb turns over with it: " + describe(tree()));
-        assertFalse(treeNode().actions().actions().contains(Accessible.Action.EXPAND));
+        assertTrue(opened.actions().actions().contains(Accessible.Action.COLLAPSE),
+                "and the row's verb turns over with it: " + describe(tree()));
+        assertFalse(opened.actions().actions().contains(Accessible.Action.EXPAND));
     }
 
     /**

@@ -705,17 +705,19 @@ public class Tree<T> extends Widget implements Scrollable {
     public Tree<T> setSelectionMode(SelectionMode mode) {
         Ui.checkUiThread();
         this.selectionMode = Objects.requireNonNull(mode, "mode");
+        // Damaged whether or not the selection moves: the mode is published (the tree's
+        // multi-selectable flag, the verbs each row carries), and a publish rides on a damaged
+        // frame. Found by a reader still offered ADD_TO_SELECTION on a tree set back to SINGLE.
+        invalidate();
         if (mode == SelectionMode.NONE && !selected.isEmpty()) {
             selected.clear();
             lead = null;
-            invalidate();
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         } else if (mode == SelectionMode.SINGLE && selected.size() > 1) {
             T keep = lead != null && selected.contains(lead) ? lead : selected.iterator().next();
             selected.clear();
             selected.add(keep);
             lead = keep;
-            invalidate();
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         }
         return this;
@@ -1880,17 +1882,11 @@ public class Tree<T> extends Widget implements Scrollable {
         a.scrollFrom(offsetX, Math.max(0, contentWidth - viewW), viewW, contentWidth,
                 estimatedOffset(t), Math.max(0, content - viewport), viewport, content);
         if (cursor != null) {
-            // PRESS stays on the tree and acts on the cursor row, in every mode (decision 32).
+            // PRESS stays on the tree and acts on the cursor row, in every mode (decision 32 of
+            // 2026-09-14). Every other verb is a row's own, delegated below (decision 20): the
+            // tree carried EXPAND and COLLAPSE for the cursor row until then, and a reader that
+            // addresses a row now finds them on the row.
             a.action(Accessible.Action.PRESS);
-            int index = indexOf(cursor);
-            if (index >= 0 && rows.get(index).expandable) {
-                // These two sit on the tree and act on the cursor row. A row's own verbs reach
-                // the tree by delegation (onAccessibilityChildAction, ADR 039 §1.5 amended
-                // 2026-09-14): SELECT is delegated below; EXPAND and COLLAPSE per row are the
-                // Tree lane's (decision 20).
-                a.action(rows.get(index).expanded
-                        ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
-            }
         }
     }
 
@@ -1956,53 +1952,105 @@ public class Tree<T> extends Widget implements Scrollable {
             // actually in a cursor it does not have.
             a.state(Accessible.State.ACTIVE);
         }
+        // The row's own verbs, published on the cell a reader addresses and performed by the
+        // tree through onAccessibilityChildAction (ADR 039 §1.5, amended 2026-09-14; decisions
+        // 7 and 20): the cell is the application's widget and knows nothing of selection or
+        // expansion. Each is published by the row's current state, so the list a reader sees is
+        // exactly what the row accepts (semantics 5).
         if (selectionMode != SelectionMode.NONE) {
-            // The row's own SELECT, published on the cell a reader addresses and performed by
-            // the tree (ADR 039 §1.5, amended 2026-09-14; decision 7): the cell is the
-            // application's widget and knows nothing of selection. The rest of the row verb set
-            // (decision 20) is the Tree lane's.
             a.delegate(Accessible.Action.SELECT);
+            if (selectionMode == SelectionMode.MULTI) {
+                a.delegate(selected.contains(row.node)
+                        ? Accessible.Action.DESELECT : Accessible.Action.ADD_TO_SELECTION);
+            }
+        }
+        if (row.expandable) {
+            a.delegate(row.expanded ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
+        }
+        if (!child.isFocusable()) {
+            // FOCUS moves the cursor without selecting, which is what decision 11 lets an item
+            // publish where the cursor and the selection are separate; SCROLL_INTO_VIEW reveals
+            // the row. Both are the walk's own on a focusable widget, and a cell that is one
+            // keeps them as the scene's free pair (Accessibility.freeVerbs refuses the claim).
+            a.delegate(Accessible.Action.FOCUS);
+            a.delegate(Accessible.Action.SCROLL_INTO_VIEW);
         }
     }
 
     /**
-     * A verb the tree claimed on a row's cell: {@code SELECT} makes that row the selection, as a
-     * click on it does, through the same {@code USER} seam.
+     * A verb the tree claimed on a row's cell, each through the seam the equivalent gesture
+     * takes at {@code USER}: {@code SELECT} is a click on the row; {@code ADD_TO_SELECTION} and
+     * {@code DESELECT} are the command-click that toggles it, accepted only in the state that
+     * published them; {@code EXPAND} and {@code COLLAPSE} are the triangle, which never moves
+     * the cursor; {@code FOCUS} moves the cursor onto the row and nothing else, taking the
+     * keyboard so the cursor is published; {@code SCROLL_INTO_VIEW} reveals the row. A verb the
+     * row did not publish is refused, which the platform never learns of (the published list is
+     * the only refusal it sees, ADR 039 §1.5).
      */
     @Override
     protected boolean onAccessibilityChildAction(Widget child, long key, Accessible.Action action,
                                                  Accessible.Argument arg) {
         Row<T> row = rowOfCell(child);
-        if (row == null || action != Accessible.Action.SELECT
-                || selectionMode == SelectionMode.NONE) {
-            return false;
-        }
-        selectOnly(row.node, true, Change.Origin.USER);
-        return true;
-    }
-
-    @Override
-    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        if (cursor == null) {
+        if (row == null) {
             return false;
         }
         switch (action) {
-            case PRESS -> {
-                activate(Change.Origin.USER);
+            case SELECT -> {
+                if (selectionMode == SelectionMode.NONE) {
+                    return false;
+                }
+                selectOnly(row.node, true, Change.Origin.USER);
                 return true;
             }
-            case EXPAND -> {
-                setExpanded(cursor, true, Change.Origin.USER);
+            case ADD_TO_SELECTION, DESELECT -> {
+                boolean member = selected.contains(row.node);
+                if (selectionMode != SelectionMode.MULTI
+                        || member != (action == Accessible.Action.DESELECT)) {
+                    return false;
+                }
+                toggleSelection(row.node, Change.Origin.USER);
                 return true;
             }
-            case COLLAPSE -> {
-                setExpanded(cursor, false, Change.Origin.USER);
+            case EXPAND, COLLAPSE -> {
+                boolean open = action == Accessible.Action.EXPAND;
+                if (!row.expandable || row.expanded == open) {
+                    return false;
+                }
+                setExpanded(row.node, open, Change.Origin.USER);
+                return true;
+            }
+            case FOCUS -> {
+                requestFocus();
+                moveCursor(row.node, Change.Origin.USER);
+                return true;
+            }
+            case SCROLL_INTO_VIEW -> {
+                revealNode(row.node);
                 return true;
             }
             default -> {
                 return false;
             }
         }
+    }
+
+    /** Moves the cursor onto {@code node} and nothing else: revealed, damaged, announced. */
+    private void moveCursor(T node, Change.Origin origin) {
+        T wasCursor = cursor;
+        cursor = node;
+        revealNode(node);
+        damageCursorMove(wasCursor);
+        announceCursor(wasCursor, origin);
+    }
+
+    /** The tree's one verb of its own: {@code PRESS} activates the cursor row (decision 32). */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        if (cursor == null || action != Accessible.Action.PRESS) {
+            return false;
+        }
+        activate(Change.Origin.USER);
+        return true;
     }
 
     /** A node's identifier, stable for as long as the tree holds the node. */
