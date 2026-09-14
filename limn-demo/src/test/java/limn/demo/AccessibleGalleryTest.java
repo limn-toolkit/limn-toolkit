@@ -326,13 +326,17 @@ class AccessibleGalleryTest {
 
     /**
      * One UI runtime, one palette, one headless backend: what a dynamic test stands up and tears
-     * down, since a test factory runs its lifecycle once for every test it makes.
+     * down, since a test factory runs its lifecycle once for every test it makes. Shared with
+     * {@link VerbPolicyRatchetTest}, which drives the same entries the same way.
      */
-    private static final class Harness implements AutoCloseable {
+    static final class Harness implements AutoCloseable {
         private final ExecutorService workers = Executors.newFixedThreadPool(1);
         private final UiRuntime runtime;
         private final HeadlessBackend backend;
         private long nanos;
+
+        /** The scene each {@link #show} bound, in order: what a test observes changes on. */
+        final List<Scene> scenes = new ArrayList<>();
 
         Harness(Palette palette) {
             runtime = new UiRuntime(() -> nanos, () -> { }, workers);
@@ -356,6 +360,7 @@ class AccessibleGalleryTest {
             Built built = entry.build();
             HeadlessWindow window = backend.open(entry.name(), WIDTH, HEIGHT);
             Scene scene = new Scene(built.root(), () -> nanos);
+            scenes.add(scene);
             scene.bind(window);
             window.frame();
             window.desktopFocus(true);
@@ -391,14 +396,24 @@ class AccessibleGalleryTest {
         }
 
         /** Renders every window in turn, one frame of scene time apart, until all settled. */
-        private void settle() {
-            for (int i = 0; i < SETTLE_FRAMES; i++) {
+        void settle() {
+            settle(SETTLE_FRAMES);
+        }
+
+        /** Renders every window in turn, one frame of scene time apart, {@code frames} times. */
+        void settle(int frames) {
+            for (int i = 0; i < frames; i++) {
                 nanos += FRAME_NANOS;
                 runtime.drain();
                 for (HeadlessWindow window : backend.windows()) {
                     window.frame();
                 }
             }
+        }
+
+        /** @return every window the backend holds now, the entry's own first */
+        List<HeadlessWindow> windows() {
+            return backend.windows();
         }
 
         @Override

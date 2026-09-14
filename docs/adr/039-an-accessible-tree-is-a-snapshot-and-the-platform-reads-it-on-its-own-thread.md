@@ -994,7 +994,7 @@ A widget that answers a synonym publishes the synonym: a menu title that opens o
 `SHOW_MENU` says so in its action list (the widget lanes' change, with the goldens), and a check row
 that toggles publishes `TOGGLE`. The routing of a verb a container claims on a widget child is the
 next amendment; the ratchet that performs every unpublished verb on every gallery node and asserts
-nothing moved is M4's and is written below this when it lands.
+nothing moved is the one after it.
 
 **Amendment, 2026-09-14: six hooks, because a container may claim a verb on a widget child and
 the walk routes it (decision 7; T3, W6, TREE-MISS-8).** A sixth hook,
@@ -1056,6 +1056,23 @@ captions in flight down the tree. The consumer is the dates lane's: a single `Da
 its field; a range picker keeps the caption on the group and names its fields "Start date" and
 "End date" (decision 55). Pinned by `LabelForAccessibilityTest` (the redirect, the chain, the
 child's own caption winning, the stranger refused).
+
+**Amendment, 2026-09-14: the verb policy is ratcheted over the gallery.** `limn-demo`'s
+`VerbPolicyRatchetTest` performs, on every node of every `AccessibilityGallery` entry, every
+parameterless verb the node does not publish, through the same `Host#perform` a bridge uses, and
+asserts that nothing moved: every window's transcript is the same afterwards and the scene
+announced no change. A node that accepts an unpublished verb is listed there by the item that
+owns the fix, and an entry whose node no longer accepts anything unpublished is refused as stale,
+so the list can only shrink. Its first run found three shapes: `MenuBar` titles and a `PopupMenu`
+submenu row accept `EXPAND` and `PRESS` as synonyms of `SHOW_MENU` (CRIT-1; the widget lane
+publishes them, per the rule above), and every `Table` cell and column header accepts `SELECT`,
+which only the row publishes — and reads the cell's key as a row index, so a select on cell (0, 1)
+selects row 1 (TABLE-NEW-13, the Table lane's). Two expectations of the pass were not borne out and
+are not listed: the open `DatePicker`'s group refuses everything under its modal overlay (the
+closed picker is the dates lane's gallery entry to add, and the ratchet covers it the moment it
+exists), and `CalendarView`'s title refuses `EXPAND` rather than accepting it — WINDOWS-NEW-10 is
+a bridge vending a pattern for a verb the node does not publish, which semantics 5 closes on the
+bridge side.
 
 **What a widget gets for free, with no override at all:** bounds from `x/y/width/height`; `ENABLED`,
 `FOCUSABLE`, `FOCUSED`, `VISIBLE` and `SHOWING` from the existing predicates; `locale()` for the

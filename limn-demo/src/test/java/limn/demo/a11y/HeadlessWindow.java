@@ -53,6 +53,19 @@ public final class HeadlessWindow implements NativeWindow {
         /** How many trees were handed over. */
         public int publishes;
 
+        /** The scene-side half this bridge holds, through which a test performs a verb. */
+        public volatile Host host;
+
+        @Override
+        public void attach(Host newHost) {
+            host = newHost;
+        }
+
+        @Override
+        public void detach() {
+            host = null;
+        }
+
         @Override
         public boolean isListening() {
             return true;
