@@ -16,6 +16,9 @@ import limn.components.TextField;
 import limn.components.chart.BarChart;
 import limn.components.chart.DonutChart;
 import limn.components.chart.LineChart;
+import limn.components.date.CalendarView;
+import limn.components.date.DateField;
+import limn.components.date.DatePicker;
 import limn.components.VideoView;
 import limn.components.Viewport3D;
 import limn.scene.Widget;
@@ -76,6 +79,9 @@ final class Films {
             case "viewport-3d" -> Films::viewport3d;
             case "checkbox" -> Films::checkbox;
             case "combo-box" -> Films::comboBox;
+            case "date-field" -> Films::dateField;
+            case "date-picker" -> Films::datePicker;
+            case "calendar-view" -> Films::calendarView;
             case "media-controls" -> Films::mediaControls;
             case "slider" -> Films::slider;
             case "spinner" -> Films::spinner;
@@ -487,6 +493,133 @@ final class Films {
                 .hold(LOOK)
                 .press().hold(6).release()
                 .hold(LOOK + 8);
+    }
+
+    /**
+     * A date typed the way a person types one: the month clicked, two digits, and the caret
+     * rolling on by itself to the day, which takes two more (decision 58).
+     *
+     * <p>No arrow key and no Tab, because a film delivers a pointer and characters and nothing
+     * else; what the film claims is the segmenting, which a still of "9/9/2026" cannot carry --
+     * that the field is three places a digit goes, and that a finished segment hands the caret
+     * to the next one.
+     */
+    private static Motion dateField(GalleryScenes.Built built) {
+        Widget field = find(built, DateField.class, 0);
+        return Motion.script()
+                .from(OFF_X, OFF_Y)
+                // The language is pinned to English for the capture, so the month leads.
+                .to(field, 0.14f, 0.5f, TRAVEL)
+                .hold(SETTLE)
+                .press().hold(6).release()
+                // To the field's far corner, so the digits are not typed under the arrow. Not
+                // off the field: a glide must end where a press would land on its target.
+                .to(field, 0.96f, 0.85f, 10)
+                .type("12", 6)
+                .hold(SETTLE)
+                .type("25", 6)
+                .hold(LOOK + 12);
+    }
+
+    /**
+     * The calendar opened from its button, a day hovered and picked, and the card gone with the
+     * field holding that day (decision 58).
+     *
+     * <p>The popup is asked for IN_SCENE here and never in the published sample, for the combo
+     * box's reason: a native calendar is a second window, absent from this window's framebuffer.
+     * The scene reserves the card's room under the field (GalleryScenes, the combo box's reason
+     * too), so the crop the site makes holds the whole card.
+     *
+     * <p>The card's fade in and out are what cost the bytes, and they cannot be avoided if the
+     * card is in the film at all; so there is one open and one close, and no second visit.
+     */
+    private static Motion datePicker(GalleryScenes.Built built) {
+        DatePicker picker = (DatePicker) find(built, DatePicker.class, 0);
+        picker.setDisplayMode(DisplayMode.IN_SCENE);
+        return Motion.script()
+                .from(OFF_X, OFF_Y)
+                // The trailing button: the last square of the box, on the side reading ends.
+                .to(picker, 0.93f, 0.5f, TRAVEL)
+                .hold(SETTLE)
+                .press().hold(6).release()
+                .hold(LOOK)
+                .to("the open calendar", () -> openCalendar(built),
+                        DAY_17_X, DAY_17_Y, 16)
+                .hold(SETTLE)
+                .press().hold(6).release()
+                .hold(LOOK + 12);
+    }
+
+    /**
+     * Where 17 September 2026 sits on the open card's calendar, as fractions of its box: read off
+     * the first capture's frames (Sunday first, no week numbers), not computed from the layout.
+     */
+    private static final float DAY_17_X = 0.64f;
+    private static final float DAY_17_Y = 0.54f;
+
+    /**
+     * A period swept with the pointer and closed, then the next month and back again
+     * (decision 58).
+     *
+     * <p>The sweep is the claim a still cannot carry: between the first click and the second the
+     * band follows the pointer, and the weekends the filter refuses stay out of it. Then the
+     * paging, which is what a period that crosses a month needs; back again so the loop ends on
+     * the month it began on.
+     */
+    private static Motion calendarView(GalleryScenes.Built built) {
+        Widget calendar = find(built, CalendarView.class, 0);
+        return Motion.script()
+                .from(OFF_X, OFF_Y)
+                // Tuesday 8 September: the first click is the anchor.
+                .to(calendar, CAL_TUE_X, CAL_WEEK_2_Y, TRAVEL)
+                .hold(SETTLE)
+                .press().hold(6).release()
+                .hold(SETTLE)
+                // Across and down to Thursday the 17th, the band trailing the pointer over the
+                // weekend the filter refuses.
+                .to(calendar, CAL_THU_X, CAL_WEEK_3_Y, 20)
+                .hold(SETTLE)
+                .press().hold(6).release()
+                .hold(LOOK)
+                .to(calendar, CAL_NEXT_X, CAL_HEADER_Y, 16)
+                .hold(SETTLE)
+                .press().hold(6).release()
+                .hold(LOOK)
+                .to(calendar, CAL_PREVIOUS_X, CAL_HEADER_Y, 16)
+                .hold(SETTLE)
+                .press().hold(6).release()
+                .hold(LOOK + 8);
+    }
+
+    /**
+     * The calendar entry's cells and arrows, as fractions of its box (week numbers on, Sunday
+     * first), read off the first capture's frames rather than computed from the layout.
+     */
+    private static final float CAL_TUE_X = 0.423f;
+    private static final float CAL_THU_X = 0.669f;
+    private static final float CAL_WEEK_2_Y = 0.416f;
+    private static final float CAL_WEEK_3_Y = 0.54f;
+    private static final float CAL_HEADER_Y = 0.086f;
+    private static final float CAL_PREVIOUS_X = 0.085f;
+    private static final float CAL_NEXT_X = 0.915f;
+
+    /**
+     * The calendar on the date picker's open card: the in-scene overlay's one CalendarView.
+     * Throws rather than aiming at a card that is not open.
+     */
+    private static Widget openCalendar(GalleryScenes.Built built) {
+        Widget layer = overlay(built);
+        if (layer == null) {
+            throw new IllegalStateException("a film step aims into the date picker's card and none"
+                    + " is open; the click on its button either missed or has not been given"
+                    + " enough frames to be dispatched and laid out");
+        }
+        List<Widget> calendars = under(layer, CalendarView.class);
+        if (calendars.size() != 1) {
+            throw new IllegalStateException("the overlay holding the card carries "
+                    + calendars.size() + " calendars, not the one this aims at: " + names(layer));
+        }
+        return calendars.get(0);
     }
 
     /**
