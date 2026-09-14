@@ -295,6 +295,148 @@ class DateFieldTest extends ComponentTestBase {
         assertTrue(field.text().contains("--"), field.text());
     }
 
+    // ----------------------------------------------- typed and pasted input (DATES-NEW-9, decision 57)
+
+    private final TextFieldTest.MockClipboard clipboard = new TextFieldTest.MockClipboard();
+
+    private void paste(String text) {
+        scene.setClipboard(clipboard);
+        clipboard.set(text);
+        scene.keyEvent(Keys.V, true, false, Keys.MOD_CONTROL);
+        scene.keyEvent(Keys.V, false, false, Keys.MOD_CONTROL);
+        scene.inputBatchEnded();
+    }
+
+    @Test
+    void aPastedTwoDigitYearIsTheSameCenturyEveryWayItIsWritten() {
+        build(new DateField(), PT_BR);
+        field.setClock(IN_2026);
+        paste("31/12/26");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(),
+                "the language's own form: 'dd/MM/y' parsed 26 as the year 26 before");
+        assertTrue(field.isValid());
+        paste("31122026");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(), "the digit run, four-digit year");
+        paste("311226");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(), "the digit run, two-digit year");
+        paste("31/12/85");
+        assertEquals(LocalDate.of(1985, 12, 31), field.date(), "eighty years back is the window's start");
+        paste("31/12/45");
+        assertEquals(LocalDate.of(2045, 12, 31), field.date(), "and nineteen ahead its end");
+        paste("31/12/0026");
+        assertEquals(LocalDate.of(26, 12, 31), field.date(),
+                "four digits are what was meant, however small; the bounds are the application's");
+    }
+
+    @Test
+    void theTwoDigitYearWindowIsAdjustableAndCanBeTurnedOff() {
+        build(new DateField(), PT_BR);
+        field.setClock(IN_2026);
+        field.setTwoDigitYearWindow(20);
+        paste("31/12/85");
+        assertEquals(LocalDate.of(2085, 12, 31), field.date(), "2006 to 2105 now");
+        assertThrows(IllegalArgumentException.class, () -> field.setTwoDigitYearWindow(100));
+
+        field.setTwoDigitYearWindow(DateField.REFUSE_TWO_DIGIT_YEARS);
+        paste("31/12/26");
+        assertNull(field.date(), "no guess: the year is left blank");
+        assertEquals("31/12/----", field.text());
+        assertFalse(field.isValid(), "and the field says it is incomplete");
+        paste("311226");
+        assertEquals("31/12/----", field.text(), "the digit run the same way");
+        paste("31/12/2026");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(), "four digits need no guess");
+    }
+
+    @Test
+    void aPastedRunKeepsItsLeadingZero() {
+        build(new DateField(), PT_BR);
+        paste("01022026");
+        assertEquals(LocalDate.of(2026, 2, 1), field.date(),
+                "Integer.toString dropped the zero and a seven-digit run matched nothing");
+        paste("0102");
+        assertEquals(LocalDate.of(2026, 2, 1), field.date(), "too short to be a date: untouched");
+    }
+
+    @Test
+    void anOverlongPasteChangesNothingAndThrowsNothing() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        List<Throwable> crashed = new ArrayList<>();
+        limn.backend.CrashHandler handler = (phase, error) -> {
+            crashed.add(error);
+            return true;
+        };
+        limn.backend.Crashes.install(handler);
+        try {
+            paste("123456789012");
+            paste("1234567890123456789012345");
+            paste("12345/12345/2026");
+        } finally {
+            limn.backend.Crashes.uninstall(handler);
+        }
+        assertEquals(LocalDate.of(2026, 9, 9), field.date(), "not a date: the value stands");
+        assertEquals(List.of(), crashed,
+                "and nothing threw out of the key handler (Integer.parseInt over the whole run did)");
+    }
+
+    @Test
+    void aPastedImpossibleMonthOrDayIsRefusedWhole() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        paste("31/13/2026");
+        assertEquals(LocalDate.of(2026, 9, 9), field.date(), "a thirteenth month is no date");
+        assertEquals("09/09/2026", field.text(), "and no segment was written above its range");
+        paste("32/01/2026");
+        assertEquals("09/09/2026", field.text());
+        paste("31/02/2026");
+        assertEquals(LocalDate.of(2026, 2, 28), field.date(),
+                "a day past a short month is the last day of it, as typing 31 into February is");
+    }
+
+    @Test
+    void aTypedIsoRunCommitsTheSameDayAsTheLanguagesForm() {
+        build(new DateField(), PT_BR);
+        type("2026-12-31");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(),
+                "typed segment by segment into a day-first field this was 0001-02-20");
+        assertTrue(field.isValid());
+        assertEquals(2, field.focusedSegment(), "the caret ends on the last segment");
+
+        build(new DateField(), EN_US);
+        type("2026-12-31");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date());
+
+        build(new DateField().setGranularity(DateField.Granularity.MONTH), PT_BR);
+        type("2026-12");
+        assertEquals(LocalDate.of(2026, 12, 1), field.date(), "a month field takes the year and month");
+    }
+
+    @Test
+    void aTypedTwoDigitYearResolvesWhenTheCaretLeavesIt() {
+        build(new DateField(), PT_BR);
+        field.setClock(IN_2026);
+        type("3112");
+        type("26");
+        assertEquals(LocalDate.of(26, 12, 31), field.date(), "while the caret is still in the year");
+        key(Keys.HOME);
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(), "left with Home, it is this century");
+
+        build(new DateField(), PT_BR);
+        field.setClock(IN_2026);
+        type("311285");
+        scene.requestFocus(null);
+        assertEquals(LocalDate.of(1985, 12, 31), field.date(), "left with the focus, the same");
+
+        build(new DateField(), PT_BR);
+        field.setClock(IN_2026);
+        field.setTwoDigitYearWindow(DateField.REFUSE_TWO_DIGIT_YEARS);
+        type("311226");
+        key(Keys.HOME);
+        assertEquals(LocalDate.of(26, 12, 31), field.date(),
+                "with the guess off a typed year is what was typed, and the bounds are the form's");
+    }
+
     // ------------------------------------------------------------ eras (era-year-width, decision 38)
 
     private static final Locale JAPANESE = Locale.forLanguageTag("ja-JP-u-ca-japanese");

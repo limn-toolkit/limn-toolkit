@@ -209,6 +209,24 @@ Three details are decisions rather than mechanics:
   and publishes `VALIDITY` as invalid; it does not guess a year. Guessing is what makes a form
   submit something nobody typed.
 
+**Amendment, 2026-09-14 (DATES-NEW-9, decision 57, settled typed-iso-run and implausible-year):
+what a paste and a typed run do.** "A long run typed or pasted is parsed as a whole" held for a
+paste and not for typing: `2026-12-31` typed digit by digit into a day-first field went segment
+by segment to 0001-02-20 and called it valid. The field now keeps the characters typed since the
+last key and, once they read as an ISO date (`2026-12-31`, or `2026-12` in a month field),
+commits that date as a whole, caret on the last segment. A **two-digit year** — pasted as
+`31/12/26` (the language's `dd/MM/y` parsed it as the year 26), as the six-digit run `311226`, or
+typed as `26` and left with a Right, a Home, a separator, a click or the focus — resolves through
+a window around today by the widget's clock: 80 years back and 19 ahead by default (`26` → 2026,
+`85` → 1985, `45` → 2045), `setTwoDigitYearWindow(yearsBack)` moves it, and
+`REFUSE_TWO_DIGIT_YEARS` turns the guess off (a pasted two-digit year is left blank and the field
+incomplete; a typed one stays what was typed). Four digits are what was meant, however small: a
+year of 26 is held, and whether it is plausible is the application's bound (`setMinDate`). A
+digit run keeps its leading zero (`01022026`), a run longer than a date's or a month or day outside
+its range refuses the whole paste and leaves the value untouched, and no paste throws out of the
+key handler (`Integer.parseInt` over the whole of a pasted account number did). Pinned by
+`DateFieldTest`'s typed-and-pasted cases.
+
 **Amendment, 2026-09-14 (era-year-width, decision 38 — DATES-NEW-7, DATES-NEW-10): the widening
 stops at eras, and the era rides in the year's spoken text.** The four-digit widening above
 removes a two-digit year's ambiguity; a year of era inside a named era has none, so in a calendar

@@ -853,10 +853,12 @@ public class DatePicker extends Widget {
         scenePopup.setInheritanceHost(this);
         boolean animate = owner.window() != null;
         sceneFade = animate ? 0f : 1f;
-        owner.pushOverlay(scenePopup);
-        // The overlay took the focus; the field keeps its caret drawn and published, because
-        // that is still where the digits land (DATES-NEW-3).
+        // Before the overlay takes the focus: the field keeps its caret drawn and published,
+        // because that is still where the digits land (DATES-NEW-3), and a field that knows a
+        // picker is aiming at it does not treat the loss of focus as somebody moving on (a
+        // half-typed year is not resolved by the popup opening).
         filling().setKeyboardActive(true);
+        owner.pushOverlay(scenePopup);
         if (animate) {
             ScenePopup fading = scenePopup;
             owner.addRealTimeTicker(dt -> {

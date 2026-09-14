@@ -153,6 +153,22 @@ public class DateField extends Widget {
     /** Where today and now are read from for an empty segment's first step; see setClock. */
     private Clock clock;
 
+    /**
+     * The value for {@link #setTwoDigitYearWindow} that turns the guess off: a two-digit year
+     * pasted into the field is left blank and the field stays incomplete.
+     */
+    public static final int REFUSE_TWO_DIGIT_YEARS = -1;
+
+    /** How many years back the century window for a two-digit year starts; see the setter. */
+    private int twoDigitYearWindow = 80;
+
+    /**
+     * The characters typed since the last key or click, kept so a whole ISO date typed digit by
+     * digit ({@code 2026-12-31}) is recognised as one (ADR 042 &sect;3): typed into a day-first
+     * field segment by segment it committed 0001-02-20 and called it valid.
+     */
+    private final StringBuilder typedRun = new StringBuilder();
+
     // ---- the pattern, taken apart, rebuilt only when the language or the calendar moves --------
 
     private final LanguageWitness patternLanguage = new LanguageWitness();
@@ -1143,6 +1159,49 @@ public class DateField extends Widget {
         return this;
     }
 
+    /** @return how many years back the window for a two-digit year starts; 80 unless changed */
+    public int twoDigitYearWindow() {
+        return twoDigitYearWindow;
+    }
+
+    /**
+     * Which century a two-digit year means (decision 57, 2026-09-14). A year written with two
+     * digits &mdash; pasted as {@code 31/12/26}, or typed as {@code 26} and left with a Right
+     * or a Home &mdash; resolves into the hundred years that start {@code yearsBack} years
+     * before today by the field's clock: by default 80 back and 19 ahead, so in 2026 {@code 26}
+     * is 2026 and {@code 85} is 1985. A calendar whose years carry their era (Reiwa 8) is not
+     * windowed: there a two-digit year is the whole year.
+     *
+     * <p>{@link #REFUSE_TWO_DIGIT_YEARS} turns the guess off: a pasted two-digit year is left
+     * blank and the field stays incomplete, and a typed one stays exactly what was typed.
+     *
+     * @param yearsBack how far back the window starts, {@code 0} to {@code 99}, or
+     *                  {@link #REFUSE_TWO_DIGIT_YEARS}
+     * @return this
+     */
+    public DateField setTwoDigitYearWindow(int yearsBack) {
+        Ui.checkUiThread();
+        if (yearsBack != REFUSE_TWO_DIGIT_YEARS && (yearsBack < 0 || yearsBack > 99)) {
+            throw new IllegalArgumentException("a two-digit year window is 0..99 years back, or "
+                    + "REFUSE_TWO_DIGIT_YEARS; got " + yearsBack);
+        }
+        twoDigitYearWindow = yearsBack;
+        return this;
+    }
+
+    /**
+     * The year a two-digit one stands for, inside the window, or {@link #UNSET} when guessing is
+     * off. The window is {@code [today - yearsBack, today - yearsBack + 99]}.
+     */
+    private int resolveTwoDigitYear(int twoDigits) {
+        if (twoDigitYearWindow == REFUSE_TWO_DIGIT_YEARS) {
+            return UNSET;
+        }
+        int base = today().getYear() - twoDigitYearWindow;
+        int candidate = Math.floorDiv(base, 100) * 100 + twoDigits;
+        return candidate < base ? candidate + 100 : candidate;
+    }
+
     /** What an empty segment becomes on its first step: today's, which is the nearest guess. */
     private int defaultFor(DatePattern.Field field) {
         LocalDate today = clock == null ? LocalDate.now() : LocalDate.now(clock);
@@ -1250,6 +1309,7 @@ public class DateField extends Widget {
         if (next == focusedSlot) {
             return;
         }
+        commitTypedYear();
         focusedSlot = next;
         typedDigits = 0;
         invalidate();
@@ -1316,9 +1376,13 @@ public class DateField extends Widget {
         }
         String trimmed = I18n.toAsciiDigits(text.trim());
         if (startsAtYear) {
-            LocalDate parsed = parseDate(trimmed);
+            Parsed parsed = parseDate(trimmed);
             if (parsed != null) {
-                applyDate(parsed);
+                applyDate(parsed.date());
+                if (parsed.yearUnknown()) {
+                    year = UNSET; // a two-digit year with the guess off: blank, and incomplete
+                    rebuildValue();
+                }
                 if (hasTime()) {
                     LocalTime clock = parseTime(trimmed);
                     if (clock != null) {
@@ -1338,17 +1402,35 @@ public class DateField extends Widget {
         return startsAtYear && parseByDigitRuns(trimmed);
     }
 
-    private LocalDate parseDate(String text) {
+    /**
+     * A date read out of text, and whether its year was written with two digits and the guess
+     * is off &mdash; in which case the day and the month are taken and the year is left blank.
+     */
+    private record Parsed(LocalDate date, boolean yearUnknown) {
+    }
+
+    private Parsed parseDate(String text) {
         try {
-            return LocalDate.parse(text);
+            return new Parsed(LocalDate.parse(text), false);
         } catch (DateTimeException ignored) {
             // Not the ISO form; the language's own is next.
         }
         for (java.time.format.FormatStyle style : new java.time.format.FormatStyle[]{
                 java.time.format.FormatStyle.SHORT, java.time.format.FormatStyle.MEDIUM}) {
             try {
-                return LocalDate.parse(text, DateTimeFormatter.ofLocalizedDate(style)
+                LocalDate parsed = LocalDate.parse(text, DateTimeFormatter.ofLocalizedDate(style)
                         .withLocale(locale()).withChronology(chronology()));
+                // The language's short pattern is 'dd/MM/y' in Portuguese, English and French,
+                // and 'y' parses "26" as the year 26: what was pasted meant this century. A
+                // year in the twenties with no four-digit run anywhere in the text is a
+                // two-digit year and goes through the window (decision 57).
+                if (parsed.getYear() >= 0 && parsed.getYear() < 100 && !eraCalendar()
+                        && !java.util.regex.Pattern.compile("\\d{3,}").matcher(text).find()) {
+                    int resolved = resolveTwoDigitYear(parsed.getYear());
+                    return resolved == UNSET ? new Parsed(parsed, true)
+                            : new Parsed(parsed.withYear(resolved), false);
+                }
+                return new Parsed(parsed, false);
             } catch (DateTimeException ignored) {
                 // Try the next style, then fall through to the digit runs.
             }
@@ -1383,12 +1465,18 @@ public class DateField extends Widget {
      * The last resort: the digit runs of the text, in order, poured into the date segments in the
      * order this language writes them. A run of eight digits with no separators is split by the
      * segments' own widths.
+     *
+     * <p>The runs stay strings until each is known to be short enough to be a number
+     * (DATES-NEW-9, 2026-09-14): {@code Integer.parseInt} over the whole of a pasted account
+     * number threw out of the key handler, and a leading zero turned into a seven-digit run
+     * nothing matched. A month or a day outside its range refuses the whole paste rather than
+     * writing 13 into the month, and a two-digit year goes through the window.
      */
     private boolean parseByDigitRuns(String text) {
-        List<Integer> numbers = new ArrayList<>();
+        List<String> runs = new ArrayList<>();
         java.util.regex.Matcher digits = java.util.regex.Pattern.compile("\\d+").matcher(text);
         while (digits.find()) {
-            numbers.add(Integer.parseInt(digits.group()));
+            runs.add(digits.group());
         }
         List<DatePattern.Field> order = new ArrayList<>();
         for (int index : editable) {
@@ -1398,36 +1486,69 @@ public class DateField extends Widget {
                 order.add(field);
             }
         }
-        if (numbers.size() == 1 && order.size() == 3) {
-            // One long run: split it by the widths the segments are drawn at.
-            String run = Integer.toString(numbers.get(0));
-            if (run.length() != 8 && run.length() != 6) {
+        if (order.isEmpty()) {
+            return false;
+        }
+        if (runs.size() == 1 && order.size() > 1) {
+            // One long run: split it by the widths the segments are drawn at, with the year
+            // four digits wide or two.
+            String run = runs.get(0);
+            int full = 4 + 2 * (order.size() - 1);
+            if (run.length() != full && run.length() != full - 2) {
                 return false;
             }
-            numbers.clear();
+            int yearWidth = run.length() == full ? 4 : 2;
+            runs.clear();
             int at = 0;
             for (DatePattern.Field field : order) {
-                int width = field == DatePattern.Field.YEAR ? run.length() - 4 : 2;
-                if (field == DatePattern.Field.YEAR) {
-                    width = run.length() == 8 ? 4 : 2;
-                }
-                numbers.add(Integer.parseInt(run.substring(at, at + width)));
+                int width = field == DatePattern.Field.YEAR ? yearWidth : 2;
+                runs.add(run.substring(at, at + width));
                 at += width;
             }
         }
-        if (numbers.size() < order.size()) {
+        if (runs.size() < order.size()) {
             return false;
         }
+        int y = UNSET;
+        int m = UNSET;
+        int d = UNSET;
+        boolean yearUnknown = false;
         for (int i = 0; i < order.size(); i++) {
-            int value = numbers.get(i);
+            String run = runs.get(i);
+            if (run.length() > 4) {
+                return false; // not a date's digit: an account number, a phone number
+            }
+            int value = Integer.parseInt(run);
             switch (order.get(i)) {
-                case YEAR -> year = value < 100 ? 2000 + value : value;
-                case MONTH -> month = value;
-                case DAY -> day = value;
+                case YEAR -> {
+                    if (run.length() <= 2 && !eraCalendar()) {
+                        int resolved = resolveTwoDigitYear(value);
+                        yearUnknown = resolved == UNSET;
+                        y = resolved;
+                    } else {
+                        y = value;
+                    }
+                }
+                case MONTH -> {
+                    if (value < 1 || value > 12) {
+                        return false;
+                    }
+                    m = value;
+                }
+                case DAY -> {
+                    if (value < 1 || value > 31) {
+                        return false;
+                    }
+                    d = value;
+                }
                 default -> {
                 }
             }
         }
+        valueRevision++;
+        year = yearUnknown ? UNSET : y;
+        month = m;
+        day = d;
         rebuildValue();
         return true;
     }
@@ -1544,12 +1665,20 @@ public class DateField extends Widget {
     protected void onFocusGained() {
         focusFade.to(1);
         typedDigits = 0;
+        typedRun.setLength(0);
     }
 
     @Override
     protected void onFocusLost() {
         focusFade.to(keyboardActive ? 1 : 0);
+        // Leaving the field leaves the year segment too -- unless a picker is only moving the
+        // focus onto its own in-scene overlay while the caret stays here, which is the one loss
+        // of focus that is not a person moving on.
+        if (!keyboardActive) {
+            commitTypedYear();
+        }
         typedDigits = 0;
+        typedRun.setLength(0);
     }
 
     @Override
@@ -1568,8 +1697,10 @@ public class DateField extends Widget {
         }
         event.consume();
         requestFocus();
+        typedRun.setLength(0);
         int slot = slotAt(sceneToLocalX(event.x()));
         if (slot >= 0 && slot != focusedSlot) {
+            commitTypedYear();
             focusedSlot = slot;
             typedDigits = 0;
             invalidate();
@@ -1629,10 +1760,12 @@ public class DateField extends Widget {
         if (digit >= 0) {
             event.consume();
             typeDigit(digit);
+            noteTyped(codepoint);
             return;
         }
         if (Character.isLetter(codepoint)) {
             event.consume();
+            typedRun.setLength(0);
             typeDayPeriod(codepoint);
             return;
         }
@@ -1642,7 +1775,77 @@ public class DateField extends Widget {
         if (!Character.isWhitespace(codepoint)) {
             event.consume();
             moveSlot(1, false);
+            noteTyped(codepoint);
         }
+    }
+
+    /**
+     * Remembers a typed character and, once the run reads as an ISO date, commits that date as
+     * a whole (ADR 042 &sect;3, settled typed-iso-run): {@code 2026-12-31} typed digit by digit
+     * into a day-first field went segment by segment to 0001-02-20 and called it valid. The
+     * segments wander while the run is being typed and are overwritten when it completes; a
+     * key or a click starts the run over.
+     */
+    private void noteTyped(int codepoint) {
+        if (!startsAtYear || !granularity.holds(Granularity.MONTH)) {
+            typedRun.setLength(0);
+            return;
+        }
+        if (codepoint != '-' && Character.digit(codepoint, 10) < 0) {
+            typedRun.setLength(0);
+            return;
+        }
+        typedRun.appendCodePoint(codepoint);
+        if (typedRun.length() > 16) {
+            typedRun.delete(0, typedRun.length() - 16);
+        }
+        java.util.regex.Matcher iso = java.util.regex.Pattern
+                .compile(granularity.holds(Granularity.DAY) ? "\\d{4}-\\d{2}-\\d{2}$" : "\\d{4}-\\d{2}$")
+                .matcher(typedRun);
+        if (!iso.find()) {
+            return;
+        }
+        String run = iso.group();
+        typedRun.setLength(0);
+        LocalDate parsed;
+        try {
+            parsed = LocalDate.parse(granularity.holds(Granularity.DAY) ? run : run + "-01");
+        } catch (DateTimeException e) {
+            return; // 2026-13-45 is digits in an ISO shape, not a date; the segments stand
+        }
+        applyDate(parsed);
+        focusedSlot = Math.max(0, editable.length - 1);
+        typedDigits = 0;
+        lastMoveWasTime = false;
+        invalidate();
+        notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+        refreshValidity(Change.Origin.USER);
+    }
+
+    /**
+     * A two-digit year typed and left (a Right, a Home, a separator, a click into another
+     * segment, or the focus going elsewhere) resolves through the window (decision 57): "26"
+     * left in the year is 2026, as it is on every desktop date field. Four digits are what was
+     * meant; three are left alone too, and so is a year of era. With the guess off, what was
+     * typed stays.
+     */
+    private void commitTypedYear() {
+        DatePattern.FieldPart part = focusedField();
+        if (part == null || part.field() != DatePattern.Field.YEAR || typedDigits == 0
+                || typedDigits > 2 || year == UNSET || year >= 100 || eraCalendar()) {
+            return;
+        }
+        int resolved = resolveTwoDigitYear(year);
+        if (resolved == UNSET || resolved == year) {
+            return;
+        }
+        year = resolved;
+        typedDigits = 0;
+        lastMoveWasTime = false;
+        rebuildValue();
+        invalidate();
+        notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+        refreshValidity(Change.Origin.USER);
     }
 
     @Override
@@ -1659,6 +1862,7 @@ public class DateField extends Widget {
                 return;
             }
         }
+        typedRun.setLength(0); // a key is not part of a typed run
         boolean command = (event.modifiers() & (Keys.MOD_CONTROL | Keys.MOD_SUPER)) != 0;
         if (command) {
             switch (event.key()) {
