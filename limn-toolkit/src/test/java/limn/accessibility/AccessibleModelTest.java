@@ -296,18 +296,27 @@ class AccessibleModelTest {
     }
 
 
+    /**
+     * Thirteen since 2026-09-14: {@code ADD_TO_SELECTION} joined between {@code SELECT} and
+     * {@code DESELECT} (ADR 039 §1.5, amended; decision 10), so that "select" can mean what a click
+     * means and the platforms' "add to selection" has a verb of its own.
+     */
     @Test
-    void twelveVerbsArePublishableAndFourTakeAnArgument() {
+    void thirteenVerbsArePublishableAndFourTakeAnArgument() {
         int parameterless = 0;
         for (Accessible.Action action : Accessible.Action.values()) {
             if (action.isParameterless()) {
                 parameterless++;
             }
         }
-        assertEquals(12, parameterless);
-        assertEquals(16, Accessible.Action.values().length);
+        assertEquals(13, parameterless);
+        assertEquals(17, Accessible.Action.values().length);
+        assertTrue(Accessible.Action.ADD_TO_SELECTION.isParameterless());
         assertFalse(Accessible.Action.SET_VALUE.isParameterless());
         assertFalse(Accessible.Action.SET_SELECTION.isParameterless());
+        ActionFacet multi = new ActionFacet(java.util.Set.of(Accessible.Action.SELECT,
+                Accessible.Action.ADD_TO_SELECTION), null);
+        assertTrue(multi.has(Accessible.Action.ADD_TO_SELECTION), "publishable like the rest");
     }
 
     @Test

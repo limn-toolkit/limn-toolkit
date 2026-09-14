@@ -900,6 +900,44 @@ enabled guard, `Button` reaches its private action, and `MenuItem` is activated 
 that already knows whether the row is selectable. No component gains a public `click()` that would
 have to re-derive a guard the component already has.
 
+**Amendment, 2026-09-14: the verb vocabulary is thirteen, and what a node accepts is what it
+publishes.** Three rules, decided on 2026-09-13 and 2026-09-14, written here because §1.5 is where
+the hooks that publish and perform a verb are decided.
+
+*The selection verbs (decision 10).* `SELECT` means what a click means: make this node the
+selection, whatever was selected before, in a single- or a multi-select container alike. A new
+thirteenth parameterless verb, `ADD_TO_SELECTION`, means the platforms' "add to selection" — keep
+what is selected and add this — and `DESELECT` means remove this and keep the rest. A container
+publishes `SELECT` on a member where its mode allows it, `ADD_TO_SELECTION` on an *unselected*
+member and `DESELECT` on a *selected* one **only when it is multi-selectable**, so a reader is never
+offered an add on a list that can hold one. Each platform's "add" entry point tries
+`[ADD_TO_SELECTION, SELECT]` in that order and its "remove" tries `[DESELECT]` (semantics 5): UIA
+`ISelectionItemProvider::AddToSelection`, AT-SPI `Selection.SelectChild` and
+`Table.AddRowSelection`, macOS `setAccessibilitySelected:`. The verb exists from this amendment; the
+publishers are the widget lanes' (`Table` first, then `ListView` and `Tree` under decision 20), and
+the platform mappings are the bridge lanes' — until then Windows still routes `AddToSelection` to
+`SELECT`.
+
+*`FOCUS` on an item (decision 11).* On a widget `FOCUS` is the walk's free verb below. On an item
+inside a container it means *move the cursor here without selecting*, and it is published only where
+the cursor and the selection are separate things — a tree row, a table cell, a calendar day, a date
+segment, a menu row, a combo option. Where they are one thing (a list row, a segmented control's
+segment) it is refused, because a focus that selected would be `SELECT` under another name, and a
+reader that offered both would be offering one action twice. Only `SELECT` and `FOCUS` move a
+cursor; `EXPAND` and `COLLAPSE` act like the triangle and leave it (decision 20).
+
+*What a node accepts (semantics 5; CRIT-1's answer, decision 2).* The published snapshot is the only
+synchronous authority a bridge has — `Host#perform` answers true after the membership check and
+posts, and a later refusal on the UI thread reaches no platform (§1.9). So **a node accepts exactly
+the parameterless verbs in its `ActionFacet`, published by its current state, plus `SET_VALUE` where
+a writable `ValueFacet` exists and `SET_TEXT`/`SET_CARET`/`SET_SELECTION` where a non-read-only
+`TextFacet` exists; no facet implies any other verb, and every bridge refuses the rest synchronously.**
+A widget that answers a synonym publishes the synonym: a menu title that opens on `EXPAND` as well as
+`SHOW_MENU` says so in its action list (the widget lanes' change, with the goldens), and a check row
+that toggles publishes `TOGGLE`. The routing of a verb a container claims on a widget child, and the
+ratchet that performs every unpublished verb on every gallery node and asserts nothing moved, are
+M4's and are written below this when they land.
+
 **What a widget gets for free, with no override at all:** bounds from `x/y/width/height`; `ENABLED`,
 `FOCUSABLE`, `FOCUSED`, `VISIBLE` and `SHOWING` from the existing predicates; `locale()` for the
 node's language; children from `children()` in tree order; the `FOCUS` and `SCROLL_INTO_VIEW`
@@ -3031,7 +3069,7 @@ follows is what each answered.
   publishes as `SELECTED` on the row and an active descendant on its column (§7), diffed like
   everything else. The hole ADR 040 names is a hole in *its* channel and not in the tree.
 - **§6.2, an assistive technology cannot set a value as the user.** Answered by §1.9: the action set
-  is `ActionFacet`'s twelve parameterless verbs plus the parameterised constants `SET_VALUE`,
+  is `ActionFacet`'s twelve parameterless verbs (thirteen since §1.5's amendment of 2026-09-14) plus the parameterised constants `SET_VALUE`,
   `SET_TEXT`, `SET_CARET` and `SET_SELECTION`, every one of them dispatched through the one
   `Host#perform` call, and §1.5's rule that the widget performs its own action means each of them
   enters the widget's own from-user funnel. In ADR 040's vocabulary they are `USER`, and they reach the

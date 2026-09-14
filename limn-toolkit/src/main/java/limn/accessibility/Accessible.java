@@ -214,15 +214,21 @@ public final class Accessible {
     /**
      * What an assistive technology can ask of a node.
      *
-     * <p>The list is in two parts and the split is not tidiness. The first twelve are
+     * <p>The list is in two parts and the split is not tidiness. The first thirteen are
      * <b>parameterless verbs</b>, and those are what a node publishes in its {@link ActionFacet}.
      * The last four take an {@link Argument} and are <b>never</b> published in that list, because
      * one of the three platforms cannot express a parameterised action in its action list at all
      * and puts these on its value and text interfaces instead. What advertises a parameterised
-     * setter is a facet's presence: a node with a {@link ValueFacet} is settable, a node with a
-     * {@link TextFacet} and without {@link State#READ_ONLY} is editable.
+     * setter is a facet's presence: a node with a writable {@link ValueFacet} is settable, a node
+     * with a {@link TextFacet} and without {@link State#READ_ONLY} is editable.
      *
-     * <p>Every one of the sixteen is dispatched the same way, through the one inbound call a
+     * <p><b>A node accepts exactly the parameterless verbs it publishes, plus the setters its
+     * writable facets imply</b> (ADR 039 §1.5, amended 2026-09-14): the published snapshot is the
+     * only synchronous authority a bridge has, so a verb a widget accepts but does not publish is
+     * one every platform refuses before it is posted. A widget that answers a synonym publishes
+     * the synonym.
+     *
+     * <p>Every one of the seventeen is dispatched the same way, through the one inbound call a
      * bridge makes.
      */
     public enum Action {
@@ -234,9 +240,23 @@ public final class Accessible {
         EXPAND,
         /** Close this node. */
         COLLAPSE,
-        /** Add this node to its container's selection. */
+        /**
+         * Make this node its container's selection, as a click would: whatever was selected
+         * before is not any more, in a single- or a multi-select container alike. Published on a
+         * member of a container whose selection mode allows it. Moves the cursor onto the node.
+         */
         SELECT,
-        /** Remove this node from its container's selection. */
+        /**
+         * Add this node to its container's selection, keeping what is already selected: the
+         * platform's "add to selection", which is only meaningful where more than one member may
+         * be selected. Published on an <em>unselected</em> member of a multi-select container, and
+         * nowhere else (decision 10, 2026-09-13).
+         */
+        ADD_TO_SELECTION,
+        /**
+         * Remove this node from its container's selection, keeping the rest. Published on a
+         * <em>selected</em> member of a multi-select container.
+         */
         DESELECT,
         /** Open this node's menu. */
         SHOW_MENU,
@@ -246,7 +266,14 @@ public final class Accessible {
         DECREMENT,
         /** Scroll this node into view. */
         SCROLL_INTO_VIEW,
-        /** Move the keyboard focus here. */
+        /**
+         * Move the keyboard focus here. On a widget it is the walk's free verb, offered on every
+         * focusable node. On an item inside a container it means <em>move the cursor here without
+         * selecting</em>, so it is published only where the cursor and the selection are separate
+         * things — a tree row, a table cell, a calendar day, a date segment, a menu row, a combo
+         * option — and refused where they are one (a list row, a segment), because there a focus
+         * that selected would be a select by another name (decision 11, 2026-09-13).
+         */
         FOCUS,
         /** Dismiss this node. */
         CANCEL,
@@ -263,7 +290,7 @@ public final class Accessible {
          * Whether this verb takes no argument and is therefore publishable in an
          * {@link ActionFacet}.
          *
-         * @return {@code true} for the twelve parameterless verbs
+         * @return {@code true} for the thirteen parameterless verbs
          */
         public boolean isParameterless() {
             return ordinal() < SET_VALUE.ordinal();
