@@ -1979,6 +1979,9 @@ public final class Accessibility {
     }
 
     private void diff(long activeDescendant) {
+        // A publish that did not finish -- nothing on the path throws today; a describe hook
+        // that throws aborts the walk before it -- leaves no note of itself for the next.
+        clearPublishNotes();
         int boundsChanges = 0;
         for (int i = 0; i < count; i++) {
             Slot now = slots[i];
@@ -2108,8 +2111,21 @@ public final class Accessibility {
             events.addAll(budgeted);
         }
         events.addAll(tail);
+        clearPublishNotes();
+    }
+
+    /**
+     * Drops what one publish noted on the way to its events: the budgeted list, the reserved
+     * tail, the structure and selection notes, a focus that arrived. Called before a diff and
+     * after it, and when the published tree is forgotten, so that nothing of one publish reaches
+     * the next whatever happened in between. Clearing an empty list allocates nothing.
+     */
+    private void clearPublishNotes() {
         budgeted.clear();
         tail.clear();
+        structCount = 0;
+        moveCount = 0;
+        focusArrived = 0;
     }
 
     /** A per-node event, bounded by the budget: one past it is kept only to say it was passed. */
@@ -2543,6 +2559,7 @@ public final class Accessibility {
         previousCount = 0;
         publishedActiveDescendant = 0;
         publishedForeignActiveDescendant = 0;
+        clearPublishNotes();
     }
 
     private Slot slot() {
