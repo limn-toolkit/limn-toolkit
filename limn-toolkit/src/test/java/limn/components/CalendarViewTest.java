@@ -277,6 +277,12 @@ class CalendarViewTest extends ComponentTestBase {
         assertEquals(LocalDate.of(2027, 1, 1), calendar.visibleMonth());
 
         heard.clear();
+        calendar.setView(CalendarView.View.MONTHS);
+        assertTrue(heard.contains(Change.Aspect.VALUE), "the view is a value too (decision 59)");
+        assertEquals(CalendarView.View.MONTHS, calendar.view());
+        calendar.setView(CalendarView.View.DAYS);
+
+        heard.clear();
         calendar.setMinDate(LocalDate.of(2020, 1, 1));
         assertTrue(heard.contains(Change.Aspect.RANGE));
         assertEquals(LocalDate.of(2020, 1, 1), calendar.minDate());
@@ -536,5 +542,65 @@ class CalendarViewTest extends ComponentTestBase {
         calendar.observeChanges((widget, change) -> heard.add(change.aspect()));
         calendar.setSelectedDate(ANCHOR);
         assertTrue(heard.isEmpty(), "the early return two bound calendars rely on");
+    }
+
+    /**
+     * Decision 59 (DATES-NEW-13): what the grid shows is a value, and a change of view is
+     * announced as one -- the person's when the title, a chooser's Escape or Ctrl with an arrow
+     * moved it, the caller's from {@code setView} -- and a view already showing announces
+     * nothing. Until this test the title's published state flipped with no change to explain
+     * it, so a watcher heard a layout and nothing else.
+     */
+    @Test
+    void climbingTheHeaderAnnouncesTheViewAsAValueAndSoDoesACallersWrite() {
+        build();
+        List<Change> heard = new ArrayList<>();
+        calendar.observeChanges((widget, change) -> heard.add(change));
+        key(Keys.TAB);   // the arrow that pages back
+        key(Keys.RIGHT); // the title
+        heard.clear();
+        key(Keys.ENTER);
+        assertEquals(CalendarView.View.MONTHS, calendar.view());
+        assertTrue(heard.stream().anyMatch(change -> change.aspect() == Change.Aspect.VALUE
+                && change.origin() == Change.Origin.USER),
+                "the person climbed, and the view is announced as their value change: " + heard);
+
+        heard.clear();
+        calendar.setView(CalendarView.View.YEARS);
+        assertTrue(heard.stream().anyMatch(change -> change.aspect() == Change.Aspect.VALUE
+                && change.origin() == Change.Origin.CODE),
+                "a caller's write is the caller's: " + heard);
+
+        heard.clear();
+        calendar.setView(CalendarView.View.YEARS);
+        assertTrue(heard.isEmpty(), "the view already showing announces nothing: " + heard);
+
+        key(Keys.DOWN);  // off the header, into the year cells
+        heard.clear();
+        key(Keys.ESCAPE);
+        assertEquals(CalendarView.View.DAYS, calendar.view(), "Escape comes straight back down");
+        assertTrue(heard.stream().anyMatch(change -> change.aspect() == Change.Aspect.VALUE
+                && change.origin() == Change.Origin.USER),
+                "and that is the person's too: " + heard);
+    }
+
+    /**
+     * DATES-NEW-13's other half: Escape on a header control puts the cursor back on the grid,
+     * which Down also does, and Down announced the move while Escape did not.
+     */
+    @Test
+    void escapeFromTheHeaderAnnouncesTheCursor() {
+        build();
+        calendar.setSelectedDate(ANCHOR);
+        List<Change.Aspect> heard = new ArrayList<>();
+        calendar.observeChanges((widget, change) -> heard.add(change.aspect()));
+        key(Keys.TAB);   // onto the arrow that pages back
+        heard.clear();
+        key(Keys.ESCAPE);
+        assertTrue(heard.contains(Change.Aspect.ACTIVE),
+                "the cursor moved from the header to the grid, and a watcher was told: " + heard);
+        key(Keys.RIGHT);
+        assertEquals(ANCHOR.plusDays(1), calendar.focusedDate(),
+                "and the arrows move the day cursor again");
     }
 }

@@ -268,4 +268,39 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(LocalDate.of(2026, 6, 30), field.date(),
                 "June has thirty days and the segment will not hold more");
     }
+
+    /**
+     * DATES-NEW-2 (decisions 6 and 49): an arrow between segments is a move of the field's
+     * cursor, and the field is the focused node, so it is announced once, on the field, naming
+     * the segment left and the segment reached. Before the model's rule changed, Right raised
+     * two state bits on two synthetic children and nothing a reader follows.
+     */
+    @Test
+    void anArrowBetweenSegmentsMovesTheFieldsCursorOnce() {
+        DateField field = bindField(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 12, 31));
+        scene.requestFocus(field);
+        frame();
+        List<AccessibleNode> segments = segmentNodes();
+        AccessibleNode day = segments.get(0);
+        AccessibleNode month = segments.get(1);
+        assertEquals(day.id(), tree().activeDescendant(), describe(tree()));
+        bridge.events.clear();
+
+        scene.keyEvent(limn.input.Keys.RIGHT, true, false, 0);
+        scene.keyEvent(limn.input.Keys.RIGHT, false, false, 0);
+        scene.inputBatchEnded();
+        frame();
+
+        assertEquals(month.id(), tree().activeDescendant(),
+                "the caret is in the month: " + describe(tree()));
+        List<AccessibleEvent> moved = bridge.eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(),
+                "one cursor event, on the field, which is the focused node: " + bridge.events);
+        assertEquals(groupNode().id(), moved.get(0).nodeId());
+        assertEquals(day.id(), moved.get(0).oldValue());
+        assertEquals(month.id(), moved.get(0).newValue());
+        assertTrue(bridge.eventsOf(AccessibleEvent.Type.FOCUS_CHANGED).isEmpty(),
+                "the focus itself did not move: " + bridge.events);
+    }
 }

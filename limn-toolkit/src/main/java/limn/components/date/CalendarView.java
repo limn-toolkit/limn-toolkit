@@ -470,18 +470,34 @@ public class CalendarView extends Widget {
      */
     public CalendarView setView(View wanted) {
         Ui.checkUiThread();
+        setView(wanted, Change.Origin.CODE);
+        return this;
+    }
+
+    /**
+     * The one path a view change takes, whoever asked for it: a caller's write arrives as
+     * {@code CODE}, and the title, the choosers' keys, Escape and a picker backing out of a
+     * chooser as {@code USER}.
+     *
+     * <p>Announced as {@code VALUE}, the aspect the month paging already announces (decision
+     * 59, 2026-09-14; DATES-NEW-13): what the grid shows moved, from a month of days to a year
+     * of months, and a watcher that heard nothing for it heard the title's published state flip
+     * with no change to explain it. A view already showing announces nothing, like every other
+     * write of what a widget already holds.
+     */
+    void setView(View wanted, Change.Origin origin) {
         Objects.requireNonNull(wanted, "view");
         if (wanted.compareTo(granularity) < 0) {
             throw new IllegalArgumentException("a calendar picking " + granularity
                     + " cannot show " + wanted + "; set the granularity first");
         }
         if (view == wanted) {
-            return this;
+            return;
         }
         view = wanted;
         chooserCursor = -1;
         markNeedsLayout();
-        return this;
+        notifyChange(Change.of(Change.Aspect.VALUE, origin));
     }
 
     /** @return the finest view this calendar picks in; {@link View#DAYS} unless it was changed */
@@ -545,7 +561,7 @@ public class CalendarView extends Widget {
             case DAYS -> View.MONTHS;
             case MONTHS -> View.YEARS;
             case YEARS -> granularity;
-        });
+        }, Change.Origin.USER);
     }
 
     /**
@@ -2051,7 +2067,7 @@ public class CalendarView extends Widget {
         // "command" test accepts either.
         if ((event.modifiers() & (Keys.MOD_CONTROL | Keys.MOD_SUPER)) != 0) {
             if (event.key() == Keys.UP) {
-                setView(View.MONTHS);
+                setView(View.MONTHS, Change.Origin.USER);
                 event.consume();
                 return;
             }
@@ -2145,7 +2161,7 @@ public class CalendarView extends Widget {
         }
         showMonth(target, Change.Origin.USER);
         chooserCursor = -1;
-        setView(view == View.YEARS ? View.MONTHS : View.DAYS);
+        setView(view == View.YEARS ? View.MONTHS : View.DAYS, Change.Origin.USER);
         // Arriving somewhere means being somewhere in it. Descending used to change the view and
         // leave the cursor wherever it had been -- on a day of the month you just left, so out of
         // sight -- and a person who picked a month with the keyboard was returned to a grid with
@@ -2278,6 +2294,10 @@ public class CalendarView extends Widget {
                 part = Part.GRID;
                 enterPart();
                 damagePartChange(from, part);
+                // The cursor moved, so say so: Down announces the same move and Escape did not
+                // (DATES-NEW-13), which left a watcher with a grid whose ACTIVE cell had moved
+                // and no change to explain it.
+                notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
                 event.consume();
             }
             default -> {
@@ -2352,14 +2372,14 @@ public class CalendarView extends Widget {
         }
         if ((event.modifiers() & (Keys.MOD_CONTROL | Keys.MOD_SUPER)) != 0) {
             if (event.key() == Keys.UP) {
-                setView(View.YEARS); // the coarsest there is; from YEARS it stays put
+                setView(View.YEARS, Change.Origin.USER); // the coarsest; from YEARS it stays
                 event.consume();
                 return;
             }
             if (event.key() == Keys.DOWN) {
                 View below = view == View.YEARS ? View.MONTHS : View.DAYS;
                 if (below.compareTo(granularity) >= 0) {
-                    setView(below); // never below what this calendar picks in
+                    setView(below, Change.Origin.USER); // never below what this calendar picks in
                 }
                 event.consume();
                 return;
@@ -2391,7 +2411,7 @@ public class CalendarView extends Widget {
             }
             case Keys.ESCAPE -> {
                 if (view != granularity) {
-                    setView(granularity); // out of a chooser, back to the finest view there is
+                    setView(granularity, Change.Origin.USER); // out of a chooser, back to the finest view
                     event.consume();
                 }
                 return;
@@ -2712,7 +2732,7 @@ public class CalendarView extends Widget {
                     if (!climbed) {
                         return false;
                     }
-                    setView(granularity); // straight back to the finest view, as Escape does
+                    setView(granularity, Change.Origin.USER); // straight back down, as Escape does
                     return true;
                 }
                 default -> {

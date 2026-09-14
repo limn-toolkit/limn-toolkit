@@ -690,7 +690,7 @@ public class DatePicker extends Widget {
                 // single Escape that closed the whole thing from inside a chooser would throw
                 // away the navigation as well as the popup.
                 if (calendar.view() != calendar.granularity()) {
-                    calendar.setView(calendar.granularity());
+                    calendar.setView(calendar.granularity(), Change.Origin.USER);
                     repaintPopup();
                 } else {
                     setOpen(false, Change.Origin.USER);

@@ -473,6 +473,20 @@ only for `Origin.USER`; `observeChanges` hears everything. The aspects each anno
 - `DatePicker`: `EXPANDED` when the popup opens or closes, and the value aspects it forwards from
   its field so that a watcher on the picker does not have to know it has children.
 
+**Amendment, 2026-09-14 (decision 59 — DATES-NEW-13): a change of view is a `VALUE` too, and
+Escape from the header announces the cursor.** `CalendarView` announces `VALUE` when what it
+shows moves between days, months and years — the person's (`USER`) from the title, from Ctrl
+with an arrow, from a chooser's Escape and from a picker backing out of a chooser; the caller's
+(`CODE`) from `setView`; nothing for a view already showing — where before only the title's
+published `EXPANDED` flipped and a watcher heard a layout. Escape on a header control puts the
+cursor back on the grid and now announces `ACTIVE` for it, as Down always did. A date field's
+arrow between segments is the same kind of move and reaches a reader as one
+`ACTIVE_DESCENDANT_CHANGED` on the field (decisions 6 and 49; the model's rule since phase 1),
+pinned here beside the roll-on case. Pinned by
+`CalendarViewTest.climbingTheHeaderAnnouncesTheViewAsAValueAndSoDoesACallersWrite`,
+`CalendarViewTest.escapeFromTheHeaderAnnouncesTheCursor` and
+`DateFieldAccessibilityTest.anArrowBetweenSegmentsMovesTheFieldsCursorOnce`.
+
 `CalendarView` has two handler slots and not one: `onSelect(Consumer<LocalDate>)` in `SINGLE` mode
 and `onSelectRange(Consumer<DateRange>)` in `RANGE`. One slot taking a widget, or a slot taking
 `Object`, would make every application cast; two slots, each documented as its mode's, is the
