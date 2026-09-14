@@ -5,9 +5,12 @@ import limn.components.table.SortOrder;
 import limn.components.table.Table;
 import limn.input.Keys;
 import limn.scene.Change;
+import limn.scene.Constraints;
+import limn.scene.ControlSize;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Widget;
+import limn.scene.layout.SizedBox;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -881,5 +884,180 @@ class TableTest extends ComponentTestBase {
         table.onSortRequest((column, order) -> told.incrementAndGet());
         assertEquals(0, table.viewToModel(0), "null then a handler is allowed, and drops the sort");
         assertEquals(1, table.viewToModel(1), "model order again");
+    }
+
+    // ------------------------------------------------------------- the wheel and the height
+
+    private static Constraints unbounded() {
+        return new Constraints(0, Constraints.UNBOUNDED_LIMIT, 0, Constraints.UNBOUNDED_LIMIT);
+    }
+
+    /** The x of any widget cell of the one widget column: every row's sits at the same x. */
+    private static float widgetX(Table<?> table) {
+        for (Widget child : table.children()) {
+            if (!(child instanceof ScrollBar)) {
+                return child.x();
+            }
+        }
+        throw new AssertionError("no widget cell mounted");
+    }
+
+    private static void wheel(Scene scene, FakeCanvas canvas, float sx, float sy) {
+        scene.scrolled(sx, sy, 50, 100);
+        scene.inputBatchEnded();
+        scene.renderFrame(canvas);
+    }
+
+    /**
+     * TABLE-NEW-12 (2026-09-14): any non-zero {@code scrollX} made a wheel event sideways and
+     * dropped its {@code scrollY}, so a trackpad swipe that was not perfectly vertical scrolled
+     * nothing on a table whose columns fit, and only sideways on one that did not. The axes are
+     * taken independently now, as {@code ScrollView} takes them; Shift still turns a plain
+     * vertical wheel into a horizontal one, and only a plain one.
+     */
+    @Test
+    void aWheelTakesBothAxesAndShiftTurnsAPlainWheelSideways() {
+        Table<Person> narrow = new Table<>(List.of(nameColumn()));
+        narrow.setRows(people(50));
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(narrow, canvas);
+        wheel(scene, canvas, 0.3f, -3);
+        assertTrue(narrow.firstVisibleRow() > 0,
+                "a slightly diagonal wheel scrolls the rows of a table whose columns fit");
+
+        List<Column<Person>> columns = new ArrayList<>();
+        columns.add(Column.<Person>widget("Open", p -> new Button("Open")).width(120));
+        for (int c = 0; c < 4; c++) {
+            columns.add(Column.text("Name " + c, Person::name).width(120));
+        }
+        Table<Person> wide = new Table<>(columns);
+        wide.setRows(people(50));
+        scene = scene(wide, canvas);
+        float x0 = widgetX(wide);
+        wheel(scene, canvas, -0.5f, -3); // toward the later columns, and down
+        assertTrue(wide.firstVisibleRow() > 0, "the rows moved");
+        assertEquals(x0 - 0.5f * Strokes.WHEEL_STEP, widgetX(wide), EPS,
+                "and the columns, each axis by its own delta");
+
+        int row = wide.firstVisibleRow();
+        float x1 = widgetX(wide);
+        scene.keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
+        wheel(scene, canvas, 0, -1);
+        assertEquals(row, wide.firstVisibleRow(), "Shift sends a plain wheel sideways, not down");
+        assertEquals(x1 - Strokes.WHEEL_STEP, widgetX(wide), EPS);
+        wheel(scene, canvas, -1, -1);
+        assertEquals(x1 - 2 * Strokes.WHEEL_STEP, widgetX(wide), EPS,
+                "a tilt wheel with Shift held drives its own axis once");
+        assertTrue(wide.firstVisibleRow() > row, "and its scrollY still moves the rows");
+        scene.keyEvent(Keys.LEFT_SHIFT, false, false, 0);
+
+        wheel(scene, canvas, -100, 0);
+        assertEquals(x0 - (5 * 120 - 300), widgetX(wide), EPS,
+                "sideways clamps at the content's end");
+    }
+
+    /**
+     * Decision 44 (2026-09-14): the wheel was consumed whenever the rows overflowed, so a table
+     * inside a scroll pane was a wall the wheel could not get past once it had scrolled to its
+     * end. A detent is consumed only when an offset moved; at either end, or on a table that
+     * fits, it is left for the scroller that holds the table.
+     */
+    @Test
+    void aWheelAtEitherEndOfTheTablePassesToTheScrollerThatHoldsIt() {
+        Table<Person> table = new Table<>(List.of(nameColumn()));
+        table.setRows(people(20));
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(table);
+        column.add(new Widget() {
+            @Override
+            protected limn.scene.Size onMeasure(Constraints c) {
+                return c.constrain(c.maxWidth(), 400);
+            }
+        });
+        ScrollView pane = new ScrollView(column);
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = new Scene(pane);
+        scene.setTextRuler(RULER);
+        scene.renderFrame(canvas);
+        float viewport = 8 * SizeTokens.of(ControlSize.MEDIUM).listRowSeed();
+        assertEquals(headerHeight(table) + viewport, table.height(), EPS,
+                "the fixture: the header and eight seed rows");
+        float tableMax = 20 * rowHeight(table) - viewport;
+
+        // Down: the table takes every detent until it rests on its last row.
+        int notches = 0;
+        while (pane.offsetY() == 0 && notches < 100) {
+            wheel(scene, canvas, 0, -1);
+            notches++;
+            if (notches * Strokes.WHEEL_STEP < tableMax) {
+                assertEquals(0, pane.offsetY(), EPS,
+                        "the pane stays put while the table can still scroll: notch " + notches);
+            }
+        }
+        assertEquals((int) Math.ceil(tableMax / Strokes.WHEEL_STEP) + 1, notches,
+                "the first detent the table cannot use is the pane's");
+        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), EPS, "one notch of the pane");
+
+        // Up: the table is at its end and not at its top, so it takes the detent back first.
+        wheel(scene, canvas, 0, 1);
+        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), EPS,
+                "the table could move up, so it did and the pane did not");
+
+        // Up at the top: the table scrolled back to zero, and the next detent is the pane's.
+        for (int i = 0; i < 40; i++) {
+            wheel(scene, canvas, 0, 1);
+        }
+        assertEquals(0, table.firstVisibleRow());
+        assertEquals(0, pane.offsetY(), EPS, "the pane took the detent the table could not");
+
+        // A table that fits hands every detent on: three rows never take one.
+        table.setRows(people(3));
+        scene.renderFrame(canvas);
+        wheel(scene, canvas, 0, -1);
+        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), EPS, "nothing to scroll, so the pane's");
+    }
+
+    /**
+     * Decision 44 (2026-09-14): under an unbounded height the table answered eight rows of the
+     * realized average, which moved as rows of another height were measured, and a measured
+     * size that moves under a contained layout re-lays out the parent: a table in a scroll pane
+     * jittered as it scrolled. The preference is the seed's, a token that stands still, and
+     * {@code setVisibleRows} says how many of it.
+     */
+    @Test
+    void theUnboundedHeightIsTheSeedsAndSetVisibleRowsChangesIt() {
+        Column<Person> tall = Column.<Person>widget("Tall", p -> new SizedBox(40, 60)).width(80);
+        Table<Person> table = new Table<>(List.of(nameColumn(), tall));
+        table.setRows(people(100));
+        for (ControlSize step : ControlSize.values()) {
+            table.setControlSize(step);
+            SizeTokens t = SizeTokens.of(step);
+            assertEquals(t.controlHeight() + 8 * t.listRowSeed(),
+                    table.measure(unbounded()).height(), EPS,
+                    step + ": the header and eight seed rows");
+        }
+        table.setControlSize(ControlSize.MEDIUM);
+        SizeTokens t = SizeTokens.of(ControlSize.MEDIUM);
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        List<Float> tops = new ArrayList<>();
+        for (Widget child : table.children()) {
+            if (child instanceof SizedBox) {
+                tops.add(child.y());
+            }
+        }
+        float measured = tops.get(1) - tops.get(0);
+        assertEquals(60 + 2 * t.padV(), measured, EPS, "the fixture: rows taller than the seed");
+        assertTrue(Math.abs(measured - t.listRowSeed()) > 1, "and not the seed by accident");
+        assertEquals(t.controlHeight() + 8 * t.listRowSeed(), table.measure(unbounded()).height(),
+                EPS, "rows of another height were measured and the preference did not move");
+
+        assertEquals(8, table.visibleRows(), "the default");
+        table.setVisibleRows(3);
+        assertEquals(3, table.visibleRows());
+        assertEquals(t.controlHeight() + 3 * t.listRowSeed(), table.measure(unbounded()).height(),
+                EPS);
+        assertThrows(IllegalArgumentException.class, () -> table.setVisibleRows(0));
+        assertEquals(3, table.visibleRows(), "refused, and unchanged");
     }
 }

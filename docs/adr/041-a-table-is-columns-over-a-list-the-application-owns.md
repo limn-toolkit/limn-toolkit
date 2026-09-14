@@ -121,6 +121,27 @@ it; the accessors allocate nothing. Pinned by `TableFocusedRowTest` (six cases, 
 quiet-frame ratchet among them). The rule exists in three copies (ADR 044 §3); `ListView` and
 `Tree` take theirs in their own lanes.
 
+**Amended 2026-09-14 (TABLE-NEW-12 and decision 44 of the 2026-09-13 pass; T5's Table copy).**
+The wheel took one axis: any non-zero `scrollX` made the event sideways and dropped its
+`scrollY`, so a trackpad swipe that was not perfectly vertical scrolled nothing on a table whose
+columns fit and only sideways on one that did not (TABLE-NEW-12). The axes are taken
+independently now, as `ScrollView` takes them, each clamped on its own; Shift still turns a
+*plain* vertical wheel into a horizontal one for a mouse with one wheel, and only when the event
+carries no `scrollX`, so a tilt wheel and Shift cannot drive one axis twice. And a detent is
+consumed only when an offset moved (decision 44): at either end of an axis, or on a table that
+fits, it is left for the scroller that holds the table, where before the wheel was consumed
+whenever the rows overflowed and a table inside a scroll pane was a wall once it had scrolled to
+its end. Under an unbounded height the table prefers its header, its footer and
+`setVisibleRows` (default 8) rows of the step's **seed** height, the token, never the realized
+average: the average moves as rows of another height scroll in, and a measured size that moves
+under a contained layout re-lays out the parent, so a table in a scroll pane jittered. A bounded
+height from the parent still wins. Pinned by
+`TableTest.aWheelTakesBothAxesAndShiftTurnsAPlainWheelSideways`,
+`aWheelAtEitherEndOfTheTablePassesToTheScrollerThatHoldsIt` and
+`theUnboundedHeightIsTheSeedsAndSetVisibleRowsChangesIt`. What a headless test cannot show: a
+trackpad's momentum events arriving after the table hits its end chain into the pane by the
+same rule, and whether that feels right is the live check decision 44 names.
+
 ---
 
 ## 3. Selection is by row, and the keyboard has a cell

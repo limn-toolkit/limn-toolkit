@@ -76,6 +76,12 @@ import java.util.function.IntConsumer;
  * {@link Column#footerSum()} and the other aggregates). It is computed on {@link #setRows} and
  * {@link #refresh()} and never per frame.
  *
+ * <p><b>Inside a scroller</b> the table scrolls itself first and hands the wheel on at either
+ * end: a detent that moves neither offset — the rows already at the top or the bottom, the
+ * columns at either edge, or a table that fits — is left unconsumed and reaches the scroll
+ * pane that holds it. Under an unbounded height the table prefers {@link #setVisibleRows} rows
+ * of the step's seed height, plus its header and footer.
+ *
  * <p>ADR 041 is the record.
  *
  * @param <T> the row type
@@ -92,8 +98,20 @@ public class Table<T> extends Widget implements Scrollable {
         MULTI
     }
 
-    /** Rows of intrinsic height when the height axis is unbounded; a count, not a length. */
+    /**
+     * Rows of intrinsic height when the height axis is unbounded, until {@link #setVisibleRows}
+     * says otherwise; a count, not a length: it multiplies the step's seed row height.
+     */
     private static final int VISIBLE_ROWS_HINT = 8;
+
+    /**
+     * How many seed rows tall the rows' viewport prefers to be under an unbounded height
+     * (decision 44 of 2026-09-14). Multiplied by the token's seed and never by the realized
+     * average: the average moves as rows of other heights scroll in, and a preference that
+     * moved with it re-laid out the parent on every such scroll and made a table inside a
+     * scroll pane jitter.
+     */
+    private int visibleRows = VISIBLE_ROWS_HINT;
     /** How far either side of a header divider a press starts a resize, in points. */
     private static final float RESIZE_BAND = 4;
     /** Two presses on one row closer than this are a double click. */
@@ -1233,6 +1251,37 @@ public class Table<T> extends Widget implements Scrollable {
         return gutters.layout();
     }
 
+    /**
+     * Sets how many rows tall the rows' viewport prefers to be when the parent gives the table
+     * no height — a table inside a {@link limn.components.ScrollView} or an unconstrained
+     * column — as a count of the step's seed rows (default 8); the header and the footer add
+     * their own strips. A bounded height from the parent always wins; this is the free-axis
+     * fallback only. The preference is the seed's and not the realized rows' on purpose
+     * (decision 44 of 2026-09-14): a preference that followed the measured average moved every
+     * time a row of another height scrolled in, and re-laid out the parent with it. UI thread
+     * only.
+     *
+     * @param rows a row count of at least one
+     * @return this table
+     * @throws IllegalArgumentException if {@code rows} is below one
+     */
+    public Table<T> setVisibleRows(int rows) {
+        Ui.checkUiThread();
+        if (rows < 1) {
+            throw new IllegalArgumentException("visible rows must be at least 1, not " + rows);
+        }
+        if (rows != visibleRows) {
+            visibleRows = rows;
+            markNeedsLayout();
+        }
+        return this;
+    }
+
+    /** How many seed rows tall the rows' viewport prefers to be under an unbounded height. */
+    public int visibleRows() {
+        return visibleRows;
+    }
+
     // ------------------------------------------------------------------------- scrolling
 
     /**
@@ -1251,9 +1300,11 @@ public class Table<T> extends Widget implements Scrollable {
      * The one seam the offsets move through, announced as {@code VALUE} with {@code origin}
      * when either moved: the public method and a reveal pass {@code CODE}, the wheel and the
      * bars pass {@code USER}, and a column brought into view for the focus cell passes
-     * {@code ADJUSTMENT}.
+     * {@code ADJUSTMENT}. Each axis is clamped on its own.
+     *
+     * @return whether either offset moved
      */
-    private void scrollBy(float dx, float dy, Change.Origin origin) {
+    private boolean scrollBy(float dx, float dy, Change.Origin origin) {
         boolean moved = false;
         if (dy != 0) {
             SizeTokens t = tokens();
@@ -1298,6 +1349,7 @@ public class Table<T> extends Widget implements Scrollable {
             invalidate();
             notifyChange(Change.of(Change.Aspect.VALUE, origin));
         }
+        return moved;
     }
 
     /** The horizontal bar's model writing the offset: the user dragging or paging the bar. */
@@ -1437,8 +1489,13 @@ public class Table<T> extends Widget implements Scrollable {
             }
         }
         float w = constraints.hasBoundedWidth() ? constraints.maxWidth() : preferred;
+        // The free-axis height is the SEED's and not avgRowHeight's (decision 44, 2026-09-14):
+        // the measured mean moves as rows of other heights scroll in, and a measured size that
+        // moved under a contained layout re-laid out the parent on every such scroll
+        // (Widget.markNeedsContainedLayout's contract), so a table in a scroll pane jittered.
+        // The seed is a token and stands still.
         float h = constraints.hasBoundedHeight() ? constraints.maxHeight()
-                : headerHeight(t) + footerHeight(t) + VISIBLE_ROWS_HINT * avgRowHeight(t);
+                : headerHeight(t) + footerHeight(t) + visibleRows * t.listRowSeed();
         return constraints.constrain(w, h);
     }
 
@@ -2543,15 +2600,26 @@ public class Table<T> extends Widget implements Scrollable {
         float y = sceneToLocalY(event.y());
         switch (event.type()) {
             case WHEEL -> {
-                boolean sideways = event.scrollX() != 0
-                        || (event.modifiers() & Keys.MOD_SHIFT) != 0;
-                float dx = sideways ? -(event.scrollX() != 0 ? event.scrollX() : event.scrollY())
-                        * Strokes.WHEEL_STEP : 0;
-                float dy = sideways ? 0 : -event.scrollY() * Strokes.WHEEL_STEP;
-                boolean canY = estimatedContentHeight(tokens()) > rowsViewportHeight();
-                boolean canX = contentWidth > gutters.viewportWidth(width());
-                if ((dy != 0 && canY) || (dx != 0 && canX)) {
-                    scrollBy(canX ? dx : 0, canY ? dy : 0, Change.Origin.USER);
+                // A detent is a device unit: the same flick travels the same distance in a
+                // dense table and a roomy one, so the step is locked, not tabled. The two axes
+                // are taken independently, as ScrollView takes them (TABLE-NEW-12, 2026-09-14):
+                // until then any scrollX made the event sideways and dropped scrollY, so a
+                // trackpad swipe that was not perfectly vertical scrolled nothing on a table
+                // whose columns fit. Shift turns a plain vertical wheel into a horizontal one
+                // for a mouse with one wheel; taken only when the event carries no scrollX, so
+                // a tilt wheel and Shift cannot drive the same axis in one event.
+                float sx = event.scrollX();
+                float sy = event.scrollY();
+                if (sx == 0 && (event.modifiers() & Keys.MOD_SHIFT) != 0) {
+                    sx = sy;
+                    sy = 0;
+                }
+                // Consumed only when an offset moved (decision 44, 2026-09-14): a detent that
+                // finds the table at either end of an axis, or a table that fits, is left for
+                // the scroller that holds it. Until then the table was a wall inside a scroll
+                // pane once it overflowed.
+                if (scrollBy(-sx * Strokes.WHEEL_STEP, -sy * Strokes.WHEEL_STEP,
+                        Change.Origin.USER)) {
                     event.consume();
                 }
             }
