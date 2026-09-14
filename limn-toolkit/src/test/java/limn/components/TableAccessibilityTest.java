@@ -342,8 +342,14 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(perform(rowNodes().get(4).id(), Accessible.Action.ADD_TO_SELECTION, null));
         assertEquals("[2, 4]", java.util.Arrays.toString(table.selectedRows()), "added, not replaced");
         assertEquals(4, table.selectedRow(), "the added row is the lead, as under a command-click");
+        // And the cursor moved to it, as it does under the command-click these verbs stand
+        // for (decision 10): decision 20 names SELECT and FOCUS as the verbs that move the
+        // cursor and is silent on these two, so this line pins the reading Table took (ADR 041
+        // §7's amendment of 2026-09-14) until the owner says which holds.
+        assertEquals(4, table.focusRow(), "the cursor went with the add, as under a command-click");
         assertTrue(perform(rowNodes().get(2).id(), Accessible.Action.DESELECT, null));
         assertEquals("[4]", java.util.Arrays.toString(table.selectedRows()));
+        assertEquals(2, table.focusRow(), "and with the deselect, as under a command-click");
         assertTrue(perform(rowNodes().get(7).id(), Accessible.Action.SELECT, null));
         assertEquals("[7]", java.util.Arrays.toString(table.selectedRows()), "a select is the click");
         assertEquals(List.of("[2, 4]", "[4]", "[7]"), selects, "each reached the handler as a user");

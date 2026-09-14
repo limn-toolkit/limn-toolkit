@@ -363,6 +363,18 @@ found by the verb ratchet). Pinned by `TableAccessibilityTest.aRowOffersTheVerbs
 `focusOnACellOrARowMovesTheCursorAndSelectsNothing`, `aCellAndAColumnHeaderRefuseTheSelectOnlyARowPublishes`,
 `aPressOnTheTableOpensTheCursorRow` and `TableTest.enterAndADoubleClickActivateTheCursorRow`.
 
+**Amended 2026-09-14 (review of the same pass; decision 20 read against decision 10).**
+`ADD_TO_SELECTION` and `DESELECT` on a row move the focus cell and the range anchor to that row,
+because they go through the toggle seam the command-click goes through and a command-click
+moves the cursor in every desktop table. Decision 20 names `SELECT` and `FOCUS` as the verbs that
+move the cursor and says nothing of these two; decision 10 defines them as the command-click.
+This is a departure from the narrower reading of decision 20 and it is recorded as one: the
+owner's call whether the command-click reading holds for Table (and Tree and ListView copy
+it) or the two verbs should leave the cursor where it stands is open, and the alternative is a
+toggle variant that does not touch `focusRow`/`rangeAnchor`. Pinned by
+`aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem` so that whichever way it goes, the
+test moves with it.
+
 **Amended 2026-09-14 (decision 36; the header's stop, from the reader's side).** While the header
 holds the keyboard the table is still the focused node and its cursor is the header cell under
 the column cursor — that `COLUMN_HEADER` is `ACTIVE`, and no `CELL` is — so the effective focus of
