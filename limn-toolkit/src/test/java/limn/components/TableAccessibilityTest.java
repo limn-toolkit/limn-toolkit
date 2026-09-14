@@ -239,12 +239,21 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
      * scoped it.
      */
     @Test
-    void aWidgetColumnCellIsAChildOfItsRowInColumnOrder() {
+    void aWidgetColumnCellIsAChildOfItsRowInColumnOrder() throws InterruptedException {
+        List<String> pressed = new ArrayList<>();
+        List<String> routedToTable = new ArrayList<>();
         Table<Person> table = new Table<>(List.of(
                 Column.text("Name", Person::name).width(120),
-                Column.<Person>widget("Edit", person -> new Button("Edit " + person.name()))
-                        .width(80),
-                Column.numeric("Age", Person::age).width(60)));
+                Column.<Person>widget("Edit", person -> new Button("Edit " + person.name())
+                        .onAction(() -> pressed.add(person.name()))).width(80),
+                Column.numeric("Age", Person::age).width(60))) {
+            @Override
+            protected boolean onSyntheticAction(long key, Accessible.Action action,
+                                                Accessible.Argument arg) {
+                routedToTable.add(key + ":" + action);
+                return super.onSyntheticAction(key, action, arg);
+            }
+        };
         table.setRows(people(40));
         bind(table);
 
@@ -266,10 +275,16 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(new CellFacet(1, 2), cells.get(2).cell());
         assertEquals(second.id(), tree().node(cells.get(1).parent()).id(), "its parent is the row");
 
-        // The button's verbs stay its own: a press reaches the widget, not the table's hook.
+        // The button's verbs stay its own: a press from the platform reaches the widget's
+        // handler through the scene, and never the table's synthetic hook, although the node
+        // hangs under a synthetic row (ADR 039 §1.3, amended 2026-09-14).
         assertTrue(cells.get(1).actions().actions().contains(Accessible.Action.PRESS));
         long button = cells.get(1).id();
         long row = second.id();
+        assertTrue(perform(button, Accessible.Action.PRESS, null));
+        assertEquals(List.of("Person 1"), pressed, "the button's own handler ran");
+        assertTrue(routedToTable.isEmpty(),
+                "and the table's synthetic hook was not asked: " + routedToTable);
         table.scrollBy(0, 4000);
         frame();
         assertEquals(AccessibleNode.NONE, tree().indexOf(button), "row 1 scrolled away");
