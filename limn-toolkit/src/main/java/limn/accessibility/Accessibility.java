@@ -119,6 +119,10 @@ public final class Accessibility {
         boolean ignored;
         boolean synthetic;
         long syntheticKey;
+        // One past the last slot of a synthetic child's subtree, stamped when it is closed, so a
+        // scan over an owner's synthetic children steps from child to child instead of through
+        // every cell of every row between them. Meaningless on a widget's own slot.
+        int subtreeEnd;
         boolean hosted;
         boolean roleDeclared;
         boolean offScreen;
@@ -202,6 +206,7 @@ public final class Accessibility {
             ignored = false;
             synthetic = false;
             syntheticKey = 0;
+            subtreeEnd = 0;
             hosted = false;
             roleDeclared = false;
             offScreen = false;
@@ -1063,6 +1068,7 @@ public final class Accessibility {
         if (s.parent == AccessibleNode.NONE) {
             throw new IllegalStateException("endChild without child");
         }
+        s.subtreeEnd = count;
         current = s.parent;
     }
 
@@ -1231,9 +1237,12 @@ public final class Accessibility {
      */
     public int pendingHostIndex(int owner) {
         // A widget's synthetic children are begun inside its describe hook, so they sit right
-        // after its own slot and before any widget child; the scan stops at the first slot that
-        // is not one of them.
-        for (int i = owner + 1; i < count && slots[i].synthetic; i++) {
+        // after its own slot and before any widget child, each followed by its own subtree; the
+        // scan steps from one direct child to the next over each subtree, so a table asking for
+        // a row visits its rows and not every cell of the rows before it, and stops at the first
+        // slot that is not one of them.
+        for (int i = owner + 1; i < count && slots[i].synthetic;
+                i = Math.max(slots[i].subtreeEnd, i + 1)) {
             if (slots[i].parent == owner && slots[i].syntheticKey == pendingHostKey) {
                 return i;
             }

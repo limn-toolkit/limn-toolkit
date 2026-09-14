@@ -190,6 +190,49 @@ class AccessibleModelTest {
         assertNull(tree.root().selectionItem());
     }
 
+    /**
+     * {@code under(key)} names one of the owner's <em>direct</em> synthetic children, and the
+     * lookup steps over each child's subtree rather than through it: a table asking for a row
+     * visits its rows, not every cell of the rows before. A cell nested under an earlier row
+     * that happens to carry the wanted key is not the row, and the row after a deep subtree is
+     * still found.
+     */
+    @Test
+    void aHostIsFoundAmongTheOwnersDirectSyntheticChildrenAcrossTheirSubtrees() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        a.begin(a.mint(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.TABLE);
+        int[] rowIndex = new int[3];
+        for (int row = 0; row < 3; row++) {
+            a.child(row);
+            rowIndex[row] = a.nodeCount() - 1;
+            a.role(Accessible.Role.ROW);
+            for (int column = 0; column < 40; column++) {
+                a.child(column);          // keys 0..39: row 1 and row 2 recur as cell keys here
+                a.role(Accessible.Role.CELL);
+                a.child(100);             // and one level deeper still
+                a.role(Accessible.Role.LABEL);
+                a.endChild();
+                a.endChild();
+            }
+            a.endChild();
+        }
+        for (int row = 0; row < 3; row++) {
+            a.beginChildIdentity();
+            a.under(row);
+            assertEquals(rowIndex[row], a.pendingHostIndex(0),
+                    "row " + row + " is the owner's own child with that key");
+            a.endChildIdentity();
+        }
+        a.beginChildIdentity();
+        a.under(100);
+        assertThrows(IllegalStateException.class, () -> a.pendingHostIndex(0),
+                "a key only a nested child carries names no host");
+        a.endChildIdentity();
+        a.end();
+    }
+
     @Test
     void theTreeLinksAgreeWithTheOrderItWasWalkedIn() {
         Accessibility a = new Accessibility();
