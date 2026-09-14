@@ -774,6 +774,24 @@ MODEL-NEW-10, TABLE-NEW-1, TABLE-NEW-7).
   is, and not a child quietly published elsewhere. `TableAccessibilityTest` pins the row, the order
   and the recycled identity.
 
+**Amendment, 2026-09-14: the intern table is bounded by what is live, and eviction raises
+nothing.** The paragraph above said "bounded", "least-recently-published" and "emits
+`NODE_DESTROYED`", and each was wrong in a way that mattered (MODEL-NEW-7). The table held 4096
+pairs and, when full, dropped every pair stamped with the oldest generation — which, on the walk
+that overflowed, was every pair of the previous publish, including the ones that walk had not
+reached yet. A table realizing nine rows over five hundred columns therefore minted fresh
+identifiers on every frame and published on every frame with nobody touching anything. Now a pair
+is stamped with the walk that looked it up, and when the table is full it drops only the pairs
+neither this walk nor the previous one asked for — a row scrolled away two frames ago or longer —
+and grows when there are none, because a pair dropped then is one this walk is about to ask for
+again. Growth is an allocation, and it happens only on a walk that is minting, which is a walk that
+publishes; a quiet frame finds every pair and allocates nothing, which
+`AccessiblePublishCostTest` and `Table`'s quiet-table ratchet keep true. And eviction emits nothing,
+as the code always said: a node that left the tree was destroyed by the difference between two
+trees when it left, and the entry existed only so its identifier could come back.
+`AccessibleModelTest` walks five thousand keyed rows twice and asserts the same identifiers and no
+`STRUCTURE_CHANGED`; `TableAccessibilityTest` does the same through a wide table.
+
 ### 1.4 The snapshot stores links, not child lists
 
 Each node holds `parent`, `firstChild`, `lastChild`, `nextSibling` and `previousSibling` as array

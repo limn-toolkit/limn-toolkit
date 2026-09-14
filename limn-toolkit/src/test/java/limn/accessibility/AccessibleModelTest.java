@@ -308,6 +308,48 @@ class AccessibleModelTest {
                         + "find() says whether the node is in it");
     }
 
+    /**
+     * MODEL-NEW-7: a walk with more keyed children than the intern table held used to evict the
+     * pairs seen in the previous publish, which were exactly the pairs this walk had not reached
+     * yet, so every frame minted fresh identifiers and every frame published. The table now drops
+     * only what neither this walk nor the last one asked for, and grows when that is nothing.
+     */
+    @Test
+    void aWalkWithMoreKeyedChildrenThanTheInternTableHoldsKeepsEveryIdentifier() {
+        Accessibility a = new Accessibility();
+        long ownerId = a.mint();
+        long[] first = describeManyRows(a, ownerId, 5000);
+        publish(a, target -> 0);
+        long[] second = describeManyRows(a, ownerId, 5000);
+        assertFalse(a.changed(), "the same five thousand rows, the same identifiers");
+        AccessibleTree tree = publish(a, target -> 0);
+        assertEquals(5001, tree.nodeCount());
+        for (int i = 0; i < first.length; i++) {
+            assertEquals(first[i], second[i], "row " + i + " changed identifier");
+        }
+        for (AccessibleEvent event : a.events()) {
+            assertTrue(event.type() != AccessibleEvent.Type.STRUCTURE_CHANGED,
+                    "nothing is new on the second walk: " + a.events());
+        }
+    }
+
+    /** One owner with {@code rows} synthetic children keyed 0..rows-1; returns their ids. */
+    private static long[] describeManyRows(Accessibility a, long ownerId, int rows) {
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        a.begin(ownerId, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.LIST);
+        long[] ids = new long[rows];
+        for (int i = 0; i < rows; i++) {
+            a.child(i);
+            a.role(Accessible.Role.LIST_ITEM);
+            a.bounds(0, i, 100, 1);
+            ids[i] = a.idAt(a.nodeCount() - 1);
+            a.endChild();
+        }
+        a.end();
+        return ids;
+    }
+
     @Test
     void aTextFacetCarriesItsCaretAffinityAndAnEmptyTreeCarriesNothing() {
         assertEquals(0, AccessibleTree.EMPTY.nodeCount());

@@ -281,6 +281,35 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                 "the recycled control is row 1's element again");
     }
 
+    /**
+     * A wide table publishes a cell for every shown column of every realized row, off-screen
+     * columns included, so nine rows over five hundred columns is more interned pairs than the
+     * table started out holding; a quiet frame must still publish nothing (MODEL-NEW-7).
+     */
+    @Test
+    void aTableWiderThanTheInternTablePublishesNothingOnAQuietFrame() {
+        List<Column<Person>> columns = new ArrayList<>();
+        columns.add(Column.text("Name", Person::name).width(120));
+        for (int c = 0; c < 520; c++) {
+            columns.add(Column.numeric("Age " + c, Person::age).width(60));
+        }
+        Table<Person> table = new Table<>(columns);
+        table.setRows(people(200));
+        bind(table);
+        List<AccessibleNode> rows = rowNodes();
+        assertTrue(rows.size() * 521 > 4096, "more cells than the table held: " + rows.size());
+        int published = bridge.published.size();
+        long firstCell = childrenOf(rows.get(0)).get(0).id();
+
+        for (int i = 0; i < 3; i++) {
+            table.invalidate();
+            frame();
+        }
+        assertEquals(published, bridge.published.size(),
+                "nothing moved, so no snapshot: " + bridge.events);
+        assertEquals(firstCell, childrenOf(rowNodes().get(0)).get(0).id());
+    }
+
     @Test
     void aMultiSelectTableSaysSo() {
         Table<Person> table = bindTable(5);

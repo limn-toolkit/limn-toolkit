@@ -79,7 +79,13 @@ public final class Accessibility {
      */
     private static final int BOUNDS_BUDGET = 32;
 
-    /** Interned synthetic identifiers kept, past which the least recently published are dropped. */
+    /**
+     * Interned identifiers the table starts out holding. Not a ceiling: a walk that needs more
+     * pairs than the table holds and finds none it may drop grows the table instead (ADR 039 §1.3,
+     * amended 2026-09-14), because dropping a pair a walk is about to ask for again mints it a
+     * new identifier, and that is identity churn on every frame for as long as the walk stays
+     * that large.
+     */
     private static final int INTERN_CAPACITY = 4096;
 
     /** One node, as the walk builds it. Mutable, reused, and never handed out. */
@@ -294,6 +300,16 @@ public final class Accessibility {
     private long[] internIds = new long[INTERN_CAPACITY * 2];
     private long[] internSeen = new long[INTERN_CAPACITY * 2];
     private int internSize;
+    private int internCapacity = INTERN_CAPACITY;
+
+    /**
+     * Which walk this is, from one. What an interned pair is stamped with when it is looked up,
+     * so that eviction can tell a pair this walk or the last one asked for -- which the next walk
+     * will ask for again -- from one nothing has asked for since. Not the publish generation: a
+     * walk that changed nothing publishes nothing and the generation stands still, while the pair
+     * it looked up is as live as any.
+     */
+    private long walkSerial;
 
     private final List<AccessibleEvent> events = new ArrayList<>();
 
@@ -1084,6 +1100,7 @@ public final class Accessibility {
         this.sceneLocale = Objects.requireNonNull(sceneLocale, "sceneLocale");
         count = 0;
         current = AccessibleNode.NONE;
+        walkSerial++;
     }
 
     /**
@@ -1904,77 +1921,96 @@ public final class Accessibility {
      * every time that pair is asked for again, so a row scrolled away and back is the same element
      * to whoever is holding it.
      *
-     * <p>The table is bounded. Past its capacity the pair published longest ago is dropped, and
-     * dropping one raises nothing: a node that left the tree was already destroyed by the
-     * difference between two trees, and the entry only ever existed so that the identifier could
-     * come back.
+     * <p>The table is bounded by what is live, not by a number. When it is full, the pairs
+     * neither this walk nor the previous one asked for are dropped &mdash; a row scrolled away
+     * two frames ago or longer &mdash; and dropping one raises nothing: a node that left the tree
+     * was already destroyed by the difference between two trees, and the entry only ever existed
+     * so that the identifier could come back. When every pair is that recent the table grows
+     * instead, because a pair dropped now is one this walk is about to ask for again, and a
+     * fresh identifier for it is a new element to every client on every frame for as long as the
+     * walk stays this large (MODEL-NEW-7). Growth happens on a walk that is minting, which is a
+     * walk that publishes; a quiet frame finds every pair and allocates nothing.
      */
     private long intern(long owner, long key) {
         int mask = internOwners.length - 1;
         int at = (int) mix(owner * 31 + key) & mask;
-        int firstFree = -1;
         for (int probe = 0; probe < internOwners.length; probe++) {
             int index = (at + probe) & mask;
             if (internIds[index] == 0) {
-                if (firstFree < 0) {
-                    firstFree = index;
-                }
                 break;
             }
             if (internOwners[index] == owner && internKeys[index] == key) {
-                internSeen[index] = generation;
+                internSeen[index] = walkSerial;
                 return internIds[index];
             }
         }
-        if (internSize >= INTERN_CAPACITY) {
-            evictOldestInterned();
-            return intern(owner, key);
+        if (internSize >= internCapacity) {
+            if (!evictInternedNotSeenLately()) {
+                internCapacity *= 2;
+            }
+            rebuildInternTable();
+            mask = internOwners.length - 1;
+            at = (int) mix(owner * 31 + key) & mask;
         }
-        int index = firstFree >= 0 ? firstFree : at;
+        int index = at;
+        while (internIds[index] != 0) {
+            index = (index + 1) & mask;
+        }
         internOwners[index] = owner;
         internKeys[index] = key;
         internIds[index] = mint();
-        internSeen[index] = generation;
+        internSeen[index] = walkSerial;
         internSize++;
         return internIds[index];
     }
 
-    private void evictOldestInterned() {
-        long oldest = Long.MAX_VALUE;
+    /**
+     * Forgets every pair neither this walk nor the previous one looked up, by zeroing its
+     * identifier in place; {@link #rebuildInternTable()} closes the holes.
+     *
+     * @return whether anything was forgotten
+     */
+    private boolean evictInternedNotSeenLately() {
+        boolean any = false;
         for (int i = 0; i < internIds.length; i++) {
-            if (internIds[i] != 0) {
-                oldest = Math.min(oldest, internSeen[i]);
+            if (internIds[i] != 0 && internSeen[i] < walkSerial - 1) {
+                internIds[i] = 0;
+                any = true;
             }
         }
-        // Rebuild rather than tombstone: an open-addressed table cannot have a hole punched in it
-        // without breaking every probe that ran past it, and a rebuild happens once per eviction
-        // burst rather than once per lookup.
+        return any;
+    }
+
+    /**
+     * Re-inserts every live pair into fresh arrays sized for {@link #internCapacity}. Rebuild
+     * rather than tombstone: an open-addressed table cannot have a hole punched in it without
+     * breaking every probe that ran past it, and a rebuild happens once per overflow rather than
+     * once per lookup.
+     */
+    private void rebuildInternTable() {
         long[] owners = internOwners;
         long[] keys = internKeys;
         long[] ids = internIds;
         long[] seen = internSeen;
-        internOwners = new long[owners.length];
-        internKeys = new long[keys.length];
-        internIds = new long[ids.length];
-        internSeen = new long[seen.length];
+        internOwners = new long[internCapacity * 2];
+        internKeys = new long[internCapacity * 2];
+        internIds = new long[internCapacity * 2];
+        internSeen = new long[internCapacity * 2];
         internSize = 0;
         int mask = internOwners.length - 1;
         for (int i = 0; i < ids.length; i++) {
-            if (ids[i] == 0 || seen[i] == oldest) {
+            if (ids[i] == 0) {
                 continue;
             }
-            int at = (int) mix(owners[i] * 31 + keys[i]) & mask;
-            for (int probe = 0; probe < internOwners.length; probe++) {
-                int index = (at + probe) & mask;
-                if (internIds[index] == 0) {
-                    internOwners[index] = owners[i];
-                    internKeys[index] = keys[i];
-                    internIds[index] = ids[i];
-                    internSeen[index] = seen[i];
-                    internSize++;
-                    break;
-                }
+            int index = (int) mix(owners[i] * 31 + keys[i]) & mask;
+            while (internIds[index] != 0) {
+                index = (index + 1) & mask;
             }
+            internOwners[index] = owners[i];
+            internKeys[index] = keys[i];
+            internIds[index] = ids[i];
+            internSeen[index] = seen[i];
+            internSize++;
         }
     }
 
