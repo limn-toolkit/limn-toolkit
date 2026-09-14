@@ -200,7 +200,8 @@ public final class AccessibilityGallery {
                         List.of(Role.LIST, Role.LIST_ITEM, Role.SCROLL_BAR),
                         AccessibilityGallery::listView),
                 new Entry("Table with a header and rows", List.of(Table.class),
-                        List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL),
+                        List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL,
+                                Role.SWITCH),
                         AccessibilityGallery::table),
                 // TREE and TREE_ITEM since the AT-SPI numbers came off the Fedora guest on
                 // 2026-09-13 (ADR 044 §4). The live runs that day used `--scene tree-reader`,
@@ -496,23 +497,41 @@ public final class AccessibilityGallery {
         return new Built(page);
     }
 
+    /**
+     * A table as an application uses one: several rows selected in {@code MULTI}, a footer
+     * summarising two columns, and a widget column whose switches are named — "Visited" is
+     * what a reader hears for the control, and it says which column it stands in without the
+     * header (B5 of the 2026-09-13 pass, settled as table-golden-scene; its transcript is the
+     * committed golden {@code table.txt}).
+     */
     private static Built table() {
         Column page = page();
-        record Range(String name, String continent, int summit) {
+        record Range(String name, String continent, int summit, boolean visited) {
         }
         Table<Range> table = new Table<>(List.of(
-                limn.components.table.Column.text("Range", Range::name).width(120).weight(1),
-                limn.components.table.Column.text("Continent", Range::continent).width(100),
-                limn.components.table.Column.numeric("Summit", Range::summit).width(80)));
+                limn.components.table.Column.text("Range", Range::name).width(120).weight(1)
+                        .footerCount(),
+                limn.components.table.Column.text("Continent", Range::continent).width(130),
+                limn.components.table.Column.numeric("Summit", Range::summit).width(100)
+                        .footerMax(),
+                limn.components.table.Column.<Range>widget("Visited", range ->
+                        new Checkbox(Checkbox.Variant.SWITCH, "Visited")
+                                .setChecked(range.visited())).width(140).sortable(false)));
         table.setRows(List.of(
-                new Range("Alps", "Europe", 4808), new Range("Andes", "South America", 6961),
-                new Range("Atlas", "Africa", 4167), new Range("Carpathians", "Europe", 2655),
-                new Range("Caucasus", "Europe", 5642), new Range("Himalayas", "Asia", 8849),
-                new Range("Pyrenees", "Europe", 3404), new Range("Rockies", "North America", 4401),
-                new Range("Urals", "Europe", 1895), new Range("Zagros", "Asia", 4409)));
-        table.setSelectedRow(2);
+                new Range("Alps", "Europe", 4808, true),
+                new Range("Andes", "South America", 6961, false),
+                new Range("Atlas", "Africa", 4167, false),
+                new Range("Carpathians", "Europe", 2655, true),
+                new Range("Caucasus", "Europe", 5642, false),
+                new Range("Himalayas", "Asia", 8849, false),
+                new Range("Pyrenees", "Europe", 3404, true),
+                new Range("Rockies", "North America", 4401, false),
+                new Range("Urals", "Europe", 1895, false),
+                new Range("Zagros", "Asia", 4409, false)));
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectedRows(0, 2, 3); // the lead in view, so nothing scrolls before it is read
         page.add(Labelled.above("Mountain ranges", table,
-                new SizedBox(SizedBox.UNSET, 200, table)));
+                new SizedBox(SizedBox.UNSET, 240, table)));
         return new Built(page);
     }
 
