@@ -100,8 +100,9 @@ class UiaProviderTest {
         @Override
         public long simpleElementFor(long nodeId) {
             // A stand-in pointer that names the node, so a test can see which node an
-            // element-valued property was answered with and through which interface.
-            return 0xE1E00000L + nodeId;
+            // element-valued property was answered with and through which interface; and 0 for
+            // a node this tree does not hold, which is the bridge's own answer (elementOf).
+            return published.get().indexOf(nodeId) < 0 ? 0 : 0xE1E00000L + nodeId;
         }
 
         @Override
@@ -301,6 +302,81 @@ class UiaProviderTest {
             assertEquals(UiaIds.S_OK, callWithId(message, GET_PROPERTY_VALUE, UiaIds.DESCRIBED_BY, out));
             assertEquals(UiaVariant.VT_EMPTY, UiaVariant.tagOf(variant, 0));
             assertEquals(1, arraysMade.size(), "and no empty array was minted for it");
+        } finally {
+            MemoryUtil.nmemFree(out);
+        }
+    }
+
+    /**
+     * A window holding a combo box that opened a native popup: its {@code CONTROLLER_FOR} names
+     * the popup's root, which is a node of the OTHER window's tree (process-wide identifiers,
+     * ADR 039 §1.3 amended 2026-09-14); its caption is likewise held elsewhere, and its message
+     * is described by one node held here and one that is not. The identifiers are what a scene
+     * mints: a tag above a forty-two-bit serial, so a hand-written one below stands for the other
+     * window's.
+     */
+    private void publishAWindowWithAComboWhosePopupIsAnotherWindow() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        a.begin(4001, 0, Locale.ENGLISH, 0, 0, 400, 32);
+        a.role(Accessible.Role.COMBO_BOX);
+        a.name(I18nString.literal("Size"), Accessible.NameFrom.LABEL);
+        a.relation(Accessible.Relation.CONTROLLER_FOR, FOREIGN_POPUP_ROOT);
+        a.relation(Accessible.Relation.LABELLED_BY, FOREIGN_POPUP_ROOT + 1);
+        a.relation(Accessible.Relation.DESCRIBED_BY, FOREIGN_POPUP_ROOT + 2);
+        a.relation(Accessible.Relation.DESCRIBED_BY, 4002L);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(4002, 0, Locale.ENGLISH, 0, 40, 400, 20);
+        a.role(Accessible.Role.LABEL);
+        a.name(I18nString.literal("Pick a size"), Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.resolveRelations(target -> (Long) target);
+        published.set(a.publish(0, 0, 0, 1f, true));
+    }
+
+    /** An identifier with another scene's tag in its high bits: nothing this tree holds. */
+    private static final long FOREIGN_POPUP_ROOT = (7L << 42) | 5;
+
+    /**
+     * A relation whose target lives in another window's tree is not handed to UI Automation as a
+     * NULL element: the array is compacted to the targets this tree holds, and a property none of
+     * whose targets are held here is the platform's empty default. This is what a native combo's
+     * opener carries on every arrow key while the popup is open; mapping the target to the other
+     * HWND's provider is CRIT-2 phase 3.
+     */
+    @Test
+    void aRelationTargetAnotherWindowHoldsIsLeftOutRatherThanHandedOverAsNull() {
+        publishAWindowWithAComboWhosePopupIsAnotherWindow();
+        long combo = elementFor(4001);
+        long out = MemoryUtil.nmemAllocChecked(UiaVariant.SIZE);
+        ByteBuffer variant = MemoryUtil.memByteBuffer(out, UiaVariant.SIZE);
+        try {
+            assertEquals(UiaIds.S_OK, callWithId(combo, GET_PROPERTY_VALUE, UiaIds.CONTROLLER_FOR, out));
+            assertEquals(UiaVariant.VT_EMPTY, UiaVariant.tagOf(variant, 0),
+                    "the popup's root is the other window's element: nothing to hand over here");
+            assertEquals(0, arraysMade.size(), "and no array holding a NULL was minted for it");
+
+            assertEquals(UiaIds.S_OK, callWithId(combo, GET_PROPERTY_VALUE, UiaIds.LABELED_BY, out));
+            assertEquals(UiaVariant.VT_EMPTY, UiaVariant.tagOf(variant, 0),
+                    "a caption held elsewhere is no element either, rather than a NULL one");
+
+            assertEquals(UiaIds.S_OK, callWithId(combo, GET_PROPERTY_VALUE, UiaIds.DESCRIBED_BY, out));
+            assertEquals((short) (UiaVariant.VT_ARRAY | UiaVariant.VT_UNKNOWN),
+                    UiaVariant.tagOf(variant, 0));
+            assertEquals(1, arraysMade.size());
+            assertEquals(1, arraysMade.get(0).length,
+                    "compacted to the one target this tree holds");
+            assertEquals(0xE1E00000L + 4002, arraysMade.get(0)[0]);
+            for (long pointer : arraysMade.get(0)) {
+                assertNotEquals(0L, pointer, "no NULL entry, which SafeArrayDestroy would release");
+            }
         } finally {
             MemoryUtil.nmemFree(out);
         }

@@ -405,11 +405,23 @@ final class UiaProvider {
         // ControllerFor are arrays. Through the simple interface, which is the type the property
         // declares (see Context.simpleElementFor). A node without the relation stays VT_EMPTY,
         // which is the platform's default for all three.
+        //
+        // A target this window's tree does not hold answers no element (simpleElementFor says 0)
+        // and is left out rather than handed over: since node identifiers became process-wide
+        // (ADR 039 §1.3, 2026-09-14) the opener of a native popup carries CONTROLLER_FOR naming
+        // the popup's root in the OTHER window's tree, and a SAFEARRAY(VT_UNKNOWN) with a NULL
+        // entry is what UI Automation would otherwise have been given for it. Mapping such a
+        // target to the other HWND's provider (AccessibleTree.holds says which tree) is CRIT-2
+        // phase 3, the Windows lane's; until then the array is compacted and, when nothing of it
+        // is held here, the property is VT_EMPTY like a relation the node does not declare.
         if (propertyId == UiaIds.LABELED_BY) {
             long[] labels = UiaProperties.relatedNodes(node,
                     limn.accessibility.Accessible.Relation.LABELLED_BY);
             if (labels.length > 0) {
-                UiaVariant.unknown(variant, 0, context.simpleElementFor(labels[0]));
+                long element = context.simpleElementFor(labels[0]);
+                if (element != 0) {
+                    UiaVariant.unknown(variant, 0, element);
+                }
             }
             return UiaIds.S_OK;
         }
@@ -419,10 +431,19 @@ final class UiaProvider {
                     : limn.accessibility.Accessible.Relation.CONTROLLER_FOR);
             if (targets.length > 0) {
                 long[] pointers = new long[targets.length];
+                int held = 0;
                 for (int i = 0; i < targets.length; i++) {
-                    pointers[i] = context.simpleElementFor(targets[i]);
+                    long element = context.simpleElementFor(targets[i]);
+                    if (element != 0) {
+                        pointers[held++] = element;
+                    }
                 }
-                UiaVariant.unknownArray(variant, 0, context.unknownArray(pointers));
+                if (held > 0) {
+                    if (held < pointers.length) {
+                        pointers = java.util.Arrays.copyOf(pointers, held);
+                    }
+                    UiaVariant.unknownArray(variant, 0, context.unknownArray(pointers));
+                }
             }
             return UiaIds.S_OK;
         }
