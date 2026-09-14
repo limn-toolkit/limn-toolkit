@@ -425,6 +425,77 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of(1, 6), opened);
     }
 
+    /**
+     * Decision 36 of 2026-09-14 from the reader's side: while the header holds the keyboard the
+     * table is still the focused node and its cursor is a header cell, so a reader that follows
+     * the effective focus hears the column title; a sortable header publishes {@code PRESS},
+     * which sorts as a click does, and the sorted header describes the direction the rows run.
+     */
+    @Test
+    void theHeadersColumnCursorIsTheCursorWhileTheHeaderHoldsTheKeyboard()
+            throws InterruptedException {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60),
+                Column.<Person>text("Note", p -> "-").width(60).sortable(false)));
+        table.setRows(people(20));
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(2);
+        frame();
+        List<AccessibleNode> headers = childrenOf(headerGroup());
+        assertTrue(headers.get(0).actions().actions().contains(Accessible.Action.PRESS));
+        assertTrue(headers.get(2).actions() == null
+                || !headers.get(2).actions().actions().contains(Accessible.Action.PRESS),
+                "a column that cannot be sorted offers no press: " + describe(tree()));
+        bridge.events.clear();
+
+        scene.keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
+        scene.inputBatchEnded();
+        frame();
+        assertTrue(table.isHeaderFocused());
+        assertEquals(tableNode().id(), tree().focused(), "the table is still the focused node");
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one cursor, the header's: " + describe(tree()));
+        assertEquals(Accessible.Role.COLUMN_HEADER, active.get(0).role());
+        assertEquals(new CellFacet(-1, 0), active.get(0).cell());
+        assertEquals("Name", active.get(0).name());
+        assertEquals(active.get(0).id(), tree().activeDescendant());
+        assertEquals(1, bridge.countOf(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "the cursor left the focus cell for the header, once: " + bridge.events);
+
+        scene.keyEvent(Keys.RIGHT, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(new CellFacet(-1, 1), nodesWith(Accessible.State.ACTIVE).get(0).cell(),
+                "Right moves the header's cursor a column");
+
+        assertTrue(perform(childrenOf(headerGroup()).get(0).id(), Accessible.Action.PRESS, null));
+        frame();
+        assertEquals(SortOrder.ASCENDING, table.sortOrder(), "a press on a header sorts");
+        headers = childrenOf(headerGroup());
+        assertEquals("Sorted ascending", headers.get(0).description(),
+                "the sorted header says which way: " + describe(tree()));
+        assertTrue(headers.get(1).description() == null || headers.get(1).description().isEmpty(),
+                "the others say nothing: " + describe(tree()));
+        scene.keyEvent(Keys.LEFT, true, false, 0);
+        scene.inputBatchEnded();
+        scene.keyEvent(Keys.SPACE, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals("Sorted descending", childrenOf(headerGroup()).get(0).description());
+
+        scene.keyEvent(Keys.TAB, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertFalse(table.isHeaderFocused());
+        active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size());
+        assertEquals(Accessible.Role.CELL, active.get(0).role(), "the focus cell is the cursor again");
+        assertEquals("Person 2", active.get(0).name(), "on the record it was on, sorted away");
+    }
+
     @Test
     void aQuietTableAllocatesNothingAndPublishesNothing() {
         Assumptions.assumeTrue(AllocationProbe.isSupported(),

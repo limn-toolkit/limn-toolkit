@@ -2398,6 +2398,19 @@ public abstract class Widget {
         return scene != null && scene.focusCameFromTraversal();
     }
 
+    /**
+     * Whether the focus this widget is being given arrived by Shift+Tab, walking backward: a
+     * widget with more than one stop of its own (a table's header and its rows) enters at its
+     * last stop then, and at its first otherwise, so that the two directions mirror. {@code false}
+     * for a forward Tab and for every arrival that is not a traversal. Only meaningful inside
+     * {@link #onFocusGained()}, as {@link #focusArrivedByTraversal()} is.
+     *
+     * @return whether Shift+Tab brought the focus here
+     */
+    protected final boolean focusArrivedBackward() {
+        return scene != null && scene.focusTraversalWentBackward();
+    }
+
     /** Called when this widget loses keyboard focus. Default: nothing. */
     protected void onFocusLost() {
     }

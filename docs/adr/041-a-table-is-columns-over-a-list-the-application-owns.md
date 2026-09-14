@@ -217,6 +217,25 @@ Filtering is the application's: a filtered `List<T>` is one line of stream code,
 in the toolkit would have to choose between predicate, text and column semantics for a case each
 application answers differently.
 
+**Amended 2026-09-14 (decision 36 of the 2026-09-13 pass, TABLE-SORT-KEYS).** Sorting was the
+pointer's alone: "a click on a sortable header" was the only way to it. With a shown column that
+can be sorted, the header is now a **focus stop of its own**, before the rows: Tab into the table
+enters at the header, Tab again at the rows, Shift+Tab walks the reverse (`Widget#focusArrivedBackward`
+was added for that mirror), and the table stays the one focusable widget — the stop is a state of
+it, so the tree's focused node is the table in both stops. On the header, Left and Right move a
+**column cursor** (swapped under RTL, as the focus cell's are), Home and End go to the ends, Space
+sorts the column under it cycling ascending, descending and the model's order exactly as a click
+does (and reaches `onSortRequest` the same way), Down hands the keyboard to the rows, and the
+other row keys do nothing rather than move rows under a cursor that is not in them. A header
+click sorts and leaves the keyboard in the rows, remembering the column for the next Tab into the
+header; a click on a row takes the keyboard back from the header. Without a sortable shown column
+there is no stop. The cursor is drawn as the same thin ring the focus cell wears, inset in the
+header cell, and the focus cell's ring is not drawn while the header holds the keyboard; the
+owner reviews it from `renders/table/header-focus-{dark,light,rtl}.png` of the pass, and the
+mark may change. `Table.isHeaderFocused()` and `headerColumn()` answer the state. Pinned by
+`TableTest.theHeaderIsAFocusStopOfItsOwnAndTheKeyboardSortsFromIt`; what a reader is told is in
+§7's amendment of the same date.
+
 ---
 
 ## 5. Columns have widths and weights, and the header resizes them
@@ -343,6 +362,20 @@ the row count as a row index, and a reader's select on cell (0, 1) selected row 
 found by the verb ratchet). Pinned by `TableAccessibilityTest.aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem`,
 `focusOnACellOrARowMovesTheCursorAndSelectsNothing`, `aCellAndAColumnHeaderRefuseTheSelectOnlyARowPublishes`,
 `aPressOnTheTableOpensTheCursorRow` and `TableTest.enterAndADoubleClickActivateTheCursorRow`.
+
+**Amended 2026-09-14 (decision 36; the header's stop, from the reader's side).** While the header
+holds the keyboard the table is still the focused node and its cursor is the header cell under
+the column cursor — that `COLUMN_HEADER` is `ACTIVE`, and no `CELL` is — so the effective focus of
+ADR 039 §1.10's amendment lands on the column title and one `ACTIVE_DESCENDANT_CHANGED` says so;
+Tab back to the rows returns it to the focus cell. A header cell of a sortable column publishes
+`PRESS`, which sorts as a click does; the header of the column the rows are ordered on carries
+the direction as its **description** (`TableStrings.SORTED_ASCENDING` / `SORTED_DESCENDING`, the
+`table` string domain, 21 locales), and the others describe nothing. **Left for phase 3:** a
+sort-direction facet or state once the three platforms' carriers of one have been read on the
+guests (UIA has none native to a header item beyond a property a provider may expose; AT-SPI an
+object attribute; AX `AXSortDirection` on a column) — until then the description is the carrier,
+and a bridge maps nothing special. Pinned by
+`TableAccessibilityTest.theHeadersColumnCursorIsTheCursorWhileTheHeaderHoldsTheKeyboard`.
 
 **Per platform**, what the facets become:
 

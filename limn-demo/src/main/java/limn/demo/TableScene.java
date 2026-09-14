@@ -122,7 +122,8 @@ final class TableScene {
             }
             case "sorted" -> table.setSort(customer, SortOrder.ASCENDING);
             case "header" -> {
-                scene.keyEvent(limn.input.Keys.TAB, true, false, 0);
+                // Shift+Tab from the rows: the header is the stop before them (decision 36).
+                scene.keyEvent(limn.input.Keys.TAB, true, false, limn.input.Keys.MOD_SHIFT);
                 scene.inputBatchEnded();
             }
             default -> System.err.println("LIMN_TABLE_DEMO: unknown state " + state);

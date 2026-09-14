@@ -151,6 +151,11 @@ public class Table<T> extends Widget implements Scrollable {
     // The focus cell: a view row and a shown column, or -1 before anything was focused.
     private int focusRow = -1;
     private int focusColumn;
+    // The header's own focus stop (decision 36 of 2026-09-14): while the table holds the keyboard
+    // it is either in the rows or in the header, whose column cursor is a shown column. The
+    // header is a stop only while it is shown and a shown column can be sorted.
+    private boolean headerFocused;
+    private int headerColumn;
 
     // Columns as shown: which, and where, resolved per layout.
     private int shownCount;
@@ -990,6 +995,20 @@ public class Table<T> extends Widget implements Scrollable {
         return focusColumn;
     }
 
+    /**
+     * @return whether the keyboard, while in this table, is on the header rather than in the
+     *         rows: Tab enters at the header when a shown column can be sorted, Left and Right
+     *         move its column cursor and Space sorts the column under it
+     */
+    public boolean isHeaderFocused() {
+        return headerFocused;
+    }
+
+    /** @return the header's column cursor, as an index among the shown columns */
+    public int headerColumn() {
+        return headerColumn;
+    }
+
     // ------------------------------------------------------------------------------ sort
 
     /**
@@ -1434,6 +1453,10 @@ public class Table<T> extends Widget implements Scrollable {
         }
         contentWidth = total;
         offsetX = Math.max(0, Math.min(offsetX, Math.max(0, contentWidth - viewW)));
+        headerColumn = Math.min(Math.max(0, headerColumn), Math.max(0, n - 1));
+        if (headerFocused && !headerStopAvailable()) {
+            headerFocused = false; // the header stopped being a stop: the rows have the keyboard
+        }
     }
 
     /** The left edge of shown column {@code s} in this widget's coordinates, for this pass. */
@@ -2199,7 +2222,8 @@ public class Table<T> extends Widget implements Scrollable {
                             + line.metrics().ascent();
                     canvas.drawText(line, x, baseline, theme.text);
                 }
-                if (row == focusRow && isFocused() && focusColumn < shownCount) {
+                if (row == focusRow && isFocused() && !headerFocused
+                        && focusColumn < shownCount) {
                     float left = columnLeft(focusColumn, rowX, w, rtl);
                     float inset = Strokes.FOCUS_RING_THIN;
                     canvas.drawRoundRect(left + inset, top + inset,
@@ -2289,6 +2313,16 @@ public class Table<T> extends Widget implements Scrollable {
                 }
                 canvas.drawLine(rowX, headerH - Strokes.HALF_PIXEL_INSET, rowX + w,
                         headerH - Strokes.HALF_PIXEL_INSET, Strokes.HAIRLINE, theme.outline);
+                if (headerHoldsCursor() && headerColumn < shownCount) {
+                    // The header's column cursor: the same thin ring the focus cell wears,
+                    // inset in the header cell, so one mark means "the keyboard is here" in
+                    // both stops (decision 36 of 2026-09-14; renders reviewed by the owner).
+                    float left = columnLeft(headerColumn, rowX, w, rtl);
+                    float inset = Strokes.FOCUS_RING_THIN;
+                    canvas.drawRoundRect(left + inset, inset, colW[headerColumn] - 2 * inset,
+                            headerH - 2 * inset, t.radiusSmall(), Strokes.FOCUS_RING_THIN,
+                            theme.focusRing);
+                }
             } finally {
                 canvas.restore();
             }
@@ -2446,12 +2480,17 @@ public class Table<T> extends Widget implements Scrollable {
                     } else {
                         int s = columnAt(x);
                         if (s >= 0) {
+                            // The pointer sorts and the keyboard stays where it was, in the
+                            // rows; the header's cursor remembers the column, so a Tab into the
+                            // header continues from where the pointer was.
+                            headerColumn = s;
                             headerClicked(s);
                         }
                     }
                     event.consume();
                     return;
                 }
+                leaveHeader(Change.Origin.USER);
                 int row = rowAt(y);
                 if (row < 0) {
                     event.consume();
@@ -2499,6 +2538,22 @@ public class Table<T> extends Widget implements Scrollable {
         }
         int mods = event.modifiers();
         boolean rtl = isRightToLeft();
+        if (event.key() == Keys.TAB && isFocused()) {
+            // The header is a focus stop of its own, before the rows (decision 36 of
+            // 2026-09-14): Tab walks header, rows, then out; Shift+Tab the reverse. A Tab the
+            // table does not consume traverses on, as it always did.
+            boolean backward = (mods & Keys.MOD_SHIFT) != 0;
+            if (!backward && headerFocused) {
+                consumeAnd(event, () -> leaveHeader(Change.Origin.USER));
+            } else if (backward && !headerFocused && headerStopAvailable()) {
+                consumeAnd(event, () -> enterHeader(headerColumn, Change.Origin.USER));
+            }
+            return;
+        }
+        if (headerFocused && isFocused()) {
+            onHeaderKeyEvent(event, mods, rtl);
+            return;
+        }
         switch (event.key()) {
             case Keys.DOWN -> consumeAnd(event, () -> moveFocusRow(
                     focusRow < 0 ? anchorIndex : focusRow + 1, mods));
@@ -2554,11 +2609,106 @@ public class Table<T> extends Widget implements Scrollable {
         notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
     }
 
+    // ------------------------------------------------------------------ the header's stop
+
+    /** @return whether the header is a focus stop: shown, with a shown column that can be sorted */
+    private boolean headerStopAvailable() {
+        if (!showHeader) {
+            return false;
+        }
+        // Read off the columns and not the last layout's shown set, so a Tab that arrives
+        // before the first layout (a scene focused as it is built) finds the stop too.
+        for (Column<T> column : columns) {
+            if (column.isVisible() && column.isSortable()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return whether the header's column cursor is the cursor a reader stands on right now */
+    private boolean headerHoldsCursor() {
+        return headerFocused && isFocused();
+    }
+
+    /** Damages the header band, which is where the header's cursor is drawn. */
+    private void damageHeader() {
+        if (showHeader) {
+            invalidate(rowsLeft(), 0, gutters.viewportWidth(width()), headerHeight(tokens()));
+        }
+    }
+
+    /**
+     * Puts the keyboard on the header, its column cursor on shown column {@code s}: the cursor a
+     * reader stands on moves from the focus cell to a header cell, announced as {@code ACTIVE}.
+     */
+    private void enterHeader(int s, Change.Origin origin) {
+        if (!headerStopAvailable()) {
+            return;
+        }
+        headerFocused = true;
+        headerColumn = Math.min(Math.max(0, s), Math.max(0, shownCount - 1));
+        ensureColumnVisible(headerColumn);
+        damageHeader();
+        damageRow(focusRow);
+        notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
+    }
+
+    /** Hands the keyboard back to the rows; the cursor is the focus cell again. */
+    private void leaveHeader(Change.Origin origin) {
+        if (!headerFocused) {
+            return;
+        }
+        headerFocused = false;
+        damageHeader();
+        damageRow(focusRow);
+        notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
+    }
+
+    /**
+     * The keys while the header holds the keyboard (decision 36 of 2026-09-14): Left and Right
+     * move the column cursor, Space sorts the column under it, cycling ascending, descending and
+     * the model's order as a click does; Down hands the keyboard to the rows. The other row keys
+     * are consumed and do nothing, so the rows do not move under a cursor that is not in them.
+     */
+    private void onHeaderKeyEvent(KeyEvent event, int mods, boolean rtl) {
+        switch (event.key()) {
+            case Keys.LEFT -> consumeAnd(event, () -> moveHeaderColumn(rtl ? 1 : -1));
+            case Keys.RIGHT -> consumeAnd(event, () -> moveHeaderColumn(rtl ? -1 : 1));
+            case Keys.HOME -> consumeAnd(event, () -> moveHeaderColumn(-shownCount));
+            case Keys.END -> consumeAnd(event, () -> moveHeaderColumn(shownCount));
+            case Keys.SPACE -> consumeAnd(event, () -> headerClicked(headerColumn));
+            case Keys.DOWN -> consumeAnd(event, () -> leaveHeader(Change.Origin.USER));
+            case Keys.UP, Keys.PAGE_UP, Keys.PAGE_DOWN, Keys.ENTER -> event.consume();
+            default -> {
+            }
+        }
+    }
+
+    private void moveHeaderColumn(int delta) {
+        if (shownCount == 0) {
+            return;
+        }
+        int next = Math.min(Math.max(0, headerColumn + delta), shownCount - 1);
+        if (next == headerColumn) {
+            return;
+        }
+        headerColumn = next;
+        ensureColumnVisible(next);
+        damageHeader();
+        notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+    }
+
     @Override
     protected void onFocusGained() {
         // The focus cell is not placed until a key asks for one: the first Down then lands on
         // the top row the way it does in ListView, rather than on the row below it. So what
         // appears is one ring in one row, and that is all this damages.
+        // Tab enters at the header, the first stop; Shift+Tab, a click and code at the rows.
+        headerFocused = focusArrivedByTraversal() && !focusArrivedBackward()
+                && headerStopAvailable();
+        headerColumn = Math.min(Math.max(0, headerColumn), Math.max(0, shownCount - 1));
+        damageHeader();
         damageRow(focusRow);
         if (focusRow >= 0 && slotFor(focusRow) == null) {
             markNeedsContainedLayout(); // the cursor row is realized while the keyboard is here
@@ -2567,6 +2717,7 @@ public class Table<T> extends Widget implements Scrollable {
 
     @Override
     protected void onFocusLost() {
+        damageHeader();
         damageRow(focusRow);
         if (focusRow >= 0 && !isPlaced(focusRow)) {
             markNeedsContainedLayout(); // and released by the first pass after it leaves
@@ -2642,12 +2793,26 @@ public class Table<T> extends Widget implements Scrollable {
             for (int s = 0; s < shownCount; s++) {
                 int c = shownIndex[s];
                 float left = columnLeft(s, rowX, w, rtl);
+                Column<T> column = columns.get(c);
                 a.child(HEADER_CELL_KEY | c);
                 // In this widget's coordinates, as every synthetic box is, nested or not.
                 a.bounds(left, 0, colW[s], headerH);
                 a.role(Accessible.Role.COLUMN_HEADER);
-                a.name(columns.get(c).title(), Accessible.NameFrom.CONTENT);
+                a.name(column.title(), Accessible.NameFrom.CONTENT);
                 a.cell(-1, s);
+                if (column.isSortable()) {
+                    // A press sorts, as a click does (decision 36 of 2026-09-14). The direction
+                    // the rows run is the sorted header's description until the platforms'
+                    // carriers of a sort direction have been read (phase 3).
+                    a.action(Accessible.Action.PRESS);
+                    if (column == sortColumn && sortOrder != SortOrder.NONE) {
+                        a.description(sortOrder == SortOrder.ASCENDING
+                                ? TableStrings.SORTED_ASCENDING : TableStrings.SORTED_DESCENDING);
+                    }
+                }
+                if (headerHoldsCursor() && s == headerColumn) {
+                    a.state(Accessible.State.ACTIVE); // the header's column cursor
+                }
                 if (left + colW[s] <= rowX || left >= rowX + w) {
                     a.offScreen();
                 }
@@ -2706,10 +2871,10 @@ public class Table<T> extends Widget implements Scrollable {
                 a.name(slot.texts[c], textEpoch, Accessible.NameFrom.CONTENT);
                 a.cell(row, s);
                 a.action(Accessible.Action.FOCUS);
-                if (row == focusRow && s == focusColumn && isFocused()) {
+                if (row == focusRow && s == focusColumn && isFocused() && !headerFocused) {
                     // Only while the table holds the keyboard (ADR 039 §1.10, amended
-                    // 2026-09-14): the cursor is the focused node's, and the kept focus row
-                    // above already gates on the same fact.
+                    // 2026-09-14) in its rows: the cursor is the focused node's, one at a time,
+                    // and while the header holds it the cursor is a header cell.
                     a.state(Accessible.State.ACTIVE);
                 }
                 // Off screen with its row as well as with its column: the bit is per node, and
@@ -2794,7 +2959,8 @@ public class Table<T> extends Widget implements Scrollable {
             s++;
         }
         a.cell(slot.row, s);
-        if (slot.row == focusRow && s == focusColumn && s < shownCount && isFocused()) {
+        if (slot.row == focusRow && s == focusColumn && s < shownCount && isFocused()
+                && !headerFocused) {
             // The focus cell in a widget column is the cursor exactly as a value cell is (B1,
             // 2026-09-14): the ring was drawn on it and the reader was told nothing, so the
             // active descendant fell to nothing on every Right into a switch column.
@@ -2835,7 +3001,16 @@ public class Table<T> extends Widget implements Scrollable {
             }
             return false;
         }
-        if ((key & (HEADER_CELL_KEY | FOOTER_CELL_KEY)) != 0 || key < 0 || key >= count) {
+        if ((key & HEADER_CELL_KEY) != 0) {
+            int s = shownIndexOf((int) (key & COLUMN_MASK));
+            if (action == Accessible.Action.PRESS && s >= 0
+                    && columns.get(shownIndex[s]).isSortable()) {
+                headerClicked(s); // sorts as a click does; the header's cursor is the keyboard's
+                return true;
+            }
+            return false;
+        }
+        if ((key & FOOTER_CELL_KEY) != 0 || key < 0 || key >= count) {
             return false;
         }
         int model = (int) key;

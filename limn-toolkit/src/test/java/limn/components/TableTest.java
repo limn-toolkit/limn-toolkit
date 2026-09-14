@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -328,6 +329,119 @@ class TableTest extends ComponentTestBase {
         scene.keyEvent(Keys.ENTER, true, false, 0);
         scene.inputBatchEnded();
         assertEquals(2, activated.get(), "in NONE the cursor row is what opens");
+    }
+
+    private static void tab(Scene scene, boolean backward) {
+        scene.keyEvent(Keys.TAB, true, false, backward ? Keys.MOD_SHIFT : 0);
+        scene.inputBatchEnded();
+    }
+
+    private static void key(Scene scene, int key) {
+        scene.keyEvent(key, true, false, 0);
+        scene.inputBatchEnded();
+    }
+
+    /**
+     * Decision 36 of 2026-09-14 (TABLE-SORT-KEYS): with a sortable column shown, the header is a
+     * focus stop of its own, before the rows — Tab enters at the header, Tab again at the rows,
+     * Shift+Tab walks the reverse — Left and Right move its column cursor, Home and End go to
+     * the ends, Space sorts the column under it cycling ascending, descending and the model's
+     * order, and Down hands the keyboard to the rows. A click on a header sorts and leaves the
+     * keyboard in the rows, remembering the column for the next Tab into the header; a click on
+     * a row takes the keyboard back from the header. Without a sortable column there is no stop.
+     */
+    @Test
+    void theHeaderIsAFocusStopOfItsOwnAndTheKeyboardSortsFromIt() {
+        Column<Person> name = nameColumn();
+        Column<Person> age = ageColumn();
+        Table<Person> table = new Table<>(List.of(name, age));
+        table.setRows(List.of(new Person("B", 1), new Person("A", 2), new Person("C", 0)));
+        Button before = new Button("Before");
+        Button after = new Button("After");
+        limn.scene.layout.Column root = new limn.scene.layout.Column();
+        root.add(before);
+        root.add(new limn.scene.layout.SizedBox(300, 150, table));
+        root.add(after);
+        FakeCanvas canvas = new FakeCanvas(300, 300);
+        Scene scene = new Scene(root);
+        scene.setTextRuler(RULER);
+        scene.renderFrame(canvas);
+        scene.requestFocus(before);
+
+        tab(scene, false);
+        assertSame(table, scene.focusedWidget());
+        assertTrue(table.isHeaderFocused(), "Tab enters at the header");
+        assertEquals(0, table.headerColumn());
+        key(scene, Keys.RIGHT);
+        assertEquals(1, table.headerColumn(), "Right moves the column cursor");
+        key(scene, Keys.RIGHT);
+        assertEquals(1, table.headerColumn(), "and stops at the last column");
+        key(scene, Keys.LEFT);
+        assertEquals(0, table.headerColumn());
+        key(scene, Keys.END);
+        assertEquals(1, table.headerColumn());
+        key(scene, Keys.HOME);
+        assertEquals(0, table.headerColumn());
+        key(scene, Keys.SPACE);
+        assertSame(name, table.sortColumn());
+        assertEquals(SortOrder.ASCENDING, table.sortOrder(), "Space sorts the column under it");
+        assertEquals(1, table.viewToModel(0), "A first");
+        key(scene, Keys.SPACE);
+        assertEquals(SortOrder.DESCENDING, table.sortOrder());
+        assertEquals(2, table.viewToModel(0), "C first");
+        key(scene, Keys.SPACE);
+        assertEquals(SortOrder.NONE, table.sortOrder(), "then the model's order");
+        assertEquals(0, table.viewToModel(0));
+        key(scene, Keys.DOWN);
+        assertFalse(table.isHeaderFocused(), "Down hands the keyboard to the rows");
+        assertEquals(-1, table.focusRow(), "without moving the focus cell");
+        assertSame(table, scene.focusedWidget());
+
+        tab(scene, true);
+        assertTrue(table.isHeaderFocused(), "Shift+Tab from the rows goes back to the header");
+        key(scene, Keys.PAGE_DOWN);
+        assertTrue(table.isHeaderFocused(), "a row key does nothing on the header");
+        assertEquals(-1, table.selectedRow());
+        tab(scene, false);
+        assertFalse(table.isHeaderFocused(), "Tab from the header enters the rows");
+        assertSame(table, scene.focusedWidget());
+        tab(scene, false);
+        assertSame(after, scene.focusedWidget(), "and Tab from the rows leaves");
+        tab(scene, true);
+        assertSame(table, scene.focusedWidget());
+        assertFalse(table.isHeaderFocused(), "Shift+Tab enters at the rows, the last stop");
+        tab(scene, true);
+        assertTrue(table.isHeaderFocused());
+        tab(scene, true);
+        assertSame(before, scene.focusedWidget(), "and Shift+Tab from the header leaves");
+
+        float headerY = headerHeight(table) / 2;
+        float tableTop = table.localToSceneY();
+        assertTrue(tableTop > 0, "the table sits under the first button: " + tableTop);
+        click(scene, 130, tableTop + headerY, 0); // the Age header
+        assertFalse(table.isHeaderFocused(), "the pointer sorts; the keyboard stays in the rows");
+        assertSame(age, table.sortColumn());
+        assertEquals(1, table.headerColumn(), "but the header's cursor remembers the column");
+        tab(scene, true);
+        assertTrue(table.isHeaderFocused());
+        assertEquals(1, table.headerColumn(), "so Shift+Tab into the header starts there");
+        click(scene, 30, tableTop + rowCenterY(table, 0), 0);
+        assertFalse(table.isHeaderFocused(), "and a click on a row takes the keyboard back");
+
+        name.sortable(false);
+        age.sortable(false);
+        table.refresh();
+        scene.renderFrame(canvas);
+        scene.requestFocus(before);
+        tab(scene, false);
+        assertSame(table, scene.focusedWidget());
+        assertFalse(table.isHeaderFocused(), "nothing to sort, so the header is no stop");
+        tab(scene, false);
+        assertSame(after, scene.focusedWidget());
+        tab(scene, true);
+        assertSame(table, scene.focusedWidget());
+        tab(scene, true);
+        assertSame(before, scene.focusedWidget(), "in either direction");
     }
 
     @Test
