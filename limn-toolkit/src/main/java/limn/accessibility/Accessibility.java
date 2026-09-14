@@ -10,7 +10,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.function.ToLongFunction;
 
 /**
  * What a widget fills in to say what it is, and the scratch the publish step fills it into.
@@ -1791,14 +1790,30 @@ public final class Accessibility {
      *                published none; never {@code null}
      * @throws NullPointerException if {@code resolve} is {@code null}
      */
-    public void resolveRelations(ToLongFunction<Object> resolve) {
+    public void resolveRelations(RelationResolver resolve) {
         Objects.requireNonNull(resolve, "resolve");
         for (int i = 0; i < count; i++) {
             Slot s = slots[i];
             for (int r = 0; r < s.relationCount; r++) {
-                s.relationResolved[r] = resolve.applyAsLong(s.relationTargets[r]);
+                s.relationResolved[r] = resolve.resolve(s.relationKinds[r], s.relationTargets[r]);
             }
         }
+    }
+
+    /**
+     * What {@link #resolveRelations} turns a relation's target into a node identifier with. It
+     * is handed the kind as well as the target, because one kind resolves differently: a
+     * {@code LABEL_FOR} naming a composite lands on the child the composite says carries its
+     * label (ADR 039 §1.5, amended 2026-09-14; decision 55), and only the walk knows that.
+     */
+    @FunctionalInterface
+    public interface RelationResolver {
+        /**
+         * @param kind   what the link means
+         * @param target the object the declaring hook named
+         * @return the identifier of the node this walk published for it, or {@code 0} for none
+         */
+        long resolve(Accessible.Relation kind, Object target);
     }
 
     /**

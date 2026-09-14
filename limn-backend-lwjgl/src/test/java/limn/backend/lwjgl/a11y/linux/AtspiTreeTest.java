@@ -159,7 +159,7 @@ class AtspiTreeTest {
         a.inherited(true, true, true, false, false);
         a.end();
         a.end();
-        a.resolveRelations(target -> (Long) target);
+        a.resolveRelations((kind, target) -> (Long) target);
         tree.set(a.publish(0, 200, 100, 2f, true));
     }
 

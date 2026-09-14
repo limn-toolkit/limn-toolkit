@@ -179,7 +179,7 @@ class UiaProviderTest {
         a.inherited(true, true, true, false, false);
         a.end();
         a.end();
-        a.resolveRelations(target -> (Long) target);
+        a.resolveRelations((kind, target) -> (Long) target);
         published.set(a.publish(0, 0, 0, 1f, true));
     }
 
@@ -337,7 +337,7 @@ class UiaProviderTest {
         a.inherited(true, true, true, false, false);
         a.end();
         a.end();
-        a.resolveRelations(target -> (Long) target);
+        a.resolveRelations((kind, target) -> (Long) target);
         published.set(a.publish(0, 0, 0, 1f, true));
     }
 

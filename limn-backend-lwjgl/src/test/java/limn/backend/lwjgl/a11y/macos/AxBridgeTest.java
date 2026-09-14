@@ -134,7 +134,7 @@ class AxBridgeTest {
         a.end();
         a.end();
         a.end();
-        a.resolveRelations(target -> (Long) target);
+        a.resolveRelations((kind, target) -> (Long) target);
         return a.publish(0, 0, 0, 1f, true);
     }
 

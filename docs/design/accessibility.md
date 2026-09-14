@@ -38,6 +38,10 @@ Six `protected` hooks on `Widget`, and a widget usually overrides one or two:
 | `onAccessibilityChildAction(child, key, action, arg)` | performing a verb this widget *delegated* onto a child: a list's `SELECT` on a row that is the application's own cell, published on the row where a reader addresses it and routed here with the key the list gave that row |
 | `performSyntheticAction(key, action, arg)` | performing a verb on something the widget *paints* rather than parents |
 
+And one answer hook beside them, `accessibleLabelTarget()`: a composite whose keyboard lands on an
+inner control — a date picker — answers that control, and a `Label` bound to the composite names the
+control a reader arrives at rather than a group it never lands on (decision 55).
+
 `Accessibility` is a reusable builder, filled in and read by the walk; it is not a node you keep.
 Everything a widget says is declared — a role, a name, a `LABELLED_BY` or `DESCRIBED_BY` relation — and **nothing is
 inferred from geometry**. A label drawn next to a field does not become that field's name because it

@@ -1037,6 +1037,26 @@ routing, the key, the gate on the child and on the container still holding it),
 `ListViewAccessibilityTest` and `TreeAccessibilityTest` (a row's `SELECT` selects that row, from
 the user, once).
 
+**Amendment, 2026-09-14: a composite says which child carries a label bound to it (decision 55;
+DATES-NEW-12).** A form's caption is bound to the widget the application holds — a `DatePicker` —
+and the node a reader arrives at is the field inside it, so `Label#setLabelFor(picker)` named an
+unfocusable group and left the focused field nameless. One more answer hook on `Widget`, beside
+`accessibleLabelText()`: `protected Widget accessibleLabelTarget()`, `this` by default. A composite
+answers the descendant that carries a label bound to it; the walk then names that descendant from
+the label (`NameFrom.LABEL`) with the `LABELLED_BY` relation back, resolves the label's own
+`LABEL_FOR` to the same node (the relation resolver is handed the kind for this one reason), and
+leaves the composite's node without either, so a group that declares nothing else is transparent.
+The answer may redirect again — a composite inside a composite — and the walk follows the chain;
+a descendant with a caption of its own keeps its own over one sent down. Two refusals, loud the
+way every walk refusal is (the scene dispatches the walk's exception as an accessibility crash and
+keeps the previous tree): a target outside the composite's own subtree, and a chain that never
+ends. Nothing is inferred: the redirect is the composite's declaration, as the binding is the
+application's. The carrier is decided per walk without allocation — a small reused stack of the
+captions in flight down the tree. The consumer is the dates lane's: a single `DatePicker` answers
+its field; a range picker keeps the caption on the group and names its fields "Start date" and
+"End date" (decision 55). Pinned by `LabelForAccessibilityTest` (the redirect, the chain, the
+child's own caption winning, the stranger refused).
+
 **What a widget gets for free, with no override at all:** bounds from `x/y/width/height`; `ENABLED`,
 `FOCUSABLE`, `FOCUSED`, `VISIBLE` and `SHOWING` from the existing predicates; `locale()` for the
 node's language; children from `children()` in tree order; the `FOCUS` and `SCROLL_INTO_VIEW`
@@ -2934,7 +2954,7 @@ and mixing them up is how a design document becomes untrustworthy in both direct
 | --- | --- | --- | --- | --- |
 | `Row`, `Column`, `Flex`, `Stack`, `Padding`, `SizedBox`, `Expanded`, `TokenBox`, `TokenColumn`, `TokenPadding`, `TokenRow` | transparent | | | scaffolding; the tree is the controls, not the boxes |
 | `BackdropPanel` | transparent | | | **Corrected in its framing, not in its verdict.** It sat in the row above and is not inert like the rest of it: it is the only one of the twelve that overrides `onPaint`, so §1.6's paints-and-deleted clause catches it and "scaffolding" hid that. It declares its painting decoration and is removed in silence, holding no state, no handler and no operation to lose. The tree costs nothing here; the log did, and the fix was a toolkit change rather than an application's. Worth an application knowing: the effect covers siblings the panel holds no reference to, so a redaction it paints hides nothing at all from a screen reader |
-| `Label` | `LABEL`, or `HEADING` for the title typographic role | name from `textSource()`, `nameFrom=CONTENT` | — | gains `LABEL_FOR` when an application declares the relation |
+| `Label` | `LABEL`, or `HEADING` for the title typographic role | name from `textSource()`, `nameFrom=CONTENT` | — | gains `LABEL_FOR` when an application declares the relation. **Amended 2026-09-14:** the `LABEL_FOR` resolves to the widget the target says carries its label — a composite's inner field — where the target redirects (§1.5's amendment of the same day, decision 55) |
 | `Button` | `BUTTON` | `ActionFacet{PRESS}`; `DEFAULT` when it is a dialog's default | — | name from `textSource()`, else the tooltip; the action reaches the private path through the widget's own hook |
 | `Checkbox` box / switch | `CHECK_BOX` / `SWITCH` | `ToggleFacet`, `ActionFacet{TOGGLE}` | — | name from its own label, `nameFrom=CONTENT` — the field is a private `I18nString` with no getter today and §8 adds the `text()`/`textSource()` pair, because a focusable node with no name fails `AccessibleGalleryTest`. `toggle()` has no enabled guard of its own — the guard is the scene's, which never delivers an event to a disabled widget — so the accessibility path re-checks `isEnabled()` (§1.9) and `toggle()` gains the same guard (§8) |
 | `RadioButton` | `RADIO_BUTTON` | `SelectionItemFacet`, `ActionFacet{SELECT}`, `MEMBER_OF` its group with position and size of set | — | name from its own label, `nameFrom=CONTENT`, through the same pair §8 adds. Roving focus means only the holder is `FOCUSABLE`, which is correct and is what the reader should hear. **Amended 2026-09-14:** there is no `MEMBER_OF` and never was one published — a `ButtonGroup` is not a node and a relation's target must be one (`RadioButtonAccessibilityTest`); the facet is `containerless` (§1.2's amendment of the same day), so a selection change is the radio's own selected-state event and is laid on no layout node, and a standalone radio's `0`/`0` publishes no position anywhere |

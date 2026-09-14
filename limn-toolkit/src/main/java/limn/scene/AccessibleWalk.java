@@ -46,7 +46,16 @@ final class AccessibleWalk {
      * end of every walk, and a method reference to an instance method is an object per evaluation,
      * so writing it inline would allocate once per damaged frame to conclude that nothing moved.
      */
-    private final java.util.function.ToLongFunction<Object> resolver = this::resolve;
+    private final Accessibility.RelationResolver resolver = this::resolve;
+
+    /**
+     * The labels in flight down the walk: a caption bound to a composite that said a descendant
+     * carries it (decision 55), pushed when the composite is walked and popped when its subtree
+     * ends, so the descendant finds its caption when the walk reaches it. Grown once, reused.
+     */
+    private Widget[] redirectTargets = new Widget[4];
+    private Widget[] redirectLabels = new Widget[4];
+    private int redirectCount;
 
     /** Per published node: the widget that owns it. Grown once, reused. */
     private Widget[] owners = new Widget[64];
@@ -142,6 +151,7 @@ final class AccessibleWalk {
         count = 0;
         popupCount = 0;
         focusedId = 0;
+        redirectCount = 0;
 
         Widget root = scene.root();
         if (windowNodeId == 0) {
@@ -457,6 +467,23 @@ final class AccessibleWalk {
                 builder.endChildDescription();
             }
         }
+        // Which caption names this node, if any (decision 55): the label bound to this widget,
+        // unless the widget is a composite that says a descendant carries it, in which case the
+        // caption is sent down the walk and found when that descendant is reached; a widget with
+        // a binding of its own keeps its own over one an ancestor sent. Pushed before the
+        // subtree is walked and popped at every exit below.
+        Widget label = widget.accessibleLabelledBy();
+        boolean redirected = false;
+        if (label != null) {
+            Widget carrier = labelTargetOf(widget);
+            if (carrier != widget) {
+                pushRedirect(carrier, label);
+                redirected = true;
+                label = null;
+            }
+        } else {
+            label = redirectedLabelFor(widget);
+        }
         // Under the widget's own language, as the two hooks above were: the node records that
         // language and the model re-resolves a name when it moves, so a string the walk hands
         // over on the widget's behalf -- the application's override, a bound label's caption,
@@ -464,7 +491,7 @@ final class AccessibleWalk {
         // in a subtree declaring another language records that language and speaks the process's.
         Locale enclosing = limn.i18n.I18n.pushScope(widget.locale());
         try {
-            applyOverrides(widget);
+            applyOverrides(widget, label);
             if (!builder.hasName() && widget.tooltipSource() != null) {
                 builder.name(widget.tooltipSource(), Accessible.NameFrom.TOOLTIP);
             } else if (!builder.hasDescription() && widget.tooltipSource() != null) {
@@ -481,6 +508,9 @@ final class AccessibleWalk {
 
         if (builder.isIgnored()) {
             builder.drop();
+            if (redirected) {
+                redirectCount--;
+            }
             return;              // ignored: no node, and no children either
         }
         boolean focusable = widget.isFocusable() && ownEnabled && ownVisible;
@@ -490,6 +520,9 @@ final class AccessibleWalk {
             // Hoisted under whatever this one hangs under; a keyed transparent container still
             // scopes what is inside it, because its identifier is what its key decided.
             walkChildren(scene, widget, under, -1, id, ownScope, ownEnabled, ownVisible, reachable);
+            if (redirected) {
+                redirectCount--;
+            }
             return;              // transparent: no node, children hoisted in its place
         }
 
@@ -525,6 +558,66 @@ final class AccessibleWalk {
 
         walkChildren(scene, widget, slot, slot, id, ownScope, ownEnabled, ownVisible, reachable);
         builder.end();
+        if (redirected) {
+            redirectCount--;
+        }
+    }
+
+    /**
+     * The widget that carries a label bound to {@code widget}: the widget itself, or the
+     * descendant its {@code accessibleLabelTarget()} names, followed through a composite inside
+     * a composite (decision 55). Refused loudly when a widget names something outside its own
+     * subtree, or the chain never ends, because a caption landing on a stranger is the
+     * confidently wrong name the record refuses to infer, and a walk that throws keeps the
+     * previous tree published (the scene dispatches it as an accessibility crash).
+     */
+    private static Widget labelTargetOf(Widget widget) {
+        Widget at = widget;
+        for (int hops = 0; hops < 64; hops++) {
+            Widget next = at.accessibleLabelTarget();
+            if (next == null || next == at) {
+                return at;
+            }
+            if (!isStrictlyBelow(next, at)) {
+                throw new IllegalStateException(at.getClass().getName()
+                        + " says a widget outside its own subtree carries its label ("
+                        + next.getClass().getName() + "): a label is redirected to a descendant "
+                        + "and to nothing else");
+            }
+            at = next;
+        }
+        throw new IllegalStateException(widget.getClass().getName()
+                + " redirects its label through a chain that never ends");
+    }
+
+    private static boolean isStrictlyBelow(Widget widget, Widget ancestor) {
+        for (Widget at = widget.parent(); at != null; at = at.parent()) {
+            if (at == ancestor) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void pushRedirect(Widget carrier, Widget label) {
+        if (redirectCount == redirectTargets.length) {
+            int grown = redirectTargets.length * 2;
+            redirectTargets = java.util.Arrays.copyOf(redirectTargets, grown);
+            redirectLabels = java.util.Arrays.copyOf(redirectLabels, grown);
+        }
+        redirectTargets[redirectCount] = carrier;
+        redirectLabels[redirectCount] = label;
+        redirectCount++;
+    }
+
+    /** The caption an ancestor sent down to {@code widget}, or {@code null}; nearest sender wins. */
+    private Widget redirectedLabelFor(Widget widget) {
+        for (int i = redirectCount - 1; i >= 0; i--) {
+            if (redirectTargets[i] == widget) {
+                return redirectLabels[i];
+            }
+        }
+        return null;
     }
 
     private void walkChildren(Scene scene, Widget widget, int into, int ownSlot, long ownId,
@@ -536,7 +629,12 @@ final class AccessibleWalk {
         }
     }
 
-    private void applyOverrides(Widget widget) {
+    /**
+     * @param widget the widget whose node is open
+     * @param label  the caption that names it, or {@code null}: its own binding, or one a
+     *               composite above it redirected here, decided by the caller
+     */
+    private void applyOverrides(Widget widget, Widget label) {
         limn.accessibility.Accessible.Role role = widget.accessibleRole();
         if (role != null) {
             builder.role(role);
@@ -548,7 +646,6 @@ final class AccessibleWalk {
         // labels with nothing to keep in step. The relation stands even when the label offers no
         // text: it is still the truth about the tree, and a client that resolves the label's own
         // node does not need the copy.
-        Widget label = widget.accessibleLabelledBy();
         if (label != null) {
             limn.i18n.I18nString caption = label.accessibleLabelText();
             if (caption != null) {
@@ -709,9 +806,14 @@ final class AccessibleWalk {
      * root is the same as landing on nothing: that node is already the popup's accessible ancestor,
      * so the relation would say what the tree's own shape says, and it is dropped.
      */
-    private long resolve(Object target) {
+    private long resolve(Accessible.Relation kind, Object target) {
         if (!(target instanceof Widget widget)) {
             return 0;
+        }
+        if (kind == Accessible.Relation.LABEL_FOR) {
+            // The caption's half of decision 55: a label bound to a composite names the child
+            // the composite says carries it, so the label's own link lands where the name did.
+            widget = labelTargetOf(widget);
         }
         for (Widget at = widget; at != null;
                 at = at.parent() != null ? at.parent() : at.inheritanceHost()) {

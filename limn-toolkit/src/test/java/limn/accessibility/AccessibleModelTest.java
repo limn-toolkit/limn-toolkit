@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.ToLongFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,7 +40,7 @@ class AccessibleModelTest {
      * @param resolve what turns a target into a node identifier
      * @return the tree
      */
-    private static AccessibleTree publish(Accessibility a, ToLongFunction<Object> resolve) {
+    private static AccessibleTree publish(Accessibility a, Accessibility.RelationResolver resolve) {
         a.resolveRelations(resolve);
         return a.publish(0, 0, 0, 1, true);
     }
@@ -125,7 +124,7 @@ class AccessibleModelTest {
         Accessibility a = new Accessibility();
         long owner = a.mint();
         describeOutline(a, owner, 2);
-        AccessibleTree first = publish(a, target -> 0);
+        AccessibleTree first = publish(a, (kind, target) -> 0);
         assertNull(first.root().hierarchy(), "the outline itself stands nowhere");
         assertEquals(new HierarchyFacet(1, 1, 2), first.node(1).hierarchy());
         assertEquals(new HierarchyFacet(2, 2, 2), first.node(2).hierarchy());
@@ -135,7 +134,7 @@ class AccessibleModelTest {
         assertFalse(a.changed(), "the same numbers are no difference");
         describeOutline(a, owner, 3);
         assertTrue(a.changed(), "a deeper second row is");
-        AccessibleTree second = publish(a, target -> 0);
+        AccessibleTree second = publish(a, (kind, target) -> 0);
         assertEquals(new HierarchyFacet(3, 2, 2), second.node(2).hierarchy());
     }
 
@@ -252,7 +251,7 @@ class AccessibleModelTest {
         a.expand(true);
         a.endChild();
         a.end();
-        AccessibleTree first = publish(a, target -> 0);
+        AccessibleTree first = publish(a, (kind, target) -> 0);
         assertFalse(first.node(1).has(Accessible.State.EXPANDABLE), "no facet: cannot open");
         assertNull(first.node(1).expand());
         assertTrue(first.node(2).has(Accessible.State.EXPANDABLE), "closed, and can open");
@@ -281,7 +280,7 @@ class AccessibleModelTest {
         a.endChild();
         a.end();
         assertTrue(a.changed());
-        AccessibleTree second = publish(a, target -> 0);
+        AccessibleTree second = publish(a, (kind, target) -> 0);
         List<AccessibleEvent> expandable = new ArrayList<>();
         for (AccessibleEvent event : a.events()) {
             if (event.type() == AccessibleEvent.Type.STATE_CHANGED) {
@@ -359,7 +358,7 @@ class AccessibleModelTest {
         assertTrue(a.declaresNothing());
         a.toggle(ToggleFacet.State.ON);
         assertFalse(a.declaresNothing());
-        AccessibleTree tree = publish(a, target -> 0);
+        AccessibleTree tree = publish(a, (kind, target) -> 0);
         assertTrue(tree.root().has(Accessible.State.CHECKED), "CHECKED derives from the facet");
         assertFalse(tree.root().has(Accessible.State.ENABLED),
                 "ENABLED is the publish step's, never a widget's");
@@ -405,7 +404,7 @@ class AccessibleModelTest {
 
         a.role(Accessible.Role.LIST);   // the parent's again, once the window is closed
         a.end();
-        AccessibleTree tree = publish(a, target -> 0);
+        AccessibleTree tree = publish(a, (kind, target) -> 0);
         assertEquals(Accessible.Role.LIST, tree.root().role(), "nothing stray landed on the parent");
         assertEquals("", tree.root().name());
         assertNull(tree.root().actions());
@@ -450,7 +449,7 @@ class AccessibleModelTest {
         a.freeVerbs();
         a.end();
         a.end();
-        AccessibleTree tree = publish(a, target -> 0);
+        AccessibleTree tree = publish(a, (kind, target) -> 0);
         AccessibleNode row = tree.node(1);
         assertTrue(row.actions().has(Accessible.Action.SELECT),
                 "published on the child, where the platform addresses it: " + row.actions());
@@ -528,7 +527,7 @@ class AccessibleModelTest {
         a.end();
         a.end();
 
-        AccessibleTree tree = publish(a, target -> 0);
+        AccessibleTree tree = publish(a, (kind, target) -> 0);
         assertEquals(3, tree.nodeCount());
         assertEquals(AccessibleNode.NONE, tree.root().parent());
         assertEquals(1, tree.root().firstChild());
@@ -552,7 +551,7 @@ class AccessibleModelTest {
         a.role(Accessible.Role.BUTTON);
         a.name(source);
         a.end();
-        AccessibleTree first = publish(a, target -> 0);
+        AccessibleTree first = publish(a, (kind, target) -> 0);
         assertEquals("Save", first.root().name());
 
         a.beginWalk(10, 10, Locale.ENGLISH);
@@ -561,7 +560,7 @@ class AccessibleModelTest {
         a.name(source);
         a.end();
         assertFalse(a.changed(), "nothing moved, so nothing differs");
-        AccessibleTree second = publish(a, target -> 0);
+        AccessibleTree second = publish(a, (kind, target) -> 0);
         assertSame(first.root().name(), second.root().name(),
                 "the resolved string is carried over, not resolved again");
     }
@@ -589,7 +588,7 @@ class AccessibleModelTest {
         a.state(Accessible.State.ACTIVE);
         a.endChild();
         a.end();
-        a.resolveRelations(target -> 0);
+        a.resolveRelations((kind, target) -> 0);
         AccessibleTree tree = a.publish(ownerId, 0, 0, 1, true);
         assertEquals(2, tree.nodeCount());
         AccessibleNode row = tree.node(1);
@@ -702,7 +701,7 @@ class AccessibleModelTest {
         a.inherited(true, true, true, true, focused == elsewhere);
         a.end();
         a.end();
-        a.resolveRelations(target -> 0);
+        a.resolveRelations((kind, target) -> 0);
         return a.publish(focused, 0, 0, 1, true);
     }
 
@@ -800,7 +799,7 @@ class AccessibleModelTest {
         a.end();
         a.end();
         a.end();
-        a.resolveRelations(target -> 0);
+        a.resolveRelations((kind, target) -> 0);
         return a.publish(0, 0, 0, 1, true);
     }
 
@@ -914,7 +913,7 @@ class AccessibleModelTest {
             a.end();
         }
         a.end();
-        a.resolveRelations(target -> 0);
+        a.resolveRelations((kind, target) -> 0);
         return a.publish(0, 0, 0, 1, true);
     }
 
@@ -1015,7 +1014,7 @@ class AccessibleModelTest {
             a.end();
         }
         a.end();
-        a.resolveRelations(target -> 0);
+        a.resolveRelations((kind, target) -> 0);
         return a.publish(focused == 0 ? list : focused, 0, 0, 1, true);
     }
 
@@ -1058,7 +1057,7 @@ class AccessibleModelTest {
         popup.role(Accessible.Role.MENU);
         popup.relation(Accessible.Relation.POPUP_FOR, opener);
         popup.end();
-        AccessibleTree dropped = publish(popup, target -> 0);
+        AccessibleTree dropped = publish(popup, (kind, target) -> 0);
         assertTrue(dropped.root().relations().isEmpty(), "published nowhere: dropped");
 
         // The opener is a node of ANOTHER scene of the process: kept, and the identifier says
@@ -1069,14 +1068,14 @@ class AccessibleModelTest {
         host.begin(combo, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 10, 10);
         host.role(Accessible.Role.COMBO_BOX);
         host.end();
-        AccessibleTree hostTree = publish(host, target -> 0);
+        AccessibleTree hostTree = publish(host, (kind, target) -> 0);
 
         popup.beginWalk(10, 10, Locale.ENGLISH);
         popup.begin(popup.mint(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 10, 10);
         popup.role(Accessible.Role.MENU);
         popup.relation(Accessible.Relation.POPUP_FOR, opener);
         popup.end();
-        AccessibleTree kept = publish(popup, target -> target == opener ? combo : 0);
+        AccessibleTree kept = publish(popup, (kind, target) -> target == opener ? combo : 0);
         assertEquals(1, kept.root().relations().size());
         long target = kept.root().relations().get(0).target();
         assertEquals(combo, target);
@@ -1115,7 +1114,7 @@ class AccessibleModelTest {
         first.begin(root, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 10, 10);
         first.role(Accessible.Role.WINDOW);
         first.end();
-        AccessibleTree tree = publish(first, target -> 0);
+        AccessibleTree tree = publish(first, (kind, target) -> 0);
         assertEquals(first.sceneTag(), tree.sceneTag());
         assertTrue(tree.holds(root));
         assertFalse(tree.holds(second.mint()), "another scene's identifier is not this tree's");
@@ -1135,10 +1134,10 @@ class AccessibleModelTest {
         Accessibility a = new Accessibility();
         long ownerId = a.mint();
         long[] first = describeManyRows(a, ownerId, 5000);
-        publish(a, target -> 0);
+        publish(a, (kind, target) -> 0);
         long[] second = describeManyRows(a, ownerId, 5000);
         assertFalse(a.changed(), "the same five thousand rows, the same identifiers");
-        AccessibleTree tree = publish(a, target -> 0);
+        AccessibleTree tree = publish(a, (kind, target) -> 0);
         assertEquals(5001, tree.nodeCount());
         for (int i = 0; i < first.length; i++) {
             assertEquals(first[i], second[i], "row " + i + " changed identifier");
@@ -1176,10 +1175,10 @@ class AccessibleModelTest {
         Accessibility a = new Accessibility();
         long id = a.mint();
         describeSpinner(a, id, 7, "7", false);
-        publish(a, target -> 0);
+        publish(a, (kind, target) -> 0);
         describeSpinner(a, id, 7, "07", false);
         assertTrue(a.changed(), "the text moved");
-        publish(a, target -> 0);
+        publish(a, (kind, target) -> 0);
         List<AccessibleEvent> valueEvents = new ArrayList<>();
         for (AccessibleEvent event : a.events()) {
             if (event.type() == AccessibleEvent.Type.VALUE_CHANGED) {
@@ -1201,7 +1200,7 @@ class AccessibleModelTest {
         Accessibility a = new Accessibility();
         long id = a.mint();
         describeSpinner(a, id, 1, "empty", true);
-        AccessibleTree blank = publish(a, target -> 0);
+        AccessibleTree blank = publish(a, (kind, target) -> 0);
         ValueFacet facet = blank.root().value();
         assertNotNull(facet);
         assertTrue(facet.empty());
@@ -1215,7 +1214,7 @@ class AccessibleModelTest {
 
         describeSpinner(a, id, 1, "1", false);
         assertTrue(a.changed(), "the same number, but now there is one");
-        AccessibleTree filled = publish(a, target -> 0);
+        AccessibleTree filled = publish(a, (kind, target) -> 0);
         assertFalse(filled.root().value().empty());
         int valueChanges = 0;
         for (AccessibleEvent event : a.events()) {
@@ -1269,7 +1268,7 @@ class AccessibleModelTest {
         for (int i = 1; i < a.nodeCount(); i++) {
             a.inheritedAt(i, true, true, true);
         }
-        AccessibleTree enabledOwner = publish(a, target -> 0);
+        AccessibleTree enabledOwner = publish(a, (kind, target) -> 0);
         assertFalse(enabledOwner.node(1).has(Accessible.State.ENABLED), "the refused day");
         assertTrue(enabledOwner.node(2).has(Accessible.State.ENABLED),
                 "cleared for the next child: " + enabledOwner.node(2).states());
@@ -1293,7 +1292,7 @@ class AccessibleModelTest {
         for (int i = 1; i < a.nodeCount(); i++) {
             a.inheritedAt(i, false, true, true);
         }
-        AccessibleTree disabledOwner = publish(a, target -> 0);
+        AccessibleTree disabledOwner = publish(a, (kind, target) -> 0);
         assertFalse(disabledOwner.node(1).has(Accessible.State.ENABLED));
         assertFalse(disabledOwner.node(2).has(Accessible.State.ENABLED));
         int enabledEvents = 0;

@@ -2203,6 +2203,34 @@ public abstract class Widget {
     }
 
     /**
+     * The widget a label bound to this one names: this widget, unless it is a composite whose
+     * keyboard lands on an inner control, in which case that control (ADR 039 §1.5, amended
+     * 2026-09-14; decision 55).
+     *
+     * <p>A form's caption is bound to the widget the application holds &mdash; a date picker
+     * &mdash; and what a reader arrives at is the field inside it. Naming the group would put
+     * the caption on a node the keyboard never lands on and leave the focused field nameless. So
+     * a composite answers the child that should carry the caption, and the publish step names
+     * that child from the label with {@code NameFrom.LABEL}, gives it the {@code LABELLED_BY}
+     * relation, resolves the label's own {@code LABEL_FOR} to it, and leaves this widget's node
+     * without either &mdash; a group that declares nothing else is then transparent. The answer
+     * may redirect again (a composite inside a composite) and it must be a descendant of this
+     * widget: anything else is refused by the walk, loudly, because a caption that lands on a
+     * stranger is exactly the confidently wrong name §11 refuses to infer.
+     *
+     * <p>Called on the UI thread by the publish step, only while a label is bound to this
+     * widget. An explicit {@link #setAccessibleName(limn.i18n.I18nString)} on this widget is
+     * unaffected: it names this node, as it always did. A widget that answers {@code null}
+     * keeps the label itself.
+     *
+     * @return the widget that carries a label bound to this one; {@code this} by default
+     * @see limn.components.Label#setLabelFor(Widget)
+     */
+    protected Widget accessibleLabelTarget() {
+        return this;
+    }
+
+    /**
      * Describes this widget from another widget's text, the way the message beneath a field says
      * why the field is invalid. UI thread only.
      *
