@@ -605,6 +605,43 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(Node.leaf("row 2"), tree.cursorNode(), "and so does the cursor");
     }
 
+    /**
+     * A refresh releases the identifier of a node the model no longer has, and with it the node:
+     * the identifier table was the one place a removed node stayed strongly held, for the tree's
+     * life (TREE-NEW-8). Only a bound tree mints identifiers, which is why this case is here.
+     * Driven by garbage collection, so it is a loop with a deadline rather than one
+     * {@code System.gc()}.
+     */
+    @Test
+    void aRefreshReleasesANodeTheModelNoLongerHas() {
+        List<Node> roots = new ArrayList<>(List.of(Node.leaf("keep")));
+        java.lang.ref.WeakReference<Node> dropped = addRootToDrop(roots);
+        bindTree(ROW_H, roots);
+        frame();
+        assertNotNull(node("drop").id(), "published, so it holds an identifier: " + describe(tree()));
+
+        roots.remove(1); // by index: a reference held here would keep the node alive itself
+        tree.refresh();
+        frame();
+        assertEquals(1, rowNodes().size(), describe(tree()));
+
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+        while (dropped.get() != null) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("the dropped node is still held after the refresh");
+            }
+            System.gc();
+            Thread.onSpinWait();
+        }
+    }
+
+    /** In a method of its own so no local of the caller's frame keeps the node alive. */
+    private static java.lang.ref.WeakReference<Node> addRootToDrop(List<Node> roots) {
+        Node drop = Node.leaf("drop");
+        roots.add(drop);
+        return new java.lang.ref.WeakReference<>(drop);
+    }
+
     /** {@code SCROLL_INTO_VIEW} on a row that sits half under the top edge brings it back. */
     @Test
     void scrollIntoViewOnARowRevealsIt() throws Exception {

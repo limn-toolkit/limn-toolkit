@@ -27,6 +27,7 @@ import limn.scene.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -131,8 +132,11 @@ public class Tree<T> extends Widget implements Scrollable {
          *
          * <p>Called at most once per node per expansion, and once more after each
          * {@link Tree#refresh} while the row is open, on the UI thread; the job it returns is
-         * cancelled if the row is collapsed or the tree refreshed before it lands. The tree caches
-         * what arrives, so a second expansion of the same node costs nothing.
+         * cancelled if the row is collapsed, the tree refreshed, or the tree taken out of its
+         * scene before it lands — a tree merely moved between containers loads its open rows
+         * again when it arrives, which is the price of never leaving a row busy over a job that
+         * was dropped. The tree caches what arrives, so a second expansion of the same node
+         * costs nothing.
          *
          * @param node the node being opened
          * @return the job, or {@code null} when this model has nothing to load
@@ -259,6 +263,13 @@ public class Tree<T> extends Widget implements Scrollable {
     private final Map<T, List<T>> loaded = new HashMap<>();
     /** Jobs in flight, so collapsing a row that is still loading cancels it. */
     private final Map<T, Job> loading = new HashMap<>();
+    /**
+     * Where each node the tree keeps a fact about — selected, expanded, or the cursor — was last
+     * seen as a row, from the root down, while it is not a row: what a refresh verifies instead of
+     * walking the model (decision 35 of 2026-09-14). Recorded when a collapse or a refresh takes
+     * the row away, dropped when the node is a row again or the model no longer has it.
+     */
+    private final Map<T, List<T>> hiddenPaths = new HashMap<>();
     /**
      * The selected row's wash, memoised per palette: {@code withAlpha} builds a colour, and this
      * is read once per painted row per frame.
@@ -418,14 +429,27 @@ public class Tree<T> extends Widget implements Scrollable {
      * child list: the application changed its data and the tree owns none of it. An open row whose
      * children the model has to fetch therefore fetches them again, cancelling a load still in
      * flight for it. UI thread only.
+     *
+     * <p>What the tree remembers about a node — that it is selected, that it is open, that the
+     * cursor stands on it — outlives the refresh as long as the model still has the node. A node
+     * that is a row afterwards is confirmed by that; one that is not (under a closed branch, or
+     * under an open row whose children are being fetched again) is verified along the path it
+     * was last seen at, and only that path: a step the model no longer has drops the node, a
+     * step whose children are still on their way keeps it until they land, when it is verified
+     * again and dropped one announcement later if gone, and a step whose children nobody has
+     * fetched keeps it, since confirming it would mean a load nobody asked for (decision 35 of
+     * 2026-09-14). The identifiers of what the model no longer has are released with it.
      */
     public void refresh() {
         Ui.checkUiThread();
+        recordPaths();
         loaded.clear();
         cancelAllLoads();
         recycleExcept(0, 0, 0);
         rebuildRows();
-        pruneSelection();
+        forgetRevealedPaths();
+        verifyHidden();
+        releaseIdentifiers();
         markNeedsLayout();
         invalidate();
         notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
@@ -473,7 +497,11 @@ public class Tree<T> extends Widget implements Scrollable {
         }
         toggled = node;
         T wasCursor = cursor;
+        if (!open) {
+            recordPaths(); // the rows about to be hidden, and where they stand
+        }
         rebuildRows();
+        forgetRevealedPaths();
         if (!open && cursor != null && indexOf(cursor) < 0) {
             // The collapse hid the row the cursor was on: the cursor climbs to the row that
             // closed, which is where Explorer, Finder and GTK put it, and the selection stays
@@ -484,7 +512,9 @@ public class Tree<T> extends Widget implements Scrollable {
             damageCursorMove(wasCursor);
             announceCursor(wasCursor, origin);
         }
-        pruneSelection();
+        // Nothing is pruned here: opening or closing a row cannot remove a node from the model,
+        // and the walk that used to run from every root on each press asked the model for the
+        // children of every closed branch — unbounded over a generated model (TREE-NEW-2).
         // Contained, not global: opening a row changes which rows are mounted and where they
         // sit, and both are inside a box this widget clips and whose own size the expansion
         // cannot move. A global layout is a full frame by ADR 002's invariant, which made every
@@ -514,6 +544,10 @@ public class Tree<T> extends Widget implements Scrollable {
                     loading.remove(node);
                     loaded.put(node, children == null ? List.of() : List.copyOf(children));
                     rebuildRows();
+                    forgetRevealedPaths();
+                    // What a refresh could not confirm under this row is verified now that the
+                    // children are known, and dropped one announcement later if gone.
+                    verifyHidden();
                     markNeedsContainedLayout();
                     invalidate();
                     notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.ADJUSTMENT));
@@ -521,15 +555,22 @@ public class Tree<T> extends Widget implements Scrollable {
                 .onFailure(error -> {
                     // The row closes again rather than sitting open and empty, which would read
                     // as "this node has nothing in it" — a different statement from "this could
-                    // not be read".
+                    // not be read". Through the one seam that announces EXPANDED, as an
+                    // adjustment of the tree's own (TREE-NEW-9); the children never changed, so
+                    // CHILDREN is not announced.
                     loading.remove(node);
-                    expanded.remove(node);
-                    rebuildRows();
-                    markNeedsContainedLayout();
-                    invalidate();
-                    notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.ADJUSTMENT));
+                    setExpanded(node, false, Change.Origin.ADJUSTMENT);
                 })
-                .deliverIf(() -> scene() != null)
+                .deliverIf(() -> {
+                    boolean alive = scene() != null;
+                    if (!alive) {
+                        // Dropped, and forgotten with it: a delivery refused because the tree is
+                        // in no scene must not leave the row busy for good. The next rebuild —
+                        // the attach, a refresh — starts the load again (TREE-NEW-3).
+                        loading.remove(node);
+                    }
+                    return alive;
+                })
                 .start();
         loading.put(node, job);
         startSpinning();
@@ -1070,46 +1111,145 @@ public class Tree<T> extends Widget implements Scrollable {
         }
     }
 
+    // ------------------------------------------------------- what outlives a hidden row
+
+    /** Row index by node, for the rows that are nodes; built once per pass that needs it. */
+    private Map<T, Integer> rowIndexByNode() {
+        Map<T, Integer> at = new HashMap<>(rows.size() * 2);
+        for (int i = 0; i < rows.size(); i++) {
+            Row<T> row = rows.get(i);
+            if (!row.placeholder) {
+                at.put(row.node, i);
+            }
+        }
+        return at;
+    }
+
     /**
-     * Drops from the selection every node that is no longer reachable — a collapse hides
-     * descendants, and a refresh may have removed nodes outright — and takes the cursor off one
-     * the model no longer has, whether or not anything is selected: a cursor left on a removed
-     * node would activate it and publish it {@code ACTIVE}.
-     *
-     * <p>A collapse does <b>not</b> deselect what it hides: the row is still in the tree, and
-     * re-opening its parent finds it selected, which is what a file manager does. Only a node the
-     * model no longer has is dropped.
+     * Records, for every selected, expanded or cursor node that is a row now, the path it sits
+     * at: called before a collapse or a refresh takes rows away, so what is hidden can later be
+     * verified without a walk. Paths of nodes that stay rows are dropped again by
+     * {@link #forgetRevealedPaths}.
      */
-    private void pruneSelection() {
-        if (selected.isEmpty() && cursor == null) {
+    private void recordPaths() {
+        if (selected.isEmpty() && expanded.isEmpty() && cursor == null) {
             return;
         }
-        Set<T> reachable = new LinkedHashSet<>();
-        for (T root : model.roots()) {
-            collectReachable(root, reachable);
+        Map<T, Integer> at = rowIndexByNode();
+        recordPath(cursor, at);
+        for (T node : selected) {
+            recordPath(node, at);
         }
-        boolean moved = selected.retainAll(reachable);
+        for (T node : expanded) {
+            recordPath(node, at);
+        }
+    }
+
+    private void recordPath(T node, Map<T, Integer> at) {
+        Integer index = node == null ? null : at.get(node);
+        if (index == null) {
+            return;
+        }
+        List<T> path = new ArrayList<>();
+        int depth = rows.get(index).depth;
+        for (int i = index; i >= 0 && depth >= 0; i--) {
+            Row<T> row = rows.get(i);
+            if (!row.placeholder && row.depth == depth) {
+                path.add(row.node);
+                depth--;
+            }
+        }
+        Collections.reverse(path);
+        hiddenPaths.put(node, path);
+    }
+
+    /** Forgets the path of every node that is a row again: a row is its own confirmation. */
+    private void forgetRevealedPaths() {
+        if (hiddenPaths.isEmpty()) {
+            return;
+        }
+        Map<T, Integer> at = rowIndexByNode();
+        hiddenPaths.keySet().removeIf(at::containsKey);
+    }
+
+    /** What verifying a hidden node's path against the model found. */
+    private enum Verdict { CONFIRMED, REFUTED, UNKNOWN }
+
+    /**
+     * Verifies each hidden node along its recorded path and only that path: from the roots,
+     * each step must be among the children of the step before, read from what a load brought
+     * or what the model knows. A step the model no longer has refutes the node; a step whose
+     * children are not known — a load in flight, or one nobody asked for — leaves it unknown,
+     * and unknown is kept (decision 35). A refuted node leaves the selection, the expansion, the
+     * cursor and the identifier table, announced as the tree's own adjustment.
+     */
+    private void verifyHidden() {
+        if (hiddenPaths.isEmpty()) {
+            return;
+        }
+        boolean selectionMoved = false;
+        boolean cursorMoved = false;
+        for (Map.Entry<T, List<T>> entry : List.copyOf(hiddenPaths.entrySet())) {
+            if (verify(entry.getValue()) != Verdict.REFUTED) {
+                continue;
+            }
+            T node = entry.getKey();
+            hiddenPaths.remove(node);
+            selectionMoved |= selected.remove(node);
+            expanded.remove(node);
+            ids.remove(node);
+            if (node.equals(rangeAnchor)) {
+                rangeAnchor = null;
+            }
+            if (node.equals(cursor)) {
+                cursor = null;
+                cursorMoved = true;
+            }
+        }
         if (lead != null && !selected.contains(lead)) {
             lead = lastSelected();
         }
-        if (cursor != null && !reachable.contains(cursor)) {
-            cursor = null;
+        if (cursorMoved) {
             invalidate();
             notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.ADJUSTMENT));
         }
-        if (moved) {
+        if (selectionMoved) {
             invalidate();
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         }
     }
 
-    private void collectReachable(T node, Set<T> into) {
-        if (!into.add(node)) {
-            return; // a model that returns a node twice must not spin this walk
+    private Verdict verify(List<T> path) {
+        List<T> siblings = model.roots();
+        for (int i = 0; i < path.size(); i++) {
+            if (siblings == null) {
+                return Verdict.UNKNOWN;
+            }
+            T step = path.get(i);
+            if (!siblings.contains(step)) {
+                return Verdict.REFUTED;
+            }
+            if (i + 1 < path.size()) {
+                List<T> arrived = loaded.get(step);
+                siblings = arrived != null ? arrived : model.children(step);
+            }
         }
-        for (T child : childrenOf(node)) {
-            collectReachable(child, into);
+        return Verdict.CONFIRMED;
+    }
+
+    /**
+     * Releases the identifier of every node the tree no longer keeps anything about: not a
+     * row, not selected, not open, not the cursor. An identifier only has to stay stable while
+     * its node is published, and none of these is (TREE-NEW-8: a long-lived tree over a
+     * changing model retained every node it had ever shown).
+     */
+    private void releaseIdentifiers() {
+        if (ids.isEmpty()) {
+            return;
         }
+        Map<T, Integer> at = rowIndexByNode();
+        ids.keySet().removeIf(node -> !at.containsKey(node) && !selected.contains(node)
+                && !expanded.contains(node) && !node.equals(cursor));
     }
 
     /**
@@ -2120,6 +2260,15 @@ public class Tree<T> extends Widget implements Scrollable {
 
     @Override
     protected void onAttached() {
+        // A load dropped while the tree was in no scene left its row open with nothing under
+        // it and no job; the walk that meets every open row starts it again (TREE-NEW-3), and a
+        // pass is owed only when it did, since the loading line is a row.
+        int wasLoading = loading.size();
+        rebuildRows();
+        if (loading.size() != wasLoading) {
+            markNeedsContainedLayout();
+            invalidate();
+        }
         startSpinning(); // a tree opened onto loading rows before it joined a scene still turns
     }
 
@@ -2141,6 +2290,10 @@ public class Tree<T> extends Widget implements Scrollable {
     protected void onDetached() {
         spinGeneration++; // the ticker left behind in the old scene stops on its next frame
         spinning = false;
+        // A result nobody will paint is a result nobody should pay for, and a row left busy over
+        // a job that was never going to deliver is a row that spins for good: the loads are
+        // dropped here and started again by the attach (TREE-NEW-3).
+        cancelAllLoads();
     }
 
     // --------------------------------------------------------------------- accessibility

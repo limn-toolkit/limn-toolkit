@@ -48,6 +48,12 @@ class TreeTest extends ComponentTestBase {
         /** Nodes whose children this model refuses to answer until {@link #loads} is consulted. */
         final Map<String, List<Node>> loads;
         int loadCalls;
+        /** Every node whose children the tree asked for, in order. */
+        final List<String> childrenAsked = new ArrayList<>();
+        /** Held by every load's body before it answers; open by default. */
+        final java.util.concurrent.CountDownLatch gate = new java.util.concurrent.CountDownLatch(0);
+        /** What a load answers instead of {@link #loads}, when set: the reload that changed. */
+        volatile Map<String, List<Node>> reloads;
 
         CountingModel(List<Node> roots) {
             this(roots, Map.of());
@@ -65,6 +71,7 @@ class TreeTest extends ComponentTestBase {
 
         @Override
         public List<Node> children(Node node) {
+            childrenAsked.add(node.name());
             // A node named in `loads` says "not known yet", which is what makes it non-leaf and
             // sends the tree to load().
             return loads.containsKey(node.name()) ? null : node.children();
@@ -73,8 +80,12 @@ class TreeTest extends ComponentTestBase {
         @Override
         public Work<List<Node>> load(Node node) {
             loadCalls++;
-            List<Node> kids = loads.get(node.name());
-            return Ui.work(progress -> kids);
+            Map<String, List<Node>> source = reloads != null ? reloads : loads;
+            List<Node> kids = source.get(node.name());
+            return Ui.work(progress -> {
+                gate.await();
+                return kids;
+            });
         }
 
         @Override
@@ -806,6 +817,243 @@ class TreeTest extends ComponentTestBase {
         scene.layoutPass(220, 200);
         assertFalse(hasCell(tree, "row 2"), "with the focus gone it is released: " + drawn(tree));
         assertEquals(many.get(1), tree.cursorNode(), "though the cursor still stands on it");
+    }
+
+    // --------------------------------------------------------------- refresh and pruning
+
+    /**
+     * Opening or closing a row asks the model nothing about the branches that stay closed: a
+     * collapse cannot remove a node, so there is nothing to prune, and the walk that used to run
+     * from every root on each press asked {@code children} of every closed branch — which a
+     * generated model answers without end (TREE-NEW-2).
+     */
+    @Test
+    void openingOrClosingARowDoesNotAskTheModelAboutClosedBranches() {
+        Node deep = Node.of("closed", Node.of("c.1", Node.of("c.1.1", Node.leaf("c.1.1.1"))));
+        Node other = Node.of("other", Node.leaf("o.1"));
+        CountingModel model = new CountingModel(List.of(deep, other));
+        Tree<Node> tree = mount(model);
+        tree.setSelected(other);
+        model.childrenAsked.clear();
+
+        tree.expand(other);
+        scene.layoutPass(220, 200);
+        tree.collapse(other);
+        scene.layoutPass(220, 200);
+
+        assertFalse(model.childrenAsked.contains("c.1"),
+                "nothing under the closed root was asked about: " + model.childrenAsked);
+        assertFalse(model.childrenAsked.contains("c.1.1"), model.childrenAsked.toString());
+
+        // And a model whose children are always new nodes: every expand used to overflow the
+        // stack the moment anything was selected.
+        Tree.Model<Node> endless = new Tree.Model<>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(Node.of("1"));
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                int n = Integer.parseInt(node.name());
+                return List.of(Node.of(String.valueOf(2 * n)), Node.of(String.valueOf(2 * n + 1)));
+            }
+
+            @Override
+            public boolean isLeaf(Node node) {
+                return false;
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name());
+            }
+        };
+        Tree<Node> generated = mount(endless);
+        generated.setSelected(Node.of("1"));
+        generated.expand(Node.of("1"));
+        scene.layoutPass(220, 200);
+        assertEquals(3, generated.visibleRowCount(), "opened without walking the whole model");
+        generated.collapse(Node.of("1"));
+        scene.layoutPass(220, 200);
+        assertEquals(1, generated.visibleRowCount());
+        assertEquals(List.of(Node.of("1")), generated.selectedNodes());
+    }
+
+    /**
+     * A refresh under an open row whose children have to be fetched again keeps the selection
+     * and the cursor while the load is in flight, and confirms them when it lands: the
+     * file-manager case, where a watcher's refresh deselected the user's file on every change
+     * (TREE-MISS-2). Before, the reload emptied the cache, the walk found nothing under the row,
+     * and everything under it was dropped at once.
+     */
+    @Test
+    void aRefreshKeepsTheSelectionUnderARowThatHasToLoadAgain() {
+        Node remote = new Node("remote", List.of());
+        Node one = Node.leaf("one");
+        CountingModel model = new CountingModel(List.of(remote, Node.leaf("b")),
+                Map.of("remote", List.of(one, Node.leaf("two"))));
+        Tree<Node> tree = mount(model);
+        scene.requestFocus(tree);
+        tree.expand(remote);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        scene.layoutPass(220, 200);
+        tree.setSelected(one);
+        assertEquals(one, tree.cursorNode());
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertEquals(2, tree.visibleRowCount(), "the reload is in flight: " + drawn(tree));
+        assertEquals(List.of(one), tree.selectedNodes(),
+                "kept while the row's children are on their way");
+        assertEquals(one, tree.cursorNode(), "and so is the cursor");
+        assertTrue(changes.stream().noneMatch(c -> c.aspect() == limn.scene.Change.Aspect.SELECTION),
+                "nothing was dropped, so nothing was announced: " + changes);
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(one), tree.selectedNodes(), "confirmed when the children landed");
+        assertEquals(one, tree.cursorNode());
+        assertTrue(hasCell(tree, "one"), "and the row is back: " + drawn(tree));
+    }
+
+    /**
+     * The counterpart: when the reload no longer brings the selected node, it is dropped once
+     * the load has landed and said so — one announcement later, as the tree's own adjustment —
+     * and not before, when nothing could be known.
+     */
+    @Test
+    void aRefreshDropsASelectionUnderAReloadedRowOnlyOnceTheLoadSaysItIsGone() {
+        Node remote = new Node("remote", List.of());
+        Node one = Node.leaf("one");
+        Node two = Node.leaf("two");
+        CountingModel model = new CountingModel(List.of(remote),
+                Map.of("remote", List.of(one, two)));
+        Tree<Node> tree = mount(model);
+        tree.expand(remote);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 3);
+        scene.layoutPass(220, 200);
+        tree.setSelected(one);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        model.reloads = Map.of("remote", List.of(two));
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(one), tree.selectedNodes(), "unknown until the load lands, so kept");
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 2);
+        scene.layoutPass(220, 200);
+        assertTrue(tree.selectedNodes().isEmpty(), "the reload did not bring it, so it is gone");
+        assertNull(tree.leadNode());
+        assertNull(tree.cursorNode(), "the cursor cannot stand on it either");
+        List<limn.scene.Change.Aspect> adjusted = changes.stream()
+                .filter(c -> c.origin() == limn.scene.Change.Origin.ADJUSTMENT)
+                .map(limn.scene.Change::aspect).toList();
+        assertTrue(adjusted.contains(limn.scene.Change.Aspect.SELECTION), adjusted.toString());
+        assertTrue(adjusted.contains(limn.scene.Change.Aspect.ACTIVE), adjusted.toString());
+    }
+
+    /**
+     * A tree taken out of its scene while a row loads drops that load and loads again when it
+     * comes back: before, the delivery was refused (the tree had no scene) but the row stayed in
+     * {@code loading}, so after the re-attach it spun for good and never asked again
+     * (TREE-NEW-3). The same for a tree opened onto a lazy row before it joined any scene, whose
+     * load lands before the attach.
+     */
+    @Test
+    void aTreeMovedWhileARowLoadsLoadsItAgainWhenItComesBack() throws Exception {
+        Node lazy = new Node("remote", List.of());
+        CountingModel model = new CountingModel(List.of(lazy),
+                Map.of("remote", List.of(Node.leaf("one"), Node.leaf("two"))));
+        Tree<Node> tree = new Tree<>(model);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(tree);
+        scene = new Scene(column);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        scene.renderFrame(new RecordingTestCanvas(220, 200));
+
+        tree.expand(lazy);
+        assertEquals(1, model.loadCalls);
+        column.remove(tree);
+        ui.pumpUntil(() -> model.loadCalls == 1); // whatever the worker does now goes nowhere
+        column.add(tree);
+        scene.layoutPass(220, 200);
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 3);
+        scene.layoutPass(220, 200);
+        assertEquals(2, model.loadCalls, "asked again on the way back in");
+        assertTrue(tree.isExpanded(lazy), "still open");
+        assertEquals(List.of("remote", "one", "two"), drawn(tree), "and showing what it has");
+
+        // Never attached: the load lands with nowhere to deliver, and the attach asks again.
+        CountingModel early = new CountingModel(List.of(lazy),
+                Map.of("remote", List.of(Node.leaf("one"))));
+        Tree<Node> opened = new Tree<>(early);
+        opened.expand(lazy);
+        assertEquals(1, early.loadCalls);
+        for (int i = 0; i < 50 && early.loadCalls == 1; i++) {
+            Thread.sleep(5); // let the worker finish and post the delivery the tree will refuse
+            runtime.drain();
+        }
+        scene = new Scene(opened);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        ui.pumpUntil(() -> opened.visibleRowCount() == 2);
+        assertEquals(2, early.loadCalls, "the dropped load was asked for again on attach");
+    }
+
+    /**
+     * A failed load closes its row through the seam that announces it, as the tree's own
+     * adjustment: a watcher hears {@code EXPANDED} for a row that went from open to closed, and
+     * nothing about children that never changed (TREE-NEW-9). Before, only {@code CHILDREN} was
+     * announced and the row closed silently.
+     */
+    @Test
+    void aFailedLoadSaysTheRowClosed() {
+        Node lazy = new Node("remote", List.of());
+        Tree.Model<Node> failing = new Tree.Model<>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(lazy);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return null;
+            }
+
+            @Override
+            public Work<List<Node>> load(Node node) {
+                return Ui.work(progress -> {
+                    throw new java.io.IOException("unreadable");
+                });
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name());
+            }
+        };
+        Tree<Node> tree = mount(failing);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        tree.expand(lazy);
+        assertTrue(tree.isExpanded(lazy));
+        ui.pumpUntil(() -> !tree.isExpanded(lazy));
+        scene.layoutPass(220, 200);
+
+        assertTrue(changes.stream().anyMatch(c -> c.aspect() == limn.scene.Change.Aspect.EXPANDED
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT),
+                "the row closing is announced as an adjustment: " + changes);
+        assertTrue(changes.stream().noneMatch(c -> c.aspect() == limn.scene.Change.Aspect.CHILDREN
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT),
+                "and nothing about children, which never changed: " + changes);
+        assertEquals(List.of("remote"), drawn(tree), "closed, with no line under it");
     }
 
     @Test
