@@ -39,6 +39,13 @@ widget shares, and `Scrollable.revealRect` is how a focused thing asks to be bro
 ADR 040 is still a proposal. Nothing here anticipates it: the table registers listeners the way
 every widget does today, and the conversion to observers is that record's, all widgets at once.
 
+**Amended 2026-09-14 (B7 of the 2026-09-13 pass).** ADR 040 was accepted on 2026-09-03 and
+implemented on 2026-09-09, and the table moved onto it: `onSelect`, `onActivate` and
+`onSortRequest` are single handler slots under `Checks.handlerSlot`, reached through
+`handleUserChange` for the user's gestures alone, and `observeChanges` hears every change with
+its origin (§8's amendment of this date; ADR 040 §7.2 records the table's seams). The sentence
+above stands as the record of what was true when it was written.
+
 ---
 
 ## 1. The model is typed, and the application owns the rows
@@ -61,7 +68,9 @@ Qt, Swing's `TableModel` — puts the column, not the row, at the centre, and a 
 formatting had to be re-implemented per application would be a list with lines drawn on it.
 
 **Why the rows are a `List<T>` held by reference.** Copying would make the model the table's, and
-then every edit would need a change event the toolkit has not designed yet (ADR 040). Holding the
+then every edit would need a change event the toolkit has not designed yet (ADR 040; **amended
+2026-09-14:** designed since — the origin-labelled `Change` and `observeChanges` — and the list
+is still held by reference for the second reason, which stands on its own). Holding the
 application's list and being told `refresh()` is the `ListView` contract, and it keeps a table over
 a million rows free: `rowCount` is `rows.size()`, and nothing is read until it is on screen.
 
@@ -352,7 +361,10 @@ Save.
 **What to do instead**, and each is already in the toolkit:
 
 - **A dialog or a panel for the record.** Activate a row (Enter, a double click, or a
-  `Column.widget` button) and open a `Dialog`, or a form beside or below the table, that shows the
+  `Column.widget` button — **corrected 2026-09-14, TABLE-NEW-8:** a button in a widget cell
+  consumes its own press, so the table's `onActivate` does not fire and the row is not selected;
+  the button opens the record through its own action, capturing the row from the factory that
+  built it) and open a `Dialog`, or a form beside or below the table, that shows the
   whole record as a form — every field labelled, validated as forms are (`TextField.Validation`),
   saved on an explicit action. On save, change the application's list and call `refresh()`; the
   selection is by model row and stays where it was.
@@ -388,7 +400,13 @@ tree's, for the same reason `SelectionItemFacet` carries the model's size of set
 column)` on each cell and header cell: the row as shown (the view position, since that is what a
 user counting rows sees; `-1` for a header cell) and the shown column's index. The column's header
 — what a reader speaks before a cell's value — is **found by structure, not carried**: it is the
-child at the cell's column of the table's header group, which is the table's first `GROUP` child.
+child at the cell's column of the table's header group, which is the table's first `GROUP` child
+(**amended 2026-09-14, TABLE-NEW-11; settled as header-group-rule:** *first* held only while the
+header is shown — with `setShowHeader(false)` and a footer, the footer group is the first `GROUP`
+child, and every bridge handed out footer cells as column headers. The rule is: the header cell
+of column *c* is the child with `CellFacet(-1, c)` of one of the table's direct `GROUP` children,
+and a footer cell, row `-2`, never; a headerless table has no header group rather than an empty
+one. The three bridges' lookups move to that rule in phase 3; the model already publishes it).
 Carrying its identifier would make a facet a bridge reads on its own thread depend on a resolution
 that happens after the walk, which is what relations are for and cells are too many to be. A `ROW`
 carries `SelectionItemFacet` exactly as a list row does, with the view position as position in set
@@ -462,6 +480,14 @@ and a bridge maps nothing special. Pinned by
 | macOS | `NSAccessibilityTableRole`; `accessibilityRows`, `accessibilityColumns`, `accessibilityHeader`, `accessibilitySelectedRows`, `accessibilityRowCount`, `accessibilityColumnCount` | `NSAccessibilityCellRole`; `accessibilityRowIndexRange`, `accessibilityColumnIndexRange` | the header group's children, each `NSAccessibilityCellRole` under `accessibilityHeader` |
 | Linux | `ROLE_TABLE`; `org.a11y.atspi.Table` (`NRows`, `NColumns`, `GetAccessibleAt`, `GetColumnHeader`, `GetSelectedRows`) alongside `Selection` | `ROLE_TABLE_CELL`; `org.a11y.atspi.TableCell` (`Position`, `RowColumnSpan`, `Table`, `ColumnHeaderCells`) | `ROLE_TABLE_COLUMN_HEADER` |
 
+**Amended 2026-09-14 (B7).** The Windows row's "alongside the existing `ISelectionProvider` and
+`IScrollProvider`" overstates what is served: `UiaPatternProviders.interfaceFor` has no entry for
+the Selection or the Scroll pattern, so no container — the table included — vends either, while
+`UiaPatterns.supports` still answers true for both and `patternProvider` returns `S_OK` with a
+null provider. A Windows client reads the table's selection through the rows' SelectionItem
+pattern and its scroll not at all. A shared bridge defect the bridges lanes own, not this
+record's promise fulfilled; the row stands as the intent.
+
 ### 7.1 What the live clients found
 
 Two defects, both invisible to the headless tests because both are about what the platform's
@@ -513,6 +539,11 @@ sibling that does not exist yet is the chart hierarchy the coverage test refused
 hoisted to `CartesianChart` and reverted, 2026-09-08). When the tree arrives, what the two share
 moves into a package-private engine, and that is the day to decide its shape.
 
+**Superseded 2026-09-14 by ADR 044 §3.** The tree arrived and walks its own rows; the shared
+engine is owed until a `TreeTable` asks for it, and the row rules — the kept cursor row, the
+seed height, the wheel handed on at the ends — exist in three copies (`ListView`, `Table`,
+`Tree`) that ADR 044 §3 names and each widget's lane changes in step.
+
 ---
 
 ## 10. What lands when, and what is deliberately left out of the first phase
@@ -532,6 +563,16 @@ that allocate nothing, mirroring, recycling identity.
 sort; row drag; export. Each is a request the toolkit has not had, and
 each would be guessed at rather than designed.
 
+**Amended 2026-09-14 (B7).** Phase 2's "a `Tree` that shares the engine" did not happen that way:
+§9's supersession. Of the first phase's promised tests, "mirroring" arrived only on this date as
+`TableMirroringTest` (B2), and "an accessibility gallery entry with its transcript" was completed
+the same day (B5: the entry gained `MULTI`, a footer and a named switch column, and its
+transcript is the committed golden `limn-demo/src/test/resources/limn/demo/a11y/table.txt`).
+Landed since by the 2026-09-13 pass, none of them a phase: a row is its record (§3), the header's
+focus stop (§4), the kept cursor row and the per-child clip (§2), hidden columns (§5), the
+two-axis wheel handed on at the ends and the seed height (§2), the sort-request slot (§4), and
+the verbs by state (§7).
+
 ---
 
 ## 11. Verification
@@ -549,3 +590,18 @@ each would be guessed at rather than designed.
 - The three bridges' constants tests, extended by the guests' readings; the accessibility
   gallery's transcript, read aloud before it is committed; and a live run on each guest through
   the probe scripts already in `scripts/a11y/`.
+
+**Amended 2026-09-14 (B7).** The list above is the first phase's. Since then: `TableTest` also
+holds the record-following `refresh()`, the sort carrying the cursor, the header stop, the
+sort-request slot, the two-axis wheel and the hand-off to the scroller at either end, the seed
+height, hidden widget columns, and horizontal scrolling with column virtualization;
+`TableAccessibilityTest` the verbs by state, the header's cursor, the `ACTIVE` widget cell,
+hidden columns, columns published off screen and the unflipped horizontal percent;
+`TableFocusedRowTest` (six cases) the two kept rows and the clip; `TableMirroringTest` (eight
+cases) the right-to-left placement; and `DamageContractTest`'s Table row the wheel on both axes
+and a horizontal focus move, under ceilings measured on 2026-09-14. The gallery's transcript is
+committed as `limn-demo/src/test/resources/limn/demo/a11y/table.txt`, read aloud before it was.
+Still owed: a live screen-reader run over the table on each guest (B9, phase 5) — the 2026-09-09
+runs were client walks through the probe scripts, and no reader has yet spoken a Limn table;
+its recipe should include Shift+Tab into the header, Right, Space, Right into the switch column,
+and a wheel away from the cursor row.
