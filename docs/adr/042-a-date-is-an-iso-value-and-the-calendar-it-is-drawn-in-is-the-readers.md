@@ -328,6 +328,16 @@ description when the field holds something unacceptable, and the whole date as a
 `DateField.text()` for an application that wants it. (The first implementation put the whole date
 on the group as a `valueText`; §12 records why that reached nobody.)
 
+**Amendment, 2026-09-14 (decisions 16 and 53 — DATES-NEW-8): an empty segment says so.** A
+segment nobody has filled published its minimum as its number, so a client reading the number
+heard "1" for a day nobody typed and the published verb (a step lands on today's) contradicted
+it. It now publishes the model's empty value (ADR 039 §1.2 amendment of the same date: the range
+kept, no number, the minimum answered only where a platform must have one) with a spoken word as
+its text — "empty", one string in all 21 date locale files — while the dashes stay drawn. Typing
+the first digit is a `VALUE_CHANGED` even when the digit is the minimum, and the first step from
+empty still lands on today's own value by the widget's clock (§1). Pinned by
+`DateFieldAccessibilityTest.aBlankSegmentSaysItIsEmptyAndFillingItIsAValueChange`.
+
 The header's title is published as a `BUTTON` carrying `EXPANDED`, because it is the only way to
 the two choosers and a reader never offered it is left paging. In a chooser the grid stays a
 `TABLE`; its cells are named with the month or the year, carry `SELECT` where they lead anywhere,

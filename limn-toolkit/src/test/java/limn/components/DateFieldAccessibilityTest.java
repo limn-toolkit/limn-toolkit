@@ -183,6 +183,50 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(month.id(), moved.get(0).newValue());
     }
 
+    /**
+     * Decisions 16 and 53 (DATES-NEW-8): a segment nobody has filled publishes an empty value
+     * over its real range with the spoken word as its text, never its minimum as if typed (a
+     * client reading the number heard "1" for a day nobody typed); the dashes stay drawn. Typing
+     * the first digit is a value change even when the digit is the minimum. The first step from
+     * empty lands on today's own value by the widget's clock, which is the rule kept.
+     */
+    @Test
+    void aBlankSegmentSaysItIsEmptyAndFillingItIsAValueChange() {
+        DateField field = bindField(new DateField(), PT_BR);
+        field.setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-03-15T12:00:00Z"),
+                java.time.ZoneOffset.UTC));
+        scene.requestFocus(field);
+        frame();
+        AccessibleNode day = segmentNodes().get(0);
+        assertNotNull(day.value(), "the range stands");
+        assertTrue(day.value().empty(), "but there is no number: " + day.value());
+        assertEquals(1, day.value().min());
+        assertEquals(31, day.value().max());
+        assertEquals("vazio", day.value().text(), "the spoken word, not the dashes");
+        assertTrue(field.text().startsWith("--"), "which stay drawn: " + field.text());
+        bridge.events.clear();
+
+        scene.charTyped('1');
+        scene.inputBatchEnded();
+        frame();
+        day = segmentNodes().get(0);
+        assertFalse(day.value().empty());
+        assertEquals(1, day.value().value(), "the minimum, this time because it was typed");
+        assertEquals("01", day.value().text(), "drawn at the pattern's own width");
+        assertTrue(bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED).stream()
+                        .anyMatch(event -> event.nodeId() == segmentNodes().get(0).id()),
+                "a value change on the day, though the number is the minimum: " + bridge.events);
+
+        AccessibleNode month = segmentNodes().get(1);
+        assertTrue(month.value().empty());
+        scene.keyEvent(limn.input.Keys.RIGHT, true, false, 0);
+        scene.keyEvent(limn.input.Keys.UP, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(3, segmentNodes().get(1).value().value(),
+                "the first step from empty is today's month by the field's clock");
+    }
+
     @Test
     void aSetValueFromOutsideClampsToTheSegmentsOwnRange() throws InterruptedException {
         DateField field = bindField(new DateField(), PT_BR);

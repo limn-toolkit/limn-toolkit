@@ -54,6 +54,12 @@ final class DateStrings {
     /** The era, which is drawn and read and never edited (ADR 042 &sect;3). */
     static final I18nString SEGMENT_ERA = new I18nString("limn.date.segment.era", "Era");
 
+    /**
+     * What a reader is told a segment nobody has filled holds (decision 53): a word, where the
+     * eye sees dashes. "--" read aloud is nothing, and a number would be a lie.
+     */
+    static final I18nString SEGMENT_EMPTY = new I18nString("limn.date.segment.empty", "empty");
+
     // The calendar's chrome.
 
     static final I18nString PREVIOUS_MONTH =

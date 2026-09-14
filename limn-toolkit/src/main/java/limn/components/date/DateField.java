@@ -788,6 +788,9 @@ public class DateField extends Widget {
                 && patternGranularity == granularity) {
             return;
         }
+        // The published value texts are the language's (a month name, the word for an empty
+        // segment), so the witness they are handed with has to move when the language does.
+        valueRevision++;
         patternChronology = chronology;
         patternGranularity = granularity;
         List<DatePattern.Part> built = new ArrayList<>();
@@ -1090,9 +1093,10 @@ public class DateField extends Widget {
         int current = segmentValue(field);
         int next;
         if (current == UNSET) {
-            // The first press on an empty segment lands somewhere sensible rather than at the
-            // minimum: today's own value, which is what the person is usually near.
-            next = delta > 0 ? defaultFor(field) : defaultFor(field);
+            // The first press on an empty segment, up or down alike, lands somewhere sensible
+            // rather than at the minimum: today's own value by the widget's clock, which is what
+            // the person is usually near (kept as the rule on 2026-09-14, decision 16).
+            next = defaultFor(field);
         } else {
             int span = max - min + 1;
             next = min + Math.floorMod(current - min + delta, span);
@@ -1738,9 +1742,17 @@ public class DateField extends Widget {
                 a.role(Accessible.Role.SPIN_BUTTON);
                 a.name(nameOf(field.field()), Accessible.NameFrom.CONTENT);
                 int value = segmentValue(field.field());
-                a.value(value == UNSET ? segmentMin(field.field()) : value,
-                        segmentMin(field.field()), segmentMax(field.field()), 1);
-                a.valueText(segmentText(field), valueRevision);
+                if (value == UNSET) {
+                    // A segment nobody has filled says so (decisions 16 and 53, 2026-09-14): the
+                    // range stands, the number is absent, and the spoken text is a word rather
+                    // than the dashes that are drawn -- "--" read aloud is nothing. It published
+                    // its minimum as if typed until the facet could say empty.
+                    a.emptyValue(segmentMin(field.field()), segmentMax(field.field()), 1, false);
+                    a.valueText(DateStrings.SEGMENT_EMPTY.get(), valueRevision);
+                } else {
+                    a.value(value, segmentMin(field.field()), segmentMax(field.field()), 1);
+                    a.valueText(segmentText(field), valueRevision);
+                }
                 a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
                 if (slot == focusedSlot && caretShown()) {
                     a.state(Accessible.State.ACTIVE);
