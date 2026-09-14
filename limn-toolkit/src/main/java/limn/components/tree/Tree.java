@@ -1674,10 +1674,15 @@ public class Tree<T> extends Widget implements Scrollable {
         if (index < 0 || index >= count || cellFor(index) != null) {
             return;
         }
-        measuredHeight(index, contentWidth); // mounts it, measured at the content width
+        measuredHeight(index, contentWidth); // mounts it; placeKeptOutside lays it out
     }
 
-    /** Puts a spared row wholly outside the viewport, on the side its index lies. */
+    /**
+     * Puts a spared row wholly outside the viewport, on the side its index lies, at the height
+     * it measures — the placed run's own rule. A cell the pass just mounted has no height of its
+     * own yet, and the row laid out at that height stood at zero: a zero-height {@code ACTIVE}
+     * node to a reader, and a zero in the average that sizes the scroll estimate.
+     */
     private void placeKeptOutside(float rowX, float viewW, float bottom) {
         SizeTokens t = tokens();
         boolean rtl = isRightToLeft();
@@ -1687,11 +1692,12 @@ public class Tree<T> extends Widget implements Scrollable {
                 continue;
             }
             Widget cell = mountedCells[i];
+            float rowH = measuredHeight(row, contentWidth);
             float lead = cellLeft(t, row, contentWidth);
             float cellW = Math.max(0, contentWidth - lead);
-            float y = row < placedFrom ? Math.min(anchorTop, 0) - cell.height()
+            float y = row < placedFrom ? Math.min(anchorTop, 0) - rowH
                     : Math.max(bottom, viewportHeight());
-            cell.layoutBox(cellX(rowX, viewW, lead, cellW, rtl), y, cellW, cell.height());
+            cell.layoutBox(cellX(rowX, viewW, lead, cellW, rtl), y, cellW, rowH);
         }
     }
 

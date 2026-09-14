@@ -780,6 +780,16 @@ class TreeTest extends ComponentTestBase {
         return false;
     }
 
+    /** The cell drawing {@code name}, mounted anywhere; fails when none does. */
+    private static Widget cell(Tree<Node> tree, String name) {
+        for (Widget child : tree.children()) {
+            if (child instanceof Label label && label.text().equals(name)) {
+                return label;
+            }
+        }
+        throw new AssertionError("no cell draws " + name + ": " + drawn(tree));
+    }
+
     /**
      * The cursor row is kept realized while the tree holds the keyboard: spared by a scroll,
      * and mounted again, fresh from the model, after a refresh released every cell (decision 22
@@ -806,12 +816,20 @@ class TreeTest extends ComponentTestBase {
         assertFalse(drawn(tree).contains("row 2"), "outside, not drawn among the visible rows");
         assertEquals(builtBefore, java.util.Collections.frequency(model.cellsBuilt, "row 2"),
                 "spared, so not built again");
+        float rowHeight = cell(tree, "row 40").height();
+        assertEquals(rowHeight, cell(tree, "row 2").height(), "spared at its height");
 
         tree.refresh();
         scene.layoutPass(220, 200);
         assertTrue(hasCell(tree, "row 2"), "a refresh releases every cell and mounts it back");
         assertEquals(builtBefore + 1, java.util.Collections.frequency(model.cellsBuilt, "row 2"),
                 "fresh from the model, since the refresh may have changed what it draws");
+        Widget back = cell(tree, "row 2");
+        assertEquals(rowHeight, back.height(),
+                "laid out at the height it measures, like a placed row: a fresh cell has no "
+                        + "height of its own, and a zero here reached the average row height "
+                        + "and the node a reader is handed");
+        assertTrue(back.y() + back.height() <= 0, "and wholly above the box: y=" + back.y());
 
         scene.requestFocus(null);
         scene.layoutPass(220, 200);

@@ -606,6 +606,40 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * A refresh releases every cell, and the cursor row comes back fresh from the model at the
+     * height it measures, like a placed row. It came back mounted and never laid out, at height
+     * zero: a zero-height {@code ACTIVE} node to a reader, and a zero in the average row height
+     * that sizes the scroll estimate the tree publishes, until the row scrolled back into the
+     * placed run (the review of tree-A, 2026-09-14; decision 22's refresh case).
+     */
+    @Test
+    void theCursorRowComesBackFromARefreshAtItsHeightAndTheScrollEstimateStands() {
+        bindTree(ROW_H, leaves(40));
+        scene.requestFocus(tree);
+        tree.setSelected(Node.leaf("row 2"));
+        frame();
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        scene.scrolled(0, -20, x, y);
+        scene.inputBatchEnded();
+        frame();
+        AccessibleNode spared = node("row 2");
+        assertFalse(spared.has(Accessible.State.SHOWING), describe(tree()));
+        assertEquals(ROW_H, spared.height(), "spared by the wheel at its height");
+        double viewSize = treeNode().scroll().verticalViewSize();
+
+        tree.refresh();
+        frame();
+        AccessibleNode back = node("row 2");
+        assertEquals(ROW_H, back.height(),
+                "mounted back at the height it measures: " + describe(tree()));
+        assertTrue(back.has(Accessible.State.ACTIVE), "still the cursor: " + describe(tree()));
+        assertFalse(back.has(Accessible.State.SHOWING), "still outside the box");
+        assertEquals(viewSize, treeNode().scroll().verticalViewSize(), 1e-9,
+                "no zero reached the average row height, so the scroll estimate stands");
+    }
+
+    /**
      * A refresh releases the identifier of a node the model no longer has, and with it the node:
      * the identifier table was the one place a removed node stayed strongly held, for the tree's
      * life (TREE-NEW-8). Only a bound tree mints identifiers, which is why this case is here.
