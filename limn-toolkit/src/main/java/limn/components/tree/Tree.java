@@ -319,6 +319,16 @@ public class Tree<T> extends Widget implements Scrollable {
     private int mountedCount;
     /** Reused per walk to assemble a row's derived name before comparing it with the kept one. */
     private final StringBuilder nameBuilder = new StringBuilder();
+    /**
+     * Cells whose row vanished between two layout passes — a collapse, a load landing, a
+     * reorder — kept as children until the tree's next pass releases them. Taking a child out
+     * of a widget outside a layout pass declares a global layout, which is a full frame (ADR
+     * 002's invariant), and the scene absorbs the same removal inside a pass over this subtree:
+     * a collapse that released its cells on the spot repainted the window for one gesture on
+     * one widget, which the damage ratchet's LEFT caught (2026-09-14).
+     */
+    private final List<Widget> orphanCells = new ArrayList<>();
+    private final List<Object> orphanKeys = new ArrayList<>();
 
     /** The half-open run of rows the last pass laid out, which is what a recycle keeps. */
     private int placedFrom;
@@ -472,6 +482,7 @@ public class Tree<T> extends Widget implements Scrollable {
         recordPaths();
         loaded.clear();
         cancelAllLoads();
+        releaseOrphans();
         recycleExcept(0, 0, 0);
         rebuildRows();
         forgetRevealedPaths();
@@ -676,7 +687,8 @@ public class Tree<T> extends Widget implements Scrollable {
         for (int i = 0; i < mountedCount; i++) {
             Widget cell = mountedCells[i];
             if (now[i] <= last) { // gone, or moved against the traversal
-                unmount(cell, mountedNodes[i], containsFocus(cell));
+                orphanCells.add(cell); // released by the next pass, never here (see the field)
+                orphanKeys.add(mountedNodes[i]);
                 continue;
             }
             last = now[i];
@@ -1496,6 +1508,7 @@ public class Tree<T> extends Widget implements Scrollable {
         hBar.layoutBox(rtl ? box - w : 0, h - barT, w, barT);
         float rowX = rtl ? box - w : 0;
 
+        releaseOrphans(); // inside the pass, where the scene absorbs the removal
         int count = rows.size();
         if (count == 0) {
             recycleExcept(0, 0, 0);
@@ -1671,6 +1684,16 @@ public class Tree<T> extends Widget implements Scrollable {
             mountedNames[i] = null;
         }
         mountedCount = kept;
+    }
+
+    /** Releases the cells whose rows vanished since the last pass; see {@link #orphanCells}. */
+    private void releaseOrphans() {
+        for (int i = 0; i < orphanCells.size(); i++) {
+            Widget cell = orphanCells.get(i);
+            unmount(cell, orphanKeys.get(i), containsFocus(cell));
+        }
+        orphanCells.clear();
+        orphanKeys.clear();
     }
 
     /**
@@ -2175,8 +2198,8 @@ public class Tree<T> extends Widget implements Scrollable {
             return this; // the triangle is the tree's, not the cell's
         }
         for (Widget child : children()) {
-            if (child == vBar || child == hBar) {
-                continue;
+            if (child == vBar || child == hBar || slotOfCell(child) < 0) {
+                continue; // the bars were asked above; a cell awaiting release is nobody's row
             }
             Widget hit = child.hitTest(localX - child.x(), localY - child.y());
             if (hit != null) {

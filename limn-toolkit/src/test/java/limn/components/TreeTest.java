@@ -271,6 +271,64 @@ class TreeTest extends ComponentTestBase {
      * 32 of 2026-09-14). Before, {@code selectOnly} returned before moving the cursor, so in NONE
      * every arrow, Right, Left and Enter were dead — against the enum's own javadoc.
      */
+    /**
+     * The three handlers hear the user's gesture and never the caller's verb (ADR 040):
+     * Right and Left reach {@code onExpand} and {@code onCollapse} with the row they opened or
+     * closed, Enter reaches {@code onActivate} with the cursor row, and {@code expand()},
+     * {@code collapse()} and {@code activate()} reach none of them. No test drove a handler
+     * before this one (T8).
+     */
+    @Test
+    void theHandlersHearTheUserAndNeverTheCaller() {
+        Node root = forest();
+        Tree<Node> tree = mount(new CountingModel(List.of(root)));
+        List<String> heard = new ArrayList<>();
+        tree.onExpand(node -> heard.add("expand " + node.name()));
+        tree.onCollapse(node -> heard.add("collapse " + node.name()));
+        tree.onActivate(node -> heard.add("activate " + node.name()));
+        scene.requestFocus(tree);
+
+        press(Keys.DOWN);  // onto the root
+        press(Keys.RIGHT); // opens it
+        assertEquals(List.of("expand root"), heard);
+        press(Keys.LEFT);  // closes it
+        assertEquals(List.of("expand root", "collapse root"), heard);
+        press(Keys.ENTER);
+        assertEquals(List.of("expand root", "collapse root", "activate root"), heard);
+
+        heard.clear();
+        tree.expand(root);
+        tree.collapse(root);
+        tree.activate();
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(), heard, "a caller's verb reaches a watcher, never a handler");
+    }
+
+    /**
+     * Read right to left the horizontal arrows swap, as every other pair in this toolkit does
+     * (ADR 044 §5): Left opens and steps in, Right closes and steps out. The mirror of
+     * {@link #theArrowsOpenStepInCloseAndStepOut}, which no RTL case had walked (T8).
+     */
+    @Test
+    void rightToLeftTheArrowsSwap() {
+        Node root = forest();
+        Tree<Node> tree = mount(new CountingModel(List.of(root)));
+        tree.setLayoutDirection(limn.scene.LayoutDirection.RTL);
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+
+        press(Keys.DOWN);  // onto the root
+        assertEquals(root, tree.cursorNode());
+        press(Keys.LEFT);  // opens it: the arrow that goes deeper, mirrored
+        assertTrue(tree.isExpanded(root), "Left opens a closed row reading right to left");
+        press(Keys.LEFT);  // steps into it
+        assertEquals("docs", tree.cursorNode().name(), "and steps into an open one");
+        press(Keys.RIGHT); // docs is closed, so this goes to the parent
+        assertEquals(root, tree.cursorNode(), "Right steps out to the parent of a closed row");
+        press(Keys.RIGHT); // closes the root
+        assertFalse(tree.isExpanded(root), "and closes an open one");
+    }
+
     @Test
     void inNoneTheCursorStillMovesAndEnterActivatesTheRowItIsOn() {
         Node root = forest();

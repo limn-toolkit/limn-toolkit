@@ -350,14 +350,30 @@ class DamageContractTest extends ComponentTestBase {
             // 2026-09-14: the box, not a band from the row down).
             new Row("limn.components.tree.Tree", DamageContractTest::treeFixture, 360, 240,
                     List.of(focus().ceiling(0.2f), key("DOWN", Keys.DOWN).ceiling(0.3f),
-                            key("RIGHT", Keys.RIGHT).ceiling(1.05f), click().ceiling(0.5f),
+                            key("RIGHT", Keys.RIGHT).ceiling(1.05f),
+                            // Left closes the row Right opened: the same contained layout, the
+                            // same box, measured at 101% (T8's collapse gesture). It was the
+                            // whole window: the hidden rows' cells were taken out of the tree
+                            // on the spot, outside any pass, which is a global layout.
+                            key("LEFT", Keys.LEFT).ceiling(1.05f),
+                            key("RIGHT", Keys.RIGHT).ceiling(1.05f),
+                            click().ceiling(0.5f),
+                            // The command modifier on the row the click selected takes it out
+                            // of a MULTI selection: one band, measured at 6% like DOWN; the
+                            // fixture's MULTI is what makes it a toggle and not a click (T8, T1).
+                            commandClick().ceiling(0.3f),
                             loadingRowOpens(),
+                            loadLands().ceiling(1.05f),
                             // The gesture whose absence here is how a tree shipped with no wheel
                             // handler at all, green the whole time. Measured at 101%: a scroll
                             // moves every row, so it is the whole box plus the antialiasing
                             // margin the damage carries, the same number and the same reason as
                             // RIGHT above.
-                            wheel().ceiling(1.05f)), null));
+                            wheel().ceiling(1.05f),
+                            // Sideways: the fixture's open chain makes the outline wider than
+                            // the box, so the notch moves every row, and the number is the
+                            // vertical wheel's for the same reason (T8's sideways gesture).
+                            wheelSideways().ceiling(1.05f)), null));
 
     /**
      * A row whose children have to be fetched is opened, and from then on only its spinner moves.
@@ -384,40 +400,106 @@ class DamageContractTest extends ComponentTestBase {
         }, 2, 0.005f, null);
     }
 
-    /** A two-level forest: enough rows to scroll, a first row that can open, and one that loads. */
+    /** The click with the platform's command modifier held: a toggle in MULTI. */
+    private static Gesture commandClick() {
+        return new Gesture("command-click", (s, w) -> {
+            float x = centreX(w);
+            float y = centreY(w);
+            int mods = Accelerator.commandModifier();
+            s.mouseButton(Keys.MOUSE_LEFT, true, mods, x, y);
+            s.mouseButton(Keys.MOUSE_LEFT, false, mods, x, y);
+            s.inputBatchEnded();
+        }, 0, ANY, null);
+    }
+
+    /**
+     * The load the gesture above started lands: the UI queue is pumped until the fetched row is
+     * a row, and the frames after that are the landing — a contained layout, the box (ADR 044
+     * §7, amended), never the window. It was the window: the loading line's cell was taken out
+     * of the tree the moment the children arrived, outside any pass, which declared a global
+     * layout (the same path a collapse took, see LEFT above). Measured at 101%.
+     */
+    private static Gesture loadLands() {
+        return new Gesture("the load lands", (s, w) -> {
+            limn.components.tree.Tree<?> tree = (limn.components.tree.Tree<?>) w;
+            int before = tree.visibleRowCount();
+            pump.pumpUntil(() -> tree.visibleRowCount() > before);
+        }, 0, ANY, null);
+    }
+
+    /** A trackpad's sideways notch over the widget's centre. */
+    private static Gesture wheelSideways() {
+        return new Gesture("wheel sideways", (s, w) -> {
+            move(s, centreX(w), centreY(w));
+            s.scrolled(-3, 0, centreX(w), centreY(w));
+            s.inputBatchEnded();
+        }, 0, ANY, null);
+    }
+
+    /** A node of the tree fixture: a name and the children it admits to. */
+    private record TreeNode(String name, List<TreeNode> kids) {
+    }
+
+    /**
+     * A forest: enough rows to scroll, a first row that can open, one that loads, and a chain
+     * of fourteen levels at the end, open, so the outline is wider than its box and a sideways
+     * notch has somewhere to go. The chain sits below the viewport, so the gestures above the
+     * fold see the same rows they always did; MULTI, so the command modifier toggles.
+     */
     private static Widget treeFixture() {
-        record Node(String name, List<Node> kids) {
-        }
         // Enough rows to fill the 240-point box, so the click at its centre lands on one: a
         // gesture that reaches nothing repaints nothing, and a ceiling over it asserts nothing.
-        List<Node> roots = new ArrayList<>();
-        roots.add(new Node("one", List.of(new Node("one.a", List.of()),
-                new Node("one.b", List.of()))));
-        roots.add(new Node("remote", List.of()));
+        List<TreeNode> roots = new ArrayList<>();
+        roots.add(new TreeNode("one", List.of(new TreeNode("one.a", List.of()),
+                new TreeNode("one.b", List.of()))));
+        roots.add(new TreeNode("remote", List.of()));
         for (int i = 3; i <= 20; i++) {
-            roots.add(new Node("row " + i, List.of()));
+            roots.add(new TreeNode("row " + i, List.of()));
         }
-        return new limn.components.tree.Tree<Node>(new limn.components.tree.Tree.Model<Node>() {
-            @Override
-            public List<Node> roots() {
-                return roots;
-            }
+        TreeNode deep = new TreeNode("level-14", List.of());
+        for (int i = 13; i >= 1; i--) {
+            deep = new TreeNode("level-" + i, List.of(deep));
+        }
+        roots.add(deep);
+        limn.components.tree.Tree<TreeNode> tree = new limn.components.tree.Tree<>(
+                new limn.components.tree.Tree.Model<TreeNode>() {
+                    @Override
+                    public List<TreeNode> roots() {
+                        return roots;
+                    }
 
-            @Override
-            public List<Node> children(Node node) {
-                return node.name().equals("remote") ? null : node.kids();
-            }
+                    @Override
+                    public List<TreeNode> children(TreeNode node) {
+                        return node.name().equals("remote") ? null : node.kids();
+                    }
 
-            @Override
-            public limn.concurrent.Work<List<Node>> load(Node node) {
-                return limn.concurrent.Ui.work(progress -> List.of(new Node("fetched", List.of())));
-            }
+                    @Override
+                    public limn.concurrent.Work<List<TreeNode>> load(TreeNode node) {
+                        return limn.concurrent.Ui.work(progress ->
+                                List.of(new TreeNode("fetched", List.of())));
+                    }
 
-            @Override
-            public Widget cellFor(Node node) {
-                return new Label(node.name());
+                    @Override
+                    public Widget cellFor(TreeNode node) {
+                        return new Label(node.name());
+                    }
+                });
+        tree.setSelectionMode(limn.components.tree.Tree.SelectionMode.MULTI);
+        for (TreeNode node = deep; node != null;
+                node = node.kids().isEmpty() ? null : node.kids().get(0)) {
+            tree.expand(node);
+        }
+        // The bars' clock held at zero, as ReservedBarStripTest holds it: the first-overflow
+        // flash the mount gives them then never ends, so their fade-out cannot land inside
+        // whichever gesture first lays the tree out after the 1.1 s hold — which is where it
+        // landed, 12% of the box in the load gesture's third frame, once the gestures before it
+        // grew by three. The bars' own fade is the bar's row's to measure, not this one's.
+        for (Widget child : tree.children()) {
+            if (child instanceof ScrollBar bar) {
+                bar.clock(() -> 0L);
             }
-        });
+        }
+        return tree;
     }
 
     // ------------------------------------------------------------------------------ harness
@@ -425,9 +507,13 @@ class DamageContractTest extends ComponentTestBase {
     /** Icons rasterize through the backend, and a test has none: a paint would throw. */
     private static final SvgRasterizer RASTERIZER = (svg, px) -> new Image(1, 1, new byte[4]);
 
+    /** The test's UI queue, reachable from a static gesture that has to land a load. */
+    private static limn.testing.HeadlessUi pump;
+
     @BeforeEach
     void installRasterizer() {
         SvgIcon.installRasterizer(RASTERIZER);
+        pump = ui;
     }
 
     @AfterEach

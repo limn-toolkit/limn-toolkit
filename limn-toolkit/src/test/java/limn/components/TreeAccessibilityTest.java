@@ -1184,6 +1184,73 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * A load that lands after the tree is on screen, in the demo's exact shape — {@code Label}
+     * cells and no {@code nameOf} — publishes the children under their own names, each with its
+     * own expand state, and moves the rows below with theirs (T6's one missing headless pin,
+     * 2026-09-14). The lazy case above resolves names through {@code nameOf}, which reads the
+     * node at the row's index and not the cell, so a cell left bound to an old index is
+     * invisible to it; only a cell that names its own row can catch the mis-binding that ADR 044
+     * §4's "later the same day" paragraph records (654632d). Red with the re-binding of mounted
+     * cells to their nodes disabled.
+     */
+    @Test
+    void aLoadThatLandsOnScreenPublishesItsChildrenUnderTheirOwnNames() {
+        Node remote = Node.leaf("remote");
+        Node below = Node.of("b", Node.leaf("b.1"));
+        List<Node> fetched = List.of(Node.leaf("one"), Node.of("two", Node.leaf("two.1")));
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(remote, below);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node == remote ? null : node.children(); // "not known yet"
+            }
+
+            @Override
+            public limn.concurrent.Work<List<Node>> load(Node node) {
+                return limn.concurrent.Ui.work(progress -> fetched);
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name().english());
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.setTextRuler(RULER);
+        frame();
+        assertEquals(List.of("remote", "b"),
+                rowNodes().stream().map(AccessibleNode::name).toList(), describe(tree()));
+
+        tree.expand(remote);
+        frame();
+        assertEquals(List.of("remote", "b"),
+                rowNodes().stream().map(AccessibleNode::name).toList(),
+                "open and busy, the loading line is not an item: " + describe(tree()));
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        frame();
+
+        List<AccessibleNode> rows = rowNodes();
+        assertEquals(List.of("remote", "one", "two", "b"),
+                rows.stream().map(AccessibleNode::name).toList(),
+                "the children landed under their own names and b moved down with its: "
+                        + describe(tree()));
+        assertTrue(rows.get(0).expand().expanded(), "remote is open: " + describe(tree()));
+        assertNull(rows.get(1).expand(), "one is a leaf, and says so on its own row");
+        assertNotNull(rows.get(2).expand(), "two can open, and says so on its own row");
+        assertFalse(rows.get(2).expand().expanded(), "and is closed");
+        assertNotNull(rows.get(3).expand(), "b can open wherever the landing carried it");
+        assertEquals(2, rows.get(3).selectionItem().positionInSet(),
+                "b is still the second root: " + describe(tree()));
+    }
+
+    /**
      * Every row says how deep it is and which open row of the outline it is, through
      * {@code HierarchyFacet} (ADR 039 §1.2, amended 2026-09-14): one-based, the loading line not
      * counted, and renumbered when a branch opens. Where a row stands among its siblings is

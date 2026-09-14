@@ -340,6 +340,16 @@ What a selection move damages is the moved rows' bands, clamped to the rows' vie
 into a reserved scroll-bar strip, exactly as the spinner's damage already was (TREE-MISS-7, the
 same date; `ReservedBarStripTest` holds it).
 
+**Later the same day: a collapse and a load landing are the box too, and were the window.** The
+ratchet's first collapse gesture (`LEFT`) repainted the whole window, and so did a load landing,
+measured once the harness could land one: both take cells out of the tree the moment their rows
+vanish — the hidden rows' cells, the loading line's — and a child removed outside a layout pass
+declares a global layout, which is a full frame by ADR 002's invariant (the same removal inside a
+pass over the tree's subtree is absorbed). The cells whose rows vanished are now kept as children
+until the tree's next pass releases them, so the collapse, the landing and a reorder are the
+contained layout they always asked for: 101% each, in two identical runs, and the ratchet holds
+them there with `LEFT` and "the load lands" beside `RIGHT`.
+
 ## 8. What phase 1 is not
 
 - **No columns.** §9.
