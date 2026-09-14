@@ -55,6 +55,11 @@ import java.util.function.IntConsumer;
  * item it is, not showing. A screen reader whose cursor follows the focus onto a row is otherwise
  * left standing on a node a page scroll deleted. Every other row outside the viewport goes back
  * to the adapter, and so does that one the moment the focus leaves it or the data is refreshed.
+ * <b>And so is the selected row while the list itself holds the keyboard</b> (decision 22,
+ * 2026-09-14): the selection is the reader's cursor here, and a wheel or a bar drag that scrolled
+ * it away used to recycle it, leaving the reader's cursor on nothing until the next arrow key.
+ * It is kept the same way — mounted, outside the viewport, published not showing and still the
+ * cursor — across a refresh too, and released by the first pass after the keyboard leaves.
  *
  * <p><b>Size steps propagate rather than being imposed.</b> Rows are adapter-supplied
  * widgets in this list's subtree, so they resolve the {@link limn.scene.ControlSize}
@@ -560,6 +565,7 @@ public class ListView extends Widget implements Scrollable {
             bottom = placeDown(count, rowX, w, h);
         }
         recycleExcept(placedFrom, placedTo, count);
+        keepCursorRow(count, w);
         placeKeptOutside(rowX, w, bottom);
         updateAverageHeight();
         vBar.refresh();
@@ -652,8 +658,8 @@ public class ListView extends Widget implements Scrollable {
 
     /**
      * Recycles every mounted row outside {@code [from, toExclusive)}, keeping the rest in order —
-     * except the one row that holds the keyboard focus, which stays mounted while its index is
-     * still below {@code count}.
+     * except the one row that holds the keyboard focus, and the selected row while this list
+     * itself does, which stay mounted while their index is still below {@code count}.
      *
      * <p>A scroll used to release that row with the others and move the focus up to the list,
      * and the keyboard user never noticed: the arrows move by selection, and the selected row is
@@ -665,9 +671,17 @@ public class ListView extends Widget implements Scrollable {
      * outside the viewport. It is released by the first pass that finds it outside the run and no
      * longer holding the focus, or by any pass that releases everything.
      *
+     * <p>The selected row is the same story one step up (decision 22, 2026-09-14; ADR 039 §1.10's
+     * cursor amendment): while the list holds the keyboard the selected row is the reader's
+     * cursor — the one node below the focused list published {@code ACTIVE} — and a wheel or a
+     * bar drag that scrolled it away recycled it, so the cursor resolved to nothing until the
+     * next arrow key. A row that is the cursor is kept exactly as a row holding the focus is,
+     * and released by the first pass after the keyboard leaves the list.
+     *
      * <p>{@code count} is the adapter's row count as the caller read it, and {@code 0} means
      * spare nothing: {@link #refresh} unmounts every cell because each is bound to a datum the
      * adapter may have replaced, and a row whose index the adapter no longer has is not a row.
+     * The cursor row comes back on the next pass, through {@link #keepCursorRow}, bound afresh.
      *
      * @param from        the first row to keep
      * @param toExclusive one past the last row to keep
@@ -680,7 +694,8 @@ public class ListView extends Widget implements Scrollable {
             Widget cell = mountedCells[i];
             boolean inRun = row >= from && row < toExclusive;
             boolean hasFocus = !inRun && containsFocus(cell);
-            if (inRun || (hasFocus && row < count)) {
+            boolean cursor = !inRun && row == selectedIndex && isFocused();
+            if (inRun || ((hasFocus || cursor) && row < count)) {
                 mountedRows[kept] = row;
                 mountedCells[kept] = cell;
                 kept++;
@@ -699,9 +714,30 @@ public class ListView extends Widget implements Scrollable {
     }
 
     /**
-     * Lays out every mounted row outside the placed run — the focused row a scroll spared —
-     * wholly outside the viewport, on the side of the run its index lies, at the distance the
-     * scroll estimate puts it.
+     * Realizes the selected row when this list holds the keyboard and the pass left it
+     * unrealized: after a {@link #refresh}, which releases everything, or on the first pass after
+     * the list took the focus with its selection already scrolled away. {@link #recycleExcept}
+     * keeps a cursor row that is mounted; this is what mounts one that is not, so the two
+     * together are decision 22's "kept while focused, across refresh too".
+     *
+     * <p>Nothing is placed here: {@link #placeKeptOutside} runs next and puts every mounted row
+     * outside the run where the scroll estimate says it is, this one included.
+     *
+     * @param count the adapter's row count as this pass read it
+     * @param w     the row width this pass resolved
+     */
+    private void keepCursorRow(int count, float w) {
+        if (selectedIndex < 0 || selectedIndex >= count || !isFocused()
+                || isPlaced(selectedIndex) || cellFor(selectedIndex) != null) {
+            return;
+        }
+        measuredHeight(selectedIndex, w); // mounts it, in data order
+    }
+
+    /**
+     * Lays out every mounted row outside the placed run — the focused row a scroll spared, or
+     * the cursor row kept while the list holds the keyboard — wholly outside the viewport, on the
+     * side of the run its index lies, at the distance the scroll estimate puts it.
      *
      * <p>It has to be placed, not left: {@link #ensureVisible}'s far jump moves the anchor and
      * not the cells, so a spared row left at its last box could sit inside the viewport on top of
@@ -1108,9 +1144,12 @@ public class ListView extends Widget implements Scrollable {
                 // synthetic phantom row, which is declared before the widget children and would
                 // put a selection below the viewport ahead of every realized row. Set only while
                 // that row is unrealized: a mounted one carries its own name and its own SELECTED,
-                // and a second copy here is the same name spoken twice. The known cost is that
-                // while it stands, the walk's tooltip-as-description default has nowhere to go on
-                // a list that has both an application name and a tooltip.
+                // and a second copy here is the same name spoken twice. Since decision 22 (the
+                // cursor row is kept while the list holds the keyboard) this is reached only on
+                // an UNFOCUSED list, where the row is genuinely gone and nothing else can name
+                // it, so it duplicates nothing. The known cost is that while it stands, the
+                // walk's tooltip-as-description default has nowhere to go on a list that has
+                // both an application name and a tooltip.
                 I18nString name = adapter.rowName(selectedIndex);
                 if (name != null) {
                     a.description(name);
@@ -1167,13 +1206,20 @@ public class ListView extends Widget implements Scrollable {
      * cell would have handed the outer list its selected row as the outer list's own cursor,
      * which is the cost the earlier text of this paragraph accepted and this gate removes.
      *
-     * <p>One verb, {@code SELECT}, and it is <em>delegated</em> rather than written: a verb
-     * written onto a row would be dispatched to the application's own cell widget, whose hook
-     * answers false, which is why the record's survey was wrong to ask for a row verb and why
-     * §11 recorded per-row actuation as absent. A delegated verb is published on the row and
-     * routed to {@link #onAccessibilityChildAction} (ADR 039 §1.5, amended 2026-09-14), so a
-     * reader's "select this row" lands on the row it addressed and the list performs it.
-     * {@code PRESS} stays on the list — see {@link #onAccessibility}.
+     * <p>The verbs are <em>delegated</em> rather than written: a verb written onto a row would
+     * be dispatched to the application's own cell widget, whose hook answers false, which is why
+     * the record's survey was wrong to ask for a row verb and why §11 recorded per-row actuation
+     * as absent. A delegated verb is published on the row and routed to
+     * {@link #onAccessibilityChildAction} (ADR 039 §1.5, amended 2026-09-14), so a reader's
+     * "select this row" lands on the row it addressed and the list performs it. The row verb set
+     * of decision 20, read against this widget: {@code SELECT} always, because a list has no
+     * selection mode and is never {@code NONE}; {@code SCROLL_INTO_VIEW} on a cell that cannot
+     * take the keyboard, because on one that can the walk already grants it free and a second
+     * performer is refused; never {@code ADD_TO_SELECTION} or {@code DESELECT}, because this
+     * list selects one row and has no multi-select to add to; and never {@code FOCUS}
+     * (decision 11), because the selection is the cursor here and a focus that selected would be
+     * {@code SELECT} under another name. {@code PRESS} stays on the list — see
+     * {@link #onAccessibility}.
      *
      * @param child the child being described, which is the bar or one mounted cell
      * @param a     the child's node
@@ -1202,25 +1248,44 @@ public class ListView extends Widget implements Scrollable {
         }
         // The row's own SELECT, published on the cell a reader addresses and performed by the
         // list (ADR 039 §1.5, amended 2026-09-14; decision 7): what §11's "not per-row
-        // actuation" said could not be delivered, delivered. The rest of the row verb set
-        // (decision 20: ADD_TO_SELECTION and DESELECT in a multi-select list) is the widget
-        // lane's; FOCUS stays refused on a row here, where the cursor is the selection.
+        // actuation" said could not be delivered, delivered.
         a.delegate(Accessible.Action.SELECT);
+        if (!child.isFocusable()) {
+            // The widget's own flag and not the walk's enabled-and-visible reading of it: a
+            // focusable cell that is disabled today is granted the free verb the moment it is
+            // enabled, and a delegation standing on it then would be the two-performer conflict
+            // the walk refuses loudly.
+            a.delegate(Accessible.Action.SCROLL_INTO_VIEW);
+        }
     }
 
     /**
      * A verb the list claimed on a row's cell: {@code SELECT} makes that row the selection, as a
-     * click on it does, through the same {@code USER} seam and with the same reveal.
+     * click on it does, through the same {@code USER} seam and with the same reveal;
+     * {@code SCROLL_INTO_VIEW} reveals the row where it is, as the walk's free verb reveals a
+     * focusable one, and moves neither the selection nor the cursor (decision 20).
      */
     @Override
     protected boolean onAccessibilityChildAction(Widget child, long key, Accessible.Action action,
                                                  Accessible.Argument arg) {
         int index = indexOfCell(child);
-        if (index < 0 || action != Accessible.Action.SELECT) {
+        if (index < 0) {
             return false;
         }
-        select(index, true, Change.Origin.USER);
-        return true;
+        switch (action) {
+            case SELECT -> {
+                select(index, true, Change.Origin.USER);
+                return true;
+            }
+            case SCROLL_INTO_VIEW -> {
+                ensureVisible(index);
+                invalidate();
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
     }
 
     /**
@@ -1249,10 +1314,17 @@ public class ListView extends Widget implements Scrollable {
     @Override
     protected void onFocusGained() {
         focusFade.to(1);
+        // The cursor row is kept only while the list holds the keyboard, so the keyboard arriving
+        // and leaving are the two moments a pass has to run: to realize a selection already
+        // scrolled away, and to release one. Contained, for scrollBy's reason: what moves is
+        // which rows are mounted, inside a box this widget clips and whose size a focus change
+        // cannot move.
+        markNeedsContainedLayout();
     }
 
     @Override
     protected void onFocusLost() {
         focusFade.to(0);
+        markNeedsContainedLayout();
     }
 }
