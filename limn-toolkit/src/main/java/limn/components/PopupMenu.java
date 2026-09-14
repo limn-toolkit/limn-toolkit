@@ -1690,11 +1690,12 @@ public final class PopupMenu {
                 }
                 if (current && deepest) {
                     // ACTIVE in the deepest column and nowhere else. The surface holds the focus
-                    // and its active descendant is the FIRST node published active in document
-                    // order, while the cursor keys act on the deepest column: marking every
-                    // column's highlight would resolve the focused node to a root-column row and
-                    // make the whole cascade silent. A parent column's own facet then resolves
-                    // into its open submenu, which is truthful -- that is where the cursor is.
+                    // and its cursor is the FIRST node published active in document order below
+                    // it (ADR 039 §1.10, amended 2026-09-14), while the cursor keys act on the
+                    // deepest column: marking every column's highlight would resolve the cursor
+                    // to a root-column row and make the whole cascade silent. A parent column's
+                    // highlight is its SELECTED row and nothing more; the one cursor is the
+                    // surface's, and it is where the keys act.
                     a.state(Accessible.State.ACTIVE);
                 }
                 if (item.hasSubmenu()) {

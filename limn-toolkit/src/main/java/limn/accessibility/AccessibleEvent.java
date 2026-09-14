@@ -25,7 +25,13 @@ public final class AccessibleEvent {
     public enum Type {
         /** The keyboard focus moved to this node. */
         FOCUS_CHANGED,
-        /** The node a container's keyboard cursor is on changed. */
+        /**
+         * The focused node's cursor moved: one per publish, on the focused node, carrying the
+         * previous and current active descendant as {@link #oldValue()} and {@link #newValue()}
+         * — an identifier that may belong to another window's tree when the cursor resolves
+         * across a native popup's relation ({@link AccessibleTree#holds} says which). Never
+         * raised on an unfocused container.
+         */
         ACTIVE_DESCENDANT_CHANGED,
         /**
          * This node's children changed: one per surviving parent per publish, carrying the

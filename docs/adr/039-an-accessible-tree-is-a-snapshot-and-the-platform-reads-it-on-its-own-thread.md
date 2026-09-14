@@ -1528,14 +1528,18 @@ sending the activation from the frame's path rather than the application's, and 
 the focus after it, is phase 3's; with the event carrying the window node it already addresses
 that node's path.
 
-#### Amendment 2026-09-14 — what the amendment above changed in §7
+#### Amendment 2026-09-14 — what the cursor amendment (the first of this date, above) changed in §7 and beyond
 
 The `ListView`, `Table`, `Tree` and `SegmentedControl` rows of §7 say their cursor row or cell is
 `ACTIVE`; read "while the widget holds the keyboard". The `ComboBox.PopupPanel`, `ListView` and
 `PopupMenu.MenuSurface` rows say "`SelectionFacet` with an active descendant"; read
 "`SelectionFacet`", the cursor being the tree's. The "highlighted row" row under `PopupMenu` says
 "active descendant on its column"; read "the surface's cursor, resolved by the tree from the
-row's `ACTIVE`".
+row's `ACTIVE`". Two lines outside §7 say the same old thing and carry a dated parenthetical
+pointing here: §9.2's answer to ADR 040's §6.1 ("an active descendant on its column") and §12.1's
+`AccessibleMenuTest` row ("the highlighted row as the column's active descendant"); read "the
+surface's cursor" in both — a column has no cursor of its own since this amendment, and the one
+`ACTIVE_DESCENDANT_CHANGED` per arrow key that row promises is still one, on the surface.
 
 ### 1.11 A popup's contents are described where they actually live
 
@@ -3292,8 +3296,8 @@ follows is what each answered.
   either a widget or a synthetic child declared by a widget, `MenuSurface` declares one per column
   and one per row and reads the model from inside its own package, and none of the four becomes a
   `Widget`. What ADR 040 could not carry — a menu's highlighted row, a check item's state — this ADR
-  publishes as `SELECTED` on the row and an active descendant on its column (§7), diffed like
-  everything else. The hole ADR 040 names is a hole in *its* channel and not in the tree.
+  publishes as `SELECTED` on the row and an active descendant on its column (§7; since
+  2026-09-14 the surface's cursor, §1.10's reading note), diffed like everything else. The hole ADR 040 names is a hole in *its* channel and not in the tree.
 - **§6.2, an assistive technology cannot set a value as the user.** Answered by §1.9: the action set
   is `ActionFacet`'s twelve parameterless verbs (thirteen since §1.5's amendment of 2026-09-14) plus the parameterised constants `SET_VALUE`,
   `SET_TEXT`, `SET_CARET` and `SET_SELECTION`, every one of them dispatched through the one
@@ -3544,7 +3548,7 @@ have.
 | `AccessibleLiveMutationTest` | the regression gate for §5.3, and the test whose absence let the first draft of this ADR ship a design in which a checkbox toggle raised nothing. For each state-bearing component — `Checkbox`, `Slider`, `Spinner`, `ProgressBar`, `TextField`, `TextArea`, `SearchField`, `ComboBox`, `ListView`, `TabbedPane`, `SegmentedControl`, `ScrollView` — it drives the **public setter** on a bound scene with a listening bridge, renders one frame, and asserts the expected event arrives with the expected node and value. Nothing in it constructs a snapshot. A funnel that stops setting the dirty flag fails it |
 | `AccessibleQuietFrameTest` | the other half: a frame that damages a widget without changing any accessible fact — a caret blink, a hover ripple — publishes nothing and emits nothing; and a re-present frame does not even walk |
 | `AccessibleModalTest` | with an overlay pushed, every node outside `inputRoot()` publishes without `ENABLED` and without `FOCUSABLE` while staying `VISIBLE` and `SHOWING`, the overlay's own node carries `MODAL`, and the set of nodes published `FOCUSABLE` equals the set `focusTraverse` can reach (§1.13) |
-| `AccessibleMenuTest` | an open cascade publishes one `MENU` per open column with the column's rectangle and not the surface's, one row node per item with its own rectangle, the highlighted row as the column's active descendant, and an `ACTIVE_DESCENDANT_CHANGED` for each arrow key |
+| `AccessibleMenuTest` | an open cascade publishes one `MENU` per open column with the column's rectangle and not the surface's, one row node per item with its own rectangle, the highlighted row as the column's active descendant (since 2026-09-14 the surface's cursor, §1.10's reading note), and an `ACTIVE_DESCENDANT_CHANGED` for each arrow key |
 | `AccessibleRecyclingTest` | scrolling a `ListView` past its pool size and back leaves row 3's identifier on row 3, and never on the cell that visited row 9 |
 | `AccessibleIdentityTest` | **the §1.3 regression gate.** Giving a transparent ancestor a name mid-run changes the tree's shape and **no identifier below it**; the events are structural, not a wave of `NODE_DESTROYED`. The same for making a scaffold widget focusable — which also fails outright until `setFocusable` invalidates (§8) — and for pushing an overlay above a subtree. A key derived from the published parent fails every case |
 | `AccessibleInheritedStateTest` | disabling a container publishes every descendant without `ENABLED` and without `FOCUSABLE`, hiding one publishes every descendant without `VISIBLE`, and in both cases the `FOCUSABLE` set still equals what `focusTraverse` can reach — never the enabled set, which the scene under test makes larger on purpose by holding a `Label` and a `Separator`. And the transparency verdict does not move: a disabled form grows no `GROUP` nodes (§1.6) |

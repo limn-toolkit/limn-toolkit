@@ -803,7 +803,9 @@ public final class MenuBar extends Widget {
             a.selectionItem(i == current, i + 1, entries.size());
             if (i == current) {
                 // Selection and cursor are one thing here, so the current title is both. The
-                // active bit is what the bar's selection facet resolves into an event.
+                // active bit is what the tree resolves into the bar's cursor: the bar is the
+                // focused node, so the title it marks is its active descendant (ADR 039 §1.10,
+                // amended 2026-09-14), and `current` is already gated on the keyboard.
                 a.state(Accessible.State.ACTIVE);
             }
             if (!entry.menu().isEmpty()) {
