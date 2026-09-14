@@ -1979,6 +1979,23 @@ must **not** be sent: agreeing lets a peer send a message carrying a file descri
 
 The two blanks are the model being honest: nothing is invented to fill a cell.
 
+**Amended 2026-09-14 (the rows, read against §1.10's amendments of the same day; the platform
+columns are the bridge lanes' to change in phase 3).** `ACTIVE_DESCENDANT_CHANGED` is raised on
+the focused node only, once per publish, carrying the previous and current cursor; Windows moves
+its focus to the cursor (`AutomationFocusChanged` on the item, `HasKeyboardFocus` true there)
+and macOS answers the cursor as its focused element, Linux keeps the row as written.
+`STRUCTURE_CHANGED` is one per surviving parent, carrying the added, removed and reordered
+children with their indices, which is what the Windows `ChildAdded`/`ChildRemoved`/
+`ChildrenReordered` and the Linux `ChildrenChanged` `detail1` index are built from.
+`SELECTION_CHANGED` is one per container, carrying the members that entered and left and the
+container's multi flag: Windows raises `ElementSelected` for a single-select container and
+`ElementAddedToSelection`/`ElementRemovedFromSelection` on the members of a multi-select one,
+`Selection_Invalidated` for a bulk change; Linux and macOS address the container.
+`WINDOW_ACTIVATED`/`WINDOW_DEACTIVATED` name the window node and arrive with the tree; Linux
+sends `Activate`/`Deactivate` from the frame's path. `FOCUS_CHANGED` is also raised for a node
+that arrived holding the focus. After a collapse to `INVALIDATED` the structure, focus, cursor,
+selection and window-activation events of that publish still follow it.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

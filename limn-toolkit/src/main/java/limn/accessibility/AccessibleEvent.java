@@ -89,6 +89,10 @@ public final class AccessibleEvent {
          * Everything about this window may have changed. The event a bounded queue collapses to
          * when a single difference is wider than it can carry; a bridge handling it reconciles
          * whatever it holds against the tree it was last handed, rather than replaying anything.
+         * What follows it in the same publish is the reserved tail (ADR 039 §1.10, amended
+         * 2026-09-14): the structure changes per parent, the final focus change, the cursor
+         * change, the selection changes per container and the window's activation, which are
+         * kept outside the budget so that a bridge that swept still hears where the user is.
          */
         INVALIDATED
     }
