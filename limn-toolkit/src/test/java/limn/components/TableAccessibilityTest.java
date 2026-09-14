@@ -516,6 +516,19 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(1, active.size());
         assertEquals(Accessible.Role.CELL, active.get(0).role(), "the focus cell is the cursor again");
         assertEquals("Person 2", active.get(0).name(), "on the record it was on, sorted away");
+
+        // A reader's press on a header while the rows hold the keyboard sorts and, as the
+        // pointer's click does, remembers the column: the next Shift+Tab into the header
+        // starts on the title that was pressed, not on the one the cursor last stood on.
+        assertTrue(perform(childrenOf(headerGroup()).get(1).id(), Accessible.Action.PRESS, null));
+        frame();
+        assertEquals("Age", table.sortColumn().title().english(), "the press sorted by the pressed column");
+        assertFalse(table.isHeaderFocused(), "and left the keyboard in the rows");
+        scene.keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(new CellFacet(-1, 1), nodesWith(Accessible.State.ACTIVE).get(0).cell(),
+                "the header's cursor remembers the pressed column: " + describe(tree()));
     }
 
     @Test

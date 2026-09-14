@@ -3005,7 +3005,12 @@ public class Table<T> extends Widget implements Scrollable {
             int s = shownIndexOf((int) (key & COLUMN_MASK));
             if (action == Accessible.Action.PRESS && s >= 0
                     && columns.get(shownIndex[s]).isSortable()) {
-                headerClicked(s); // sorts as a click does; the header's cursor is the keyboard's
+                // Sorts as a click does, and as the click does remembers the column for the
+                // header's cursor, so a Shift+Tab into the header after a reader's press on
+                // the Age title starts on Age; while the header holds the keyboard the cursor
+                // moves with the press, which the sort's own publish announces.
+                headerColumn = s;
+                headerClicked(s);
                 return true;
             }
             return false;
