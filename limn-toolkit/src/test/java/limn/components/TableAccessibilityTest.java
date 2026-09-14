@@ -8,13 +8,17 @@ import limn.accessibility.TableFacet;
 import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
+import limn.i18n.I18n;
 import limn.input.Keys;
 import limn.testing.AllocationProbe;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -25,6 +29,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TableAccessibilityTest extends AccessibleComponentTestBase {
 
     record Person(String name, int age) {
+    }
+
+    private Locale before;
+
+    @BeforeEach
+    void pinTheLanguage() {
+        // The sorted header's description is shipped in twenty-one languages and the process
+        // language is whatever the machine running the build reports: on a pt-BR host this
+        // class alone read "Ordenado em ordem crescente" and passed the full check only because
+        // earlier classes had left English behind them. Pinned and given back, so neither this
+        // class nor the next depends on the order the suite happens to run in.
+        before = I18n.processLocale();
+        I18n.setLocale(Locale.ENGLISH);
+    }
+
+    @AfterEach
+    void releaseTheLanguage() {
+        I18n.setLocale(before);
     }
 
     private static List<Person> people(int count) {
