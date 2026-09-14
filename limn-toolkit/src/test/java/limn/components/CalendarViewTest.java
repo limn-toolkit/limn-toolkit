@@ -178,8 +178,14 @@ class CalendarViewTest extends ComponentTestBase {
         assertNull(calendar.selectedRange());
     }
 
+    /**
+     * Decision 30 (2026-09-14): the cursor visits a refused day and Enter is refused on it. ADR
+     * 042 §5 said the cursor skipped such days; the code never did, and stopping is what lets a
+     * reader hear that the day is unavailable. The earlier version of this test asserted nothing
+     * about the keyboard its comment described; this one presses the keys.
+     */
     @Test
-    void boundsAndTheFilterRefuseADayRatherThanMovingIt() {
+    void theCursorStopsOnARefusedDayAndEnterIsRefusedThere() {
         build();
         calendar.setMinDate(LocalDate.of(2026, 9, 5));
         calendar.setMaxDate(LocalDate.of(2026, 9, 20));
@@ -192,12 +198,23 @@ class CalendarViewTest extends ComponentTestBase {
 
         List<LocalDate> picked = new ArrayList<>();
         calendar.onSelect(picked::add);
-        calendar.setSelectedDate(LocalDate.of(2026, 9, 6)); // a caller may still write one
+        calendar.setSelectedDate(LocalDate.of(2026, 9, 12)); // a Saturday
         scene.requestFocus(calendar);
-        // The keyboard cannot commit it, though: the pick refuses, and nothing is announced.
-        calendar.setSelectedDate(null);
-        calendar.setVisibleMonth(LocalDate.of(2026, 9, 6));
+        key(Keys.RIGHT);
+        assertEquals(LocalDate.of(2026, 9, 13), calendar.focusedDate(),
+                "the cursor stops on the Sunday rather than skipping to Monday");
+        key(Keys.ENTER);
+        assertEquals(LocalDate.of(2026, 9, 12), calendar.selectedDate(), "and Enter is refused there");
+        assertTrue(picked.isEmpty(), "no handler ran");
+        key(Keys.LEFT);
+        for (int i = 0; i < 8; i++) {
+            key(Keys.LEFT);                    // back past the minimum
+        }
+        assertEquals(LocalDate.of(2026, 9, 4), calendar.focusedDate(),
+                "the cursor walks below the minimum too, and the grid pages with it");
+        key(Keys.ENTER);
         assertTrue(picked.isEmpty());
+        assertEquals(LocalDate.of(2026, 9, 12), calendar.selectedDate());
     }
 
     @Test

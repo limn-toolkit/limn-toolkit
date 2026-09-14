@@ -264,6 +264,20 @@ Snapping is the behaviour that loses a user's typing without telling them.
 The predicate is called during paint, once per visible cell, and is documented as such: it must be
 cheap and it must be pure. A filter that hits a database is a filter that stalls a frame.
 
+**Amendment, 2026-09-14 (decision 30 — DATES-NEW-6): the cursor stops on a refused day and says
+so.** "Skipped by the keyboard cursor" above was never what the code did, and the owner chose the
+code's behaviour over the record's: the cursor visits every day, Enter and Space are refused on a
+refused one (`pick` says no, nothing is announced, no handler runs), and the cell is published
+**disabled** — through the model's narrowing-only declaration (`Accessibility.disabled()`, ADR 039
+§1.2 amendment of the same date), which is the one route a synthetic child has to be less enabled
+than its owner — with no `SELECT` verb, so a reader arrowing across the month hears that the day is
+unavailable where a skip would have left a hole nobody was told about. A month or year the
+chooser does not offer is published the same way. The sentence about the field ("the value the
+application reads stays what it was") is also corrected: `date()` answers the out-of-range date
+that was typed, and `isValid()` says separately that it is not acceptable (`DateFieldTest`). Pinned
+by `CalendarViewTest.theCursorStopsOnARefusedDayAndEnterIsRefusedThere` and
+`CalendarViewAccessibilityTest.aDayTheBoundsRefuseCarriesNoSelectVerb`.
+
 ## 6. A period is one grid and two fields
 
 `CalendarView.setSelectionMode(RANGE)` makes the grid select a period: the first click sets an

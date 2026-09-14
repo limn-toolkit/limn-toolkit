@@ -75,9 +75,12 @@ import java.util.function.Predicate;
  * mirror with the layout; Up and Down move by a week and never mirror; Home and End are the first
  * and last day of the week; PageUp and PageDown page the month, and with Shift the year.
  *
- * <p><b>Bounds are enforced, not snapped</b> (ADR 042 &sect;5). A day outside
+ * <p><b>Bounds are enforced, not snapped</b> (ADR 042 &sect;5, amended 2026-09-14). A day outside
  * {@link #setMinDate}/{@link #setMaxDate}, or refused by {@link #setDateFilter}, is drawn disabled,
- * skipped by the cursor, refuses a click and is published without a select verb.
+ * refuses a click and Enter, and is published disabled without a select verb. The cursor
+ * <em>stops</em> on it rather than skipping it (decision 30): a reader arrowing across the month
+ * then hears that the day is unavailable, where a skip would have left a hole nobody was told
+ * about.
  *
  * <p><b>To a screen reader this is a table</b> (ADR 042 &sect;8): {@code TABLE} over {@code ROW}s of
  * {@code CELL}s under a row of {@code COLUMN_HEADER}s, which are the four roles ADR 041 mapped on
@@ -2498,12 +2501,16 @@ public class CalendarView extends Widget {
                 a.cell(w, c);
                 if (selectionMode != SelectionMode.NONE) {
                     a.selectionItem(isSelectedEnd(day) || isInBand(day), index + 1, CELLS);
-                }
-                // A day that cannot be picked carries no verb, which is the whole of how it says
-                // so: the walk overwrites a synthetic node's enabled bit with its owner's, so a
-                // widget cannot publish one disabled by any route.
-                if (isEnabled() && isSelectable(day)) {
-                    a.action(Accessible.Action.SELECT);
+                    // A day the bounds or the filter refuse is published disabled and carries
+                    // no verb (decision 30, 2026-09-14): the cursor stops on it, so a reader
+                    // hears "unavailable" where the eye sees the muted number, and Enter is
+                    // refused by pick(). Narrowing only -- Accessibility.disabled -- which is
+                    // the one route a synthetic child has to be less enabled than its owner.
+                    if (isEnabled() && isSelectable(day)) {
+                        a.action(Accessible.Action.SELECT);
+                    } else if (!isSelectable(day)) {
+                        a.disabled();
+                    }
                 }
                 if (day.equals(cursor) && focusHere(Part.GRID)) {
                     a.state(Accessible.State.ACTIVE);
@@ -2548,6 +2555,8 @@ public class CalendarView extends Widget {
                 }
                 if (isEnabled() && isChooserCellOffered(index)) {
                     a.action(Accessible.Action.SELECT);
+                } else if (!isChooserCellOffered(index)) {
+                    a.disabled(); // a month with no selectable day: decision 30's rule, one level up
                 }
                 // The cell on show (`current`) is not marked here: CHECKED is the toggle facet's
                 // and the builder refuses it. Decision 48 (2026-09-14) puts the fact in the

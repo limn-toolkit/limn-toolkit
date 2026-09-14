@@ -224,6 +224,12 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(offers(before, Accessible.Action.SELECT),
                 "a day before the minimum offers nothing to do");
         assertTrue(offers(after, Accessible.Action.SELECT));
+        // Decision 30: and it says why, as a disabled item -- the narrowing-only declaration the
+        // model gained for exactly this -- so a reader whose cursor stops on it hears "unavailable".
+        assertFalse(before.has(Accessible.State.ENABLED),
+                "a refused day is published disabled: " + describe(tree()));
+        assertTrue(after.has(Accessible.State.ENABLED));
+        assertTrue(gridNode().has(Accessible.State.ENABLED), "while the grid itself is not");
     }
 
     @Test
