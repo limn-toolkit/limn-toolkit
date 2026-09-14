@@ -1040,8 +1040,8 @@ public class DateField extends Widget {
     }
 
     /**
-     * The whole value as it is drawn: what {@code Ctrl+C} copies, and what a reader is told the
-     * field holds.
+     * The whole value as it is drawn: what {@code Ctrl+C} copies. A reader is not handed this
+     * string; it is told the segments one at a time, each with its own value (&sect;8).
      *
      * @return the field's text, with its separators and its dashes
      */
@@ -1998,9 +1998,10 @@ public class DateField extends Widget {
     /**
      * A group of spin buttons, one per editable segment (ADR 042 &sect;8).
      *
-     * <p>The group carries the whole value as its value text and the validity message when it has
-     * one; each segment carries its own name, its own bounds, its own value against its own range,
-     * and the two step verbs, which reach the same private path Up and Down reach.
+     * <p>The group carries no value (the comment below says why) and the validity message when it
+     * has one; each segment carries its own name, its own bounds, its own value against its own
+     * range &mdash; or the empty word when nothing is typed there &mdash; and the two step verbs,
+     * which reach the same private path Up and Down reach.
      *
      * <p>The group names itself with nothing: what a date field is for is the question the form
      * asks, which only the application has, and this is a public widget an application names with

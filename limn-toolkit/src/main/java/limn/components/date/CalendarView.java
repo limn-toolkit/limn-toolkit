@@ -2493,11 +2493,14 @@ public class CalendarView extends Widget {
     /**
      * The grid as a table, which is what it is: {@code TABLE} carrying six rows and seven columns
      * (eight with week numbers), a header row of {@code COLUMN_HEADER}s, one {@code ROW} per week
-     * and one {@code CELL} per day, plus the two paging buttons.
+     * and one {@code CELL} per day, plus the two paging buttons and the title, a {@code BUTTON}
+     * that climbs to the month and year choosers &mdash; the same {@code TABLE}, three rows of
+     * four months or six of four years, each cell carrying {@code SELECT} where it leads
+     * somewhere ({@link #describeChooser}).
      *
      * <p><b>Every role here was mapped by ADR 041</b>, three weeks before this widget existed, and
      * that is the whole accessibility cost of a calendar: no role is added to the model, no facet,
-     * and no bridge code in the repository the three bridges live in.
+     * and no bridge code in {@code limn-backend-lwjgl}, where the three bridges live.
      *
      * <p><b>A cell is named with the whole date.</b> "9 September 2026" and not "9": a reader
      * arrowing into a cell hears the cell, and the column head says only which weekday it is under.
@@ -2805,9 +2808,10 @@ public class CalendarView extends Widget {
             return true;
         }
         if (key >= 0 && key < CELLS && action == Accessible.Action.SELECT) {
-            // pick() refuses a day the grid refuses a click on, so a reader asking for a
-            // filtered-out day is told no by the same rule the pointer is -- and is told, rather
-            // than being reported done while nothing happened.
+            // pick() refuses a day the grid refuses a click on, by the same rule the pointer
+            // meets. What tells a reader no is that such a day publishes no SELECT and is not
+            // ENABLED (decisions 2 and 30): the platform answers from the published list before
+            // this hook runs, so this false never reaches it.
             return pick(dayAt((int) key), Change.Origin.USER);
         }
         return false;

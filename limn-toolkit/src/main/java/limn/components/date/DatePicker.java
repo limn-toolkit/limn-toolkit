@@ -167,7 +167,12 @@ public class DatePicker extends Widget {
         // the popup contract keeps focus on the field and forwards the navigation keys here, so a
         // focusable grid is a node the traversal can land on and a node with no name -- a reader
         // arriving at it hears "table" and nothing. A standalone CalendarView stays focusable,
-        // because there it IS the control and an application names it.
+        // because there it IS the control and an application names it. A reader is still told
+        // where the cursor is (decision 5, 2026-09-14): the grid publishes its cursor ACTIVE
+        // while this picker drives it, and the tree's effective focus resolves to it -- under
+        // the overlay in the scene presentation, and across the popup relation into the
+        // popup window's tree in the native one, where the field keeps the focus and its
+        // caret yields (DateField.popupHoldsKeyboard).
         calendar.setFocusable(false);
         // The grid inherits the picker's step, direction and language through the tree in the
         // in-scene presentation and through the host link in the other; the link is set when the
@@ -664,8 +669,9 @@ public class DatePicker extends Widget {
      * The keys the picker takes before its field sees them.
      *
      * <p>While the popup is open the grid owns the navigation keys and the field keeps the digits,
-     * which is what lets somebody arrow to a day and still type over it. Alt+Down opens, Escape
-     * closes, and neither reaches the field.
+     * which is what lets somebody arrow to a day and still type over it. Alt+Down opens; Escape
+     * comes straight back to the finest view from a chooser (the years go to the days in one
+     * press, not one level at a time) and closes from there; neither reaches the field.
      */
     private void interceptKey(KeyEvent event) {
         if (!event.isPressed() || forwarding) {
@@ -993,17 +999,6 @@ public class DatePicker extends Widget {
     }
 
     /**
-     * Takes the popup down, fading it out where there is a frame pump to run the fade.
-     *
-     * <p>The fields are relinquished <em>before</em> the fade starts, so that a picker reopened
-     * while the old surface is still vanishing builds a new one rather than writing into the one
-     * on its way out. The two presentations fade differently and both matter: a window fades its
-     * own compositing, an overlay fades a number this class paints with, and the overlay's last
-     * frame is what removes the layer holding input capture and focus &mdash; on wall time, not
-     * frame time, or a paused application would be left with an open calendar over an unreachable
-     * field.
-     */
-    /**
      * Dismisses on OS focus loss, <b>unless the focus went to this picker's own popup</b>.
      *
      * <p>Deferred one turn so that an intra-application focus switch settles first: the owner
@@ -1028,6 +1023,17 @@ public class DatePicker extends Widget {
         }
     }
 
+    /**
+     * Takes the popup down, fading it out where there is a frame pump to run the fade.
+     *
+     * <p>The fields are relinquished <em>before</em> the fade starts, so that a picker reopened
+     * while the old surface is still vanishing builds a new one rather than writing into the one
+     * on its way out. The two presentations fade differently and both matter: a window fades its
+     * own compositing, an overlay fades a number this class paints with, and the overlay's last
+     * frame is what removes the layer holding input capture and focus &mdash; on wall time, not
+     * frame time, or a paused application would be left with an open calendar over an unreachable
+     * field.
+     */
     private void dismiss() {
         if (blurHandle != null) {
             blurHandle.cancel();

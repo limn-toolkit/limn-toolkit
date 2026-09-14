@@ -178,6 +178,12 @@ thing itself — the trailing calendar button — and publishes it the way `Sear
 clear button and `Spinner` its two arrows: a synthetic child with a name the toolkit supplies,
 because nothing else can name it.
 
+**Amendment, 2026-09-14 (DT4): the button is a real child, and the picker paints more than it.**
+The paragraph above describes a first cut. The calendar button is a focusable widget of its own
+(`DatePicker.CalendarButton`), the picker's last child in Tab order, named by the toolkit and
+published as a plain `BUTTON` with `PRESS` (§8's amendment of decisions 18 and 55); and the
+picker paints its box and, for a period, the dash between the two fields, as well as the button.
+
 ## 3. The field is segments the locale orders, and one of them is always focused
 
 **Decision.** `DateField` derives its segments from the locale's own short date pattern —
@@ -356,7 +362,9 @@ in one domain and a deadline red in another, and the toolkit has no opinion abou
 ## 8. What a screen reader is told
 
 **The grid.** `TABLE` with `table(6 rows, 7 or 8 columns)`; the weekday header is a `GROUP` of
-`COLUMN_HEADER`s named with the standalone narrow weekday; each week is a `ROW`; each day is a
+`COLUMN_HEADER`s named with the standalone narrow weekday (**corrected 2026-09-14, DT4:** with
+the *full* standalone weekday — the narrow letter is what is drawn, and seven single letters name
+nothing to a reader crossing the header; `CalendarViewAccessibilityTest.theHeaderRowNamesEachColumnWithTheWholeWeekdayAndNotTheLetterDrawn`); each week is a `ROW`; each day is a
 `CELL` carrying `cell(row, column)`, a `SELECT` verb when it is selectable, `selectionItem` when it
 is selected or in the band, and `State.ACTIVE` when it is the keyboard cursor. A day's name is the
 **full localized date** and not the bare number — "9 de setembro de 2026" and not "9" — because a
@@ -474,7 +482,9 @@ effective focus, decision 1's in-scene half of item 10) and limn-demo's
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and
 it is why the calendar could be built at all without reopening the bridges, which live in their own
-repository since the fourth split.
+repository since the fourth split. (**Corrected 2026-09-14, DT4:** the bridges live in
+`limn-backend-lwjgl` since 03fd728 of 2026-09-06, three days before this record; the sentence
+was written against the split it reversed.)
 
 ## 9. Reading right to left
 

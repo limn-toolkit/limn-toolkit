@@ -133,9 +133,10 @@ final class DatesScene {
         DatePicker picker = new DatePicker();
         picker.setDate(ANCHOR);
         // In-scene on purpose: a native popup is a window of its own and is absent from a capture
-        // of this one, so the gallery would show a picker that never opens.
-        // EXPERIMENT (uncommitted): LIMN_DATES_NATIVE=1 asks for the real second window instead,
-        // which is the only presentation where the focus question exists at all.
+        // of this one, so the capture would show a picker that never opens. The native
+        // presentation, which is the default, is exercised headless by limn-demo's
+        // DatePickerNativePopupTest; live reader runs over it are owed (settled
+        // native-popup-reader, reopened by decision 5).
         picker.setDisplayMode(DisplayMode.IN_SCENE);
         picker.calendar().setShowWeekNumbers(true);
         return picker;

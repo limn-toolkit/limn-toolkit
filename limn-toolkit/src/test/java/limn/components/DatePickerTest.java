@@ -535,7 +535,7 @@ class DatePickerTest extends ComponentTestBase {
         assertEquals(CalendarView.View.MONTHS, picker.calendar().view());
         key(Keys.ESCAPE, 0);
         assertEquals(CalendarView.View.DAYS, picker.calendar().view(),
-                "Escape comes back down a level before it closes anything");
+                "Escape comes straight back to the finest view before it closes anything");
         assertTrue(picker.isOpen());
     }
 
