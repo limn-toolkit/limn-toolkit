@@ -233,6 +233,14 @@ public class DateField extends Widget {
      * {@code null} for a field on its own.
      */
     private java.util.function.BooleanSupplier popupOpen;
+    /**
+     * Whether a verb performed on this field can reach the open popup: true in a window of its
+     * own and headless, false while the popup is an overlay of the scene, whose input gate
+     * refuses every verb on a widget beneath it (the overlay's own {@code CANCEL} is the
+     * closing verb there). A verb the gate would refuse is not published (semantics 5: the
+     * published list is the accepted list, and the platform is answered from the snapshot).
+     */
+    private java.util.function.BooleanSupplier popupCloseReachable;
     private java.util.function.Consumer<Boolean> popupSetter;
     /**
      * Whether a picker is aiming the keyboard at this field although it does not hold the focus:
@@ -1348,10 +1356,12 @@ public class DateField extends Widget {
         charDelegate = delegate;
     }
 
-    /** The picker's, not an application's: see {@link #popupOpen}. */
+    /** The picker's, not an application's: see {@link #popupOpen} and {@link #popupCloseReachable}. */
     void setPopup(java.util.function.BooleanSupplier open,
+                  java.util.function.BooleanSupplier closeReachable,
                   java.util.function.Consumer<Boolean> setOpen) {
         popupOpen = open;
+        popupCloseReachable = closeReachable;
         popupSetter = setOpen;
     }
 
@@ -1990,8 +2000,16 @@ public class DateField extends Widget {
             boolean open = popupOpen.getAsBoolean();
             a.expand(open);
             a.state(Accessible.State.HAS_POPUP);
+            // COLLAPSE only where it can be performed (2026-09-14): while the popup is an
+            // overlay of the scene the scene refuses every verb on the field beneath it, so a
+            // COLLAPSE published there would be reported accepted and do nothing. The overlay
+            // publishes CANCEL for that presentation; the state is still told here.
             if (isEnabled()) {
-                a.action(open ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
+                if (!open) {
+                    a.action(Accessible.Action.EXPAND);
+                } else if (popupCloseReachable.getAsBoolean()) {
+                    a.action(Accessible.Action.COLLAPSE);
+                }
             }
         }
 
@@ -2090,7 +2108,7 @@ public class DateField extends Widget {
             popupSetter.accept(true);
             return true;
         }
-        if (action == Accessible.Action.COLLAPSE && open) {
+        if (action == Accessible.Action.COLLAPSE && open && popupCloseReachable.getAsBoolean()) {
             popupSetter.accept(false);
             return true;
         }

@@ -414,6 +414,22 @@ the cursor is `ACTIVE` under the overlay. Pinned by limn-demo's
 `DatePickerNativePopupTest.whileTheCalendarWindowHoldsTheKeyboardTheEffectiveFocusIsItsCursorNotTheFieldsCaret`,
 which reads the host tree's effective focus across the two windows.
 
+**Amendment, 2026-09-14 (decision 2, semantics 5 — the scene presentation's closing verb): the
+field publishes `COLLAPSE` only where it can take it.** While the popup is an overlay of the
+scene, the scene refuses every verb on a widget beneath the overlay (its input gate), and the
+platform is answered from the snapshot before any hook runs; a `COLLAPSE` published on the field
+there was reported accepted and closed nothing. So in the scene presentation the open field
+publishes `EXPANDED` and `HAS_POPUP` and no verb, the overlay's `CANCEL` is the closing verb,
+and the field accepts `COLLAPSE` only where it publishes it — in a window of its own, where the
+field keeps the focus and the verb reaches it (the paragraph above's "accepts exactly those"
+holds in both presentations, with the list differing between them). `ComboBox` has the same
+shape and was left as it is: it is another lane's widget, and its precedent is noted, not
+followed. Pinned by `DatePickerAccessibilityTest.theCaptionNamesTheFieldAndTheFieldSaysItHasAPopup`
+(in-scene: no verb on the open field, Collapse performed there changes nothing, the overlay's
+Cancel closes; and the overlay holds the focus with the cursor `ACTIVE` under it as the tree's
+effective focus, decision 1's in-scene half of item 10) and limn-demo's
+`DatePickerNativePopupTest` (the field takes `COLLAPSE` in a window of its own).
+
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and
 it is why the calendar could be built at all without reopening the bridges, which live in their own

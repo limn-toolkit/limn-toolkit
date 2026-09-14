@@ -28,10 +28,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * is no node at all, so a caption bound to the picker names the field; a range picker keeps its
  * group under the caption and names its two ends for themselves. The button is a plain press.
  *
- * <p>In-scene on purpose: {@link StubWindow} cannot create the native popup window. The
- * native presentation's half — the field keeping the focus and taking {@code COLLAPSE} while
- * the calendar is a window of its own — is limn-demo's {@code DatePickerNativePopupTest}, over a
- * {@code HeadlessBackend} that can.
+ * <p>In-scene on purpose: {@link StubWindow} cannot create the native popup window. Here the
+ * open popup is an overlay of the scene, so the field publishes its expanded state and no verb
+ * (the scene would refuse a verb on the field beneath the overlay; the overlay's {@code CANCEL}
+ * closes). The native presentation's half — the field keeping the focus and taking
+ * {@code COLLAPSE} while the calendar is a window of its own — is limn-demo's
+ * {@code DatePickerNativePopupTest}, over a {@code HeadlessBackend} that can.
  */
 class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
 
@@ -99,9 +101,32 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         field = nodesOf(Accessible.Role.GROUP).stream()
                 .filter(group -> group.name().equals("Data de entrega")).findFirst().orElseThrow();
         assertTrue(field.has(Accessible.State.EXPANDED));
-        assertTrue(offers(field, Accessible.Action.COLLAPSE), "open: Collapse is the verb");
+        assertTrue(field.has(Accessible.State.HAS_POPUP));
+        // In this presentation the popup is an overlay of the scene, and the scene refuses every
+        // verb on a widget beneath it: a COLLAPSE published on the field would be answered
+        // "accepted" from the snapshot and close nothing (semantics 5). So the field publishes
+        // its state and no verb, the overlay's CANCEL is the closing verb, and the same is
+        // true of what is performed: Collapse on the field is refused, Cancel on the overlay
+        // closes. In a window of its own the field takes COLLAPSE -- DatePickerNativePopupTest.
+        assertFalse(offers(field, Accessible.Action.COLLAPSE),
+                "open in the scene: no verb on the field " + describe(tree()));
         assertFalse(offers(field, Accessible.Action.EXPAND));
-        picker.close();
+        // The host accepts any verb on a node it published and leaves the published list to
+        // the bridges (semantics 5), so what is asserted is what happens: nothing.
+        perform(field.id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE);
+        assertTrue(picker.isOpen(), "Collapse on the field beneath the overlay does nothing, "
+                + "which is why the field does not publish it");
+        AccessibleNode overlay = nodesOf(Accessible.Role.GROUP).stream()
+                .filter(group -> group.name().equals("Calendário") && offers(group, Accessible.Action.CANCEL))
+                .findFirst().orElseThrow(() -> new AssertionError(
+                        "no overlay group with CANCEL in " + describe(tree())));
+        assertEquals(overlay.id(), tree().focused(), "the overlay holds the focus (decision 1)");
+        long cursor = tree().firstActiveBelow(tree().indexOf(overlay.id()));
+        assertTrue(cursor != 0, "and the calendar's cursor is ACTIVE under it " + describe(tree()));
+        assertEquals(cursor, tree().effectiveFocus(), "which is the tree's effective focus");
+        assertEquals(Accessible.Role.CELL, tree().node(tree().indexOf(cursor)).role());
+        assertTrue(perform(overlay.id(), Accessible.Action.CANCEL, Accessible.Argument.NONE));
+        assertFalse(picker.isOpen(), "Cancel on the overlay closes the calendar");
         frame();
         field = nodesOf(Accessible.Role.GROUP).get(0);
         assertFalse(field.has(Accessible.State.EXPANDED));

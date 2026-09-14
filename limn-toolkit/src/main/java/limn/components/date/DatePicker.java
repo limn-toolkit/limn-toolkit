@@ -211,8 +211,10 @@ public class DatePicker extends Widget {
         member.setKeyDelegate(this::interceptKey);
         member.setCharDelegate(this::interceptChar);
         // The field is where a reader opens the calendar from (decision 18); opening from the
-        // end of a period fills that end, whether or not the focus got there first.
-        member.setPopup(() -> open, wanted -> {
+        // end of a period fills that end, whether or not the focus got there first. The closing
+        // verb is the field's only where a verb on the field can reach it: not while the popup
+        // is an overlay of the scene, whose CANCEL closes it there.
+        member.setPopup(() -> open, () -> scenePopup == null, wanted -> {
             if (wanted && endField != null) {
                 fillingEnd = member == endField;
             }
