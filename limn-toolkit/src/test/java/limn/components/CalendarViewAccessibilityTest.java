@@ -687,4 +687,49 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(6 + 24, years.size());
         assertTrue(java.util.Collections.disjoint(days, years));
     }
+
+    /**
+     * Decision 37: a day cell is "15 of 30" -- its day of the month over the month's length, in
+     * the calendar being drawn, each cell by its own date -- and not "item 17 of 42", which was
+     * the grid's geometry read out as if it were a position in a set. A leading cell of the
+     * month before is that month's last day over that month's length; a chooser cell keeps its
+     * index over the chooser's count.
+     */
+    @Test
+    void aDayCellIsNumberedByItsDayOfMonthOverTheMonthsLength() {
+        CalendarView calendar = bindCalendar();
+        List<AccessibleNode> days = dayNodes();
+        // pt-BR starts the week on Sunday; September 2026 starts on a Tuesday, so the first row
+        // opens with 30 and 31 August.
+        assertPosition(days.get(0), 30, 31);
+        assertPosition(days.get(1), 31, 31);
+        assertPosition(days.get(2), 1, 30);
+        assertPosition(days.get(16), 15, 30);
+        assertPosition(days.get(31), 30, 30);
+        assertPosition(days.get(32), 1, 31);
+        assertPosition(days.get(41), 10, 31);
+
+        calendar.setView(CalendarView.View.MONTHS);
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        frame();
+        assertPosition(dayNodes().get(2), 3, 12);
+
+        CalendarView hijri = bindCalendar(HIJRI);
+        hijri.setSelectedDate(LocalDate.of(2026, 9, 25));
+        frame();
+        AccessibleNode selected = dayNodes().stream()
+                .filter(day -> day.selectionItem() != null && day.selectionItem().selected())
+                .findFirst().orElseThrow();
+        assertTrue(selected.name().startsWith("Rabiʻ II 14, 1448"), selected.name());
+        java.time.chrono.ChronoLocalDate drawn =
+                java.time.chrono.HijrahChronology.INSTANCE.date(LocalDate.of(2026, 9, 25));
+        assertPosition(selected, 14, drawn.lengthOfMonth());
+    }
+
+    private static void assertPosition(AccessibleNode cell, int position, int size) {
+        SelectionItemFacet item = cell.selectionItem();
+        assertNotNull(item, cell.name());
+        assertEquals(position + " of " + size, item.positionInSet() + " of " + item.sizeOfSet(),
+                cell.name());
+    }
 }

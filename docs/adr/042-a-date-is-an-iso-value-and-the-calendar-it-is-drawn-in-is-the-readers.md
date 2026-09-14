@@ -380,6 +380,17 @@ the two choosers and a reader never offered it is left paging. In a chooser the 
 and carry **no** selection facet &mdash; telling a reader a month is "selected" would be telling
 them the form holds a value it does not.
 
+**Amendment, 2026-09-14 (decision 37): a day is "15 of 30".** "`selectionItem` when it is
+selected or in the band" above was never what the code did: every day cell carries one while the
+selection mode is not `NONE`, selected or not (the capture read "item 1 of 42 unselected"), and
+what it carried as its position was the cell's flat index over the forty-two cells of the grid —
+the geometry, read out as a place in a set. A day cell now publishes its day of the month as the
+position and its month's length as the size, in the calendar being drawn and each cell by its own
+date, so a leading cell of the month before is "31 of 31" and a Hijri day is numbered in its Hijri
+month; a chooser cell keeps its index over the chooser's count, and zero still means "none" on
+every platform (semantics 6). Pinned by
+`CalendarViewAccessibilityTest.aDayCellIsNumberedByItsDayOfMonthOverTheMonthsLength`.
+
 **Amendment, 2026-09-14 (decision 48, DATES-NEW-11, DT2 — MODEL-NEW-1's widget half): what a
 chooser says, and what its nodes are.** The cell holding the month or year on show — filled on
 screen — carries the fact in its name, after a comma as "today" does ("Sep, on show"; one string,

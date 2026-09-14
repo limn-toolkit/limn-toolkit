@@ -2601,11 +2601,20 @@ public class CalendarView extends Widget {
                 a.child(index);
                 a.bounds(cellLeft(d, rtl), top, cellW, cellH);
                 a.role(Accessible.Role.CELL);
-                a.name(cellName(chronology, day, today, locale), textEpoch,
+                ChronoLocalDate drawn = CalendarChronology.date(chronology, day);
+                a.name(cellName(chronology, drawn, day, today, locale), textEpoch,
                         Accessible.NameFrom.CONTENT);
                 a.cell(w, c);
                 if (selectionMode != SelectionMode.NONE) {
-                    a.selectionItem(isSelectedEnd(day) || isInBand(day), index + 1, CELLS);
+                    // Numbered as the day of its own month over that month's length, in the
+                    // calendar being drawn (decision 37, 2026-09-14): "15 of 30", and a leading
+                    // cell of the month before "31 of 31". The flat index over the forty-two
+                    // cells it replaces was the grid's geometry, which is not what a reader
+                    // asked for when told "item 33 of 42".
+                    int dayOfMonth = drawn == null ? day.getDayOfMonth()
+                            : drawn.get(ChronoField.DAY_OF_MONTH);
+                    int monthLength = drawn == null ? day.lengthOfMonth() : drawn.lengthOfMonth();
+                    a.selectionItem(isSelectedEnd(day) || isInBand(day), dayOfMonth, monthLength);
                     // A day the bounds or the filter refuse is published disabled and carries
                     // no verb (decision 30, 2026-09-14): the cursor stops on it, so a reader
                     // hears "unavailable" where the eye sees the muted number, and Enter is
@@ -2680,8 +2689,8 @@ public class CalendarView extends Widget {
      * about it. Built here rather than memoized: it is wanted by nothing else, and forty-two long
      * dates per layout pass would cost more than the tree does.
      */
-    private String cellName(Chronology chronology, LocalDate day, LocalDate today, Locale locale) {
-        ChronoLocalDate drawn = CalendarChronology.date(chronology, day);
+    private String cellName(Chronology chronology, ChronoLocalDate drawn, LocalDate day,
+                            LocalDate today, Locale locale) {
         String date = drawn == null ? day.toString()
                 : CalendarChronology.fullDate(chronology, drawn, locale);
         DayMark mark = dayMarks == null ? null : dayMarks.apply(day);
