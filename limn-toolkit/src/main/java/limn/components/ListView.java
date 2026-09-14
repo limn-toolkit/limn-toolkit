@@ -64,9 +64,14 @@ import java.util.function.IntConsumer;
  * <p><b>Size steps propagate rather than being imposed.</b> Rows are adapter-supplied
  * widgets in this list's subtree, so they resolve the {@link limn.scene.ControlSize}
  * themselves and {@code list.setControlSize(SMALL)} shortens them because <em>they</em>
- * re-measure. Only three metrics are the list's own: the frame-0 row-height seed used
- * before anything has been measured, the intrinsic width under an unbounded constraint,
- * and the selection ring's corner radius.
+ * re-measure. Only three metrics are the list's own: the row-height seed, used for every
+ * scroll estimate before anything has been measured and for the intrinsic height under an
+ * unbounded constraint always ({@link #setVisibleRows} rows of it), the intrinsic width under
+ * an unbounded constraint, and the selection ring's corner radius.
+ *
+ * <p><b>Inside a scroller</b> the list scrolls itself first and hands the wheel on at either
+ * end: a detent that finds this list already at the top or the bottom is left unconsumed and
+ * reaches the scroll pane that holds it (decision 44).
  *
  * <p><b>The scroll bar does not take part in the size axis</b> ({@link ScrollBar#thickness()}
  * is 15 pt at every step), and it overlays the rows rather than insetting them, so at a
@@ -103,11 +108,15 @@ public class ListView extends Widget implements Scrollable {
          * selected row that is <em>not</em> realized, which has no widget to carry a name and is
          * announced from the list's own node instead.
          *
-         * <p><b>Hand back a string this adapter holds.</b> The tree compares a name by reference,
-         * locale and translation epoch, so a string built inside this call allocates once per
-         * realized row per damaged frame and republishes the whole tree every frame, because two
-         * freshly built strings are never the same object. A field, a constant, or an entry in the
-         * adapter's own data is what belongs here.
+         * <p><b>Hand back a string this adapter holds.</b> The tree carries a name over from the
+         * previous walk when the source is the same object under the same locale and translation
+         * epoch, at no cost; a string built inside this call is never the same object, so it is
+         * allocated and resolved again — once per realized row per walk that describes this list,
+         * which is every damaged frame — and that is the zero-allocation promise this widget
+         * otherwise keeps, broken by the application. It does <em>not</em> republish the tree or
+         * raise an event: the difference compares the resolved text, and equal text is no change
+         * (corrected 2026-09-14; the earlier text of this paragraph said it republished every
+         * frame). A field, a constant, or an entry in the adapter's own data is what belongs here.
          *
          * @param index a row in {@code [0, rowCount)}
          * @return the row's name, or {@code null} when the adapter has none to give
@@ -118,11 +127,19 @@ public class ListView extends Widget implements Scrollable {
     }
 
     /**
-     * Rows of intrinsic height when the height axis is unbounded. A row <b>count</b>, not a
-     * length: it multiplies whatever a row currently measures, so it must not move with the
-     * step.
+     * Rows of intrinsic height when the height axis is unbounded, until {@link #setVisibleRows}
+     * says otherwise. A row <b>count</b>, not a length: it multiplies the step's seed row height,
+     * so it must not move with the step.
      */
     private static final int VISIBLE_ROWS_HINT = 6;
+
+    /**
+     * How many seed rows tall this list prefers to be under an unbounded height (decision 44,
+     * 2026-09-14). Multiplied by the token's seed and never by the realized average: the average
+     * moves as rows of other heights scroll in, and a preference that moved with it re-laid out
+     * the parent on every such scroll and made a list inside a scroll pane jitter.
+     */
+    private int visibleRows = VISIBLE_ROWS_HINT;
 
     private final Adapter adapter;
     private final ScrollBar vBar;
@@ -235,6 +252,35 @@ public class ListView extends Widget implements Scrollable {
     public ListView setScrollbarPolicy(ScrollBar.Policy policy) {
         vBar.setPolicy(policy);
         return this;
+    }
+
+    /**
+     * Sets how many rows tall this list prefers to be when its parent gives it no height — a
+     * list inside a {@link ScrollView} or an unconstrained column — as a count of the step's
+     * seed rows (default 6). A bounded height from the parent always wins; this is the free-axis
+     * fallback only. The preference is the seed's and not the realized rows' on purpose
+     * (decision 44): a preference that followed the measured average moved every time a row of
+     * another height scrolled in, and re-laid out the parent with it. UI thread only.
+     *
+     * @param rows a row count of at least one
+     * @return this list
+     * @throws IllegalArgumentException if {@code rows} is below one
+     */
+    public ListView setVisibleRows(int rows) {
+        Ui.checkUiThread();
+        if (rows < 1) {
+            throw new IllegalArgumentException("visible rows must be at least 1, not " + rows);
+        }
+        if (rows != visibleRows) {
+            visibleRows = rows;
+            markNeedsLayout();
+        }
+        return this;
+    }
+
+    /** How many seed rows tall this list prefers to be under an unbounded height. */
+    public int visibleRows() {
+        return visibleRows;
     }
 
     /**
@@ -507,10 +553,14 @@ public class ListView extends Widget implements Scrollable {
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = tokens();
         // Both are free-axis fallbacks a real parent overrides; they only bind when the list is
-        // measured unbounded, which is also the only time the row-height estimate is a seed.
+        // measured unbounded. The height is the SEED's and not avgRowHeight's (decision 44,
+        // 2026-09-14): the measured mean moves as rows of other heights scroll in, and a
+        // measured size that moved under a contained layout re-laid out the parent on every
+        // such scroll (Widget.markNeedsContainedLayout's contract), so a list in a scroll pane
+        // jittered. The seed is a token and stands still.
         float w = constraints.hasBoundedWidth() ? constraints.maxWidth() : t.listWidth();
         float h = constraints.hasBoundedHeight() ? constraints.maxHeight()
-                : VISIBLE_ROWS_HINT * avgRowHeight(t);
+                : visibleRows * t.listRowSeed();
         return constraints.constrain(w, h);
     }
 
@@ -989,9 +1039,19 @@ public class ListView extends Widget implements Scrollable {
             case WHEEL -> {
                 // A detent is a device unit: the same flick travels the same distance in a
                 // dense list and a roomy one, so the step is locked, not tabled.
-                if (event.scrollY() != 0 && estimatedContentHeight(tokens()) > height()) {
-                    scrollBy(-event.scrollY() * Strokes.WHEEL_STEP);
-                    event.consume();
+                if (event.scrollY() != 0) {
+                    SizeTokens t = tokens(); // one resolution: the test and the scroll must agree
+                    float dy = -event.scrollY() * Strokes.WHEEL_STEP;
+                    float offset = estimatedOffset(t);
+                    float max = Math.max(0, estimatedContentHeight(t) - height());
+                    // Consumed only where this list can still move that way (decision 44,
+                    // 2026-09-14): at either end the detent is left for the scroller that holds
+                    // the list, as a list whose content fits already left every detent. Without
+                    // this a list inside a scroll pane was a wall the wheel could not get past.
+                    if (dy < 0 ? offset > 0 : offset < max) {
+                        scrollBy(dy);
+                        event.consume();
+                    }
                 }
             }
             case MOVE, DRAG -> vBar.onHostActivity();
