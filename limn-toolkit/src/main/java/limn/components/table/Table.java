@@ -2618,7 +2618,8 @@ public class Table<T> extends Widget implements Scrollable {
         }
         // Read off the columns and not the last layout's shown set, so a Tab that arrives
         // before the first layout (a scene focused as it is built) finds the stop too.
-        for (Column<T> column : columns) {
+        for (int c = 0; c < columns.size(); c++) {
+            Column<T> column = columns.get(c);
             if (column.isVisible() && column.isSortable()) {
                 return true;
             }
