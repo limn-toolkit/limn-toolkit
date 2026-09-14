@@ -322,6 +322,14 @@ class AccessibleModelTest {
      * A relation names a node published in <em>some</em> window of the process, or it is dropped:
      * a native popup's root names the field that opened it, which lives in another scene's tree,
      * and that is kept; a target the resolver finds nowhere is worse than none (ADR 039 §1.11).
+     *
+     * <p>What this pins of the builder is the shape of the answer: it stores whatever identifier
+     * the resolver gives it verbatim, so a target published in another scene survives as that
+     * scene's number, and a resolver that answers {@code 0} leaves no relation. <b>Which</b> of
+     * the two a target gets is the walk's decision and not the builder's — {@code
+     * AccessibleWalk.resolve} climbs into the other scene's last walk and answers {@code 0} when
+     * the climb reaches nothing published anywhere; the stub resolver here stands in for it, and
+     * {@code NativePopupRelationTest} in the demo drives the real one over two windows.
      */
     @Test
     void aRelationNamingNothingPublishedIsDroppedRatherThanPublishedDangling() {

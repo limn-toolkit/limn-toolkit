@@ -720,9 +720,12 @@ is posted `NSAccessibilityUIElementDestroyedNotification` and released.
 window.** The paragraph above promised one monotonic counter for the process and the code kept one
 per scene, so two windows minted the same identifiers and a relation could not name a node in another
 window at all — which §1.11 and §5.4 require of a native popup's `POPUP_FOR`, and which the
-2026-09-13 audit found unbuilt (CRIT-2, LINUX-NEW-8). The counter stays per scene, because a scene
-mints on its own thread's walk and a shared counter would be the one piece of cross-window state in
-the model; what changes is the shape of the number. **Every builder takes a tag when it is created,
+2026-09-13 audit found unbuilt (CRIT-2, LINUX-NEW-8). The counter stays per scene, not for any
+threading reason — every scene walks on the one UI thread (`Scene.perform` posts through
+`Ui.post`; `UiRuntime.isUiThread`), which is also what lets a walk read another scene's last walk
+in `resolve()` and `expectMirror` without a lock — but because the tag makes a shared counter
+unnecessary: `mint()` stays a local increment, with nothing to contend for and no registry to keep
+in step. What changes is the shape of the number. **Every builder takes a tag when it is created,
 one per scene for the life of the process, and every identifier it mints is that tag above a
 forty-two-bit serial.** So an identifier names a node in any window of the process and never
 collides across scenes, and `AccessibleTree#sceneTag()` and `#holds(id)` answer "is this one of
@@ -818,12 +821,14 @@ identity key moved there from `onAccessibilityChild`, for the reasons §1.3's am
 day gives. `onAccessibilityChild` keeps everything else it wrote — role, position, selected state —
 and refuses the key; and the identity hook refuses everything but the key and the host, because
 the node open while it runs is the parent's, so a role or a name written from it would have landed
-there silently (`AccessibleModelTest` pins both refusals).
+there silently (`AccessibleModelTest` pins both refusals). The paragraph below still reads "and its
+identity key" for `ListView`'s `onAccessibilityChild`, as it was decided; since this amendment the
+key is the identity hook's, and the rest of that sentence stands.
 
 `onAccessibility` fills in this widget's node and declares its synthetic children.
 `onAccessibilityChild` lets a container add what only it knows about a child — `ListView` gives a
 mounted row cell the role `LIST_ITEM`, its selected state, its position in the set **and its identity
-key** (§1.3; from the identity hook since 2026-09-14); `TabbedPane` numbers its headers; `ContextMenus.ContextRegion` declares its own node
+key** (§1.3); `TabbedPane` numbers its headers; `ContextMenus.ContextRegion` declares its own node
 and writes nothing onto its child. **Corrected while implementing:** the wrapper was to have put
 `HAS_POPUP` and `ActionFacet{SHOW_MENU}` on the child it wraps, and that is undispatchable — the
 walk records a node's owner as the widget it came from and the scene dispatches strictly to that

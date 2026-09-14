@@ -1120,10 +1120,24 @@ public class ListView extends Widget implements Scrollable {
     }
 
     /**
+     * A mounted cell's identity is its data index (ADR 039 §1.3), answered before the cell
+     * describes itself so that its name is carried over under that identity and whatever the
+     * cell holds inside it follows the row when the cell is recycled.
+     */
+    @Override
+    protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+        int index = child == vBar ? -1 : indexOfCell(child);
+        if (index >= 0) {
+            a.key(index);
+        }
+    }
+
+    /**
      * What only the list knows about a mounted row: which row it is, that it is one, where it sits
      * in the data, and whether the cursor is on it.
      *
-     * <p><b>The identity key is the line the whole recycling story rests on.</b> A cell is pooled
+     * <p><b>The identity key is the line the whole recycling story rests on</b>, and it is
+     * answered by {@link #onAccessibilityChildIdentity} before this hook runs. A cell is pooled
      * and rebound, so the widget object is the wrong key the moment it is reused: keyed by the
      * data index, a cell that carried row three and is recycled onto row nine is minted row nine's
      * identifier, and a cell coming back to row three gets row three's identifier back out of the
@@ -1155,19 +1169,6 @@ public class ListView extends Widget implements Scrollable {
      * @param child the child being described, which is the bar or one mounted cell
      * @param a     the child's node
      */
-    /**
-     * A mounted cell's identity is its data index (ADR 039 §1.3), answered before the cell
-     * describes itself so that its name is carried over under that identity and whatever the
-     * cell holds inside it follows the row when the cell is recycled.
-     */
-    @Override
-    protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
-        int index = child == vBar ? -1 : indexOfCell(child);
-        if (index >= 0) {
-            a.key(index);
-        }
-    }
-
     @Override
     protected void onAccessibilityChild(Widget child, Accessibility a) {
         if (child == vBar) {
