@@ -44,7 +44,8 @@ is nearby; that is how a reader ends up confidently saying the wrong thing.
 
 **Behaviour is carried by typed facets**, not by the role. `ToggleFacet`, `ValueFacet`, `TextFacet`,
 `SelectionFacet`, `SelectionItemFacet`, `ScrollFacet`, `ExpandFacet`, `ActionFacet`, `WindowFacet`,
-and since ADR 041 `TableFacet` and `CellFacet`. The three platform
+since ADR 041 `TableFacet` and `CellFacet`, and since ADR 039's amendment of 2026-09-14
+`HierarchyFacet` (a tree row's level and flat row index). The three platform
 vocabularies disagree about where behaviour lives — a *pattern* on Windows, a state bit plus an
 action row on Linux, an attribute on macOS — so each bridge derives its own view from the same
 facet. A widget that publishes a `ToggleFacet` gets `IToggleProvider`, `AXValue` and the AT-SPI

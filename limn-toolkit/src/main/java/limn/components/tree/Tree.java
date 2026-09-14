@@ -1788,6 +1788,10 @@ public class Tree<T> extends Widget implements Scrollable {
         }
         // Numbered among the nodes, so a loading line a reader cannot reach is not counted either.
         a.selectionItem(selected.contains(row.node), row.item, itemCount);
+        // The depth and the flat row index (ADR 039 §1.2, amended 2026-09-14): what a reader
+        // speaks as "level 2" and what the macOS outline addresses its rows by. The sibling
+        // numbering decision 4 gives selectionItem is the Tree lane's change.
+        a.hierarchy(row.depth + 1, row.item, itemCount);
         if (row.expandable) {
             a.expand(row.expanded);
         }

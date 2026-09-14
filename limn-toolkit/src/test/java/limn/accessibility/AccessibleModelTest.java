@@ -81,6 +81,87 @@ class AccessibleModelTest {
     }
 
     /**
+     * The closed facet list (MODEL-NEW-5): the fenced block after "The closed list of facets" in
+     * §1.2 names exactly the {@code *Facet} records in this package, so a facet added to the code
+     * without the record saying so fails here, and one the record promises without a class does
+     * too.
+     */
+    @Test
+    void theFacetListIsTheOneTheRecordDecided() throws IOException {
+        Path sources = RepositoryRoot.find()
+                .resolve("limn-toolkit/src/main/java/limn/accessibility");
+        List<String> inCode = new ArrayList<>();
+        try (var files = Files.list(sources)) {
+            files.map(file -> file.getFileName().toString())
+                    .filter(name -> name.endsWith("Facet.java"))
+                    .map(name -> name.substring(0, name.length() - ".java".length()))
+                    .sorted()
+                    .forEach(inCode::add);
+        }
+        List<String> inRecord = new ArrayList<>(
+                fencedListFromTheRecord("### 1.2 ", "The closed list of facets"));
+        inRecord.sort(null);
+        assertEquals(inRecord, inCode,
+                "the facet records and ADR 039 §1.2's closed list have drifted apart");
+        for (String facet : inCode) {
+            boolean accessor = false;
+            for (var method : AccessibleNode.class.getMethods()) {
+                if (method.getReturnType().getSimpleName().equals(facet)) {
+                    accessor = true;
+                }
+            }
+            assertTrue(accessor, facet + " is a facet no node can carry: AccessibleNode has no "
+                    + "accessor returning it");
+        }
+    }
+
+    /**
+     * {@code HierarchyFacet} (ADR 039 §1.2, amended 2026-09-14): carried only by a node that
+     * declared it, built in the copy and not in the walk, and a level or a row that moves is a
+     * difference the quiet-frame comparison sees.
+     */
+    @Test
+    void aHierarchyFacetIsCarriedOnlyWhereDeclaredAndAMoveOfItIsAChange() {
+        Accessibility a = new Accessibility();
+        long owner = a.mint();
+        describeOutline(a, owner, 2);
+        AccessibleTree first = publish(a, target -> 0);
+        assertNull(first.root().hierarchy(), "the outline itself stands nowhere");
+        assertEquals(new HierarchyFacet(1, 1, 2), first.node(1).hierarchy());
+        assertEquals(new HierarchyFacet(2, 2, 2), first.node(2).hierarchy());
+        assertNull(first.node(3).hierarchy(), "a row that said nothing carries nothing");
+
+        describeOutline(a, owner, 2);
+        assertFalse(a.changed(), "the same numbers are no difference");
+        describeOutline(a, owner, 3);
+        assertTrue(a.changed(), "a deeper second row is");
+        AccessibleTree second = publish(a, target -> 0);
+        assertEquals(new HierarchyFacet(3, 2, 2), second.node(2).hierarchy());
+    }
+
+    /** One TREE with two TREE_ITEM rows carrying the facet and one carrying none. */
+    private static void describeOutline(Accessibility a, long owner, int secondLevel) {
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        a.begin(owner, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.TREE);
+        a.child(1);
+        a.role(Accessible.Role.TREE_ITEM);
+        a.bounds(0, 0, 100, 20);
+        a.hierarchy(1, 1, 2);
+        a.endChild();
+        a.child(2);
+        a.role(Accessible.Role.TREE_ITEM);
+        a.bounds(0, 20, 100, 20);
+        a.hierarchy(secondLevel, 2, 2);
+        a.endChild();
+        a.child(3);
+        a.role(Accessible.Role.LABEL);
+        a.bounds(0, 40, 100, 20);
+        a.endChild();
+        a.end();
+    }
+
+    /**
      * A comma-separated list in a fenced block of ADR 039: the first fenced block of the section
      * whose heading starts with {@code heading}, or, when {@code marker} is given, the first
      * fenced block after the first line of that section containing the marker.

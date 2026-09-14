@@ -171,6 +171,10 @@ public final class Accessibility {
         boolean hasCell;
         int cellRow;
         int cellColumn;
+        boolean hasHierarchy;
+        int level;
+        int hierarchyRow;
+        int hierarchyRowCount;
         int verbs;                      // bit per Accessible.Action ordinal
         String keyBinding;
         int relationCount;
@@ -254,6 +258,10 @@ public final class Accessibility {
             hasCell = false;
             cellRow = 0;
             cellColumn = 0;
+            hasHierarchy = false;
+            level = 0;
+            hierarchyRow = 0;
+            hierarchyRowCount = 0;
             verbs = 0;
             keyBinding = null;
             relationCount = 0;
@@ -269,7 +277,7 @@ public final class Accessibility {
                     && toggle < 0 && expand < 0
                     && !hasValue && !hasSelection && !hasSelectionItem
                     && !hasText && !hasScroll && !hasWindow
-                    && !hasTable && !hasCell;
+                    && !hasTable && !hasCell && !hasHierarchy;
         }
 
         void addRelation(Accessible.Relation kind, Object target) {
@@ -846,6 +854,23 @@ public final class Accessibility {
         s.hasCell = true;
         s.cellRow = row;
         s.cellColumn = column;
+    }
+
+    /**
+     * Declares where this node stands in an outline: a tree row's depth and its flat index among
+     * the rows the outline shows open, the two numbers {@link HierarchyFacet} explains. Its place
+     * among its siblings is {@link #selectionItem}'s.
+     *
+     * @param level    how deep the row is, from one at a root, or {@code 0} when unknown
+     * @param row      which row of the outline this is, from one at the top, or {@code 0}
+     * @param rowCount how many rows the outline shows open, or {@code 0} when unknown
+     */
+    public void hierarchy(int level, int row, int rowCount) {
+        Slot s = slot();
+        s.hasHierarchy = true;
+        s.level = level;
+        s.hierarchyRow = row;
+        s.hierarchyRowCount = rowCount;
     }
 
     /**
@@ -1503,6 +1528,9 @@ public final class Accessibility {
                         || a.tableColumnCount != b.tableColumnCount))
                 || a.hasCell != b.hasCell
                 || (a.hasCell && (a.cellRow != b.cellRow || a.cellColumn != b.cellColumn))
+                || a.hasHierarchy != b.hasHierarchy
+                || (a.hasHierarchy && (a.level != b.level || a.hierarchyRow != b.hierarchyRow
+                        || a.hierarchyRowCount != b.hierarchyRowCount))
                 || a.verbs != b.verbs
                 || !Objects.equals(a.keyBinding, b.keyBinding)
                 || relationsDiffer(a, b);
@@ -1667,6 +1695,8 @@ public final class Accessibility {
                         s.windowCanMinimize, s.windowState) : null,
                 s.hasTable ? new TableFacet(s.tableRowCount, s.tableColumnCount) : null,
                 s.hasCell ? new CellFacet(s.cellRow, s.cellColumn) : null,
+                s.hasHierarchy ? new HierarchyFacet(s.level, s.hierarchyRow, s.hierarchyRowCount)
+                        : null,
                 s.verbs == 0 ? null : new ActionFacet(verbsOf(s.verbs), s.keyBinding),
                 s.parent, firstChild, lastChild, nextSibling, previousSibling);
     }

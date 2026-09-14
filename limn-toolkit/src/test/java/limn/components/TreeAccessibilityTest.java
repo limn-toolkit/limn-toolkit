@@ -642,6 +642,96 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                         + bridge.events);
     }
 
+    /**
+     * Every row says how deep it is and which open row of the outline it is, through
+     * {@code HierarchyFacet} (ADR 039 §1.2, amended 2026-09-14): one-based, the loading line not
+     * counted, and renumbered when a branch opens. Where a row stands among its siblings is
+     * {@code SelectionItemFacet}'s and the Tree lane's (decision 4); the numbering pinned above is
+     * untouched here.
+     */
+    @Test
+    void aTreeItemSaysItsLevelAndWhichOpenRowOfTheOutlineItIs() {
+        Node readme = Node.leaf("readme");
+        Node docs = Node.of("docs", Node.leaf("a.md"), Node.leaf("b.md"));
+        Node top = Node.of("root", docs, readme);
+        bindTree(ROW_H, List.of(top));
+        tree.expand(top);
+        frame();
+
+        assertNull(treeNode().hierarchy(), "the outline itself stands nowhere in it");
+        assertEquals(new limn.accessibility.HierarchyFacet(1, 1, 3), node("root").hierarchy(),
+                describe(tree()));
+        assertEquals(new limn.accessibility.HierarchyFacet(2, 2, 3), node("docs").hierarchy(),
+                describe(tree()));
+        assertEquals(new limn.accessibility.HierarchyFacet(2, 3, 3), node("readme").hierarchy(),
+                describe(tree()));
+
+        tree.expand(docs);
+        frame();
+
+        assertEquals(new limn.accessibility.HierarchyFacet(1, 1, 5), node("root").hierarchy());
+        assertEquals(new limn.accessibility.HierarchyFacet(2, 2, 5), node("docs").hierarchy());
+        assertEquals(new limn.accessibility.HierarchyFacet(3, 3, 5), node("a.md").hierarchy(),
+                "one level deeper: " + describe(tree()));
+        assertEquals(new limn.accessibility.HierarchyFacet(3, 4, 5), node("b.md").hierarchy());
+        assertEquals(new limn.accessibility.HierarchyFacet(2, 5, 5), node("readme").hierarchy(),
+                "moved down by the two rows that opened above it: " + describe(tree()));
+    }
+
+    /** The loading line is not a row of the outline, so the rows below it are not moved by it. */
+    @Test
+    void aLoadingLineIsNotARowOfTheOutline() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node remote = Node.leaf("remote");
+        Node below = Node.leaf("b");
+        List<Node> fetched = List.of(Node.leaf("one"), Node.leaf("two"));
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(remote, below);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node == remote ? null : node.children();
+            }
+
+            @Override
+            public limn.concurrent.Work<List<Node>> load(Node node) {
+                return limn.concurrent.Ui.work(progress -> fetched);
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Cell(ROW_H);
+            }
+
+            @Override
+            public I18nString nameOf(Node node) {
+                return node.name();
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+
+        tree.expand(remote);
+        frame();
+
+        assertEquals(new limn.accessibility.HierarchyFacet(1, 1, 2), node("remote").hierarchy(),
+                describe(tree()));
+        assertEquals(new limn.accessibility.HierarchyFacet(1, 2, 2), node("b").hierarchy(),
+                "the second row, not the third: " + describe(tree()));
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        frame();
+
+        assertEquals(new limn.accessibility.HierarchyFacet(2, 2, 4), node("one").hierarchy(),
+                describe(tree()));
+        assertEquals(new limn.accessibility.HierarchyFacet(2, 3, 4), node("two").hierarchy());
+        assertEquals(new limn.accessibility.HierarchyFacet(1, 4, 4), node("b").hierarchy());
+    }
+
     // ---------------------------------------------------------------------- what a quiet frame costs
 
     @Test

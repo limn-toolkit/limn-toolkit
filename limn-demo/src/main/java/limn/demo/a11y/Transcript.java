@@ -7,6 +7,7 @@ import limn.accessibility.AccessibleTree;
 import limn.accessibility.ActionFacet;
 import limn.accessibility.CellFacet;
 import limn.accessibility.ExpandFacet;
+import limn.accessibility.HierarchyFacet;
 import limn.accessibility.ScrollFacet;
 import limn.accessibility.SelectionFacet;
 import limn.accessibility.SelectionItemFacet;
@@ -215,6 +216,12 @@ public final class Transcript {
             out.append(" cell ").append(cell.row() == -1 ? "header"
                     : cell.row() == -2 ? "footer" : String.valueOf(cell.row()))
                     .append(',').append(cell.column());
+        }
+        HierarchyFacet hierarchy = node.hierarchy();
+        if (hierarchy != null) {
+            out.append(" level ").append(hierarchy.level())
+                    .append(" row ").append(hierarchy.row()).append(" of ")
+                    .append(hierarchy.rowCount());
         }
     }
 

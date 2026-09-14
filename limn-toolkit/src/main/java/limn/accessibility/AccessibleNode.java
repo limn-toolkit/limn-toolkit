@@ -50,6 +50,7 @@ public final class AccessibleNode {
     private final WindowFacet window;
     private final TableFacet table;
     private final CellFacet cell;
+    private final HierarchyFacet hierarchy;
     private final ActionFacet actions;
     private final int parent;
     private final int firstChild;
@@ -64,7 +65,7 @@ public final class AccessibleNode {
                    ToggleFacet toggle, ValueFacet value, SelectionFacet selection,
                    SelectionItemFacet selectionItem, ExpandFacet expand, TextFacet text,
                    ScrollFacet scroll, WindowFacet window, TableFacet table, CellFacet cell,
-                   ActionFacet actions,
+                   HierarchyFacet hierarchy, ActionFacet actions,
                    int parent, int firstChild, int lastChild,
                    int nextSibling, int previousSibling) {
         this.id = id;
@@ -89,6 +90,7 @@ public final class AccessibleNode {
         this.window = window;
         this.table = table;
         this.cell = cell;
+        this.hierarchy = hierarchy;
         this.actions = actions;
         this.parent = parent;
         this.firstChild = firstChild;
@@ -251,6 +253,11 @@ public final class AccessibleNode {
     /** @return where this node sits in a table, or {@code null} when it is not a cell */
     public CellFacet cell() {
         return cell;
+    }
+
+    /** @return where this node stands in an outline, or {@code null} when it is not a row of one */
+    public HierarchyFacet hierarchy() {
+        return hierarchy;
     }
 
     /** @return the verbs this node offers, or {@code null} when it offers none */
