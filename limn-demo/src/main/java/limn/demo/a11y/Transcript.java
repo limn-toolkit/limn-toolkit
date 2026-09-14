@@ -142,7 +142,7 @@ public final class Transcript {
         }
         ValueFacet value = node.value();
         if (value != null) {
-            out.append(" value=").append(number(value.value()))
+            out.append(" value=").append(value.empty() ? "empty" : number(value.value()))
                     .append(" [").append(number(value.min())).append("..")
                     .append(number(value.max()));
             if (value.step() != 0) {

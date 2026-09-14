@@ -670,6 +670,81 @@ class AccessibleModelTest {
         return ids;
     }
 
+    /**
+     * CRIT-4's first half: a value whose text moved while its number stood is a value change. An
+     * empty date segment publishes its minimum, so typing the minimum into it moved nothing a
+     * number-only comparison could see, and a reader heard nothing.
+     */
+    @Test
+    void aValueWhoseTextMovedWhileItsNumberStoodIsAValueChange() {
+        Accessibility a = new Accessibility();
+        long id = a.mint();
+        describeSpinner(a, id, 7, "7", false);
+        publish(a, target -> 0);
+        describeSpinner(a, id, 7, "07", false);
+        assertTrue(a.changed(), "the text moved");
+        publish(a, target -> 0);
+        List<AccessibleEvent> valueEvents = new ArrayList<>();
+        for (AccessibleEvent event : a.events()) {
+            if (event.type() == AccessibleEvent.Type.VALUE_CHANGED) {
+                valueEvents.add(event);
+            }
+        }
+        assertEquals(1, valueEvents.size(), "one value change, for the text: " + a.events());
+        assertEquals(id, valueEvents.get(0).nodeId());
+        assertEquals(7.0, valueEvents.get(0).newValue(), "the numbers ride along unchanged");
+    }
+
+    /**
+     * A value can say it holds no number (decision 16): the range and the text stand, the number
+     * published is the minimum for the platforms that must have one, and filling it in -- even
+     * with that same minimum -- is a value change.
+     */
+    @Test
+    void anEmptyValueKeepsItsRangeAndFillingItIsAValueChange() {
+        Accessibility a = new Accessibility();
+        long id = a.mint();
+        describeSpinner(a, id, 1, "empty", true);
+        AccessibleTree blank = publish(a, target -> 0);
+        ValueFacet facet = blank.root().value();
+        assertNotNull(facet);
+        assertTrue(facet.empty());
+        assertEquals(1.0, facet.value(), "the minimum, for a platform that must have a number");
+        assertEquals(1.0, facet.min());
+        assertEquals(31.0, facet.max());
+        assertEquals("empty", facet.text());
+        assertEquals(new ValueFacet(1, 1, 31, 1, "empty", false, true), facet);
+        assertFalse(new ValueFacet(1, 1, 31, 1, "empty", false).empty(),
+                "the six-argument shape is a value that has a number");
+
+        describeSpinner(a, id, 1, "1", false);
+        assertTrue(a.changed(), "the same number, but now there is one");
+        AccessibleTree filled = publish(a, target -> 0);
+        assertFalse(filled.root().value().empty());
+        int valueChanges = 0;
+        for (AccessibleEvent event : a.events()) {
+            if (event.type() == AccessibleEvent.Type.VALUE_CHANGED) {
+                valueChanges++;
+            }
+        }
+        assertEquals(1, valueChanges, a.events().toString());
+    }
+
+    /** One SPIN_BUTTON over 1..31 with a value, its text, and whether it is empty. */
+    private static void describeSpinner(Accessibility a, long id, double value, String text,
+                                        boolean empty) {
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        a.begin(id, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.SPIN_BUTTON);
+        if (empty) {
+            a.emptyValue(1, 31, 1, false);
+        } else {
+            a.value(value, 1, 31, 1);
+        }
+        a.valueText(text, text.hashCode());
+        a.end();
+    }
+
     @Test
     void aTextFacetCarriesItsCaretAffinityAndAnEmptyTreeCarriesNothing() {
         assertEquals(0, AccessibleTree.EMPTY.nodeCount());

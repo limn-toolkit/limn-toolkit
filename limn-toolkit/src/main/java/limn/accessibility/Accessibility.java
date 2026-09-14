@@ -135,6 +135,7 @@ public final class Accessibility {
         double valueStep;
         String valueText;
         boolean valueReadOnly;
+        boolean valueEmpty;
         long valueWitness;
         boolean hasSelection;
         boolean multiSelectable;
@@ -217,6 +218,7 @@ public final class Accessibility {
             toggle = -1;
             hasValue = false;
             valueReadOnly = false;
+            valueEmpty = false;
             value = 0;
             valueMin = 0;
             valueMax = 0;
@@ -642,6 +644,7 @@ public final class Accessibility {
     public void value(double value, double min, double max, double step, boolean readOnly) {
         Slot s = slot();
         s.hasValue = true;
+        s.valueEmpty = false;
         s.value = value;
         s.valueMin = min;
         s.valueMax = max;
@@ -650,6 +653,24 @@ public final class Accessibility {
         if (readOnly) {
             s.states |= 1L << Accessible.State.READ_ONLY.ordinal();
         }
+    }
+
+    /**
+     * Declares that this node's state is a number in a range and that it holds <b>no number
+     * right now</b>: a date segment nobody has typed into (decision 16). The range stands, the
+     * {@linkplain #valueText(String, long) text} may say what is shown, and the number published
+     * is the minimum, for the platforms that must have one; {@link ValueFacet#empty()} is what says
+     * empty. Filling the number later is a {@link AccessibleEvent.Type#VALUE_CHANGED}, even when
+     * the number filled in is the minimum.
+     *
+     * @param min      the smallest the node accepts
+     * @param max      the largest
+     * @param step     one increment, or {@code 0} for none
+     * @param readOnly whether the value may be read and not set
+     */
+    public void emptyValue(double min, double max, double step, boolean readOnly) {
+        value(min, min, max, step, readOnly);
+        slot().valueEmpty = true;
     }
 
     /**
@@ -1496,6 +1517,7 @@ public final class Accessibility {
                 || a.expand != b.expand
                 || a.hasValue != b.hasValue
                 || (a.hasValue && (a.value != b.value || a.valueReadOnly != b.valueReadOnly
+                        || a.valueEmpty != b.valueEmpty
                         || a.valueMin != b.valueMin
                         || a.valueMax != b.valueMax || a.valueStep != b.valueStep
                         || !Objects.equals(a.valueText, b.valueText)))
@@ -1681,7 +1703,7 @@ public final class Accessibility {
                 s.locale, s.states, s.x, s.y, s.width, s.height, relations,
                 s.toggle < 0 ? null : new ToggleFacet(ToggleFacet.State.values()[s.toggle]),
                 s.hasValue ? new ValueFacet(s.value, s.valueMin, s.valueMax, s.valueStep,
-                        s.valueText, s.valueReadOnly) : null,
+                        s.valueText, s.valueReadOnly, s.valueEmpty) : null,
                 selection,
                 s.hasSelectionItem ? new SelectionItemFacet(s.selected, s.positionInSet,
                         s.sizeOfSet) : null,
@@ -1757,7 +1779,13 @@ public final class Accessibility {
                     }
                 }
             }
-            if (now.hasValue && was.hasValue && now.value != was.value) {
+            if (now.hasValue && was.hasValue
+                    && (now.value != was.value || now.valueEmpty != was.valueEmpty
+                            || !Objects.equals(now.valueText, was.valueText))) {
+                // The number, the text or the emptiness: a segment filled with its minimum
+                // changes only the last two, and a reader has to hear it (CRIT-4). The event
+                // carries the numbers; a bridge that speaks the text reads it off the tree it is
+                // handed with the event, which is the tree the event came from.
                 add(AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, now.id,
                         was.value, now.value));
             }

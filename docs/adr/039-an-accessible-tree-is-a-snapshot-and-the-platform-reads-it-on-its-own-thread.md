@@ -646,6 +646,22 @@ ToggleFacet, ValueFacet, SelectionFacet, SelectionItemFacet, ExpandFacet, TextFa
 WindowFacet, TableFacet, CellFacet, HierarchyFacet, ActionFacet
 ```
 
+**Amendment, 2026-09-14: a `ValueFacet` can say it holds no number, and a value event is raised
+when the text moves.** A date segment nobody has typed into has a range, a displayed text and no
+number; the facet had no way to say so, so `DateField` published the minimum as if it were typed
+(DATES-NEW-8), and the differ compared numbers only, so a segment filled with a digit that happened
+to be its minimum — or a combo option renamed at the same index — raised nothing (CRIT-4).
+`ValueFacet` gains `empty` (decision 16): an empty value keeps `min`, `max`, `step` and `text`,
+carries the minimum as its number for the two platforms whose value interfaces have no "none" (UIA
+`RangeValue.Value`, AT-SPI `CurrentValue` — the bridge answers the minimum, which is now what the
+facet holds), and says empty through the flag, the text and the events. `Accessibility#emptyValue`
+declares it; `#value` declares a number. `VALUE_CHANGED` is raised when the number, the text or the
+emptiness moved; the event carries the two numbers and a bridge that speaks the text reads it off
+the tree it is handed with the event, which is the tree the event came from (§1.10). Windows raising
+the `Value` string property as well as `RangeValue` for a node that vends both is the Windows lane's
+(CRIT-4's second half); `DateField` publishing empty is the dates lane's, with the spoken word of
+decision 53.
+
 `ENABLED` and `READ_ONLY` are separate bits and are never conflated. Every platform separates them —
 UIA has `IsEnabled` against `ValuePattern.IsReadOnly`, AT-SPI2 has `SENSITIVE`/`ENABLED` against
 `READ_ONLY`/`EDITABLE`, AppKit has `accessibilityEnabled` against the text attributes — and merging
@@ -1275,7 +1291,9 @@ comparison of the two published strings, because `TextEditModel` carries no chan
 damage record (Finding 10). At 60 Hz that is one insert or one delete per keystroke, which is what a
 keystroke echo needs; two edits landing in one frame yield one contiguous replaced range covering
 both, which every platform can carry and none can distinguish from the truth. `BOUNDS_CHANGED`
-collapses to one window-level event past a threshold, which is what a scroll is.
+collapses to one window-level event past a threshold, which is what a scroll is. **Amended
+2026-09-14:** `VALUE_CHANGED` is raised when a value's number, its text or its emptiness moved, not
+only its number (§1.2's amendment of the same day; CRIT-4).
 
 Events are handed to the bridge on the UI thread immediately after the snapshot they refer to, so
 every event names a node the bridge can already resolve. **Handing over is not raising, on any of the

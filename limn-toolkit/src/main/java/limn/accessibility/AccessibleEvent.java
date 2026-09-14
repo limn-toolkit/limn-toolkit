@@ -33,7 +33,11 @@ public final class AccessibleEvent {
         DESCRIPTION_CHANGED,
         /** One of this node's states changed; {@link #state()} says which. */
         STATE_CHANGED,
-        /** This node's numeric value changed. */
+        /**
+         * This node's value changed: its number, its displayed text, or whether it holds a
+         * number at all ({@link ValueFacet#empty()}). The event carries the two numbers; the text
+         * is read off the tree the event was handed with.
+         */
         VALUE_CHANGED,
         /** What this node has selected changed. */
         SELECTION_CHANGED,
