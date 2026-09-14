@@ -223,6 +223,47 @@ class DatePickerTest extends ComponentTestBase {
         assertEquals(LocalDateTime.of(2026, 9, 9, 9, 6), picker.dateTime());
     }
 
+    /**
+     * The same cycle in the scene presentation, where the overlay holds the focus and hands
+     * every key to the picker first (ADR 042 §11's amendment says "in both presentations", and
+     * until 2026-09-14 only the windowless path pinned it): Tab reaches the row through the
+     * overlay, the digits go into the row, Shift+Tab climbs back to the header, Escape closes.
+     */
+    @Test
+    void theInSceneCalendarTabsThroughItsTimeRowTheSameWay() {
+        build(new DatePicker().setGranularity(DateField.Granularity.MINUTE));
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
+        picker.open();
+        assertFalse(picker.field().isFocused(), "the overlay took the focus");
+        for (int i = 0; i < 4; i++) {
+            key(Keys.TAB, 0);   // grid, previous, title, next, and on to the time row
+        }
+        assertTrue(picker.isOpen(), "the walk did not fall out of the popup");
+        type("0905");
+        assertEquals(LocalTime.of(9, 5), picker.time(), "the digits went into the time row");
+        assertEquals(ANCHOR, picker.date(), "and the date is untouched");
+
+        key(Keys.TAB, 0);       // round to the grid again
+        key(Keys.RIGHT, 0);
+        assertEquals(ANCHOR.plusDays(1), picker.calendar().focusedDate(),
+                "Tab off the row lands on the grid, whose arrows move the day");
+        type("15");
+        assertEquals(LocalDate.of(2026, 9, 15), picker.date(),
+                "and a digit typed there reaches the field again, not the row");
+        assertEquals(LocalTime.of(9, 5), picker.time());
+        key(Keys.TAB, Keys.MOD_SHIFT);   // back to the row
+        key(Keys.UP, 0);
+        assertEquals(LocalTime.of(9, 6), picker.time(), "Up in the row steps the segment its caret is in");
+        key(Keys.TAB, Keys.MOD_SHIFT);   // and back onto the header's last control
+        key(Keys.ENTER, 0);
+        assertEquals(LocalDate.of(2026, 10, 1), picker.calendar().visibleMonth(),
+                "Shift+Tab off the row lands on the arrow that pages on");
+        key(Keys.ESCAPE, 0);
+        assertFalse(picker.isOpen());
+        assertEquals(LocalDateTime.of(2026, 9, 15, 9, 6), picker.dateTime());
+    }
+
     @Test
     void aMonthRangePickerAnswersWholeMonthsAtBothEnds() {
         build(DatePicker.ofRange().setGranularity(DateField.Granularity.MONTH));
