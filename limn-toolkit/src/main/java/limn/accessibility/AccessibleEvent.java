@@ -27,7 +27,15 @@ public final class AccessibleEvent {
         FOCUS_CHANGED,
         /** The node a container's keyboard cursor is on changed. */
         ACTIVE_DESCENDANT_CHANGED,
-        /** This node's children changed: one appeared, one went away, or the shape moved. */
+        /**
+         * This node's children changed: one per surviving parent per publish, carrying the
+         * children that were {@linkplain #addedChildren() added} under it (new in the tree, or
+         * moved here from another parent), {@linkplain #removedChildren() removed} from it (gone
+         * from the tree, or moved to another parent) and {@linkplain #reorderedChildren()
+         * reordered} among their surviving siblings, each with its index. A subtree that
+         * appears under a parent that is itself new is reported once, as one added child on the
+         * nearest surviving ancestor, and never per node inside it.
+         */
         STRUCTURE_CHANGED,
         /** This node's name changed. */
         NAME_CHANGED,
@@ -85,6 +93,19 @@ public final class AccessibleEvent {
         INVALIDATED
     }
 
+    /**
+     * One child of a {@link Type#STRUCTURE_CHANGED}'s node, and what happened to it.
+     *
+     * @param id          the child's identifier
+     * @param index       where it stands among the parent's children, from zero: its index now
+     *                    for an added or reordered child, its former index for a removed one
+     * @param otherParent for a child that moved between parents, the identifier of the parent
+     *                    it came from (added) or went to (removed); {@code 0} for a child that
+     *                    is new in the tree, gone from it, or only reordered
+     */
+    public record Child(long id, int index, long otherParent) {
+    }
+
     private final Type type;
     private final long nodeId;
     private final Accessible.State state;
@@ -97,18 +118,23 @@ public final class AccessibleEvent {
     private final List<Long> addedMembers;
     private final List<Long> removedMembers;
     private final boolean multiSelectable;
+    private final List<Child> addedChildren;
+    private final List<Child> removedChildren;
+    private final List<Child> reorderedChildren;
 
     private AccessibleEvent(Type type, long nodeId, Accessible.State state,
                             Accessible.Politeness politeness, Object oldValue, Object newValue,
                             int offset, int removed, int inserted) {
         this(type, nodeId, state, politeness, oldValue, newValue, offset, removed, inserted,
-                List.of(), List.of(), false);
+                List.of(), List.of(), false, List.of(), List.of(), List.of());
     }
 
     private AccessibleEvent(Type type, long nodeId, Accessible.State state,
                             Accessible.Politeness politeness, Object oldValue, Object newValue,
                             int offset, int removed, int inserted, List<Long> addedMembers,
-                            List<Long> removedMembers, boolean multiSelectable) {
+                            List<Long> removedMembers, boolean multiSelectable,
+                            List<Child> addedChildren, List<Child> removedChildren,
+                            List<Child> reorderedChildren) {
         this.type = type;
         this.nodeId = nodeId;
         this.state = state;
@@ -121,6 +147,9 @@ public final class AccessibleEvent {
         this.addedMembers = addedMembers;
         this.removedMembers = removedMembers;
         this.multiSelectable = multiSelectable;
+        this.addedChildren = addedChildren;
+        this.removedChildren = removedChildren;
+        this.reorderedChildren = reorderedChildren;
     }
 
     /**
@@ -203,7 +232,26 @@ public final class AccessibleEvent {
     public static AccessibleEvent selection(long containerId, boolean multiSelectable,
                                             long[] added, long[] removed) {
         return new AccessibleEvent(Type.SELECTION_CHANGED, containerId, null, null, null, null,
-                0, 0, 0, boxed(added), boxed(removed), multiSelectable);
+                0, 0, 0, boxed(added), boxed(removed), multiSelectable, List.of(), List.of(),
+                List.of());
+    }
+
+    /**
+     * A parent's children moved (ADR 039 §1.10, amended 2026-09-14; MODEL-NEW-4, MODEL-NEW-8).
+     *
+     * @param parentId  the surviving parent whose children changed
+     * @param added     the children now under it that were not, in reading order
+     * @param removed   the children that were under it and are not, in their former order
+     * @param reordered the surviving children whose place among their surviving siblings
+     *                  moved, in reading order
+     * @return the event
+     * @throws NullPointerException if any list is {@code null}
+     */
+    public static AccessibleEvent structure(long parentId, List<Child> added, List<Child> removed,
+                                            List<Child> reordered) {
+        return new AccessibleEvent(Type.STRUCTURE_CHANGED, parentId, null, null, null, null,
+                0, 0, 0, List.of(), List.of(), false, List.copyOf(added), List.copyOf(removed),
+                List.copyOf(reordered));
     }
 
     private static List<Long> boxed(long[] ids) {
@@ -314,6 +362,34 @@ public final class AccessibleEvent {
         return multiSelectable;
     }
 
+    /**
+     * @return for a {@link Type#STRUCTURE_CHANGED}, the children now under the node that were
+     *         not under it in the previous publish — new in the tree, or moved here from the
+     *         parent each names — in reading order; empty for every other kind. Never modifiable.
+     */
+    public List<Child> addedChildren() {
+        return addedChildren;
+    }
+
+    /**
+     * @return for a {@link Type#STRUCTURE_CHANGED}, the children that were under the node in
+     *         the previous publish and are not now — gone from the tree, or moved to the parent
+     *         each names — in their former order; empty for every other kind. Never modifiable.
+     */
+    public List<Child> removedChildren() {
+        return removedChildren;
+    }
+
+    /**
+     * @return for a {@link Type#STRUCTURE_CHANGED}, the surviving children whose place among
+     *         their surviving siblings moved, in reading order, each with its index now; empty
+     *         for every other kind, and for a publish that only added or removed. Never
+     *         modifiable.
+     */
+    public List<Child> reorderedChildren() {
+        return reorderedChildren;
+    }
+
     @Override
     public String toString() {
         StringBuilder out = new StringBuilder("AccessibleEvent[").append(type);
@@ -330,6 +406,12 @@ public final class AccessibleEvent {
         if (type == Type.SELECTION_CHANGED) {
             out.append(multiSelectable ? " multi" : " single")
                     .append(" +").append(addedMembers).append(" -").append(removedMembers);
+        }
+        if (type == Type.STRUCTURE_CHANGED) {
+            out.append(" +").append(addedChildren).append(" -").append(removedChildren);
+            if (!reorderedChildren.isEmpty()) {
+                out.append(" ~").append(reorderedChildren);
+            }
         }
         if (oldValue != null || newValue != null) {
             out.append(' ').append(oldValue).append(" -> ").append(newValue);

@@ -178,6 +178,50 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(new CellFacet(2, 0), childrenOf(rowNodes().get(2)).get(0).cell());
     }
 
+    /**
+     * MODEL-NEW-4 (ADR 039 §1.10, amended 2026-09-14): a sort keeps every row's identifier and
+     * moves the rows, and a client holding the old order has to be told — one
+     * {@code STRUCTURE_CHANGED} on the table, naming the rows that stand at another rank than
+     * they did, with their index now; nothing added, nothing removed.
+     */
+    @Test
+    void sortingTheTableRaisesOneStructureChangeOnItNamingTheRowsThatMoved() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        table.setRows(List.of(new Person("Carol", 3), new Person("Alice", 1),
+                new Person("Bob", 2)));
+        bind(table);
+        long carol = rowNodes().get(0).id();
+        long alice = rowNodes().get(1).id();
+        long bob = rowNodes().get(2).id();
+        long tableId = tableNode().id();
+        bridge.events.clear();
+
+        table.setSort(table.columns().get(0), SortOrder.ASCENDING);
+        frame();
+
+        List<limn.accessibility.AccessibleEvent> moved =
+                bridge.eventsOf(limn.accessibility.AccessibleEvent.Type.STRUCTURE_CHANGED);
+        assertEquals(1, moved.size(), "one structure change, on the table: " + bridge.events);
+        assertEquals(tableId, moved.get(0).nodeId());
+        assertEquals(List.of(), moved.get(0).addedChildren(), "the same rows" + bridge.events);
+        assertEquals(List.of(), moved.get(0).removedChildren(), bridge.events.toString());
+        List<Long> reordered = moved.get(0).reorderedChildren().stream()
+                .map(limn.accessibility.AccessibleEvent.Child::id).toList();
+        assertEquals(List.of(alice, bob, carol), reordered,
+                "every row stands at another rank, in the order they stand now: " + bridge.events);
+        List<AccessibleNode> rows = rowNodes();
+        for (limn.accessibility.AccessibleEvent.Child child : moved.get(0).reorderedChildren()) {
+            AccessibleNode row = rows.stream().filter(r -> r.id() == child.id()).findFirst()
+                    .orElseThrow();
+            assertEquals(tree().indexInParent(row), child.index(),
+                    "the index carried is the row's place among the table's children now");
+        }
+        assertEquals(0, bridge.countOf(limn.accessibility.AccessibleEvent.Type.NODE_DESTROYED),
+                "no row was destroyed by a sort: " + bridge.events);
+    }
+
     @Test
     void aReaderCanSelectARowAndActivateTheTable() throws InterruptedException {
         Table<Person> table = bindTable(20);

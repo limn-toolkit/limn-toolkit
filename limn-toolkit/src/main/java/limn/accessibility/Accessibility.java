@@ -1688,18 +1688,58 @@ public final class Accessibility {
         events.clear();
         resolveSelectionContainers();
         long activeDescendant = resolveActiveDescendant();
+        // The links first, because the difference reads them: a child's index among its
+        // siblings, and the order the siblings stood in, are facts of the published tree and
+        // not of the walk -- a widget cell hung under a row takes its place by column, which is
+        // not its slot order.
+        linkSiblings();
         diff(activeDescendant);
         publishedActiveDescendant = activeDescendant;
         publishedForeignActiveDescendant = foreignActiveDescendant;
         AccessibleNode[] nodes = new AccessibleNode[count];
-        int[] firstChild = new int[count];
-        int[] lastChild = new int[count];
-        int[] nextSibling = new int[count];
-        int[] previousSibling = new int[count];
-        java.util.Arrays.fill(firstChild, AccessibleNode.NONE);
-        java.util.Arrays.fill(lastChild, AccessibleNode.NONE);
-        java.util.Arrays.fill(nextSibling, AccessibleNode.NONE);
-        java.util.Arrays.fill(previousSibling, AccessibleNode.NONE);
+        for (int i = 0; i < count; i++) {
+            nodes[i] = materialise(i, firstChild[i], lastChild[i],
+                    nextSibling[i], previousSibling[i]);
+        }
+        generation++;
+        AccessibleTree tree = new AccessibleTree(nodes, focusedId, activeDescendant, screenX,
+                screenY, factor, positioning, sceneWidth, sceneHeight, sceneLocale, generation,
+                sceneTag);
+        swap();
+        return tree;
+    }
+
+    // The sibling links of the walk being published and of the one published before it, kept
+    // beside the slots and swapped with them: the difference reads a child's index and the
+    // order its siblings stood in from both. Allocated on publishing frames only, and only when
+    // a walk outgrows them.
+    private int[] firstChild = new int[64];
+    private int[] lastChild = new int[64];
+    private int[] nextSibling = new int[64];
+    private int[] previousSibling = new int[64];
+    private int[] childIndex = new int[64];
+    private int[] previousFirstChild = new int[64];
+    private int[] previousNextSibling = new int[64];
+    private int[] previousChildIndex = new int[64];
+
+    /**
+     * Builds the sibling links of the walk being published, in slot order except for a widget
+     * hung under a synthetic row, which takes its place among the row's cells by column (ADR 039
+     * §1.3, amended 2026-09-14); and stamps every node with its index among its siblings.
+     */
+    private void linkSiblings() {
+        if (firstChild.length < count) {
+            int grown = Math.max(count, firstChild.length * 2);
+            firstChild = new int[grown];
+            lastChild = new int[grown];
+            nextSibling = new int[grown];
+            previousSibling = new int[grown];
+            childIndex = new int[grown];
+        }
+        java.util.Arrays.fill(firstChild, 0, count, AccessibleNode.NONE);
+        java.util.Arrays.fill(lastChild, 0, count, AccessibleNode.NONE);
+        java.util.Arrays.fill(nextSibling, 0, count, AccessibleNode.NONE);
+        java.util.Arrays.fill(previousSibling, 0, count, AccessibleNode.NONE);
         for (int i = 0; i < count; i++) {
             int parent = slots[i].parent;
             if (parent == AccessibleNode.NONE) {
@@ -1739,15 +1779,11 @@ public final class Accessibility {
             lastChild[parent] = i;
         }
         for (int i = 0; i < count; i++) {
-            nodes[i] = materialise(i, firstChild[i], lastChild[i],
-                    nextSibling[i], previousSibling[i]);
+            int at = 0;
+            for (int c = firstChild[i]; c != AccessibleNode.NONE; c = nextSibling[c]) {
+                childIndex[c] = at++;
+            }
         }
-        generation++;
-        AccessibleTree tree = new AccessibleTree(nodes, focusedId, activeDescendant, screenX,
-                screenY, factor, positioning, sceneWidth, sceneHeight, sceneLocale, generation,
-                sceneTag);
-        swap();
-        return tree;
     }
 
     private AccessibleNode materialise(int index, int firstChild, int lastChild,
@@ -1924,8 +1960,7 @@ public final class Accessibility {
             Slot now = slots[i];
             Slot was = previousOf(now.id, i);
             if (was == null) {
-                long parentId = now.parent == AccessibleNode.NONE ? 0 : slots[now.parent].id;
-                add(AccessibleEvent.of(AccessibleEvent.Type.STRUCTURE_CHANGED, parentId));
+                noteArrival(i);
                 if (now.hasSelectionItem && now.selectionContainer != AccessibleNode.NONE) {
                     // A member that arrived selected is a selection that moved onto it: End
                     // onto an unrealized row publishes a brand-new selected node, and the
@@ -1936,6 +1971,7 @@ public final class Accessibility {
                 }
                 continue;
             }
+            noteMove(i, was);
             if (!now.nameText.equals(was.nameText)) {
                 add(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, now.id,
                         was.nameText, now.nameText));
@@ -2001,6 +2037,7 @@ public final class Accessibility {
             Slot gone = previous[i];
             if (currentOf(gone.id, i) == null) {
                 add(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, gone.id));
+                noteDeparture(i);
                 if (gone.hasSelectionItem && gone.selected
                         && gone.selectionContainer != AccessibleNode.NONE) {
                     // A selected member that left the tree left its container's selection too,
@@ -2012,6 +2049,7 @@ public final class Accessibility {
                 }
             }
         }
+        addStructureChanges();
         addSelectionChanges();
         // Exactly one cursor event per publish, on the focused node, when the cursor it
         // resolves moved -- a newly focused node whose cursor differs from the last focused
@@ -2087,6 +2125,197 @@ public final class Accessibility {
         moveMembers[moveCount] = member;
         moveEntered[moveCount] = entered;
         moveCount++;
+    }
+
+    // The structure moves one publish found, before they are grouped per parent: the parent's
+    // index in this walk, the child's identifier, its index (now, or former for a removal), the
+    // other parent for a child that moved between two, and which of the three lists it goes in.
+    // Grown once, reused; a publish that moves no structure touches none of it.
+    private static final byte ADDED = 0;
+    private static final byte REMOVED = 1;
+    private static final byte REORDERED = 2;
+    private int[] structParents = new int[16];
+    private long[] structChildren = new long[16];
+    private int[] structIndices = new int[16];
+    private long[] structOthers = new long[16];
+    private byte[] structKinds = new byte[16];
+    private int structCount;
+
+    /**
+     * A node new in this publish is one child added under its parent -- when that parent
+     * survives. Under a parent that is itself new it is nothing of its own: the parent's
+     * arrival on the nearest surviving ancestor already says the whole subtree appeared, and
+     * one event per node inside a new subtree is what pushed a fifty-option popup into the
+     * budget collapse (MODEL-NEW-8).
+     */
+    private void noteArrival(int index) {
+        int parent = slots[index].parent;
+        if (parent == AccessibleNode.NONE || previousOf(slots[parent].id, parent) == null) {
+            return;
+        }
+        noteStructure(parent, slots[index].id, childIndex[index], 0, ADDED);
+    }
+
+    /**
+     * A surviving node whose parent is not the one it had is one child removed from the old
+     * parent and added under the new, on each of them that survives, each naming the other
+     * (MODEL-NEW-4). Its place among unchanged siblings is the reorder pass's.
+     */
+    private void noteMove(int index, Slot was) {
+        int parent = slots[index].parent;
+        long nowParent = parent == AccessibleNode.NONE ? 0 : slots[parent].id;
+        long wasParent = was.parent == AccessibleNode.NONE ? 0 : previous[was.parent].id;
+        if (nowParent == wasParent) {
+            return;
+        }
+        if (wasParent != 0) {
+            int former = slotIndexOf(slots, count, wasParent, was.parent);
+            if (former >= 0) {
+                noteStructure(former, slots[index].id,
+                        previousChildIndex[slotIndexOf(previous, previousCount, slots[index].id,
+                                index)], nowParent, REMOVED);
+            }
+        }
+        if (parent != AccessibleNode.NONE && previousOf(nowParent, parent) != null) {
+            noteStructure(parent, slots[index].id, childIndex[index], wasParent, ADDED);
+        }
+    }
+
+    /**
+     * A node gone from the tree is one child removed from its former parent -- when that
+     * parent survives; under a parent that is gone too it is nothing of its own, for
+     * {@link #noteArrival}'s reason in reverse. Its {@code NODE_DESTROYED} stands either way.
+     */
+    private void noteDeparture(int previousIndex) {
+        int parent = previous[previousIndex].parent;
+        if (parent == AccessibleNode.NONE) {
+            return;
+        }
+        int survivor = slotIndexOf(slots, count, previous[parent].id, parent);
+        if (survivor < 0) {
+            return;
+        }
+        noteStructure(survivor, previous[previousIndex].id, previousChildIndex[previousIndex],
+                0, REMOVED);
+    }
+
+    private void noteStructure(int parent, long child, int index, long other, byte kind) {
+        if (structCount == structParents.length) {
+            int grown = structCount * 2;
+            structParents = java.util.Arrays.copyOf(structParents, grown);
+            structChildren = java.util.Arrays.copyOf(structChildren, grown);
+            structIndices = java.util.Arrays.copyOf(structIndices, grown);
+            structOthers = java.util.Arrays.copyOf(structOthers, grown);
+            structKinds = java.util.Arrays.copyOf(structKinds, grown);
+        }
+        structParents[structCount] = parent;
+        structChildren[structCount] = child;
+        structIndices[structCount] = index;
+        structOthers[structCount] = other;
+        structKinds[structCount] = kind;
+        structCount++;
+    }
+
+    /**
+     * The surviving children of a surviving parent that stand in another order than they did:
+     * the sequence of children under it now that were under it before, against the sequence of
+     * children under it before that are under it now, both read off the published links. An
+     * insertion or a removal between them moves no rank and is not a reorder; a child whose
+     * rank in the two sequences differs is one (MODEL-NEW-4: a table sorted with its rows'
+     * identifiers kept raised nothing).
+     */
+    private void noteReorders() {
+        for (int p = 0; p < count; p++) {
+            if (firstChild[p] == AccessibleNode.NONE) {
+                continue;
+            }
+            Slot was = previousOf(slots[p].id, p);
+            if (was == null) {
+                continue;
+            }
+            int before = slotIndexOf(previous, previousCount, was.id, p);
+            // The children still under this parent, in their former order, into the scratch.
+            int kept = 0;
+            for (int c = previousFirstChild[before]; c != AccessibleNode.NONE;
+                    c = previousNextSibling[c]) {
+                Slot now = currentOf(previous[c].id, c);
+                if (now == null || now.parent != p) {
+                    continue;
+                }
+                if (kept == reorderScratch.length) {
+                    reorderScratch = java.util.Arrays.copyOf(reorderScratch, kept * 2);
+                }
+                reorderScratch[kept++] = previous[c].id;
+            }
+            // The same children in their order now: a child whose rank differs is a reorder.
+            int rank = 0;
+            boolean moved = false;
+            for (int c = firstChild[p]; c != AccessibleNode.NONE; c = nextSibling[c]) {
+                if (!stayedUnder(c, before)) {
+                    continue;
+                }
+                moved |= reorderScratch[rank++] != slots[c].id;
+            }
+            if (!moved) {
+                continue;
+            }
+            rank = 0;
+            for (int c = firstChild[p]; c != AccessibleNode.NONE; c = nextSibling[c]) {
+                if (!stayedUnder(c, before)) {
+                    continue;
+                }
+                if (reorderScratch[rank++] != slots[c].id) {
+                    noteStructure(p, slots[c].id, childIndex[c], 0, REORDERED);
+                }
+            }
+        }
+    }
+
+    /** Whether the node at {@code index} was published under the same parent last time. */
+    private boolean stayedUnder(int index, int previousParent) {
+        Slot was = previousOf(slots[index].id, index);
+        return was != null && was.parent == previousParent;
+    }
+
+    private long[] reorderScratch = new long[64];
+
+    /**
+     * One {@code STRUCTURE_CHANGED} per surviving parent whose children moved, in reading order
+     * of the parents, carrying the added, removed and reordered children (ADR 039 §1.10,
+     * amended 2026-09-14). The notes were taken in walk order, so each list comes out in
+     * reading order too.
+     */
+    private void addStructureChanges() {
+        noteReorders();
+        for (int p = 0; p < count && structCount > 0; p++) {
+            boolean any = false;
+            for (int n = 0; n < structCount; n++) {
+                if (structParents[n] == p) {
+                    any = true;
+                    break;
+                }
+            }
+            if (!any) {
+                continue;
+            }
+            List<AccessibleEvent.Child> added = new ArrayList<>();
+            List<AccessibleEvent.Child> removed = new ArrayList<>();
+            List<AccessibleEvent.Child> reordered = new ArrayList<>();
+            for (int n = 0; n < structCount; n++) {
+                if (structParents[n] != p) {
+                    continue;
+                }
+                AccessibleEvent.Child child = new AccessibleEvent.Child(structChildren[n],
+                        structIndices[n], structOthers[n]);
+                switch (structKinds[n]) {
+                    case ADDED -> added.add(child);
+                    case REMOVED -> removed.add(child);
+                    default -> reordered.add(child);
+                }
+            }
+            add(AccessibleEvent.structure(slots[p].id, added, removed, reordered));
+        }
+        structCount = 0;
     }
 
     /**
@@ -2191,11 +2420,16 @@ public final class Accessibility {
     }
 
     private static Slot slotOf(Slot[] pool, int size, long id, int hint) {
-        if (hint >= 0 && hint < size && pool[hint].id == id) {
-            return pool[hint];
-        }
-        int index = indexIn(pool, size, id);
+        int index = slotIndexOf(pool, size, id, hint);
         return index < 0 ? null : pool[index];
+    }
+
+    /** The index of an identifier's slot in a pool, found by index hint first; {@code -1} for none. */
+    private static int slotIndexOf(Slot[] pool, int size, long id, int hint) {
+        if (hint >= 0 && hint < size && pool[hint].id == id) {
+            return hint;
+        }
+        return indexIn(pool, size, id);
     }
 
     private void swap() {
@@ -2205,6 +2439,18 @@ public final class Accessibility {
         slots = held.length >= slots.length ? held : newSlots(slots.length);
         count = 0;
         current = AccessibleNode.NONE;
+        int[] heldFirst = previousFirstChild;
+        int[] heldNext = previousNextSibling;
+        int[] heldIndex = previousChildIndex;
+        previousFirstChild = firstChild;
+        previousNextSibling = nextSibling;
+        previousChildIndex = childIndex;
+        firstChild = heldFirst.length >= previousFirstChild.length
+                ? heldFirst : new int[previousFirstChild.length];
+        nextSibling = heldNext.length >= previousNextSibling.length
+                ? heldNext : new int[previousNextSibling.length];
+        childIndex = heldIndex.length >= previousChildIndex.length
+                ? heldIndex : new int[previousChildIndex.length];
     }
 
     /**

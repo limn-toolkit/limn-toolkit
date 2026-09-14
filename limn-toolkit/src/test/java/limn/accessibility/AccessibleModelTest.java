@@ -743,6 +743,135 @@ class AccessibleModelTest {
         return a.publish(0, 0, 0, 1, true);
     }
 
+    /**
+     * MODEL-NEW-8 (ADR 039 §1.10, amended 2026-09-14): a subtree that appears is one added
+     * child on its nearest surviving ancestor, never one event per node inside it; and the
+     * first publish, whose every node is new under a root nobody published before, raises no
+     * structure change at all — the window's opening is the bridge's own event.
+     */
+    @Test
+    void aContainerAppearingWithChildrenIsOneStructureChangeOnItsSurvivingParent() {
+        Accessibility a = new Accessibility();
+        long root = a.mint();
+        long box = a.mint();
+        describeShape(a, root, box, "");
+        assertEquals(0, countOf(a, AccessibleEvent.Type.STRUCTURE_CHANGED),
+                "the first publish has no surviving parent to report to: " + a.events());
+
+        AccessibleTree second = describeShape(a, root, box, "BCD");
+        List<AccessibleEvent> moved = eventsOf(a, AccessibleEvent.Type.STRUCTURE_CHANGED);
+        assertEquals(1, moved.size(),
+                "one event on the root, not four (the box and its three children): " + a.events());
+        assertEquals(root, moved.get(0).nodeId());
+        assertEquals(List.of(new AccessibleEvent.Child(box, 0, 0)), moved.get(0).addedChildren(),
+                "the box, at index zero, new in the tree: " + a.events());
+        assertEquals(List.of(), moved.get(0).removedChildren());
+        assertEquals(List.of(), moved.get(0).reorderedChildren());
+        assertEquals(5, second.nodeCount());
+    }
+
+    /**
+     * MODEL-NEW-4 (ADR 039 §1.10, amended 2026-09-14): a node that keeps its identifier and
+     * moves raises a structure change — reordered among its siblings, with its index now; or
+     * removed from one parent and added under another, each end naming the other — and a node
+     * that leaves is removed from its surviving former parent with its former index, beside
+     * its own {@code NODE_DESTROYED}.
+     */
+    @Test
+    void aChildThatKeepsItsIdentifierAndMovesIsAStructureChangeOnTheParentsItMovedBetween() {
+        Accessibility a = new Accessibility();
+        long root = a.mint();
+        long box = a.mint();
+        long other = a.mint();
+        AccessibleTree first = describeShape(a, root, box, "BCD", other, "");
+        long b = first.node(2).id();
+        long c = first.node(3).id();
+        long d = first.node(4).id();
+
+        // The same three children, C before B: two ranks moved, one stood.
+        describeShape(a, root, box, "CBD", other, "");
+        List<AccessibleEvent> moved = eventsOf(a, AccessibleEvent.Type.STRUCTURE_CHANGED);
+        assertEquals(1, moved.size(), a.events().toString());
+        assertEquals(box, moved.get(0).nodeId());
+        assertEquals(List.of(), moved.get(0).addedChildren());
+        assertEquals(List.of(), moved.get(0).removedChildren());
+        assertEquals(List.of(new AccessibleEvent.Child(c, 0, 0), new AccessibleEvent.Child(b, 1, 0)),
+                moved.get(0).reorderedChildren(), "C and B, at their indices now: " + a.events());
+
+        // D leaves the tree: removed from the box at its former index, and destroyed.
+        describeShape(a, root, box, "CB", other, "");
+        moved = eventsOf(a, AccessibleEvent.Type.STRUCTURE_CHANGED);
+        assertEquals(1, moved.size(), a.events().toString());
+        assertEquals(box, moved.get(0).nodeId());
+        assertEquals(List.of(new AccessibleEvent.Child(d, 2, 0)), moved.get(0).removedChildren());
+        assertEquals(List.of(), moved.get(0).reorderedChildren(),
+                "a removal moves no rank among the survivors: " + a.events());
+        assertEquals(1, countOf(a, AccessibleEvent.Type.NODE_DESTROYED));
+
+        // B moves from the box to the other container: the box lost it to the other, the other
+        // gained it from the box, and neither treats the move as an insertion elsewhere.
+        describeShape(a, root, box, "C", other, "B");
+        moved = eventsOf(a, AccessibleEvent.Type.STRUCTURE_CHANGED);
+        assertEquals(2, moved.size(), "one per parent: " + a.events());
+        assertEquals(box, moved.get(0).nodeId());
+        assertEquals(List.of(new AccessibleEvent.Child(b, 1, other)),
+                moved.get(0).removedChildren(), "B left the box for the other: " + a.events());
+        assertEquals(other, moved.get(1).nodeId());
+        assertEquals(List.of(new AccessibleEvent.Child(b, 0, box)),
+                moved.get(1).addedChildren(), "and arrived under the other from the box: " + a.events());
+        assertEquals(0, countOf(a, AccessibleEvent.Type.NODE_DESTROYED),
+                "a move destroys nothing: " + a.events());
+    }
+
+    private static AccessibleTree describeShape(Accessibility a, long root, long box,
+                                                String children) {
+        return describeShape(a, root, box, children, 0, "");
+    }
+
+    /**
+     * A root holding a box with the synthetic children named by the letters of {@code children}
+     * (keyed by letter, so a letter keeps its identifier across walks), and, when {@code other}
+     * is not zero, a second box holding the letters of {@code otherChildren}. An empty first
+     * string leaves the box out altogether.
+     */
+    private static AccessibleTree describeShape(Accessibility a, long root, long box,
+                                                String children, long other,
+                                                String otherChildren) {
+        a.beginWalk(200, 200, Locale.ENGLISH);
+        a.begin(root, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
+        a.role(Accessible.Role.WINDOW);
+        if (!children.isEmpty() || other != 0) {
+            int boxIndex = a.begin(box, 0, Locale.ENGLISH, 0, 0, 100, 100);
+            a.role(Accessible.Role.GROUP);
+            describeLetters(a, boxIndex, children);
+            a.end();
+        }
+        if (other != 0) {
+            int otherIndex = a.begin(other, 0, Locale.ENGLISH, 100, 0, 100, 100);
+            a.role(Accessible.Role.GROUP);
+            describeLetters(a, otherIndex, otherChildren);
+            a.end();
+        }
+        a.end();
+        a.resolveRelations(target -> 0);
+        return a.publish(0, 0, 0, 1, true);
+    }
+
+    /**
+     * One widget child per letter under {@code parent}, identified by the letter alone through
+     * the intern table's {@code (owner, key)} pair under a fixed owner, so a letter keeps its
+     * identifier across walks and across boxes: interned under its box it would be a new node
+     * under the other box, which is a different (and also correct) story from the move this
+     * fixture tells.
+     */
+    private static void describeLetters(Accessibility a, int parent, String letters) {
+        for (int i = 0; i < letters.length(); i++) {
+            a.begin(a.identify(1, letters.charAt(i)), parent, Locale.ENGLISH, i * 20, 0, 20, 20);
+            a.role(Accessible.Role.BUTTON);
+            a.end();
+        }
+    }
+
     private static long countOf(Accessibility a, AccessibleEvent.Type type) {
         return a.events().stream().filter(event -> event.type() == type).count();
     }

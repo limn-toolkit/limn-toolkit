@@ -1457,6 +1457,37 @@ container (§2.4's row is read accordingly; the bridge mappings are phase 3's). 
 is raised for a member new in the publish: a client reads a new node's states when it discovers
 it.
 
+#### Amendment 2026-09-14 — a structure change is per surviving parent, and says which children
+
+**What was wrong.** `STRUCTURE_CHANGED` was raised once per node absent from the previous walk, on
+that node's parent, carrying nothing — including when the parent was itself new, so an in-scene
+combo opening with fifty options raised fifty-two events (one on the window, one on the new layer,
+fifty on the new panel), which is what pushed a large popup toward the budget collapse
+(MODEL-NEW-8); and nothing at all was raised for a node that kept its identifier and moved — a
+table sorted with its rows' identifiers kept, a tree reordered by its model — nor on the parent a
+node was removed from (MODEL-NEW-4). §2.4 promised `ChildAdded`/`ChildRemoved` and
+`ChildrenChanged` with an index, and no bridge could build either from the event it got.
+
+**The rule (settled structure-event-shape; decision 28's first half).** `STRUCTURE_CHANGED` is
+**one event per surviving parent per publish**, addressed to the parent, carrying three lists of
+`(child id, index, other parent)`: `addedChildren()` — the children under it now that were not,
+each at its index among the parent's children now, naming the parent it came from when it moved
+rather than appeared; `removedChildren()` — the children under it before that are not now, each
+at its former index, naming the parent it went to when it moved rather than left the tree; and
+`reorderedChildren()` — the surviving children whose rank among their surviving siblings moved,
+each at its index now, so that an insertion or a removal between unchanged siblings is not a
+move. A subtree that appears under a parent that is itself new is one added child on the nearest
+surviving ancestor and nothing per node inside it; a subtree that leaves with its parent is one
+removed child on the nearest surviving ancestor, beside every node's own `NODE_DESTROYED`, which
+stands unchanged because two bridges release on it. The first publish of a scene, whose every
+node is new under a root nobody published before, raises no structure change: the window's
+opening is the bridge's own event (§1.10 above). Indices are the published tree's — a widget
+cell hung under a row counts at its place by column — which is why the publish step links the
+siblings before it takes the difference. The Linux `ChildrenChanged` add/remove with `detail1`
+= index and `Cache.Add/RemoveAccessible`, and the Windows `UiaRaiseStructureChangedEvent` with
+its change type, are what §2.4 now can be built from and are phase 3's; until then each bridge
+raises what it raised, once per parent instead of once per node.
+
 #### Amendment 2026-09-14 — what the amendment above changed in §7
 
 The `ListView`, `Table`, `Tree` and `SegmentedControl` rows of §7 say their cursor row or cell is
