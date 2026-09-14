@@ -357,10 +357,14 @@ public class RadioButton extends Widget {
      * <p>The selection facet reads the {@code selected} field and never the eased dot, and its two
      * numbers come from the group through readers that touch its list and allocate nothing; the
      * public {@link ButtonGroup#members()} is a copy per call and would cost one per damaged
-     * frame. A standalone radio has no set and says so with zeros. There is no group node for
-     * the numbers to hang under, because a {@link ButtonGroup} is not a widget and has no box, and
-     * there is no relation to it for the same reason: a relation's target has to be a published
-     * node. The radio is deliberately not marked {@link Accessible.State#ACTIVE}: the publish
+     * frame. A standalone radio has no set and says so with zeros, which a bridge publishes as
+     * nothing. There is no group node for the numbers to hang under, because a {@link ButtonGroup}
+     * is not a widget and has no box, and there is no relation to it for the same reason: a
+     * relation's target has to be a published node. So the facet says the member has <b>no
+     * container</b> (ADR 039 §1.2, amended 2026-09-14): a radio's selection change is its own
+     * selected-state event and is never laid on whatever layout node happens to be its published
+     * parent, and a bridge asked for its selection container answers none. The radio is
+     * deliberately not marked {@link Accessible.State#ACTIVE}: the publish
      * step takes the first active node in a container's subtree as that container's active
      * descendant, and a radio inside a list cell would hijack the list's.
      *
@@ -377,9 +381,9 @@ public class RadioButton extends Widget {
         a.role(Accessible.Role.RADIO_BUTTON);
         a.name(text, Accessible.NameFrom.CONTENT);
         if (group != null) {
-            a.selectionItem(selected, group.indexOf(this) + 1, group.size());
+            a.containerlessSelectionItem(selected, group.indexOf(this) + 1, group.size());
         } else {
-            a.selectionItem(selected, 0, 0);
+            a.containerlessSelectionItem(selected, 0, 0);
         }
         a.action(Accessible.Action.SELECT);
     }

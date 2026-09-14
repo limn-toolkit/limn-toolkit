@@ -310,16 +310,16 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
     void membersReportTheirPositionAndTheSetsSizeAndAStandaloneRadioHasNoSet() {
         bindGroup("Small", "Medium", "Large");
 
-        assertEquals(new SelectionItemFacet(false, 1, 3), node("Small").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 1, 3, true), node("Small").selectionItem(),
                 describe(tree()));
-        assertEquals(new SelectionItemFacet(false, 2, 3), node("Medium").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 2, 3, true), node("Medium").selectionItem(),
                 "one-based, in the order the members were added" + describe(tree()));
-        assertEquals(new SelectionItemFacet(false, 3, 3), node("Large").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 3, 3, true), node("Large").selectionItem(),
                 describe(tree()));
 
         bindStandalone(I18nString.literal("Other"));
 
-        assertEquals(new SelectionItemFacet(false, 0, 0), node("Other").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 0, 0, true), node("Other").selectionItem(),
                 "no group, no set: zero is the facet's own spelling of none" + describe(tree()));
     }
 
@@ -465,7 +465,7 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void addingAMemberIsNotSilent() {
         bindStandalone(I18nString.literal("Small"));
-        assertEquals(new SelectionItemFacet(false, 0, 0), node("Small").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 0, 0, true), node("Small").selectionItem(),
                 describe(tree()));
         int published = bridge.published.size();
 
@@ -475,7 +475,7 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
 
         assertEquals(published + 1, bridge.published.size(),
                 "membership changed and nothing painted, so the group had to buy the publish");
-        assertEquals(new SelectionItemFacet(false, 1, 1), node("Small").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 1, 1, true), node("Small").selectionItem(),
                 describe(tree()));
 
         for (String caption : List.of("Medium", "Large", "Huge")) {
@@ -485,9 +485,9 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
         }
         frame();
 
-        assertEquals(new SelectionItemFacet(false, 0, 0), node("Huge").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 0, 0, true), node("Huge").selectionItem(),
                 "in the column and not yet in the group: a standalone radio" + describe(tree()));
-        assertEquals(new SelectionItemFacet(false, 1, 1), node("Small").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 1, 1, true), node("Small").selectionItem(),
                 describe(tree()));
 
         for (int i = 1; i < radios.size(); i++) {
@@ -495,14 +495,14 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
         }
         frame();
 
-        assertEquals(new SelectionItemFacet(false, 1, 4), node("Small").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 1, 4, true), node("Small").selectionItem(),
                 "every member's set grew, the ones that were not touched included"
                         + describe(tree()));
-        assertEquals(new SelectionItemFacet(false, 2, 4), node("Medium").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 2, 4, true), node("Medium").selectionItem(),
                 describe(tree()));
-        assertEquals(new SelectionItemFacet(false, 3, 4), node("Large").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 3, 4, true), node("Large").selectionItem(),
                 describe(tree()));
-        assertEquals(new SelectionItemFacet(false, 4, 4), node("Huge").selectionItem(),
+        assertEquals(new SelectionItemFacet(false, 4, 4, true), node("Huge").selectionItem(),
                 describe(tree()));
         assertEquals(List.of("Small"), publishedFocusOrder(),
                 "the first member stayed the holder throughout" + describe(tree()));
@@ -565,7 +565,7 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(radios.get(0).isSelected());
         assertEquals(List.of("Other=true"), handled);
         assertTrue(node("Other").has(Accessible.State.SELECTED), describe(tree()));
-        assertEquals(new SelectionItemFacet(true, 0, 0), node("Other").selectionItem(),
+        assertEquals(new SelectionItemFacet(true, 0, 0, true), node("Other").selectionItem(),
                 describe(tree()));
         assertEquals(1, selectedEvents().size(), bridge.events.toString());
     }
@@ -640,6 +640,43 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED),
                 "a refused press is not acknowledged: " + bridge.events);
         assertEquals(List.of(), selectedEvents(), bridge.events.toString());
+    }
+
+    // ------------------------------------------------------------------------- no container
+
+    /**
+     * A radio's selection has no container node to be announced on (semantics 1; CRIT-6): a
+     * {@code ButtonGroup} is not a node, so the facet says the member is containerless and the
+     * differ raises no {@code SELECTION_CHANGED} on whatever layout node is the radio's published
+     * parent — a column here, a tab panel or the window elsewhere, on which Windows would have
+     * raised ElementSelected. The radio's own selected-state event is the whole of it, standalone
+     * and grouped alike.
+     */
+    @Test
+    void aRadiosSelectionChangeNamesNoLayoutNode() throws Exception {
+        bindStandalone(I18nString.literal("Other"));
+        assertTrue(node("Other").selectionItem().containerless(), describe(tree()));
+        bridge.events.clear();
+
+        assertTrue(perform(node("Other").id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
+        frame();
+
+        assertEquals(1, selectedEvents().size(), bridge.events.toString());
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.SELECTION_CHANGED),
+                "no container, so nothing to raise it on: " + bridge.events);
+
+        bindGroup("Small", "Medium", "Large");
+        assertTrue(node("Small").selectionItem().containerless(),
+                "a grouped radio counts its group and still has no container node"
+                        + describe(tree()));
+        bridge.events.clear();
+
+        group.setSelectedIndex(2);
+        frame();
+
+        assertEquals(1, selectedEvents().size(), bridge.events.toString());
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.SELECTION_CHANGED),
+                "the column the radios sit in holds no selection: " + bridge.events);
     }
 
     // ------------------------------------------------------------------------- what it costs

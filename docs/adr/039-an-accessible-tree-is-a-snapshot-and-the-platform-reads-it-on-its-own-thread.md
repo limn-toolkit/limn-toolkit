@@ -662,6 +662,23 @@ the `Value` string property as well as `RangeValue` for a node that vends both i
 (CRIT-4's second half); `DateField` publishing empty is the dates lane's, with the spoken word of
 decision 53.
 
+**Amendment, 2026-09-14: a selection member belongs to a container, or declares that it does not.**
+The container of a node carrying `SelectionItemFacet` is the nearest ancestor with a
+`SelectionFacet`, reached by climbing from its published parent only through synthetic ancestors
+that lack one (semantics 1 of the 2026-09-13 pass; resolved once at publish, read by the differ's
+`SELECTION_CHANGED` target, UIA `get_SelectionContainer` and `GetSelection`, AT-SPI `Selection`
+membership and macOS `AXSelectedChildren` — the bridge readings are phase 3's, the differ's target is
+M3's). A `RadioButton` has none: a `ButtonGroup` is not a node, and its published parent is whatever
+layout ancestor survived transparency — a column, a tab panel, the window — on which the differ laid
+its `SELECTION_CHANGED` and Windows raised `ElementSelected` (CRIT-6). So `SelectionItemFacet` gains
+`containerless`, `Accessibility#containerlessSelectionItem` declares it, `RadioButton` declares it
+grouped and standalone alike, and a containerless member raises no `SELECTION_CHANGED` anywhere: its
+own `STATE_CHANGED(SELECTED)` is the whole of the announcement. Its numbers are unchanged — position
+and size of the group, or `0`/`0` standalone — and **a position, size or level of zero publishes
+nothing on any platform** (semantics 6: UIA `VT_EMPTY`, no AT-SPI attribute, no AppKit override),
+which is the bridge lanes' to apply and this record's to state; the §7 `RadioButton` row is
+corrected accordingly.
+
 `ENABLED` and `READ_ONLY` are separate bits and are never conflated. Every platform separates them —
 UIA has `IsEnabled` against `ValuePattern.IsReadOnly`, AT-SPI2 has `SENSITIVE`/`ENABLED` against
 `READ_ONLY`/`EDITABLE`, AppKit has `accessibilityEnabled` against the text attributes — and merging
@@ -2698,7 +2715,7 @@ and mixing them up is how a design document becomes untrustworthy in both direct
 | `Label` | `LABEL`, or `HEADING` for the title typographic role | name from `textSource()`, `nameFrom=CONTENT` | — | gains `LABEL_FOR` when an application declares the relation |
 | `Button` | `BUTTON` | `ActionFacet{PRESS}`; `DEFAULT` when it is a dialog's default | — | name from `textSource()`, else the tooltip; the action reaches the private path through the widget's own hook |
 | `Checkbox` box / switch | `CHECK_BOX` / `SWITCH` | `ToggleFacet`, `ActionFacet{TOGGLE}` | — | name from its own label, `nameFrom=CONTENT` — the field is a private `I18nString` with no getter today and §8 adds the `text()`/`textSource()` pair, because a focusable node with no name fails `AccessibleGalleryTest`. `toggle()` has no enabled guard of its own — the guard is the scene's, which never delivers an event to a disabled widget — so the accessibility path re-checks `isEnabled()` (§1.9) and `toggle()` gains the same guard (§8) |
-| `RadioButton` | `RADIO_BUTTON` | `SelectionItemFacet`, `ActionFacet{SELECT}`, `MEMBER_OF` its group with position and size of set | — | name from its own label, `nameFrom=CONTENT`, through the same pair §8 adds. Roving focus means only the holder is `FOCUSABLE`, which is correct and is what the reader should hear |
+| `RadioButton` | `RADIO_BUTTON` | `SelectionItemFacet`, `ActionFacet{SELECT}`, `MEMBER_OF` its group with position and size of set | — | name from its own label, `nameFrom=CONTENT`, through the same pair §8 adds. Roving focus means only the holder is `FOCUSABLE`, which is correct and is what the reader should hear. **Amended 2026-09-14:** there is no `MEMBER_OF` and never was one published — a `ButtonGroup` is not a node and a relation's target must be one (`RadioButtonAccessibilityTest`); the facet is `containerless` (§1.2's amendment of the same day), so a selection change is the radio's own selected-state event and is laid on no layout node, and a standalone radio's `0`/`0` publishes no position anywhere |
 | `ButtonGroup` | no node | | | not a widget and has no bounds; it contributes position and size of set to its members |
 | `SegmentedControl` | `RADIO_GROUP` | `SelectionFacet`, `ScrollFacet` when it overflows | one `RADIO_BUTTON` per segment, keyed by index, named by its segment, **plus the two overflow chevrons** | **Corrected:** when the strip overflows it clips to a viewport with a chevron in each gutter, each of which scrolls by most of a viewport and is drawn disabled on the dead side. They are operable controls and may not be dropped (§1.6), and a segment scrolled outside the viewport is not `SHOWING`. Their keys, names and the dead-side disabled state are the pipeline step's. **Not `TAB_LIST`**: its own documentation says it owns no content — it takes labels and hands back an index — so there is no `TAB_PANEL` for a tab to select, and announcing "tab, 1 of 4" would offer page navigation that leads nowhere. Its segments are a `List<String>` and not `I18nString`s, so a segment name cannot follow the subtree locale as §1.7 requires of every other name; §8 gives it the `I18nString` list it should have had |
 | `Slider` | `SLIDER` | `ValueFacet{min,max,step}`, `ActionFacet{INCREMENT,DECREMENT}`, `HORIZONTAL` | — | the hook reaches the private from-user path **and then the commit**, so a set from an assistive technology notifies the application the way a key press does (§9, §7.2). The facet's step is the field, `0` when continuous; the two verbs move by the keyboard's nudge and never mirror |

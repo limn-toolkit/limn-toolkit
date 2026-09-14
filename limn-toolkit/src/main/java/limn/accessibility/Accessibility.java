@@ -145,6 +145,7 @@ public final class Accessibility {
         boolean selected;
         int positionInSet;
         int sizeOfSet;
+        boolean selectionContainerless;
         int expand;                     // -1 none, 0 collapsed, 1 expanded
         boolean hasText;
         String text;
@@ -234,6 +235,7 @@ public final class Accessibility {
             selected = false;
             positionInSet = 0;
             sizeOfSet = 0;
+            selectionContainerless = false;
             expand = -1;
             hasText = false;
             text = null;
@@ -722,12 +724,29 @@ public final class Accessibility {
         s.selected = selected;
         s.positionInSet = positionInSet;
         s.sizeOfSet = sizeOfSet;
+        s.selectionContainerless = false;
         long bit = 1L << Accessible.State.SELECTED.ordinal();
         if (selected) {
             s.states |= bit;
         } else {
             s.states &= ~bit;
         }
+    }
+
+    /**
+     * Declares that this node is one member of a selection that <b>no node holds</b>: a radio
+     * button, whose group is not a widget and has no box (semantics 1; ADR 039 §1.2, amended
+     * 2026-09-14). The numbers are as for {@link #selectionItem}; what differs is that no
+     * selection change is raised on the node's published parent, which would be whatever layout
+     * ancestor survived transparency, and a bridge asked for the member's container answers none.
+     *
+     * @param selected      whether this member is selected
+     * @param positionInSet its one-based position among the members it counts, or {@code 0}
+     * @param sizeOfSet     how many members there are, or {@code 0} when there is no set
+     */
+    public void containerlessSelectionItem(boolean selected, int positionInSet, int sizeOfSet) {
+        selectionItem(selected, positionInSet, sizeOfSet);
+        slot().selectionContainerless = true;
     }
 
     /**
@@ -1556,7 +1575,8 @@ public final class Accessibility {
                         || a.selectionRequired != b.selectionRequired))
                 || a.hasSelectionItem != b.hasSelectionItem
                 || (a.hasSelectionItem && (a.selected != b.selected
-                        || a.positionInSet != b.positionInSet || a.sizeOfSet != b.sizeOfSet))
+                        || a.positionInSet != b.positionInSet || a.sizeOfSet != b.sizeOfSet
+                        || a.selectionContainerless != b.selectionContainerless))
                 || a.hasText != b.hasText
                 || (a.hasText && (a.textWitness != b.textWitness
                         || a.caretOffset != b.caretOffset || a.caretAffinity != b.caretAffinity
@@ -1736,7 +1756,7 @@ public final class Accessibility {
                         s.valueText, s.valueReadOnly, s.valueEmpty) : null,
                 selection,
                 s.hasSelectionItem ? new SelectionItemFacet(s.selected, s.positionInSet,
-                        s.sizeOfSet) : null,
+                        s.sizeOfSet, s.selectionContainerless) : null,
                 s.expand < 0 ? null : new ExpandFacet(s.expand == 1),
                 s.hasText ? new TextFacet(s.text, s.caretOffset, s.caretAffinity,
                         s.selectionStart, s.selectionEnd, s.lineCount, s.caretRect) : null,
@@ -1819,8 +1839,11 @@ public final class Accessibility {
                 add(AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, now.id,
                         was.value, now.value));
             }
-            if (now.hasSelectionItem && was.hasSelectionItem
+            if (now.hasSelectionItem && was.hasSelectionItem && !now.selectionContainerless
                     && now.parent != AccessibleNode.NONE && now.selected != was.selected) {
+                // A member that declared it belongs to no container raises nothing here: its
+                // own STATE_CHANGED(SELECTED) above is the whole of it, and its published
+                // parent is a layout node that holds no selection (semantics 1).
                 add(AccessibleEvent.of(AccessibleEvent.Type.SELECTION_CHANGED,
                         slots[now.parent].id));
             }

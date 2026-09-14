@@ -17,9 +17,30 @@ package limn.accessibility;
  * <p>A zero says there is no number: a bridge publishes nothing for it on every platform rather
  * than "0 of 0" (semantics 6), which is what a radio outside any group carries.
  *
+ * <p><b>A member belongs to a container, or says it does not.</b> The container is the nearest
+ * ancestor with a {@link SelectionFacet}, climbing from the published parent only through synthetic
+ * ancestors that lack one (semantics 1); it is what a selection change is raised on and what a
+ * platform's "selection container" answers. A radio button has none — a {@code ButtonGroup} is not a
+ * node — and says so with {@link #containerless()}, so its selection change is never laid on
+ * whatever layout node happens to be its published parent, and a bridge asked for its container
+ * answers none rather than guessing.
+ *
  * @param selected      whether this member is selected
  * @param positionInSet this member's one-based position, or {@code 0} when it has none
  * @param sizeOfSet     how many members the set holds, or {@code 0} when that is unknown
+ * @param containerless whether this member belongs to no container node at all
  */
-public record SelectionItemFacet(boolean selected, int positionInSet, int sizeOfSet) {
+public record SelectionItemFacet(boolean selected, int positionInSet, int sizeOfSet,
+                                 boolean containerless) {
+
+    /**
+     * A member of a container: the shape every widget but a radio button publishes.
+     *
+     * @param selected      whether this member is selected
+     * @param positionInSet this member's one-based position, or {@code 0} when it has none
+     * @param sizeOfSet     how many members the set holds, or {@code 0} when that is unknown
+     */
+    public SelectionItemFacet(boolean selected, int positionInSet, int sizeOfSet) {
+        this(selected, positionInSet, sizeOfSet, false);
+    }
 }
