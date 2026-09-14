@@ -174,6 +174,39 @@ class AccessibleLiveMutationTest extends AccessibleTestBase {
         assertEquals(node("second").id(), tree().focused());
     }
 
+    /**
+     * WINDOWS-NEW-12 (ADR 039 §1.10, amended 2026-09-14): a node that arrives already holding
+     * the focus — a dialog's first field, a popup's list — is a focus change like any other,
+     * where the difference used to skip it with the rest of a new node's bits and NVDA was never
+     * told the focus went anywhere.
+     */
+    @Test
+    void aWidgetThatArrivesAlreadyFocusedRaisesAFocusEvent() {
+        Group root = new Group();
+        Probe first = new Probe(Accessible.Role.BUTTON, "first");
+        first.setFocusable(true);
+        root.add(first);
+        bind(root);
+        frame();
+        bridge.events.clear();
+
+        Probe second = new Probe(Accessible.Role.BUTTON, "second");
+        second.setFocusable(true);
+        root.add(second);
+        scene.requestFocus(second);
+        frame();
+
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.FOCUS_CHANGED),
+                "a node that arrived focused is a focus change: " + bridge.events);
+        assertEquals(node("second").id(),
+                bridge.first(AccessibleEvent.Type.FOCUS_CHANGED).nodeId());
+        assertEquals(node("second").id(), tree().focused());
+        assertEquals(0, bridge.events.stream().filter(event ->
+                        event.type() == AccessibleEvent.Type.STATE_CHANGED
+                                && event.nodeId() == node("second").id()).count(),
+                "and its states are read on discovery, as every new node's are: " + bridge.events);
+    }
+
     @Test
     void aWidgetLeavingTheTreeIsDestroyedAndOneArrivingIsAStructureChange() {
         Group root = new Group();

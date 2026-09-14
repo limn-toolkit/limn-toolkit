@@ -872,6 +872,92 @@ class AccessibleModelTest {
         }
     }
 
+    /**
+     * Semantics 7 (ADR 039 §1.10, amended 2026-09-14): past the budget the per-node events
+     * become one INVALIDATED, and the reserved tail follows it whole, in its order — the
+     * per-parent structure changes, the final focus change, the single cursor change, the
+     * per-container selection changes, the window's activation — because those are what a
+     * reader is directed by and a bridge that swept would otherwise be left standing nowhere.
+     */
+    @Test
+    void aPublishOverTheBudgetCollapsesToInvalidatedAndKeepsTheReservedTailInOrder() {
+        Accessibility a = new Accessibility();
+        long window = a.mint();
+        long list = a.mint();
+        long button = a.mint();
+        describeWideDifference(a, window, list, button, false, 0, 0);
+        assertEquals(0, countOf(a, AccessibleEvent.Type.INVALIDATED), a.events().toString());
+
+        AccessibleTree second = describeWideDifference(a, window, list, button, true, 1, button);
+        List<AccessibleEvent> events = a.events();
+        assertEquals(AccessibleEvent.Type.INVALIDATED, events.get(0).type(),
+                "the per-node events were past the budget: " + events.size());
+        assertEquals(0, countOf(a, AccessibleEvent.Type.STATE_CHANGED),
+                "and are gone with the collapse: " + events);
+        List<AccessibleEvent.Type> tail = events.subList(1, events.size()).stream()
+                .map(AccessibleEvent::type).toList();
+        assertEquals(List.of(AccessibleEvent.Type.STRUCTURE_CHANGED,
+                        AccessibleEvent.Type.FOCUS_CHANGED,
+                        AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+                        AccessibleEvent.Type.SELECTION_CHANGED,
+                        AccessibleEvent.Type.WINDOW_ACTIVATED), tail,
+                "the reserved tail, whole and in order: " + events);
+        assertEquals(window, events.get(1).nodeId(), "the structure change is the window's");
+        assertEquals(1, events.get(1).addedChildren().size(), "the button that arrived");
+        assertEquals(button, events.get(2).nodeId(), "the focus arrived on the new button");
+        assertEquals(button, events.get(3).nodeId(),
+                "the cursor event names the focused node, with no cursor below it: " + events);
+        assertEquals(0L, events.get(3).newValue());
+        assertEquals(list, events.get(4).nodeId());
+        assertEquals(window, events.get(5).nodeId(), "activation names the window node");
+        assertTrue(second.root().has(Accessible.State.ACTIVE));
+    }
+
+    /**
+     * A window over a list of three hundred rows, whose every row's HORIZONTAL bit is set or
+     * not (a state change per row), the list's cursor on {@code selectedRow} — the list is
+     * focused unless a {@code focused} button beside it arrives holding the focus — and the
+     * window active or not.
+     */
+    private static AccessibleTree describeWideDifference(Accessibility a, long window, long list,
+                                                         long button, boolean flipped,
+                                                         int selectedRow, long focused) {
+        a.beginWalk(400, 400, Locale.ENGLISH);
+        a.begin(window, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 400);
+        a.role(Accessible.Role.WINDOW);
+        if (flipped) {
+            a.state(Accessible.State.ACTIVE);
+        }
+        a.inherited(true, true, true, false, false);
+        a.begin(list, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.LIST);
+        a.selection(false, false);
+        a.inherited(true, true, true, true, focused == 0);
+        for (int i = 0; i < 300; i++) {
+            a.child(i);
+            a.role(Accessible.Role.LIST_ITEM);
+            a.bounds(0, i, 400, 1);
+            a.selectionItem(i == selectedRow, i + 1, 300);
+            if (i == selectedRow && focused == 0) {
+                a.state(Accessible.State.ACTIVE);
+            }
+            if (flipped) {
+                a.state(Accessible.State.HORIZONTAL);
+            }
+            a.endChild();
+        }
+        a.end();
+        if (focused == button) {
+            a.begin(button, 0, Locale.ENGLISH, 0, 300, 40, 20);
+            a.role(Accessible.Role.BUTTON);
+            a.inherited(true, true, true, true, true);
+            a.end();
+        }
+        a.end();
+        a.resolveRelations(target -> 0);
+        return a.publish(focused == 0 ? list : focused, 0, 0, 1, true);
+    }
+
     private static long countOf(Accessibility a, AccessibleEvent.Type type) {
         return a.events().stream().filter(event -> event.type() == type).count();
     }

@@ -7,6 +7,7 @@ import limn.accessibility.AccessibleRelation;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -198,20 +199,45 @@ class AccessibleRelationTest extends AccessibleTestBase {
                         + describe(tree()));
     }
 
+    /**
+     * The window's activation is the difference between two trees, like every other per-node
+     * event (ADR 039 §1.10, amended 2026-09-14; LINUX-NEW-15, LAB-NEW-2): the desktop's focus
+     * moves the window node's {@code ACTIVE} bit, the walk that buys publishes it, and the
+     * event names the window node and arrives with the tree that says so — never ahead of it,
+     * which is what left Orca reading a frame that "lacks active state" after being told it was
+     * activated. A window that publishes for the first time already active announces its
+     * activation too.
+     */
     @Test
-    void aWindowTakingAndLosingTheDesktopsFocusIsRaisedRatherThanDiffed() {
+    void aWindowTakingAndLosingTheDesktopsFocusIsDiffedOnItsNodeAndNeverRaisedAheadOfTheTree() {
         Group root = new Group();
         root.add(new Probe(Accessible.Role.BUTTON, "Save"));
         bind(root);
+        scene.windowFocusChanged(true);
+        scene.inputBatchEnded();
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.WINDOW_ACTIVATED),
+                "nothing is handed over before the walk that publishes the bit: " + bridge.events);
         frame();
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.WINDOW_ACTIVATED), bridge.events.toString());
+        assertEquals(tree().root().id(),
+                bridge.first(AccessibleEvent.Type.WINDOW_ACTIVATED).nodeId(),
+                "named on the window node, whose ACTIVE bit is the fact: " + bridge.events);
+        assertTrue(tree().root().has(Accessible.State.ACTIVE),
+                "and the tree handed with it already says so" + describe(tree()));
         bridge.events.clear();
 
         scene.windowFocusChanged(false);
         scene.inputBatchEnded();
-        assertEquals(1, bridge.countOf(AccessibleEvent.Type.WINDOW_DEACTIVATED));
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.WINDOW_DEACTIVATED), bridge.events.toString());
+        frame();
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.WINDOW_DEACTIVATED), bridge.events.toString());
+        assertEquals(tree().root().id(),
+                bridge.first(AccessibleEvent.Type.WINDOW_DEACTIVATED).nodeId());
+        assertFalse(tree().root().has(Accessible.State.ACTIVE), describe(tree()));
+        bridge.events.clear();
 
-        scene.windowFocusChanged(true);
-        scene.inputBatchEnded();
-        assertEquals(1, bridge.countOf(AccessibleEvent.Type.WINDOW_ACTIVATED));
+        frame();
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.WINDOW_DEACTIVATED),
+                "a frame that moved nothing raises nothing: " + bridge.events);
     }
 }

@@ -68,7 +68,11 @@ public final class Accessibility {
      * publish emits one {@link AccessibleEvent.Type#INVALIDATED}, which a bridge answers by
      * reconciling whatever it holds against the tree it was just handed — a full sweep, which is
      * stronger than replaying the events that were dropped and is the operation it needs on a
-     * rebind anyway.
+     * rebind anyway. <b>Outside the budget</b>, and handed over after the collapse as after any
+     * publish, is the reserved tail (ADR 039 §1.10, amended 2026-09-14; CRIT-3): the per-parent
+     * structure changes, the final focus change, the single cursor change, the per-container
+     * selection changes and the window activation events — the events a reader is directed by,
+     * which the kitchen dialog opening was three events short of losing.
      */
     public static final int EVENT_BUDGET = 256;
 
@@ -335,7 +339,27 @@ public final class Accessibility {
      */
     private long walkSerial;
 
+    /** What the last publish hands the bridge: the budgeted events, or their collapse, then the tail. */
     private final List<AccessibleEvent> events = new ArrayList<>();
+
+    /**
+     * The per-node events of the publish in progress, which are what the budget bounds; and
+     * the reserved tail, which is what a collapse keeps (semantics 7 of the 2026-09-13 pass;
+     * ADR 039 §1.10, amended 2026-09-14): the per-parent structure changes, the final focus
+     * change, the single cursor change, the per-container selection changes and the window
+     * activation events. A bridge that swept on INVALIDATED and heard nothing else would have
+     * lost the focus that moved in the same frame as three hundred labels, which is exactly the
+     * frame in which a reader needs to be told where the user is.
+     */
+    private final List<AccessibleEvent> budgeted = new ArrayList<>();
+    private final List<AccessibleEvent> tail = new ArrayList<>();
+
+    /**
+     * The node the focus arrived on in the publish in progress: a surviving node whose FOCUSED
+     * bit came on, or a node that arrived already focused (WINDOWS-NEW-12), which the old
+     * per-node loop skipped with the rest of a new node's bits. Zero when the focus stood.
+     */
+    private long focusArrived;
 
     // What a parent says about a child's identity before the child is begun (ADR 039 §1.3, rule
     // 1, amended 2026-09-14): held here between the identity hook and begin(), because there is
@@ -1961,6 +1985,13 @@ public final class Accessibility {
             Slot was = previousOf(now.id, i);
             if (was == null) {
                 noteArrival(i);
+                if ((now.states & (1L << Accessible.State.FOCUSED.ordinal())) != 0) {
+                    // A node that arrives holding the focus is a focus change like any other
+                    // (WINDOWS-NEW-12): a dialog's first field, a popup's list. Its states are
+                    // read on discovery, as every new node's are, but the focus is the one
+                    // thing a reader has to be told about rather than asked for.
+                    focusArrived = now.id;
+                }
                 if (now.hasSelectionItem && now.selectionContainer != AccessibleNode.NONE) {
                     // A member that arrived selected is a selection that moved onto it: End
                     // onto an unrealized row publishes a brand-new selected node, and the
@@ -1990,7 +2021,7 @@ public final class Accessibility {
                     boolean on = (now.states & bit) != 0;
                     add(AccessibleEvent.state(now.id, state, on));
                     if (state == Accessible.State.FOCUSED && on) {
-                        add(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, now.id));
+                        focusArrived = now.id;
                     }
                 }
             }
@@ -2030,7 +2061,7 @@ public final class Accessibility {
             }
         }
         if (boundsChanges > BOUNDS_BUDGET) {
-            events.removeIf(event -> event.type() == AccessibleEvent.Type.BOUNDS_CHANGED);
+            budgeted.removeIf(event -> event.type() == AccessibleEvent.Type.BOUNDS_CHANGED);
             add(AccessibleEvent.of(AccessibleEvent.Type.BOUNDS_CHANGED, 0));
         }
         for (int i = 0; i < previousCount; i++) {
@@ -2049,8 +2080,13 @@ public final class Accessibility {
                 }
             }
         }
+        // The reserved tail, in this order: what a reader is directed by, kept outside the
+        // budget so that a collapse never loses it (semantics 7).
         addStructureChanges();
-        addSelectionChanges();
+        if (focusArrived != 0) {
+            reserve(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, focusArrived));
+            focusArrived = 0;
+        }
         // Exactly one cursor event per publish, on the focused node, when the cursor it
         // resolves moved -- a newly focused node whose cursor differs from the last focused
         // node's included -- and none from an unfocused container or a scene with nothing
@@ -2058,18 +2094,58 @@ public final class Accessibility {
         // publish and now, so a bridge can address the node it is leaving as well.
         int focused = focusedIndex();
         if (focused >= 0 && activeDescendant != publishedActiveDescendant) {
-            add(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+            reserve(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
                     slots[focused].id, publishedActiveDescendant, activeDescendant));
         }
-        if (events.size() > EVENT_BUDGET) {
-            events.clear();
+        addSelectionChanges();
+        addWindowActivation();
+        // Past the budget the per-node events become one INVALIDATED, which a bridge answers by
+        // sweeping what it holds against the tree it was handed (§1.10); the tail follows
+        // either way, so a bridge that swept still hears where the user is.
+        if (budgeted.size() > EVENT_BUDGET) {
             events.add(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+        } else {
+            events.addAll(budgeted);
+        }
+        events.addAll(tail);
+        budgeted.clear();
+        tail.clear();
+    }
+
+    /** A per-node event, bounded by the budget: one past it is kept only to say it was passed. */
+    private void add(AccessibleEvent event) {
+        if (budgeted.size() <= EVENT_BUDGET) {
+            budgeted.add(event);
         }
     }
 
-    private void add(AccessibleEvent event) {
-        if (events.size() <= EVENT_BUDGET) {
-            events.add(event);
+    /** A tail event, outside the budget. */
+    private void reserve(AccessibleEvent event) {
+        tail.add(event);
+    }
+
+    /**
+     * The window's activation, derived by the difference from the window node's {@code ACTIVE}
+     * bit (settled window-activation-order; LINUX-NEW-15, LAB-NEW-2): a window node — the
+     * root, when it is a real window — whose bit came on, or that arrived with it on, is
+     * {@code WINDOW_ACTIVATED}; one whose bit went off is {@code WINDOW_DEACTIVATED}. Named on
+     * that node and emitted in the same publish as the tree that says so, never handed to a
+     * bridge ahead of it: Orca reads the frame's state when the event arrives, and an event
+     * before the tree found a frame that still said it was not active.
+     */
+    private void addWindowActivation() {
+        if (count == 0 || slots[0].role != Accessible.Role.WINDOW) {
+            return;
+        }
+        Slot now = slots[0];
+        Slot was = previousOf(now.id, 0);
+        long bit = 1L << Accessible.State.ACTIVE.ordinal();
+        boolean active = (now.states & bit) != 0;
+        boolean wasActive = was != null && (was.states & bit) != 0;
+        if (active && !wasActive) {
+            reserve(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_ACTIVATED, now.id));
+        } else if (!active && wasActive) {
+            reserve(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_DEACTIVATED, now.id));
         }
     }
 
@@ -2313,7 +2389,7 @@ public final class Accessibility {
                     default -> reordered.add(child);
                 }
             }
-            add(AccessibleEvent.structure(slots[p].id, added, removed, reordered));
+            reserve(AccessibleEvent.structure(slots[p].id, added, removed, reordered));
         }
         structCount = 0;
     }
@@ -2352,7 +2428,8 @@ public final class Accessibility {
                     }
                 }
             }
-            add(AccessibleEvent.selection(slots[c].id, slots[c].multiSelectable, added, removed));
+            reserve(AccessibleEvent.selection(slots[c].id, slots[c].multiSelectable, added,
+                    removed));
         }
         moveCount = 0;
     }

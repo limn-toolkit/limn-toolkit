@@ -1488,6 +1488,42 @@ siblings before it takes the difference. The Linux `ChildrenChanged` add/remove 
 its change type, are what §2.4 now can be built from and are phase 3's; until then each bridge
 raises what it raised, once per parent instead of once per node.
 
+#### Amendment 2026-09-14 — the collapse keeps a reserved tail, a node that arrives focused says so, and a window's activation is diffed
+
+**What was wrong.** Past `EVENT_BUDGET` the differ cleared every event and handed over one
+`INVALIDATED`, the focus and selection events of that publish with the rest; the text above calls
+`NODE_DESTROYED` the one event a bridge cannot afford to lose and says nothing of the focus
+(CRIT-3). Measured before the fix on `KitchenSinkScene` through the headless bridge: the host's
+publish when the kitchen dialog opens is 253 events (252 `STATE_CHANGED`, the modal block
+clearing `ENABLED` and `FOCUSABLE` on every node), three under the budget; a tab switch is 60
+to 101. Three more nodes in the kitchen sink and the dialog's `WINDOW_DEACTIVATED` would have
+gone with the collapse. A node that arrived already holding the focus — a dialog's first field —
+raised no `FOCUS_CHANGED` at all, because a new node's bits are not diffed (WINDOWS-NEW-12).
+And `WINDOW_ACTIVATED`/`WINDOW_DEACTIVATED` were emitted from the scene's window-focus funnel
+ahead of any walk, so Orca, reading the frame's state when the event arrived, found a frame
+that "lacks active state" and suppressed the application (LINUX-NEW-15, LAB-NEW-2; the L4
+baseline on Fedora heard exactly that).
+
+**The rule (semantics 7 of the 2026-09-13 pass; decision 28; settled window-activation-order).**
+A publish's events are two lists. The **budgeted** per-node events — names, descriptions, states,
+values, text, bounds, `NODE_DESTROYED` — are bounded by `EVENT_BUDGET` and collapse past it to
+one `INVALIDATED`, which a bridge answers by the sweep described above. The **reserved tail** is
+outside the budget and follows the budgeted events, or the collapse, in a fixed order: the
+per-parent `STRUCTURE_CHANGED` (the amendment above; decision 28's "structure survives the
+collapse"), the final `FOCUS_CHANGED`, the single `ACTIVE_DESCENDANT_CHANGED`, the per-container
+`SELECTION_CHANGED`, and the window activation events. A bridge that swept on `INVALIDATED`
+therefore still hears where the user is; each bridge re-announcing its effective focus after its
+own queue collapse stays its own obligation (§2.4's question). `FOCUS_CHANGED` is raised for the
+node whose `FOCUSED` bit came on **or that arrived with it on**; a new node's other bits are
+still read on discovery, not diffed. `WINDOW_ACTIVATED` and `WINDOW_DEACTIVATED` are derived by
+the differ from the window node's `ACTIVE` bit — on, or arriving on, against off — named on
+that node and handed over in the same publish as the tree that says so, never ahead of it; the
+list of four raised-not-diffed kinds above is therefore three (`WINDOW_OPENED`/`WINDOW_CLOSED`,
+`ANNOUNCEMENT`, `INVOKED`), and the scene's funnel now only buys the walk. The Linux bridge
+sending the activation from the frame's path rather than the application's, and re-announcing
+the focus after it, is phase 3's; with the event carrying the window node it already addresses
+that node's path.
+
 #### Amendment 2026-09-14 — what the amendment above changed in §7
 
 The `ListView`, `Table`, `Tree` and `SegmentedControl` rows of §7 say their cursor row or cell is

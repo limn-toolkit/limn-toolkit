@@ -2487,18 +2487,14 @@ public final class Scene implements WindowInput {
                     windowFocused = focus.focused;
                     // The window's own ACTIVE state moved, and nothing else on this path would
                     // say so: the branch below invalidates only when focus is LOST, for the
-                    // pointer and key state it has to cancel. Without this the state changes and
-                    // no walk runs, so a client is told the window became active by an event and
-                    // finds a tree that still says it is not -- and a screen reader believes the
-                    // tree.
+                    // pointer and key state it has to cancel. The walk this buys is what
+                    // publishes the bit, and the difference between that tree and the last one
+                    // is what raises WINDOW_ACTIVATED or WINDOW_DEACTIVATED, on the window
+                    // node, in the same publish (ADR 039 §1.10, amended 2026-09-14). Until then
+                    // the event was emitted from here, ahead of any walk, so a client told the
+                    // window became active found a tree that still said it was not -- and a
+                    // screen reader believes the tree (LINUX-NEW-15).
                     invalidateAccessible();
-                    if (accessibilityLive()) {
-                        // Raised rather than diffed: each window is its own scene with its own
-                        // tree, so no comparison within one window could ever produce it.
-                        bridge.emit(limn.accessibility.AccessibleEvent.of(focus.focused
-                                ? limn.accessibility.AccessibleEvent.Type.WINDOW_ACTIVATED
-                                : limn.accessibility.AccessibleEvent.Type.WINDOW_DEACTIVATED, 0));
-                    }
                     if (!focus.focused) {
                         // The RELEASE happens in another app and never reaches us:
                         // without this, the next MOVE would still be a DRAG (pointer), and every

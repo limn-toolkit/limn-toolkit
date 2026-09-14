@@ -217,7 +217,9 @@ class AccessibleLifecycleTest extends AccessibleTestBase {
      * A difference wider than the budget stops being a list of events and becomes "everything
      * changed", which a bridge answers by sweeping what it holds against the tree it was handed.
      * That is stronger than replaying what was dropped, and it is the operation a rebind needs
-     * anyway — which is why there is one of it per bridge and not three.
+     * anyway — which is why there is one of it per bridge and not three. What follows the
+     * collapse is the reserved tail (ADR 039 §1.10, amended 2026-09-14): here the one structure
+     * change on the window that names the four hundred rows that left it.
      */
     @Test
     void adifferenceWiderThanTheBudgetCollapsesAndTheBridgeCanStillReleaseWhatWentAway() {
@@ -235,9 +237,61 @@ class AccessibleLifecycleTest extends AccessibleTestBase {
         }
         frame();
 
-        assertEquals(1, bridge.events.size(), "one event, not four hundred: " + bridge.events);
-        assertEquals(AccessibleEvent.Type.INVALIDATED, bridge.events.get(0).type());
+        assertEquals(AccessibleEvent.Type.INVALIDATED, bridge.events.get(0).type(),
+                "the collapse comes first: " + bridge.events);
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.NODE_DESTROYED),
+                "four hundred destructions are what the collapse stands for: " + bridge.events);
+        assertEquals(2, bridge.events.size(),
+                "the collapse and the tail, not four hundred: " + bridge.events);
+        AccessibleEvent structure = bridge.events.get(1);
+        assertEquals(AccessibleEvent.Type.STRUCTURE_CHANGED, structure.type());
+        assertEquals(tree().root().id(), structure.nodeId(), "on the window, which survived");
+        assertEquals(400, structure.removedChildren().size(),
+                "naming every child that left it: " + structure);
         assertEquals(1, bridge.elements.size(),
                 "and the sweep released every element that went away");
+    }
+
+    /**
+     * CRIT-3: the collapse used to take the focus with it. Three hundred labels becoming
+     * visible is six hundred state changes, well past the budget, and a button taking the
+     * focus in the same frame — a dialog opening, a tab switching — was one of the events
+     * thrown away with them, so the bridge swept and never learned where the user was. The
+     * final focus change is in the reserved tail, outside the budget, and arrives after the
+     * collapse.
+     */
+    @Test
+    void aFocusMoveInTheSameFrameAsACollapseIsStillAnnounced() {
+        Group root = new Group();
+        Probe button = new Probe(Accessible.Role.BUTTON, "OK");
+        button.setFocusable(true);
+        root.add(button);
+        List<Probe> labels = new java.util.ArrayList<>();
+        for (int i = 0; i < 300; i++) {
+            Probe label = new Probe(Accessible.Role.LABEL, "label " + i);
+            label.setVisible(false);
+            labels.add(label);
+            root.add(label);
+        }
+        bind(root);
+        frame();
+        assertEquals(302, tree().nodeCount(), "the hidden labels are published, hidden");
+        bridge.events.clear();
+
+        for (Probe label : labels) {
+            label.setVisible(true);
+        }
+        scene.requestFocus(button);
+        frame();
+
+        assertEquals(AccessibleEvent.Type.INVALIDATED, bridge.events.get(0).type(),
+                "six hundred state changes collapse: " + bridge.events.size() + " events");
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.FOCUS_CHANGED),
+                "and the focus that moved in the same frame survives the collapse: "
+                        + bridge.events);
+        assertEquals(node("OK").id(), bridge.first(AccessibleEvent.Type.FOCUS_CHANGED).nodeId());
+        assertTrue(bridge.events.indexOf(bridge.first(AccessibleEvent.Type.FOCUS_CHANGED)) > 0,
+                "after the collapse, so a bridge that swept on it still hears the focus");
+        assertEquals(node("OK").id(), tree().focused());
     }
 }
