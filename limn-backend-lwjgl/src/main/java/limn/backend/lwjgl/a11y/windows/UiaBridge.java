@@ -391,11 +391,29 @@ public final class UiaBridge extends PlatformBridge {
             // about. It will read whatever is current the first time it does ask.
             return;
         }
+        int propertyId = 0;
+        AccessibleNode node = null;
+        if (eventId == 0) {
+            AccessibleTree tree = tree();
+            int index = tree.indexOf(event.nodeId());
+            node = index < 0 ? null : tree.node(index);
+            propertyId = changedProperty(event, node);
+            if (propertyId == 0) {
+                // Mapped to nothing on this platform: WINDOW_ACTIVATED and WINDOW_DEACTIVATED,
+                // which since ADR 039 §1.10's amendment of 2026-09-14 name the window node every
+                // client that asked holds, BOUNDS_CHANGED, a state with no property of its own.
+                // Nothing is raised, so nothing pays the change a client that asked is owed:
+                // only a raise that reached the client may clear the flag (WINDOWS-NEW-6; the
+                // mappings themselves are phase 3's).
+                UiaWindow.say("unmapped " + event.type() + " for node " + event.nodeId());
+                return;
+            }
+        }
         long started = System.nanoTime();
         if (eventId != 0) {
             Uia.raiseAutomationEvent(element.pointer(), eventId);
         } else {
-            raisePropertyChange(element, event);
+            raisePropertyChange(element, propertyId, event, node);
         }
         // The one change a client that asked was owed. From here it is its subscription, or a
         // fresh ask, that keeps this window read.
@@ -417,15 +435,14 @@ public final class UiaBridge extends PlatformBridge {
      * <p>Both values are written into {@code VARIANT}s allocated for the call and freed after it.
      * A string among them is a {@code BSTR} the callee reads and does not keep, which is the one
      * case where this bridge frees a string it allocated.
+     *
+     * @param element    the element a client holds for the node
+     * @param propertyId the property {@link #changedProperty} chose; never {@code 0} here
+     * @param event      what moved
+     * @param node       the node it moved on, or {@code null} when it has left the tree
      */
-    private void raisePropertyChange(UiaElement element, AccessibleEvent event) {
-        AccessibleTree tree = tree();
-        int index = tree.indexOf(event.nodeId());
-        AccessibleNode node = index < 0 ? null : tree.node(index);
-        int propertyId = changedProperty(event, node);
-        if (propertyId == 0) {
-            return;
-        }
+    private void raisePropertyChange(UiaElement element, int propertyId, AccessibleEvent event,
+                                     AccessibleNode node) {
         long before = MemoryUtil.nmemCallocChecked(1, UiaVariant.SIZE);
         long after = MemoryUtil.nmemCallocChecked(1, UiaVariant.SIZE);
         try {

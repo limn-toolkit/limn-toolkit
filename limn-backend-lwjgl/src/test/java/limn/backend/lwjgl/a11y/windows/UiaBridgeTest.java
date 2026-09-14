@@ -591,6 +591,38 @@ class UiaBridgeTest {
     }
 
     /**
+     * Since ADR 039 §1.10's amendment of 2026-09-14 a window's activation names the window node,
+     * which every client that asked holds, and this platform maps the pair to nothing. Nothing
+     * raised is nothing paid: the event an ask is owed is cleared by a raise that reached the
+     * client, never by one that fell through to silence (WINDOWS-NEW-6; the mapping is phase
+     * 3's). Before the guard this cleared the flag and traced "raised WINDOW_ACTIVATED".
+     */
+    @Test
+    void aWindowActivationOnTheHeldRootRaisesNothingAndPaysNothing() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.noteAsked();
+            bridge.objectFor(1000);
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_ACTIVATED, 1000));
+            assertNotNull(awaitTrace(trace, l -> l.equals("unmapped WINDOW_ACTIVATED for node 1000")),
+                    "the event reached the drain and was found unmapped: " + trace);
+            assertTrue(bridge.owesAnEvent(),
+                    "an event this platform maps to nothing is not the one owed");
+            synchronized (trace) {
+                assertTrue(trace.stream().noneMatch(l -> l.startsWith("raised ")),
+                        "nothing was raised, so nothing says it was: " + trace);
+            }
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
      * A client's ask hands over the tree the bridge has and publishes nothing, requests nothing.
      * Measured with NVDA: a publish inside the ask, and even one requested for the next frame,
      * left it announcing the window and never anything in it; the tree it already had, plus the
