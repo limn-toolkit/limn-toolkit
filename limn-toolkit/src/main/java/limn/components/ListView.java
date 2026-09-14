@@ -1167,7 +1167,13 @@ public class ListView extends Widget implements Scrollable {
      * cell would have handed the outer list its selected row as the outer list's own cursor,
      * which is the cost the earlier text of this paragraph accepted and this gate removes.
      *
-     * <p>No verb, which is where the record's own survey was wrong — see {@link #onAccessibility}.
+     * <p>One verb, {@code SELECT}, and it is <em>delegated</em> rather than written: a verb
+     * written onto a row would be dispatched to the application's own cell widget, whose hook
+     * answers false, which is why the record's survey was wrong to ask for a row verb and why
+     * §11 recorded per-row actuation as absent. A delegated verb is published on the row and
+     * routed to {@link #onAccessibilityChildAction} (ADR 039 §1.5, amended 2026-09-14), so a
+     * reader's "select this row" lands on the row it addressed and the list performs it.
+     * {@code PRESS} stays on the list — see {@link #onAccessibility}.
      *
      * @param child the child being described, which is the bar or one mounted cell
      * @param a     the child's node
@@ -1194,6 +1200,27 @@ public class ListView extends Widget implements Scrollable {
         if (index == selectedIndex && isFocused()) {
             a.state(Accessible.State.ACTIVE);
         }
+        // The row's own SELECT, published on the cell a reader addresses and performed by the
+        // list (ADR 039 §1.5, amended 2026-09-14; decision 7): what §11's "not per-row
+        // actuation" said could not be delivered, delivered. The rest of the row verb set
+        // (decision 20: ADD_TO_SELECTION and DESELECT in a multi-select list) is the widget
+        // lane's; FOCUS stays refused on a row here, where the cursor is the selection.
+        a.delegate(Accessible.Action.SELECT);
+    }
+
+    /**
+     * A verb the list claimed on a row's cell: {@code SELECT} makes that row the selection, as a
+     * click on it does, through the same {@code USER} seam and with the same reveal.
+     */
+    @Override
+    protected boolean onAccessibilityChildAction(Widget child, long key, Accessible.Action action,
+                                                 Accessible.Argument arg) {
+        int index = indexOfCell(child);
+        if (index < 0 || action != Accessible.Action.SELECT) {
+            return false;
+        }
+        select(index, true, Change.Origin.USER);
+        return true;
     }
 
     /**

@@ -949,7 +949,17 @@ public final class Scene implements WindowInput {
             return;
         }
         boolean synthetic = accessibleWalk.isSynthetic(nodeId);
-        boolean free = !synthetic && owner.isFocusable() && isFreeVerb(action);
+        // A verb the owner's container claimed on it (ADR 039 §1.5, amended 2026-09-14): still
+        // gated on the owner below, because the node the reader addressed is the child's, and
+        // routed to the container, which is the only thing that can perform it. The container
+        // is re-checked as the child's parent: a cell re-mounted elsewhere since the walk would
+        // hand the container a child it no longer holds.
+        boolean delegated = !synthetic && accessibleWalk.isDelegated(nodeId, action);
+        Widget container = delegated ? accessibleWalk.delegateOf(nodeId) : null;
+        if (delegated && owner.parent() != container) {
+            return;
+        }
+        boolean free = !synthetic && !delegated && owner.isFocusable() && isFreeVerb(action);
         // The showing test is what stops a platform invoking a control that is not on the glass.
         // The two free verbs are the exception, and have to be: a reader asks for SCROLL_INTO_VIEW
         // precisely because the node is scrolled out of view, and Tab already reaches a widget
@@ -978,6 +988,8 @@ public final class Scene implements WindowInput {
             done = performFreeVerb(owner, action);
         } else if (synthetic) {
             done = owner.performSyntheticAction(accessibleWalk.keyOf(nodeId), action, arg);
+        } else if (delegated) {
+            done = container.performChildAction(owner, accessibleWalk.keyOf(nodeId), action, arg);
         } else {
             done = owner.performAccessibleAction(action, arg);
         }

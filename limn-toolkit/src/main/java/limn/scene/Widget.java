@@ -2021,6 +2021,33 @@ public abstract class Widget {
     }
 
     /**
+     * Performs a verb this widget {@linkplain limn.accessibility.Accessibility#delegate claimed}
+     * on one of its widget children: a list's {@code SELECT} on a row that is the application's
+     * own cell, published on the row where a reader addresses it and performed by the list,
+     * which is the only thing that knows what selecting that row means (ADR 039 §1.5, amended
+     * 2026-09-14).
+     *
+     * <p>Called on the UI thread from a posted task, after the scene re-checked the child the
+     * way it re-checks any node an action lands on, and that this widget is still its parent.
+     * The child is named twice on purpose: by the key this widget gave it in
+     * {@link #onAccessibilityChildIdentity}, which is how a pooling container thinks of a row,
+     * and by the widget itself, for a container that keys nothing. Every verb the child
+     * declared for itself still reaches the child's own {@link #onAccessibilityAction}; only the
+     * verbs this widget delegated arrive here.
+     *
+     * @param child  the child the verb was addressed to
+     * @param key    the identity key this widget gave that child, or {@code 0} when it gave none
+     * @param action what was asked
+     * @param arg    the argument, or {@link limn.accessibility.Accessible.Argument#NONE}
+     * @return whether this widget did it
+     */
+    protected boolean onAccessibilityChildAction(Widget child, long key,
+                                                 limn.accessibility.Accessible.Action action,
+                                                 limn.accessibility.Accessible.Argument arg) {
+        return false;
+    }
+
+    /**
      * Performs an action addressed to one of this widget's synthetic children: a menu row, a combo
      * option, a chart series — something this widget draws and never instantiated as a widget.
      *
@@ -2443,6 +2470,17 @@ public abstract class Widget {
         Locale enclosing = I18n.pushScope(locale());
         try {
             return onSyntheticAction(key, action, arg);
+        } finally {
+            I18n.popScope(enclosing);
+        }
+    }
+
+    final boolean performChildAction(Widget child, long key,
+                                     limn.accessibility.Accessible.Action action,
+                                     limn.accessibility.Accessible.Argument arg) {
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            return onAccessibilityChildAction(child, key, action, arg);
         } finally {
             I18n.popScope(enclosing);
         }

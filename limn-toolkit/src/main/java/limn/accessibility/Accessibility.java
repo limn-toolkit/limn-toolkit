@@ -187,6 +187,11 @@ public final class Accessibility {
         int hierarchyRow;
         int hierarchyRowCount;
         int verbs;                      // bit per Accessible.Action ordinal
+        // The subset of verbs a container claimed on this widget child (ADR 039 §1.5, amended
+        // 2026-09-14): published on the child like the rest, performed by the container. Not
+        // compared by differs(): who performs a verb is the walk's routing table, not a fact a
+        // reader can see, and the walk records it on every walk whether or not the tree moved.
+        int delegated;
         String keyBinding;
         int relationCount;
         Accessible.Relation[] relationKinds = new Accessible.Relation[0];
@@ -278,6 +283,7 @@ public final class Accessibility {
             hierarchyRow = 0;
             hierarchyRowCount = 0;
             verbs = 0;
+            delegated = 0;
             keyBinding = null;
             relationCount = 0;
         }
@@ -369,6 +375,13 @@ public final class Accessibility {
     private long pendingKey;
     private boolean hasPendingHost;
     private long pendingHostKey;
+
+    /**
+     * Whether a parent's describe-a-child hook is running, with the child's node open: the only
+     * window in which {@link #delegate} may be called, because a delegated verb is a container's
+     * claim on a child and the claim has to be made where the container speaks about the child.
+     */
+    private boolean describingChild;
 
     /** How many names and descriptions were carried over from the last walk unresolved. */
     private long carriedOver;
@@ -1037,6 +1050,74 @@ public final class Accessibility {
     }
 
     /**
+     * Offers a verb on this widget child that <b>this widget's parent</b> performs: a row's
+     * {@code SELECT}, published on the row's cell where the platform addresses it and routed by
+     * the scene to the container's {@code onAccessibilityChildAction} hook with the child's key
+     * (ADR 039 §1.5, amended 2026-09-14; decision 7 of the 2026-09-13 pass).
+     *
+     * <p>From {@code onAccessibilityChild} only, because that is where a container speaks about
+     * a child with the child's node open; and never for a verb the child already claimed in its
+     * own hook &mdash; a cell that is a {@code Button} keeps its {@code PRESS}, and a container
+     * that claimed the same verb would have stolen it in silence, so the walk is refused rather
+     * than publish one verb with two performers. The child keeps every other verb it
+     * declared, and its identity is untouched: the node is still the child's, owned by the
+     * child for every verb but the delegated ones.
+     *
+     * @param action the verb the parent claims
+     * @throws NullPointerException     if {@code action} is {@code null}
+     * @throws IllegalArgumentException if it takes an argument
+     * @throws IllegalStateException    if called outside {@code onAccessibilityChild}, or if the
+     *                                  child already offers the verb itself
+     */
+    public void delegate(Accessible.Action action) {
+        Objects.requireNonNull(action, "action");
+        if (!action.isParameterless()) {
+            throw new IllegalArgumentException(
+                    action + " takes an argument and is never published in an action list");
+        }
+        if (!describingChild) {
+            throw new IllegalStateException(
+                    "a verb is delegated from onAccessibilityChild, where the container speaks "
+                            + "about the child whose verb it claims; " + action + " was delegated "
+                            + "from elsewhere");
+        }
+        Slot s = slot();
+        int bit = 1 << action.ordinal();
+        if ((s.verbs & bit) != 0) {
+            throw new IllegalStateException(
+                    action + " is claimed by both the child and its container: the child offered "
+                            + "it in its own hook and the container delegated it, and a verb with "
+                            + "two performers is refused rather than routed to one of them");
+        }
+        s.verbs |= bit;
+        s.delegated |= bit;
+    }
+
+    /**
+     * Offers the two free verbs, {@code FOCUS} and {@code SCROLL_INTO_VIEW}, on the focusable
+     * widget node being described. The publish step calls this after both describe hooks ran;
+     * a widget never does.
+     *
+     * <p>They are the walk's and the scene performs them (ADR 039 §1.5), so a container that
+     * {@linkplain #delegate delegated} one of them on a focusable child claimed a verb the walk
+     * owns and the scene would have performed both ways at once; that walk is refused.
+     *
+     * @throws IllegalStateException if either verb was delegated on this node
+     */
+    public void freeVerbs() {
+        Slot s = slot();
+        int free = (1 << Accessible.Action.FOCUS.ordinal())
+                | (1 << Accessible.Action.SCROLL_INTO_VIEW.ordinal());
+        if ((s.delegated & free) != 0) {
+            throw new IllegalStateException(
+                    "FOCUS and SCROLL_INTO_VIEW on a focusable widget are the walk's free verbs, "
+                            + "performed by the scene, and a container delegated one of them on "
+                            + "a focusable child");
+        }
+        s.verbs |= free;
+    }
+
+    /**
      * Gives this node's primary action the keystroke that performs it, as a user would read it.
      *
      * @param display the accelerator's display form, or {@code null} for none
@@ -1363,6 +1444,32 @@ public final class Accessibility {
     /** Closes what {@link #beginChildIdentity()} opened. The publish step calls this. */
     public void endChildIdentity() {
         namingChild = false;
+    }
+
+    /**
+     * Opens the window in which a parent's describe-a-child hook runs with the child's node
+     * open: the only window in which {@link #delegate} is accepted. The publish step calls this
+     * around that hook; a widget never does.
+     */
+    public void beginChildDescription() {
+        describingChild = true;
+    }
+
+    /** Closes what {@link #beginChildDescription()} opened. The publish step calls this. */
+    public void endChildDescription() {
+        describingChild = false;
+    }
+
+    /**
+     * The verbs a container delegated on the node at an index of the walk in progress, as a bit
+     * set over {@link Accessible.Action#ordinal()}. The publish step reads it to route an action
+     * on that node to the container rather than to the child.
+     *
+     * @param index the node's index
+     * @return the bit set; {@code 0} when nothing was delegated
+     */
+    public int delegatedVerbsAt(int index) {
+        return slots[index].delegated;
     }
 
     /** @return whether the identity hook gave the child about to be begun a key */

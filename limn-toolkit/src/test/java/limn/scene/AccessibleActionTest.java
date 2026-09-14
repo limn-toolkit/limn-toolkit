@@ -4,6 +4,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -338,6 +339,103 @@ class AccessibleActionTest extends AccessibleTestBase {
 
         assertTrue(menu.isFocused(), "on the widget itself it is still the walk's free verb");
         assertEquals(List.of("child 17: FOCUS"), menu.performed, "which no hook is asked about");
+    }
+
+    // ------------------------------------------------------------------------ delegated verbs
+
+    /**
+     * A verb a container claims on a widget child (ADR 039 §1.5, amended 2026-09-14; decision 7)
+     * is published on the child, where a reader addresses the row, and performed by the
+     * container, which is the only thing that knows what selecting that row means: the scene
+     * routes it to the container's child-action hook with the key the container gave the child.
+     * The child's own verbs still reach the child, and the child's hook never hears the
+     * delegated one.
+     */
+    @Test
+    void aVerbAContainerClaimsOnAChildReachesTheContainerWithTheChildsKey() throws Exception {
+        Group root = new Group();
+        Rows rows = new Rows();
+        Probe first = new Probe(Accessible.Role.BUTTON, "First");
+        first.actions = new Accessible.Action[] {Accessible.Action.PRESS};
+        Probe second = new Probe(Accessible.Role.BUTTON, "Second");
+        second.actions = new Accessible.Action[] {Accessible.Action.PRESS};
+        rows.add(first);
+        rows.add(second);
+        root.add(rows);
+        bind(root);
+        frame();
+        assertTrue(node("Second").actions().has(Accessible.Action.SELECT),
+                "the delegated verb is the child's to a reader" + describe(tree()));
+        assertTrue(node("Second").actions().has(Accessible.Action.PRESS),
+                "beside the child's own" + describe(tree()));
+
+        assertTrue(performOffThread(node("Second").id(), Accessible.Action.SELECT,
+                Accessible.Argument.NONE));
+        assertTrue(performOffThread(node("Second").id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE));
+
+        assertEquals(List.of("row 1: SELECT"), rows.performed,
+                "the container's hook, with the key it gave the child");
+        assertEquals(List.of("PRESS(None[])"), second.performed,
+                "the child's own verb reaches the child, and the delegated one never does");
+        assertEquals(List.of(), first.performed);
+    }
+
+    /**
+     * The scene gates a delegated verb on the child the reader addressed, as it gates any verb
+     * on its node, and on the container still being that child's parent: a container that let
+     * the child go since the walk is handed nothing.
+     */
+    @Test
+    void aDelegatedVerbIsGatedOnTheChildAndOnTheContainerStillHoldingIt() throws Exception {
+        Group root = new Group();
+        Rows rows = new Rows();
+        Probe row = new Probe(Accessible.Role.BUTTON, "Row");
+        rows.add(row);
+        root.add(rows);
+        bind(root);
+        frame();
+        long id = node("Row").id();
+
+        row.setEnabled(false);
+        performOffThread(id, Accessible.Action.SELECT, Accessible.Argument.NONE);
+        assertEquals(List.of(), rows.performed, "the child is disabled, so its node refuses");
+
+        row.setEnabled(true);
+        rows.remove(row);
+        root.add(row);
+        performOffThread(id, Accessible.Action.SELECT, Accessible.Argument.NONE);
+        assertEquals(List.of(), rows.performed,
+                "the child left the container after the walk, so the container is not asked");
+    }
+
+    /** A container that keys its children by position and claims SELECT on each. */
+    private static final class Rows extends Group {
+        final List<String> performed = new ArrayList<>();
+
+        @Override
+        protected void onAccessibility(limn.accessibility.Accessibility a) {
+            a.role(Accessible.Role.LIST);
+        }
+
+        @Override
+        protected void onAccessibilityChildIdentity(Widget child,
+                                                    limn.accessibility.Accessibility a) {
+            a.key(children().indexOf(child));
+        }
+
+        @Override
+        protected void onAccessibilityChild(Widget child, limn.accessibility.Accessibility a) {
+            a.delegate(Accessible.Action.SELECT);
+        }
+
+        @Override
+        protected boolean onAccessibilityChildAction(Widget child, long key,
+                                                     Accessible.Action action,
+                                                     Accessible.Argument arg) {
+            performed.add("row " + key + ": " + action);
+            return true;
+        }
     }
 
     /** A widget that draws its own rows and never instantiated one of them as a widget. */

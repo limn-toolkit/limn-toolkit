@@ -1738,9 +1738,10 @@ public class Tree<T> extends Widget implements Scrollable {
             a.action(Accessible.Action.PRESS);
             int index = indexOf(lead);
             if (index >= 0 && rows.get(index).expandable) {
-                // The verbs sit on the tree and act on the lead row, because a row here is the
-                // application's own widget and a child's hook writes facts and never verbs. Per
-                // row verbs arrive with the TREE_ITEM step, whose rows are synthetic.
+                // These two sit on the tree and act on the lead row. A row's own verbs reach the
+                // tree by delegation (onAccessibilityChildAction, ADR 039 §1.5 amended
+                // 2026-09-14): SELECT is delegated below; EXPAND and COLLAPSE per row are the
+                // Tree lane's (decision 20).
                 a.action(rows.get(index).expanded
                         ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
             }
@@ -1807,6 +1808,29 @@ public class Tree<T> extends Widget implements Scrollable {
             // actually in a cursor it does not have.
             a.state(Accessible.State.ACTIVE);
         }
+        if (selectionMode != SelectionMode.NONE) {
+            // The row's own SELECT, published on the cell a reader addresses and performed by
+            // the tree (ADR 039 §1.5, amended 2026-09-14; decision 7): the cell is the
+            // application's widget and knows nothing of selection. The rest of the row verb set
+            // (decision 20) is the Tree lane's.
+            a.delegate(Accessible.Action.SELECT);
+        }
+    }
+
+    /**
+     * A verb the tree claimed on a row's cell: {@code SELECT} makes that row the selection, as a
+     * click on it does, through the same {@code USER} seam.
+     */
+    @Override
+    protected boolean onAccessibilityChildAction(Widget child, long key, Accessible.Action action,
+                                                 Accessible.Argument arg) {
+        Row<T> row = rowOfCell(child);
+        if (row == null || action != Accessible.Action.SELECT
+                || selectionMode == SelectionMode.NONE) {
+            return false;
+        }
+        selectOnly(row.node, true, Change.Origin.USER);
+        return true;
     }
 
     @Override

@@ -436,6 +436,42 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
     // ------------------------------------------------------------------------------- the roles
 
+    /**
+     * A reader's "select this row" lands on the row it addressed: the verb is published on the
+     * row's cell, which is the application's own widget, and the tree performs it through the
+     * same {@code USER} seam a click takes (ADR 039 §1.5, amended 2026-09-14; §11's per-row
+     * actuation reversed). A tree that selects nothing delegates nothing.
+     */
+    @Test
+    void selectingARowThroughItsOwnVerbMovesTheSelectionToThatRow() throws Exception {
+        Node readme = Node.leaf("readme");
+        Node docs = Node.of("docs", Node.leaf("a.md"), Node.leaf("b.md"));
+        Node top = Node.of("root", docs, readme);
+        bindTree(ROW_H, List.of(top));
+        tree.expand(top);
+        tree.setSelected(docs);
+        frame();
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        assertTrue(perform(node("readme").id(), Accessible.Action.SELECT,
+                Accessible.Argument.NONE));
+        frame();
+
+        assertEquals(List.of(readme), tree.selectedNodes(), "the row addressed, not the lead");
+        assertEquals(readme, tree.leadNode());
+        assertTrue(node("readme").selectionItem().selected(), describe(tree()));
+        assertEquals(1, changes.size(), "announced once, as a click is: " + changes);
+        assertEquals(limn.scene.Change.Origin.USER, changes.get(0).origin(),
+                "and from the user, which is who a reader is");
+
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        frame();
+        for (AccessibleNode row : rowNodes()) {
+            assertNull(row.actions(), "nothing to select, so no verb on any row: " + describe(tree()));
+        }
+    }
+
     @Test
     void aTreeIsATreeOfItemsThatOpenNumberedInTraversalOrder() {
         Node readme = Node.leaf("readme");
@@ -463,7 +499,12 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                     "numbered in traversal order: " + describe(tree()));
             assertEquals(3, row.selectionItem().sizeOfSet(),
                     "against the rows that are visible, which is what is open");
-            assertNull(row.actions(), "the verbs are the tree's, not a row's: " + describe(tree()));
+            assertNotNull(row.actions(), "a row carries the verb the tree delegated onto it: "
+                    + describe(tree()));
+            assertEquals(java.util.Set.of(Accessible.Action.SELECT), row.actions().actions(),
+                    "a row carries the one verb the tree delegated onto it (ADR 039 §1.5, "
+                            + "amended 2026-09-14); the rest stays the tree's until the Tree "
+                            + "lane's row verb set: " + describe(tree()));
         }
 
         assertNotNull(rows.get(0).expand(), describe(tree()));

@@ -51,8 +51,19 @@ final class AccessibleWalk {
     /** Per published node: the widget that owns it. Grown once, reused. */
     private Widget[] owners = new Widget[64];
     private long[] ids = new long[64];
+    /**
+     * The key a synthetic node's owner gave it, or the identity key a container gave a widget
+     * child; {@code 0} for a widget node nobody keyed.
+     */
     private long[] keys = new long[64];
     private boolean[] synthetic = new boolean[64];
+    /**
+     * Per widget node: the verbs its container claimed (a bit per {@code Action} ordinal) and
+     * the container that claimed them, which is where the scene routes those verbs (ADR 039
+     * §1.5, amended 2026-09-14). Zero and {@code null} on every other node.
+     */
+    private int[] delegated = new int[64];
+    private Widget[] delegates = new Widget[64];
     private int count;
 
     /**
@@ -400,6 +411,7 @@ final class AccessibleWalk {
         long id = identify(widget);
         int host = -1;
         boolean keyed = false;
+        long childKey = 0;
         if (parent != null) {
             builder.beginChildIdentity();
             try {
@@ -413,7 +425,8 @@ final class AccessibleWalk {
                 }
                 long owner = host >= 0 ? builder.idAt(host) : parentId;
                 if (builder.hasPendingKey()) {
-                    id = builder.identify(owner, builder.pendingKey());
+                    childKey = builder.pendingKey();
+                    id = builder.identify(owner, childKey);
                     keyed = true;
                 } else if (host >= 0) {
                     id = builder.identify(owner, id);
@@ -435,7 +448,14 @@ final class AccessibleWalk {
 
         widget.describeAccessible(builder);
         if (parent != null) {
-            parent.describeAccessibleChild(widget, builder);
+            // After the child's own hook, so a verb the container delegates meets the verbs the
+            // child claimed for itself and the builder can refuse the one both claim.
+            builder.beginChildDescription();
+            try {
+                parent.describeAccessibleChild(widget, builder);
+            } finally {
+                builder.endChildDescription();
+            }
         }
         // Under the widget's own language, as the two hooks above were: the node records that
         // language and the model re-resolves a name when it moves, so a string the walk hands
@@ -474,6 +494,12 @@ final class AccessibleWalk {
         }
 
         record(widget, id, slot, false);
+        // What the container claimed on this child, and the key it addresses the child by: the
+        // routing table the scene reads when a delegated verb arrives (ADR 039 §1.5, amended
+        // 2026-09-14). Recorded on every walk, published or not, like the owner itself.
+        keys[slot] = childKey;
+        delegated[slot] = builder.delegatedVerbsAt(slot);
+        delegates[slot] = delegated[slot] == 0 ? null : parent;
         boolean showing = widget.isShowing();
         for (int i = slot + 1; i < builder.nodeCount(); i++) {
             record(widget, builder.idAt(i), i, builder.isSyntheticAt(i));
@@ -490,7 +516,7 @@ final class AccessibleWalk {
         }
         builder.inherited(ownEnabled, ownVisible, showing, focusable, focused);
         if (focusable) {
-            builder.action(Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW);
+            builder.freeVerbs();
         }
         warnIfUnnamedRole(widget, focusable);
         if (widget.parent() == null && widget.inheritanceHost() != null) {
@@ -620,11 +646,15 @@ final class AccessibleWalk {
             ids = java.util.Arrays.copyOf(ids, grown);
             keys = java.util.Arrays.copyOf(keys, grown);
             synthetic = java.util.Arrays.copyOf(synthetic, grown);
+            delegated = java.util.Arrays.copyOf(delegated, grown);
+            delegates = java.util.Arrays.copyOf(delegates, grown);
         }
         owners[slot] = owner;
         ids[slot] = id;
         keys[slot] = 0;
         synthetic[slot] = isSynthetic;
+        delegated[slot] = 0;
+        delegates[slot] = null;
         if (slot >= count) {
             count = slot + 1;
         }
@@ -729,7 +759,9 @@ final class AccessibleWalk {
     }
 
     /**
-     * The key a synthetic node's owner gave it.
+     * The key a synthetic node's owner gave it, or the identity key a container gave a widget
+     * child: what the owner's synthetic hook, or the container's child-action hook, is handed
+     * to say which child a verb is for.
      *
      * @param nodeId the node's identifier
      * @return the key, or {@code 0}
@@ -737,6 +769,30 @@ final class AccessibleWalk {
     long keyOf(long nodeId) {
         int index = indexOfNode(nodeId);
         return index < 0 ? 0 : keys[index];
+    }
+
+    /**
+     * Whether a verb on a published widget node is one its container claimed, so that the scene
+     * routes it to the container's child-action hook rather than to the child's own.
+     *
+     * @param nodeId the node's identifier
+     * @param action the verb asked for
+     * @return whether the container performs it
+     */
+    boolean isDelegated(long nodeId, Accessible.Action action) {
+        int index = indexOfNode(nodeId);
+        return index >= 0 && (delegated[index] & (1 << action.ordinal())) != 0;
+    }
+
+    /**
+     * The container that claimed verbs on a published widget node.
+     *
+     * @param nodeId the node's identifier
+     * @return the container, or {@code null} when nothing was delegated on that node
+     */
+    Widget delegateOf(long nodeId) {
+        int index = indexOfNode(nodeId);
+        return index < 0 ? null : delegates[index];
     }
 
     /** The published position of a node, or {@code -1} when the identifier names nothing here. */

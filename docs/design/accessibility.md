@@ -27,14 +27,15 @@ reader needs to know something, it has to already be in the snapshot.
 
 ## Describing a widget
 
-Five `protected` hooks on `Widget`, and a widget usually overrides one or two:
+Six `protected` hooks on `Widget`, and a widget usually overrides one or two:
 
 | Hook | Answers |
 | --- | --- |
 | `onAccessibility(Accessibility a)` | what *this* widget is: role, name, states, facets |
 | `onAccessibilityChildIdentity(Widget child, Accessibility a)` | *who* a child is, before it describes itself: the key a pooling container owns, and the synthetic row a table hangs a widget cell under |
-| `onAccessibilityChild(Widget child, Accessibility a)` | what a *child* is, when the parent knows better than the child does |
+| `onAccessibilityChild(Widget child, Accessibility a)` | what a *child* is, when the parent knows better than the child does — and, through `Accessibility#delegate`, which of the child's verbs are the parent's to perform |
 | `onAccessibilityAction(action, arg)` | performing a verb this widget declared |
+| `onAccessibilityChildAction(child, key, action, arg)` | performing a verb this widget *delegated* onto a child: a list's `SELECT` on a row that is the application's own cell, published on the row where a reader addresses it and routed here with the key the list gave that row |
 | `performSyntheticAction(key, action, arg)` | performing a verb on something the widget *paints* rather than parents |
 
 `Accessibility` is a reusable builder, filled in and read by the walk; it is not a node you keep.
@@ -313,8 +314,10 @@ repository facts, so they are not here.
 
 ADR 039 §11 is the full list with the cost of each stated in terms of what a blind user loses. The
 ones most likely to be mistaken for bugs: no range-to-rectangle text geometry on any platform (so
-character review and braille cursor routing are degraded); no UI Automation `TextPattern`; list rows
-carry no verb of their own; no data table behind a chart; no occlusion model, so a scrim hand-rolled
+character review and braille cursor routing are degraded); no UI Automation `TextPattern`; a list
+or tree row carries only the verbs its container delegated onto it (`SELECT` today; ADR 039 §11's
+"not per-row actuation" was reversed on 2026-09-14), so a reader cannot yet open a particular row
+with the row's own verb; no data table behind a chart; no occlusion model, so a scrim hand-rolled
 inside a `Stack` is not modal to a reader where `pushOverlay` and `Dialog` are; no MSAA; and the
 system accessibility *settings* — high contrast, reduced motion, a system text scale — which are a
 different decision with a different shape and would tangle a tree with a theme.

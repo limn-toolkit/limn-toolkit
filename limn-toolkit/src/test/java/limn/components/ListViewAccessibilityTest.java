@@ -577,19 +577,41 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(0, calls.get(), "the scene's own gate, which is why the hook has none");
     }
 
+    /**
+     * A row carries exactly one verb, {@code SELECT}, and it is the list's rather than the
+     * cell's (ADR 039 §1.5, amended 2026-09-14; §11's "not per-row actuation" reversed the same
+     * day). A verb <em>written</em> onto a row would still be dispatched to the application's
+     * own cell widget, whose hook answers false, while the platform has already been told the
+     * action was accepted — which is why the row carried nothing until the walk learned to route
+     * a container's claim. Performing it through the bridge host lands on the row the reader
+     * addressed, and the list selects that row as a click does, from the user.
+     */
     @Test
-    void noRowOffersAVerbOfItsOwn() {
+    void aRowCarriesTheSelectVerbTheListDelegatedAndTheListPerformsIt() throws Exception {
         ListView list = bindPlain(500, 50);
         list.setSelectedIndex(2);
         frame();
 
         for (AccessibleNode row : rowNodes()) {
-            assertNull(row.actions(),
-                    "a verb written onto a row is dispatched to the application's own cell widget, "
-                            + "whose hook answers false — and the platform has already been told "
-                            + "the action was accepted. An absent verb is the honest answer: "
-                            + describe(tree()));
+            assertNotNull(row.actions(), "a row carries the verb the list delegated onto it: "
+                    + describe(tree()));
+            assertEquals(java.util.Set.of(Accessible.Action.SELECT), row.actions().actions(),
+                    "the one verb the list delegated onto the row, and nothing written by the "
+                            + "cell: " + describe(tree()));
         }
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        assertTrue(perform(rowNode(4).id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
+        frame();
+
+        assertEquals(4, list.selectedIndex(), "the row addressed, not the one that was selected");
+        assertTrue(rowNode(4).selectionItem().selected(), describe(tree()));
+        assertFalse(rowNode(2).selectionItem().selected(), describe(tree()));
+        assertEquals(1, changes.size(), "announced once, as a click is: " + changes);
+        assertEquals(limn.scene.Change.Aspect.SELECTION, changes.get(0).aspect());
+        assertEquals(limn.scene.Change.Origin.USER, changes.get(0).origin(),
+                "and from the user, which is who a reader is");
     }
 
     // ---------------------------------------------------------------------------------- the names

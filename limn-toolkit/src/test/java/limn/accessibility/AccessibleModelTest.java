@@ -413,6 +413,64 @@ class AccessibleModelTest {
     }
 
     /**
+     * A container delegates a verb on a widget child from the describe-a-child hook and nowhere
+     * else, and never one the child claimed for itself (ADR 039 §1.5, amended 2026-09-14;
+     * decision 7). The delegated verb is published on the child like any other, marked as the
+     * container's for the walk's routing table, and the free verbs stay the walk's: a container
+     * that delegated {@code FOCUS} on a focusable child is refused when the publish step comes to
+     * hand the node its free pair.
+     */
+    @Test
+    void aDelegatedVerbIsPublishedOnTheChildAndAVerbBothClaimIsRefused() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        long parent = a.mint();
+        a.begin(parent, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.LIST);
+        assertThrows(IllegalStateException.class, () -> a.delegate(Accessible.Action.SELECT),
+                "a container's own hook is not where it speaks about a child");
+
+        int child = a.begin(a.mint(), 0, Locale.ENGLISH, 0, 0, 100, 20);
+        a.role(Accessible.Role.BUTTON);
+        a.action(Accessible.Action.PRESS);
+        assertThrows(IllegalStateException.class, () -> a.delegate(Accessible.Action.SELECT),
+                "nor is the child's own hook");
+
+        a.beginChildDescription();
+        assertThrows(IllegalArgumentException.class, () -> a.delegate(Accessible.Action.SET_VALUE),
+                "a setter is never in an action list, delegated or not");
+        IllegalStateException both = assertThrows(IllegalStateException.class,
+                () -> a.delegate(Accessible.Action.PRESS),
+                "the child claimed PRESS in its own hook: one verb, two performers, refused");
+        assertTrue(both.getMessage().contains("PRESS"), both.getMessage());
+        a.delegate(Accessible.Action.SELECT);
+        a.endChildDescription();
+        assertEquals(1 << Accessible.Action.SELECT.ordinal(), a.delegatedVerbsAt(child),
+                "the routing table says SELECT is the container's");
+        a.freeVerbs();
+        a.end();
+        a.end();
+        AccessibleTree tree = publish(a, target -> 0);
+        AccessibleNode row = tree.node(1);
+        assertTrue(row.actions().has(Accessible.Action.SELECT),
+                "published on the child, where the platform addresses it: " + row.actions());
+        assertTrue(row.actions().has(Accessible.Action.PRESS), "the child keeps its own");
+        assertTrue(row.actions().has(Accessible.Action.FOCUS), "and the walk's free pair");
+
+        Accessibility b = new Accessibility();
+        b.beginWalk(100, 100, Locale.ENGLISH);
+        b.begin(b.mint(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        b.begin(b.mint(), 0, Locale.ENGLISH, 0, 0, 100, 20);
+        b.role(Accessible.Role.BUTTON);
+        b.beginChildDescription();
+        b.delegate(Accessible.Action.FOCUS);
+        b.endChildDescription();
+        IllegalStateException free = assertThrows(IllegalStateException.class, b::freeVerbs,
+                "FOCUS on a focusable widget is the scene's, and a container claimed it");
+        assertTrue(free.getMessage().contains("FOCUS"), free.getMessage());
+    }
+
+    /**
      * {@code under(key)} names one of the owner's <em>direct</em> synthetic children, and the
      * lookup steps over each child's subtree rather than through it: a table asking for a row
      * visits its rows, not every cell of the rows before. A cell nested under an earlier row
