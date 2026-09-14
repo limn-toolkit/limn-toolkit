@@ -2432,9 +2432,21 @@ public class CalendarView extends Widget {
         a.bounds(pad + buttonW, pad, Math.max(0, width() - 2 * (pad + buttonW)), headerH);
         a.role(Accessible.Role.BUTTON);
         a.name(headerTitle, textEpoch, Accessible.NameFrom.CONTENT);
-        a.expand(!days);
+        // EXPANDED means "not the finest view" (settled calendar-title-verbs, 2026-09-14), and
+        // the verb published beside PRESS is the one the state allows: EXPAND while the finest
+        // view is showing and there is one above it, COLLAPSE while a chooser is -- so a bridge
+        // vending an expand pattern from the facet offers what the title accepts. PRESS keeps
+        // climbing one step, which is what the pointer does.
+        boolean climbed = view != granularity;
+        if (granularity != View.YEARS) {
+            a.expand(climbed);
+        }
         if (isEnabled()) {
-            a.action(Accessible.Action.PRESS);
+            if (climbed) {
+                a.action(Accessible.Action.PRESS, Accessible.Action.COLLAPSE);
+            } else if (granularity != View.YEARS) {
+                a.action(Accessible.Action.PRESS, Accessible.Action.EXPAND);
+            }
         }
         if (focusHere(Part.TITLE)) {
             a.state(Accessible.State.ACTIVE);
@@ -2634,11 +2646,33 @@ public class CalendarView extends Widget {
             return true;
         }
         if (key == KEY_TITLE) {
-            if (action != Accessible.Action.PRESS) {
-                return false;
+            boolean climbed = view != granularity;
+            switch (action) {
+                case PRESS -> {
+                    if (granularity == View.YEARS) {
+                        return false; // a year picker's title has nowhere to climb
+                    }
+                    climb();
+                    return true;
+                }
+                case EXPAND -> {
+                    if (climbed || granularity == View.YEARS) {
+                        return false; // published only on the finest view
+                    }
+                    climb();
+                    return true;
+                }
+                case COLLAPSE -> {
+                    if (!climbed) {
+                        return false;
+                    }
+                    setView(granularity); // straight back to the finest view, as Escape does
+                    return true;
+                }
+                default -> {
+                    return false;
+                }
             }
-            climb();
-            return true;
         }
         if (view != View.DAYS) {
             if (key < 0 || key >= chooserText.length || action != Accessible.Action.SELECT) {

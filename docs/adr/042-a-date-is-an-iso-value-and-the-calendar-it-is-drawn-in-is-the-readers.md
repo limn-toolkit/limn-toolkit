@@ -380,6 +380,26 @@ them the form holds a value it does not.
 **The picker.** The field's subtree, the popup's, and one synthetic `BUTTON` for the calendar
 affordance with `EXPANDED` on the picker itself.
 
+**Amendment, 2026-09-14 (decisions 18 and 55, settled calendar-title-verbs — DATES-NEW-4,
+DATES-NEW-12, WINDOWS-NEW-10's widget half): the popup is the field's to tell.** The button is a
+real widget, not a synthetic child (§12's finding, repeated here wrongly), and the expanded state
+moves off the picker and the button onto the **field**, which is the node a reader arrives at:
+like `ComboBox` and the ARIA combobox pattern, the field publishes `EXPANDED`, `HAS_POPUP` and the
+one verb its state allows — `EXPAND` while closed, `COLLAPSE` while open (Alt+Down and Escape) —
+and accepts exactly those; the "Open calendar" button is a plain `PRESS`; the picker's group
+carries no expand state and accepts no verb (it accepted `EXPAND`, `COLLAPSE` and `CANCEL` without
+publishing them, against ADR 039 §1.5's contract). A **single picker's group is no node at all**:
+it declares nothing and the walk hoists its field and button in its place, so a caption bound to
+the picker names the field (the walk's label-redirect hook of the same date), where before it
+named an unfocusable group and left the focused field nameless. A **range picker** keeps the
+group and the label over it, and its two fields are "Start date" and "End date" (21 locales) for
+themselves. The calendar's **title** publishes `EXPAND` only while the finest view is showing and
+`COLLAPSE` only above it, and accepts exactly those (`COLLAPSE` comes straight back down, as
+Escape does); `PRESS` keeps climbing one step. The accessibility gallery gained a "Date picker,
+closed" entry so the field is ratcheted as it stands in a form. Pinned by
+`DatePickerAccessibilityTest` and
+`CalendarViewAccessibilityTest.theTitleExpandsAndCollapsesAsWellAsPressesAndRefusesTheVerbItDoesNotPublish`.
+
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and
 it is why the calendar could be built at all without reopening the bridges, which live in their own

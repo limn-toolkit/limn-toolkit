@@ -210,6 +210,14 @@ public class DatePicker extends Widget {
         });
         member.setKeyDelegate(this::interceptKey);
         member.setCharDelegate(this::interceptChar);
+        // The field is where a reader opens the calendar from (decision 18); opening from the
+        // end of a period fills that end, whether or not the focus got there first.
+        member.setPopup(() -> open, wanted -> {
+            if (wanted && endField != null) {
+                fillingEnd = member == endField;
+            }
+            setOpen(wanted, Change.Origin.USER);
+        });
     }
 
     /** The field the calendar and the time row are writing into. */
@@ -844,13 +852,19 @@ public class DatePicker extends Widget {
     private void presentInScene(Scene owner) {
         releaseCalendar();
         popupPanel = new PopupPanel();
-        popupPanel.setInheritanceHost(this);
+        // Hosted by the FIELD being filled, not by this composite (decisions 18 and 55,
+        // 2026-09-14): the host is also the opener the walk names in the popup's POPUP_FOR and
+        // mirrors as CONTROLLER_FOR, and the node a reader is at is the field -- a single
+        // picker's own group is no node at all. Every inherited axis resolves through the field
+        // to this picker exactly as it did, and decision 5's cursor lookup starts from the
+        // focused node, which in a window of its own is the field.
+        popupPanel.setInheritanceHost(filling());
         scenePopup = new ScenePopup(popupPanel);
         // The link goes on the OVERLAY as well, and it is the overlay's that does the work: a host
         // link on a widget that has a parent loses to the tree, and here the panel's parent is the
         // overlay. Without it the grid resolves the scene's defaults instead of the picker's, and
         // opens at a different density, direction or language from the field that opened it.
-        scenePopup.setInheritanceHost(this);
+        scenePopup.setInheritanceHost(filling());
         boolean animate = owner.window() != null;
         sceneFade = animate ? 0f : 1f;
         // Before the overlay takes the focus: the field keeps its caret drawn and published,
@@ -904,7 +918,7 @@ public class DatePicker extends Widget {
         parent.registerChildPopup(popupWindow);
         releaseCalendar();
         popupPanel = new PopupPanel();
-        popupPanel.setInheritanceHost(this);
+        popupPanel.setInheritanceHost(filling()); // the opener a reader sees: see presentInScene
         popupScene = new Scene(popupPanel);
         popupScene.inheritRenderingFlags(scene);
         popupScene.bind(popupWindow);
@@ -1148,32 +1162,30 @@ public class DatePicker extends Widget {
     // ------------------------------------------------------------------ accessibility
 
     /**
-     * The picker itself is a group carrying the expanded state and the trailing button; the fields
-     * are real children and describe themselves, which is the whole reason they are widgets.
+     * What the composite says of itself (decisions 18 and 55, 2026-09-14): a single picker says
+     * <b>nothing</b> and is no node &mdash; its field is the picker a reader meets, carries the
+     * label bound to the picker, the popup state and the verbs that open and close it &mdash;
+     * and a range picker is a group that keeps the label over its two named ends. The expanded
+     * state this group once carried, and the verbs it accepted without publishing, are the
+     * field's now; the button is a plain press. The fields and the button are real children and
+     * describe themselves, which is the whole reason they are widgets.
      */
     @Override
     protected void onAccessibility(Accessibility a) {
+        if (endField == null) {
+            return; // transparent: declares nothing, so the walk hoists the field and the button
+        }
         a.role(Accessible.Role.GROUP);
-        a.expand(open);
-        // The button is a real child and describes itself; the fields likewise. This hook says
-        // what is true of the composite and nothing about its members.
     }
 
+    /**
+     * Where a caption bound to this picker lands (decision 55): on the single field, which is
+     * the node a reader arrives at; a range picker keeps it on the group, whose two ends are
+     * named "Start date" and "End date" for themselves.
+     */
     @Override
-    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        switch (action) {
-            case EXPAND -> {
-                setOpen(true, Change.Origin.USER);
-                return true;
-            }
-            case COLLAPSE, CANCEL -> {
-                setOpen(false, Change.Origin.USER);
-                return true;
-            }
-            default -> {
-                return false;
-            }
-        }
+    protected Widget accessibleLabelTarget() {
+        return endField == null ? field : this;
     }
 
     // ------------------------------------------------------------------ the popup's two shells
@@ -1329,11 +1341,15 @@ public class DatePicker extends Widget {
             }
         }
 
+        /**
+         * A plain press (decision 18): the popup's state is the field's to tell, and a button
+         * that advertised an expand state vended a pattern on Windows whose Expand it then
+         * refused (DATES-NEW-4).
+         */
         @Override
         protected void onAccessibility(Accessibility a) {
             a.role(Accessible.Role.BUTTON);
             a.name(DateStrings.OPEN_CALENDAR, Accessible.NameFrom.CONTENT);
-            a.expand(open);
             if (isEnabled()) {
                 a.action(Accessible.Action.PRESS);
             }

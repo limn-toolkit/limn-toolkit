@@ -226,6 +226,15 @@ public class DateField extends Widget {
     /** The picker's, for the characters: see {@link #keyDelegate}. */
     private java.util.function.Consumer<CharEvent> charDelegate;
     /**
+     * Whether a picker's popup is open, and how to open or close it, when this field is the one
+     * a {@link DatePicker} types into (decision 18, 2026-09-14): the field is the node a reader
+     * arrives at, so the field is what says it has a popup, whether it is expanded, and takes
+     * the verbs that open and close it &mdash; the ARIA combobox pattern, and {@code ComboBox}'s.
+     * {@code null} for a field on its own.
+     */
+    private java.util.function.BooleanSupplier popupOpen;
+    private java.util.function.Consumer<Boolean> popupSetter;
+    /**
      * Whether a picker is aiming the keyboard at this field although it does not hold the focus:
      * the time row inside a popup, which the popup contract keeps unfocused. {@code CalendarView}'s
      * flag of the same name, for the same reason. Package-private and the picker's.
@@ -1339,6 +1348,13 @@ public class DateField extends Widget {
         charDelegate = delegate;
     }
 
+    /** The picker's, not an application's: see {@link #popupOpen}. */
+    void setPopup(java.util.function.BooleanSupplier open,
+                  java.util.function.Consumer<Boolean> setOpen) {
+        popupOpen = open;
+        popupSetter = setOpen;
+    }
+
     /** The picker's, not an application's: see {@link #keyboardActive}. */
     void setKeyboardActive(boolean active) {
         if (keyboardActive == active) {
@@ -1951,6 +1967,18 @@ public class DateField extends Widget {
             a.state(Accessible.State.INVALID, true);
             a.description(validity);
         }
+        if (popupOpen != null) {
+            // Inside a picker the field is the node a reader arrives at, so it is the one that
+            // says a calendar can be opened from here and whether it is (decision 18): expanded,
+            // a popup, and the one verb that fits the moment. The picker's own group says none
+            // of it, and a single picker's group is not even a node.
+            boolean open = popupOpen.getAsBoolean();
+            a.expand(open);
+            a.state(Accessible.State.HAS_POPUP);
+            if (isEnabled()) {
+                a.action(open ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
+            }
+        }
 
         TextRuler ruler = textRuler();
         Font font = t.body();
@@ -2030,6 +2058,28 @@ public class DateField extends Widget {
             case DAY_PERIOD -> DateStrings.SEGMENT_DAY_PERIOD;
             default -> DateStrings.SEGMENT_ERA;
         };
+    }
+
+    /**
+     * The calendar's open and close, for a field inside a picker: exactly the two verbs the tree
+     * publishes, one at a time by state, so a reader's Expand on an open field is refused rather
+     * than reported done while nothing happened (ADR 039 §1.5's refusal contract).
+     */
+    @Override
+    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+        if (popupOpen == null || !isEnabled()) {
+            return false;
+        }
+        boolean open = popupOpen.getAsBoolean();
+        if (action == Accessible.Action.EXPAND && !open) {
+            popupSetter.accept(true);
+            return true;
+        }
+        if (action == Accessible.Action.COLLAPSE && open) {
+            popupSetter.accept(false);
+            return true;
+        }
+        return false;
     }
 
     /**

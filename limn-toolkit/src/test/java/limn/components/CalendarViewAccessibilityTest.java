@@ -376,6 +376,39 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
                 cells.get(0).name());
     }
 
+    /**
+     * Settled calendar-title-verbs (2026-09-14; DATES-NEW-4, WINDOWS-NEW-10's widget half): the
+     * title advertised an expand state and refused the verbs a bridge vends from it. It now
+     * publishes EXPAND on the finest view and COLLAPSE above it, one at a time, and accepts
+     * exactly those; PRESS keeps climbing a step. The refusal was a claim by reading until this
+     * test performed the verb.
+     */
+    @Test
+    void theTitleExpandsAndCollapsesAsWellAsPressesAndRefusesTheVerbItDoesNotPublish()
+            throws InterruptedException {
+        CalendarView calendar = bindCalendar();
+        AccessibleNode title = titleNode();
+        assertTrue(offers(title, Accessible.Action.EXPAND), "the day view can be climbed out of");
+        assertFalse(offers(title, Accessible.Action.COLLAPSE));
+        assertFalse(title.has(Accessible.State.EXPANDED));
+        assertTrue(perform(title.id(), Accessible.Action.EXPAND, Accessible.Argument.NONE));
+        assertEquals(CalendarView.View.MONTHS, calendar.view(), "Expand climbs");
+        frame();
+        title = titleNode();
+        assertTrue(title.has(Accessible.State.EXPANDED));
+        assertTrue(offers(title, Accessible.Action.COLLAPSE));
+        assertFalse(offers(title, Accessible.Action.EXPAND));
+        perform(title.id(), Accessible.Action.EXPAND, Accessible.Argument.NONE);
+        assertEquals(CalendarView.View.MONTHS, calendar.view(),
+                "a verb the node does not publish changes nothing (ADR 039 §1.5)");
+        perform(title.id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        assertEquals(CalendarView.View.YEARS, calendar.view(), "Press still climbs a step");
+        frame();
+        perform(titleNode().id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE);
+        assertEquals(CalendarView.View.DAYS, calendar.view(),
+                "Collapse comes straight back to the finest view, as Escape does");
+    }
+
     @Test
     void aMonthPickedInTheChooserNavigatesAndSelectsNothing() throws InterruptedException {
         CalendarView calendar = bindCalendar();

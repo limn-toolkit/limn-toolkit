@@ -217,6 +217,14 @@ public final class AccessibilityGallery {
                 new Entry("Date picker, open", List.of(DatePicker.class),
                         List.of(Role.GROUP, Role.SPIN_BUTTON, Role.BUTTON, Role.TABLE, Role.CELL),
                         AccessibilityGallery::datePicker),
+                // Closed, so the field a reader arrives at is checked as it stands in a form:
+                // named by the caption bound to the picker, carrying the popup state and the
+                // verb that opens it (decisions 18 and 55, 2026-09-14; DATES-NEW-12). The open
+                // entry above never checked it, because everything under its overlay is not
+                // published focusable.
+                new Entry("Date picker, closed", List.of(DatePicker.class),
+                        List.of(Role.GROUP, Role.SPIN_BUTTON, Role.BUTTON),
+                        AccessibilityGallery::datePickerClosed),
                 new Entry("Tabbed pane", List.of(TabbedPane.class),
                         List.of(Role.TAB_LIST, Role.TAB, Role.TAB_PANEL),
                         AccessibilityGallery::tabbedPane),
@@ -561,6 +569,22 @@ public final class AccessibilityGallery {
         // hangs from the picker's place in the scene, and a picker that has not been laid out has
         // none yet.
         return new Built(page, picker::open);
+    }
+
+    /**
+     * A single picker and a period, both closed and both captioned: the caption names the single
+     * picker's field, and the period's group with its two ends named for themselves.
+     */
+    private static Built datePickerClosed() {
+        Column page = page();
+        DatePicker picker = new DatePicker();
+        picker.setDate(java.time.LocalDate.of(2026, 9, 9));
+        page.add(Labelled.above("Delivery date", picker));
+        DatePicker stay = DatePicker.ofRange();
+        stay.setRange(new limn.components.date.DateRange(
+                java.time.LocalDate.of(2026, 9, 14), java.time.LocalDate.of(2026, 9, 25)));
+        page.add(Labelled.above("Stay", stay));
+        return new Built(page);
     }
 
     private static Built tabbedPane() {
