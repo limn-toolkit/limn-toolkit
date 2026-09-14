@@ -145,6 +145,23 @@ public final class AccessibilityGallery {
     /** A transparent picture, for the same reason. */
     private static final Image BLANK_PICTURE = new Image(16, 16, new byte[16 * 16 * 4]);
 
+    /**
+     * The day every date entry is built on (settled reader-scene-clock; LAB-NEW-13): noon of
+     * 2026-09-09 in UTC, the site gallery's own documentation day. A calendar names its today
+     * cell ", today" and a field steps an empty segment from today, so an entry on the real clock
+     * spoke differently on each guest (the Fedora guest's clock ran days behind) and on each
+     * day, and no step label could be written against it.
+     */
+    static final java.time.Clock READER_TODAY = java.time.Clock.fixed(
+            java.time.Instant.parse("2026-09-09T12:00:00Z"), java.time.ZoneOffset.UTC);
+
+    /**
+     * The language every date entry is built in, for the same reason: a cell's name, a segment's
+     * name and the week's first day are the locale's, and a guest's process locale is not the
+     * host's. English (United States), because the captions these entries carry are English.
+     */
+    static final java.util.Locale READER_LOCALE = java.util.Locale.US;
+
     private AccessibilityGallery() {
     }
 
@@ -540,7 +557,7 @@ public final class AccessibilityGallery {
                 ? DayMark.of(Theme.current().danger, I18nString.literal("holiday"))
                 : null);
         page.add(Labelled.above("Delivery date", calendar));
-        return new Built(page);
+        return new Built(pinnedForReaders(page));
     }
 
     /**
@@ -555,7 +572,7 @@ public final class AccessibilityGallery {
         DateField moment = new DateField().setGranularity(DateField.Granularity.MINUTE);
         moment.setDateTime(java.time.LocalDateTime.of(2026, 9, 9, 14, 30));
         page.add(Labelled.above("Appointment", moment));
-        return new Built(page);
+        return new Built(pinnedForReaders(page));
     }
 
     /** The picker with its calendar open, in the scene so the whole tree is in one window. */
@@ -568,7 +585,7 @@ public final class AccessibilityGallery {
         // Opened after the first layout, for the reason every open-popup entry here is: the overlay
         // hangs from the picker's place in the scene, and a picker that has not been laid out has
         // none yet.
-        return new Built(page, picker::open);
+        return new Built(pinnedForReaders(page), picker::open);
     }
 
     /**
@@ -584,7 +601,34 @@ public final class AccessibilityGallery {
         stay.setRange(new limn.components.date.DateRange(
                 java.time.LocalDate.of(2026, 9, 14), java.time.LocalDate.of(2026, 9, 25)));
         page.add(Labelled.above("Stay", stay));
-        return new Built(page);
+        return new Built(pinnedForReaders(page));
+    }
+
+    /**
+     * Pins {@link #READER_TODAY} on every date widget under {@code root} and declares
+     * {@link #READER_LOCALE} on {@code root} itself, which every descendant inherits. In the
+     * entries rather than in whatever runs them, so the gallery window a reader is pointed at,
+     * the headless tests and a driver all build the same tree; these scenes are not published as
+     * samples, so the pinned clock is copied into nobody's application.
+     */
+    private static Widget pinnedForReaders(Widget root) {
+        root.setLocale(READER_LOCALE);
+        pinToday(root);
+        return root;
+    }
+
+    private static void pinToday(Widget widget) {
+        if (widget instanceof CalendarView calendar) {
+            calendar.setClock(READER_TODAY);
+        } else if (widget instanceof DatePicker picker) {
+            picker.setClock(READER_TODAY); // its fields, its time row and its calendar
+            return;
+        } else if (widget instanceof DateField field) {
+            field.setClock(READER_TODAY);
+        }
+        for (Widget child : widget.children()) {
+            pinToday(child);
+        }
     }
 
     private static Built tabbedPane() {

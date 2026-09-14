@@ -651,3 +651,13 @@ pressed no key, is `theCursorStopsOnARefusedDayAndEnterIsRefusedThere`.
 the demo's date scene — the same discipline ADR 039 and ADR 041 were held to, which is what found
 four defects on Windows and two on Linux that no headless test could have. Until that run happens,
 what §8 claims is what the headless tree says and not what a reader speaks.
+
+**Amendment, 2026-09-14 (LAB-NEW-13, settled reader-scene-clock): what the run is pointed at
+speaks the same day everywhere.** The run goes over limn-demo's `AccessibilityGallery` date
+entries ("Calendar grid", "Date field, segmented", "Date picker, open", "Date picker, closed"),
+not over the demo's live date scene, which keeps the real clock. Each of those entries is built
+on noon of 2026-09-09 UTC and declares English (United States) on its root, whatever the guest's
+clock and process locale say: a calendar names its today cell ", today" and the language names
+every cell and segment, so an entry on the real clock spoke a different day on each guest (the
+Fedora guest's clock ran days behind the others). Pinned by limn-demo's `DateReaderEntriesTest`,
+built under a Brazilian Portuguese process locale.
