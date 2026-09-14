@@ -2213,7 +2213,6 @@ public class CalendarView extends Widget {
      */
     private void describeChooser(Accessibility a, boolean rtl) {
         int columns = columns();
-        int current = currentChooserCell();
         for (int row = 0; row < rows(); row++) {
             float top = gridY + row * cellH;
             a.child(KEY_ROW_BASE - row);
@@ -2232,9 +2231,9 @@ public class CalendarView extends Widget {
                 if (isEnabled() && isChooserCellOffered(index)) {
                     a.action(Accessible.Action.SELECT);
                 }
-                if (index == current) {
-                    a.state(Accessible.State.CHECKED, true);
-                }
+                // The cell on show (`current`) is not marked here: CHECKED is the toggle facet's
+                // and the builder refuses it. Decision 48 (2026-09-14) puts the fact in the
+                // cell's name instead, which is the dates lane's change.
                 if (index == chooserCursor && focusHere(Part.GRID)) {
                     a.state(Accessible.State.ACTIVE);
                 }

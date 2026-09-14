@@ -592,6 +592,16 @@ was indistinguishable from a slider's: the facet's presence is what advertises a
 platform, `state(READ_ONLY)` was dropped as derived, and a bridge built from §2's rows would have
 vended a writable `RangeValue` whose set landed in the inherited hook, refused in silence.
 
+**Amendment, 2026-09-14: a derived state is refused by the setter, not dropped by it.**
+`Accessibility#state` used to return in silence for the five facet-derived bits and the five the
+publish step inherits, on the reasoning that one fact keeps one home. The silence was the defect:
+`CalendarView`'s chooser marked its cell on show `CHECKED` for months and no reader ever heard it,
+because nothing said the call did nothing (MODEL-NEW-1, settled facet-state-setter). The setter now
+throws `IllegalArgumentException` naming the facet or the step that owns the bit, the way `action`
+already refuses a verb that takes an argument, so the next dead line fails the first test that runs
+it. The two dead calls found by the audit are gone; `AccessibleModelTest` pins the refusal for every
+owned state and that a widget's own state still lands.
+
 `ENABLED` and `READ_ONLY` are separate bits and are never conflated. Every platform separates them —
 UIA has `IsEnabled` against `ValuePattern.IsReadOnly`, AT-SPI2 has `SENSITIVE`/`ENABLED` against
 `READ_ONLY`/`EDITABLE`, AppKit has `accessibilityEnabled` against the text attributes — and merging

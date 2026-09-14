@@ -71,8 +71,9 @@ class AxBridgeTest {
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Button 0"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
+        // Focus is the tree's stamp (the focusedId handed to publish), not a bit a describe
+        // hook may write: the builder refuses FOCUSED, and the bridge answers from the stamp.
         a.inherited(true, true, true, true, false);
-        a.state(Accessible.State.FOCUSED, true);
         a.end();
         a.end();
         a.end();

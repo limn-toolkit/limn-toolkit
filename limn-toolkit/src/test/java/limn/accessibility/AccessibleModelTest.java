@@ -127,14 +127,32 @@ class AccessibleModelTest {
                 () -> facet.actions().add(Accessible.Action.TOGGLE));
     }
 
+    /**
+     * A state a facet expresses, or one the publish step inherits down the walk, is refused by
+     * the setter rather than dropped (ADR 039 §1.2, amended 2026-09-14): a dropped call is a dead
+     * line a widget carries for months with no reader ever hearing it, which is what
+     * {@code CalendarView}'s chooser did with {@code CHECKED} until this refusal named it.
+     */
     @Test
     void aStateAFacetExpressesCannotBeSetBehindTheFacetsBack() {
         Accessibility a = new Accessibility();
         a.beginWalk(100, 100, Locale.ENGLISH);
         a.begin(a.mint(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
-        a.state(Accessible.State.CHECKED);
-        a.state(Accessible.State.ENABLED);
-        assertTrue(a.declaresNothing(), "a state a facet owns is not a declaration of its own");
+        for (Accessible.State owned : List.of(Accessible.State.CHECKED, Accessible.State.MIXED,
+                Accessible.State.EXPANDED, Accessible.State.SELECTED, Accessible.State.READ_ONLY,
+                Accessible.State.ENABLED, Accessible.State.VISIBLE, Accessible.State.SHOWING,
+                Accessible.State.FOCUSABLE, Accessible.State.FOCUSED)) {
+            IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                    () -> a.state(owned), owned + " is derived, never set");
+            assertTrue(refused.getMessage().contains(owned.name()), refused.getMessage());
+            assertThrows(IllegalArgumentException.class, () -> a.state(owned, false),
+                    "clearing it is refused the same way");
+        }
+        assertTrue(a.declaresNothing(), "a refused state is not a declaration of its own");
+        a.state(Accessible.State.BUSY);
+        assertFalse(a.declaresNothing(), "a state that is a widget's own still lands");
+        a.state(Accessible.State.BUSY, false);
+        assertTrue(a.declaresNothing());
         a.toggle(ToggleFacet.State.ON);
         assertFalse(a.declaresNothing());
         AccessibleTree tree = publish(a, target -> 0);

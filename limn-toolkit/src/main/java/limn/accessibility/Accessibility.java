@@ -508,25 +508,36 @@ public final class Accessibility {
     /**
      * Sets a state on this node.
      *
-     * <p>The five states a facet expresses — checked, mixed, expanded, selected, read-only — are
-     * derived from that facet and setting them here is ignored, so one fact keeps one home. The
-     * five the publish step owns — enabled, visible, showing, focusable and focused — are ignored
-     * for a different reason: a widget's own flag answers only for itself, while the tree has to
-     * agree with a keyboard whose traversal stops at the first ancestor that is hidden or
-     * disabled.
+     * <p>Two groups of states are <b>refused</b> here rather than stored, and refused loudly,
+     * the way {@link #action(Accessible.Action)} refuses a verb that takes an argument (ADR 039
+     * §1.2, amended 2026-09-14). The states a facet expresses — checked, mixed, expanded,
+     * selected, read-only — are derived from that facet, so one fact keeps one home: declare the
+     * facet. The five the publish step owns — enabled, visible, showing, focusable and focused —
+     * belong to the walk, because a widget's own flag answers only for itself while the tree has
+     * to agree with a keyboard whose traversal stops at the first ancestor that is hidden or
+     * disabled; a synthetic child narrows one of them through {@link #offScreen()}. Until this
+     * amendment such a call was dropped in silence, and a widget carried a dead line for months
+     * that no reader ever heard.
      *
      * @param state what to set; never {@code null}
      * @param on    whether it holds
-     * @throws NullPointerException if {@code state} is {@code null}
+     * @throws NullPointerException     if {@code state} is {@code null}
+     * @throws IllegalArgumentException if the state is a facet's or the publish step's to derive
      */
     public void state(Accessible.State state, boolean on) {
         Objects.requireNonNull(state, "state");
-        switch (state) {
-            case CHECKED, MIXED, EXPANDED, SELECTED, READ_ONLY,
-                 ENABLED, VISIBLE, SHOWING, FOCUSABLE, FOCUSED -> {
-                return;
-            }
-            default -> { }
+        String owner = switch (state) {
+            case CHECKED, MIXED -> "the toggle facet: call toggle()";
+            case EXPANDED -> "the expand facet: call expand()";
+            case SELECTED -> "the selection-item facet: call selectionItem()";
+            case READ_ONLY -> "the text or value facet: pass readOnly there";
+            case ENABLED, VISIBLE, SHOWING, FOCUSABLE, FOCUSED ->
+                    "the publish step, which inherits it down the walk";
+            default -> null;
+        };
+        if (owner != null) {
+            throw new IllegalArgumentException(
+                    state + " is not a widget's to set; it is derived from " + owner);
         }
         Slot s = slot();
         long bit = 1L << state.ordinal();
