@@ -230,6 +230,57 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(last.y() > rowNodes().get(2).y(), "below the last row");
     }
 
+    /**
+     * A widget cell hangs under the {@code ROW} it sits in, in column order, keyed by its column
+     * and identified through the row (decision 3 and decision 33 of 2026-09-13; ADR 039 §1.3 and
+     * §7.1 amended 2026-09-14). Until then it was a child of the {@code TABLE}, after every row,
+     * so every bridge's row-and-column lookup missed it and a reader walking the row skipped
+     * its control; and its key packed row and column into one number because the table's node
+     * scoped it.
+     */
+    @Test
+    void aWidgetColumnCellIsAChildOfItsRowInColumnOrder() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.<Person>widget("Edit", person -> new Button("Edit " + person.name()))
+                        .width(80),
+                Column.numeric("Age", Person::age).width(60)));
+        table.setRows(people(40));
+        bind(table);
+
+        for (AccessibleNode child : childrenOf(tableNode())) {
+            assertTrue(child.role() != Accessible.Role.BUTTON,
+                    "no widget cell hangs under the table itself: " + describe(tree()));
+        }
+        List<AccessibleNode> rows = rowNodes();
+        assertTrue(rows.size() > 3);
+        AccessibleNode second = rows.get(1);
+        List<AccessibleNode> cells = childrenOf(second);
+        assertEquals(3, cells.size(), "three columns, three cells: " + describe(tree()));
+        assertEquals(Accessible.Role.CELL, cells.get(0).role());
+        assertEquals(new CellFacet(1, 0), cells.get(0).cell());
+        assertEquals(Accessible.Role.BUTTON, cells.get(1).role(), "the control, in its column");
+        assertEquals("Edit Person 1", cells.get(1).name());
+        assertEquals(new CellFacet(1, 1), cells.get(1).cell());
+        assertEquals(Accessible.Role.CELL, cells.get(2).role());
+        assertEquals(new CellFacet(1, 2), cells.get(2).cell());
+        assertEquals(second.id(), tree().node(cells.get(1).parent()).id(), "its parent is the row");
+
+        // The button's verbs stay its own: a press reaches the widget, not the table's hook.
+        assertTrue(cells.get(1).actions().actions().contains(Accessible.Action.PRESS));
+        long button = cells.get(1).id();
+        long row = second.id();
+        table.scrollBy(0, 4000);
+        frame();
+        assertEquals(AccessibleNode.NONE, tree().indexOf(button), "row 1 scrolled away");
+        assertTrue(rowNodes().get(0).selectionItem().positionInSet() > 20);
+        table.scrollBy(0, -4000);
+        frame();
+        assertEquals(row, rowNodes().get(1).id());
+        assertEquals(button, childrenOf(rowNodes().get(1)).get(1).id(),
+                "the recycled control is row 1's element again");
+    }
+
     @Test
     void aMultiSelectTableSaysSo() {
         Table<Person> table = bindTable(5);

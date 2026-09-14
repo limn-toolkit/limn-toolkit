@@ -691,10 +691,16 @@ class ExpandedAccessibilityTest extends AccessibleTestBase {
         }
 
         @Override
+        protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+            if (child instanceof Cell cell) {
+                a.key(cell.key);
+            }
+        }
+
+        @Override
         protected void onAccessibilityChild(Widget child, Accessibility a) {
             asked.add(child instanceof Cell named ? named.label : "Expanded");
             if (child instanceof Cell cell) {
-                a.key(cell.key);
                 a.selectionItem(false, cell.key, 2);
             }
         }

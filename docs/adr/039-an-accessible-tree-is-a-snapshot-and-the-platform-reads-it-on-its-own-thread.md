@@ -734,6 +734,46 @@ path, a map key — and only grow in magnitude. `AccessibleModelTest` pins both 
 minting side by side never hand out one number twice, and a relation naming a node published in
 another scene is kept where one naming nothing published anywhere is still dropped.
 
+**Amendment, 2026-09-14: rule 1 is answered before the child describes itself, everything inside a
+keyed child follows its key, and a widget may hang under a synthetic node.** Three corrections to
+the rule above, decided together (decisions 3 and 33 of 2026-09-13; MODEL-NEW-2, MODEL-NEW-9,
+MODEL-NEW-10, TABLE-NEW-1, TABLE-NEW-7).
+
+- **The key comes from a hook that runs first.** Rule 1's key was supplied from
+  `onAccessibilityChild`, which runs after the child's own hook, so the walk began every keyed node
+  under the widget's serial and re-keyed it afterwards. Two things went wrong under that order.
+  The child's name was looked up under the serial, which the previous frame never published under,
+  so every keyed row missed, scanned the whole previous walk and re-resolved on every walk — correct
+  output, quadratic cost, invisible from outside. And a synthetic child the cell declared in its own
+  hook was interned under the serial, because `child(key)` reads the owner's identifier before the
+  re-keying. So the parent now answers a child's identity from `onAccessibilityChildIdentity`,
+  which runs *before* the child's hooks, and `Accessibility#key(long)` refuses to be called from
+  anywhere else. The node is begun under its final identifier; `AccessibleIdentityTest` proves the
+  carry-over by counting it, since no output can show it.
+- **Everything inside a keyed child takes its identity from the key.** The paragraph above said a
+  cell recycled from row 3 to row 9 is minted row 9's identifier, and that held only for the cell's
+  own node: a label inside a composite cell, or a synthetic child it declared, kept one identifier
+  across rows and told a reader row 3's badge had been renamed rather than replaced. Now a synthetic
+  child of a keyed node is scoped under the keyed identifier (which the first correction gives for
+  free), and a widget descendant of a keyed node is identified as (nearest keyed ancestor's
+  identifier, its own serial) through the same intern table. A widget moved out of a keyed subtree
+  changes identifier, which is the rule stated rather than an exception to it: its identity was the
+  row's, and it left the row. `AccessibleIdentityTest` pins the composite case both ways.
+- **A widget may be a child of a synthetic node when its owning container names that node as its
+  host row.** The sentence "a synthetic node with widget children would be a third kind" is
+  withdrawn (§7.1 records the same). The identity hook lets the parent say
+  `Accessibility#under(rowKey)`: the child is begun under that synthetic node of the parent's own
+  walk, its identity is scoped under the row's identifier rather than the parent's — so `Table`'s
+  widget cell is keyed by its column alone, and the packed (row, column) key it needed while the
+  table's node scoped it is gone — and among the row's cells it takes its place by column when it
+  and they carry a `CellFacet`. Its verbs stay its own: the walk still routes an action on it to the
+  widget, never to the owner's synthetic hook, because what changed is where the node hangs and not
+  who performs for it. A key is therefore unique among the host's children of *both* kinds: a widget
+  cell keyed 2 and a synthetic cell keyed 2 under one row would be one element. Naming a row the
+  parent did not declare in this walk is a defect the walk reports, as `endChild` without a child
+  is, and not a child quietly published elsewhere. `TableAccessibilityTest` pins the row, the order
+  and the recycled identity.
+
 ### 1.4 The snapshot stores links, not child lists
 
 Each node holds `parent`, `firstChild`, `lastChild`, `nextSibling` and `previousSibling` as array
@@ -753,10 +793,17 @@ protected boolean onSyntheticAction(long key, Accessible.Action action, Accessib
 They follow `onPaint`, `onMeasure` and `onKeyEvent` exactly, and each runs on the UI thread inside
 `I18n.pushScope(locale())`, the way `tooltip()` already does.
 
+**Amendment, 2026-09-14: five hooks, because identity is answered before description.** A fifth
+hook, `onAccessibilityChildIdentity(Widget child, Accessibility a)`, runs before the child's own
+hook and is the only place a parent may call `Accessibility#key(long)` and `#under(long)`; the
+identity key moved there from `onAccessibilityChild`, for the reasons §1.3's amendment of the same
+day gives. `onAccessibilityChild` keeps everything else it wrote — role, position, selected state —
+and refuses the key.
+
 `onAccessibility` fills in this widget's node and declares its synthetic children.
 `onAccessibilityChild` lets a container add what only it knows about a child — `ListView` gives a
 mounted row cell the role `LIST_ITEM`, its selected state, its position in the set **and its identity
-key** (§1.3); `TabbedPane` numbers its headers; `ContextMenus.ContextRegion` declares its own node
+key** (§1.3; from the identity hook since 2026-09-14); `TabbedPane` numbers its headers; `ContextMenus.ContextRegion` declares its own node
 and writes nothing onto its child. **Corrected while implementing:** the wrapper was to have put
 `HAS_POPUP` and `ActionFacet{SHOW_MENU}` on the child it wraps, and that is undispatchable — the
 walk records a node's owner as the widget it came from and the scene dispatches strictly to that
@@ -2516,7 +2563,7 @@ and mixing them up is how a design document becomes untrustworthy in both direct
 | ↳ `ComboBox.PopupPanel` | `LIST` | `SelectionFacet` with an active descendant | one `LIST_ITEM` per option, keyed by index, `SELECTED` on the chosen one | described in the scene it lives in, so its bounds are right in both mountings (§1.11) |
 | ↳ `ComboBox.ScenePopup` | transparent | | | the overlay wrapper |
 | `ListView` | `LIST` | `SelectionFacet` with an active descendant, `ScrollFacet` | — | rows are real pooled widgets mounted directly (Finding 14); `onAccessibilityChild` gives each mounted row `LIST_ITEM`, `SELECTED`, its data index as position in set, `rowCount()` as size of set, and **its data index as the identity key** (§1.3), which is what keeps a recycled cell from carrying row 3's identifier to row 9. **Corrected:** a row also needs `ActionFacet{PRESS}` mapped onto `ListView#activate()` — Enter activates the selected row and fires `onActivate`, and a row published with `SELECTED` and no verb is a list a screen reader user can move through and cannot use. Unmounted rows are not published (§11); a scroll never unrealizes the row holding the keyboard focus, which is published with its box outside the list's and without `SHOWING`, as the half-off row already is (§13.29) |
-| `Table` | `TABLE` | `TableFacet`, `SelectionFacet` (multi-selectable in `MULTI`), `ScrollFacet`, `ActionFacet{PRESS}` while a row is selected | one `GROUP` for the header row with a `COLUMN_HEADER` child per shown column, each with `CellFacet(-1, column)` and the column's title as its name; one `ROW` per realized data row with `SelectionItemFacet` (view position, model row count) and a `CELL` child per shown column with `CellFacet(row, column)`, its formatted text as its name and the row's witness; the focus cell is `ACTIVE`; last, when a column has a footer, one `GROUP` for the footer row with a `CELL` child per footer cell, `CellFacet(-2, column)` | added by ADR 041 §7 on 2026-09-08, and written against the widget's own code rather than surveyed from outside. Cells and headers are synthetic children keyed by row and column (§1.3); a widget cell of a widget column is a real child published in its place. Unrealized rows are not published (§11) and the row holding the keyboard focus stays published wherever the viewport is (§13.29) |
+| `Table` | `TABLE` | `TableFacet`, `SelectionFacet` (multi-selectable in `MULTI`), `ScrollFacet`, `ActionFacet{PRESS}` while a row is selected | one `GROUP` for the header row with a `COLUMN_HEADER` child per shown column, each with `CellFacet(-1, column)` and the column's title as its name; one `ROW` per realized data row with `SelectionItemFacet` (view position, model row count) and a `CELL` child per shown column with `CellFacet(row, column)`, its formatted text as its name and the row's witness; the focus cell is `ACTIVE`; last, when a column has a footer, one `GROUP` for the footer row with a `CELL` child per footer cell, `CellFacet(-2, column)` | added by ADR 041 §7 on 2026-09-08, and written against the widget's own code rather than surveyed from outside. Cells and headers are synthetic children keyed by row and column (§1.3); a widget cell of a widget column is a real child published in its place. **Amended 2026-09-14:** the widget cell hangs under the synthetic `ROW` of its record, keyed by its column alone and identified through the row, and takes its place among the row's cells by column (§1.3's amendment, decision 3); until then it was a child of the `TABLE` after every row, which every bridge's row-and-column lookup missed. Unrealized rows are not published (§11) and the row holding the keyboard focus stays published wherever the viewport is (§13.29) |
 | `Tree` | `TREE` | `SelectionFacet` (multi-selectable in `MULTI`), `ScrollFacet`, `ActionFacet{PRESS}` on the lead row and `{EXPAND}`/`{COLLAPSE}` while that row can open | — | added by ADR 044 §4 on 2026-09-12. Rows are the application's own cell widgets mounted directly, as `ListView`'s are, so `onAccessibilityChild` gives each one `TREE_ITEM`, the node's stable identifier as the identity key (§1.3), `SelectionItemFacet` (row position, visible row count) and `ExpandFacet` where the row can open; the lead row is `ACTIVE`. **It published `LIST` and `LIST_ITEM` until 2026-09-13**, the day the AT-SPI numbers came off the guest; what it still owes is depth and position-in-level, which no facet carries, and the macOS disclosure attributes. The verbs sit on the tree and act on the lead row, because a child's hook writes facts and never verbs (the `ListView` row above); per-row verbs arrive with the synthetic `TREE_ITEM` rows. Unrealized rows are not published (§11) and the row holding the keyboard focus stays published wherever the viewport is (§13.29) |
 | `CalendarView` | `TABLE` | `TableFacet(6, 7)` (8 columns with week numbers), `SelectionFacet` (multi-selectable in `RANGE`) | one `GROUP` for the weekday header with a `COLUMN_HEADER` child per column, each `CellFacet(-1, column)` and named with the **full** weekday rather than the narrow letter that is drawn; one `ROW` per week; one `CELL` per day with `CellFacet(row, column)`, the whole localized date as its name, `SelectionItemFacet` while it is selected or inside a range band, `ActionFacet{SELECT}` only while it is selectable, and `ACTIVE` on the keyboard cursor; two `BUTTON`s for the paging arrows | added by ADR 042 §8 on 2026-09-09, written against the widget's own code. **It adds no role and no facet**: every one is ADR 041's, mapped on all three platforms the day before this widget existed, which is why a calendar could ship without reopening the bridges. Day cells are keyed by a flat 0..41 index and not by column, because a verb arrives carrying only the innermost key and two cells under different rows sharing one would be indistinguishable. A day the bounds or the filter refuse carries no verb, which is the whole of how it says so |
 | `DateField` | `GROUP` | `ValueFacet` text = the whole field as drawn; `INVALID` with the reason as the description when it holds something unacceptable | one `SPIN_BUTTON` per **editable** segment, in the order the locale's own pattern writes them, each named from the toolkit's bundle ("Year", "Month", "Day", "Hour", "Minute", "Second", the day period), each with `ValueFacet` over that segment's own range and `ActionFacet{INCREMENT,DECREMENT}` reaching the path Up and Down reach, and `ACTIVE` on the one holding the caret | added by ADR 042 §8. The shape `Spinner`'s row leaves open for a clock, decided here: the caret is in one segment at a time, so a single text field publishing `31/12/2026` gives a reader no way to say which part it is in. An era segment is published and carries no verb (ADR 042 §3) |
@@ -2577,6 +2624,19 @@ instead by letting the parent choose the child's key (§1.3).
 
 This is not an afterthought. On every one of the three platforms these are the nodes an assistive
 technology spends most of its time in: a menu with no rows is a menu a user cannot operate.
+
+**Amendment, 2026-09-14: "no third kind" is withdrawn for one shape, and it is not a third kind.**
+The owner decided (decision 3, 2026-09-13) that a widget may hang under a synthetic node when its
+owning container names that node as its host row: `Table` names the synthetic `ROW` each widget cell
+sits under, from the identity hook (§1.3, amended the same day), and the cell publishes among the
+row's synthetic cells in column order. The node is still a widget — it describes itself, it keeps
+its own verbs, and an action on it reaches the widget's hook and never the owner's synthetic one —
+and the row is still a synthetic child of the table; what changed is only which node the widget's
+node hangs under. The reason the rule was written stands: `Menu` and `MenuItem` stay models,
+`MenuSurface` stays the widget that renders them, and nothing here invents a wrapper widget. The
+`ListView` paragraph above also stands as written, because a list has no row node to hang a cell
+under and needs none; what it needed — identity across recycling — the identity hook now gives to
+everything inside the cell, not only to the cell.
 
 ### 7.2 Known corrections the pipeline must apply
 

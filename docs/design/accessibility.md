@@ -27,11 +27,12 @@ reader needs to know something, it has to already be in the snapshot.
 
 ## Describing a widget
 
-Four `protected` hooks on `Widget`, and a widget usually overrides one or two:
+Five `protected` hooks on `Widget`, and a widget usually overrides one or two:
 
 | Hook | Answers |
 | --- | --- |
 | `onAccessibility(Accessibility a)` | what *this* widget is: role, name, states, facets |
+| `onAccessibilityChildIdentity(Widget child, Accessibility a)` | *who* a child is, before it describes itself: the key a pooling container owns, and the synthetic row a table hangs a widget cell under |
 | `onAccessibilityChild(Widget child, Accessibility a)` | what a *child* is, when the parent knows better than the child does |
 | `onAccessibilityAction(action, arg)` | performing a verb this widget declared |
 | `performSyntheticAction(key, action, arg)` | performing a verb on something the widget *paints* rather than parents |

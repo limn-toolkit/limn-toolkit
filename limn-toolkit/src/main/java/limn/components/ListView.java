@@ -1155,6 +1155,19 @@ public class ListView extends Widget implements Scrollable {
      * @param child the child being described, which is the bar or one mounted cell
      * @param a     the child's node
      */
+    /**
+     * A mounted cell's identity is its data index (ADR 039 §1.3), answered before the cell
+     * describes itself so that its name is carried over under that identity and whatever the
+     * cell holds inside it follows the row when the cell is recycled.
+     */
+    @Override
+    protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+        int index = child == vBar ? -1 : indexOfCell(child);
+        if (index >= 0) {
+            a.key(index);
+        }
+    }
+
     @Override
     protected void onAccessibilityChild(Widget child, Accessibility a) {
         if (child == vBar) {
@@ -1164,7 +1177,6 @@ public class ListView extends Widget implements Scrollable {
         if (index < 0) {
             return; // not one of this list's rows: whatever it is, it keeps its own verdict
         }
-        a.key(index);
         if (!a.hasRole()) {
             a.role(Accessible.Role.LIST_ITEM);
         }

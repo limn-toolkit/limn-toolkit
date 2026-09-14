@@ -1747,8 +1747,8 @@ public class Tree<T> extends Widget implements Scrollable {
         }
     }
 
-    @Override
-    protected void onAccessibilityChild(Widget child, Accessibility a) {
+    /** The row a mounted cell shows, or {@code null} for the bars and the loading line. */
+    private Row<T> rowOfCell(Widget child) {
         int index = -1;
         for (int i = 0; i < mountedCount; i++) {
             if (mountedCells[i] == child) {
@@ -1757,13 +1757,30 @@ public class Tree<T> extends Widget implements Scrollable {
             }
         }
         if (index < 0 || index >= rows.size()) {
-            return;
+            return null;
         }
         Row<T> row = rows.get(index);
-        if (row.placeholder) {
-            return; // the loading line ignores itself; its row carries BUSY instead
+        return row.placeholder ? null : row; // the loading line ignores itself; its row is BUSY
+    }
+
+    /**
+     * A row's identity is its node's stable identifier (ADR 039 §1.3), answered before the cell
+     * describes itself so that a cell recycled to another node carries nothing of the old one.
+     */
+    @Override
+    protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+        Row<T> row = rowOfCell(child);
+        if (row != null) {
+            a.key(idOf(row.node));
         }
-        a.key(idOf(row.node));
+    }
+
+    @Override
+    protected void onAccessibilityChild(Widget child, Accessibility a) {
+        Row<T> row = rowOfCell(child);
+        if (row == null) {
+            return;
+        }
         a.role(Accessible.Role.TREE_ITEM);
         I18nString name = model.nameOf(row.node);
         if (name != null) {

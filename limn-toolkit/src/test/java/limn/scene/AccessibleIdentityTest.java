@@ -181,6 +181,69 @@ class AccessibleIdentityTest extends AccessibleTestBase {
         assertEquals(rowFour, node("row 4").id());
     }
 
+    /**
+     * Everything inside a pooled cell follows the row, not the widget (decision 33 of
+     * 2026-09-13; ADR 039 §1.3 amended 2026-09-14). The rule above held only for the cell's own
+     * node: a label inside a recycled composite cell, and a synthetic child the cell declared,
+     * kept one identifier from row three to row eight and told a reader that row three's badge
+     * had been renamed rather than replaced.
+     */
+    @Test
+    void aPooledCompositeCellsInnerNodesFollowTheRowAndNotTheWidget() {
+        CompositePool pool = new CompositePool();
+        pool.firstRow = 3;
+        bind(pool);
+        frame();
+        long labelThree = node("row 3").id();
+        long badgeThree = node("badge 3").id();
+        long rowThree = node("cell 3").id();
+        assertNotEquals(labelThree, node("row 4").id());
+        assertNotEquals(badgeThree, node("badge 4").id());
+
+        pool.firstRow = 8;                  // scroll: the same two widgets, different data
+        pool.markNeedsLayout();
+        frame();
+        assertEquals(AccessibleNode.NONE, tree().indexOf(labelThree),
+                "row three's label left with row three: " + describe(tree()));
+        assertEquals(AccessibleNode.NONE, tree().indexOf(badgeThree),
+                "and so did its badge: " + describe(tree()));
+        assertNotEquals(labelThree, node("row 8").id(),
+                "the recycled cell's inner label must not carry row three's element to row eight");
+        assertNotEquals(badgeThree, node("badge 8").id());
+        assertNotEquals(rowThree, node("cell 8").id());
+
+        pool.firstRow = 3;                  // and back
+        pool.markNeedsLayout();
+        frame();
+        assertEquals(labelThree, node("row 3").id(),
+                "row three's label is the element a client was already holding");
+        assertEquals(badgeThree, node("badge 3").id());
+        assertEquals(rowThree, node("cell 3").id());
+    }
+
+    /**
+     * MODEL-NEW-2: a keyed row's name is looked up under the identifier it was published with,
+     * so a quiet second frame carries it over unresolved. Before the identity hook ran first,
+     * the lookup ran under the widget's serial, missed every keyed node, scanned the whole
+     * previous walk and re-resolved: correct output, quadratic cost, and nothing an output could
+     * show, which is why the builder counts.
+     */
+    @Test
+    void aKeyedChildCarriesItsNameOverUnderItsFinalIdentifier() {
+        Pool pool = new Pool();
+        pool.firstRow = 3;
+        bind(pool);
+        frame();
+        long before = scene.accessibleWalk().builder().carriedOver();
+
+        pool.invalidate();
+        frame();
+
+        assertEquals(before + 2, scene.accessibleWalk().builder().carriedOver(),
+                "the two keyed rows' names were carried over, not resolved again");
+        assertEquals("row 3", node("row 3").name());
+    }
+
     /** A list that mounts two cells and rebinds them to whatever rows are in view. */
     private static final class Pool extends Widget {
         int firstRow;
@@ -213,11 +276,83 @@ class AccessibleIdentityTest extends AccessibleTestBase {
         }
 
         @Override
-        protected void onAccessibilityChild(Widget child, Accessibility a) {
+        protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
             for (int i = 0; i < cells.length; i++) {
                 if (cells[i] == child) {
                     a.key(firstRow + i);        // the data index, which is what identity is here
+                }
+            }
+        }
+
+        @Override
+        protected void onAccessibilityChild(Widget child, Accessibility a) {
+            for (int i = 0; i < cells.length; i++) {
+                if (cells[i] == child) {
                     a.selectionItem(false, firstRow + i + 1, 100);
+                }
+            }
+        }
+    }
+
+    /** A cell that is a group holding a named label and declaring one synthetic child. */
+    private static final class CompositeCell extends Group {
+        final Probe label = new Probe(Accessible.Role.LABEL, "");
+        limn.i18n.I18nString name;
+        limn.i18n.I18nString badge;
+
+        CompositeCell() {
+            add(label);
+        }
+
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.LIST_ITEM);
+            a.name(name);
+            a.child(1);
+            a.role(Accessible.Role.IMAGE);
+            a.name(badge);
+            a.bounds(80, 0, 20, 20);
+            a.endChild();
+        }
+    }
+
+    /** The same list, mounting composite cells. */
+    private static final class CompositePool extends Widget {
+        int firstRow;
+        private final CompositeCell[] cells = {new CompositeCell(), new CompositeCell()};
+
+        CompositePool() {
+            for (CompositeCell cell : cells) {
+                add(cell);
+            }
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            return constraints.constrain(100, 40);
+        }
+
+        @Override
+        protected void onLayout() {
+            for (int i = 0; i < cells.length; i++) {
+                cells[i].name = limn.i18n.I18nString.literal("cell " + (firstRow + i));
+                cells[i].badge = limn.i18n.I18nString.literal("badge " + (firstRow + i));
+                cells[i].label.name = limn.i18n.I18nString.literal("row " + (firstRow + i));
+                cells[i].layoutBox(0, i * 20, 100, 20);
+            }
+        }
+
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            a.role(Accessible.Role.LIST);
+            a.selection(false, false);
+        }
+
+        @Override
+        protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+            for (int i = 0; i < cells.length; i++) {
+                if (cells[i] == child) {
+                    a.key(firstRow + i);
                 }
             }
         }

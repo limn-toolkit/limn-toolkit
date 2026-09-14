@@ -170,7 +170,7 @@ final class AccessibleWalk {
         builder.inherited(!blocked, true, true, false, false);
 
         Widget top = scene.topOverlay();
-        walkWidget(scene, root, null, 0, true, true, top == null && !blocked);
+        walkWidget(scene, root, null, 0, -1, 0, 0, true, true, top == null && !blocked);
         List<Widget> overlays = scene.overlays();
         for (int i = 0; i < overlays.size(); i++) {
             Widget overlay = overlays.get(i);
@@ -190,7 +190,8 @@ final class AccessibleWalk {
                     at = at.parent() != null ? at.parent() : at.inheritanceHost()) {
                 hostEnabled &= at.isEnabled();
             }
-            walkWidget(scene, overlay, null, 0, hostEnabled, true, overlay == top && !blocked);
+            walkWidget(scene, overlay, null, 0, -1, 0, 0, hostEnabled, true,
+                    overlay == top && !blocked);
         }
         builder.end();
         count = builder.nodeCount();
@@ -324,32 +325,73 @@ final class AccessibleWalk {
     /**
      * Describes one widget and its subtree.
      *
-     * @param scene    the scene being walked
-     * @param widget   the widget to describe
-     * @param parent   the widget that will be asked to add what only it knows, or {@code null}
-     * @param into     the index of the node this one hangs under
-     * @param enabled  whether every ancestor is enabled and nothing modal shadows this subtree
-     * @param visible  whether every ancestor is visible
-     * @param reachable whether this subtree is inside the layer that currently owns input
+     * @param scene      the scene being walked
+     * @param widget     the widget to describe
+     * @param parent     the widget that will be asked to add what only it knows, or {@code null}
+     * @param into       the index of the node this one hangs under
+     * @param parentSlot the parent's own published node index, or {@code -1} when the parent
+     *                   published none (it is transparent, or there is none)
+     * @param parentId   the parent's identifier, whether or not it published, or {@code 0}
+     * @param scope      the identifier of the nearest ancestor a container keyed, under which
+     *                   this widget's own serial is scoped, or {@code 0} outside any keyed subtree
+     * @param enabled    whether every ancestor is enabled and nothing modal shadows this subtree
+     * @param visible    whether every ancestor is visible
+     * @param reachable  whether this subtree is inside the layer that currently owns input
      */
-    private void walkWidget(Scene scene, Widget widget, Widget parent, int into,
+    private void walkWidget(Scene scene, Widget widget, Widget parent, int into, int parentSlot,
+                            long parentId, long scope,
                             boolean enabled, boolean visible, boolean reachable) {
         if (widget.isAccessibleIgnored()) {
             return;
         }
         boolean ownEnabled = enabled && widget.isEnabled() && reachable;
         boolean ownVisible = visible && widget.isVisible();
+
+        // Identity first, before either describe hook runs (ADR 039 §1.3, rule 1, amended
+        // 2026-09-14). The parent says whether it keys this child and whether the child hangs
+        // under one of the parent's synthetic children; the node is then begun under its final
+        // identifier, so a name the child hands over is found under the identifier it was
+        // published with last frame, and everything the child declares inside itself is scoped
+        // under that identifier and follows the row when the child is recycled.
         long id = identify(widget);
-        int slot = builder.begin(id, into, widget.locale(),
+        int host = -1;
+        boolean keyed = false;
+        if (parent != null) {
+            builder.beginChildIdentity();
+            try {
+                parent.describeAccessibleChildIdentity(widget, builder);
+                if (builder.hasPendingHost()) {
+                    if (parentSlot < 0) {
+                        throw new IllegalStateException(parent.getClass().getName()
+                                + " hangs a child under a synthetic node but published none");
+                    }
+                    host = builder.pendingHostIndex(parentSlot);
+                }
+                long owner = host >= 0 ? builder.idAt(host) : parentId;
+                if (builder.hasPendingKey()) {
+                    id = builder.identify(owner, builder.pendingKey());
+                    keyed = true;
+                } else if (host >= 0) {
+                    id = builder.identify(owner, id);
+                    keyed = true;
+                } else if (scope != 0) {
+                    id = builder.identify(scope, id);
+                }
+            } finally {
+                builder.endChildIdentity();
+            }
+        }
+        long ownScope = keyed ? id : scope;
+        int under = host >= 0 ? host : into;
+        int slot = builder.begin(id, under, widget.locale(),
                 widget.localToSceneX(), widget.localToSceneY(), widget.width(), widget.height());
+        if (host >= 0) {
+            builder.markHosted();
+        }
 
         widget.describeAccessible(builder);
         if (parent != null) {
             parent.describeAccessibleChild(widget, builder);
-        }
-        if (builder.hasChildKey() && parent != null) {
-            id = builder.identify(identify(parent), builder.childKey());
-            builder.reidentify(id);
         }
         // Under the widget's own language, as the two hooks above were: the node records that
         // language and the model re-resolves a name when it moves, so a string the walk hands
@@ -381,7 +423,9 @@ final class AccessibleWalk {
         if (builder.declaresNothing() && !focusable && !builder.hasChildren()) {
             warnIfItPaints(widget);
             builder.drop();
-            walkChildren(scene, widget, into, ownEnabled, ownVisible, reachable);
+            // Hoisted under whatever this one hangs under; a keyed transparent container still
+            // scopes what is inside it, because its identifier is what its key decided.
+            walkChildren(scene, widget, under, -1, id, ownScope, ownEnabled, ownVisible, reachable);
             return;              // transparent: no node, children hoisted in its place
         }
 
@@ -409,15 +453,16 @@ final class AccessibleWalk {
             addPopup(slot, widget.inheritanceHost());
         }
 
-        walkChildren(scene, widget, slot, ownEnabled, ownVisible, reachable);
+        walkChildren(scene, widget, slot, slot, id, ownScope, ownEnabled, ownVisible, reachable);
         builder.end();
     }
 
-    private void walkChildren(Scene scene, Widget widget, int into,
-                              boolean enabled, boolean visible, boolean reachable) {
+    private void walkChildren(Scene scene, Widget widget, int into, int ownSlot, long ownId,
+                              long scope, boolean enabled, boolean visible, boolean reachable) {
         List<Widget> children = widget.children();
         for (int i = 0; i < children.size(); i++) {
-            walkWidget(scene, children.get(i), widget, into, enabled, visible, reachable);
+            walkWidget(scene, children.get(i), widget, into, ownSlot, ownId, scope,
+                    enabled, visible, reachable);
         }
     }
 

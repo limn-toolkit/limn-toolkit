@@ -98,8 +98,6 @@ public class Table<T> extends Widget implements Scrollable {
     private static final long HEADER_KEY = -1;
     /** The synthetic key of the footer row's group node. */
     private static final long FOOTER_KEY = -2;
-    /** The bit that keeps a widget cell's identity key apart from a row's. */
-    private static final long WIDGET_KEY = 1L << 40;
 
     private final List<Column<T>> columns;
     private List<T> rows = List.of();
@@ -2291,6 +2289,32 @@ public class Table<T> extends Widget implements Scrollable {
         }
     }
 
+    /**
+     * A widget cell hangs under the synthetic {@code ROW} of the record it shows and is keyed by
+     * its column within that row (decision 3 of 2026-09-13; ADR 039 §1.3 and §7.1 amended
+     * 2026-09-14): a reader walking the row finds the control among its cells, in column order,
+     * and the cell's identity follows the record the row is keyed by, so a control recycled to
+     * another row carries nothing of the old one. The key is the column alone, because the row's
+     * node scopes it; no packing of row and column into one number.
+     */
+    @Override
+    protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+        if (child == vBar || child == hBar) {
+            return;
+        }
+        int at = mountedPositionOf(child);
+        if (at < 0) {
+            return;
+        }
+        Slot slot = mountedSlots[at];
+        int c = 0;
+        while (slot.widgets[c] != child) {
+            c++;
+        }
+        a.under(modelOf(slot.row));
+        a.key(c);
+    }
+
     @Override
     protected void onAccessibilityChild(Widget child, Accessibility a) {
         if (child == vBar || child == hBar) {
@@ -2309,8 +2333,6 @@ public class Table<T> extends Widget implements Scrollable {
         while (s < shownCount && shownIndex[s] != c) {
             s++;
         }
-        int model = modelOf(slot.row);
-        a.key(WIDGET_KEY | ((long) model << 16) | c);
         a.cell(slot.row, s);
     }
 

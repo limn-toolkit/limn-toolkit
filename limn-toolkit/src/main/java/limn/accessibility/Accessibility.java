@@ -111,10 +111,9 @@ public final class Accessibility {
         float originY;
         int parent;
         boolean ignored;
-        long childKey;
-        boolean hasChildKey;
         boolean synthetic;
         long syntheticKey;
+        boolean hosted;
         boolean roleDeclared;
         boolean offScreen;
 
@@ -195,10 +194,9 @@ public final class Accessibility {
             states = 0;
             declaredStates = 0;
             ignored = false;
-            childKey = 0;
-            hasChildKey = false;
             synthetic = false;
             syntheticKey = 0;
+            hosted = false;
             roleDeclared = false;
             offScreen = false;
             toggle = -1;
@@ -299,6 +297,18 @@ public final class Accessibility {
 
     private final List<AccessibleEvent> events = new ArrayList<>();
 
+    // What a parent says about a child's identity before the child is begun (ADR 039 §1.3, rule
+    // 1, amended 2026-09-14): held here between the identity hook and begin(), because there is
+    // no slot yet to hold it -- the key is what decides the slot's identifier.
+    private boolean namingChild;
+    private boolean hasPendingKey;
+    private long pendingKey;
+    private boolean hasPendingHost;
+    private long pendingHostKey;
+
+    /** How many names and descriptions were carried over from the last walk unresolved. */
+    private long carriedOver;
+
     private static Slot[] newSlots(int size) {
         Slot[] made = new Slot[size];
         for (int i = 0; i < size; i++) {
@@ -379,6 +389,7 @@ public final class Accessibility {
             s.nameLocale = old.nameLocale;
             s.nameEpoch = old.nameEpoch;
             s.nameText = old.nameText;
+            carriedOver++;
         } else {
             s.nameSource = source;
             s.nameLocale = locale;
@@ -449,6 +460,7 @@ public final class Accessibility {
             s.descriptionLocale = old.descriptionLocale;
             s.descriptionEpoch = old.descriptionEpoch;
             s.descriptionText = old.descriptionText;
+            carriedOver++;
             return;
         }
         s.descriptionSource = source;
@@ -943,20 +955,64 @@ public final class Accessibility {
     }
 
     /**
-     * Gives this node the identity key its parent chose for it, from inside that parent's
-     * describe-a-child hook.
+     * Gives the child about to be described the identity key its parent chose for it, from inside
+     * the parent's <em>identity</em> hook and nowhere else.
      *
      * <p>This is what keeps a recycled list cell from carrying row three's identifier to row nine.
      * A container that pools its children owns their identity, and nothing else can: the widget
      * object is the wrong key the moment it is reused, and the data index is the right one.
      *
-     * @param key a value unique among this parent's children and stable for as long as the child
+     * <p>It is answered <b>before</b> the child describes itself, and that ordering is the whole
+     * point (ADR 039 §1.3, amended 2026-09-14). The child's node takes its identifier from the key
+     * before its own hook runs, so a name it hands over is looked up under the identifier it was
+     * published with last frame and carried over unresolved; and everything the child declares
+     * inside itself &mdash; a synthetic child of its own, a widget it holds &mdash; is scoped
+     * under that identifier too, so a composite cell recycled to another row carries none of the
+     * old row's inner elements with it. A key given from the describe-a-child hook would arrive
+     * after both, which is why that hook refuses it.
+     *
+     * @param key a value unique among the children of the node this child hangs under, of both
+     *            kinds &mdash; a widget cell keyed {@code 2} and a synthetic cell keyed {@code 2}
+     *            under one row would be one element &mdash; and stable for as long as the child
      *            stands for the same thing
+     * @throws IllegalStateException if called outside the identity hook
      */
     public void key(long key) {
-        Slot s = slot();
-        s.childKey = key;
-        s.hasChildKey = true;
+        if (!namingChild) {
+            throw new IllegalStateException(
+                    "a child's key is answered before it describes itself: call key() from "
+                            + "onAccessibilityChildIdentity, not from onAccessibilityChild");
+        }
+        pendingKey = key;
+        hasPendingKey = true;
+    }
+
+    /**
+     * Hangs the child about to be described under one of this widget's own synthetic children
+     * rather than under this widget's node: a {@code Table}'s widget cell under the synthetic
+     * {@code ROW} it sits in, so a reader walking the row finds the control among its cells.
+     *
+     * <p>From the identity hook only, like {@link #key(long)}, because where a node hangs is
+     * decided before it is begun. The synthetic child is named by the key its owner gave it in
+     * {@link #child(long)} during this same walk, and must exist: a parent naming a row it did
+     * not declare is a defect the walk reports rather than a child it quietly publishes elsewhere.
+     * The child's identity is then scoped under that synthetic node, not under this widget, so
+     * {@link #key(long)} need only be unique among the row's children. Among them it takes its
+     * place by column when it and they carry a {@link CellFacet}, and last otherwise. Its verbs
+     * stay its own: the walk still routes an action on it to the widget, never to the owner's
+     * synthetic hook.
+     *
+     * @param syntheticKey the key of the synthetic child of this widget the child hangs under
+     * @throws IllegalStateException if called outside the identity hook
+     */
+    public void under(long syntheticKey) {
+        if (!namingChild) {
+            throw new IllegalStateException(
+                    "where a child hangs is answered before it describes itself: call under() "
+                            + "from onAccessibilityChildIdentity, not from onAccessibilityChild");
+        }
+        pendingHostKey = syntheticKey;
+        hasPendingHost = true;
     }
 
     /**
@@ -1115,31 +1171,77 @@ public final class Accessibility {
     }
 
     /**
-     * The identity key the node's parent chose for it, if it chose one.
-     *
-     * @return the key, or {@code 0} when the parent chose none
+     * Opens the window in which a parent's identity hook may call {@link #key(long)} and
+     * {@link #under(long)} for the child the publish step is about to begin. The publish step
+     * calls this; a widget never does.
      */
-    public long childKey() {
-        return slot().childKey;
+    public void beginChildIdentity() {
+        namingChild = true;
+        hasPendingKey = false;
+        hasPendingHost = false;
+    }
+
+    /** Closes what {@link #beginChildIdentity()} opened. The publish step calls this. */
+    public void endChildIdentity() {
+        namingChild = false;
+    }
+
+    /** @return whether the identity hook gave the child about to be begun a key */
+    public boolean hasPendingKey() {
+        return hasPendingKey;
+    }
+
+    /** @return the key the identity hook gave, meaningful only when {@link #hasPendingKey()} */
+    public long pendingKey() {
+        return pendingKey;
+    }
+
+    /** @return whether the identity hook hung the child under a synthetic node of its parent */
+    public boolean hasPendingHost() {
+        return hasPendingHost;
     }
 
     /**
-     * Whether the node's parent chose an identity key for it.
+     * The synthetic child of the parent, by index in this walk, that the child about to be begun
+     * hangs under.
      *
-     * @return whether {@link #key(long)} was called while describing this node
+     * @param owner the parent's own node index
+     * @return the index of the synthetic child the identity hook named with {@link #under(long)}
+     * @throws IllegalStateException if the parent declared no synthetic child with that key in
+     *                               this walk
      */
-    public boolean hasChildKey() {
-        return slot().hasChildKey;
+    public int pendingHostIndex(int owner) {
+        // A widget's synthetic children are begun inside its describe hook, so they sit right
+        // after its own slot and before any widget child; the scan stops at the first slot that
+        // is not one of them.
+        for (int i = owner + 1; i < count && slots[i].synthetic; i++) {
+            if (slots[i].parent == owner && slots[i].syntheticKey == pendingHostKey) {
+                return i;
+            }
+        }
+        throw new IllegalStateException(
+                "under(" + pendingHostKey + ") names no synthetic child this widget declared");
     }
 
     /**
-     * Replaces the node's identifier: what the publish step does once a parent has claimed the
-     * right to key its own child.
-     *
-     * @param id the identifier to carry
+     * Marks the node being described as hung under a synthetic node of its parent, which decides
+     * its place among that node's children. The publish step calls this right after
+     * {@link #begin}.
      */
-    public void reidentify(long id) {
-        slot().id = id;
+    public void markHosted() {
+        slot().hosted = true;
+    }
+
+    /**
+     * How many names and descriptions this builder has carried over unresolved from the previous
+     * walk, in total. A count and not a saving: the walk's tests read it to prove that a keyed
+     * row's name is looked up under the identifier it was published with, which no output can
+     * show.
+     *
+     * @return the running count
+     */
+    public long carriedOver() {
+        return carriedOver;
     }
 
     /**
@@ -1430,6 +1532,30 @@ public final class Accessibility {
             int parent = slots[i].parent;
             if (parent == AccessibleNode.NONE) {
                 continue;
+            }
+            if (slots[i].hosted && slots[i].hasCell) {
+                // A widget hung under a synthetic row is walked after the row's own cells, so
+                // slot order would put it last; among cells it takes its place by column, which
+                // is the reading order a row has.
+                int before = AccessibleNode.NONE;
+                for (int c = firstChild[parent]; c != AccessibleNode.NONE; c = nextSibling[c]) {
+                    if (slots[c].hasCell && slots[c].cellColumn > slots[i].cellColumn) {
+                        before = c;
+                        break;
+                    }
+                }
+                if (before != AccessibleNode.NONE) {
+                    int after = previousSibling[before];
+                    nextSibling[i] = before;
+                    previousSibling[i] = after;
+                    previousSibling[before] = i;
+                    if (after == AccessibleNode.NONE) {
+                        firstChild[parent] = i;
+                    } else {
+                        nextSibling[after] = i;
+                    }
+                    continue;
+                }
             }
             if (firstChild[parent] == AccessibleNode.NONE) {
                 firstChild[parent] = i;

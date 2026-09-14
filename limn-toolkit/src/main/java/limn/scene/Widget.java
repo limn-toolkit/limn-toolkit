@@ -1965,13 +1965,34 @@ public abstract class Widget {
     }
 
     /**
+     * Says who one of this widget's children <em>is</em>, before that child describes itself: the
+     * {@linkplain limn.accessibility.Accessibility#key(long) identity key} a container that pools
+     * its children owns and nothing else can, and, for a container that draws its rows, the
+     * {@linkplain limn.accessibility.Accessibility#under(long) synthetic row} the child hangs
+     * under.
+     *
+     * <p>Called on the UI thread before the child's node exists, so the only two things that may
+     * be written here are the two above; a fact about the child &mdash; its role, its position,
+     * a state &mdash; goes in {@link #onAccessibilityChild}, which runs after the child's own
+     * hook. The split is what makes identity right (ADR 039 §1.3): the child's node is begun
+     * under the identifier the key decides, so its name is carried over from the last frame
+     * under that identifier, and every node it declares inside itself &mdash; a synthetic child,
+     * a widget it holds &mdash; is scoped under it and follows the row when the child is recycled.
+     *
+     * @param child the child about to be described
+     * @param a     the builder, open only for the two identity calls
+     */
+    protected void onAccessibilityChildIdentity(Widget child, limn.accessibility.Accessibility a) {
+    }
+
+    /**
      * Adds what only this widget knows about one of its children: the role a mounted list cell
-     * takes, its position in the data, and above all the {@linkplain
-     * limn.accessibility.Accessibility#key(long) identity key} a container that pools its children
-     * owns and nothing else can.
+     * takes, its position in the data, its selected state.
      *
      * <p>Called on the UI thread with the <em>child's</em> node current and this widget's locale
-     * in scope, after the child has described itself, so what is written here wins.
+     * in scope, after the child has described itself, so what is written here wins. The child's
+     * identity is not decided here but in {@link #onAccessibilityChildIdentity}, which runs
+     * first; {@link limn.accessibility.Accessibility#key(long)} refuses to be called from here.
      *
      * @param child the child being described
      * @param a     the child's node
@@ -2383,6 +2404,12 @@ public abstract class Widget {
         } finally {
             I18n.popScope(enclosing);
         }
+    }
+
+    final void describeAccessibleChildIdentity(Widget child, limn.accessibility.Accessibility a) {
+        // Nothing here resolves a string, so no language is pushed: the hook answers a key and a
+        // row, which are numbers, and the child's own describe pass has not begun.
+        onAccessibilityChildIdentity(child, a);
     }
 
     final void describeAccessibleChild(Widget child, limn.accessibility.Accessibility a) {
