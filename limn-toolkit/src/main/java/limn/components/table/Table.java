@@ -101,6 +101,19 @@ public class Table<T> extends Widget implements Scrollable {
     private static final long HEADER_KEY = -1;
     /** The synthetic key of the footer row's group node. */
     private static final long FOOTER_KEY = -2;
+    /**
+     * The synthetic keys a reader's verb arrives with, told apart by a bit each: a data row is
+     * its model index; a cell is {@code CELL_KEY | model << COLUMN_BITS | column}, so a verb on
+     * a cell names its row as well as its column; a header cell is {@code HEADER_CELL_KEY |
+     * column}, a footer cell {@code FOOTER_CELL_KEY | column}. Until 2026-09-14 a cell and a
+     * header cell were keyed by their column alone, which a verb could not tell from a row's
+     * index: a select on cell (0, 1) selected row 1 (TABLE-NEW-13).
+     */
+    private static final int COLUMN_BITS = 20;
+    private static final long COLUMN_MASK = (1L << COLUMN_BITS) - 1;
+    private static final long CELL_KEY = 1L << 52;
+    private static final long HEADER_CELL_KEY = 1L << 53;
+    private static final long FOOTER_CELL_KEY = 1L << 54;
 
     private final List<Column<T>> columns;
     private List<T> rows = List.of();
@@ -443,6 +456,9 @@ public class Table<T> extends Widget implements Scrollable {
         Objects.requireNonNull(columns, "columns");
         if (columns.isEmpty()) {
             throw new IllegalArgumentException("a table needs at least one column");
+        }
+        if (columns.size() > COLUMN_MASK) {
+            throw new IllegalArgumentException("a table takes at most " + COLUMN_MASK + " columns");
         }
         this.columns = List.copyOf(columns);
         setFocusable(true);
@@ -901,7 +917,7 @@ public class Table<T> extends Widget implements Scrollable {
             }
             case INVOKED -> {
                 if (onActivate != null) {
-                    onActivate.accept(lead);
+                    onActivate.accept(activated);
                 }
             }
             case CHILDREN -> {
@@ -919,18 +935,27 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     /**
-     * Announces that the lead row was opened, as {@code INVOKED}/{@code CODE}: a caller's verb,
-     * which reaches a watcher and <b>not</b> {@link #onActivate}, the way Enter does. Nothing
-     * without a lead row. UI thread only.
+     * Announces that the cursor row — the focus cell's row — was opened, as {@code INVOKED}/
+     * {@code CODE}: a caller's verb, which reaches a watcher and <b>not</b> {@link #onActivate},
+     * the way Enter does. Nothing before the keyboard has been in the table. UI thread only.
      */
     public void activate() {
         Ui.checkUiThread();
         activate(Change.Origin.CODE);
     }
 
-    /** The seam Enter, a double click and an assistive technology's press enter at {@code USER}. */
+    /** The model row the last activation opened, read by {@link #handleUserChange}. */
+    private int activated = -1;
+
+    /**
+     * The seam Enter, a double click and an assistive technology's press enter at {@code USER}.
+     * What opens is the <b>cursor row</b> (decision 32 of 2026-09-14): the row the focus cell is
+     * in, which in {@code SINGLE} is the lead, in {@code MULTI} may differ from it after a toggle
+     * or a Shift range, and in {@code NONE} is the only row there is.
+     */
     private void activate(Change.Origin origin) {
-        if (lead >= 0) {
+        if (focusRow >= 0 && focusRow < rows.size()) {
+            activated = modelOf(focusRow);
             notifyChange(Change.of(Change.Aspect.INVOKED, origin));
         }
     }
@@ -2474,7 +2499,7 @@ public class Table<T> extends Widget implements Scrollable {
                 }
             }
             case Keys.ENTER -> {
-                if (lead >= 0) {
+                if (focusRow >= 0) {
                     consumeAnd(event, () -> activate(Change.Origin.USER));
                 }
             }
@@ -2546,7 +2571,9 @@ public class Table<T> extends Widget implements Scrollable {
         a.selection(selectionMode == SelectionMode.MULTI, false);
         a.scrollFrom(offsetX, Math.max(0, contentWidth - w), w, contentWidth,
                 estimatedOffset(t), Math.max(0, contentH - viewH), viewH, contentH);
-        if (lead >= 0) {
+        if (focusRow >= 0 && focusRow < describedRowCount) {
+            // Whenever there is a cursor, in every mode: a press opens the cursor row, as Enter
+            // and a double click do (decision 32 of 2026-09-14).
             a.action(Accessible.Action.PRESS);
         }
 
@@ -2557,7 +2584,7 @@ public class Table<T> extends Widget implements Scrollable {
             for (int s = 0; s < shownCount; s++) {
                 int c = shownIndex[s];
                 float left = columnLeft(s, rowX, w, rtl);
-                a.child(c);
+                a.child(HEADER_CELL_KEY | c);
                 // In this widget's coordinates, as every synthetic box is, nested or not.
                 a.bounds(left, 0, colW[s], headerH);
                 a.role(Accessible.Role.COLUMN_HEADER);
@@ -2584,10 +2611,21 @@ public class Table<T> extends Widget implements Scrollable {
             a.child(model);
             a.bounds(rowX, top, w, slot.height);
             a.role(Accessible.Role.ROW);
-            a.selectionItem(selected.get(model), row + 1, describedRowCount);
+            boolean isSelected = selected.get(model);
+            a.selectionItem(isSelected, row + 1, describedRowCount);
+            // The verbs a row accepts, by its state (decisions 10, 11 and 20 of 2026-09-14):
+            // SELECT is the click; ADD_TO_SELECTION on an unselected row and DESELECT on a
+            // selected one only where the mode allows more than one; FOCUS moves the cursor
+            // here without selecting, and is published because the cursor and the selection are
+            // separate things in a table.
             if (selectionMode != SelectionMode.NONE) {
                 a.action(Accessible.Action.SELECT);
+                if (selectionMode == SelectionMode.MULTI) {
+                    a.action(isSelected ? Accessible.Action.DESELECT
+                            : Accessible.Action.ADD_TO_SELECTION);
+                }
             }
+            a.action(Accessible.Action.FOCUS);
             if (!shown || top + slot.height <= headerH || top >= headerH + viewH) {
                 a.offScreen();
             }
@@ -2597,11 +2635,12 @@ public class Table<T> extends Widget implements Scrollable {
                     continue; // a real child, described in onAccessibilityChild
                 }
                 float left = columnLeft(s, rowX, w, rtl);
-                a.child(c);
+                a.child(CELL_KEY | ((long) model << COLUMN_BITS) | c);
                 a.bounds(left, top, colW[s], slot.height);
                 a.role(Accessible.Role.CELL);
                 a.name(slot.texts[c], textEpoch, Accessible.NameFrom.CONTENT);
                 a.cell(row, s);
+                a.action(Accessible.Action.FOCUS);
                 if (row == focusRow && s == focusColumn && isFocused()) {
                     // Only while the table holds the keyboard (ADR 039 §1.10, amended
                     // 2026-09-14): the cursor is the focused node's, and the kept focus row
@@ -2628,7 +2667,7 @@ public class Table<T> extends Widget implements Scrollable {
                     continue;
                 }
                 float left = columnLeft(s, rowX, w, rtl);
-                a.child(c);
+                a.child(FOOTER_CELL_KEY | c);
                 a.bounds(left, top, colW[s], footerH);
                 a.role(Accessible.Role.CELL);
                 a.name(footerTexts[c], textEpoch, Accessible.NameFrom.CONTENT);
@@ -2691,21 +2730,107 @@ public class Table<T> extends Widget implements Scrollable {
 
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        if (action == Accessible.Action.PRESS && lead >= 0) {
+        if (action == Accessible.Action.PRESS && focusRow >= 0 && focusRow < rows.size()) {
             activate(Change.Origin.USER);
             return true;
         }
         return false;
     }
 
+    /**
+     * A reader's verb on a row or a cell, decoded from the key the node was published with:
+     * a row's key is its model index, a cell's carries its row and its column (TABLE-NEW-13:
+     * until 2026-09-14 a cell was keyed by its column alone and a select on it selected the
+     * row of that number). The verbs are the published ones and no other — a cell accepts
+     * {@code FOCUS} alone — and each goes through the seam the matching gesture takes at
+     * {@code USER}: {@code SELECT} is the click, {@code ADD_TO_SELECTION} and {@code DESELECT}
+     * the command-click, {@code FOCUS} a cursor move that selects nothing. A row is named by
+     * the model index the snapshot published and acted on as the record at that index now.
+     */
     @Override
     protected boolean onSyntheticAction(long key, Accessible.Action action,
                                         Accessible.Argument arg) {
-        if (action == Accessible.Action.SELECT && selectionMode != SelectionMode.NONE
-                && key >= 0 && key < rows.size()) {
-            selectOnly((int) key, viewOf((int) key), true, Change.Origin.USER);
-            return true;
+        int count = rows.size();
+        if ((key & CELL_KEY) != 0) {
+            int model = (int) ((key & ~CELL_KEY) >>> COLUMN_BITS);
+            int c = (int) (key & COLUMN_MASK);
+            int s = shownIndexOf(c);
+            if (action == Accessible.Action.FOCUS && model < count && s >= 0) {
+                focusCell(viewOf(model), s, Change.Origin.USER);
+                return true;
+            }
+            return false;
         }
-        return false;
+        if ((key & (HEADER_CELL_KEY | FOOTER_CELL_KEY)) != 0 || key < 0 || key >= count) {
+            return false;
+        }
+        int model = (int) key;
+        int view = viewOf(model);
+        switch (action) {
+            case SELECT -> {
+                if (selectionMode == SelectionMode.NONE) {
+                    return false;
+                }
+                selectOnly(model, view, true, Change.Origin.USER);
+                return true;
+            }
+            case ADD_TO_SELECTION -> {
+                if (selectionMode != SelectionMode.MULTI || selected.get(model)) {
+                    return false;
+                }
+                toggle(view);
+                return true;
+            }
+            case DESELECT -> {
+                if (selectionMode != SelectionMode.MULTI || !selected.get(model)) {
+                    return false;
+                }
+                toggle(view);
+                return true;
+            }
+            case FOCUS -> {
+                focusCell(view, focusColumn, Change.Origin.USER);
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    /** The shown index of column {@code c}, or {@code -1} while it is hidden. */
+    private int shownIndexOf(int c) {
+        for (int s = 0; s < shownCount; s++) {
+            if (shownIndex[s] == c) {
+                return s;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Moves the focus cell without touching the selection: what a reader's {@code FOCUS} on a
+     * row or a cell asks for (decision 11 of 2026-09-14). The range anchor moves with it, as it
+     * does under a toggle, so the next Shift range extends from where the cursor is; the row is
+     * revealed and the move announced as {@code ACTIVE}.
+     */
+    private void focusCell(int viewIndex, int shownColumn, Change.Origin origin) {
+        int count = rows.size();
+        if (count == 0 || shownCount == 0) {
+            return;
+        }
+        int wasFocusRow = focusRow;
+        int wasColumn = focusColumn;
+        focusRow = Math.min(Math.max(0, viewIndex), count - 1);
+        focusColumn = Math.min(Math.max(0, shownColumn), shownCount - 1);
+        rangeAnchor = focusRow;
+        syncRecords();
+        ensureVisible(focusRow);
+        ensureColumnVisible(focusColumn);
+        damageRow(wasFocusRow);
+        damageRow(focusRow);
+        if (focusRow != wasFocusRow || focusColumn != wasColumn) {
+            notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
+        }
     }
 }

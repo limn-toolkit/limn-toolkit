@@ -302,6 +302,22 @@ cell is the node published `ACTIVE`, so the table's active descendant is a cell 
 reader that follows the active descendant lands on the value under the cursor. A `PRESS` on the
 table activates the lead row; `SELECT` on a row selects it.
 
+**Amended 2026-09-14 (decisions 10, 11 and 32 of the 2026-09-13 pass; TABLE-NEW-13).** The
+verbs are the published ones and no other (ADR 039 §1.5's refusal contract of the same date). A
+`ROW` publishes `SELECT` wherever a row can be selected (the click), `ADD_TO_SELECTION` on an
+unselected row and `DESELECT` on a selected one only in `MULTI` (the command-click, through the
+same toggle seam), and `FOCUS`, which moves the focus cell to that row and selects nothing; a
+`CELL` publishes `FOCUS` alone, which puts the focus cell on it. `PRESS` on the table is published
+whenever there is a focus cell, in every mode, and opens the **cursor row** — the focus cell's row,
+which is the lead in `SINGLE`, may differ from it in `MULTI` after a toggle or a Shift range, and
+is the only row there is in `NONE` — exactly as Enter and a double click do; `onActivate` receives
+that row. A cell's synthetic key carries its row as well as its column, and a header cell's says
+it is one: until this date a cell was keyed by its column alone, the table read any key below
+the row count as a row index, and a reader's select on cell (0, 1) selected row 1 (TABLE-NEW-13,
+found by the verb ratchet). Pinned by `TableAccessibilityTest.aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem`,
+`focusOnACellOrARowMovesTheCursorAndSelectsNothing`, `aCellAndAColumnHeaderRefuseTheSelectOnlyARowPublishes`,
+`aPressOnTheTableOpensTheCursorRow` and `TableTest.enterAndADoubleClickActivateTheCursorRow`.
+
 **Per platform**, what the facets become:
 
 | Platform | Table node | Cell node | Header cell |

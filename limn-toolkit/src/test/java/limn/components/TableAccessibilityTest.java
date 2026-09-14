@@ -293,6 +293,138 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(4, activated[0]);
     }
 
+    /**
+     * Decisions 10 and 20 of 2026-09-14: a row publishes the verbs its state allows and no
+     * other — {@code SELECT} wherever a row can be selected, {@code ADD_TO_SELECTION} on an
+     * unselected row and {@code DESELECT} on a selected one only in {@code MULTI} — and each
+     * goes through the seam the matching gesture takes, so the handler hears a user.
+     */
+    @Test
+    void aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem() throws InterruptedException {
+        Table<Person> table = bindTable(20);
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        List<String> selects = new ArrayList<>();
+        table.onSelect(() -> selects.add(java.util.Arrays.toString(table.selectedRows())));
+        table.setSelectedRow(2);
+        frame();
+        java.util.Set<Accessible.Action> chosen = rowNodes().get(2).actions().actions();
+        java.util.Set<Accessible.Action> other = rowNodes().get(4).actions().actions();
+        assertTrue(chosen.containsAll(java.util.Set.of(Accessible.Action.SELECT,
+                Accessible.Action.DESELECT, Accessible.Action.FOCUS)), chosen.toString());
+        assertFalse(chosen.contains(Accessible.Action.ADD_TO_SELECTION),
+                "a selected row is not added again: " + chosen);
+        assertTrue(other.containsAll(java.util.Set.of(Accessible.Action.SELECT,
+                Accessible.Action.ADD_TO_SELECTION, Accessible.Action.FOCUS)), other.toString());
+        assertFalse(other.contains(Accessible.Action.DESELECT), other.toString());
+
+        assertTrue(perform(rowNodes().get(4).id(), Accessible.Action.ADD_TO_SELECTION, null));
+        assertEquals("[2, 4]", java.util.Arrays.toString(table.selectedRows()), "added, not replaced");
+        assertEquals(4, table.selectedRow(), "the added row is the lead, as under a command-click");
+        assertTrue(perform(rowNodes().get(2).id(), Accessible.Action.DESELECT, null));
+        assertEquals("[4]", java.util.Arrays.toString(table.selectedRows()));
+        assertTrue(perform(rowNodes().get(7).id(), Accessible.Action.SELECT, null));
+        assertEquals("[7]", java.util.Arrays.toString(table.selectedRows()), "a select is the click");
+        assertEquals(List.of("[2, 4]", "[4]", "[7]"), selects, "each reached the handler as a user");
+
+        table.setSelectionMode(Table.SelectionMode.SINGLE);
+        frame();
+        for (AccessibleNode row : rowNodes()) {
+            java.util.Set<Accessible.Action> verbs = row.actions().actions();
+            assertFalse(verbs.contains(Accessible.Action.ADD_TO_SELECTION)
+                    || verbs.contains(Accessible.Action.DESELECT),
+                    "one row at a time: nothing to add to or take from: " + verbs);
+            assertTrue(verbs.contains(Accessible.Action.SELECT));
+        }
+        table.setSelectionMode(Table.SelectionMode.NONE);
+        frame();
+        assertEquals(java.util.Set.of(Accessible.Action.FOCUS),
+                rowNodes().get(0).actions().actions(), "only the cursor moves in NONE");
+    }
+
+    /**
+     * Decision 11 of 2026-09-14: {@code FOCUS} on a cell or a row moves the cursor there and
+     * selects nothing, because in a table the cursor and the selection are separate things —
+     * the one verb that lets a reader walk the cells without changing what the user chose.
+     */
+    @Test
+    void focusOnACellOrARowMovesTheCursorAndSelectsNothing() throws InterruptedException {
+        Table<Person> table = bindTable(20);
+        scene.requestFocus(table);
+        table.setSelectedRow(1);
+        frame();
+        bridge.events.clear();
+        AccessibleNode cell = childrenOf(rowNodes().get(3)).get(1);
+        assertTrue(cell.actions().actions().contains(Accessible.Action.FOCUS));
+        assertTrue(perform(cell.id(), Accessible.Action.FOCUS, null));
+        frame();
+        assertEquals(3, table.focusRow());
+        assertEquals(1, table.focusColumn());
+        assertEquals(1, table.selectedRow(), "the selection stayed where the user put it");
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size());
+        assertEquals(new CellFacet(3, 1), active.get(0).cell(), "the cursor is the cell asked for");
+        assertEquals(1, bridge.countOf(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "one cursor move: " + bridge.events);
+        assertTrue(perform(rowNodes().get(5).id(), Accessible.Action.FOCUS, null));
+        frame();
+        assertEquals(5, table.focusRow(), "a row's FOCUS moves the cursor to that row");
+        assertEquals(1, table.focusColumn(), "in the column it was in");
+        assertEquals(1, table.selectedRow());
+    }
+
+    /**
+     * TABLE-NEW-13 (found by the verb ratchet on 2026-09-14): a cell was keyed by its column
+     * alone, and the table read any key below the row count as a row index, so a reader's
+     * select on cell (0, 1) selected row 1 and a header's selected row 0. A cell's key carries
+     * its row now, a header cell's says it is one, and neither accepts a verb it does not
+     * publish.
+     */
+    @Test
+    void aCellAndAColumnHeaderRefuseTheSelectOnlyARowPublishes() throws InterruptedException {
+        Table<Person> table = bindTable(20);
+        AccessibleNode cell = childrenOf(rowNodes().get(0)).get(1);
+        assertFalse(cell.actions() != null
+                && cell.actions().actions().contains(Accessible.Action.SELECT));
+        perform(cell.id(), Accessible.Action.SELECT, null);
+        assertEquals(-1, table.selectedRow(), "cell (0, 1) selected no row");
+        AccessibleNode header = childrenOf(headerGroup()).get(0);
+        perform(header.id(), Accessible.Action.SELECT, null);
+        assertEquals(-1, table.selectedRow(), "and neither did the first header");
+        perform(header.id(), Accessible.Action.FOCUS, null);
+        assertEquals(-1, table.focusRow(), "a header is no row for the cursor either");
+    }
+
+    /**
+     * Decision 32 of 2026-09-14: {@code PRESS} on the table opens the cursor row — the row the
+     * focus cell is in — exactly as Enter and a double click do, so a reader that moved the
+     * cursor with {@code FOCUS} opens what it is on and not the lead it left behind; in
+     * {@code NONE}, where nothing is ever selected, the cursor row is what there is to open.
+     */
+    @Test
+    void aPressOnTheTableOpensTheCursorRow() throws InterruptedException {
+        Table<Person> table = bindTable(20);
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        List<Integer> opened = new ArrayList<>();
+        table.onActivate(opened::add);
+        table.setSelectedRows(1, 3);
+        frame();
+        assertTrue(perform(rowNodes().get(1).id(), Accessible.Action.FOCUS, null));
+        frame();
+        assertEquals(3, table.selectedRow(), "the lead is still row 3");
+        assertTrue(perform(tableNode().id(), Accessible.Action.PRESS, null));
+        assertEquals(List.of(1), opened, "what opened is the cursor row");
+
+        table.setSelectionMode(Table.SelectionMode.NONE);
+        frame();
+        assertTrue(perform(rowNodes().get(6).id(), Accessible.Action.FOCUS, null));
+        frame();
+        assertTrue(tableNode().actions().actions().contains(Accessible.Action.PRESS),
+                "a press is offered whenever there is a cursor, selection or not");
+        assertTrue(perform(tableNode().id(), Accessible.Action.PRESS, null));
+        assertEquals(List.of(1, 6), opened);
+    }
+
     @Test
     void aQuietTableAllocatesNothingAndPublishesNothing() {
         Assumptions.assumeTrue(AllocationProbe.isSupported(),

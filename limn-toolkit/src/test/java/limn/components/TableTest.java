@@ -286,8 +286,13 @@ class TableTest extends ComponentTestBase {
         assertEquals(0, table.selectedRows().length, "none clears");
     }
 
+    /**
+     * Decision 32 of 2026-09-14: what Enter and a double click open is the cursor row, which
+     * is the lead in {@code SINGLE}, may differ from it in {@code MULTI} after a toggle, and is
+     * the only row there is in {@code NONE}.
+     */
     @Test
-    void enterAndADoubleClickActivateTheLeadRow() {
+    void enterAndADoubleClickActivateTheCursorRow() {
         Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));
         table.setRows(people(5));
         AtomicInteger activated = new AtomicInteger(-1);
@@ -297,7 +302,7 @@ class TableTest extends ComponentTestBase {
         scene.requestFocus(table);
         scene.keyEvent(Keys.ENTER, true, false, 0);
         scene.inputBatchEnded();
-        assertEquals(-1, activated.get(), "nothing selected, nothing activated");
+        assertEquals(-1, activated.get(), "no cursor yet, nothing activated");
         table.setSelectedRow(3);
         scene.keyEvent(Keys.ENTER, true, false, 0);
         scene.inputBatchEnded();
@@ -307,6 +312,22 @@ class TableTest extends ComponentTestBase {
         click(scene, 30, y, 0);
         click(scene, 30, y, 0);
         assertEquals(1, activated.get(), "two presses on one row are a double click");
+
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectedRows(1, 3); // the lead and the cursor on row 3
+        click(scene, 30, rowCenterY(table, 3), Accelerator.commandModifier()); // toggled off
+        assertEquals(1, table.selectedRow(), "the lead fell back to row 1");
+        assertEquals(3, table.focusRow(), "the cursor stayed on row 3");
+        scene.keyEvent(Keys.ENTER, true, false, 0);
+        scene.inputBatchEnded();
+        assertEquals(3, activated.get(), "Enter opens the cursor row, not the lead");
+
+        table.setSelectionMode(Table.SelectionMode.NONE);
+        click(scene, 30, rowCenterY(table, 2), 0);
+        assertEquals(-1, table.selectedRow());
+        scene.keyEvent(Keys.ENTER, true, false, 0);
+        scene.inputBatchEnded();
+        assertEquals(2, activated.get(), "in NONE the cursor row is what opens");
     }
 
     @Test
