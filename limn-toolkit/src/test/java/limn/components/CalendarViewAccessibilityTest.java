@@ -555,4 +555,136 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         assertNull(calendar.selectedDate(),
                 "a day the pointer cannot pick is not one an assistive technology can either");
     }
+
+    /**
+     * Decision 48 (MODEL-NEW-1): the chooser cell holding the month or year on show is filled on
+     * screen, and the only thing that told a reader was a CHECKED the builder dropped. The fact
+     * now rides in the cell's name, after a comma like "today", in a chooser somebody is
+     * passing through; the chooser a month picker picks in carries a real selection instead and
+     * no word, because there the month is the value and "on show" would be a second, weaker
+     * claim beside it.
+     */
+    @Test
+    void theChooserNamesTheCellOnShowAndAMonthPickerSaysItWithASelectionInstead()
+            throws InterruptedException {
+        CalendarView calendar = bindCalendar(Locale.US);
+        calendar.setView(CalendarView.View.MONTHS);
+        frame();
+        List<AccessibleNode> months = dayNodes();
+        assertEquals(12, months.size());
+        for (int i = 0; i < months.size(); i++) {
+            assertEquals(i == 8, months.get(i).name().endsWith(", on show"),
+                    "only September, which is the month on show: " + months.get(i).name());
+        }
+        assertEquals("Sep, on show", months.get(8).name());
+        // The word follows the month on show: a page of a year moves nothing, a different month
+        // shown moves it, and a client hears the two names change rather than reading them again.
+        assertTrue(perform(pagingButton(true).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE));
+        frame();
+        assertEquals("Sep, on show", dayNodes().get(8).name(), "September 2027 is on show now");
+        bridge.events.clear();
+        calendar.setVisibleMonth(LocalDate.of(2027, 3, 1));
+        frame();
+        assertEquals("Mar, on show", dayNodes().get(2).name());
+        assertEquals("Sep", dayNodes().get(8).name());
+        assertEquals(2, bridge.eventsOf(AccessibleEvent.Type.NAME_CHANGED).size(),
+                "the word left one cell and reached another: " + bridge.events);
+
+        calendar.setView(CalendarView.View.YEARS);
+        frame();
+        List<AccessibleNode> years = dayNodes();
+        assertEquals(24, years.size());
+        List<String> onShow = years.stream().map(AccessibleNode::name)
+                .filter(name -> name.endsWith(", on show")).toList();
+        assertEquals(List.of("2027, on show"), onShow, "the year on show, and no other");
+
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        calendar.setView(CalendarView.View.MONTHS);
+        calendar.setSelectedDate(LocalDate.of(2026, 9, 15));
+        frame();
+        months = dayNodes();
+        for (AccessibleNode month : months) {
+            assertFalse(month.name().endsWith(", on show"),
+                    "a month picker's chooser says it with a selection: " + month.name());
+        }
+        assertTrue(months.get(8).selectionItem().selected());
+    }
+
+    /**
+     * DATES-NEW-11: the two arrows page a month of days, a year of months and a block of
+     * twenty-four years, and were named "Previous month" and "Next month" in all three views.
+     * The chevrons carry no words, so only a reader was told the wrong unit.
+     */
+    @Test
+    void thePagingButtonsSayWhatTheyPageInEveryView() throws InterruptedException {
+        CalendarView calendar = bindCalendar(Locale.US);
+        assertEquals("Previous month", pagingButton(false).name());
+        assertEquals("Next month", pagingButton(true).name());
+
+        calendar.setView(CalendarView.View.MONTHS);
+        frame();
+        assertEquals("Previous year", pagingButton(false).name());
+        assertEquals("Next year", pagingButton(true).name());
+        assertTrue(perform(pagingButton(true).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE));
+        assertEquals(LocalDate.of(2027, 9, 1), calendar.visibleMonth(), "and it does page a year");
+
+        calendar.setView(CalendarView.View.YEARS);
+        frame();
+        assertEquals("Previous 24 years", pagingButton(false).name());
+        assertEquals("Next 24 years", pagingButton(true).name());
+        assertTrue(perform(pagingButton(false).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE));
+        assertEquals(LocalDate.of(2003, 9, 1), calendar.visibleMonth(),
+                "and a block of twenty-four back");
+        frame();
+        assertEquals("Previous 24 years", pagingButton(false).name(),
+                "the name is the view's, not the press's");
+    }
+
+    /**
+     * DT2: a node's identity is its (parent, key) pair, so a chooser cell keyed like a day cell
+     * WAS the day cell across a view change -- five of them, the ones whose row and index
+     * coincided -- and a Windows element built for the month cell, which carries no selection
+     * item, answered no SelectionItem for the day it later stood for. The chooser's rows and
+     * cells now have keys of their own, and a view change destroys one set and mints the other.
+     */
+    @Test
+    void dayAndChooserCellsAreDifferentNodes() {
+        CalendarView calendar = bindCalendar();
+        java.util.Set<Long> days = new java.util.HashSet<>();
+        for (AccessibleNode row : rowNodes()) {
+            days.add(row.id());
+            for (AccessibleNode cell : childrenOf(row)) {
+                days.add(cell.id());
+            }
+        }
+        assertEquals(6 + 42, days.size());
+
+        calendar.setView(CalendarView.View.MONTHS);
+        frame();
+        java.util.Set<Long> months = new java.util.HashSet<>();
+        for (AccessibleNode row : rowNodes()) {
+            months.add(row.id());
+            for (AccessibleNode cell : childrenOf(row)) {
+                months.add(cell.id());
+            }
+        }
+        assertEquals(3 + 12, months.size());
+        assertTrue(java.util.Collections.disjoint(days, months),
+                "a month cell is never the node a day cell was: " + describe(tree()));
+
+        calendar.setView(CalendarView.View.YEARS);
+        frame();
+        java.util.Set<Long> years = new java.util.HashSet<>();
+        for (AccessibleNode row : rowNodes()) {
+            years.add(row.id());
+            for (AccessibleNode cell : childrenOf(row)) {
+                years.add(cell.id());
+            }
+        }
+        assertEquals(6 + 24, years.size());
+        assertTrue(java.util.Collections.disjoint(days, years));
+    }
 }

@@ -137,6 +137,14 @@ public class CalendarView extends Widget {
      * everything that is not a day is negative and spaced apart from its neighbours by more than it
      * can ever have members. The cells are the only nodes here that carry a verb, and the flat key
      * is what makes {@code SELECT} land on the day it was asked for.
+     *
+     * <p>A chooser's rows and cells have keys of their own rather than the day grid's (DT2,
+     * 2026-09-14). A key is also an <em>identity</em>: the publish step interns (owner, key), so
+     * a month cell keyed {@code 0} was the same node as the day cell keyed {@code 0} across a
+     * view change, and a Windows element is built once with the interfaces its node had when a
+     * client first read it &mdash; a cell first read in the month chooser, where it carries no
+     * selection item, answered no SelectionItem for the day it later stood for. Disjoint keys
+     * make a view change destroy the one set of nodes and mint the other.
      */
     private static final long KEY_PREVIOUS = -1;
     private static final long KEY_NEXT = -2;
@@ -149,6 +157,10 @@ public class CalendarView extends Widget {
     private static final long KEY_ROW_BASE = -100;
     /** One per week-number cell. */
     private static final long KEY_WEEK_BASE = -200;
+    /** One per chooser row: three of months, six of years. */
+    private static final long KEY_CHOOSER_ROW_BASE = -300;
+    /** One per chooser cell, twelve or twenty-four, decoded in {@link #onSyntheticAction}. */
+    private static final long KEY_CHOOSER_BASE = -1000;
 
     /**
      * Which part of the calendar the keyboard is on.
@@ -269,6 +281,8 @@ public class CalendarView extends Widget {
     private Chronology gridChronology = IsoChronology.INSTANCE;
     private DayOfWeek gridFirstDay = DayOfWeek.MONDAY;
     private View gridView = View.DAYS;
+    /** The level the labels were built for: it decides which chooser names its cell on show. */
+    private View gridGranularity = View.DAYS;
     /** Whether the drawn calendar's years carry their era; {@link CalendarChronology#yearsNameTheirEra}. */
     private boolean gridEraCalendar;
     private String headerTitle = "";
@@ -1229,7 +1243,8 @@ public class CalendarView extends Widget {
         boolean languageMoved = textLanguage.moved();
         if (!languageMoved && gridStartEpoch == start.toEpochDay()
                 && gridChronology.equals(chronology) && gridFirstDay == firstDay
-                && gridView == view && gridEraCalendar == eraCalendar) {
+                && gridView == view && gridGranularity == granularity
+                && gridEraCalendar == eraCalendar) {
             return;
         }
         gridStartEpoch = start.toEpochDay();
@@ -1244,8 +1259,20 @@ public class CalendarView extends Widget {
         previousFirstEpoch = monthFirstEpoch - previousLength;
 
         gridView = view;
+        gridGranularity = granularity;
         chooserText = buildChooserLabels(chronology, chronoFirst, locale, true);
         chooserName = buildChooserLabels(chronology, chronoFirst, locale, false);
+        // The cell holding the month or year on show says so in its name (decision 48): it is
+        // filled on screen, and a chooser being passed through has no selection to say it with.
+        // Built here, with the labels, so the name is one string held between frames and a
+        // NAME_CHANGED reaches a client when the cell on show moves. The chooser this calendar
+        // picks in carries a real selection instead and gets no word.
+        if (view != View.DAYS && !terminalChooser()) {
+            int current = currentChooserCell();
+            if (current >= 0 && current < chooserName.length) {
+                chooserName[current] = chooserName[current] + ", " + DateStrings.ON_SHOW.get();
+            }
+        }
         headerTitle = buildTitle(chronology, chronoFirst, locale);
         for (int i = 0; i < CELLS; i++) {
             dayText[i] = I18n.localizeDigits(Integer.toString(dayNumber(gridStartEpoch + i)));
@@ -2615,7 +2642,7 @@ public class CalendarView extends Widget {
         int count = Math.min(chooserText.length, cellCount());
         for (int row = 0; row < rows(); row++) {
             float top = gridY + row * cellH;
-            a.child(KEY_ROW_BASE - row);
+            a.child(KEY_CHOOSER_ROW_BASE - row);
             a.bounds(0, top, width(), cellH);
             a.role(Accessible.Role.ROW);
             for (int column = 0; column < columns; column++) {
@@ -2623,7 +2650,7 @@ public class CalendarView extends Widget {
                 if (index >= chooserText.length) {
                     break;
                 }
-                a.child(index);
+                a.child(KEY_CHOOSER_BASE - index);
                 a.bounds(cellLeft(column, rtl), top, cellW, cellH);
                 a.role(Accessible.Role.CELL);
                 a.name(chooserName[index], textEpoch, Accessible.NameFrom.CONTENT);
@@ -2636,9 +2663,9 @@ public class CalendarView extends Widget {
                 } else if (!isChooserCellOffered(index)) {
                     a.disabled(); // a month with no selectable day: decision 30's rule, one level up
                 }
-                // The cell on show (`current`) is not marked here: CHECKED is the toggle facet's
-                // and the builder refuses it. Decision 48 (2026-09-14) puts the fact in the
-                // cell's name instead, which is the dates lane's change.
+                // The cell on show is not marked with a state here: CHECKED is the toggle
+                // facet's and the builder refuses it. Its name carries the word instead
+                // (decision 48), built with the labels in rebuildGrid.
                 if (index == chooserCursor && focusHere(Part.GRID)) {
                     a.state(Accessible.State.ACTIVE);
                 }
@@ -2678,8 +2705,14 @@ public class CalendarView extends Widget {
         a.child(key);
         a.bounds(x, pad, w, headerH);
         a.role(Accessible.Role.BUTTON);
-        a.name(key == KEY_PREVIOUS ? DateStrings.PREVIOUS_MONTH : DateStrings.NEXT_MONTH,
-                Accessible.NameFrom.CONTENT);
+        // Named for what the button pages in the view on show (DATES-NEW-11): a month of days,
+        // a year of months, a block of years. The chevron drawn says none of it.
+        boolean previous = key == KEY_PREVIOUS;
+        a.name(switch (view) {
+            case DAYS -> previous ? DateStrings.PREVIOUS_MONTH : DateStrings.NEXT_MONTH;
+            case MONTHS -> previous ? DateStrings.PREVIOUS_YEAR : DateStrings.NEXT_YEAR;
+            case YEARS -> previous ? DateStrings.PREVIOUS_YEARS : DateStrings.NEXT_YEARS;
+        }, Accessible.NameFrom.CONTENT);
         if (isEnabled()) {
             a.action(Accessible.Action.PRESS);
         }
@@ -2741,13 +2774,15 @@ public class CalendarView extends Widget {
             }
         }
         if (view != View.DAYS) {
-            if (key < 0 || key >= chooserText.length || action != Accessible.Action.SELECT) {
+            long index = KEY_CHOOSER_BASE - key;
+            if (key > KEY_CHOOSER_BASE || index >= chooserText.length
+                    || action != Accessible.Action.SELECT) {
                 return false;
             }
-            if (!isChooserCellOffered((int) key)) {
+            if (!isChooserCellOffered((int) index)) {
                 return false;
             }
-            descend((int) key);
+            descend((int) index);
             return true;
         }
         if (key >= 0 && key < CELLS && action == Accessible.Action.SELECT) {

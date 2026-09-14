@@ -380,6 +380,22 @@ the two choosers and a reader never offered it is left paging. In a chooser the 
 and carry **no** selection facet &mdash; telling a reader a month is "selected" would be telling
 them the form holds a value it does not.
 
+**Amendment, 2026-09-14 (decision 48, DATES-NEW-11, DT2 — MODEL-NEW-1's widget half): what a
+chooser says, and what its nodes are.** The cell holding the month or year on show — filled on
+screen — carries the fact in its name, after a comma as "today" does ("Sep, on show"; one string,
+`limn.date.onShow`, in all 21 date locale files), in a chooser somebody is passing through; the
+first implementation set `CHECKED` on it, which the builder drops (ADR 039 §1.2). The chooser a
+month or year picker picks in carries a real selection instead and no word. The two paging
+buttons are named for what they page in the view on show — "Previous month"/"Next month" over
+the days, "Previous year"/"Next year" over the months, "Previous 24 years"/"Next 24 years" over
+the years (four strings, 21 locales) — where before all three views said "month". And a
+chooser's rows and cells are keyed in a range of their own rather than the day grid's: a key is
+an identity, so a month cell keyed like a day cell *was* that node across a view change, and a
+Windows element built for it while it carried no selection item answered no `SelectionItem` for
+the day it later stood for; a view change now destroys one set of nodes and mints the other.
+Pinned by `CalendarViewAccessibilityTest.theChooserNamesTheCellOnShowAndAMonthPickerSaysItWithASelectionInstead`,
+`thePagingButtonsSayWhatTheyPageInEveryView` and `dayAndChooserCellsAreDifferentNodes`.
+
 **The picker.** The field's subtree, the popup's, and one synthetic `BUTTON` for the calendar
 affordance with `EXPANDED` on the picker itself.
 

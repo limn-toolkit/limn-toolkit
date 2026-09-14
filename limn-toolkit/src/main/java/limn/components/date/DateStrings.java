@@ -67,6 +67,32 @@ final class DateStrings {
 
     static final I18nString NEXT_MONTH = new I18nString("limn.date.nextMonth", "Next month");
 
+    /**
+     * The same two buttons in the month chooser, where they page a year, and in the year
+     * chooser, where they page a block of {@code CalendarView.YEARS_PER_PAGE} years (DATES-NEW-11,
+     * 2026-09-14): the chevrons carry no words, so the name is the only thing that said "month"
+     * to a reader who was about to move a year. The block's size is written into the string
+     * rather than formatted in, because twenty-four is a constant of the widget and a translator
+     * can put the number where their language puts it.
+     */
+    static final I18nString PREVIOUS_YEAR =
+            new I18nString("limn.date.previousYear", "Previous year");
+
+    static final I18nString NEXT_YEAR = new I18nString("limn.date.nextYear", "Next year");
+
+    static final I18nString PREVIOUS_YEARS =
+            new I18nString("limn.date.previousYears", "Previous 24 years");
+
+    static final I18nString NEXT_YEARS = new I18nString("limn.date.nextYears", "Next 24 years");
+
+    /**
+     * What follows the name of the chooser cell holding the month or year on show (decision 48,
+     * 2026-09-14), after a comma like {@link #TODAY}: the cell is filled on screen and nothing
+     * else says so to a reader. Only in a chooser somebody is passing through; the chooser a
+     * calendar picks in carries a real selection instead.
+     */
+    static final I18nString ON_SHOW = new I18nString("limn.date.onShow", "on show");
+
     /** The head of the week-number column, which is a column head and so has to have a name. */
     static final I18nString WEEK_COLUMN = new I18nString("limn.date.weekColumn", "Week");
 
