@@ -1076,6 +1076,18 @@ public class Table<T> extends Widget implements Scrollable {
             sortColumn = column;
             sortOrder = order;
         }
+        permute(origin);
+    }
+
+    /**
+     * Rebuilds the permutation from the sort the header shows — or drops it, while a sort
+     * request handler is set — and carries the focus cell and the range anchor to their
+     * records, reveals the focus row and announces the move and then the rows, as
+     * {@link #applySort} does. The seam a change to {@link #onSortRequest} re-runs as well
+     * (TABLE-NEW-4, 2026-09-14): setting the handler drops the table's permutation at once,
+     * clearing it re-applies the table's own sort on the column the header shows.
+     */
+    private void permute(Change.Origin origin) {
         int count = rows.size();
         int focusModel = focusRow >= 0 && focusRow < count ? modelOf(focusRow) : -1;
         int anchorModel = rangeAnchor >= 0 && rangeAnchor < count ? modelOf(rangeAnchor) : -1;
@@ -1113,15 +1125,28 @@ public class Table<T> extends Widget implements Scrollable {
      * Hands header clicks to the application instead of sorting: the handler is told the column
      * and the order the click asks for, orders the list itself and calls {@link #refresh()},
      * which carries the selection and the focus cell to where their records are now. The
-     * header shows the order the click asked for from the click itself. {@code null} restores the
-     * table's own sort. A handler, so it answers the user's click and never {@link #setSort}.
+     * header shows the order the click asked for from the click itself. A handler, so it
+     * answers the user's click and never {@link #setSort}; one slot, as every {@code onX} is
+     * (ADR 040 §1): {@code null} clears it, a second handler over the first throws.
      *
-     * @param handler what to tell, or {@code null}
+     * <p>The slot changing hands re-sorts at once when the header shows an order: setting a
+     * handler drops the table's permutation, so the rows show in the application's order
+     * (the application is expected to have ordered them, or to order them and
+     * {@link #refresh()}); clearing it restores the table's own sort on the column the header
+     * shows. Both carry the focus cell with its record and are announced as a sort is,
+     * {@code CHILDREN}/{@code CODE}, reaching no handler. UI thread only.
+     *
+     * @param handler what to tell, or {@code null} to clear the slot
      * @return this table
+     * @throws IllegalStateException if a handler is already registered
      */
     public Table<T> onSortRequest(BiConsumer<Column<T>, SortOrder> handler) {
         Ui.checkUiThread();
-        this.onSortRequest = handler;
+        boolean had = onSortRequest != null;
+        this.onSortRequest = Checks.handlerSlot(onSortRequest, handler, "Table.onSortRequest");
+        if (had != (handler != null) && sortColumn != null && sortOrder != SortOrder.NONE) {
+            permute(Change.Origin.CODE);
+        }
         return this;
     }
 

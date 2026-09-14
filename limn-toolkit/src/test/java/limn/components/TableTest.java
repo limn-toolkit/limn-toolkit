@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The table's engine: virtualization, the permutation, selection, widths and the header. */
@@ -817,5 +818,68 @@ class TableTest extends ComponentTestBase {
         scene.renderFrame(canvas);
         assertEquals(2, table.children().size(), "the next layout released the widgets");
         assertSame(table, scene.focusedWidget(), "the keyboard came back to the table");
+    }
+
+    /**
+     * TABLE-NEW-4 (2026-09-14): {@code onSortRequest} assigned its field directly, the one
+     * registrar outside {@code Work} that skipped ADR 040's one-slot policy, and the slot
+     * changing hands sorted nothing: a handler set over a toolkit sort left the permutation in
+     * place until the next refresh, and clearing it left the rows in whatever order the
+     * application had put them under a header still showing a sort.
+     */
+    @Test
+    void theSortRequestSlotIsOneSlotAndChangingHandsReSortsAtOnce() {
+        Column<Person> name = nameColumn();
+        Table<Person> table = new Table<>(List.of(name, ageColumn()));
+        table.setRows(List.of(new Person("Carol", 3), new Person("Alice", 1),
+                new Person("Bob", 2)));
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        scene.requestFocus(table);
+        table.setSelectedRow(0); // Carol
+        table.setSort(name, SortOrder.ASCENDING);
+        scene.renderFrame(canvas);
+        assertEquals(1, table.viewToModel(0), "the toolkit sorted: Alice first");
+        assertEquals(2, table.focusRow(), "the cursor is on Carol, shown last");
+
+        List<Change> heard = new ArrayList<>();
+        table.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.CHILDREN) {
+                heard.add(change);
+            }
+        });
+        AtomicInteger told = new AtomicInteger();
+        java.util.function.BiConsumer<Column<Person>, SortOrder> first =
+                (column, order) -> told.incrementAndGet();
+        table.onSortRequest(first);
+        assertThrows(IllegalStateException.class,
+                () -> table.onSortRequest((column, order) -> { }),
+                "a second handler over the first is refused, as every onX is");
+        assertEquals(0, table.viewToModel(0), "set, the permutation is dropped at once");
+        assertSame(name, table.sortColumn());
+        assertEquals(SortOrder.ASCENDING, table.sortOrder(), "the header still shows the order");
+        assertEquals(0, table.focusRow(), "the cursor went with Carol, first in model order");
+        assertEquals(List.of(Change.Origin.CODE), heard.stream().map(Change::origin).toList(),
+                "announced as a sort is, as a caller's write");
+        assertEquals(0, told.get(), "and reaches no handler: nobody clicked");
+        scene.renderFrame(canvas);
+
+        // The application answers a click by reordering its own list; here it ignores it, so
+        // the rows stay in model order under a header that now says descending.
+        float y = headerHeight(table) / 2;
+        click(scene, 50, y, 0);
+        assertEquals(1, told.get(), "the click reached the handler");
+        assertEquals(SortOrder.DESCENDING, table.sortOrder());
+        assertEquals(0, table.viewToModel(0), "the application sorted nothing");
+        heard.clear();
+
+        table.onSortRequest(null);
+        assertEquals(0, table.viewToModel(0), "cleared, the table sorts by the header: Carol");
+        assertEquals(1, table.viewToModel(2), "Alice last, descending");
+        assertEquals(0, table.focusRow(), "the cursor is still on Carol");
+        assertEquals(List.of(Change.Origin.CODE), heard.stream().map(Change::origin).toList());
+        table.onSortRequest((column, order) -> told.incrementAndGet());
+        assertEquals(0, table.viewToModel(0), "null then a handler is allowed, and drops the sort");
+        assertEquals(1, table.viewToModel(1), "model order again");
     }
 }

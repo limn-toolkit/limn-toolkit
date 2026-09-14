@@ -223,6 +223,19 @@ Filtering is the application's: a filtered `List<T>` is one line of stream code,
 in the toolkit would have to choose between predicate, text and column semantics for a case each
 application answers differently.
 
+**Amended 2026-09-14 (TABLE-NEW-4 of the 2026-09-13 pass; settled as table-sort-request-slot).**
+`onSortRequest` assigned its field directly — the one component registrar outside `Work` that
+skipped `Checks.handlerSlot`, while ADR 040 §7 counted it among the thirty slots — and the slot
+changing hands sorted nothing: a handler set over a toolkit sort left the permutation in place
+until the next `refresh()`, and clearing it left the rows in whatever order the application had
+put them, under a header still showing a sort. It is one slot now (`null` clears, a second
+handler throws), and the change of hands re-runs the sort seam when the header shows an order:
+setting a handler drops the permutation at once, so the rows show in the application's order,
+and clearing it re-applies the table's own sort on the column the header shows — the focus cell
+and the anchor go with their records as they do through any sort, and both are announced
+`CHILDREN`/`CODE`, a caller's write that reaches no handler. Pinned by
+`TableTest.theSortRequestSlotIsOneSlotAndChangingHandsReSortsAtOnce`.
+
 **Amended 2026-09-14 (decision 36 of the 2026-09-13 pass, TABLE-SORT-KEYS).** Sorting was the
 pointer's alone: "a click on a sortable header" was the only way to it. With a shown column that
 can be sorted, the header is now a **focus stop of its own**, before the rows: Tab into the table
@@ -453,6 +466,12 @@ down here rather than discovered.
 setters returning the table, as every other widget's are. ADR 040 will convert them with the rest;
 this record adds no observer of its own, because one widget with a different registration style is
 the inconsistency that record exists to remove.
+
+**Amended 2026-09-14.** ADR 040 landed on 2026-09-09 and the table moved onto it: the three are
+single handler slots under `Checks.handlerSlot`'s one-null policy (`onSortRequest`'s since
+TABLE-NEW-4, §4's amendment of this date), reached through `handleUserChange` for the user's
+gestures alone, and `observeChanges` hears every change with its origin; ADR 040 §7.2 records
+the table's seams. The sentence above stands as the record of what was decided.
 
 ---
 
