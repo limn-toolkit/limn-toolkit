@@ -672,6 +672,14 @@ public class Table<T> extends Widget implements Scrollable {
      * {@code USER}. A sort reorders the rows the table shows, so it is announced as
      * {@code CHILDREN} -- the enum has no aspect for an order, and the accessible tree publishes
      * none, so what a watcher re-reads is the rows.
+     *
+     * <p>The focus cell and the range anchor go with their records (decision 23 of 2026-09-14;
+     * ADR 041 §3 amended): both are view positions, and a permutation that left them where they
+     * stood put the cursor and the next Shift range on whatever record the sort moved there. The
+     * focus row is then revealed with the least scroll that shows it (decision 40), as every
+     * other write that moves the focus cell does, and its move is announced as {@code ACTIVE}/
+     * {@code ADJUSTMENT} before the rows are: a consequence of the sort, not a gesture of its
+     * own, and one the cursor's reader hears first.
      */
     private void applySort(Column<T> column, SortOrder order, Change.Origin origin) {
         if (order == SortOrder.NONE) {
@@ -681,10 +689,26 @@ public class Table<T> extends Widget implements Scrollable {
             sortColumn = column;
             sortOrder = order;
         }
+        int count = rows.size();
+        int focusModel = focusRow >= 0 && focusRow < count ? modelOf(focusRow) : -1;
+        int anchorModel = rangeAnchor >= 0 && rangeAnchor < count ? modelOf(rangeAnchor) : -1;
         resort();
+        int wasFocusRow = focusRow;
+        if (focusModel >= 0) {
+            focusRow = viewOf(focusModel);
+        }
+        if (anchorModel >= 0) {
+            rangeAnchor = viewOf(anchorModel);
+        }
         unmountAll();
         markNeedsLayout();
         invalidate();
+        if (focusRow >= 0) {
+            // Deferred to the layout that re-places the rows: nothing is realized now, so the
+            // reveal could only put the row at the top, and the least scroll needs the run.
+            pendingEnsureVisible = focusRow;
+        }
+        announceFocusCell(wasFocusRow, Change.Origin.ADJUSTMENT);
         notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
     }
 
@@ -1402,6 +1426,12 @@ public class Table<T> extends Widget implements Scrollable {
             } else {
                 return;
             }
+        } else if (placedTo > placedFrom && index >= placedTo) {
+            // Below the run: the least scroll that shows it puts it last, so the anchor is the
+            // row itself, set to end at the viewport's foot; the layout walks the rows above it
+            // up from there (decision 40 of 2026-09-14).
+            anchorIndex = index;
+            anchorTop = rowsViewportHeight() - measuredHeight(index, tokens());
         } else {
             anchorIndex = index;
             anchorTop = 0;

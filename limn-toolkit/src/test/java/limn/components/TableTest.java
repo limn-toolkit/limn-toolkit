@@ -116,6 +116,78 @@ class TableTest extends ComponentTestBase {
         assertNull(table.sortColumn());
     }
 
+    /**
+     * TABLE-NEW-2 (decision 23 of 2026-09-14): the focus cell and the range anchor are view
+     * positions, and a sort that left them where they stood put the cursor on whatever record
+     * the permutation moved there. Both now follow their records, so Down from Carol stays on
+     * Carol and a Shift range still extends from the row the user last acted on.
+     */
+    @Test
+    void aSortCarriesTheFocusCellAndTheRangeAnchorWithTheirRecords() {
+        Column<Person> name = nameColumn();
+        Table<Person> table = new Table<>(List.of(name, ageColumn()));
+        table.setRows(List.of(new Person("Carol", 3), new Person("Alice", 1),
+                new Person("Bob", 2)));
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        scene.requestFocus(table);
+        table.setSelectedRow(0); // Carol, shown first
+        assertEquals(0, table.focusRow());
+        table.setSort(name, SortOrder.ASCENDING);
+        scene.renderFrame(canvas);
+        assertEquals(2, table.modelToView(0), "Carol is shown last now");
+        assertEquals(2, table.focusRow(), "and the focus cell went with her");
+        scene.keyEvent(Keys.DOWN, true, false, 0);
+        scene.inputBatchEnded();
+        assertEquals(0, table.selectedRow(), "Down from the last row stays on Carol");
+        scene.keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT);
+        scene.inputBatchEnded();
+        assertArrayEquals(new int[] {0, 2}, table.selectedRows(),
+                "Shift+Up extends from Carol's row, where the anchor followed her: Bob and Carol");
+        table.setSort(name, SortOrder.NONE);
+        scene.renderFrame(canvas);
+        assertEquals(2, table.focusRow(), "the model's order puts Bob's row, the lead, last");
+        assertEquals(2, table.selectedRow());
+    }
+
+    /**
+     * Decision 40 of 2026-09-14: after a sort the focus row is revealed with the least scroll
+     * that shows it, as every other write that moves the focus cell does; until then the cursor
+     * could sit fifty rows below the viewport with nothing on screen to say so.
+     */
+    @Test
+    void aSortRevealsTheFocusRowWithTheLeastScroll() {
+        Column<Person> age = ageColumn();
+        Table<Person> table = new Table<>(List.of(nameColumn(), age));
+        List<Person> rows = new ArrayList<>();
+        for (int i = 0; i < 60; i++) {
+            rows.add(new Person("Person " + i, (i * 37 + 39) % 60)); // a permutation of 0..59
+        }
+        table.setRows(rows);
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        // Full rows in the viewport; one more may show partly above them.
+        int fit = (int) ((200 - headerHeight(table)) / rowHeight(table));
+        scene.requestFocus(table);
+        table.setSelectedRow(0);
+        scene.renderFrame(canvas);
+        assertEquals(0, table.firstVisibleRow());
+        table.setSort(age, SortOrder.DESCENDING);
+        scene.renderFrame(canvas);
+        scene.renderFrame(canvas);
+        assertEquals(20, table.focusRow(), "Person 0, age 39, is 21st by descending age");
+        int first = table.firstVisibleRow();
+        assertTrue(first == 20 - fit || first == 20 - fit + 1,
+                "the least scroll shows the focus row as the last row in view, not the first: "
+                        + first);
+        table.setSort(age, SortOrder.NONE);
+        scene.renderFrame(canvas);
+        scene.renderFrame(canvas);
+        assertEquals(0, table.focusRow());
+        assertEquals(0, table.firstVisibleRow(), "and back at the top when it moves up");
+    }
+
     @Test
     void aHeaderClickCyclesTheSortAndTheRequestHookReplacesIt() {
         Column<Person> name = nameColumn();

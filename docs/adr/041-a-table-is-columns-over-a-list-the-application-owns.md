@@ -125,6 +125,26 @@ Enter, and a double click on a row, fire `onActivate` with the lead row, the "op
 `ListView` has. Cell selection — a rectangle of cells, as a spreadsheet has — is not in this
 record; §10.
 
+**Amended 2026-09-14 (decisions 23 and 40 of the 2026-09-13 pass).** The focus cell and the
+range anchor are view positions, and until this date a sort left both where they stood: the
+permutation moved the records and the cursor stayed on view row *n*, so "the focus cell's row is
+the lead row" was false after every sort, Down selected whatever record the sort had put under
+the cursor, and a Shift range extended from a row the user never touched (TABLE-NEW-2). Both now
+go with their records through the permutation, in `applySort`, and the move is announced as
+`ACTIVE`/`ADJUSTMENT` before the `CHILDREN` announcement, as a consequence of the sort. After a
+sort the focus row is revealed with the least scroll that shows it — at the foot of the viewport
+when it moved down, at the top when it moved up, not at all when it stayed in view — as every
+other write that moves the focus cell does (decision 40); a row below the realized run is now
+placed as the last row in view by every reveal, where before it was placed first. Pinned by
+`TableTest.aSortCarriesTheFocusCellAndTheRangeAnchorWithTheirRecords`,
+`TableTest.aSortRevealsTheFocusRowWithTheLeastScroll` and
+`TableAccessibilityTest.aSortKeepsTheCursorOnTheRecordItWasOn`. The renders the owner reviews
+this against are `renders/table/sort-before.png` and `sort-after.png` of the pass. The range
+sentence above is also imprecise: the range extends from the row last clicked, toggled or
+selected — `rangeAnchor` — which is the lead only until a Shift extension moves the lead to the
+range's end and leaves the anchor where it was; that is the platform's grammar, and the words are
+what changes.
+
 ---
 
 ## 4. The toolkit sorts, and the application may take that over

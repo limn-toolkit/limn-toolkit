@@ -179,6 +179,34 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * TABLE-NEW-2 (decision 23 of 2026-09-14): the cursor a reader stands on is the focus cell,
+     * and a sort that moved Carol's row while the focus cell stayed at view position 0 left the
+     * reader on Alice while Carol was selected. The cursor follows its record now.
+     */
+    @Test
+    void aSortKeepsTheCursorOnTheRecordItWasOn() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        table.setRows(List.of(new Person("Carol", 3), new Person("Alice", 1),
+                new Person("Bob", 2)));
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(0);
+        frame();
+        assertEquals("Carol", nodesWith(Accessible.State.ACTIVE).get(0).name());
+        long cursor = tree().activeDescendant();
+        table.setSort(table.columns().get(0), SortOrder.ASCENDING);
+        frame();
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), describe(tree()));
+        assertEquals("Carol", active.get(0).name(), "the cursor is still on Carol's cell");
+        assertEquals(new CellFacet(2, 0), active.get(0).cell(), "shown third now");
+        assertEquals(cursor, tree().activeDescendant(), "the same element, moved");
+        assertTrue(rowNodes().get(2).selectionItem().selected());
+    }
+
+    /**
      * MODEL-NEW-4 (ADR 039 §1.10, amended 2026-09-14): a sort keeps every row's identifier and
      * moves the rows, and a client holding the old order has to be told — one
      * {@code STRUCTURE_CHANGED} on the table, naming the rows that stand at another rank than
