@@ -203,6 +203,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     @Override
     public void publish(AccessibleTree published, boolean reentrant) {
         super.publish(published, reentrant);
+        openWindowsEpoch++;
         if (published.nodeCount() > 0) open(this);
         if (reentrant) {
             // The store is the whole of it. Releasing, re-pushing or draining here would act on the
@@ -363,10 +364,12 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      */
     @Override
     public boolean isFocused(AccessibleNode node) {
-        AccessibleTree tree = tree();
+        // No lookup of the node: the closure resolved it from this tree a moment ago, and identifiers
+        // are process-wide, so an equal identifier is this node. AppKit sends this to every element a
+        // client walks, and a linear search of the tree here — and of another window's — made reading
+        // a large table cost the product of its elements and its nodes.
         long id = node.id();
-        if (tree.indexOf(id) < 0) return false;
-        return tree.effectiveFocus() == id || cursorFromAnotherWindow() == id;
+        return tree().effectiveFocus() == id || cursorFromAnotherWindow() == id;
     }
 
     // ---- the process's open windows (decision 5) ----------------------------------------------
@@ -387,6 +390,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         AxBridge[] grown = Arrays.copyOf(now, now.length + 1);
         grown[now.length] = bridge;
         openBridges = grown;
+        openWindowsEpoch++;
     }
 
     private static synchronized void close(AxBridge bridge) {
@@ -397,6 +401,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             System.arraycopy(now, 0, shrunk, 0, i);
             System.arraycopy(now, i + 1, shrunk, i, now.length - i - 1);
             openBridges = shrunk;
+            openWindowsEpoch++;
             return;
         }
     }
@@ -426,15 +431,39 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      *         cursor a focused field in another window has inside this, its native popup
      */
     private long cursorFromAnotherWindow() {
+        AxBridge[] open = openBridges;
+        // One window has nobody else's cursor to hold, which is the common case and costs nothing.
+        if (open.length < 2) return 0;
+        // Resolved once per change of any open window's tree, not once per ask: the answer moves only
+        // when a tree is published or a window opens or closes, and each of those moves the epoch.
+        long epoch = openWindowsEpoch;
+        if (epoch == foreignCursorEpoch) return foreignCursor;
         AccessibleTree mine = tree();
-        for (AxBridge other : openBridges) {
+        long found = 0;
+        for (AxBridge other : open) {
             if (other == this) continue;
             AccessibleTree theirs = other.tree();
             long cursor = theirs.effectiveFocus();
-            if (cursor != 0 && theirs.indexOf(cursor) < 0 && mine.indexOf(cursor) >= 0) return cursor;
+            if (cursor != 0 && theirs.indexOf(cursor) < 0 && mine.indexOf(cursor) >= 0) {
+                found = cursor;
+                break;
+            }
         }
-        return 0;
+        foreignCursor = found;
+        foreignCursorEpoch = epoch;
+        return found;
     }
+
+    /**
+     * Moves on every publish of any bridge in the process and on every open and close of one, so that
+     * an answer derived from the open windows' trees knows when it is stale. User-interface thread,
+     * like every write here; volatile for the tests' readers only.
+     */
+    private static volatile long openWindowsEpoch;
+    /** The epoch {@link #foreignCursor} was resolved at, or {@code -1} before the first resolution. */
+    private long foreignCursorEpoch = -1;
+    /** The node of this tree another window's effective focus named at that epoch, or {@code 0}. */
+    private long foreignCursor;
 
     @Override
     public AccessibleNode nodeFor(long element) {

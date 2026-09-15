@@ -274,6 +274,62 @@ class AxFocusTest {
     }
 
     @Test
+    void aCursorThatLeavesAnotherWindowIsNoLongerAnsweredThereOnceThatWindowPublishes() {
+        TwoWindows windows = TwoWindows.aFieldWithItsCursorInAPopup();
+        AxBridge host = AxBridge.withoutThePlatform();
+        AxBridge popup = AxBridge.withoutThePlatform();
+        try {
+            popup.publish(windows.popup(), false);
+            host.publish(windows.host(), false);
+            AccessibleNode day = windows.popup().find(windows.day());
+            assertTrue(popup.isFocused(day), "the fixture: the host's cursor is the popup's day");
+
+            // The host publishes a tree whose field has no cursor in the popup any more, and nothing
+            // happens in the popup's own window: the popup's answer must follow the host's publish.
+            Accessibility hostWalk = new Accessibility();
+            hostWalk.beginWalk(400, 300, Locale.ENGLISH);
+            hostWalk.begin(windows.host().root().id(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            hostWalk.role(Accessible.Role.WINDOW);
+            hostWalk.inherited(true, true, true, false, false);
+            hostWalk.begin(windows.field(), 0, Locale.ENGLISH, 10, 10, 200, 30);
+            hostWalk.role(Accessible.Role.TEXT_FIELD);
+            hostWalk.inherited(true, true, true, true, true);
+            hostWalk.end();
+            hostWalk.end();
+            host.publish(hostWalk.publish(windows.field(), 0, 0, 1f, true), false);
+
+            assertFalse(popup.isFocused(day),
+                    "an answer derived from another window's tree is resolved again when that tree changes");
+            assertEquals(0L, popup.focusedElement());
+        } finally {
+            host.detach();
+            popup.detach();
+        }
+    }
+
+    @Test
+    void aPopupNoLongerAnswersTheCursorOfAWindowThatClosed() {
+        TwoWindows windows = TwoWindows.aFieldWithItsCursorInAPopup();
+        AxBridge host = AxBridge.withoutThePlatform();
+        AxBridge popup = AxBridge.withoutThePlatform();
+        AxBridge third = AxBridge.withoutThePlatform();
+        try {
+            // A third window stays open throughout, so the popup is never the only one left.
+            third.publish(aFocusedListWithACursor(0), false);
+            popup.publish(windows.popup(), false);
+            host.publish(windows.host(), false);
+            AccessibleNode day = windows.popup().find(windows.day());
+            assertTrue(popup.isFocused(day), "the fixture: the host's cursor is the popup's day");
+            host.detach();
+            assertFalse(popup.isFocused(day),
+                    "a window that closed without publishing again takes its cursor with it");
+        } finally {
+            popup.detach();
+            third.detach();
+        }
+    }
+
+    @Test
     void aDetachedWindowNoLongerAnswersForAnotherWindowsCursor() {
         TwoWindows windows = TwoWindows.aFieldWithItsCursorInAPopup();
         AxBridge host = AxBridge.withoutThePlatform();
