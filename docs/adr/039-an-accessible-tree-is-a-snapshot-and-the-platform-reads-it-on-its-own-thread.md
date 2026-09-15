@@ -3408,6 +3408,24 @@ Windows' `raiseFocus` has always behaved this way. Pinned by
 `aDeactivatedWindowAndAnEmptyFocusBothForgetWhatWasAnnounced`. The tail's order is unchanged and is
 semantics 7's: structure first, focus last in the frame.
 
+**Amended again 2026-09-15 (the fix round's review of the amendment above): what the forgetting buys
+on this platform.** The clause *"so that a return is announced however little moved while away"* is
+withdrawn for macOS: it is Windows' sentence, and it is true there because §2.4's Windows cell for
+`WINDOW_ACTIVATED`/`WINDOW_DEACTIVATED` **is** the focus change — UI Automation has no window
+activation event of its own, so `UiaBridge` raises the focus on the return and the cleared memory is
+what lets that raise be heard. This bridge posts nothing for either event and is right not to: the
+macOS cell is AppKit's own `MainWindowChanged` and `FocusedWindowChanged`, the null mapping is
+deliberate and pinned (`AxNotificationsTest.theWindowEventsAreAppKitsOwnAndNotOurs`), and a client
+that wants to know where the user now is asks `accessibilityFocusedUIElement`, which is answered
+live. So a bare return — activation back, nothing moved — announces nothing here, and adding a post
+for it would be inventing a notification no reading asked for. What the forgetting does buy is the
+**next focus event** after the return: a node that arrives holding the focus is a `FOCUS_CHANGED`
+even when it is the node announced before (this section's 2026-09-14 amendment, WINDOWS-NEW-12), so a window whose
+content was rebuilt while the user was in another application says where the user is again instead
+of being silenced by a memory made while VoiceOver's cursor was in another process entirely. The
+test now pins both halves: the activation posts nothing and leaves the memory empty, and the focus
+event after it is announced though it names what was announced before.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

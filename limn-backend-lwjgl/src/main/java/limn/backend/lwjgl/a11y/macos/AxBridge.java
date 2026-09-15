@@ -534,7 +534,21 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * the model's {@code INVALIDATED} or after this bridge's own queue collapse goes out whatever it
      * names, because the sweep may have released the element the reader was standing on. Forgotten
      * when nothing is focused in any open window, on {@code WINDOW_DEACTIVATED} and when the bridge
-     * that owns it detaches, so that coming back is announced however little moved while away.
+     * that owns it detaches.
+     *
+     * <p><b>What the forgetting buys here, which is not what it buys on Windows.</b> A bare return
+     * to this window posts nothing of ours on this platform: {@code WINDOW_ACTIVATED} maps to no
+     * notification (§2.4's macOS column is AppKit's own {@code MainWindowChanged} and
+     * {@code FocusedWindowChanged}, and {@code AxNotificationsTest.theWindowEventsAreAppKitsOwnAndNotOurs}
+     * pins the null), and a client asks {@code accessibilityFocusedUIElement}, which is answered
+     * live. Windows has no window-activation event of its own — §2.4's Windows cell for this row
+     * <em>is</em> "focus change into the window" — so {@code UiaBridge} raises the focus there and
+     * needs the memory cleared for it to be heard. What the forgetting buys on this bridge is the
+     * next focus event after the return: a node that arrives holding the focus is a
+     * {@code FOCUS_CHANGED} even when it is the node announced before
+     * ({@code Accessibility#diff}, WINDOWS-NEW-12), so a window whose content was rebuilt while the
+     * user was in another application announces where the user is again, rather than being silenced
+     * by a memory made while VoiceOver's cursor was somewhere else entirely.
      *
      * <p>Before this the bridge kept no memory and posted once per frame that drained a focus event,
      * and after every sweep; the lane argued it was not a defect because the post names no element
@@ -881,8 +895,9 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             }
             if (event.type() == AccessibleEvent.Type.WINDOW_DEACTIVATED) {
                 // Nothing is posted — AppKit speaks for the window it vends (§2.2) — and what
-                // changes is the memory: the focus has gone to some other window, so a return to
-                // this one is announced again however little moved while it was away.
+                // changes is the memory: the focus has gone elsewhere, and the next focus event
+                // here is announced even when it names what was announced before it went. The
+                // window coming back posts nothing by itself on this platform; see ANNOUNCED.
                 ANNOUNCED.set(null);
                 continue;
             }

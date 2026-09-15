@@ -170,8 +170,15 @@ class AxFocusTest {
     }
 
     /**
-     * The memory is forgotten when the window loses activation, so that coming back is announced
-     * however little moved while it was away — and when nothing is focused anywhere at all.
+     * The memory is forgotten when the window loses activation — and when nothing is focused
+     * anywhere at all.
+     *
+     * <p>The return itself posts nothing on this platform: {@code WINDOW_ACTIVATED} maps to no
+     * notification, because AppKit's own {@code MainWindowChanged}/{@code FocusedWindowChanged} is
+     * §2.4's macOS cell for that row, where the Windows cell is the focus change itself. What the
+     * forgetting buys is the next focus event after the return, which the model reserves for a node
+     * that arrives holding the focus even when that node is the one announced before the window went
+     * away (WINDOWS-NEW-12) — a window rebuilt while the user was in another application.
      */
     @Test
     void aDeactivatedWindowAndAnEmptyFocusBothForgetWhatWasAnnounced() {
@@ -193,10 +200,22 @@ class AxFocusTest {
 
         trace.clear();
         bridge.publish(tree, false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_ACTIVATED, 1000));
+        bridge.frameEnded();
+        assertTrue(posted(trace).isEmpty(),
+                "the window coming back posts nothing of ours either: AppKit's own MainWindowChanged "
+                        + "and FocusedWindowChanged are §2.4's macOS cell for this row, where the Windows "
+                        + "cell is the focus change itself");
+        assertEquals(0L, AxBridge.announcedFocusNode(), "and the memory is still empty");
+
+        trace.clear();
+        bridge.publish(tree, false);
         bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
         bridge.frameEnded();
         assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
-                "so the return to this window is announced again");
+                "so the first focus event after the return is announced, though it names the node "
+                        + "announced before the window went away");
+        assertEquals(1003L, AxBridge.announcedFocusNode());
 
         trace.clear();
         bridge.publish(AccessibleTree.EMPTY, false);
