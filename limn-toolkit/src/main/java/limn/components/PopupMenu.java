@@ -1683,6 +1683,14 @@ public final class PopupMenu {
                 // The I18nString the model holds, never label(), which resolves and allocates per
                 // row per frame, and never mnemonicIndex(), which calls label() to find its own.
                 a.name(item.labelSource(), Accessible.NameFrom.CONTENT);
+                if (!item.isEnabled()) {
+                    // Said, not only left without verbs (semantics 5, the disabled axis; the 2d
+                    // review, 2026-09-15): a reader hears a disabled Cut row as unavailable rather
+                    // than as an ordinary row with nothing to do. Narrowing takes every verb and
+                    // the key binding off the row, a disabled submenu row's SHOW_MENU and EXPAND
+                    // included, which chooseItem refused while the hook answered done.
+                    a.disabled();
+                }
                 boolean current = i == col.highlight && item.isSelectable();
                 a.selectionItem(current, ++position, size);
                 if (item.kind() == MenuItem.Kind.CHECK) {
@@ -1916,8 +1924,8 @@ public final class PopupMenu {
             if (item.hasSubmenu()) {
                 switch (action) {
                     case SHOW_MENU, EXPAND -> {
-                        if (open) {
-                            return false;
+                        if (open || !item.isSelectable()) {
+                            return false; // a disabled row opens nothing, as chooseItem says
                         }
                         chooseItem(c, i); // truncates, moves the highlight, opens: the click branch
                         return true;

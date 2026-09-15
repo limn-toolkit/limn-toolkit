@@ -329,7 +329,7 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     @Test
-    void aRowThatCannotBeChosenCarriesNoVerbAndSaysSoInNoOtherWay() throws Exception {
+    void aRowThatCannotBeChosenCarriesNoVerbAndOnlyADisabledOneSaysItIsDisabled() throws Exception {
         open(everyShape());
 
         List<AccessibleNode> rows = rowsOf(rootColumn());
@@ -346,10 +346,13 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(empty.has(Accessible.State.HAS_POPUP), describe(tree()));
         assertNull(empty.expand(), describe(tree()));
         assertNull(disabled.actions(), describe(tree()));
-        assertTrue(disabled.has(Accessible.State.ENABLED),
-                "a synthetic child takes the owner's enabled bit by every route there is, so the "
-                        + "absent verb is the whole of it -- SegmentedControl's recorded case, and "
-                        + "the common one here: every text field ships disabled Cut and Copy rows");
+        assertFalse(disabled.has(Accessible.State.ENABLED),
+                "and it says so: the row is narrowed with Accessibility#disabled, so a reader "
+                        + "hears the disabled Cut and Copy rows every text field ships as "
+                        + "unavailable and not as ordinary rows with nothing to do (semantics 5, "
+                        + "2026-09-15; until then this asserted the opposite)" + describe(tree()));
+        assertTrue(empty.has(Accessible.State.ENABLED), "an empty submenu is not a disabled one");
+        assertTrue(rule.has(Accessible.State.ENABLED), "nor is a rule" + describe(tree()));
 
         // The scene accepts an identifier it published and re-checks the rest on arrival, so what
         // a refusal looks like from out here is that nothing happened.
@@ -363,6 +366,33 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(popup.isOpen(), "nothing was chosen and nothing closed");
         assertEquals(published, bridge.published.size(),
                 "and nothing moved in the tree either" + describe(tree()));
+    }
+
+    /**
+     * A disabled submenu row is published without {@code ENABLED} and with none of the verbs
+     * that open it, and a {@code SHOW_MENU} sent anyway opens nothing (semantics 5, 2026-09-15):
+     * until then it published {@code SHOW_MENU} and {@code EXPAND}, {@code chooseItem} refused to
+     * open it, and the hook answered done.
+     */
+    @Test
+    void aDisabledSubmenuRowSaysSoAndOpensNothing() throws Exception {
+        open(new Menu()
+                .addItem("New", () -> chosen.add("New"))
+                .add(MenuItem.submenu("Export", new Menu()
+                        .addItem("PNG", () -> chosen.add("PNG"))).setEnabled(false)));
+
+        AccessibleNode export = rowsOf(rootColumn()).get(1);
+        assertTrue(export.has(Accessible.State.HAS_POPUP), describe(tree()));
+        assertFalse(export.has(Accessible.State.ENABLED), describe(tree()));
+        assertNull(export.actions(), "no SHOW_MENU, EXPAND or FOCUS on a disabled row"
+                + describe(tree()));
+
+        perform(export.id(), Accessible.Action.SHOW_MENU, Accessible.Argument.NONE);
+        frame();
+        long menus = java.util.stream.IntStream.range(0, tree().nodeCount())
+                .filter(i -> tree().node(i).role() == Accessible.Role.MENU).count();
+        assertEquals(1, menus, "nothing opened" + describe(tree()));
+        assertTrue(chosen.isEmpty());
     }
 
     // ------------------------------------------------------------------------------ the boxes
