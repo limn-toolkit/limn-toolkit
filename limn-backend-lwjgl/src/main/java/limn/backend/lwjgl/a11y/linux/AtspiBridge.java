@@ -20,11 +20,14 @@ import limn.backend.lwjgl.a11y.PlatformBridge;
  *
  * <p><b>The gate is the desktop's own switch, and it is watched, not read once.</b>
  * {@code org.a11y.Status.IsEnabled} on the session bus says whether assistive technology is running
- * at all, and it moves while applications run: a screen reader started after this window, or one
- * that quits. The process keeps one session connection and one parked thread following it
+ * at all, and it moves while applications run: a screen reader started after this window turns it
+ * on. The process keeps one session connection and one parked thread following it
  * ({@link AtspiStatusWatch}, decision 29). While it is false no connection to the accessibility bus
  * is opened, no scene walks and no frame is spent; when it turns true every window is asked for a
- * publish, and when it turns false the application leaves the bus. It is never "a client asked us
+ * publish, and when it turns false the application leaves the bus. A reader that quits does not
+ * turn it off by itself: neither Orca 50.2 nor 46.1 ever writes it false
+ * (readings/fedora-orca-switch-writes.txt, readings/ubuntu-orca-switch-writes.txt), so the leave
+ * happens when the desktop's own setting or the session turns it off (ADR 039 §6). It is never "a client asked us
  * something recently": Orca registers for a focus change and then calls nothing until one fires, so
  * a gate of that shape goes silent exactly when the interface is being used.
  *

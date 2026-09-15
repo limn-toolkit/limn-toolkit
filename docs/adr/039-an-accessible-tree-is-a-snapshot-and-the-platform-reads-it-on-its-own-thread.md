@@ -3244,6 +3244,37 @@ idle window would never spend and joins; when it turns off, the application leav
 bus and every window stops listening. §3.4's "listening gate" row for Linux is therefore written by
 this status thread, not by the reader thread.
 
+**Corrected 2026-09-15 (the linux-A review): the launcher is followed by its name, and nothing
+polls.** Two sentences above were not true of the code. "Reopens a lost connection … so a restarted
+launcher is followed" — the session connection does not end when at-spi-bus-launcher does, so a new
+launcher's switch was never read. And "wakes only for a message the bus routes to it" — on a session
+with no launcher the read failed, the connection was closed, and the watch reconnected on its back-off,
+every sixty seconds for the life of the process. The watch now adds a second match **before** the
+read, the bus's own `NameOwnerChanged` for `org.a11y.Bus`
+(`type='signal',sender='org.freedesktop.DBus',path='/org/freedesktop/DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.a11y.Bus'`):
+a new owner has its switch read again on the same connection; no owner turns the switch off; a read
+answered with an error (no launcher) is off, and the thread parks on the connection until the name
+gets an owner. The thread wakes for three things: the switch's announcement, its owner's arrival or
+departure, and a stray call it answers. Only the session connection itself ending is retried after the
+back-off. The signal's shape (sent by `org.freedesktop.DBus` from `/org/freedesktop/DBus`, signature
+`sss`: name, old owner, new owner, empty for none) and its routing by `arg0` were read on both guests
+(`readings/fedora-dbus-bus-facts.txt`, dbus-broker 37; `readings/ubuntu-dbus-bus-facts.txt`,
+dbus-daemon 1.14.10; 2026-09-15, `scripts/a11y/linux/read-dbus-bus-facts.py`). Pinned by
+`AtspiStatusWatchTest.aSessionWithNoLauncherParksOnItsConnectionAndFollowsTheLauncherByItsName`.
+
+**Recorded 2026-09-15 (the linux-A review): "tears down with Orca" is not what this code can
+deliver on either desktop read so far.** The bridge follows `IsEnabled` and nothing else. What was
+read, without starting a reader (`scripts/a11y/linux/read-orca-switch-writes.sh`;
+`readings/fedora-orca-switch-writes.txt`, Orca 50.2; `readings/ubuntu-orca-switch-writes.txt`, Orca
+46.1): the only write either Orca makes to `org.a11y.Status` sets `IsEnabled` **true**, at start; no
+path sets it false, and neither shutdown touches it. at-spi-bus-launcher clears nothing when the
+screen reader is disabled (readings/upstream-at-spi-bus-launcher-2.52-2.60.txt). So once Orca has run,
+the switch stays on until something else turns it off — the desktop's accessibility setting, or the
+session ending — and the application stays joined and its scenes keep walking after Orca quits. The
+embed half of decision 29 holds; the teardown half holds only for a switch turned off by the desktop.
+Whether teardown should follow a different signal is the owner's question (logged in the Linux lane
+log); phase 5 measures what each desktop does to the switch when Orca quits.
+
 **These are the gates, and the gate is never "a client asked us something recently."** A publish
 conditioned on a recent inbound call inverts the contract on all three platforms: the platform events
 are pushes a client waits on, and Orca in particular registers for `object:state-changed:focused` and
