@@ -2188,6 +2188,37 @@ class TreeTest extends ComponentTestBase {
     }
 
     /**
+     * Shift is a swap only for an event with no sideways half. macOS delivers Shift and a wheel
+     * notch as the sideways event itself (scrollX set, scrollY zero), and a trackpad swipe with
+     * Shift held carries its own scrollX: both are sideways already, and a Shift that read the
+     * sideways axis from scrollY alone found nothing there, scrolled nothing and let the event
+     * through to the parent. The scroll pane and the table swap only a vertical notch the same way.
+     */
+    @Test
+    void aSidewaysFlickWithShiftHeldStillScrollsSideways() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = chainInAPane(cells);
+        ScrollView pane = (ScrollView) scene.root();
+        Widget deepest = mounted(cells, "level-14");
+        float xBefore = deepest.x();
+        float yBefore = deepest.y();
+
+        float x = tree.localToSceneX() + 20;
+        float y = tree.localToSceneY() + 20;
+        scene.mouseMoved(x, y);
+        scene.keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
+        scene.scrolled(-1, 0, x, y); // the shape macOS gives Shift and a notch
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+
+        deepest = mounted(cells, "level-14");
+        assertEquals(xBefore - Strokes.WHEEL_STEP, deepest.x(), 0.01f,
+                "a sideways event with Shift held walks the outline sideways");
+        assertEquals(yBefore, deepest.y(), 0.01f, "and moves no row up or down");
+        assertEquals(0, pane.offsetY(), 0.01f, "and never reaches the pane");
+    }
+
+    /**
      * Decision 44's second half, the tree's copy: a detent that finds the tree at either end of
      * its scroll is left for the scroller that holds it, so a tree inside a scroll pane is not a
      * wall the wheel cannot get past. The tree consumed every detent while its content

@@ -196,7 +196,11 @@ tree moved: a detent that finds the tree at either end of its scroll, on the axi
 points along, is left for the scroller that holds it, as a tree whose content fits already left
 every detent; and one event carrying both axes — a trackpad's diagonal flick — scrolls both
 (TABLE-NEW-12, the same code in the table), where before the sideways half was taken and the
-vertical half dropped. Headless, `TreeTest` holds all of it over a tree inside a `ScrollView`;
+vertical half dropped. Shift turns a notch sideways only when the event has no sideways half
+of its own, as the scroll pane and the table do: macOS delivers Shift and a notch as scrollX
+already, and a first version of this rewrite that read the sideways axis from scrollY whenever
+Shift was held scrolled nothing for that event and passed it to the parent (found in review later
+the same day). Headless, `TreeTest` holds all of it over a tree inside a `ScrollView`;
 a trackpad's momentum events over the same fixture are phase 5's live check.
 
 ## 4. Accessibility: two new roles, and what they cost

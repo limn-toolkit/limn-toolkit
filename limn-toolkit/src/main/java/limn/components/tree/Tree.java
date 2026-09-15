@@ -2167,9 +2167,14 @@ public class Tree<T> extends Widget implements Scrollable {
                 // scroller that holds it (decision 44 of 2026-09-14). Before, the wheel was
                 // swallowed whenever the tree could scroll at all, and a tree inside a scroll
                 // pane was a wall the wheel could not get past.
-                boolean shift = (event.modifiers() & Keys.MOD_SHIFT) != 0;
-                float dx = -(shift ? event.scrollY() : event.scrollX()) * Strokes.WHEEL_STEP;
-                float dy = shift ? 0 : -event.scrollY() * Strokes.WHEEL_STEP;
+                //
+                // Shift swaps only an event with no sideways half: macOS already turns Shift and
+                // a notch into scrollX, and a trackpad swipe with Shift held carries its own, so
+                // reading the sideways axis from scrollY there found nothing and let the event
+                // through (the scroll pane and the table swap the same way).
+                boolean swap = (event.modifiers() & Keys.MOD_SHIFT) != 0 && event.scrollX() == 0;
+                float dx = -(swap ? event.scrollY() : event.scrollX()) * Strokes.WHEEL_STEP;
+                float dy = swap ? 0 : -event.scrollY() * Strokes.WHEEL_STEP;
                 boolean moved = false;
                 if (dy != 0 && canScrollBy(dy)) {
                     scrollBy(dy);
