@@ -2397,6 +2397,24 @@ Orca 50.2 calls `get_n_selected_children` and `get_selected_child` only
 (readings/fedora-orca-interface-calls.txt, Fedora KDE 44, 2026-09-15). The XML's `version` property is
 not answered.
 
+#### Amendment 2026-09-15 — `Value` is served, with its text, and a write is refused where the node refuses it
+
+**What was wrong (LINUX-NEW-4, DATES-NEW-5).** The `Value` row promised an interface no code served:
+a date segment, a spinner, a slider or a progress bar had a name and a role on Linux and no number.
+
+**What the bridge does now (settled linux-value-text; decision 16; semantics 5).** A node with a
+`ValueFacet` lists `org.a11y.atspi.Value`. `MinimumValue`, `MaximumValue`, `MinimumIncrement` and
+`CurrentValue` are doubles and `Text` is the facet's display form or the empty string, as libatspi
+2.60.6 reads them (readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt) and as the guest's
+XML declares them (readings/fedora-dbus-Value.xml) — the row's "numeric only" is superseded, since the
+installed interface carries a `Text` property and Orca 50.2 reads it with the number
+(`ax_value.py`, readings/fedora-orca-interface-calls.txt). An empty value answers its minimum as
+`CurrentValue`, the one place a number is mandatory, and its word through `Text`. `Properties.Set` of
+`CurrentValue` — how libatspi writes one — posts `SET_VALUE` with the number where
+`AccessibleNode#accepts` allows it (a writable facet on an `ENABLED` node) and is otherwise answered
+`org.freedesktop.DBus.Error.Failed`, which reaches the caller's `GError`; so is a write to any other
+`Value` property. A display form is also served through `Text` (its own amendment below).
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |

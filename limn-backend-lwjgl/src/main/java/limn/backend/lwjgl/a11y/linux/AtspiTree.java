@@ -432,12 +432,40 @@ final class AtspiTree {
             return DBus.Msg.ret(m, "v", value);
         }
         if ("Set".equals(m.member)) {
+            if (Atspi.I_VALUE.equals(which) && at != null && at.node().value() != null) {
+                return setValue(m, at);
+            }
             // The registry assigns the application its id straight after Embed. Accepting and
             // discarding it is honest: nothing here reads it back, and refusing would leave the
             // registry believing the application never took the number it handed out.
             return DBus.Msg.ret(m, null);
         }
         return null;
+    }
+
+    /**
+     * {@code Properties.Set(Value, CurrentValue, v)}: the one writable property the bridge serves,
+     * and how libatspi 2.60.6's {@code atspi_value_set_current_value} writes a value (a variant
+     * {@code d}, whose error reply reaches the caller's {@code GError};
+     * readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt).
+     *
+     * <p>Posted as {@code SET_VALUE} with the number only where the node accepts it now — a
+     * writable facet on an {@code ENABLED} node (semantics 5 as amended 2026-09-15) — and refused
+     * with {@code org.freedesktop.DBus.Error.Failed} otherwise, or for any other property of
+     * Value, which are all read-only in the installed XML. A refusal is an error and not a silent
+     * success: the caller would otherwise believe a read-only progress bar took the number.
+     */
+    private DBus.Msg setValue(DBus.Msg m, Located at) {
+        String property = m.body.length > 1 ? String.valueOf(m.body[1]) : "";
+        Object given = m.body.length > 2 && m.body[2] instanceof DBus.Variant v ? v.value : null;
+        if (!"CurrentValue".equals(property) || !(given instanceof Number number)) {
+            return DBus.Msg.err(m, DBus.Conn.FAILED, "Value." + property + " cannot be set");
+        }
+        if (!performFirst(at, at.node(), new Accessible.Argument.OfValue(number.doubleValue()),
+                Accessible.Action.SET_VALUE)) {
+            return DBus.Msg.err(m, DBus.Conn.FAILED, "the value of this object is not settable now");
+        }
+        return DBus.Msg.ret(m, null);
     }
 
     private Map<Object, Object> propertiesOf(String which, boolean root, Located at) {
@@ -469,6 +497,19 @@ final class AtspiTree {
             out.put("Summary", new DBus.Variant("(so)", nullRef().toStruct()));
             out.put("NSelectedRows", new DBus.Variant("i", selectedRowsOf(tree, node).size()));
             out.put("NSelectedColumns", new DBus.Variant("i", 0));
+            return out;
+        }
+        if (Atspi.I_VALUE.equals(which) && node != null && node.value() != null) {
+            // Every one a double, as libatspi 2.60.6 reads them, and Text a string
+            // (atspi-value.c; readings/fedora-dbus-Value.xml). CurrentValue is mandatory: an empty
+            // value answers its minimum, which the facet already carries (decision 16), and says
+            // empty through Text and the events.
+            limn.accessibility.ValueFacet value = node.value();
+            out.put("MinimumValue", new DBus.Variant("d", value.min()));
+            out.put("MaximumValue", new DBus.Variant("d", value.max()));
+            out.put("MinimumIncrement", new DBus.Variant("d", value.step()));
+            out.put("CurrentValue", new DBus.Variant("d", value.value()));
+            out.put("Text", new DBus.Variant("s", value.text() == null ? "" : value.text()));
             return out;
         }
         if (Atspi.I_SELECTION.equals(which) && node != null && node.selection() != null) {
@@ -658,11 +699,13 @@ final class AtspiTree {
         if (node.selection() != null) {
             out.add(Atspi.I_SELECTION);
         }
-        // No setter is served yet: neither Value nor EditableText is named here, so nothing this
-        // bridge answers can post SET_VALUE or SET_TEXT. Phase 3 serves them (linux-value-text)
-        // and owes each setter the refusal fix round 2e settled: none posted to a node
-        // AccessibleNode#accepts refuses, a node without ENABLED included, while the facet alone
-        // answers whether the value or the text is settable (semantics 5, amended 2026-09-15).
+        if (node.value() != null) {
+            out.add(Atspi.I_VALUE);
+        }
+        // An interface is named from the facet alone, never from whether its setter is accepted
+        // now: a disabled field is still a field with a value. Every setter these serve posts
+        // only what AccessibleNode#accepts allows (performFirst), a node without ENABLED
+        // refused, as fix round 2e settled (semantics 5, amended 2026-09-15).
         return out;
     }
 

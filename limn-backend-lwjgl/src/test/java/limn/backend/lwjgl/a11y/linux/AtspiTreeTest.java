@@ -38,6 +38,7 @@ class AtspiTreeTest {
 
     private final AtomicReference<AccessibleTree> tree = new AtomicReference<>(AccessibleTree.EMPTY);
     private final List<String> performed = new ArrayList<>();
+    private final List<Accessible.Argument> arguments = new ArrayList<>();
     private AtspiTree atspi;
 
     private final AccessibilityBridge.Host host = new AccessibilityBridge.Host() {
@@ -47,6 +48,7 @@ class AtspiTreeTest {
         @Override public boolean perform(long nodeId, Accessible.Action action,
                                          Accessible.Argument arg) {
             performed.add(nodeId + ":" + action);
+            arguments.add(arg);
             return true;
         }
     };
@@ -519,6 +521,107 @@ class AtspiTreeTest {
                 "GetSelectedChild", "i", 0).body[0])[1], "the selected day, under its week row");
         assertEquals(false, call(gridPath, Atspi.I_SELECTION, "IsChildSelected", "i", 1).body[0],
                 "child 1 is the week row holding it, which is no member");
+    }
+
+    /**
+     * A window of four values: a spinner, a date segment nobody has typed into (decision 16), a
+     * progress bar that may be read and not set, and a spinner under a disabled ancestor.
+     */
+    private void publishAWindowWithValues() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(9001, 0, Locale.ENGLISH, 0, 0, 100, 30);
+        a.role(Accessible.Role.SPIN_BUTTON);
+        a.name(I18nString.literal("Day"), Accessible.NameFrom.EXPLICIT);
+        a.value(13, 1, 31, 1);
+        a.valueText("13", 1);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(9002, 0, Locale.ENGLISH, 100, 0, 100, 30);
+        a.role(Accessible.Role.SPIN_BUTTON);
+        a.name(I18nString.literal("Month"), Accessible.NameFrom.EXPLICIT);
+        a.emptyValue(1, 12, 1, false);
+        a.valueText("empty", 1);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(9003, 0, Locale.ENGLISH, 200, 0, 100, 30);
+        a.role(Accessible.Role.PROGRESS_BAR);
+        a.value(40, 0, 100, 0, true);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.begin(9004, 0, Locale.ENGLISH, 300, 0, 100, 30);
+        a.role(Accessible.Role.SPIN_BUTTON);
+        a.value(5, 0, 10, 1);
+        a.inherited(false, true, true, false, false);
+        a.end();
+        a.end();
+        tree.set(a.publish(0, 0, 0, 1f, true));
+    }
+
+    @SuppressWarnings("unchecked")
+    private java.util.Map<Object, Object> valueOf(long id) {
+        DBus.Msg all = call(path(id), Atspi.I_PROPS, "GetAll", "s", Atspi.I_VALUE);
+        java.util.Map<Object, Object> out = new java.util.LinkedHashMap<>();
+        for (java.util.Map.Entry<Object, Object> e
+                : ((java.util.Map<Object, Object>) all.body[0]).entrySet()) {
+            DBus.Variant v = (DBus.Variant) e.getValue();
+            out.put(e.getKey(), v.sig + " " + v.value);
+        }
+        return out;
+    }
+
+    /**
+     * org.a11y.atspi.Value on every node with a ValueFacet (LINUX-NEW-4, DATES-NEW-5): no Linux
+     * client could read a date segment's number, a spinner's or a slider's, because the interface
+     * was served nowhere. CurrentValue is mandatory, so an empty segment answers its minimum and
+     * says empty through Text (decision 16).
+     */
+    @Test
+    void aValueIsReadAsTheFourNumbersAndTheTextAndAnEmptyOneAnswersItsMinimum() {
+        publishAWindowWithValues();
+
+        assertTrue(((List<?>) call(path(9001), Atspi.I_ACCESSIBLE, "GetInterfaces", null).body[0])
+                .contains(Atspi.I_VALUE), "a node with a value facet implements Value");
+        assertEquals(java.util.Map.of("MinimumValue", "d 1.0", "MaximumValue", "d 31.0",
+                "MinimumIncrement", "d 1.0", "CurrentValue", "d 13.0", "Text", "s 13"),
+                valueOf(9001), "every number a double, as libatspi reads them, and the text");
+        assertEquals(java.util.Map.of("MinimumValue", "d 1.0", "MaximumValue", "d 12.0",
+                "MinimumIncrement", "d 1.0", "CurrentValue", "d 1.0", "Text", "s empty"),
+                valueOf(9002), "an empty segment: its minimum where a number is mandatory, and "
+                        + "the word");
+        assertEquals("d 40.0", valueOf(9003).get("CurrentValue"));
+        assertEquals("s ", valueOf(9003).get("Text"), "no display form is an empty string");
+    }
+
+    /**
+     * Properties.Set(Value, CurrentValue) is the one write libatspi makes, and it posts SET_VALUE
+     * only where the node accepts it now (semantics 5): a read-only value and a disabled node are
+     * refused with an error, never answered as a success the widget then ignores.
+     */
+    @Test
+    void settingCurrentValuePostsTheNumberWhereTheNodeAcceptsItAndIsRefusedElsewhere() {
+        publishAWindowWithValues();
+
+        DBus.Msg set = call(path(9001), Atspi.I_PROPS, "Set", "ssv", Atspi.I_VALUE, "CurrentValue",
+                new DBus.Variant("d", 20.0));
+        assertNull(set.errorName, "a writable enabled spinner takes it");
+        assertEquals(List.of("9001:SET_VALUE"), performed);
+        assertEquals(List.of(new Accessible.Argument.OfValue(20.0)), arguments,
+                "the number the client sent, as the value verb's argument");
+
+        performed.clear();
+        for (long refused : new long[] {9003, 9004}) {
+            DBus.Msg no = call(path(refused), Atspi.I_PROPS, "Set", "ssv", Atspi.I_VALUE,
+                    "CurrentValue", new DBus.Variant("d", 3.0));
+            assertEquals(DBus.Conn.FAILED, no.errorName, refused + ": read-only, or not enabled");
+        }
+        DBus.Msg minimum = call(path(9001), Atspi.I_PROPS, "Set", "ssv", Atspi.I_VALUE,
+                "MinimumValue", new DBus.Variant("d", 3.0));
+        assertEquals(DBus.Conn.FAILED, minimum.errorName, "the other properties are read-only");
+        assertEquals(List.of(), performed, "and nothing reached a widget");
     }
 
     /**

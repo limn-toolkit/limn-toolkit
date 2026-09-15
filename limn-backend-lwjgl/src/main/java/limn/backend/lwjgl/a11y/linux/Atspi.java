@@ -39,6 +39,7 @@ final class Atspi {
     // scripts/a11y/linux/extract-atspi-introspection.sh on 2026-09-13, the guest's clock then
     // reading 2026-09-10).
     static final String I_SELECTION   = "org.a11y.atspi.Selection";
+    static final String I_VALUE       = "org.a11y.atspi.Value";
     static final String I_CACHE       = "org.a11y.atspi.Cache";
     static final String I_SOCKET      = "org.a11y.atspi.Socket";
     static final String I_PROPS       = "org.freedesktop.DBus.Properties";
