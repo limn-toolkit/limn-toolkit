@@ -604,6 +604,22 @@ direction, read and not served:** a native header button answers `AXSortDirectio
 carried only as the sorted header's localized description and a bridge cannot read a direction out of a
 translation. The facet or state this record left for phase 3 is the model's to add.
 
+**Amended 2026-09-15 (phase-3 fix round; semantics 2 and 3, the minor splits closed on Windows).**
+The three bridges' cell lookups agreed on the rule and disagreed on two details, which the phase-3
+critic listed and the orchestrator settled to one shape. On Windows: **the climb from a cell to its
+table starts at the cell's parent**, where it started at the cell itself, so a table nested inside a
+cell of another was its own containing grid and the outer table's `GetItem` could not find it at all
+(`UiaPatternProviders.cellAt` rejects a cell whose table is not the one asked); Linux's `belongsTo`
+and macOS's `tableAtOrAbove` started at the parent already. And **a cell's column header is answered
+for data cells and footer cells and never for the header cell itself**, which answered itself, so a
+client walking `GetColumnHeaderItems` from a header walked back to where it started; Linux excluded
+the header already, macOS answers data cells only, and the footer half is this bridge's, where the
+model's footer row summarises the column above it. The table-level list was already the union over
+every direct `GROUP` child carrying `CellFacet(-1, c)`, which is the settled rule. Neither detail
+changes anything for today's `Table`, which nests no table in a cell; both are pinned, by
+`UiaPatternProvidersTest.aNestedTablesOwnCellBelongsToTheTableAboveItAndNotToItself` and
+`aCellsHeaderItemsAreNoneForTheRowAndTheHeaderOfItsColumnAndNoneForAHeader`.
+
 ### 7.1 What the live clients found
 
 Two defects, both invisible to the headless tests because both are about what the platform's

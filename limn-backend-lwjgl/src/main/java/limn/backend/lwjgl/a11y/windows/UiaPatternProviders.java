@@ -383,7 +383,15 @@ final class UiaPatternProviders {
                     // Matched by column, never by the header's place among its siblings (semantics
                     // 3): until 2026-09-15 the header at the cell's column index was answered, which
                     // is another column's header once the group holds anything else first.
-                    AccessibleNode header = table == null ? null
+                    //
+                    // Answered for a data cell and for a footer cell (row -2), and NEVER for the
+                    // header cell itself (row -1), which until the phase-3 fix round answered
+                    // itself: a header is not under its own column's header, and a client walking
+                    // the array from a header would walk back to where it started. The settled
+                    // split of semantics 3 (2026-09-15) takes the reading Linux already had;
+                    // macOS answers data cells only, and the footer half is this bridge's, where
+                    // the model's footer row is a summary of the column above it.
+                    AccessibleNode header = table == null || cell.cell().row() == -1 ? null
                             : headerOf(tree, table, cell.cell().column());
                     long[] pointers = header == null ? new long[0]
                             : new long[] {context.simpleElementFor(header.id())};
@@ -415,14 +423,26 @@ final class UiaPatternProviders {
         };
     }
 
-    /** The nearest ancestor of {@code node} that is a table, itself included; null when none. */
-    private static AccessibleNode tableOf(AccessibleTree tree, AccessibleNode node) {
-        for (AccessibleNode at = node; at != null; ) {
+    /**
+     * The table a cell belongs to: the nearest ancestor of {@code cell} carrying a
+     * {@code TableFacet}, <b>starting at its parent</b> (semantics 2, the minor split settled
+     * 2026-09-15), and null when none.
+     *
+     * <p>Until then the climb started at the cell itself, so a node carrying both facets — a table
+     * nested inside a cell of another — was its own containing grid, and the outer table's
+     * {@code GetItem} could not find it at all ({@link #cellAt} rejects a cell whose table is not
+     * the one asked). Linux (`belongsTo`) and macOS (`tableAtOrAbove`) already started at the
+     * parent; this is the third bridge, and the rule now reads the same on all of them.
+     */
+    private static AccessibleNode tableOf(AccessibleTree tree, AccessibleNode cell) {
+        int parent = cell.parent();
+        for (AccessibleNode at = parent == AccessibleNode.NONE ? null : tree.node(parent);
+                at != null; ) {
             if (at.table() != null) {
                 return at;
             }
-            int parent = at.parent();
-            at = parent == AccessibleNode.NONE ? null : tree.node(parent);
+            int above = at.parent();
+            at = above == AccessibleNode.NONE ? null : tree.node(above);
         }
         return null;
     }
@@ -493,9 +513,10 @@ final class UiaPatternProviders {
             for (int child = tree.node(at).firstChild(); child != AccessibleNode.NONE;
                     child = tree.node(child).nextSibling()) {
                 AccessibleNode cell = tree.node(child);
+                AccessibleNode owner = cell.cell() == null ? null : tableOf(tree, cell);
                 if (cell.cell() != null && cell.cell().row() == row
                         && cell.cell().column() == column
-                        && tableOf(tree, cell).id() == table.id()) {
+                        && owner != null && owner.id() == table.id()) {
                     return cell;
                 }
             }
