@@ -289,6 +289,37 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(options.get(2).id(), moved.get(0).newValue());
     }
 
+    /**
+     * Decision 11's positive half (2026-09-15): the highlight and the selection are separate
+     * fields here, so every option publishes {@code FOCUS}, and performing it moves the highlight
+     * the way the arrows do and commits nothing.
+     */
+    @Test
+    void focusMovesTheHighlightAndChoosesNothing() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        bindCombo(4);
+        combo.setSelectedIndex(1);
+        combo.onSelect(index -> calls.incrementAndGet());
+        openList();
+        for (AccessibleNode option : options()) {
+            assertTrue(option.actions().actions().contains(Accessible.Action.FOCUS),
+                    describe(tree()));
+        }
+        bridge.events.clear();
+
+        assertTrue(perform(options().get(3).id(), Accessible.Action.FOCUS,
+                Accessible.Argument.NONE));
+        frame();
+
+        assertEquals(3, combo.highlightedIndex(), "the highlight moved");
+        assertEquals(1, combo.selectedIndex(), "and the selection did not");
+        assertTrue(combo.isOpen(), "a cursor move closes nothing");
+        assertEquals(0, calls.get(), "and tells the application nothing");
+        assertEquals(options().get(3).id(), tree().activeDescendant(), describe(tree()));
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "announced once, as an arrow key is: " + bridge.events);
+    }
+
     // ------------------------------------------------------------------------------- the boxes
 
     @Test

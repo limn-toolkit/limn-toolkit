@@ -1698,6 +1698,14 @@ public final class PopupMenu {
                     // surface's, and it is where the keys act.
                     a.state(Accessible.State.ACTIVE);
                 }
+                // FOCUS on every row the cursor can land on (decision 11, 2026-09-15): the
+                // highlight is the cursor and choosing is a separate gesture, so a reader can move
+                // the one without the other, as the arrows and the pointer's hover do. A disabled
+                // row and a rule are skipped by the arrows and get none; a submenu with nothing in
+                // it is landed on and keeps it, though it has nothing to choose.
+                if (item.isSelectable()) {
+                    a.action(Accessible.Action.FOCUS);
+                }
                 if (item.hasSubmenu()) {
                     a.state(Accessible.State.HAS_POPUP);
                     boolean expanded = c + 1 < cols.size() && cols.get(c + 1).parentItem == i;
@@ -1847,7 +1855,10 @@ public final class PopupMenu {
          * <p>And the verbs answered are exactly the verbs {@link #describeColumn} publishes for
          * the row's state (ADR 039 §1.5, amended 2026-09-14; decision 2): {@code SHOW_MENU} and
          * {@code EXPAND} open a closed submenu row, {@code COLLAPSE} closes the open one,
-         * {@code PRESS} chooses a command or check row and {@code TOGGLE} a check row alone.
+         * {@code PRESS} chooses a command or check row and {@code TOGGLE} a check row alone, and
+         * {@code FOCUS} moves the highlight onto any row the arrows can reach without choosing or
+         * opening it, closing whatever column was open below that row's own (decision 11,
+         * 2026-09-15).
          * {@code PRESS} on a submenu row and {@code TOGGLE} on a command row were accepted as
          * unpublished synonyms until that day and are refused now, because a verb a node
          * performs without publishing is one a reader cannot see and one platform invokes by
@@ -1888,6 +1899,19 @@ public final class PopupMenu {
          * @return whether it was done
          */
         private boolean chooseRow(int c, int i, MenuItem item, Accessible.Action action) {
+            if (action == Accessible.Action.FOCUS) {
+                if (!item.isSelectable()) {
+                    return false;
+                }
+                // The cursor keys' own shape: the row's column becomes the deepest (a submenu
+                // open below it closes, as the leading arrow closes one), the highlight moves and
+                // is revealed, nothing is chosen and nothing opens.
+                truncateTo(c);
+                Column col = cols.get(c);
+                col.reveal(col.highlight = i);
+                changed();
+                return true;
+            }
             boolean open = c + 1 < cols.size() && cols.get(c + 1).parentItem == i;
             if (item.hasSubmenu()) {
                 switch (action) {

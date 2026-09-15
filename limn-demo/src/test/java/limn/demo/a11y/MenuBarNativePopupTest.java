@@ -115,7 +115,8 @@ class MenuBarNativePopupTest {
         settle(host, popup);
         assertFalse(bar.isOpen(), Transcript.of(host.bridge().tree()));
         assertFalse(title(host, 0).expand().expanded(), Transcript.of(host.bridge().tree()));
-        assertEquals(Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND),
+        assertEquals(Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND,
+                        Accessible.Action.FOCUS),
                 title(host, 0).actions().actions(), Transcript.of(host.bridge().tree()));
     }
 
