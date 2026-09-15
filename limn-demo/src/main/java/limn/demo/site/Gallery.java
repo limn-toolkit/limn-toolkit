@@ -136,7 +136,7 @@ public final class Gallery {
     }
 
     /** One palette an entry is captured in, and the file name suffix that identifies it. */
-    private record Palette(String key, Theme theme) {
+    record Palette(String key, Theme theme) {
     }
 
     private static final List<Palette> PALETTES =
@@ -310,7 +310,7 @@ public final class Gallery {
      * shutter primes after the warm-up frames ({@code SiteShowcase.Entry.settles}); a
      * component still never does.
      */
-    private record Shot(GalleryEntry entry, Palette palette, Path file, NativeWindow window,
+    record Shot(GalleryEntry entry, Palette palette, Path file, NativeWindow window,
                         boolean primesFooter) {
     }
 
@@ -577,7 +577,7 @@ public final class Gallery {
      * pile of arrays because the cursor and the warmup counter have to move together, and
      * a lambda capturing two mutable boxes is where an off-by-one hides.
      */
-    private static final class Driver {
+    static final class Driver {
 
         private final List<Shot> shots;
         private final List<NativeWindow> windows;
@@ -590,6 +590,8 @@ public final class Gallery {
         private int frames;
         private long totalFrames;
         private boolean failed;
+        /** What ended the run as a failure, for a caller that has no stderr to read. */
+        private String failure;
         private Scene scene;
         private GalleryScenes.Built built;
         /**
@@ -649,6 +651,11 @@ public final class Gallery {
             return failed;
         }
 
+        /** @return why the run failed, or {@code null} while it has not */
+        String failure() {
+            return failure;
+        }
+
         void start() {
             advance();
             window.requestFrame();
@@ -706,7 +713,25 @@ public final class Gallery {
                     // to a scene that has already drawn shows up one frame late, and a
                     // press would land in the frame after the one the arrow is down in.
                     if (film != null) {
-                        applyFilmStep();
+                        // A step the scene refuses ends the run here, naming the step. It used
+                        // to escape the callback before the watchdog's count and the capture's,
+                        // so the film never reached its last frame, the watchdog never reached
+                        // its ceiling, and every frame the window was still given threw again:
+                        // a capture that spun until it was killed (task_3aa41c6a).
+                        try {
+                            applyFilmStep();
+                        } catch (RuntimeException refused) {
+                            String why = refused instanceof Motion.Refused
+                                    ? refused.getMessage()
+                                    : "a film step threw " + refused;
+                            failure = shots.get(index).file().getFileName() + ": " + why;
+                            System.err.println("gallery: " + failure);
+                            failed = true;
+                            film = null;
+                            scene = null;
+                            closeAll();
+                            return;
+                        }
                     }
                     scene.renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs());
                 }

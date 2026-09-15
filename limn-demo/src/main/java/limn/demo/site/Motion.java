@@ -103,6 +103,24 @@ final class Motion {
     private record Aim(String what, Target target, float fx, float fy) {
     }
 
+    /**
+     * A step the live scene would not let the film take: a target it has none of, one never laid
+     * out, a glide that lands on something else, a reveal that never brought its target into
+     * view. The message names the step by its place in the script and by what it aimed at.
+     *
+     * <p>A type of its own so the driver can tell a refused script from a fault elsewhere in
+     * the frame, and so a film that refused keeps refusing: a playhead that carried on past a
+     * step it never began played the steps after it against nothing, ran out of frames and then
+     * threw "asked for one more" on every frame the window was still given, which is how a
+     * refused step made the capture spin until it was killed.
+     */
+    static final class Refused extends IllegalStateException {
+
+        Refused(String message, RuntimeException cause) {
+            super(message, cause);
+        }
+    }
+
     /** A step, kept unresolved until the film reaches it. */
     private sealed interface Step {
 
@@ -282,6 +300,8 @@ final class Motion {
         /** A reveal's direction, and how much scrolling is left once the target is in view. */
         private float wheelDirection;
         private int overshoot;
+        /** The refusal this film stopped on, thrown again by every later {@link #next()}. */
+        private Refused refused;
 
         private Film(List<Step> steps, boolean pointerVisible, float startX, float startY) {
             this.steps = steps;
@@ -306,6 +326,9 @@ final class Motion {
 
         /** The next frame, and the last one is {@link #frames()} calls in. */
         Frame next() {
+            if (refused != null) {
+                throw refused;
+            }
             if (emitted >= frames) {
                 throw new IllegalStateException("this film is " + frames
                         + " frames long and the driver asked for one more");
@@ -325,13 +348,37 @@ final class Motion {
                 started = false;
             }
             Step current = steps.get(step);
-            if (!started) {
-                started = true;
-                begin(current);
+            try {
+                if (!started) {
+                    started = true;
+                    begin(current);
+                }
+                Frame frame = play(current);
+                within++;
+                return frame;
+            } catch (RuntimeException e) {
+                refused = new Refused("film step " + (step + 1) + " of " + steps.size() + " ("
+                        + describe(current) + "), on frame " + (emitted - 1) + " of " + frames
+                        + ", was refused: " + e.getMessage(), e);
+                throw refused;
             }
-            Frame frame = play(current);
-            within++;
-            return frame;
+        }
+
+        /** A step as a person reading a failed capture's message would name it. */
+        private static String describe(Step current) {
+            if (current instanceof Step.Glide glide) {
+                return "glide to " + glide.aim().what();
+            }
+            if (current instanceof Step.Reveal reveal) {
+                return "reveal " + reveal.aim().what();
+            }
+            if (current instanceof Step.Hold hold) {
+                return "hold " + hold.frames();
+            }
+            if (current instanceof Step.Type typing) {
+                return "type \"" + typing.text() + "\"";
+            }
+            return ((Step.Button) current).down() ? "press" : "release";
         }
 
         /**
