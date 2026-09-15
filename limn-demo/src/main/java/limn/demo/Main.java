@@ -37,6 +37,7 @@ public final class Main {
             "newcontrols", "newcontrols-light", "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
             "viewport3d", "viewport3d-light", "gltf", "shadows", "ibl", "debugdraw", "blend3d",
+            "dates-era", "dates-era-light",
             "normalmap", "bloom", "surface", "testcard", "text", "files", "files-light",
             "export", "export-light", "charts", "charts-light", "theme-editor",
             "theme-editor-light", "glass", "glass-light", "bidi", "bidi-light");
@@ -265,16 +266,22 @@ public final class Main {
                         scene.substring("dates-".length()).replace("-light", ""));
                 widgetScene = datesBuilt.scene();
                 datesPicker = datesBuilt.picker();
+                DatesScene.pinForCapture(screenshotMode, widgetScene);
+            } else if (scene.equals("dates-era") || scene.equals("dates-era-light")) {
+                widgetScene = DatesScene.era(scene.endsWith("-light"));
+                DatesScene.pinForCapture(screenshotMode, widgetScene);
             } else if (scene.equals("dates-months") || scene.equals("dates-years")) {
                 widgetScene = DatesScene.create(false,
                         scene.equals("dates-months")
                                 ? limn.components.date.CalendarView.View.MONTHS
                                 : limn.components.date.CalendarView.View.YEARS);
+                DatesScene.pinForCapture(screenshotMode, widgetScene);
             } else if (scene.equals("dates") || scene.equals("dates-light")
                     || scene.equals("dates-popup")) {
                 DatesScene.Built datesBuilt = DatesScene.build(scene.endsWith("-light"));
                 widgetScene = datesBuilt.scene();
                 datesPicker = scene.equals("dates-popup") ? datesBuilt.picker() : null;
+                DatesScene.pinForCapture(screenshotMode, widgetScene);
             } else if (scene.equals("form")) {
                 // The guide's worked form: a caption naming a field and a message describing it,
                 // which is what the three bridges' relation checks (scripts/a11y) read live.
