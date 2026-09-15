@@ -89,6 +89,12 @@ import java.util.function.Supplier;
  * That list is what the completeness test matches against the toolkit's sources, and it holds
  * only classes that declare a hook — {@code ButtonGroup}, {@code Menu} and {@code MenuItem} are
  * models with no node of their own and are not listed, though the scenes use them.
+ *
+ * <p>The entries a screen reader is run over carry a {@link ReaderScript}: what a person presses,
+ * step by step, and the widget the run puts the keyboard in ({@link Built#focus}). The scripts are
+ * in {@link ReaderScripts}; {@link ReaderDriver} ({@code limn-demo --reader <id>}) runs one in a
+ * window of its own on a guest, and {@code ReaderStepsTest} runs every one headlessly, failing on a
+ * step that changes nothing a reader could be told (decision 24 of the 2026-09-13 pass).
  */
 public final class AccessibilityGallery {
 
