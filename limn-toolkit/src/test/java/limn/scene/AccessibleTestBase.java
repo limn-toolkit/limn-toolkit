@@ -41,6 +41,7 @@ abstract class AccessibleTestBase {
         String valueText;
         long valueWitness;
         String text;
+        boolean textReadOnly;
         long textWitness;
         int caret;
         int selectionStart;
@@ -88,7 +89,7 @@ abstract class AccessibleTestBase {
             }
             if (text != null) {
                 a.text(text, textWitness, caret, ShapedText.Affinity.DOWNSTREAM,
-                        selectionStart, selectionEnd, 1, null, false);
+                        selectionStart, selectionEnd, 1, null, textReadOnly);
             }
             if (selected != null) {
                 a.selectionItem(selected, 1, 1);

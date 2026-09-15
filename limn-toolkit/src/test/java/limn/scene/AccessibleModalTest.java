@@ -454,4 +454,34 @@ class AccessibleModalTest extends AccessibleTestBase {
         assertFalse(tree().node(0).has(Accessible.State.ACTIVE),
                 "and it goes when the window does" + describe(tree()));
     }
+
+    /**
+     * Semantics 5 as corrected on 2026-09-15: a read-only text refuses {@code SET_TEXT} but not a
+     * caret move or a selection, because both are reading; neither is accepted once the node is
+     * not {@code ENABLED}, and the published {@code READ_ONLY} is the text's own either way.
+     */
+    @Test
+    void aReadOnlyTextTakesACaretAndASelectionButNoTextAndADisabledOneTakesNone() {
+        Group root = new Group();
+        Probe log = stop("log");
+        log.role = Accessible.Role.TEXT_AREA;
+        log.text = "read me";
+        log.textReadOnly = true;
+        root.add(log);
+        bind(root);
+        frame();
+
+        AccessibleNode node = node("log");
+        assertTrue(node.has(Accessible.State.READ_ONLY), describe(tree()));
+        assertFalse(node.accepts(Accessible.Action.SET_TEXT), "read-only text is not written");
+        assertTrue(node.accepts(Accessible.Action.SET_CARET), "but a reader may move its caret");
+        assertTrue(node.accepts(Accessible.Action.SET_SELECTION), "and select in it");
+
+        log.setEnabled(false);
+        frame();
+        node = node("log");
+        assertTrue(node.has(Accessible.State.READ_ONLY), "still its own read-only, never more");
+        assertFalse(node.accepts(Accessible.Action.SET_CARET), "a disabled node takes no caret");
+        assertFalse(node.accepts(Accessible.Action.SET_SELECTION), "nor a selection");
+    }
 }

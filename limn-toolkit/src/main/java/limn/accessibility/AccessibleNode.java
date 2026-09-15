@@ -275,9 +275,12 @@ public final class AccessibleNode {
      * <p>A parameterless verb is accepted exactly when this node's {@link ActionFacet} publishes
      * it. A setter is implied by a facet, and only on a node that is
      * {@link Accessible.State#ENABLED} (fix round 2e): {@link Accessible.Action#SET_VALUE} by a
-     * {@link ValueFacet} that is not read-only, and {@link Accessible.Action#SET_TEXT},
-     * {@link Accessible.Action#SET_CARET} and {@link Accessible.Action#SET_SELECTION} by a
-     * {@link TextFacet} on a node without {@link Accessible.State#READ_ONLY}. {@code ENABLED} is
+     * {@link ValueFacet} that is not read-only, {@link Accessible.Action#SET_TEXT} by a
+     * {@link TextFacet} on a node without {@link Accessible.State#READ_ONLY}, and
+     * {@link Accessible.Action#SET_CARET} and {@link Accessible.Action#SET_SELECTION} by any
+     * {@link TextFacet}: moving the caret or selecting is reading, which read-only text allows and
+     * which every text widget performs through its own caret whether or not it may be written
+     * (2026-09-15, correcting the round-2e wording that tied all three to writability). {@code ENABLED} is
      * the operable bit on both of the axes the scene refuses on: the walk clears it on a disabled
      * widget and under a disabled ancestor, on a synthetic child its owner narrowed, and on every
      * node outside the layer that owns input (§1.13). So a disabled text field keeps
@@ -291,8 +294,9 @@ public final class AccessibleNode {
     public boolean accepts(Accessible.Action action) {
         return switch (action) {
             case SET_VALUE -> value != null && !value.readOnly() && has(Accessible.State.ENABLED);
-            case SET_TEXT, SET_CARET, SET_SELECTION -> text != null
+            case SET_TEXT -> text != null
                     && !has(Accessible.State.READ_ONLY) && has(Accessible.State.ENABLED);
+            case SET_CARET, SET_SELECTION -> text != null && has(Accessible.State.ENABLED);
             default -> actions != null && actions.has(action);
         };
     }

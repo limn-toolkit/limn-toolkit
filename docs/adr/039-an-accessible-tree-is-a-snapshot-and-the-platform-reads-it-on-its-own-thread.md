@@ -1223,6 +1223,15 @@ assert the scene performed neither;
 `aFieldBeneathAnInSceneOverlayIsNeverReadOnlyAndAcceptsNoText`; `SliderAccessibilityTest`'s disabled
 case; and `UiaSetterRefusalTest` in the backend.
 
+**Amendment, 2026-09-15 (after fix round 2e): a caret move and a selection are reading.** Semantics 5
+tied `SET_CARET` and `SET_SELECTION` to a non-read-only `TextFacet`, and `AccessibleNode#accepts`
+copied that, so a reader could not move the caret or select in text it may read but not write,
+while every text widget performs both through its own caret whether or not it may be written
+(`TextAccessibility#perform`) and §1.9's gate never asks. Corrected: **`SET_TEXT` needs a `TextFacet`
+without `READ_ONLY`; `SET_CARET` and `SET_SELECTION` need any `TextFacet`; all three need `ENABLED`.**
+`AccessibleModalTest.aReadOnlyTextTakesACaretAndASelectionButNoTextAndADisabledOneTakesNone` pins it,
+and was red with the round-2e rule.
+
 **What a widget gets for free, with no override at all:** bounds from `x/y/width/height`; `ENABLED`,
 `FOCUSABLE`, `FOCUSED`, `VISIBLE` and `SHOWING` from the existing predicates; `locale()` for the
 node's language; children from `children()` in tree order; the `FOCUS` and `SCROLL_INTO_VIEW`

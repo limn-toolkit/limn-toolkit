@@ -387,12 +387,6 @@ final class UiaPatternProviders {
         };
     }
 
-
-    /**
-     * @param wasAccepted whether the scene took the request
-     * @return {@code S_OK}, or the code §1.3 gives a client holding an element for a node that has
-     *         gone — which is what a refusal here almost always is
-     */
     /**
      * The minimal setter refusal fix round 2e owes this bridge ahead of phase 3 (semantics 5,
      * amended 2026-09-15): a node that is not {@code ENABLED} &mdash; disabled, under a disabled
@@ -414,6 +408,11 @@ final class UiaPatternProviders {
         return node.has(Accessible.State.ENABLED) ? UiaIds.S_OK : UiaIds.E_INVALID_OPERATION;
     }
 
+    /**
+     * @param wasAccepted whether the scene took the request
+     * @return {@code S_OK}, or the code §1.3 gives a client holding an element for a node that has
+     *         gone — which is what a refusal here almost always is
+     */
     private static int accepted(boolean wasAccepted) {
         return wasAccepted ? UiaIds.S_OK : UiaIds.E_ELEMENT_NOT_AVAILABLE;
     }
