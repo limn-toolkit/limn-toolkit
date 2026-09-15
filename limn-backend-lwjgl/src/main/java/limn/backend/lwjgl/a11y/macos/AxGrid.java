@@ -133,6 +133,61 @@ final class AxGrid {
     }
 
     /**
+     * What a selection container's members are, which decides the attribute AppKit reads its selection
+     * from and the notification a change of it is posted as.
+     */
+    enum SelectionShape {
+        /** An outline, a list, or a table of rows: {@code AXSelectedRows}, {@code AXSelectedRowsChanged}. */
+        ROWS,
+        /** A grid whose members are its cells, a calendar's days: {@code AXSelectedCells}. */
+        CELLS,
+        /** Anything else holding a selection, a tab strip or a radio group: {@code AXSelectedChildren}. */
+        CHILDREN
+    }
+
+    /**
+     * @param container a node carrying a selection facet
+     * @return what its members are: rows for an outline or a list, and for a table whose members are
+     *         not cells; cells for a table whose members carry a cell facet; children otherwise
+     */
+    SelectionShape selectionShape(AccessibleNode container) {
+        if (isOutlineOrList(container)) return SelectionShape.ROWS;
+        if (container.table() == null) return SelectionShape.CHILDREN;
+        AccessibleTree tree = source.tree();
+        int at = tree.indexOf(container.id());
+        for (int i = at + 1; at != AccessibleNode.NONE && i < tree.nodeCount(); i++) {
+            AccessibleNode member = tree.node(i);
+            if (member.selectionContainer() == at) {
+                return member.cell() != null ? SelectionShape.CELLS : SelectionShape.ROWS;
+            }
+        }
+        return SelectionShape.ROWS;
+    }
+
+    /**
+     * The realized members of a container's selection that are selected, wherever they hang under it
+     * (semantics 1: a calendar's day under its week row, a tab under its strip), in reading order.
+     *
+     * @param node the node asked
+     * @return their elements, or {@code null} for a node holding no selection
+     */
+    long[] selectedMembers(AccessibleNode node) {
+        if (node.selection() == null) return null;
+        AccessibleTree tree = source.tree();
+        int at = tree.indexOf(node.id());
+        if (at == AccessibleNode.NONE) return null;
+        long[] found = new long[4];
+        int count = 0;
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
+            AccessibleNode member = tree.node(i);
+            if (member.selectionContainer() != at || !member.has(Accessible.State.SELECTED)) continue;
+            if (count == found.length) found = java.util.Arrays.copyOf(found, count * 2);
+            found[count++] = source.elementFor(member.id());
+        }
+        return java.util.Arrays.copyOf(found, count);
+    }
+
+    /**
      * @param node the node asked
      * @return {@code accessibilityColumns}: empty for a table, {@code null} for anything else
      */

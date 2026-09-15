@@ -58,6 +58,12 @@ final class AxElementClass {
         long[] childElementsOf(AccessibleNode node);
 
         /**
+         * @param nodeId a node in the published tree, not the elided window root
+         * @return its element, minting it if it does not exist yet
+         */
+        long elementFor(long nodeId);
+
+        /**
          * @param node a node in the published tree
          * @return the element for its parent — or the content view, for a child of the elided
          *         window root, because that is what AppKit was handed and what it expects back
@@ -399,6 +405,12 @@ final class AxElementClass {
         addId("accessibilityRows", get(node -> nsArray(grid.rows(node))));
         addId("accessibilityVisibleRows", get(node -> nsArray(grid.visibleRows(node))));
         addId("accessibilitySelectedRows", get(node -> nsArray(grid.selectedRows(node))));
+        // The selection of a container whose members are not rows (semantics 1; MACOS-NEW-2): its
+        // selected children, or a grid's selected cells. Each is offered only where it is the
+        // container's shape (AxGate), as a native outline offers AXSelectedRows and no
+        // AXSelectedChildren.
+        addId("accessibilitySelectedChildren", get(node -> nsArray(grid.selectedMembers(node))));
+        addId("accessibilitySelectedCells", get(node -> nsArray(grid.selectedMembers(node))));
         addId("accessibilityColumns", get(node -> nsArray(grid.columns(node))));
         addId("accessibilityHeader", get(grid::header));
         addId("accessibilityColumnHeaderUIElements",

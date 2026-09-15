@@ -38,6 +38,12 @@ final class AxGate {
             case "accessibilityRows", "accessibilityVisibleRows", "accessibilitySelectedRows" ->
                     grid.isRowContainer(node);
             case "accessibilityRowCount", "accessibilityColumnCount" -> node.table() != null;
+            // A container's selection is read off the attribute of its shape and no other: a native
+            // outline answers AXSelectedRows and no AXSelectedChildren (read 2026-09-15).
+            case "accessibilitySelectedChildren" -> node.selection() != null
+                    && grid.selectionShape(node) == AxGrid.SelectionShape.CHILDREN;
+            case "accessibilitySelectedCells" -> node.selection() != null
+                    && grid.selectionShape(node) == AxGrid.SelectionShape.CELLS;
             case "accessibilityIndex" -> grid.isRow(node);
             // Everything else this class implements is an attribute every node answers, and answering
             // false for one of those would hide the node's name.

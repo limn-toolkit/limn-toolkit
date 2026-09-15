@@ -93,7 +93,8 @@ final class AxSelectors {
         for (String action : AxActions.selectors()) kinds.put(action, Kind.BOOL);
         kinds.put("isAccessibilitySelectorAllowed:", Kind.BOOL_OF_SELECTOR);
         for (String selector : List.of("accessibilityRows", "accessibilityVisibleRows",
-                "accessibilitySelectedRows", "accessibilityColumns", "accessibilityHeader",
+                "accessibilitySelectedRows", "accessibilitySelectedChildren",
+                "accessibilitySelectedCells", "accessibilityColumns", "accessibilityHeader",
                 "accessibilityColumnHeaderUIElements")) {
             kinds.put(selector, Kind.ID);
         }

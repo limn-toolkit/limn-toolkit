@@ -161,6 +161,26 @@ final class AxNotifications {
     }
 
     /**
+     * What a {@code SELECTION_CHANGED} is posted as, on its container, by the shape of that container's
+     * members: the notification of the attribute its selection is read from.
+     *
+     * @param shape what the container's members are
+     * @return the posting
+     */
+    static Posting selection(AxGrid.SelectionShape shape) {
+        return switch (shape) {
+            case ROWS -> SELECTED_ROWS;
+            case CELLS -> SELECTED_CELLS;
+            case CHILDREN -> of(AccessibleEvent.Type.SELECTION_CHANGED);
+        };
+    }
+
+    private static final Posting SELECTED_ROWS =
+            new Posting("NSAccessibilitySelectedRowsChangedNotification", Subject.NODE);
+    private static final Posting SELECTED_CELLS =
+            new Posting("NSAccessibilitySelectedCellsChangedNotification", Subject.NODE);
+
+    /**
      * The three announcement priorities, and the one place in three platforms where §12.3's
      * constants rule cannot be honoured.
      *
@@ -193,6 +213,8 @@ final class AxNotifications {
         for (Posting posting : BY_TYPE.values()) {
             if (posting != null && !posting.literal()) symbols.add(posting.notificationSymbol());
         }
+        symbols.add(SELECTED_ROWS.notificationSymbol());
+        symbols.add(SELECTED_CELLS.notificationSymbol());
         symbols.add(PRIORITY_KEY_SYMBOL);
         symbols.add(ANNOUNCEMENT_KEY_SYMBOL);
         return symbols;

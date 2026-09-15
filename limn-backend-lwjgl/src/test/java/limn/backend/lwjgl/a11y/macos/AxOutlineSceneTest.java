@@ -186,6 +186,9 @@ class AxOutlineSceneTest {
                 "one focus change for one cursor move, in the frame that moved it: " + trace);
         assertEquals("NSAccessibilityFocusedUIElementChangedNotification", posted.get(posted.size() - 1),
                 "told last: " + trace);
+        assertEquals(List.of("NSAccessibilitySelectedRowsChangedNotification"), posted.stream()
+                        .filter(line -> line.startsWith("NSAccessibilitySelected")).toList(),
+                "and the selection it moved, once, on the outline, as a native outline posts it: " + trace);
     }
 
     @Test
@@ -212,5 +215,15 @@ class AxOutlineSceneTest {
         long[] selected = grid.selectedRows(node);
         assertEquals(1, selected.length);
         assertEquals(2, grid.index(bridge.nodeFor(selected[0])));
+
+        trace.clear();
+        assertTrue(perform(rows[4], Accessible.Action.SELECT));
+        assertEquals(4, grid.index(bridge.nodeFor(grid.selectedRows(only(Accessible.Role.LIST))[0])));
+        assertTrue(trace.stream().anyMatch(line -> line.startsWith("emitted SELECTION_CHANGED#" + node.id())),
+                "the list's own selection change: " + trace);
+        assertEquals(List.of("NSAccessibilitySelectedRowsChangedNotification"), trace.stream()
+                        .filter(line -> line.startsWith("posted NSAccessibilitySelected"))
+                        .map(line -> line.substring("posted ".length())).toList(),
+                "posted on the list as its rows' change: " + trace);
     }
 }

@@ -2161,7 +2161,13 @@ the macOS 26.6.2 guest, 2026-09-15, `scripts/a11y/macos/outline-probe.swift`). *
 getters too*: AppKit honours a refused getter (read 2026-09-13, §6 of that day's macOS readings), so
 the row selectors are refused on everything that is not a table, an outline or a list, the index on
 everything that is not a row, and the two counts on everything that is not a table, instead of
-answering nil, −1 or zero there.
+answering nil, −1 or zero there. *Selection* (MACOS-NEW-2; semantics 1): a container's selection is
+read off the attribute of its shape — `accessibilitySelectedRows` for an outline, a list or a table
+of rows; `accessibilitySelectedCells` for a grid whose members are cells, a calendar's days;
+`accessibilitySelectedChildren` for anything else holding one, a tab strip — each answered from the
+selected members whose selection container it is, wherever they hang, and each refused where it is
+not the container's shape, as the native outline answers `AXSelectedRows` and no
+`AXSelectedChildren`.
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a
@@ -2369,6 +2375,12 @@ the focus went. A frame posts at most one of the two, after everything else that
 a sweep of the element registry — the bridge's own queue collapse, or the model's `INVALIDATED`,
 which is now swept the same way (semantics 7) — the focus change is posted again whenever anything
 anywhere is focused, because the sweep may have released what a reader stood on.
+`SELECTION_CHANGED` is posted on its container as the notification of that container's selection
+attribute: `SelectedRowsChanged` for an outline, a list or a table of rows — which is what a native
+`NSOutlineView` posted on itself for a row selected through `AXSelected` and through
+`AXSelectedRows`, with no `SelectedChildrenChanged` beside it (read on the macOS 26.6.2 guest,
+2026-09-15, `scripts/a11y/macos/outline-probe.swift`) — `SelectedCellsChanged` for a grid of cells,
+and `SelectedChildrenChanged` for anything else.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that

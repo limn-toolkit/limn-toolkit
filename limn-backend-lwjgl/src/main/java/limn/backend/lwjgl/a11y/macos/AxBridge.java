@@ -109,6 +109,8 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     /** The last parent-space box computed for each held node. For tests. */
     private final Map<Long, double[]> lastFrames = new HashMap<>();
     private final AxEvents events = new AxEvents();
+    /** The row and selection lookups, for deciding what a selection change is posted as. */
+    private final AxGrid grid = new AxGrid(this);
     /**
      * Where this bridge's diagnostic lines go, or {@code null} for nowhere, which is the default and
      * the production state.
@@ -438,6 +440,11 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     }
 
     @Override
+    public long elementFor(long nodeId) {
+        return elements.elementFor(nodeId);
+    }
+
+    @Override
     public long[] childElementsOf(AccessibleNode node) {
         List<AccessibleNode> children = tree().children(node);
         long[] answer = new long[children.size()];
@@ -556,6 +563,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             // A null is a decision, not a gap: AppKit is already telling the client, or the event
             // names the window root this bridge elides.
             if (posting == null) continue;
+            if (event.type() == AccessibleEvent.Type.SELECTION_CHANGED) posting = selectionPosting(event);
             if (posting.subject() == AxNotifications.Subject.APPLICATION) {
                 focusOwed = true;
                 continue;
@@ -582,6 +590,19 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         lastDrainDrained = drained.size();
         lastDrainPosted = postedNow;
         return swept;
+    }
+
+    /**
+     * A selection change is posted on its container (decision 9) as the notification of the attribute
+     * that container's selection is read from: rows changed for an outline, a list or a table of rows —
+     * what a native NSOutlineView posts on itself when a row is selected (read on the macOS 26.6.2
+     * guest, 2026-09-15, outline-probe.swift), with no selected-children change beside it — cells
+     * changed for a grid of selectable cells, and selected children changed for anything else.
+     */
+    private AxNotifications.Posting selectionPosting(AccessibleEvent event) {
+        AccessibleNode container = tree().find(event.nodeId());
+        return AxNotifications.selection(container == null || container.selection() == null
+                ? AxGrid.SelectionShape.CHILDREN : grid.selectionShape(container));
     }
 
     /** The one application-level notification: the focused element changed. */

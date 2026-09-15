@@ -191,17 +191,44 @@ class AxConstantsTest {
         return symbols;
     }
 
+    /**
+     * The symbols the bridge names that the committed dump predates, each with the value the guest
+     * read for it.
+     *
+     * <p>Read on the macOS 26.6.2 guest (25G83) on 2026-09-13 by this same script, extended to ask for
+     * them (sha256 90e6d928…, readings/macos-appkit-constants.txt, "notifications and announcement
+     * keys" and "action names"). Symbols are resolved by {@code dlsym} at run time and never written
+     * into source, so what is owed is only the dump's line; the one regeneration at the end of the
+     * macOS lane empties this map, and the companion test fails until it does.
+     */
+    private static final Map<String, String> SYMBOLS_OWED_TO_THE_REGENERATION = Map.of(
+            "NSAccessibilitySelectedCellsChangedNotification", "AXSelectedCellsChanged");
+
     @Test
     void everySymbolTheTablesNameIsExportedByAppKit() {
         Dump dump = read();
         Set<String> invented = new LinkedHashSet<>();
         for (String symbol : allSymbols()) {
-            if (!dump.exported().contains(symbol)) invented.add(symbol);
+            if (!dump.exported().contains(symbol)
+                    && !SYMBOLS_OWED_TO_THE_REGENERATION.containsKey(symbol)) {
+                invented.add(symbol);
+            }
         }
         assertTrue(invented.isEmpty(),
                 "this module names symbols the running AppKit does not export: " + invented
                         + ". A role constant is a string on this platform, so this is a null pointer "
                         + "at run time and not a compile error.");
+    }
+
+    @Test
+    void theSymbolsOwedToTheRegenerationAreNamedAndStillOwed() {
+        Dump dump = read();
+        for (String owed : SYMBOLS_OWED_TO_THE_REGENERATION.keySet()) {
+            assertTrue(allSymbols().contains(owed),
+                    owed + " is no longer named by any table, so it is owed nothing: drop it from the map");
+            assertFalse(dump.exported().contains(owed) || dump.missing().contains(owed),
+                    "the dump now reads " + owed + ": the regeneration has paid it, drop it from the map");
+        }
     }
 
     @Test
