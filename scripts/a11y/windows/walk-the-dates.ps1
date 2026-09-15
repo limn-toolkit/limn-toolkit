@@ -13,6 +13,13 @@
 # confidence. Names are what the build publishes in the driver's language, so they are printed and
 # never matched, except the window title.
 #
+# What bounds a snapshot is the driver's clock, not this script's: it starts a second after its step's
+# line was seen (the log is polled every half second) and must end before the next step is sent, 3 s
+# after its own (ReaderDriver.STEP_MILLIS; the calendar's 4/5, the field's 9/10 and 14/15 and the
+# picker's 1/2 and 5/6/7 are consecutive). Each snapshot prints when it started and ended, and once it
+# ends the log is read again: a snapshot the next step's line (or the driver's "--- exit after") beat
+# is flagged OVERRAN, because part of what it printed may be the next step's state.
+#
 # The entries and the steps each snapshot follows are the gallery lane's (2026-09-15):
 #   calendar     "Calendar grid": September 2026, the 15th selected, week numbers, Sundays refused,
 #                the 21st marked; 1 RIGHT the 16th, 4 LEFT the 21st, 5 LEFT Sunday the 20th (refused),
@@ -22,21 +29,32 @@
 #   date-picker  "Date picker, closed", native popup by default: 1 ALT+DOWN opens the calendar,
 #                2 RIGHT a day on, 5 ENTER picks and closes, 6 ALT+DOWN opens it again, 7 CMD+UP the
 #                months, 9 ESCAPE closes it.
-# A snapshot is also taken once the driver prints "--- focus", before step 1.
+# A snapshot is also taken once the driver prints "--- focus", before step 1. The calendar's table must
+# reach UI Automation in every snapshot of `calendar`, and in the picker's snapshots after steps 1, 2,
+# 6 and 7, when its calendar is open in whatever window of the demo's process it opened in (a native
+# popup by default, decision 5); every snapshot of the two field entries must find the segments.
 #
-# Run it from a task with /IT after the demo is up (a shell over SSH is session 0, where no window
-# is), with the demo's standard output going to the log named here:
+# Run it from a task with /IT, before the demo or within its first five seconds (a shell over SSH is
+# session 0, where no window is), with the demo's standard output going to the log named here:
 #   schtasks /Create /TN LimnWalkDates /TR C:\Users\<user>\walkdates.cmd /SC ONCE /ST 23:59 /IT /RU <user> /F
 #   schtasks /Run /TN LimnWalkDates
 # A client pass never shares a reader pass (decision 42): asking for elements changes what the bridge
 # raises.
 #
-# usage: walk-the-dates.ps1 <calendar|date-field|date-picker> [demo-log] [window-name]
-# exit: 0 when every snapshot found what its entry publishes; 2 when an expected control type was
-# absent from some snapshot; 1 when the window never appeared.
+# The log must be this run's. A log that already holds a step or exit line when this starts is an
+# earlier run's (or this run's, past the point where the first snapshot means anything), and every
+# wait would match it at once: this waits for a new demo to truncate it, and gives up after the wait.
+# So start this before the demo, or within the driver's first five seconds.
+#
+# usage: walk-the-dates.ps1 <calendar|date-field|date-picker> [demo-log] [window-name] [wait-seconds]
+# exit: 0 when every step printed, every snapshot found what its entry publishes and none was beaten
+# by the next step; 1 when the log never became this run's or the driver never printed "--- focus";
+# 2 when a step's line never printed or an expected control type was absent from a snapshot; 3 when
+# nothing was missing but some snapshot OVERRAN.
 param([Parameter(Mandatory = $true)][ValidateSet('calendar', 'date-field', 'date-picker')][string]$Entry,
       [string]$Log = "$env:USERPROFILE\dates-reader.log",
-      [string]$WindowName = 'Limn accessibility gallery')
+      [string]$WindowName = 'Limn accessibility gallery',
+      [int]$WaitSeconds = 120)
 
 $ErrorActionPreference = 'Continue'
 [System.Reflection.Assembly]::LoadWithPartialName('UIAutomationClient') | Out-Null
@@ -45,13 +63,19 @@ $AE = [System.Windows.Automation.AutomationElement]
 $Scope = [System.Windows.Automation.TreeScope]
 $CT = [System.Windows.Automation.ControlType]
 $script:missing = $false
+$script:overran = $false
+
+# Whether the log holds a line containing any of the patterns, as a plain match.
+function Log-Has($patterns) {
+    return [bool]((Test-Path $Log) -and (Select-String -Path $Log -Pattern $patterns -SimpleMatch -Quiet))
+}
+
+function Stamp($when) { return $when.ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss.fff') + 'Z' }
 
 function Wait-Line($pattern) {
-    $deadline = (Get-Date).AddSeconds(120)
+    $deadline = (Get-Date).AddSeconds($WaitSeconds)
     while ((Get-Date) -lt $deadline) {
-        if ((Test-Path $Log) -and (Select-String -Path $Log -Pattern $pattern -SimpleMatch -Quiet)) {
-            return $true
-        }
+        if (Log-Has @($pattern)) { return $true }
         Start-Sleep -Milliseconds 500
     }
     # To the host and not the output: a string written here would make the caller's `if` true.
@@ -174,8 +198,10 @@ function Describe-Fields($root) {
     }
 }
 
-function Snap($label) {
-    Write-Output "=== $Entry $label ==="
+# One snapshot of every window of the demo. $needsGrid: the calendar's table must be in one of them.
+function Snap($label, $needsGrid) {
+    $started = Get-Date
+    Write-Output ("=== $Entry $label === started {0}" -f (Stamp $started))
     $windows = Windows-Of-The-Demo
     if ($windows.Count -eq 0) { Write-Output 'NO WINDOW'; $script:missing = $true; return }
     foreach ($w in $windows) { Write-Output ("window {0} class '{1}'" -f (Label $w), $w.Current.ClassName) }
@@ -186,10 +212,13 @@ function Snap($label) {
     }
     $grids = @(); $spinners = @()
     foreach ($w in $windows) {
-        $grids += Find-All $w $CT::DataGrid
+        foreach ($grid in (Find-All $w $CT::DataGrid)) {
+            $grids += $grid
+            Write-Output ("in window {0}:" -f (Label $w))
+            Describe-Grid $grid
+        }
         $spinners += Find-All $w $CT::Spinner
     }
-    foreach ($grid in $grids) { Describe-Grid $grid }
     foreach ($w in $windows) {
         Describe-Fields $w
         foreach ($button in (Find-All $w $CT::Button)) {
@@ -199,29 +228,68 @@ function Snap($label) {
             }
         }
     }
-    switch ($Entry) {
-        'calendar' { if ($grids.Count -eq 0) { Write-Output 'NO DATAGRID: the calendar table is not reaching UI Automation'; $script:missing = $true } }
-        default { if ($spinners.Count -eq 0) { Write-Output 'NO SPINNER: the segments are not reaching UI Automation'; $script:missing = $true } }
+    if ($needsGrid -and $grids.Count -eq 0) {
+        Write-Output 'NO DATAGRID: the calendar table is not reaching UI Automation in any window of the demo'
+        $script:missing = $true
+    }
+    if ($Entry -ne 'calendar' -and $spinners.Count -eq 0) {
+        Write-Output 'NO SPINNER: the segments are not reaching UI Automation'
+        $script:missing = $true
+    }
+    $ended = Get-Date
+    Write-Output ("=== ended {0}, {1:0} ms" -f (Stamp $ended), ($ended - $started).TotalMilliseconds)
+}
+
+# After a snapshot taken at step $number: flags it when the next step's line, or the driver's exit
+# line, printed before the snapshot ended.
+function Check-Overrun($number) {
+    $next = "--- step {0} " -f ($number + 1)
+    if (Log-Has @($next, '--- exit after')) {
+        Write-Output ("OVERRAN: the log holds '{0}' or '--- exit after' once the snapshot ended, so part of it may read the next step's state" -f $next)
+        $script:overran = $true
     }
 }
 
+# Each step: its number, what it does, and whether the calendar's table must be found after it.
 $steps = switch ($Entry) {
-    'calendar' { @(@(1, 'RIGHT: the 16th'), @(4, 'LEFT: the 21st, marked'), @(5, 'LEFT: Sunday the 20th, refused'),
-                   @(8, 'PAGE_DOWN: October the 20th'), @(12, 'CMD+UP: the months')) }
-    'date-field' { @(@(1, 'RIGHT: the second segment'), @(9, "'1': a second digit rolls on"),
-                     @(10, 'DELETE: the segment cleared'), @(14, 'TAB: the empty due date'), @(15, 'UP: the empty segment filled')) }
-    'date-picker' { @(@(1, 'ALT+DOWN: the calendar opens'), @(2, 'RIGHT: a day on'), @(5, 'ENTER: picked and closed'),
-                      @(6, 'ALT+DOWN: open again'), @(7, 'CMD+UP: the months'), @(9, 'ESCAPE: closed')) }
+    'calendar' { @(@(1, 'RIGHT: the 16th', $true), @(4, 'LEFT: the 21st, marked', $true),
+                   @(5, 'LEFT: Sunday the 20th, refused', $true), @(8, 'PAGE_DOWN: October the 20th', $true),
+                   @(12, 'CMD+UP: the months', $true)) }
+    'date-field' { @(@(1, 'RIGHT: the second segment', $false), @(9, "'1': a second digit rolls on", $false),
+                     @(10, 'DELETE: the segment cleared', $false), @(14, 'TAB: the empty due date', $false),
+                     @(15, 'UP: the empty segment filled', $false)) }
+    'date-picker' { @(@(1, 'ALT+DOWN: the calendar opens', $true), @(2, 'RIGHT: a day on', $true),
+                      @(5, 'ENTER: picked and closed', $false), @(6, 'ALT+DOWN: open again', $true),
+                      @(7, 'CMD+UP: the months', $true), @(9, 'ESCAPE: closed', $false)) }
+}
+
+# An earlier run's log matches every wait at once: wait for a new demo to truncate it.
+if (Log-Has @('--- step ', '--- exit after')) {
+    Write-Host "$Log already holds a step or exit line; waiting for a new run of the demo to replace it"
+    $deadline = (Get-Date).AddSeconds($WaitSeconds)
+    while ((Log-Has @('--- step ', '--- exit after')) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+    if (Log-Has @('--- step ', '--- exit after')) {
+        Write-Host "$Log was never replaced: start this before the demo, or within its first five seconds"
+        exit 1
+    }
 }
 
 if (-not (Wait-Line '--- focus ')) { exit 1 }
 Start-Sleep -Seconds 1
-Snap 'after the driver put the keyboard in, before step 1'
+Snap 'after the driver put the keyboard in, before step 1' ($Entry -eq 'calendar')
+Check-Overrun 0
 foreach ($step in $steps) {
-    if (Wait-Line ("--- step {0} " -f $step[0])) {
-        Start-Sleep -Seconds 1
-        Snap ("after step {0} {1}" -f $step[0], $step[1])
+    if (-not (Wait-Line ("--- step {0} " -f $step[0]))) {
+        # The driver sends every step on a timer from the start, so a line missing past the wait
+        # means the demo is gone: every later wait would miss too.
+        Write-Output ("NO STEP LINE: '--- step {0} ' never printed; no snapshot after it or any later step" -f $step[0])
+        $script:missing = $true
+        break
     }
+    Start-Sleep -Seconds 1
+    Snap ("after step {0} {1}" -f $step[0], $step[1]) $step[2]
+    Check-Overrun $step[0]
 }
 if ($script:missing) { exit 2 }
+if ($script:overran) { exit 3 }
 exit 0
