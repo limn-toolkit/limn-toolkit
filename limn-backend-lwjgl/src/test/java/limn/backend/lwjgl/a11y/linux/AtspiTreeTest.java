@@ -1337,6 +1337,39 @@ class AtspiTreeTest {
         assertEquals(List.of(), performed, "an index that names no verb reaches no widget");
     }
 
+    /** Where this bridge's own source is, for the ratchet below. */
+    private static final java.nio.file.Path ATSPI_TREE = java.nio.file.Path.of(
+            "limn-backend-lwjgl/src/main/java/limn/backend/lwjgl/a11y/linux/AtspiTree.java");
+
+    /**
+     * Every verb this bridge posts is posted at one place, behind {@link AccessibleNode#accepts}
+     * (semantics 5, settled for the three bridges on 2026-09-15).
+     *
+     * <p>Asserted on the source, because it cannot be asserted on behaviour: {@code accepts} answers
+     * a parameterless verb from the same {@code ActionFacet} {@code DoAction} used to read, so today
+     * the two agree for every tree a walk can build, and a test that published one would pass either
+     * way. What the settlement is about is the day they stop agreeing — a showing or input-layer
+     * gate reaching {@code accepts} — and on that day the entry point that reads the facet on its
+     * own is the one nobody notices. {@code Action.DoAction} was that entry point here; the other
+     * twelve already went through {@code performFirst}.
+     */
+    @Test
+    void everyVerbThisBridgePostsIsPostedAtOnePlaceBehindAccepts() throws java.io.IOException {
+        List<String> lines = java.nio.file.Files.readAllLines(
+                limn.testing.RepositoryRoot.find().resolve(ATSPI_TREE),
+                java.nio.charset.StandardCharsets.UTF_8);
+        List<Integer> posts = new ArrayList<>();
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).contains(".perform(")) {
+                posts.add(i + 1);
+            }
+        }
+        assertEquals(1, posts.size(), "AtspiTree may hand a verb to a host at exactly one place, so "
+                + "that one gate covers every entry point; posted at lines " + posts);
+        assertEquals("if (node.accepts(verb)) {", lines.get(posts.get(0) - 2).trim(),
+                "and that place is guarded by AccessibleNode#accepts");
+    }
+
     @Test
     void aPathThatNamesNoLivingNodeIsAnsweredByNobodyRatherThanGuessedAt() {
         publishAWindowWithAButton();

@@ -1067,12 +1067,13 @@ final class AtspiTree {
                 if (i < 0 || i >= verbs.size()) {
                     return DBus.Msg.ret(m, "b", false);
                 }
-                // The host of the window that published this node: every window's scene performs
-                // only on its own nodes, and a verb sent to another would find nothing to act on.
-                AccessibilityBridge.Host h = at.window().host();
-                boolean done = h != null
-                        && h.perform(node.id(), verbs.get(i), Accessible.Argument.NONE);
-                return DBus.Msg.ret(m, "b", done);
+                // Through AccessibleNode#accepts like every other entry point on this bridge
+                // (semantics 5, settled 2026-09-15). It read the published ActionFacet directly
+                // and posted on the host of the window that published the node, which is the same
+                // answer today — accepts' parameterless arm IS that facet — and was the one call
+                // here that did not read the toolkit's single authority, so a gate added to accepts
+                // would have left this one entry on the old rule.
+                return DBus.Msg.ret(m, "b", performFirst(at, node, verbs.get(i)));
             }
             default:
                 return null;
@@ -1634,6 +1635,11 @@ final class AtspiTree {
      *
      * <p>Only the ones that take no argument: AT-SPI's {@code DoAction} carries an index and
      * nothing else, so a verb that needs a value has no way to arrive through it.
+     *
+     * <p>Asked of {@link AccessibleNode#accepts} rather than of the {@code ActionFacet} directly, so
+     * that the list a client reads and the list {@code DoAction} posts from are one fact
+     * (semantics 5). The two are the same today; they would not stay so if {@code accepts} gained a
+     * condition the facet does not carry.
      */
     private static List<Accessible.Action> verbsOf(AccessibleNode node) {
         List<Accessible.Action> out = new ArrayList<>();
@@ -1641,7 +1647,7 @@ final class AtspiTree {
             return out;
         }
         for (Accessible.Action verb : Accessible.Action.values()) {
-            if (node.actions().has(verb) && verb.isParameterless()) {
+            if (verb.isParameterless() && node.accepts(verb)) {
                 out.add(verb);
             }
         }
