@@ -43,7 +43,13 @@ final class AxGate {
                     grid.isRowContainer(node);
             case "accessibilityRowCount", "accessibilityColumnCount" -> node.table() != null;
             // A container's selection is read off the attribute of its shape and no other: a native
-            // outline answers AXSelectedRows and no AXSelectedChildren (read 2026-09-15).
+            // outline answers AXSelectedRows and no AXSelectedChildren (read 2026-09-15). It also
+            // answers AXSelectedCells, with the AXCell each of its selected rows holds, and that one
+            // is deliberately not vended on an outline or a list: a Limn row holds no cell element —
+            // its children are the application's own widgets, a label or a row of them — so the
+            // answer would name the rows again under a cell's attribute or name an arbitrary widget,
+            // and the native outline told its selection only as AXSelectedRowsChanged. A grid whose
+            // members are cells, a calendar, answers it (CELLS).
             case "accessibilitySelectedChildren" -> node.selection() != null
                     && grid.selectionShape(node) == AxGrid.SelectionShape.CHILDREN;
             case "accessibilitySelectedCells" -> node.selection() != null

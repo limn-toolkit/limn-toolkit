@@ -2167,7 +2167,12 @@ of rows; `accessibilitySelectedCells` for a grid whose members are cells, a cale
 `accessibilitySelectedChildren` for anything else holding one, a tab strip — each answered from the
 selected members whose selection container it is, wherever they hang, and each refused where it is
 not the container's shape, as the native outline answers `AXSelectedRows` and no
-`AXSelectedChildren`. *Disclosure* (M1): an outline row answers `isAccessibilityDisclosed` from its
+`AXSelectedChildren`. *Recorded the same day (the macos-B review):* the native outline also answered
+`AXSelectedCells` — the `AXCell` its selected row holds — and an outline or a list here deliberately
+does not: a Limn row holds no cell element, its children being the application's own widgets, so the
+answer would repeat the rows under a cell's attribute or name an arbitrary widget, and the native
+outline told its selection only as `AXSelectedRowsChanged`. Whether VoiceOver reads a native outline's
+selected cells at all is phase 5's to hear. *Disclosure* (M1): an outline row answers `isAccessibilityDisclosed` from its
 expand facet, `accessibilityDisclosureLevel` as the hierarchy facet's level less one, and
 `accessibilityDisclosedByRow` / `accessibilityDisclosedRows` by walking the outline's realized rows
 while their flat row numbers run without a gap — a gap answers nothing rather than a grandparent —

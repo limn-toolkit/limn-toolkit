@@ -108,6 +108,9 @@ final class AxSetters {
             // Focus cannot be written away: a NO has no verb, and moving the focus elsewhere is a
             // write to the element it goes to.
             case FOCUSED -> on ? Accessible.Action.FOCUS : null;
+            // YES is a click in either selection mode: AXSelected YES on a second row of a native
+            // multi-select outline replaced the selection rather than extending it (read on the guest,
+            // 2026-09-15, selection-writes-probe.swift), which is SELECT and not ADD_TO_SELECTION.
             case SELECTED -> on ? Accessible.Action.SELECT : Accessible.Action.DESELECT;
             case DISCLOSED, EXPANDED -> on ? Accessible.Action.EXPAND : Accessible.Action.COLLAPSE;
             default -> null;
