@@ -1019,6 +1019,21 @@ class UiaBridgeTest {
             assertEquals(popup.objectFor(day).pointerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT),
                     org.lwjgl.system.MemoryUtil.memGetAddress(out),
                     "the host's GetFocus answers the popup window's own fragment pointer");
+
+            // And the popup window's own root, asked directly, agrees with the HasKeyboardFocus its
+            // day answers (review of windows-A: it answered a null, nothing of its tree focused).
+            UiaObject popupRoot = UiaObject.create(java.util.List.of(new UiaObject.Served(
+                    UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT_ROOT,
+                    UiaProvider.fragmentRootSlots(popup.contextForTests()))), () -> { });
+            made.add(popupRoot);
+            org.lwjgl.system.MemoryUtil.memPutAddress(out, 0xAAAAL);
+            assertEquals(UiaIds.S_OK, org.lwjgl.system.JNI.invokePPI(popupRoot.pointer(), out,
+                    UiaCom.slotOf(popupRoot.pointer(), getFocus)));
+            assertEquals(popup.objectFor(day).pointerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT),
+                    org.lwjgl.system.MemoryUtil.memGetAddress(out),
+                    "the popup's own GetFocus names the day that has the keyboard");
+            assertEquals(0, host.contextForTests().cursorFromAnotherWindow(),
+                    "and the host, whose cursor went out, is named by no other window's");
         } finally {
             org.lwjgl.system.MemoryUtil.nmemFree(out);
             UiaWindow.trace = before;

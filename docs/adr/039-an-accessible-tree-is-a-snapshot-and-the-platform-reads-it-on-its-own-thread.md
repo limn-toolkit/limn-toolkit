@@ -2113,6 +2113,14 @@ after the event (readings/nvda-2024.4.2-uia.md §1). Where the cursor resolved i
 tree (decision 5), `GetFocus` hands over that window's fragment pointer from that window's own
 provider, and that element is the one answering `HasKeyboardFocus` true. `HasKeyboardFocus` is
 therefore answered by the provider from the tree, not by the per-node property table.
+**Amended again 2026-09-15 (review of that change):** the popup window's own root answered
+`GetFocus` with a null — nothing of its tree is focused — while its day answered `HasKeyboardFocus`
+true, so one provider contradicted itself. A root whose tree has no effective focus of its own now
+answers the node of its tree that another open window's effective focus names
+(`UiaBridgeTest.aCursorInAnotherWindowsTreeIsRaisedAndAnsweredThroughThatWindowsProvider`). Whether
+UI Automation and NVDA accept either answer — a focus element in another window's fragment tree, or
+the focus on a window that is not the active one — is decision 5's live assumption, measured first in
+phase 5.
 
 **Amended 2026-09-15 (phase 3, Windows; decisions 9, 10; semantics 1 and 5; W1's Selection half,
 WINDOWS-NEW-9, WINDOWS-NEW-11): `ISelectionProvider` is served, and the `SelectionItem` verbs are

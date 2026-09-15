@@ -130,6 +130,18 @@ final class UiaProvider {
         }
 
         /**
+         * The node of <em>this</em> tree that another window's effective focus names: the day of a
+         * native popup whose opener's cursor resolved into it (decision 5). What this window's own
+         * {@code GetFocus} answers when nothing of its own tree is focused, so that it agrees with
+         * the {@code HasKeyboardFocus} {@link #hasKeyboardFocus} answers for that node.
+         *
+         * @return that node's identifier, or {@code 0} when no other window's cursor is here
+         */
+        default long cursorFromAnotherWindow() {
+            return 0;
+        }
+
+        /**
          * A client subscribed to, or unsubscribed from, an event that covers this window.
          *
          * <p>The one thing UI Automation tells a provider about its <em>clients</em>, and the only
@@ -379,6 +391,14 @@ final class UiaProvider {
             // The cursor lives in a native popup's tree (decision 5): the element is that
             // window's, handed over by its own provider.
             MemoryUtil.memPutAddress(out, context.elementInAnotherWindowFor(tree.effectiveFocus()));
+        } else {
+            // And this may be that popup's own root, asked directly: nothing here is focused,
+            // but the opener's cursor is on a node of this tree, which answers HasKeyboardFocus
+            // true, so GetFocus names it too.
+            long foreign = context.cursorFromAnotherWindow();
+            if (foreign != 0) {
+                MemoryUtil.memPutAddress(out, context.elementFor(foreign));
+            }
         }
         return UiaIds.S_OK;
     }

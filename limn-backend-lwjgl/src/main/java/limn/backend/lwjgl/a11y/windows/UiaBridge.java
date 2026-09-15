@@ -682,12 +682,38 @@ public final class UiaBridge extends PlatformBridge {
             return true;
         }
         for (UiaBridge other : OPEN) {
-            AccessibleTree theirs = other.tree();
-            if (other != this && theirs.effectiveFocus() == nodeId && theirs.indexOf(nodeId) < 0) {
+            if (other != this && other.cursorInto(tree) == nodeId) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * @return the first node of this tree another open window's effective focus names, or
+     *         {@code 0}; what this window's {@code GetFocus} answers when nothing of its own is
+     *         focused (decision 5)
+     */
+    private long cursorFromAnotherWindow() {
+        AccessibleTree tree = tree();
+        for (UiaBridge other : OPEN) {
+            long cursor = other == this ? 0 : other.cursorInto(tree);
+            if (cursor != 0) {
+                return cursor;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * @param theirs another window's published tree
+     * @return this bridge's effective focus when it lives in that tree and not in this one, else
+     *         {@code 0}
+     */
+    private long cursorInto(AccessibleTree theirs) {
+        AccessibleTree mine = tree();
+        long cursor = mine.effectiveFocus();
+        return cursor != 0 && mine.indexOf(cursor) < 0 && theirs.indexOf(cursor) >= 0 ? cursor : 0;
     }
 
     /** @return the node the last focus change was raised on; for tests */
@@ -1033,6 +1059,11 @@ public final class UiaBridge extends PlatformBridge {
         public long elementInAnotherWindowFor(long nodeId) {
             UiaBridge holder = openBridgeHolding(nodeId);
             return holder == null ? 0 : holder.handOverFromAnotherWindow(nodeId);
+        }
+
+        @Override
+        public long cursorFromAnotherWindow() {
+            return UiaBridge.this.cursorFromAnotherWindow();
         }
 
         @Override
