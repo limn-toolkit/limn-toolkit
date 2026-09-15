@@ -105,6 +105,8 @@ final class AxElementClass {
     /** {@code NSAccessibilityElement}: what a released element is pointed back at. */
     private final long superclass;
     private final List<Callback> callbacks = new ArrayList<>();
+    /** The table, row and cell lookups the closures below wrap. */
+    private final AxGrid grid;
     /** The retained {@code NSString} {@link #BUSY_ATTRIBUTE}; zero until installed and after free. */
     private long busyAttribute;
 
@@ -122,6 +124,7 @@ final class AxElementClass {
     AxElementClass(AxObjC objc, Source source, String className) {
         this.objc = objc;
         this.source = source;
+        this.grid = new AxGrid(source);
         this.superclass = ObjC.cls("NSAccessibilityElement");
         if (superclass == NULL) {
             throw new IllegalStateException("no NSAccessibilityElement: this is not AppKit");
@@ -325,70 +328,29 @@ final class AxElementClass {
     }
 
     /**
-     * What NSAccessibilityTable, NSAccessibilityRow and NSAccessibilityCell ask, answered from the
-     * table and cell facets and from the tree's own shape; ADR 041 §7.
-     *
-     * <p>Rows are the table's {@code ROW} children and the header is its first group child, so the
-     * elements handed back are the ones AppKit already holds for those nodes. Columns are none:
-     * the toolkit has no column node, and a column index range on every cell is what VoiceOver
-     * reads "column 2 of 3" from. A cell asked for by column and row is answered only for a row
-     * the walk published, which is the degradation ADR 039 §4.1 accepts.
+     * What NSAccessibilityTable, NSAccessibilityRow and NSAccessibilityCell ask: {@link AxGrid}'s
+     * answers, wrapped for AppKit. Every lookup is there, where it can be tested without AppKit;
+     * what is here is only the conversion of an element list into an {@code NSArray} and of a
+     * number into the closure's return.
      */
     private void installTable() {
-        addId("accessibilityRows", get(node -> node.table() == null ? NULL
-                : arrayOf(node, child -> child.role() == Accessible.Role.ROW)));
-        addId("accessibilityVisibleRows", get(node -> node.table() == null ? NULL
-                : arrayOf(node, child -> child.role() == Accessible.Role.ROW
-                        && child.has(Accessible.State.SHOWING))));
-        addId("accessibilitySelectedRows", get(node -> node.table() == null ? NULL
-                : arrayOf(node, child -> child.role() == Accessible.Role.ROW
-                        && child.has(Accessible.State.SELECTED))));
-        addId("accessibilityColumns", get(node -> node.table() == null ? NULL : objc.mutableArray()));
-        addId("accessibilityHeader", get(node -> node.table() == null ? NULL : headerOf(node)));
-        addId("accessibilityColumnHeaderUIElements", get(node -> {
-            if (node.table() != null) {
-                long header = headerOf(node);
-                AccessibleNode group = header == NULL ? null : source.nodeFor(header);
-                return group == null ? NULL : arrayOf(group, child -> true);
-            }
-            if (node.cell() != null && node.cell().row() >= 0) {
-                long header = columnHeaderOf(node);
-                if (header == NULL) return NULL;
-                long array = objc.mutableArray();
-                objc.addObject(array, header);
-                return array;
-            }
-            return NULL;
-        }));
-        addLong("accessibilityRowCount", node -> node.table() == null ? 0 : node.table().rowCount());
-        addLong("accessibilityColumnCount",
-                node -> node.table() == null ? 0 : node.table().columnCount());
-        // NSAccessibilityRow's index: the row's place among the data rows, from the facet the
-        // walk numbered it with, so an unrealized row above it still counts.
-        addLong("accessibilityIndex", node -> node.role() == Accessible.Role.ROW
-                && node.selectionItem() != null ? node.selectionItem().positionInSet() - 1 : -1);
-        addRange("accessibilityRowIndexRange", node -> node.cell() == null || node.cell().row() < 0
-                ? NOT_FOUND : new long[] {node.cell().row(), 1});
-        addRange("accessibilityColumnIndexRange", node -> node.cell() == null
-                ? NOT_FOUND : new long[] {node.cell().column(), 1});
+        addId("accessibilityRows", get(node -> nsArray(grid.rows(node))));
+        addId("accessibilityVisibleRows", get(node -> nsArray(grid.visibleRows(node))));
+        addId("accessibilitySelectedRows", get(node -> nsArray(grid.selectedRows(node))));
+        addId("accessibilityColumns", get(node -> nsArray(grid.columns(node))));
+        addId("accessibilityHeader", get(grid::header));
+        addId("accessibilityColumnHeaderUIElements",
+                get(node -> nsArray(grid.columnHeaderElements(node))));
+        addLong("accessibilityRowCount", grid::rowCount);
+        addLong("accessibilityColumnCount", grid::columnCount);
+        addLong("accessibilityIndex", grid::index);
+        addRange("accessibilityRowIndexRange", grid::rowIndexRange);
+        addRange("accessibilityColumnIndexRange", grid::columnIndexRange);
         CellAt cellAt = new CellAt() {
             @Override public long invoke(long self, long cmd, long column, long row) {
                 source.entered();
                 AccessibleNode node = source.nodeFor(self);
-                if (node == null || node.table() == null) return NULL;
-                for (long rowElement : source.childElementsOf(node)) {
-                    AccessibleNode rowNode = source.nodeFor(rowElement);
-                    if (rowNode == null || rowNode.role() != Accessible.Role.ROW
-                            || rowNode.selectionItem() == null
-                            || rowNode.selectionItem().positionInSet() != row + 1) continue;
-                    for (long cell : source.childElementsOf(rowNode)) {
-                        AccessibleNode cellNode = source.nodeFor(cell);
-                        if (cellNode != null && cellNode.cell() != null
-                                && cellNode.cell().column() == column) return cell;
-                    }
-                    return NULL;
-                }
-                return NULL;
+                return node == null ? NULL : grid.cellAt(node, column, row);
             }
         };
         callbacks.add(cellAt);
@@ -397,45 +359,12 @@ final class AxElementClass {
         addBool("isAccessibilitySelected", is(node -> node.has(Accessible.State.SELECTED)));
     }
 
-    /** {@code NSNotFound} and a zero length: the range of a cell that is not in the grid. */
-    private static final long[] NOT_FOUND = {Long.MAX_VALUE, 0};
-
-    private interface NodeFilter {
-        boolean keep(AccessibleNode child);
-    }
-
-    /** An autoreleased array of the elements of {@code node}'s children that {@code filter} keeps. */
-    private long arrayOf(AccessibleNode node, NodeFilter filter) {
+    /** An autoreleased {@code NSArray} of these elements, or nil for {@code null}. */
+    private long nsArray(long[] elements) {
+        if (elements == null) return NULL;
         long array = objc.mutableArray();
-        for (long child : source.childElementsOf(node)) {
-            AccessibleNode childNode = source.nodeFor(child);
-            if (childNode != null && filter.keep(childNode)) objc.addObject(array, child);
-        }
+        for (long element : elements) objc.addObject(array, element);
         return array;
-    }
-
-    /** The element of the table's header group: its first child with the group role, or nil. */
-    private long headerOf(AccessibleNode table) {
-        for (long child : source.childElementsOf(table)) {
-            AccessibleNode childNode = source.nodeFor(child);
-            if (childNode != null && childNode.role() == Accessible.Role.GROUP) return child;
-        }
-        return NULL;
-    }
-
-    /** The element of the header cell above {@code cell}, found by structure, or nil. */
-    private long columnHeaderOf(AccessibleNode cell) {
-        long parent = source.parentElementOf(cell);              // the row
-        AccessibleNode row = parent == NULL ? null : source.nodeFor(parent);
-        long tableElement = row == null ? NULL : source.parentElementOf(row);
-        AccessibleNode table = tableElement == NULL ? null : source.nodeFor(tableElement);
-        if (table == null || table.table() == null) return NULL;
-        long header = headerOf(table);
-        AccessibleNode group = header == NULL ? null : source.nodeFor(header);
-        if (group == null) return NULL;
-        long[] headers = source.childElementsOf(group);
-        int column = cell.cell().column();
-        return column >= 0 && column < headers.length ? headers[column] : NULL;
     }
 
     private void addLong(String selector, NodeToLong body) {
@@ -456,7 +385,7 @@ final class AxElementClass {
             @Override public long[] invoke(long self, long cmd) {
                 source.entered();
                 AccessibleNode node = source.nodeFor(self);
-                return node == null ? NOT_FOUND : body.apply(node);
+                return node == null ? AxGrid.NOT_FOUND : body.apply(node);
             }
         };
         callbacks.add(getter);
