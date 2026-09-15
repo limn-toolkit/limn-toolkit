@@ -134,7 +134,9 @@ class AccessibleTranscriptTest {
      * table-golden-scene): rows selected in {@code MULTI}, a footer summarising two columns,
      * and a widget column of named switches — the fourth transcript, and the first with a
      * table in it. The gallery's entry rather than the demo's {@code TableScene}, whose
-     * nameless switches the owner left as they are; here every control is named.
+     * nameless switches the owner left as they are; here every control is named. Unlike the
+     * three above, {@code table.txt} was committed without being read aloud: it was read line by
+     * line when committed, and the owner's read-aloud is owed before phase 5 (ADR 041 §11).
      */
     @Test
     void theTableSoundsLikeItsTranscript() {
