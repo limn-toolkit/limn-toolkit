@@ -359,6 +359,110 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * The node half of decision 23 across two refreshes with no frame between them (review of
+     * the fix round, 2026-09-15): the first refresh followed the published rows and forgot them,
+     * so the second followed nothing and left "Person 3"'s identity on the row the first had
+     * moved it to, which after a second insert above was "Person 2"'s.
+     */
+    @Test
+    void aRowNodeFollowsItsRecordAcrossTwoRefreshesBeforeAFrame() throws InterruptedException {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        List<Person> rows = new ArrayList<>(people(200));
+        table.setRows(rows);
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        bind(table);
+        long threeId = rowNamed("Person 3").id();
+        long fiveId = rowNamed("Person 5").id();
+
+        rows.add(0, new Person("A", 1));
+        rows.remove(6); // Person 5
+        table.refresh();
+        rows.add(0, new Person("B", 2));
+        table.refresh();
+
+        perform(fiveId, Accessible.Action.SELECT, null);
+        assertEquals("[]", java.util.Arrays.toString(table.selectedRows()),
+                "Person 5 left the list, and nothing is selected in its name");
+        assertTrue(perform(threeId, Accessible.Action.SELECT, null));
+        assertEquals(5, table.selectedRow(), "Person 3 is sixth after two inserts");
+        frame();
+        assertEquals(threeId, rowNamed("Person 3").id(), "and its row node kept its id");
+    }
+
+    /**
+     * An identity once published names its record or nothing, never another record (review of
+     * the fix round, 2026-09-15; semantics 8): a refresh that left the rows in view where they
+     * were followed nothing else, so a record a reader had been shown before scrolling away,
+     * moved by that refresh, left its identity on the row that took its place. A bridge that
+     * caches an element by identity would have read one element as two records. Three ways to
+     * be shown a row and then lose sight of it: scrolled away from its first identity, scrolled
+     * away from one a refresh carried, and a carried one the next frame did not show at all.
+     */
+    @Test
+    void anIdentityOncePublishedNeverNamesAnotherRecord() throws InterruptedException {
+        for (String way : List.of("scrolled away", "carried, then scrolled away",
+                "carried, never shown again")) {
+            Table<Person> table = new Table<>(List.of(
+                    Column.text("Name", Person::name).width(120),
+                    Column.numeric("Age", Person::age).width(60)));
+            List<Person> rows = new ArrayList<>(people(200));
+            table.setRows(rows);
+            bind(table);
+            String name;
+            long id;
+            if (way.equals("carried, never shown again")) {
+                // The last row in view; an insert above pushes it out of the next frame's view.
+                List<AccessibleNode> shown = rowNodes();
+                name = childrenOf(shown.get(shown.size() - 1)).get(0).name();
+                id = shown.get(shown.size() - 1).id();
+                rows.add(0, new Person("Newcomer", 1));
+                table.refresh();
+                frame();
+                assertEquals(null, rowNamed(name), "pushed out of view");
+                int at = 0;
+                while (!rows.get(at).name().equals(name)) {
+                    at++;
+                }
+                java.util.Collections.swap(rows, at, 30); // out of view, it moves
+                table.refresh();
+                frame();
+                table.scrollBy(0, 96);
+                frame();
+            } else {
+                if (way.startsWith("carried")) {
+                    rows.add(0, new Person("Newcomer", 1));
+                    table.refresh();
+                    frame();
+                }
+                name = "Person 3";
+                id = rowNamed(name).id();
+                table.scrollBy(0, 100_000);
+                frame();
+                assertEquals(null, rowNamed(name), "scrolled away");
+                java.util.Collections.reverse(rows.subList(1, 9)); // out of view, it moves
+                table.refresh();
+                frame();
+                table.scrollBy(0, -100_000);
+                frame();
+            }
+
+            String context = way + ": " + describe(tree());
+            for (AccessibleNode row : rowNodes()) {
+                if (row.id() == id) {
+                    assertEquals(name, childrenOf(row).get(0).name(), context);
+                }
+            }
+            perform(id, Accessible.Action.SELECT, null);
+            int selected = table.selectedRow();
+            assertTrue(selected < 0 || rows.get(selected).name().equals(name),
+                    "a verb on " + name + "'s old node selected " + (selected < 0 ? "nothing"
+                            : rows.get(selected).name()) + "; " + context);
+        }
+    }
+
+    /**
      * MODEL-NEW-4 (ADR 039 §1.10, amended 2026-09-14): a sort keeps every row's identifier and
      * moves the rows, and a client holding the old order has to be told — one
      * {@code STRUCTURE_CHANGED} on the table, naming the rows that stand at another rank than

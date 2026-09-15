@@ -264,6 +264,24 @@ followed and nothing is read. Pinned by
 `TableAccessibilityTest.aRowNodeFollowsItsRecordAndAVerbActsOnTheRecordItWasPublishedFor` and
 `equalRecordsKeepTheirNodesByOccurrence`.
 
+**Amended 2026-09-15 (review of the fix round).** The amendment above held for one `refresh()`
+per frame and for the rows of the last publish only. Two corrections. *Followed until replaced:* a
+refresh that moved a followed record keeps following it at its new row until the next describe
+publishes, so a second `refresh()` before the frame follows it again; until then the first refresh
+forgot it, and an insert, `refresh()`, insert, `refresh()` left "Person 3"'s node on "Person 2".
+*Never another record:* "the only rows a reader holds a node of" was wrong — a bridge may keep an
+element it built from an earlier publish, and a row a reader was shown before scrolling away kept
+an identity that a refresh leaving the rows in view in place did not follow, so after a reorder
+out of view it named whichever record took that row. The table now notes when a published row
+leaves the followed set (a scroll releases it, or a describe after a refresh leaves a followed row
+out), and the next refresh then retires every identity it does not follow: an identity once
+published names its record or nothing (semantics 8). A refresh with nothing left behind and every
+followed record in place still changes nothing. The high-water mark moves with the identities
+handed out rather than with the list's length, so retiring costs identities up to the deepest row
+shown and not a list's length of them. Pinned by
+`TableAccessibilityTest.aRowNodeFollowsItsRecordAcrossTwoRefreshesBeforeAFrame` and
+`anIdentityOncePublishedNeverNamesAnotherRecord`.
+
 ---
 
 ## 4. The toolkit sorts, and the application may take that over
