@@ -907,6 +907,9 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
      * first and last months the chronology holds are drawn and named in it, with the leading
      * cells before AH 1300 and the trailing cells past AH 1600 named from their ISO dates, and
      * the month just past either end falls back to the ISO calendar rather than throwing.
+     *
+     * <p>The week starts on Monday here on purpose: 1 Muharram 1300 is a Sunday, so in the
+     * locale's own Sunday-first week it opens the grid and there is no leading cell to check.
      */
     @Test
     void aHijriGridAtTheEndsOfItsRange() {
@@ -915,6 +918,8 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         LocalDate first = LocalDate.from(hijrah.date(1300, 1, 1));
         LocalDate last = LocalDate.from(hijrah.date(1600, 12, 1));
 
+        assertEquals(java.time.DayOfWeek.SUNDAY, first.getDayOfWeek());
+        calendar.setFirstDayOfWeek(java.time.DayOfWeek.MONDAY);
         calendar.setVisibleMonth(first);
         frame();
         assertTrue(titleNode().name().contains("1300"), titleNode().name());
@@ -926,11 +931,15 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
                 firstCell = i;
             }
         }
-        assertTrue(firstCell >= 0, "the first day of the range is a named cell: " + describe(tree()));
-        if (firstCell > 0) {
-            assertEquals(first.minusDays(1).toString(), days.get(firstCell - 1).name(),
-                    "a day the chronology cannot hold is named from its ISO date");
-        }
+        assertEquals(6, firstCell, "Monday to Sunday: six leading cells before AH 1300 begins: "
+                + describe(tree()));
+        AccessibleNode eve = days.get(firstCell - 1);
+        assertEquals("1882-11-11", eve.name(),
+                "a day the chronology cannot hold is named from its ISO date");
+        assertPosition(eve, 11, 30); // and numbered in its ISO month, November's thirty days
+        assertEquals("1882-11-06", days.get(0).name());
+        assertPosition(days.get(0), 6, 30);
+        assertPosition(days.get(firstCell), 1, hijrah.date(1300, 1, 1).lengthOfMonth());
 
         calendar.setVisibleMonth(last);
         frame();
