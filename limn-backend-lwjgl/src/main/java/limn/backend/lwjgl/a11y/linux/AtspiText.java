@@ -31,7 +31,12 @@ import java.util.TreeSet;
  * character through its line feed, and the {@code _END} types from one end to the next. A
  * granularity is answered as libatspi 2.60.6's own fallback reads it (CHAR as CHAR, WORD as
  * WORD_START, SENTENCE as SENTENCE_START, LINE as LINE_START;
- * readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt), and PARAGRAPH as LINE_START.
+ * readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt), and PARAGRAPH as LINE_START:
+ * libatspi's fallback names no boundary for it, and on the Fedora KDE 44 guest GTK 4.22.4's text
+ * view answers a paragraph as what a line feed delimits while GTK 3's ATK bridge answers
+ * ('', -1, -1) (readings/fedora-gtk4-interface-replies.txt and fedora-gtk3-interface-replies.txt,
+ * section 4, scripts/a11y/linux/read-gtk-interface-replies.py, 2026-09-15). GTK 4 leaves the line
+ * feed out of a line and a paragraph; the ATK bridge's line keeps it, and so does this one.
  */
 final class AtspiText {
 

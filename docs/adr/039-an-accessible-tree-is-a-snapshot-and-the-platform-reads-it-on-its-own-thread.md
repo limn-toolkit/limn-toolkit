@@ -2456,6 +2456,18 @@ answered, as §11 decided:** `GetCharacterExtents`, `GetRangeExtents`, `GetOffse
 first three for flat review and mouse review (readings/fedora-orca-interface-calls.txt), which stay
 degraded.
 
+**Read 2026-09-15 (review of the interfaces item): PARAGRAPH.** Answering PARAGRAPH as `LINE_START`
+was a choice: libatspi 2.60.6's fallback maps it to no boundary. On the Fedora KDE 44 guest, over a
+text view holding "one two. three four.\nfive six.\n\nseven", GTK 4.22.4 answers PARAGRAPH (and LINE
+and SENTENCE) with what a line feed delimits, the line feed left out ("five six.", 21, 30), and GTK
+3.24.52's ATK bridge answers PARAGRAPH `('', -1, -1)` at every offset while its LINE keeps the line feed
+("five six.\n", 21, 31) (readings/fedora-gtk4-interface-replies.txt and
+fedora-gtk3-interface-replies.txt, section 4, `scripts/a11y/linux/read-gtk-interface-replies.py`). The
+bridge keeps PARAGRAPH as what a line feed delimits — GTK 4's unit, and a range where Orca 50.2 asks for one (`ax_text.py` calls PARAGRAPH,
+readings/fedora-orca-interface-calls.txt) —
+in the `LINE_START` shape its LINE already has, the line feed included as the ATK bridge includes it.
+Pinned by `AtspiTreeTest.aTextIsReadInCharactersByOffsetGranularityAndBoundary`.
+
 **`EditableText` (the same date).** Listed for a text published `EDITABLE` — a field that is only
 disabled keeps both, as §1.2 requires. Every write is one `SET_TEXT` of the whole new string, built
 from the published text in characters, through `AccessibleNode#accepts`: `SetTextContents` replaces it,

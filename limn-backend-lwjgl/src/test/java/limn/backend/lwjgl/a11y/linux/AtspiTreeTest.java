@@ -746,6 +746,13 @@ class AtspiTreeTest {
                 + "line feed");
         assertEquals(List.of("Next line", 12, 21), range(9101, "GetStringAtOffset", "iu", 21,
                 Atspi.TEXT_GRANULARITY_LINE), "and a caret after the last character reads the last");
+        // PARAGRAPH is what a line feed delimits, as GTK 4.22.4's text view answers it on the Fedora
+        // guest (readings/fedora-gtk4-interface-replies.txt, section 4); GTK 3's ATK bridge answers
+        // it ('', -1, -1) there; the bridge answers a range, which Orca 50.2 asks for.
+        assertEquals(List.of("Hi \uD83D\uDE00 there.\n", 0, 12), range(9101, "GetStringAtOffset",
+                "iu", 7, Atspi.TEXT_GRANULARITY_PARAGRAPH), "a paragraph through its line feed");
+        assertEquals(List.of("Next line", 12, 21), range(9101, "GetStringAtOffset", "iu", 15,
+                Atspi.TEXT_GRANULARITY_PARAGRAPH), "the last paragraph, which no line feed ends");
         assertEquals(List.of("Next line", 12, 21), range(9101, "GetStringAtOffset", "iu", 15,
                 Atspi.TEXT_GRANULARITY_SENTENCE));
         assertEquals(List.of("Hi \uD83D\uDE00 there.\n", 0, 12), range(9101,
