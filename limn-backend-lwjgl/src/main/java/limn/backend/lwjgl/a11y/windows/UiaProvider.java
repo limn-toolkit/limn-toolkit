@@ -581,6 +581,20 @@ final class UiaProvider {
      * follows from the popup back to its opener is the opener's own {@code ControllerFor}, which
      * this now answers across the window boundary.
      *
+     * <p><b>That absence is read and not assumed.</b> The platform's element-valued properties are
+     * {@code LabeledBy} (30018), {@code ControllerFor} (30104), {@code DescribedBy} (30105),
+     * {@code FlowsTo} (30106) and {@code FlowsFrom} (30148), and no member of
+     * {@code UIA_PropertyIds} has "popup" in its name at all: read off the guest's own
+     * {@code UIAutomationCore.dll} 7.2.26100.9278 on 2026-09-13
+     * (readings/windows-dump-uia-typelib-all-members.txt, {@code
+     * scripts/a11y/windows/dump-uia-typelib.ps1 -AllMembers}). Answering the opener as the popup's
+     * own {@code ControllerFor} instead would say the popup controls the field that opened it,
+     * which is the relation backwards. The settled list's Windows line reads "hands back a
+     * ControllerFor/PopupFor element from the other HWND's provider"; only the first half is
+     * answerable on this platform, and ADR 039 §1.11's 2026-09-15 amendment amends it on that
+     * point rather than leaving the departure in a javadoc. Pinned by
+     * {@code UiaProviderTest.aPopupForIsCarriedByNoPropertyBecauseThePlatformHasNone}.
+     *
      * @param target  the node at the other end of the relation
      * @param context what the slots read
      * @return its simple pointer, referenced for the caller, or {@code 0} when no open window

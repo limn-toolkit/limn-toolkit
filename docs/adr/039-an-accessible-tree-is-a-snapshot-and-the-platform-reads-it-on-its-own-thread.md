@@ -1947,7 +1947,25 @@ caller. A target no open window holds is still left out rather than handed over 
 a `SAFEARRAY(VT_UNKNOWN)`, which `SafeArrayDestroy` would release one by one. `POPUP_FOR`, the
 mirror the popup's own root carries, is answered by no property: UI Automation has no "popup for"
 among its element-valued properties, and what a client follows from the popup back to its opener is
-the opener's `ControllerFor`. Pinned by
+the opener's `ControllerFor`.
+
+**This amends the settled list on that point, and is not a divergence left in a javadoc.** The
+settlement of 2026-09-15 reads "Windows hands back a ControllerFor/PopupFor element from the other
+HWND's provider"; the `PopupFor` half is unanswerable here, and the absence is read rather than
+assumed. The platform's element-valued properties are `LabeledBy` (30018), `ControllerFor` (30104),
+`DescribedBy` (30105), `FlowsTo` (30106) and `FlowsFrom` (30148), and no member of `UIA_PropertyIds`
+carries "popup" in its name at all, read off the guest's own `UIAutomationCore.dll` 7.2.26100.9278
+on 2026-09-13 (`readings/windows-dump-uia-typelib-all-members.txt`). Answering the opener as the
+popup's own `ControllerFor` instead would say the popup controls the field that opened it, which is
+the relation backwards; the one carrier of the link on this platform is the opener's `ControllerFor`,
+which the amendment above delivers. AT-SPI's `ATSPI_RELATION_POPUP_FOR` and AppKit's own window
+object are unaffected: the two platforms that have a carrier keep publishing the pair. Pinned as a
+deliberate non-mapping by `UiaProviderTest.aPopupForIsCarriedByNoPropertyBecauseThePlatformHasNone`,
+which gives a node a `POPUP_FOR` naming a widget its **own** window holds and reads every
+element-valued property back empty — so a later lane that invents a carrier for it fails here and
+comes back to this paragraph.
+
+The cross-window half is pinned by
 `UiaProviderTest.aRelationTargetAnotherWindowHoldsIsHandedBackAsThatWindowsElement`, which restates
 `aRelationTargetAnotherWindowHoldsIsLeftOutRatherThanHandedOverAsNull` (2026-09-14), the case that
 pinned the compaction. The live half — a client reading `ControllerFor` on the opener and reaching

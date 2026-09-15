@@ -358,6 +358,9 @@ class UiaProviderTest {
         a.role(Accessible.Role.TEXT_FIELD);
         a.name(I18nString.literal("Notes"), Accessible.NameFrom.LABEL);
         a.relation(Accessible.Relation.LABELLED_BY, GONE_FROM_EVERY_WINDOW);
+        // And a POPUP_FOR naming a node this window DOES hold, so that what the test below reads
+        // is the relation being carried by no property rather than a target nobody holds.
+        a.relation(Accessible.Relation.POPUP_FOR, 4001L);
         a.inherited(true, true, true, true, false);
         a.end();
         a.end();
@@ -423,6 +426,50 @@ class UiaProviderTest {
                     "a target no open window holds is the platform's empty default, never a NULL "
                             + "element");
             assertEquals(2, arraysMade.size(), "and no array was minted for it");
+        } finally {
+            MemoryUtil.nmemFree(out);
+        }
+    }
+
+    /**
+     * The other half of CRIT-2's Windows answer, and a deliberate non-mapping rather than an
+     * omission: {@code POPUP_FOR} — the mirror a native popup's own root carries, naming the widget
+     * that opened it — is carried by no property of this platform.
+     *
+     * <p>UI Automation's property table has no "popup for": its element-valued properties are
+     * {@code LabeledBy} (30018), {@code ControllerFor} (30104), {@code DescribedBy} (30105),
+     * {@code FlowsTo} (30106) and {@code FlowsFrom} (30148), and no member of
+     * {@code UIA_PropertyIds} has "popup" in its name at all — read off the guest's own
+     * {@code UIAutomationCore.dll} 7.2.26100.9278 on 2026-09-13
+     * (readings/windows-dump-uia-typelib-all-members.txt). What a client follows from a popup back
+     * to its opener is the opener's {@code ControllerFor}, which the test above pins across the
+     * window boundary. The settled list's Windows line ("hands back a ControllerFor/PopupFor
+     * element from the other HWND's provider") is amended by ADR 039 §1.11's 2026-09-15 amendment
+     * on that point.
+     *
+     * <p>So this fails if a later lane invents a carrier for it — answering the opener as the
+     * popup's own {@code ControllerFor} would say the popup controls the field that opened it,
+     * which is the relation backwards.
+     */
+    @Test
+    void aPopupForIsCarriedByNoPropertyBecauseThePlatformHasNone() {
+        publishAWindowWithAComboWhosePopupIsAnotherWindow();
+        long popupRootStandIn = elementFor(4003);
+        long out = MemoryUtil.nmemAllocChecked(UiaVariant.SIZE);
+        ByteBuffer variant = MemoryUtil.memByteBuffer(out, UiaVariant.SIZE);
+        try {
+            int arraysBefore = arraysMade.size();
+            for (int property : new int[] {UiaIds.CONTROLLER_FOR, UiaIds.DESCRIBED_BY,
+                    UiaIds.LABELED_BY}) {
+                assertEquals(UiaIds.S_OK,
+                        callWithId(popupRootStandIn, GET_PROPERTY_VALUE, property, out));
+                assertEquals(UiaVariant.VT_EMPTY, UiaVariant.tagOf(variant, 0),
+                        "the node declares POPUP_FOR naming 4001, which THIS window holds, and no "
+                                + "element-valued property of this platform carries that relation: "
+                                + "property " + property + " must stay the platform's empty "
+                                + "default rather than answer the opener");
+            }
+            assertEquals(arraysBefore, arraysMade.size(), "and no array was minted for it");
         } finally {
             MemoryUtil.nmemFree(out);
         }
