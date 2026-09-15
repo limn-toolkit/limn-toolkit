@@ -259,6 +259,105 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(rowNodes().get(3).selectionItem().selected(), "the newcomer is not");
     }
 
+    /** The row node whose first cell reads {@code name}, or {@code null}. */
+    private AccessibleNode rowNamed(String name) {
+        for (AccessibleNode row : rowNodes()) {
+            if (name.equals(childrenOf(row).get(0).name())) {
+                return row;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Decision 23 of 2026-09-14, the node half (fix round of 2026-09-15): a row's node is its
+     * record's, not its index's. Until then a row was keyed by its model index, so after an
+     * insert above, "Person 3"'s node id named "Person 2", and a reader's verb sent from the
+     * snapshot before the insert acted on whichever record sat at that index when it arrived.
+     */
+    @Test
+    void aRowNodeFollowsItsRecordAndAVerbActsOnTheRecordItWasPublishedFor()
+            throws InterruptedException {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        List<Person> rows = new ArrayList<>(people(200));
+        table.setRows(rows);
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        bind(table);
+        AccessibleNode three = rowNamed("Person 3");
+        long threeId = three.id();
+        long threeCell = childrenOf(three).get(1).id();
+        long fiveId = rowNamed("Person 5").id();
+        long sixCell = childrenOf(rowNamed("Person 6")).get(1).id();
+        java.util.Set<Long> before = new java.util.HashSet<>();
+        rowNodes().forEach(row -> before.add(row.id()));
+
+        // The application inserts above and refreshes; the reader's verbs were sent from the
+        // snapshot it had, which still names the rows as they were.
+        rows.add(0, new Person("Newcomer", 1));
+        table.refresh();
+        assertTrue(perform(threeId, Accessible.Action.SELECT, null));
+        assertEquals(4, table.selectedRow(), "the record the node was published for: Person 3, fifth now");
+        assertTrue(perform(sixCell, Accessible.Action.FOCUS, null));
+        assertEquals(7, table.focusRow(), "a cell's verb names its record too: Person 6, eighth now");
+        assertEquals(1, table.focusColumn());
+
+        table.scrollBy(0, -4000); // the two reveals scrolled; back to the top, where all of them are
+        frame();
+        assertNotNull(rowNamed("Person 3"), describe(tree()));
+        assertEquals(threeId, rowNamed("Person 3").id(), "Person 3's row node kept its id");
+        assertEquals(threeCell, childrenOf(rowNamed("Person 3")).get(1).id(), "and so did its cells");
+        assertNotNull(rowNamed("Newcomer"));
+        assertFalse(before.contains(rowNamed("Newcomer").id()),
+                "the newcomer took no identity a published record had: " + describe(tree()));
+        assertEquals(rowNodes().size(), rowNodes().stream().map(AccessibleNode::id).distinct().count(),
+                "no two rows share a node");
+        assertEquals(new CellFacet(4, 0), childrenOf(rowNamed("Person 3")).get(0).cell(),
+                "the position is the index's; the identity is the record's");
+
+        // A record that leaves the list takes its identity with it: a verb still addressed to it
+        // is refused on the UI thread rather than landing on the row that took its place.
+        rows.remove(6); // Person 5
+        table.refresh();
+        perform(fiveId, Accessible.Action.SELECT, null);
+        assertEquals("[4]", java.util.Arrays.toString(table.selectedRows()),
+                "nothing else was selected in Person 5's name");
+
+        // And the identity survives a scroll away and back, as an index's did.
+        frame();
+        long again = rowNamed("Person 3").id();
+        assertEquals(threeId, again);
+        table.scrollBy(0, 4000);
+        frame();
+        assertEquals(null, rowNamed("Person 3"), "scrolled away");
+        table.scrollBy(0, -4000);
+        frame();
+        assertEquals(threeId, rowNamed("Person 3").id(), "Person 3's row is Person 3's row again");
+    }
+
+    /**
+     * Equal records are one identity per occurrence, as the selection tells them apart: the
+     * second "Lee" row keeps its node when an unequal row is inserted above both.
+     */
+    @Test
+    void equalRecordsKeepTheirNodesByOccurrence() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        List<Person> rows = new ArrayList<>(List.of(new Person("Lee", 1), new Person("Ann", 2),
+                new Person("Lee", 1)));
+        table.setRows(rows);
+        bind(table);
+        long first = rowNodes().get(0).id();
+        long second = rowNodes().get(2).id();
+        rows.add(1, new Person("Bo", 3));
+        table.refresh();
+        frame();
+        assertEquals(first, rowNodes().get(0).id(), "the first Lee is still first");
+        assertEquals(second, rowNodes().get(3).id(), "the second Lee, fourth now, kept its node");
+    }
+
     /**
      * MODEL-NEW-4 (ADR 039 §1.10, amended 2026-09-14): a sort keeps every row's identifier and
      * moves the rows, and a client holding the old order has to be told — one

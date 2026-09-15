@@ -122,17 +122,21 @@ public class Table<T> extends Widget implements Scrollable {
     private static final long FOOTER_KEY = -2;
     /**
      * The synthetic keys a reader's verb arrives with, told apart by a bit each: a data row is
-     * its model index; a cell is {@code CELL_KEY | model << COLUMN_BITS | column}, so a verb on
-     * a cell names its row as well as its column; a header cell is {@code HEADER_CELL_KEY |
-     * column}, a footer cell {@code FOOTER_CELL_KEY | column}. Until 2026-09-14 a cell and a
-     * header cell were keyed by their column alone, which a verb could not tell from a row's
-     * index: a select on cell (0, 1) selected row 1 (TABLE-NEW-13).
+     * its record's <b>row identity</b> ({@link #rowIdOf}); a cell is {@code CELL_KEY | identity
+     * << COLUMN_BITS | column}, so a verb on a cell names its row as well as its column; a
+     * header cell is {@code HEADER_CELL_KEY | column}, a footer cell {@code FOOTER_CELL_KEY |
+     * column}. Until 2026-09-14 a cell and a header cell were keyed by their column alone, which
+     * a verb could not tell from a row's index: a select on cell (0, 1) selected row 1
+     * (TABLE-NEW-13). Until 2026-09-15 a row was keyed by its model index, so an insert above it
+     * gave its node to another record and a verb sent before the insert acted on that record.
      */
     private static final int COLUMN_BITS = 20;
     private static final long COLUMN_MASK = (1L << COLUMN_BITS) - 1;
-    private static final long CELL_KEY = 1L << 52;
-    private static final long HEADER_CELL_KEY = 1L << 53;
-    private static final long FOOTER_CELL_KEY = 1L << 54;
+    /** Row identities are below this: forty bits between the column and the three kind bits. */
+    private static final long ROW_ID_LIMIT = 1L << 40;
+    private static final long CELL_KEY = 1L << 60;
+    private static final long HEADER_CELL_KEY = 1L << 61;
+    private static final long FOOTER_CELL_KEY = 1L << 62;
 
     private final List<Column<T>> columns;
     private List<T> rows = List.of();
@@ -160,6 +164,22 @@ public class Table<T> extends Widget implements Scrollable {
     // the list is the application's and has already changed when refresh() is called.
     private Function<? super T, ?> rowKey;
     private final Records records = new Records();
+    // A row's accessible identity follows its record (decision 23 of 2026-09-14, the node half,
+    // done 2026-09-15): model row m is published as rowIdBase + m unless an override names it,
+    // and a refresh that moved a published record gives its old identity to where the record is
+    // now, as an override, and issues the other rows a fresh range past every identity issued.
+    private long rowIdBase;
+    private long rowIdHighWater;
+    private int[] overrideModels = new int[0];
+    private long[] overrideIds = new long[0];
+    private int overrideCount;
+    // The rows the last describe published, in the order it walked them: what a reader may still
+    // hold a node of, and what a refresh follows by record so those nodes stay on their records.
+    private int publishedCount;
+    private int[] publishedModels = new int[16];
+    private long[] publishedIds = new long[16];
+    private Object[] publishedKeys = new Object[16];
+    private int[] publishedOrdinals = new int[16];
     // The header the last click asked to sort by, and the order it asked for: what onSortRequest
     // is told, read back here because a request for the model's order leaves sortColumn null.
     private Column<T> sortRequestColumn;
@@ -252,6 +272,13 @@ public class Table<T> extends Widget implements Scrollable {
         final float[] fittedWidth;
         final Widget[] widgets;
         int widgetCount;
+        /** The row's accessible identity: the synthetic key its {@code ROW} is published under. */
+        long id;
+        /** The key its record is followed by, taken when it was mounted. */
+        Object key;
+        /** Its occurrence among the equal keys before it; read the first time it is described. */
+        int ordinal;
+        boolean ordinalKnown;
 
         Slot(int columns) {
             texts = new String[columns];
@@ -447,7 +474,14 @@ public class Table<T> extends Widget implements Scrollable {
      *         entry
      */
     private int[] rediscover() {
-        int size = records.size;
+        return rediscover(records.keys, records.ordinals, records.size);
+    }
+
+    /**
+     * {@link #rediscover()} over any entries: {@code keys} and {@code ordinals} by entry, the
+     * entries of one key in ordinal order.
+     */
+    private int[] rediscover(Object[] keys, int[] ordinals, int size) {
         int[] now = new int[size];
         Arrays.fill(now, -1);
         if (size == 0) {
@@ -458,9 +492,9 @@ public class Table<T> extends Widget implements Scrollable {
         int[] next = new int[size];
         Arrays.fill(next, -1);
         for (int t = 0; t < size; t++) {
-            int[] group = groups.get(records.keys[t]);
+            int[] group = groups.get(keys[t]);
             if (group == null) {
-                groups.put(records.keys[t], new int[] {t, t, 0});
+                groups.put(keys[t], new int[] {t, t, 0});
             } else {
                 next[group[1]] = t;
                 group[1] = t;
@@ -475,10 +509,10 @@ public class Table<T> extends Widget implements Scrollable {
             }
             int occurrence = group[2]++;
             int cursor = group[0];
-            while (cursor >= 0 && records.ordinals[cursor] < occurrence) {
+            while (cursor >= 0 && ordinals[cursor] < occurrence) {
                 cursor = next[cursor]; // an equal record before this one is gone
             }
-            if (cursor >= 0 && records.ordinals[cursor] == occurrence) {
+            if (cursor >= 0 && ordinals[cursor] == occurrence) {
                 now[cursor] = m;
                 found++;
                 cursor = next[cursor];
@@ -486,6 +520,235 @@ public class Table<T> extends Widget implements Scrollable {
             group[0] = cursor;
         }
         return now;
+    }
+
+    // ----------------------------------------------------------------- row identity
+
+    /**
+     * The accessible identity model row {@code model} is published under: the key of its
+     * {@code ROW}, the row part of its cells' keys, and the row a widget cell hangs under. It
+     * follows the record and not the index (decision 23 of 2026-09-14): stable across a scroll
+     * away and back and across a sort, which moves no model index, and carried by
+     * {@link #refresh()} to wherever a published record went. Allocates nothing.
+     */
+    private long rowIdOf(int model) {
+        int lo = 0;
+        int hi = overrideCount - 1;
+        while (lo <= hi) {
+            int mid = (lo + hi) >>> 1;
+            int m = overrideModels[mid];
+            if (m < model) {
+                lo = mid + 1;
+            } else if (m > model) {
+                hi = mid - 1;
+            } else {
+                return overrideIds[mid];
+            }
+        }
+        long id = rowIdBase + model;
+        if (id >= rowIdHighWater) {
+            rowIdHighWater = id + 1;
+        }
+        return id;
+    }
+
+    /**
+     * The model row a row identity stands for now, or {@code -1} when no row carries it any more:
+     * how a reader's verb, named by the node it was published on, finds its record after a
+     * refresh moved it — or finds that the record is gone, and is refused.
+     */
+    private int modelOfRowId(long id) {
+        for (int i = 0; i < overrideCount; i++) {
+            if (overrideIds[i] == id) {
+                return overrideModels[i] < rows.size() ? overrideModels[i] : -1;
+            }
+        }
+        long m = id - rowIdBase;
+        if (m < 0 || m >= rows.size()) {
+            return -1;
+        }
+        return rowIdOf((int) m) == id ? (int) m : -1; // an override took that row's place
+    }
+
+    /** New rows, new identities: every row is issued a fresh one past all issued before. */
+    private void resetRowIds() {
+        rowIdBase = freshRowIdBase(rows.size(), 0);
+        overrideCount = 0;
+        clearPublished();
+    }
+
+    private void clearPublished() {
+        Arrays.fill(publishedKeys, 0, publishedCount, null);
+        publishedCount = 0;
+    }
+
+    /**
+     * A base for a range of {@code count} identities that no identity issued so far and none of
+     * the first {@code keep} overrides lies in: past the high-water mark while that fits below
+     * {@link #ROW_ID_LIMIT}, which keeps a verb sent for a vanished record from naming a row
+     * that took its identity; else the lowest gap the kept overrides leave.
+     */
+    private long freshRowIdBase(int count, int keep) {
+        long base = rowIdHighWater;
+        if (base + count <= ROW_ID_LIMIT) {
+            rowIdHighWater = base + count;
+            return base;
+        }
+        long[] kept = Arrays.copyOf(overrideIds, keep);
+        Arrays.sort(kept);
+        base = 0;
+        for (long id : kept) {
+            if (id >= base + count) {
+                break;
+            }
+            base = Math.max(base, id + 1);
+        }
+        rowIdHighWater = base + count;
+        return base;
+    }
+
+    /**
+     * Follows the rows the last describe published to where the list holds their records now,
+     * for {@link #refresh()}: a record found where it was keeps everything as it is; otherwise
+     * each found record keeps its identity as an override at its new row, the rest of the rows
+     * take a fresh range, and a record the list no longer holds takes its identity with it, so a
+     * verb still addressed to it is refused. One read of the rows, stopping at the last found;
+     * nothing when nothing was published (no reader).
+     */
+    private void followPublishedRows() {
+        int n = publishedCount;
+        int count = rows.size();
+        if (n == 0) {
+            dropOverridesFrom(count);
+            return;
+        }
+        // Entries in model order, which is the ordinal order rediscover needs within a key.
+        Integer[] order = new Integer[n];
+        for (int i = 0; i < n; i++) {
+            order[i] = i;
+        }
+        Arrays.sort(order, (a, b) -> Integer.compare(publishedModels[a], publishedModels[b]));
+        Object[] keys = new Object[n];
+        int[] ordinals = new int[n];
+        for (int i = 0; i < n; i++) {
+            keys[i] = publishedKeys[order[i]];
+            ordinals[i] = publishedOrdinals[order[i]];
+        }
+        int[] now = rediscover(keys, ordinals, n);
+        boolean stayed = true;
+        for (int i = 0; i < n && stayed; i++) {
+            stayed = now[i] == publishedModels[order[i]];
+        }
+        if (stayed) {
+            dropOverridesFrom(count);
+            return;
+        }
+        int found = 0;
+        int[] models = new int[n];
+        long[] ids = new long[n];
+        for (int i = 0; i < n; i++) {
+            if (now[i] >= 0) {
+                models[found] = now[i];
+                ids[found] = publishedIds[order[i]];
+                found++;
+            }
+        }
+        // By model, for rowIdOf's binary search; now[] follows the old model order, not the new.
+        Integer[] byModel = new Integer[found];
+        for (int i = 0; i < found; i++) {
+            byModel[i] = i;
+        }
+        Arrays.sort(byModel, (a, b) -> Integer.compare(models[a], models[b]));
+        if (overrideModels.length < found) {
+            overrideModels = new int[found];
+            overrideIds = new long[found];
+        }
+        for (int i = 0; i < found; i++) {
+            overrideModels[i] = models[byModel[i]];
+            overrideIds[i] = ids[byModel[i]];
+        }
+        overrideCount = found;
+        rowIdBase = freshRowIdBase(count, found);
+        clearPublished();
+    }
+
+    /** Forgets the overrides of rows a shorter list no longer has. */
+    private void dropOverridesFrom(int count) {
+        while (overrideCount > 0 && overrideModels[overrideCount - 1] >= count) {
+            overrideCount--;
+        }
+    }
+
+    /**
+     * Reads the ordinal of every mounted row about to be published for the first time, and
+     * records what this describe publishes for {@link #followPublishedRows}. Without a
+     * {@link #rowKey} a row's ordinal is how many rows before it hold an equal record, which is
+     * a read of those rows; the rows that need one share a single pass. A quiet frame finds
+     * every ordinal known, and allocates nothing.
+     */
+    private void notePublishedRows() {
+        int lacking = 0;
+        int deepest = -1;
+        for (int i = 0; i < mountedCount; i++) {
+            Slot slot = mountedSlots[i];
+            if (slot.ordinalKnown) {
+                continue;
+            }
+            if (rowKey != null) {
+                slot.ordinal = 0; // keys are unique by the contract rowKey states
+                slot.ordinalKnown = true;
+                continue;
+            }
+            slot.ordinal = 0;
+            lacking++;
+            deepest = Math.max(deepest, modelOf(slot.row));
+        }
+        if (lacking > 0) {
+            // The rows that need one, by model, and a counter per key among them.
+            java.util.HashMap<Object, int[]> seen = new java.util.HashMap<>(lacking * 2);
+            Slot[] waiting = new Slot[lacking];
+            int w = 0;
+            for (int i = 0; i < mountedCount; i++) {
+                Slot slot = mountedSlots[i];
+                if (!slot.ordinalKnown) {
+                    seen.putIfAbsent(slot.key, new int[1]);
+                    waiting[w++] = slot;
+                }
+            }
+            Arrays.sort(waiting, (a, b) -> Integer.compare(modelOf(a.row), modelOf(b.row)));
+            int next = 0;
+            for (int m = 0; m <= deepest; m++) {
+                int[] counter = seen.get(keyOf(rows.get(m)));
+                if (next < lacking && modelOf(waiting[next].row) == m) {
+                    waiting[next].ordinal = counter == null ? 0 : counter[0];
+                    waiting[next].ordinalKnown = true;
+                    next++;
+                }
+                if (counter != null) {
+                    counter[0]++;
+                }
+            }
+        }
+        if (publishedModels.length < mountedCount) {
+            int grown = Math.max(mountedCount, publishedModels.length * 2);
+            publishedModels = new int[grown];
+            publishedIds = new long[grown];
+            publishedKeys = new Object[grown];
+            publishedOrdinals = new int[grown];
+        }
+        int n = 0;
+        for (int i = 0; i < mountedCount; i++) {
+            Slot slot = mountedSlots[i];
+            publishedModels[n] = modelOf(slot.row);
+            publishedIds[n] = slot.id;
+            publishedKeys[n] = slot.key;
+            publishedOrdinals[n] = slot.ordinal;
+            n++;
+        }
+        for (int i = n; i < publishedCount; i++) {
+            publishedKeys[i] = null;
+        }
+        publishedCount = n;
     }
 
     /**
@@ -581,6 +844,7 @@ public class Table<T> extends Widget implements Scrollable {
         rangeAnchor = -1;
         focusRow = -1;
         records.clear();
+        resetRowIds();
         anchorIndex = 0;
         anchorTop = 0;
         resort();
@@ -653,10 +917,15 @@ public class Table<T> extends Widget implements Scrollable {
      * moved is announced as {@code ACTIVE}/{@code ADJUSTMENT}; when the refresh answers a
      * {@linkplain #onSortRequest sort request} it is also revealed with the least scroll, as the
      * table's own sort does, and otherwise the scroll position is kept. Then {@code CHILDREN}/
-     * {@code CODE}; nothing reaches a handler. UI thread only.
+     * {@code CODE}; nothing reaches a handler. A row's accessible node follows its record the
+     * same way: the rows the last publish described keep their nodes wherever their records went,
+     * and a reader's verb sent before the refresh acts on the record it named, or is refused when
+     * that record is gone (the node half of decision 23, 2026-09-15). UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
+        // The nodes a reader holds first, before anything below re-mounts the rows under them.
+        followPublishedRows();
         int count = rows.size();
         boolean moved = false;
         int wasFocusRow = focusRow;
@@ -743,6 +1012,12 @@ public class Table<T> extends Widget implements Scrollable {
         this.rowKey = key;
         records.clear();
         syncRecords();
+        for (int i = 0; i < mountedCount; i++) {
+            Slot slot = mountedSlots[i];
+            slot.key = keyOf(rows.get(modelOf(slot.row)));
+            slot.ordinalKnown = false;
+        }
+        clearPublished(); // taken under the old key; the next describe publishes them again
         return this;
     }
 
@@ -1893,7 +2168,10 @@ public class Table<T> extends Widget implements Scrollable {
         for (int i = 0; i < at; i++) {
             insertAt += mountedSlots[i].widgetCount;
         }
-        T row = rows.get(modelOf(index));
+        int model = modelOf(index);
+        T row = rows.get(model);
+        slot.id = rowIdOf(model);
+        slot.key = keyOf(row);
         Locale locale = locale();
         for (int c = 0; c < columns.size(); c++) {
             Column<T> column = columns.get(c);
@@ -3049,6 +3327,7 @@ public class Table<T> extends Widget implements Scrollable {
     @Override
     protected void onAccessibility(Accessibility a) {
         describedRowCount = rows.size();
+        notePublishedRows();
         SizeTokens t = tokens();
         boolean rtl = isRightToLeft();
         float w = gutters.viewportWidth(width());
@@ -3120,7 +3399,7 @@ public class Table<T> extends Widget implements Scrollable {
             }
             boolean rowOffScreen = !shown || top + slot.height <= headerH
                     || top >= headerH + viewH;
-            a.child(model);
+            a.child(slot.id);
             a.bounds(rowX, top, w, slot.height);
             a.role(Accessible.Role.ROW);
             boolean isSelected = selected.get(model);
@@ -3147,7 +3426,7 @@ public class Table<T> extends Widget implements Scrollable {
                     continue; // a real child, described in onAccessibilityChild
                 }
                 float left = columnLeft(s, rowX, w, rtl);
-                a.child(CELL_KEY | ((long) model << COLUMN_BITS) | c);
+                a.child(CELL_KEY | (slot.id << COLUMN_BITS) | c);
                 a.bounds(left, top, colW[s], slot.height);
                 a.role(Accessible.Role.CELL);
                 a.name(slot.texts[c], textEpoch, Accessible.NameFrom.CONTENT);
@@ -3218,7 +3497,7 @@ public class Table<T> extends Widget implements Scrollable {
         while (slot.widgets[c] != child) {
             c++;
         }
-        a.under(modelOf(slot.row));
+        a.under(slot.id);
         a.key(c);
     }
 
@@ -3263,24 +3542,26 @@ public class Table<T> extends Widget implements Scrollable {
 
     /**
      * A reader's verb on a row or a cell, decoded from the key the node was published with:
-     * a row's key is its model index, a cell's carries its row and its column (TABLE-NEW-13:
+     * a row's key is its record's row identity, a cell's carries that and its column (TABLE-NEW-13:
      * until 2026-09-14 a cell was keyed by its column alone and a select on it selected the
      * row of that number). The verbs are the published ones and no other — a cell accepts
      * {@code FOCUS} alone — and each goes through the seam the matching gesture takes at
      * {@code USER}: {@code SELECT} is the click, {@code ADD_TO_SELECTION} and {@code DESELECT}
      * the command-click's toggle without its cursor move (only {@code SELECT} and {@code FOCUS}
-     * move the cursor, decision 20), {@code FOCUS} a cursor move that selects nothing. A row is named by
-     * the model index the snapshot published and acted on as the record at that index now.
+     * move the cursor, decision 20), {@code FOCUS} a cursor move that selects nothing. A row is
+     * named by the identity of the record the snapshot published it for (decision 23, the node
+     * half, 2026-09-15): a verb sent before a {@link #refresh()} that inserted a row above acts
+     * on that same record where it stands now, and one whose record left the list is refused.
+     * Until then it acted on whatever record stood at the published model index.
      */
     @Override
     protected boolean onSyntheticAction(long key, Accessible.Action action,
                                         Accessible.Argument arg) {
-        int count = rows.size();
         if ((key & CELL_KEY) != 0) {
-            int model = (int) ((key & ~CELL_KEY) >>> COLUMN_BITS);
+            int model = modelOfRowId((key & ~CELL_KEY) >>> COLUMN_BITS);
             int c = (int) (key & COLUMN_MASK);
             int s = shownIndexOf(c);
-            if (action == Accessible.Action.FOCUS && model < count && s >= 0) {
+            if (action == Accessible.Action.FOCUS && model >= 0 && s >= 0) {
                 focusCell(viewOf(model), s, Change.Origin.USER);
                 return true;
             }
@@ -3300,10 +3581,13 @@ public class Table<T> extends Widget implements Scrollable {
             }
             return false;
         }
-        if ((key & FOOTER_CELL_KEY) != 0 || key < 0 || key >= count) {
+        if ((key & FOOTER_CELL_KEY) != 0 || key < 0) {
             return false;
         }
-        int model = (int) key;
+        int model = modelOfRowId(key);
+        if (model < 0) {
+            return false; // the record this row was published for is gone from the list
+        }
         int view = viewOf(model);
         switch (action) {
             case SELECT -> {

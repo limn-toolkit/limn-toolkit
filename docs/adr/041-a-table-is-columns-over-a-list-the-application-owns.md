@@ -235,6 +235,26 @@ across a sort" and §6's sentence are true again by this rule rather than by ind
 "rebuilt ... on `setSort`, on `refresh` and on nothing else" was already loose — `setRows`
 resorts too.
 
+**Amended 2026-09-15 (fix round; decision 23, the node half).** "Reader verbs still name a row by
+the model index the snapshot published" above was half of decision 23 left undone: a `ROW` was
+keyed by its model index, so after an insert above, a published row's node named another record,
+and a verb sent from the snapshot before the `refresh()` acted on whatever record stood at that
+index when it arrived. A row is now keyed by its record's **row identity**: model row *m* is
+published as *base + m* unless an override names it, which keeps a row's node across a scroll away
+and back and across a sort (neither moves a model index). `refresh()` follows the rows the last
+publish described — the only rows a reader holds a node of — by the same key and occurrence the
+selection uses (keys taken at mount, the occurrence read the first time a row is described, one
+pass for all rows that need it, nothing on a quiet frame): if each is where it was, nothing
+changes; otherwise each found record keeps its identity as an override at its new row, every
+other row takes a fresh range past every identity issued (so a verb for a record that left the
+list is refused rather than landing on the row that took its place), and a record the list no
+longer holds takes its identity with it. `setRows` issues a fresh range. A cell's key carries the
+row identity (`CELL_KEY | identity << 20 | column`, identities below 2^40, the kind bits moved to
+60–62) and a widget cell hangs `under` it. Without a reader nothing is described, so nothing is
+followed and nothing is read. Pinned by
+`TableAccessibilityTest.aRowNodeFollowsItsRecordAndAVerbActsOnTheRecordItWasPublishedFor` and
+`equalRecordsKeepTheirNodesByOccurrence`.
+
 ---
 
 ## 4. The toolkit sorts, and the application may take that over
