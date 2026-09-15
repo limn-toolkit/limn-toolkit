@@ -431,9 +431,9 @@ final class AtspiApplication {
                 sayFocusAgain(window, link, context);
                 return;
             }
-            case STATE_CHANGED -> {
+            case STATE_CHANGED, FOCUS_CHANGED -> {
                 if (focusGained(event) && window.focusSaid == event.nodeId()) {
-                    return;  // already said again in this publish; Orca's 0.1 s filter drops a copy
+                    return;  // already said in this publish: the survivor's STATE_CHANGED, then this
                 }
             }
             case ACTIVE_DESCENDANT_CHANGED -> {
@@ -478,10 +478,15 @@ final class AtspiApplication {
         };
     }
 
+    /**
+     * Whether the event says the focus arrived on its node: the FOCUSED bit's STATE_CHANGED going
+     * on, or the tail's FOCUS_CHANGED, which is the one a node that arrived focused raises.
+     */
     private static boolean focusGained(AccessibleEvent event) {
-        return event.type() == AccessibleEvent.Type.STATE_CHANGED
-                && event.state() == limn.accessibility.Accessible.State.FOCUSED
-                && Boolean.TRUE.equals(event.newValue());
+        return event.type() == AccessibleEvent.Type.FOCUS_CHANGED
+                || event.type() == AccessibleEvent.Type.STATE_CHANGED
+                        && event.state() == limn.accessibility.Accessible.State.FOCUSED
+                        && Boolean.TRUE.equals(event.newValue());
     }
 
     private static long cursorOf(AccessibleEvent event) {

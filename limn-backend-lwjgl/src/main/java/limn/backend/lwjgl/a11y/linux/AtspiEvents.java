@@ -136,12 +136,16 @@ final class AtspiEvents {
             return expandChanged(event, context, path);
         }
         Signal one = switch (event.type()) {
-            // Nothing. Focus is a state change on this platform -- the dedicated Focus signal is
-            // deprecated and Orca subscribes to object:state-changed:focused -- and the difference
-            // ALSO raises STATE_CHANGED for the FOCUSED bit, on both the node gaining it and the
-            // node losing it. Mapping this one too sent the arrival twice and the departure once,
-            // so a reader announced the newly focused control and then announced it again.
-            case FOCUS_CHANGED -> null;
+            // Focus is a state change on this platform -- the dedicated Focus signal is deprecated
+            // and Orca subscribes to object:state-changed:focused -- so this is the same signal
+            // the FOCUSED bit's STATE_CHANGED makes. The difference raises that STATE_CHANGED for a
+            // surviving node, and then this event in the tail as well; a node that ARRIVES focused
+            // gets this event alone (a new node's states are read on discovery), and it mapped to
+            // nothing until the review of linux-B, so a dialog's first field was never said
+            // focused. The copy for a survivor is not sent twice: AtspiApplication#emit drops a
+            // focus already said in the same publish.
+            case FOCUS_CHANGED -> event(context, path, I_EVENT_OBJECT, "StateChanged",
+                    detailOf(Accessible.State.FOCUSED), 1, 0, new DBus.Variant("i", 0));
             case STATE_CHANGED -> stateChanged(event, context, path);
             case NAME_CHANGED -> event(context, path, I_EVENT_OBJECT, "PropertyChange",
                     "accessible-name", 0, 0, new DBus.Variant("s", string(event.newValue())));

@@ -2413,7 +2413,15 @@ connection); a cursor that went away names the null object with `detail1` −1.
 both from the `STATE_CHANGED` the difference raises; `FOCUS_CHANGED` itself sends nothing, and the
 deprecated `Event.Focus.Focus` the row names is not sent — Orca 50.2's `Script.get_listeners`
 registers no `focus:` event (readings/fedora-orca-event-handlers.txt). The row overstated it
-(settled linux-adr-overstatements).
+(settled linux-adr-overstatements). *(Corrected 2026-09-15, the review of linux-B: "both from the
+`STATE_CHANGED` the difference raises; `FOCUS_CHANGED` itself sends nothing" was false for a node
+that arrives already focused — a dialog's first field, a popup's list, a cell widget realized under
+the cursor. The difference raises no `STATE_CHANGED` for a new node and only the tail's
+`FOCUS_CHANGED` (semantics 7), so such a node was never said focused, while the node losing the focus
+was. `FOCUS_CHANGED` now sends `StateChanged` `focused` 1 from its node, after the tail's structure
+signals have put the node in a client's cache, and a surviving node's gain, already sent by its
+`STATE_CHANGED` in the same publish, is not sent a second time. Commit 26769b3's message repeats the
+false sentence.)*
 
 **`WINDOW_ACTIVATED` / `WINDOW_DEACTIVATED`, `WINDOW_OPENED` / `WINDOW_CLOSED` (LINUX-NEW-2,
 LINUX-NEW-15, LAB-NEW-2).** `Event.Window` `Activate`/`Deactivate` from the frame's own path (the

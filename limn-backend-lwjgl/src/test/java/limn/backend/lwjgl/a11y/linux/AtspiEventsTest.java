@@ -64,26 +64,34 @@ class AtspiEventsTest {
     }
 
     /**
-     * Focus travels as a state change, and only once.
+     * Focus travels as a state change, whichever event carries it.
      *
      * <p>The dedicated Focus signal is deprecated and Orca subscribes to
-     * {@code object:state-changed:focused}; the difference already raises {@code STATE_CHANGED} for
-     * that bit on the node gaining it <em>and</em> the node losing it. Mapping {@code
-     * FOCUS_CHANGED} as well sent the arrival twice and the departure once, which a listening
-     * client showed plainly: a reader announces the newly focused control and then announces it
-     * again.
+     * {@code object:state-changed:focused}. The difference raises {@code STATE_CHANGED} for that bit
+     * on a surviving node gaining it and on the node losing it, and {@code FOCUS_CHANGED} in the
+     * tail for the node that gained it — the only event a node that arrived focused raises. Both
+     * map to the same signal; the application sends it once per publish
+     * ({@code AtspiApplicationTest.aNodeThatArrivesFocusedIsSaidFocusedAfterTheCacheHasItAndOnlyOnce}).
+     * {@code FOCUS_CHANGED} mapped to nothing until the review of linux-B, which is how a dialog's
+     * first field was never said focused.
      */
     @Test
-    void focusTravelsAsAStateChangeAndIsNotAlsoSentAsItsOwnEvent() {
-        assertEquals(List.of(), signals(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 7)),
-                "the state change below is the one that carries it, in both directions");
-
+    void focusTravelsAsAStateChangeFromEitherEventThatCarriesIt() {
         AtspiEvents.Signal arriving = one(AccessibleEvent.state(7, Accessible.State.FOCUSED, true));
         assertEquals("StateChanged", arriving.member());
         assertEquals("focused", arriving.detail());
         assertEquals(1, arriving.detail1());
         assertEquals(0, one(AccessibleEvent.state(7, Accessible.State.FOCUSED, false)).detail1(),
-                "and the departure, which only this one raises");
+                "and the departure, which only the state change raises");
+
+        AtspiEvents.Signal arrived = one(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 7));
+        assertEquals(List.of(arriving.path(), arriving.iface(), arriving.member(),
+                        arriving.signature(), arriving.detail(), arriving.detail1(),
+                        arriving.detail2(), arriving.value().sig),
+                List.of(arrived.path(), arrived.iface(), arrived.member(), arrived.signature(),
+                        arrived.detail(), arrived.detail1(), arrived.detail2(),
+                        arrived.value().sig),
+                "the tail's focus event is the very signal a gained FOCUSED bit makes");
     }
 
     @Test

@@ -619,6 +619,39 @@ class AtspiApplicationTest {
         assertTrue(sent.indexOf("Activate  0 " + path(3000)) >= 0, sent.toString());
     }
 
+    /**
+     * A node that arrives already holding the focus — a dialog's first field, a popup's list, a cell
+     * widget realized under the cursor — raises no STATE_CHANGED (a new node's states are read when
+     * it is discovered) and only the tail's FOCUS_CHANGED (semantics 7, settled focus-reannounce).
+     * Until the review of linux-B that event sent nothing on Linux, so the node losing the focus was
+     * heard and the node gaining it never was.
+     */
+    @Test
+    void aNodeThatArrivesFocusedIsSaidFocusedAfterTheCacheHasItAndOnlyOnce() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        Frames main = new Frames(app.window());
+        main.publish(true, 3001, 3001, 3002);
+        bus.signals.clear();
+
+        main.publish(true, 3003, 3001, 3002, 3003);
+
+        assertEquals(List.of("StateChanged focused 0 " + path(3001),
+                "ChildrenChanged add 2 " + path(3000),
+                "AddAccessible " + Atspi.PATH_CACHE,
+                "StateChanged focused 1 " + path(3003)), spoken(bus.signals),
+                "the loser, the arrival told to the cache, then the focus on the node the cache now "
+                        + "holds, once");
+        bus.signals.clear();
+
+        main.publish(true, 3002, 3001, 3002, 3003);
+        assertEquals(List.of("StateChanged focused 1 " + path(3002),
+                "StateChanged focused 0 " + path(3003)), spoken(bus.signals),
+                "a surviving node's gain is its STATE_CHANGED (in reading order, so before the "
+                        + "later sibling's loss), and the FOCUS_CHANGED that follows it in the tail is "
+                        + "not sent again");
+    }
+
     /** The state bits a path answers GetState with, as bit indices. */
     private static List<Integer> statesAt(AtspiApplication app, String path) {
         DBus.Msg reply = call(app, path, Atspi.I_ACCESSIBLE, "GetState", null);
