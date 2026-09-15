@@ -218,8 +218,9 @@ final class AxElementClass {
      *
      * <p>A selector {@link AxSelectors} does not list is a mistake in this file and refuses to build
      * the class; {@code AxSelectorsTest} catches it off a Mac, where this cannot run. A listed
-     * selector the running AppKit declares nothing for is skipped and its closure freed, and the
-     * constructor's warning names it (MACOS-NEW-6).
+     * selector the running AppKit declares nothing for is skipped and its closure freed, and so is
+     * one installed only together with a selector that was skipped (the actions with the gate); the
+     * constructor's warning names every one (MACOS-NEW-6).
      *
      * @return whether it was installed
      */
@@ -449,6 +450,10 @@ final class AxElementClass {
      * object responds to — a button would advertise "increment" and a slider "show menu". So
      * {@code isAccessibilitySelectorAllowed:} answers from the node's own {@code ActionFacet}, and
      * the list becomes per node instead of per class.
+     *
+     * <p>Which is why the two are installed as one unit: an AppKit that declared no gate would leave
+     * every action here advertised on every element, so {@link AxSelectors#REQUIRES} withholds the
+     * actions with it and the constructor's warning names both.
      */
     private void installActions() {
         for (String selector : AxActions.selectors()) {

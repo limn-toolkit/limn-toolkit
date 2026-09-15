@@ -4069,6 +4069,15 @@ skipped — never given a guessed encoding — and the bridge logs a warning nam
 window's accessibility is built. A failure to build the bridge for any other reason is logged at
 `ERROR` before `NONE` is answered.
 
+*Corrected the same day (the review of this amendment):* skipping each absent selector on its own could
+install the action selectors without `isAccessibilitySelectorAllowed:`, and without that gate every
+element offers every action (semantics 5) — confirmed through real AppKit on the development Mac, not
+the guest. Selectors that mean something only together are now skipped together (`AxSelectors.REQUIRES`:
+every action selector with the gate; the two legacy entry points with each other), and the warning names
+what was withheld with what. The `ERROR` covers every `Throwable` from the whole open, AppKit's loading
+and the content view included, not only the constructor's exceptions. Skipping rather than refusing to
+build the class is the implementer's choice, awaiting the owner's.
+
 ---
 
 ## 13. Risks and open edges

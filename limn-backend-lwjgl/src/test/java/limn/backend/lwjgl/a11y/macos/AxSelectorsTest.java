@@ -78,6 +78,64 @@ class AxSelectorsTest {
                 "and it is said, naming the selector: " + warning);
     }
 
+    /**
+     * The review of macos-A: skipping each absent selector on its own could leave the actions
+     * installed without the gate, and then every element advertises every action (semantics 5).
+     */
+    @Test
+    void anAppKitWithNoGateGetsNoActionSelectorEitherAndIsToldWhy() {
+        String gate = "isAccessibilitySelectorAllowed:";
+        AxSelectors.Resolution resolution = AxSelectors.resolve(selector ->
+                selector.equals(gate) ? null : "B16@0:8");
+        assertEquals(List.of(gate), resolution.missing());
+        List<String> actions = new java.util.ArrayList<>();
+        AxActions.selectors().forEach(actions::add);
+        assertEquals(actions, resolution.withheld(),
+                "every action goes with the gate, or a button advertises increment");
+        for (String action : actions) assertNull(resolution.encodingOf(action), action);
+        assertEquals("B16@0:8", resolution.encodingOf("isAccessibilityFocused"),
+                "and nothing that is not an action goes with it");
+        String warning = resolution.warning();
+        assertTrue(warning.contains("-" + gate) && warning.contains("-accessibilityPerformPress")
+                        && warning.contains("installed only together"),
+                "the warning names the gate and every action withheld with it: " + warning);
+    }
+
+    @Test
+    void aMissingActionCostsThatActionAndNotTheGate() {
+        AxSelectors.Resolution resolution = AxSelectors.resolve(selector ->
+                selector.equals("accessibilityPerformShowMenu") ? null : "B16@0:8");
+        assertEquals(List.of("accessibilityPerformShowMenu"), resolution.missing());
+        assertTrue(resolution.withheld().isEmpty(), "a gate with fewer actions still gates them");
+        assertEquals("B16@0:8", resolution.encodingOf("isAccessibilitySelectorAllowed:"));
+        assertEquals("B16@0:8", resolution.encodingOf("accessibilityPerformPress"));
+    }
+
+    @Test
+    void theTwoLegacyEntryPointsAreInstalledTogetherOrNotAtAll() {
+        for (String absent : List.of("accessibilityAttributeValue:", "accessibilityAttributeNames")) {
+            AxSelectors.Resolution resolution = AxSelectors.resolve(selector ->
+                    selector.equals(absent) ? null : "@16@0:8");
+            assertNull(resolution.encodingOf("accessibilityAttributeValue:"), absent);
+            assertNull(resolution.encodingOf("accessibilityAttributeNames"), absent);
+            assertEquals(1, resolution.withheld().size(), absent);
+        }
+    }
+
+    @Test
+    void everyActionSelectorIsInstalledOnlyWithTheGate() {
+        for (String action : AxActions.selectors()) {
+            assertEquals(List.of("isAccessibilitySelectorAllowed:"), AxSelectors.REQUIRES.get(action),
+                    action);
+        }
+        for (String selector : AxSelectors.REQUIRES.keySet()) {
+            assertTrue(AxSelectors.isListed(selector), selector);
+            for (String needed : AxSelectors.REQUIRES.get(selector)) {
+                assertTrue(AxSelectors.isListed(needed), needed);
+            }
+        }
+    }
+
     @Test
     void nothingMissingIsNothingToSay() {
         AxSelectors.Resolution resolution = AxSelectors.resolve(selector -> "B16@0:8");
