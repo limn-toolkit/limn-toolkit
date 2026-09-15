@@ -606,6 +606,72 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * Every verb the kept cursor row publishes is performed while a wheel holds it out of the box
+     * (decision 22 read with semantics 5): the verbs are the tree's, and the tree is on the glass.
+     * Until 2026-09-15 the scene gated a delegated verb on the row showing, exempting only
+     * {@code SCROLL_INTO_VIEW}, so a reader standing on the row it had scrolled away from was told
+     * yes by {@code Host.perform} for {@code EXPAND}, {@code COLLAPSE}, {@code DESELECT},
+     * {@code ADD_TO_SELECTION}, {@code SELECT} and {@code FOCUS}, and nothing happened.
+     * {@code FOCUS} on the row the cursor is already on changes nothing but where the tree is
+     * scrolled, which is the next case's.
+     */
+    @Test
+    void everyVerbTheKeptCursorRowPublishesIsPerformedWhileItIsWheeledOutOfTheBox()
+            throws Exception {
+        List<Node> roots = leaves(40);
+        Node branch = Node.of("row 2", Node.leaf("row 2.1"));
+        roots.set(1, branch);
+        bindTree(ROW_H, roots);
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        scene.requestFocus(tree);
+        tree.setSelected(branch);
+        frame();
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        scene.scrolled(0, -20, x, y);
+        scene.inputBatchEnded();
+        frame();
+        long kept = node("row 2").id();
+
+        assertOutOfTheBox("before EXPAND");
+        assertTrue(perform(kept, Accessible.Action.EXPAND, Accessible.Argument.NONE));
+        frame();
+        assertTrue(tree.isExpanded(branch), "EXPAND opened the kept row: " + describe(tree()));
+
+        assertOutOfTheBox("before COLLAPSE");
+        assertTrue(perform(kept, Accessible.Action.COLLAPSE, Accessible.Argument.NONE));
+        frame();
+        assertFalse(tree.isExpanded(branch), "COLLAPSE closed it: " + describe(tree()));
+
+        assertOutOfTheBox("before DESELECT");
+        assertTrue(perform(kept, Accessible.Action.DESELECT, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(), tree.selectedNodes(), "DESELECT took it out of the selection");
+
+        assertOutOfTheBox("before ADD_TO_SELECTION");
+        assertTrue(perform(kept, Accessible.Action.ADD_TO_SELECTION, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(branch), tree.selectedNodes(), "ADD_TO_SELECTION put it back");
+
+        assertTrue(perform(node("row 40").id(), Accessible.Action.ADD_TO_SELECTION,
+                Accessible.Argument.NONE));
+        frame();
+        assertOutOfTheBox("before SELECT");
+        assertTrue(perform(kept, Accessible.Action.SELECT, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(branch), tree.selectedNodes(),
+                "SELECT made it the only selected row: " + describe(tree()));
+    }
+
+    /** Asserts the kept cursor row is published, the same node, and outside the box. */
+    private void assertOutOfTheBox(String when) {
+        AccessibleNode row = node("row 2");
+        assertFalse(row.has(Accessible.State.SHOWING),
+                when + ", the fixture holds the cursor row out of the box: " + describe(tree()));
+        assertTrue(row.has(Accessible.State.ACTIVE), when + ": " + describe(tree()));
+    }
+
+    /**
      * A refresh releases every cell, and the cursor row comes back fresh from the model at the
      * height it measures, like a placed row. It came back mounted and never laid out, at height
      * zero: a zero-height {@code ACTIVE} node to a reader, and a zero in the average row height

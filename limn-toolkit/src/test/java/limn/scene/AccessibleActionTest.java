@@ -409,9 +409,82 @@ class AccessibleActionTest extends AccessibleTestBase {
                 "the child left the container after the walk, so the container is not asked");
     }
 
-    /** A container that keys its children by position and claims SELECT on each. */
+    /**
+     * A delegated verb is the container's to perform, so it is gated on the container being on
+     * the glass and not on the child (decision 22 read with semantics 5; ADR 039 §1.5, amended
+     * 2026-09-15): a list's cursor row kept outside its viewport is exactly the row a reader
+     * stands on, and a gate on the row's own showing answered yes in {@code Host.perform} and
+     * then dropped every verb but {@code SCROLL_INTO_VIEW}. A container that is itself clipped
+     * away is still refused, and so is a child hidden by its own flag.
+     */
+    @Test
+    void aDelegatedVerbIsGatedOnTheContainerShowingAndNotOnTheChild() throws Exception {
+        Group root = new Group();
+        Rows rows = new Rows();
+        rows.clipTo = 20; // one row's height: the second row is clipped out of the box
+        Probe first = new Probe(Accessible.Role.BUTTON, "First");
+        Probe second = new Probe(Accessible.Role.BUTTON, "Second");
+        rows.add(first);
+        rows.add(second);
+        root.add(rows);
+        bind(root);
+        frame();
+        assertFalse(node("Second").has(Accessible.State.SHOWING),
+                "the fixture clips the second row out of its container" + describe(tree()));
+        assertTrue(node("First").has(Accessible.State.SHOWING), describe(tree()));
+
+        assertTrue(performOffThread(node("Second").id(), Accessible.Action.SELECT,
+                Accessible.Argument.NONE));
+        assertEquals(List.of("row 1: SELECT"), rows.performed,
+                "the container is showing, so the verb it claimed on a clipped row reaches it");
+
+        long secondId = node("Second").id();
+        second.setVisible(false); // the snapshot still holds the node: the gate is what refuses
+        performOffThread(secondId, Accessible.Action.SELECT, Accessible.Argument.NONE);
+        assertEquals(List.of("row 1: SELECT"), rows.performed,
+                "a child hidden by its own flag is refused, whatever its container");
+    }
+
+    /** The other half: a container clipped out of an ancestor performs nothing it claimed. */
+    @Test
+    void aDelegatedVerbOnAChildOfAContainerClippedAwayIsRefused() throws Exception {
+        Group root = new Group();
+        Rows pane = new Rows(); // a clipping box one row high, holding a spacer and then the list
+        pane.clipTo = 20;
+        pane.add(new Probe());
+        Rows rows = new Rows();
+        Probe row = new Probe(Accessible.Role.BUTTON, "Row");
+        rows.add(row);
+        pane.add(rows);
+        root.add(pane);
+        bind(root);
+        frame();
+        assertFalse(node("Row").has(Accessible.State.SHOWING), describe(tree()));
+
+        performOffThread(node("Row").id(), Accessible.Action.SELECT, Accessible.Argument.NONE);
+
+        assertEquals(List.of(), rows.performed,
+                "the container is scrolled off the glass, so nothing it claimed is performed");
+    }
+
+    /**
+     * A container that keys its children by position and claims SELECT on each; given a
+     * {@link #clipTo}, a box that high which clips what it holds.
+     */
     private static final class Rows extends Group {
         final List<String> performed = new ArrayList<>();
+        float clipTo;
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            Size content = super.onMeasure(constraints);
+            return clipTo > 0 ? constraints.constrain(content.width(), clipTo) : content;
+        }
+
+        @Override
+        protected boolean clipsChildren() {
+            return clipTo > 0;
+        }
 
         @Override
         protected void onAccessibility(limn.accessibility.Accessibility a) {

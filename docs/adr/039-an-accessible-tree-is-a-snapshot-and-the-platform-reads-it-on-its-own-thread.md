@@ -1037,6 +1037,23 @@ routing, the key, the gate on the child and on the container still holding it),
 `ListViewAccessibilityTest` and `TreeAccessibilityTest` (a row's `SELECT` selects that row, from
 the user, once).
 
+**Amendment, 2026-09-15: a delegated verb is gated on the container showing, not the child
+(decision 22 read with semantics 5).** "Gates the verb on the child's node exactly as it gates
+every verb" above made the kept cursor row of decision 22 — published outside the viewport, not
+`SHOWING`, still `ACTIVE` — a row whose `SELECT`, `ADD_TO_SELECTION`, `DESELECT`, `EXPAND`,
+`COLLAPSE` and `FOCUS` (`Tree`) and `SELECT` (`ListView`) `Host#perform` accepted and the posted
+task then dropped: the reader was told yes and nothing happened, which semantics 5 forbids (the
+published list is the only refusal a platform sees); the widgets lane had exempted `SCROLL_INTO_VIEW` alone.
+A delegated verb is the container's to perform, so `Scene#perform` now refuses it when the
+container is not showing or the child is hidden by its own flag, and no longer when the child is
+merely clipped out of the container; a delegated `SCROLL_INTO_VIEW` keeps its visibility gate
+(§1.9's free-verb exception), and every other gate — enabled through every ancestor, not
+modal-blocked, inside the input root, the container still the child's parent — is unchanged. A
+`ListView`'s `SELECT` on the row already selected reveals it, as `Tree`'s does. Pinned by
+`AccessibleActionTest` (a clipped child of a showing container performs; a hidden child and a
+child of a container clipped away do not), `TreeAccessibilityTest` and
+`ListViewAccessibilityTest` (the kept row's verbs, wheeled out of the box).
+
 **Amendment, 2026-09-14: a composite says which child carries a label bound to it (decision 55;
 DATES-NEW-12).** A form's caption is bound to the widget the application holds — a `DatePicker` —
 and the node a reader arrives at is the field inside it, so `Label#setLabelFor(picker)` named an
@@ -1335,6 +1352,11 @@ not be modal-blocked, **and** the node must be inside the topmost overlay when t
 `NativeWindow#isModalBlocked()` answers `false` for the host of an in-scene modal by construction,
 because the modal names its host as an owner exception, so a bridge gating on it alone would happily
 invoke a button underneath a Wayland dialog — exactly the case ADR 028 created.
+
+**Amendment, 2026-09-15:** "that `isShowing()` is true" is read on the **container** for a verb a
+container claimed on a widget child (§1.5's amendment of the same date): the child must be visible
+by its own flag and the container showing, because the container performs it and a kept cursor row
+outside the viewport is not showing by construction.
 
 Parameterless verbs live in `ActionFacet`: `PRESS`, `TOGGLE`, `EXPAND`, `COLLAPSE`, `SELECT`,
 `DESELECT`, `SHOW_MENU`, `INCREMENT`, `DECREMENT`, `SCROLL_INTO_VIEW`, `FOCUS`, `CANCEL`. Each
