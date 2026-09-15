@@ -83,9 +83,14 @@ final class AxGate {
     }
 
     /**
-     * What a table's column element offers (M4): every stored setter refused, as on a node's element,
-     * and its header only where the column has a header cell, a native headerless table's column
-     * answering no header (read on the guest, 2026-09-15, table-probe.swift).
+     * What a table's column element offers (M4): every stored setter refused, as on a node's element;
+     * its header only where the column has a header cell, a native headerless table's column answering
+     * no header (read on the guest, 2026-09-15, table-probe.swift); and none of the attributes and
+     * actions a node's element answers and a native column does not — its value, focus, expansion,
+     * disclosure, selections, row and column lists, counts, ranges and cell lookup, and every action.
+     * A column is a class of its own, so each of those would otherwise be NSAccessibilityElement's stored
+     * default: a smoke run of the date client over the demo on the guest (2026-09-15) read AXExpanded 0
+     * off every calendar column.
      *
      * @param grid     the lookups
      * @param table    the table the column is one of
@@ -94,10 +99,20 @@ final class AxGate {
      * @return whether the column element offers it
      */
     static boolean allowsOnColumn(AxGrid grid, AccessibleNode table, int column, String selector) {
-        if (selector.startsWith("setAccessibility")) return false;
+        if (selector.startsWith("setAccessibility") || AxActions.isActionSelector(selector)) return false;
         if (selector.equals("accessibilityHeader")) {
             return grid.headerCellInColumnOf(table, column) != AccessibleNode.NONE;
         }
-        return true;
+        return !NOT_ON_A_COLUMN.contains(selector);
     }
+
+    /** What a node's element answers that a native table's column answered none of (read 2026-09-15). */
+    static final java.util.Set<String> NOT_ON_A_COLUMN = java.util.Set.of(
+            "accessibilityValue", "isAccessibilityFocused", "isAccessibilityExpanded",
+            "isAccessibilityDisclosed", "accessibilityDisclosureLevel", "accessibilityDisclosedByRow",
+            "accessibilityDisclosedRows", "accessibilitySelectedRows", "accessibilitySelectedChildren",
+            "accessibilitySelectedCells", "accessibilityColumns", "accessibilityVisibleColumns",
+            "accessibilitySelectedColumns", "accessibilityColumnHeaderUIElements", "accessibilityRowCount",
+            "accessibilityColumnCount", "accessibilityRowIndexRange", "accessibilityColumnIndexRange",
+            "accessibilityCellForColumn:row:", "accessibilityLinkedUIElements", "accessibilityPerformAction:");
 }

@@ -122,6 +122,16 @@ class AxColumnsTest {
         assertTrue(AxGate.allowsOnColumn(grid, table, 1, "accessibilityRows"));
         assertFalse(AxGate.allowsOnColumn(grid, table, 1, "setAccessibilityIndex:"),
                 "a stored setter is settable to a client and read by nothing");
+        for (String selector : new String[] {"isAccessibilityExpanded", "accessibilityValue", "isAccessibilityFocused",
+                "accessibilityPerformPress", "accessibilityColumns", "accessibilityRowIndexRange"}) {
+            assertFalse(AxGate.allowsOnColumn(grid, table, 1, selector),
+                    selector + ": a node's element answers it, a native column does not, and a column's stored "
+                            + "default is no answer (the guest smoke run read AXExpanded 0 off every calendar column)");
+        }
+        for (String selector : new String[] {"accessibilityRole", "accessibilityIndex", "accessibilityParent",
+                "isAccessibilityElement", "accessibilityRoleDescription", "accessibilityFrame", "isAccessibilitySelected"}) {
+            assertTrue(AxGate.allowsOnColumn(grid, table, 1, selector), selector + " is a native column's");
+        }
         assertArrayEquals(grid.columns(table), grid.visibleColumns(table),
                 "with no header cell, a column is visible where one of its cells shows");
         assertEquals(column, grid.columns(table)[1]);

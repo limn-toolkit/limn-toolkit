@@ -213,7 +213,7 @@ let installedByTheBridge: [(String, String)] = [
     ("accessibilityRole", "column class"), ("accessibilityIndex", "column class"),
     ("accessibilityRows", "column class"), ("accessibilityVisibleRows", "column class"),
     ("accessibilityHeader", "column class"), ("accessibilityParent", "column class"),
-    ("isAccessibilitySelectorAllowed:", "column class"),
+    ("isAccessibilitySelectorAllowed:", "column class"), ("accessibilityActionNames", "column class"),
 ]
 
 // Fragments searched for across the class chains and the protocols below, so a name is read rather

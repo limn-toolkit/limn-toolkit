@@ -559,6 +559,15 @@ final class AxElementClass {
             }
         };
         addMethod(columnClass, "isAccessibilitySelectorAllowed:", columnGate);
+        // No actions, as a native column lists none; without this a client's action list read
+        // kAXErrorFailure off an element with no action entry point (the guest smoke run, 2026-09-15).
+        IdGetter columnActions = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                return objc.mutableArray();
+            }
+        };
+        addMethod(columnClass, "accessibilityActionNames", columnActions);
     }
 
     /** An autoreleased {@code NSArray} of these elements, or nil for {@code null}. */

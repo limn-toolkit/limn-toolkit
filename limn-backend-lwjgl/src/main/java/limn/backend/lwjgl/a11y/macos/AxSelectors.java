@@ -80,7 +80,7 @@ final class AxSelectors {
      */
     static final List<String> ON_COLUMN = List.of("accessibilityRole", "accessibilityIndex",
             "accessibilityRows", "accessibilityVisibleRows", "accessibilityHeader", "accessibilityParent",
-            "isAccessibilitySelectorAllowed:");
+            "isAccessibilitySelectorAllowed:", "accessibilityActionNames");
 
     /** Installed on the one content-view subclass, where AppKit asks where the focus is (§13.22). */
     static final List<String> ON_VIEW = List.of("accessibilityFocusedUIElement");
