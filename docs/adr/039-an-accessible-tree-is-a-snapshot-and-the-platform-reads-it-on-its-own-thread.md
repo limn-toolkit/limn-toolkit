@@ -2496,6 +2496,24 @@ KDE 44 guest's at-spi2-atk 2.60.6 for `Selection`, `Value`, `Text`, `EditableTex
 `TableCell` (readings/fedora-dbus-<Interface>.xml) — plus the three standard interfaces; a path that
 names nothing is declined.
 
+#### Amendment 2026-09-15 (review of the interfaces item) — `GetPosition` and `GetSize` are two out arguments
+
+**What was wrong.** The `Component.GetExtents`, `GetPosition`, `GetSize` row was answered with one
+shape for all three: `GetPosition` and `GetSize` replied a struct `(ii)`, on every node and on the
+application object, since the bridge's first cut. libatspi 2.60.6 reads them as `u=>ii` and `=>ii`
+(`atspi-component.c:196` and `:223`, readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt),
+the installed XML declares two separate out arguments (readings/fedora-dbus-Component.xml), and a
+struct where flat arguments are expected is refused, as `GetRowColumnSpan`'s was on the guest. The
+GrabFocus amendment above amended the same rows and did not catch it.
+
+**What the bridge does now.** Both answer `ii`, on a node and on the application object; `GetExtents`
+stays `(iiii)`. GTK 3.24.52's ATK bridge (at-spi2-atk 2.60.6) and GTK 4.22.4 answer exactly these
+signatures on the Fedora KDE 44 guest (readings/fedora-gtk3-interface-replies.txt and
+fedora-gtk4-interface-replies.txt, `scripts/a11y/linux/read-gtk-interface-replies.py`, 2026-09-15
+20:54–20:55 UTC). Both toolkits answer `UnknownMethod` for `Component` on their application object; this
+bridge keeps answering it there, as the first cut decided (a client that asks the root for its extents
+walks on).
+
 #### Amendment 2026-09-15 — a header's sort direction: read on Fedora, and not carried yet
 
 **What decision 36 asked.** A sortable header cell publishes its direction, and how each platform

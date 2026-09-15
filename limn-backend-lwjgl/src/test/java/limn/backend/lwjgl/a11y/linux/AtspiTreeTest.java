@@ -1141,6 +1141,38 @@ class AtspiTreeTest {
         assertEquals(20 * 2, local[1]);
     }
 
+    /**
+     * Component.GetPosition and GetSize answer two out arguments each, on a node and on the
+     * application object: libatspi 2.60.6 reads "u=>ii" and "=>ii", and both answered one struct,
+     * which it refuses where flat arguments are expected (the review of sub-lane linux-C). GTK 3's
+     * ATK bridge and GTK 4.22.4 answer "ii" on the Fedora guest.
+     */
+    @Test
+    void aPositionAndASizeAreTwoOutArgumentsEachAndNeverAStruct() {
+        publishAWindowWithAButton();
+
+        for (String path : List.of("/org/a11y/atspi/accessible/1001", Atspi.PATH_ROOT)) {
+            Object[] box = (Object[]) call(path, Atspi.I_COMPONENT, "GetExtents", "u",
+                    Atspi.COORD_SCREEN).body[0];
+            DBus.Msg position = call(path, Atspi.I_COMPONENT, "GetPosition", "u",
+                    Atspi.COORD_SCREEN);
+            DBus.Msg size = call(path, Atspi.I_COMPONENT, "GetSize", null);
+            position.destination = ":1.2";
+            size.destination = ":1.2";
+            DBus.Msg positionBack = DBus.Msg.parse(position.marshal(31));
+            DBus.Msg sizeBack = DBus.Msg.parse(size.marshal(32));
+            assertEquals("ii", positionBack.signature, path + ": GetPosition is u=>ii");
+            assertEquals(List.of(box[0], box[1]), List.of(positionBack.body), path);
+            assertEquals("ii", sizeBack.signature, path + ": GetSize is =>ii");
+            assertEquals(List.of(box[2], box[3]), List.of(sizeBack.body), path);
+        }
+        assertEquals(List.of(220, 140), List.of(call("/org/a11y/atspi/accessible/1001",
+                Atspi.I_COMPONENT, "GetPosition", "u", Atspi.COORD_SCREEN).body),
+                "the button's origin on the screen");
+        assertEquals(List.of(320, 80), List.of(call("/org/a11y/atspi/accessible/1001",
+                Atspi.I_COMPONENT, "GetSize", null).body));
+    }
+
     @Test
     void aClientsDoActionReachesTheWidgetThroughTheHostAndNothingElse() {
         publishAWindowWithAButton();

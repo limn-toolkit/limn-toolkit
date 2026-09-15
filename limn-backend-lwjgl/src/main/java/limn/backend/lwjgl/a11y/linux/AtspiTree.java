@@ -461,8 +461,9 @@ final class AtspiTree {
         return switch (m.member == null ? "" : m.member) {
             case "GetExtents" -> DBus.Msg.ret(m, "(iiii)",
                     (Object) new Object[] {box[0], box[1], box[2], box[3]});
-            case "GetPosition" -> DBus.Msg.ret(m, "(ii)", (Object) new Object[] {box[0], box[1]});
-            case "GetSize" -> DBus.Msg.ret(m, "(ii)", (Object) new Object[] {box[2], box[3]});
+            // Two out arguments each, never a struct: see component().
+            case "GetPosition" -> DBus.Msg.ret(m, "ii", box[0], box[1]);
+            case "GetSize" -> DBus.Msg.ret(m, "ii", box[2], box[3]);
             case "GetLayer" -> DBus.Msg.ret(m, "u", Atspi.LAYER_WINDOW);
             case "GetMDIZOrder" -> DBus.Msg.ret(m, "n", (short) 0);
             case "GetAlpha" -> DBus.Msg.ret(m, "d", 1.0d);
@@ -864,10 +865,17 @@ final class AtspiTree {
             case "GetExtents":
                 return DBus.Msg.ret(m, "(iiii)",
                         (Object) new Object[] {box[0], box[1], box[2], box[3]});
+            // "ii", two out arguments, and not the struct GetExtents answers: libatspi 2.60.6
+            // demands "u=>ii" and "=>ii", and refuses a struct where flat arguments are expected,
+            // as it refused one for GetRowColumnSpan
+            // (readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt). GTK 3's ATK bridge
+            // and GTK 4.22.4 both answer "ii" on the Fedora KDE 44 guest
+            // (readings/fedora-gtk3-interface-replies.txt, fedora-gtk4-interface-replies.txt,
+            // scripts/a11y/linux/read-gtk-interface-replies.py, 2026-09-15).
             case "GetPosition":
-                return DBus.Msg.ret(m, "(ii)", (Object) new Object[] {box[0], box[1]});
+                return DBus.Msg.ret(m, "ii", box[0], box[1]);
             case "GetSize":
-                return DBus.Msg.ret(m, "(ii)", (Object) new Object[] {box[2], box[3]});
+                return DBus.Msg.ret(m, "ii", box[2], box[3]);
             case "GetLayer":
                 return DBus.Msg.ret(m, "u", Atspi.LAYER_WIDGET);
             case "GetMDIZOrder":
