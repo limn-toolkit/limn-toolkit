@@ -1122,28 +1122,41 @@ public class Tree<T> extends Widget implements Scrollable {
 
     /**
      * Adds or removes one node, which is what the command modifier and Space do in {@code MULTI}.
-     * The cursor lands on the node either way; the lead leaves a node toggled off and falls back
-     * to the most recently selected node still in the selection, as {@code Table}'s does, so a
-     * handler reading the lead is never handed the row that was just deselected.
+     * The lead leaves a node toggled off and falls back to the most recently selected node still
+     * in the selection, as {@code Table}'s does, so a handler reading the lead is never handed
+     * the row that was just deselected.
+     *
+     * @param moveCursor whether the cursor and the range anchor land on the node, revealed: the
+     *                   gesture's answer (a click is where the user is), and not the reader
+     *                   verbs' — {@code ADD_TO_SELECTION} and {@code DESELECT} change the
+     *                   selection and leave the cursor and the anchor where they were (decision 20
+     *                   of 2026-09-14, semantics 5: only {@code SELECT} and {@code FOCUS} move a
+     *                   cursor)
      */
-    private void toggleSelection(T node, Change.Origin origin) {
+    private void toggleSelection(T node, boolean moveCursor, Change.Origin origin) {
         if (selectionMode != SelectionMode.MULTI) {
             selectOnly(node, true, origin);
             return;
         }
         T wasCursor = cursor;
-        cursor = node;
-        rangeAnchor = node;
+        if (moveCursor) {
+            cursor = node;
+            rangeAnchor = node;
+        }
         if (!selected.remove(node)) {
             selected.add(node);
             lead = node;
         } else if (Objects.equals(lead, node)) {
             lead = lastSelected();
         }
-        revealNode(node);
+        if (moveCursor) {
+            revealNode(node);
+        }
         damageNode(node);
-        damageCursorMove(wasCursor);
-        announceCursor(wasCursor, origin);
+        if (moveCursor) {
+            damageCursorMove(wasCursor);
+            announceCursor(wasCursor, origin);
+        }
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
@@ -2085,7 +2098,7 @@ public class Tree<T> extends Widget implements Scrollable {
             }
             case Keys.SPACE -> {
                 if (cursor != null && selectionMode == SelectionMode.MULTI) {
-                    consumeAnd(event, () -> toggleSelection(cursor, Change.Origin.USER));
+                    consumeAnd(event, () -> toggleSelection(cursor, true, Change.Origin.USER));
                 }
             }
             default -> {
@@ -2286,7 +2299,7 @@ public class Tree<T> extends Widget implements Scrollable {
         pointerPress = true;
         try {
             if (selectionMode == SelectionMode.MULTI && command) {
-                toggleSelection(row.node, Change.Origin.USER);
+                toggleSelection(row.node, true, Change.Origin.USER);
             } else if (selectionMode == SelectionMode.MULTI && shift) {
                 selectRange(index);
             } else {
@@ -2796,12 +2809,14 @@ public class Tree<T> extends Widget implements Scrollable {
     /**
      * A verb the tree claimed on a row's cell, each through the seam the equivalent gesture
      * takes at {@code USER}: {@code SELECT} is a click on the row; {@code ADD_TO_SELECTION} and
-     * {@code DESELECT} are the command-click that toggles it, accepted only in the state that
-     * published them; {@code EXPAND} and {@code COLLAPSE} are the triangle, which never moves
-     * the cursor; {@code FOCUS} moves the cursor onto the row and nothing else, taking the
-     * keyboard so the cursor is published; {@code SCROLL_INTO_VIEW} reveals the row. A verb the
-     * row did not publish is refused, which the platform never learns of (the published list is
-     * the only refusal it sees, ADR 039 §1.5).
+     * {@code DESELECT} toggle it as the command-click does, accepted only in the state that
+     * published them, but leave the cursor and the range anchor where they were (decision 20:
+     * only {@code SELECT} and {@code FOCUS} move the cursor; the click moves it because the
+     * pointer is where the user is); {@code EXPAND} and {@code COLLAPSE} are the triangle, which
+     * never moves the cursor; {@code FOCUS} moves the cursor onto the row and nothing else,
+     * taking the keyboard so the cursor is published; {@code SCROLL_INTO_VIEW} reveals the row. A
+     * verb the row did not publish is refused, which the platform never learns of (the published
+     * list is the only refusal it sees, ADR 039 §1.5).
      */
     @Override
     protected boolean onAccessibilityChildAction(Widget child, long key, Accessible.Action action,
@@ -2824,7 +2839,7 @@ public class Tree<T> extends Widget implements Scrollable {
                         || member != (action == Accessible.Action.DESELECT)) {
                     return false;
                 }
-                toggleSelection(row.node, Change.Origin.USER);
+                toggleSelection(row.node, false, Change.Origin.USER);
                 return true;
             }
             case EXPAND, COLLAPSE -> {

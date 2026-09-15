@@ -819,7 +819,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertEquals(List.of(one, two), tree.selectedNodes(), "two joined, one stayed");
         assertEquals(two, tree.leadNode());
-        assertEquals(two, tree.cursorNode());
+        assertEquals(one, tree.cursorNode(), "the cursor stays put (decision 20)");
         assertTrue(node("two").actions().has(Accessible.Action.DESELECT),
                 "and its verb turned over: " + describe(tree()));
 
@@ -833,7 +833,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertEquals(List.of(two), tree.selectedNodes(), "one left");
         assertEquals(two, tree.leadNode(), "the lead was already elsewhere");
-        assertEquals(one, tree.cursorNode(), "and the cursor is on the row that was addressed");
+        assertEquals(one, tree.cursorNode(), "and the cursor, never moved, is still on it");
 
         tree.setSelectionMode(Tree.SelectionMode.SINGLE);
         frame();
@@ -842,6 +842,59 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                     "SINGLE has nothing to add to: " + describe(tree()));
             assertFalse(row.actions().has(Accessible.Action.DESELECT));
         }
+    }
+
+    /**
+     * {@code ADD_TO_SELECTION} and {@code DESELECT} change what is selected and nothing else: the
+     * cursor, the row a reader stands on, and the range anchor Shift extends from stay where they
+     * were (decision 20 of 2026-09-14, semantics 5: only {@code SELECT} and {@code FOCUS} move a
+     * cursor). Until 2026-09-15 both went through the command-click's seam, which lands the
+     * cursor and the anchor on the row clicked — right for the pointer, which is where the user
+     * is, and wrong for a reader, who adds a row to the selection without leaving the one it is
+     * on. The command-click itself still moves both ({@code TreeTest}).
+     */
+    @Test
+    void addingOrRemovingARowLeavesTheCursorAndTheAnchorWhereTheyWere() throws Exception {
+        Node one = Node.leaf("one");
+        Node two = Node.leaf("two");
+        Node three = Node.leaf("three");
+        bindTree(ROW_H, List.of(one, two, three, Node.leaf("four")));
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        scene.requestFocus(tree);
+        tree.setSelected(one);
+        frame();
+        long cursorRow = node("one").id();
+        assertEquals(cursorRow, tree().activeDescendant(), describe(tree()));
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+        bridge.events.clear();
+
+        assertTrue(perform(node("three").id(), Accessible.Action.ADD_TO_SELECTION,
+                Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(one, three), tree.selectedNodes(), "three joined the selection");
+        assertEquals(one, tree.cursorNode(), "and the cursor stayed on the row it was on");
+        assertEquals(cursorRow, tree().activeDescendant(),
+                "so the reader is still where it was: " + describe(tree()));
+        assertTrue(bridge.eventsOf(limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED)
+                .isEmpty(), "and no cursor event was raised: " + bridge.events);
+
+        assertTrue(perform(node("three").id(), Accessible.Action.DESELECT, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(one), tree.selectedNodes(), "three left again");
+        assertEquals(one, tree.cursorNode(), "and the cursor did not follow it");
+        assertEquals(List.of(limn.scene.Change.Aspect.SELECTION, limn.scene.Change.Aspect.SELECTION),
+                changes.stream().map(limn.scene.Change::aspect).toList(),
+                "two selection changes and no cursor move: " + changes);
+
+        // The anchor: Shift+Down from the cursor extends from where the anchor is. Had either
+        // verb moved it onto "three", the range would run from there.
+        scene.keyEvent(limn.input.Keys.DOWN, true, false, limn.input.Keys.MOD_SHIFT);
+        scene.keyEvent(limn.input.Keys.DOWN, false, false, limn.input.Keys.MOD_SHIFT);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(List.of(one, two), tree.selectedNodes(),
+                "the range runs from the anchor the verbs left on the first row");
     }
 
     /**

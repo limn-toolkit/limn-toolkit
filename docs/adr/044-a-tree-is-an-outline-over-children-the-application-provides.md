@@ -398,6 +398,16 @@ keyboard, clipped to the viewport where the cell runs past it. It stays inside t
 move already damaged, and the damage ratchet's shares for the tree row did not move (DOWN 6%,
 click 12%, command-click 6%, measured twice). His pick on the renders may replace it.
 
+**Amendment, 2026-09-15: a reader's add or remove leaves the cursor where it is.** The row-verb
+bullet above sent `ADD_TO_SELECTION` and `DESELECT` through the command-click's toggle, and that
+seam lands the cursor and the range anchor on the row it toggles, so a reader adding a row to the
+selection was moved onto it and its next Shift range ran from there. Decision 20 and cross-bridge
+semantics 5 say only `SELECT` and `FOCUS` move a cursor. The two verbs now change the membership,
+the lead and the row's damage and nothing else — no cursor move, no anchor move, no reveal, no
+`ACTIVE` announcement — while the command-click and Space keep moving both, because the pointer and
+the keyboard are where the user is. Pinned by
+`TreeAccessibilityTest.addingOrRemovingARowLeavesTheCursorAndTheAnchorWhereTheyWere`.
+
 ## 7. Damage
 
 Expanding a row moves every row below it, so the frame damages the viewport from that row down and
