@@ -1006,9 +1006,26 @@ public final class Scene implements WindowInput {
         if (refused) {
             return;
         }
+        Widget top = owner;
         for (Widget at = owner; at != null; at = at.parent()) {
             if (!at.isEnabled()) {
                 return; // a control inside a disabled container is one the keyboard refuses too
+            }
+            top = at;
+        }
+        if (top != root) {
+            // An overlay is parentless, so its enabled axis resolves through its host, parent then
+            // host, exactly as the walk resolves the ENABLED it publishes the overlay's contents
+            // with (AccessibleWalk, the overlay loop). The walk withdraws every verb from a node it
+            // publishes without ENABLED (ADR 039 §1.5 and §1.9, amended 2026-09-15), so a gate
+            // that stopped at the overlay performed verbs on a disabled control's popup that the
+            // snapshot no longer offered. A native popup's own root is this scene's root and is
+            // walked enabled, so it is not climbed here either.
+            for (Widget at = top.inheritanceHost(); at != null;
+                    at = at.parent() != null ? at.parent() : at.inheritanceHost()) {
+                if (!at.isEnabled()) {
+                    return;
+                }
             }
         }
         // Two tests and not one, both inside accessibleInputLayer(), which the walk reads too. A

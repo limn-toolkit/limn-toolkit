@@ -1417,9 +1417,15 @@ operable and what this gate performs cannot be two readings of the overlay stack
 walk publishes without `ENABLED` — a widget whose own flag or an ancestor's is false, the contents of
 an overlay whose host is disabled, anything outside the layer that owns input, and a synthetic child
 its owner narrowed — carries no verb and no setter (§1.5's amendment of this date), so a platform is
-refused synchronously where this gate would refuse on arrival. The walk's bit is the narrower of the
-two (it also climbs an overlay's inheritance host, which this loop does not), so the gate can accept
-only what the snapshot offers or refuse more, never the reverse.
+refused synchronously where this gate would refuse on arrival. **Corrected the same day:** the
+sentence first written here had the direction backwards. The walk's bit climbed an overlay's
+inheritance host and this loop stopped at the overlay, so the walk was the narrower of the two, and
+the gate then performed verbs inside a disabled control's popup — a dialog shown from a button
+disabled since — that the snapshot no longer offered: a node accepting what it does not publish. The
+loop now climbs the chain the walk climbs, past the top of an overlay's subtree through its host,
+parent then host, and not past a scene's root (a native popup's root is walked enabled), so the two
+readings are one. Pinned by
+`AccessibleActionTest.aVerbInsideAnOverlayWhoseHostIsDisabledIsNeitherPublishedNorPerformed`.
 
 Parameterless verbs live in `ActionFacet`: `PRESS`, `TOGGLE`, `EXPAND`, `COLLAPSE`, `SELECT`,
 `DESELECT`, `SHOW_MENU`, `INCREMENT`, `DECREMENT`, `SCROLL_INTO_VIEW`, `FOCUS`, `CANCEL`. Each

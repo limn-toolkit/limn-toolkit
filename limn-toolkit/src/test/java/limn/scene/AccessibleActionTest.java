@@ -482,6 +482,44 @@ class AccessibleActionTest extends AccessibleTestBase {
         assertEquals(List.of(), row.performed, "and never dispatched to the child's own hook");
     }
 
+    /**
+     * An overlay is parentless, and its enabled axis resolves through its host: the walk publishes
+     * the contents of a disabled control's popup without {@code ENABLED} and so with no verb (ADR
+     * 039 §1.5, amended 2026-09-15), and the scene refuses them on the same chain, so what is
+     * published and what is performed are one reading (§1.9, corrected the same day). Until then
+     * the gate stopped at the overlay and performed a press the snapshot no longer offered.
+     */
+    @Test
+    void aVerbInsideAnOverlayWhoseHostIsDisabledIsNeitherPublishedNorPerformed() throws Exception {
+        Group root = new Group();
+        Group form = new Group();
+        Probe opener = new Probe(Accessible.Role.BUTTON, "Opener");
+        form.add(opener);
+        root.add(form);
+        bind(root);
+        Group dialog = new Group();
+        Probe confirm = new Probe(Accessible.Role.BUTTON, "Confirm");
+        confirm.actions = new Accessible.Action[] {Accessible.Action.PRESS};
+        dialog.add(confirm);
+        dialog.setInheritanceHost(opener);
+        scene.pushOverlay(dialog);
+        frame();
+        assertTrue(node("Confirm").actions().has(Accessible.Action.PRESS), describe(tree()));
+        assertTrue(performOffThread(node("Confirm").id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE));
+        assertEquals(List.of("PRESS(None[])"), confirm.performed, "an enabled host: performed");
+
+        form.setEnabled(false); // the host's own flag stays: its parent is what is disabled
+        scene.requestRender();
+        frame();
+        assertFalse(node("Confirm").has(Accessible.State.ENABLED), describe(tree()));
+        assertNull(node("Confirm").actions(),
+                "the popup of a disabled control publishes no verb" + describe(tree()));
+        performOffThread(node("Confirm").id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        assertEquals(List.of("PRESS(None[])"), confirm.performed,
+                "and the scene refuses the one sent anyway, on the chain the walk read");
+    }
+
     /** The other half: a container clipped out of an ancestor performs nothing it claimed. */
     @Test
     void aDelegatedVerbOnAChildOfAContainerClippedAwayIsRefused() throws Exception {
