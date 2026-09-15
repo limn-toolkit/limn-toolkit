@@ -543,6 +543,15 @@ its segments' verbs and a writable value and the walk withdraws them, and `Calen
 withholds in a grid that selects nothing stays the calendar's, because no day is narrowed there.
 `DateFieldAccessibilityTest.aDisabledFieldsSegmentsCarryNoVerbAndAReadOnlyValue` still pins the
 field.
+**Amended 2026-09-15 (the 2d review; semantics 5):** the overlay's `CANCEL`, the closing verb of
+the scene presentation above, is published and performed only while the calendar is open. Through
+the fade-out after a close the overlay is still drawn and still the layer that owns input, and it
+published `CANCEL`, which the picker's `setOpen(false)` dropped for a picker already closed while
+the hook answered done. The calendar inside keeps its verbs through the fade, because it still
+performs them (a day's `SELECT` one frame after the close picks the date, as a click does); whether
+it should is not settled here. Pinned by
+`DatePickerAccessibilityTest.throughTheFadeOutTheCalendarsLayerOffersNoCancel` and limn-demo's
+`VerbPolicyRatchetTest` (`FADE_OUT_DISMISSAL_ENTRIES`).
 
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and

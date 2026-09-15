@@ -284,4 +284,38 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
                 describe(tree()));
         assertFalse(childrenOf(field).get(1).value().readOnly());
     }
+
+    /**
+     * Through the fade-out after a close, the calendar's layer is still drawn, still the layer
+     * that owns input and still published, and it offers no {@code CANCEL} (semantics 5; the 2d
+     * review, 2026-09-15): the hook's {@code setOpen(false)} returns at once for a picker already
+     * closed, so a {@code CANCEL} there was answered from the snapshot for nothing. The clock is
+     * held still after the close, so the fade stays at its first frame. What the calendar inside
+     * publishes is not held here: it still performs its verbs through the fade.
+     */
+    @Test
+    void throughTheFadeOutTheCalendarsLayerOffersNoCancel() throws InterruptedException {
+        bindCaptioned(new DatePicker(), "Data de entrega");
+        picker.open();
+        frame();
+        settleAnimations(null); // faded in, so the fade out has somewhere to start from
+        frame();
+        List<AccessibleNode> layer = nodesWith(Accessible.State.MODAL);
+        assertEquals(1, layer.size(), describe(tree()));
+        assertTrue(offers(layer.get(0), Accessible.Action.CANCEL), "open: the layer dismisses "
+                + describe(tree()));
+
+        assertTrue(perform(layer.get(0).id(), Accessible.Action.CANCEL, Accessible.Argument.NONE));
+        frame();
+        assertFalse(picker.isOpen());
+        layer = nodesWith(Accessible.State.MODAL);
+        assertEquals(1, layer.size(), "the fading layer is still drawn and still owns input"
+                + describe(tree()));
+        assertFalse(offers(layer.get(0), Accessible.Action.CANCEL),
+                "and offers no CANCEL, which setOpen's guard would drop" + describe(tree()));
+        perform(layer.get(0).id(), Accessible.Action.CANCEL, Accessible.Argument.NONE);
+        frame();
+        assertFalse(picker.isOpen(), "a CANCEL sent anyway reopens nothing");
+        assertEquals(LocalDate.of(2026, 9, 9), picker.date(), "and moves nothing");
+    }
 }

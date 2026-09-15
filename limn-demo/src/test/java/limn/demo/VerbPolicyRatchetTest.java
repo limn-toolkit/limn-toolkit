@@ -124,15 +124,28 @@ class VerbPolicyRatchetTest {
     /**
      * The entries whose open surface is closed and sampled one frame into its fade-out, in both
      * runs: a combo's list (a window of its own, then an overlay of the scene) and a dialog (a
-     * window, and an overlay). Where the two hooks the fade-out defects lived (fdd9533 and fix
-     * round 2d). Only surfaces whose every verb resolves them belong here: a dialog holding
-     * controls of its own (the colour picker button's) keeps them operable through its fade, and
-     * they rightly publish their verbs. The date picker's calendar and a popup menu are not here
-     * because this sample recognises a fading surface by a {@code DIALOG} or {@code LIST_ITEM}
-     * node, which they do not have.
+     * window, and an overlay) and a dialog (a window, and an overlay). Where the fade-out defects
+     * lived (fdd9533 and fix round 2d). Only surfaces whose every verb resolves them belong here:
+     * a surface holding controls of its own keeps them operable through its fade, and they
+     * rightly publish their verbs; those are {@link #FADE_OUT_DISMISSAL_ENTRIES}. The sample
+     * recognises the closing surface by where it was at rest — the subtree of the {@code MODAL}
+     * node, or the windows beyond the first — and not by a role, which until the 2d review left
+     * the date picker's calendar out of reach.
      */
     static final Set<String> FADE_OUT_ENTRIES = Set.of(
             "Combo box, open", "Dialog, in its own window", "Dialog, in the scene");
+
+    /**
+     * The entries sampled one frame into the fade-out as {@link #FADE_OUT_ENTRIES} are, where
+     * only the dismissal is held: the closing surface publishes no {@code CANCEL} and no
+     * {@code COLLAPSE}, because the close those name has already happened and the hook's own
+     * guard drops a second one. The controls inside — a date picker's calendar days and paging
+     * buttons, a colour picker's rails — still perform their verbs through the fade, as the
+     * pointer does, and keep publishing them (2d review, 2026-09-15: a day's SELECT one frame
+     * after the close picked the date and notified the application).
+     */
+    static final Set<String> FADE_OUT_DISMISSAL_ENTRIES = Set.of(
+            "Date picker, open", "Colour picker button, open");
 
     // ------------------------------------------------------------------------- the ratchet
 
@@ -184,9 +197,10 @@ class VerbPolicyRatchetTest {
                 run.close();
                 run = new Run(entry, inScene);
             }
-            if (FADE_OUT_ENTRIES.contains(entry.name())) {
+            if (FADE_OUT_ENTRIES.contains(entry.name())
+                    || FADE_OUT_DISMISSAL_ENTRIES.contains(entry.name())) {
                 run.close();
-                checkAFadeOutFrame(entry, inScene);
+                checkAFadeOutFrame(entry, inScene, FADE_OUT_ENTRIES.contains(entry.name()));
                 run = new Run(entry, inScene);
             }
             for (int w = 0; w < run.windows.size(); w++) {
@@ -359,10 +373,12 @@ class VerbPolicyRatchetTest {
      * the entry settled first, and a fade registered on a scene with no ticker running starts at
      * {@code dt == 0} ({@code Scene.tickAnimations}), wall clock or not. A sample that finds the
      * surface gone anyway is a failure and not a pass.
+     *
+     * @param whole whether every verb of the surface is held, or only its dismissal
      */
-    private static void checkAFadeOutFrame(Entry entry, boolean inScene) {
+    private static void checkAFadeOutFrame(Entry entry, boolean inScene, boolean whole) {
         try (Run run = new Run(entry, inScene)) {
-            if (!sampleAFadeOutFrame(entry, inScene, run)) {
+            if (!sampleAFadeOutFrame(entry, inScene, run, whole)) {
                 StringBuilder all = new StringBuilder();
                 for (HeadlessWindow window : run.harness.windows()) {
                     all.append(Transcript.of(window.bridge().tree()));
@@ -375,7 +391,8 @@ class VerbPolicyRatchetTest {
     }
 
     /** @return whether a frame of the fade-out was sampled; {@code false} when it was missed */
-    private static boolean sampleAFadeOutFrame(Entry entry, boolean inScene, Run run) {
+    private static boolean sampleAFadeOutFrame(Entry entry, boolean inScene, Run run,
+                                               boolean whole) {
         int windowsAtRest = run.harness.windows().size();
         boolean hadModal = modalOf(run.windows.get(0).bridge().tree()) >= 0;
         if (!run.closeTheOpenSurface()) {
@@ -403,10 +420,11 @@ class VerbPolicyRatchetTest {
                 }
             }
         }
+        // Still drawn when anything of it is still published: the layer's own MODAL node, or a
+        // node other than a window's own in a window that was there at rest.
         boolean drawn = false;
         for (AccessibleNode node : surface) {
-            drawn |= node.role() == Accessible.Role.DIALOG
-                    || node.role() == Accessible.Role.LIST_ITEM;
+            drawn |= node.role() != Accessible.Role.WINDOW;
         }
         if (!drawn) {
             return false;
@@ -423,7 +441,9 @@ class VerbPolicyRatchetTest {
                 boolean free = (verb == Accessible.Action.FOCUS
                         || verb == Accessible.Action.SCROLL_INTO_VIEW)
                         && node.has(Accessible.State.FOCUSABLE);
-                if (!free) {
+                boolean dismissal = verb == Accessible.Action.CANCEL
+                        || verb == Accessible.Action.COLLAPSE;
+                if (whole ? !free : dismissal) {
                     violations.add(describe(node) + " publishes " + verb);
                 }
             }

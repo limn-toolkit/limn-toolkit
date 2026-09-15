@@ -1156,7 +1156,14 @@ the verb it publishes and samples one frame of the fade-out, where nothing still
 may publish a verb but the scene's free pair on a focusable widget (a dialog's own controls stay
 operable through its fade and are not held to this). The first sample found the closing combo list still
 offering its options' verbs in a window of its own and `CANCEL` on its in-scene layer, both fixed
-the same day (§7's `ComboBox.PopupPanel` and `ComboBox.ScenePopup` rows).
+the same day (§7's `ComboBox.PopupPanel` and `ComboBox.ScenePopup` rows). **Amended the same day
+(the 2d review):** the sample recognised a fading surface by a `DIALOG` or `LIST_ITEM` node, so a
+surface with neither was out of its reach; it now recognises the surface by where it was at rest —
+the `MODAL` node's subtree, or a window beyond the first — and two more entries are sampled with
+only their dismissal held (no `CANCEL` and no `COLLAPSE` on the closing surface), because the
+controls inside keep performing their verbs through the fade: an open `DatePicker`, whose in-scene
+layer published `CANCEL` through its fade (§7's `DatePicker.ScenePopup` row), and an open
+`ColorPickerButton`.
 
 **What a widget gets for free, with no override at all:** bounds from `x/y/width/height`; `ENABLED`,
 `FOCUSABLE`, `FOCUSED`, `VISIBLE` and `SHOWING` from the existing predicates; `locale()` for the
@@ -3154,7 +3161,7 @@ and mixing them up is how a design document becomes untrustworthy in both direct
 | `DatePicker` | `GROUP` | `ExpandFacet` | one `BUTTON` for the trailing calendar affordance, carrying the same expanded state (**corrected 2026-09-14, DT4:** the button is the real widget child of the next row, not a synthetic one, and carries no expanded state) | added by ADR 042 §8. Its field (or the two ends of a period) are **real children** and describe themselves, which is the reason they are widgets rather than regions this class paints. **Amended 2026-09-14 (decisions 18, 55):** no `ExpandFacet` and no verb on the group; a single picker declares nothing and is no node (its field and button are hoisted; a bound caption names the field through `accessibleLabelTarget`), a range picker is a `GROUP` keeping the caption over two fields named "Start date"/"End date"; the field inside a picker publishes `ExpandFacet`, `HAS_POPUP` and `EXPAND`/`COLLAPSE` by state, and accepts exactly those (**corrected 2026-09-14:** `COLLAPSE` only where the field can take it — in a window of its own; while the popup is an overlay of the scene the field publishes its state and no verb, and the overlay's `CANCEL` closes) |
 | ↳ `DatePicker.CalendarButton` | `BUTTON` | `ActionFacet{PRESS}` (**amended 2026-09-14:** the `ExpandFacet` it carried is gone — a plain press; the state is the field's) | — | the trailing affordance, and a **real widget** rather than the synthetic child it started as. Focus traversal in this toolkit visits widgets, so a painted button is one no keyboard user can reach however well it is described; it was found by a pair of eyes on the running program rather than by any test here, and the fix is structural rather than descriptive |
 | ↳ `DatePicker.PopupPanel` | `GROUP` | | | named "Calendar"; the card the grid sits on. **Amended 2026-09-14 (decision 19):** at an hour granularity or finer the card also holds a time row, a real `DateField` named "Time of day" that is never focusable and publishes `ACTIVE` on its caret segment while the picker's Tab cycle has put the keyboard on it |
-| ↳ `DatePicker.ScenePopup` | `GROUP` | `ActionFacet{CANCEL}` | | the in-scene overlay wrapper, declared for `ComboBox.ScenePopup`'s reason: it is the scene's only tab stop while the popup is open, so a node published with no role would be a focusable `UNKNOWN` |
+| ↳ `DatePicker.ScenePopup` | `GROUP` | `ActionFacet{CANCEL}` | | the in-scene overlay wrapper, declared for `ComboBox.ScenePopup`'s reason: it is the scene's only tab stop while the popup is open, so a node published with no role would be a focusable `UNKNOWN`. **Amended 2026-09-15 (semantics 5; the 2d review):** `CANCEL` is published and performed only while the calendar is open; through the fade-out after a close the layer published it, and its hook's `setOpen(false)` returned at once for a picker already closed while the hook answered done (ADR 042 §8's amendment of that date). Pinned by `DatePickerAccessibilityTest.throughTheFadeOutTheCalendarsLayerOffersNoCancel` and the fade-out sample of `VerbPolicyRatchetTest` |
 | `TabbedPane` | transparent | | | the pane itself is scaffolding |
 | ↳ `TabStrip` | `TAB_LIST` | `SelectionFacet` | — | |
 | ↳ `TabHeader` | `TAB` | `SelectionItemFacet`, `ActionFacet{SELECT}` | — | name from the tab's own `I18nString` title, `nameFrom=CONTENT`. It is a private inner widget of `TabbedPane`, so it reads that title from inside its own package and needs no new accessor for this ADR — ADR 040 needs one for a different reason (§9) |

@@ -1615,14 +1615,22 @@ public class DatePicker extends Widget {
             // would be a focusable UNKNOWN.
             a.role(Accessible.Role.GROUP);
             a.name(DateStrings.CALENDAR, Accessible.NameFrom.CONTENT);
-            a.action(Accessible.Action.CANCEL);
+            // Only while the calendar is open, ComboBox.ScenePopup's rule: through the fade-out
+            // after a close the layer is still the top overlay and is still published, and a
+            // CANCEL there reached setOpen(false), which returns at once for a picker already
+            // closed while the hook answered done (semantics 5; the 2d review, 2026-09-15). The
+            // hook below reads the same field. The calendar inside keeps its own verbs through
+            // the fade, because it still performs them, as the pointer does.
+            if (open) {
+                a.action(Accessible.Action.CANCEL);
+            }
         }
 
         @Override
         protected boolean onAccessibilityAction(Accessible.Action action,
                                                 Accessible.Argument arg) {
-            if (action != Accessible.Action.CANCEL) {
-                return false;
+            if (action != Accessible.Action.CANCEL || !open) {
+                return false; // not while the calendar fades out, where nothing publishes CANCEL
             }
             DatePicker.this.setOpen(false, Change.Origin.USER);
             return true;
