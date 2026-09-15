@@ -586,14 +586,51 @@ class AtspiTreeTest {
         assertTrue(((List<?>) call(path(9001), Atspi.I_ACCESSIBLE, "GetInterfaces", null).body[0])
                 .contains(Atspi.I_VALUE), "a node with a value facet implements Value");
         assertEquals(java.util.Map.of("MinimumValue", "d 1.0", "MaximumValue", "d 31.0",
-                "MinimumIncrement", "d 1.0", "CurrentValue", "d 13.0", "Text", "s 13"),
+                "MinimumIncrement", "d 1.0", "CurrentValue", "d 13.0", "Text", "s 13",
+                "version", "u 1"),
                 valueOf(9001), "every number a double, as libatspi reads them, and the text");
         assertEquals(java.util.Map.of("MinimumValue", "d 1.0", "MaximumValue", "d 12.0",
-                "MinimumIncrement", "d 1.0", "CurrentValue", "d 1.0", "Text", "s empty"),
+                "MinimumIncrement", "d 1.0", "CurrentValue", "d 1.0", "Text", "s empty",
+                "version", "u 1"),
                 valueOf(9002), "an empty segment: its minimum where a number is mandatory, and "
                         + "the word");
         assertEquals("d 40.0", valueOf(9003).get("CurrentValue"));
         assertEquals("s ", valueOf(9003).get("Text"), "no display form is an empty string");
+    }
+
+    /**
+     * The "version" property the served XML declares on Selection, Value, Text, EditableText, Table
+     * and TableCell is answered u 1, as GTK 3's ATK bridge answers it on the Fedora guest; it was
+     * declared by Introspect and refused as a property the object lacks (the review of sub-lane
+     * linux-C). An interface the node does not serve still has no properties at all.
+     */
+    @Test
+    void theVersionTheServedXmlDeclaresIsAnsweredAsTheAtkBridgeAnswersIt() {
+        publishAWindowWithValues();
+        DBus.Msg value = call(path(9001), Atspi.I_PROPS, "Get", "ss", Atspi.I_VALUE, "version");
+        assertNull(value.errorName, "Value.version");
+        assertEquals("u 1", ((DBus.Variant) value.body[0]).sig + " "
+                + ((DBus.Variant) value.body[0]).value);
+        assertTrue(Atspi.XML_VALUE.contains("<property name=\"version\" type=\"u\""),
+                "the XML Introspect serves declares it");
+
+        publishAWindowWithAnEditableField();
+        for (String iface : List.of(Atspi.I_TEXT, Atspi.I_EDITABLE_TEXT)) {
+            DBus.Msg text = call(path(9211), Atspi.I_PROPS, "Get", "ss", iface, "version");
+            assertNull(text.errorName, iface + ".version");
+            assertEquals(1, ((DBus.Variant) text.body[0]).value, iface);
+        }
+
+        publishAWindowWithATable();
+        for (String[] served : new String[][] {{"2000", Atspi.I_TABLE}, {"2000", Atspi.I_SELECTION},
+                {"2212", Atspi.I_TABLE_CELL}}) {
+            DBus.Msg answer = call(path(Long.parseLong(served[0])), Atspi.I_PROPS, "Get", "ss",
+                    served[1], "version");
+            assertNull(answer.errorName, served[1] + ".version on " + served[0]);
+            assertEquals(1, ((DBus.Variant) answer.body[0]).value, served[1]);
+        }
+        assertEquals(DBus.Conn.INVALID_ARGS, call(path(2212), Atspi.I_PROPS, "Get", "ss",
+                Atspi.I_VALUE, "version").errorName, "a cell serves no Value, so it has no version");
     }
 
     /**
@@ -821,14 +858,8 @@ class AtspiTreeTest {
                         + "length of UTF-8 bytes still inserts the whole é; the emoji deleted whole");
     }
 
-    /**
-     * EditableText.InsertText's length counts UTF-8 bytes, as GTK 3's ATK bridge reads it on the
-     * Fedora guest: "é" is two bytes and the emoji four, so a length of 2 or 3 inserts "é" alone,
-     * 6 inserts both, 1 inserts nothing, and a negative length all of it. It was taken as
-     * characters, which inserted "é😀" for a length of 2 (the review of sub-lane linux-C).
-     */
-    @Test
-    void anInsertionsLengthCountsUtf8BytesAndNeverCutsACharacter() {
+    /** A window holding one editable, enabled field whose text is "ab". */
+    private void publishAWindowWithAnEditableField() {
         Accessibility a = new Accessibility();
         a.beginWalk(400, 300, Locale.ENGLISH);
         a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
@@ -842,6 +873,17 @@ class AtspiTreeTest {
         a.end();
         a.end();
         tree.set(a.publish(0, 0, 0, 1f, true));
+    }
+
+    /**
+     * EditableText.InsertText's length counts UTF-8 bytes, as GTK 3's ATK bridge reads it on the
+     * Fedora guest: "é" is two bytes and the emoji four, so a length of 2 or 3 inserts "é" alone,
+     * 6 inserts both, 1 inserts nothing, and a negative length all of it. It was taken as
+     * characters, which inserted "é😀" for a length of 2 (the review of sub-lane linux-C).
+     */
+    @Test
+    void anInsertionsLengthCountsUtf8BytesAndNeverCutsACharacter() {
+        publishAWindowWithAnEditableField();
 
         for (int length : new int[] {1, 2, 3, 6, 7, 100, -1}) {
             assertEquals(true, call(path(9211), Atspi.I_EDITABLE_TEXT, "InsertText", "isi", 1,

@@ -2525,6 +2525,22 @@ fedora-gtk4-interface-replies.txt, `scripts/a11y/linux/read-gtk-interface-replie
 bridge keeps answering it there, as the first cut decided (a client that asks the root for its extents
 walks on).
 
+#### Amendment 2026-09-15 (review of the interfaces item) — the `version` the served XML declares is answered
+
+**What was wrong.** `Introspect` serves, for `Selection`, `Value`, `Text`, `EditableText`, `Table` and
+`TableCell`, the XML read off the Fedora guest's ATK bridge, and each block declares a read-only
+`version` property of type `u`; `Properties.Get` refused it as a property the object lacks
+(`InvalidArgs`), and the Selection amendment above recorded it as not answered for want of a reading.
+
+**What was read, and what the bridge does now.** GTK 3.24.52's ATK bridge (at-spi2-atk 2.60.6) answers
+`version` with `u` 1 on every interface it serves; GTK 4.22.4, which declares no such property, answers
+`InvalidArgs` (readings/fedora-gtk3-interface-replies.txt and fedora-gtk4-interface-replies.txt, section
+2, `scripts/a11y/linux/read-gtk-interface-replies.py`, Fedora KDE 44, 2026-09-15); at-spi2-core 2.60.6's
+`atspi-constants.h` defines every `ATSPI_*_VERSION` as 1. The bridge answers `u` 1
+(`Atspi.INTERFACE_VERSION`) in `Get` and `GetAll` for those six interfaces where the node serves them,
+the XML and the answer now coming from the same bridge. The blocks read off Ubuntu 24.04 (`Accessible`,
+`Application`, `Component`, `Action`) declare no `version` and none is answered there.
+
 #### Amendment 2026-09-15 — a header's sort direction: read on Fedora, and not carried yet
 
 **What decision 36 asked.** A sortable header cell publishes its direction, and how each platform

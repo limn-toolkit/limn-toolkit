@@ -542,6 +542,15 @@ final class AtspiTree {
         return null;
     }
 
+    /** Whether the XML this bridge serves for an interface declares a {@code version} property. */
+    private static boolean declaresVersion(String iface) {
+        return switch (iface) {
+            case Atspi.I_SELECTION, Atspi.I_VALUE, Atspi.I_TEXT, Atspi.I_EDITABLE_TEXT, Atspi.I_TABLE,
+                    Atspi.I_TABLE_CELL -> true;
+            default -> false;
+        };
+    }
+
     /**
      * {@code Properties.Set(Value, CurrentValue, v)}: the one writable property the bridge serves,
      * and how libatspi 2.60.6's {@code atspi_value_set_current_value} writes a value (a variant
@@ -570,6 +579,12 @@ final class AtspiTree {
     private Map<Object, Object> propertiesOf(String which, boolean root, Located at) {
         Map<Object, Object> out = new LinkedHashMap<>();
         AccessibleNode node = at == null ? null : at.node();
+        if (node != null && declaresVersion(which) && interfacesOf(false, node).contains(which)) {
+            // Declared first by the XML Introspect serves for these six (read off the Fedora
+            // guest's ATK bridge), and answered as that bridge answers it (Atspi.INTERFACE_VERSION);
+            // it was declared and refused as a property this object lacks.
+            out.put("version", new DBus.Variant("u", Atspi.INTERFACE_VERSION));
+        }
         if (Atspi.I_ACTION.equals(which)) {
             // A property and not only the GetNActions method: libatspi reads the count through
             // org.freedesktop.DBus.Properties, so a bridge that answers the method alone reports

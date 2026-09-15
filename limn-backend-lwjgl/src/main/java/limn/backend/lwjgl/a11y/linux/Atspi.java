@@ -105,6 +105,15 @@ final class Atspi {
     static final int TEXT_BOUNDARY_LINE_START = 5;         // Atspi.TextBoundaryType.LINE_START
     static final int TEXT_BOUNDARY_LINE_END = 6;           // Atspi.TextBoundaryType.LINE_END
 
+    // ---- the "version" property --------------------------------------------------------------
+    // What GTK 3.24.52's ATK bridge (at-spi2-atk 2.60.6-1.fc44) answers to Properties.Get(<interface>,
+    // "version") on every interface it serves: a "u" 1, read 2026-09-15 on the Fedora KDE 44 guest by
+    // scripts/a11y/linux/read-gtk-interface-replies.py 3 (readings/fedora-gtk3-interface-replies.txt,
+    // section 2); at-spi2-core 2.60.6's atspi-constants.h defines every ATSPI_*_VERSION as 1. Answered
+    // on the interfaces whose XML below, read off that same bridge, declares the property. GTK 4.22.4
+    // answers InvalidArgs there (readings/fedora-gtk4-interface-replies.txt).
+    static final int INTERFACE_VERSION = 1;
+
     // ---- AtspiCoordType / AtspiComponentLayer (typelib) -------------------------------------
     static final int COORD_SCREEN = 0, COORD_WINDOW = 1;
     // Read 2026-09-13 off the Fedora KDE 44 guest's typelib (libatspi 2.60.6) by
