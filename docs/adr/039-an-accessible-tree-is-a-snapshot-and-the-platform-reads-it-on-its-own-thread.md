@@ -2423,6 +2423,17 @@ the text as a string value, which is the only `any_data` Orca 50.2's `_on_announ
 GTK 4.22.4's `gtk_at_spi_context_announce` fills it the same way. Sent from the frame of the window
 whose scene said it. It was mapped to nothing.
 
+**`TEXT_CHANGED`, `CARET_MOVED`, `TEXT_SELECTION_CHANGED` (LINUX-NEW-14).** A replacement is a
+`TextChanged` `delete` carrying the removed text, then an `insert` carrying the inserted text; each
+has `detail1` = the start and `detail2` = the length, both in characters, and the changed text
+itself as the value — GTK 4.22.4's `gtk_at_spi_context_update_text_contents` and the ATK bridge's
+text listeners send exactly that, and Orca 50.2 speaks `any_data` as the inserted string and drops
+an insertion longer than 1000. It was one `insert` of the longer length at the UTF-16 offset carrying
+the whole new text. The model's range, compared unit by unit, may start or end inside a surrogate
+pair; it is widened to whole characters before it is converted. `TextCaretMoved` carries the caret's
+offset in characters in `detail1`, read off the published `TextFacet` (it was always 0; Orca
+compares it with the last cursor position). `TextSelectionChanged` carries an empty string.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

@@ -178,6 +178,107 @@ class AtspiEventsTest {
         assertEquals(-1, gone.detail1());
     }
 
+    /**
+     * A replacement is a deletion of what went and an insertion of what came, each carrying only
+     * its own text and counted in characters (LINUX-NEW-14).
+     *
+     * <p>It was one {@code insert} of the removed length at the UTF-16 offset, carrying the whole
+     * new text: Orca 50.2 speaks {@code any_data} as the inserted string, so a typed letter read the
+     * whole field, and it drops an insertion longer than 1000. GTK 4.22.4 and the ATK bridge send
+     * {@code delete} and {@code insert} with the changed text itself.
+     */
+    @Test
+    void aReplacementIsADeleteThenAnInsertOfJustTheChangedTextInCharacters() {
+        List<AtspiEvents.Signal> replaced = signals(AccessibleEvent.text(4, 3, 1, 1,
+                "a\uD83D\uDE00bc", "a\uD83D\uDE00Xc"));
+        assertEquals(2, replaced.size(), "a delete and an insert: " + replaced);
+        assertEquals(List.of("delete", 2, 1, "b"), shape(replaced.get(0)),
+                "the emoji before it is one character, not two units");
+        assertEquals(List.of("insert", 2, 1, "X"), shape(replaced.get(1)));
+
+        assertEquals(List.of(List.of("insert", 1, 1, "X")),
+                signals(AccessibleEvent.text(4, 1, 0, 1, "ab", "aXb")).stream()
+                        .map(AtspiEventsTest::shape).toList(), "a pure insertion is one signal");
+        assertEquals(List.of(List.of("delete", 0, 2, "ab")),
+                signals(AccessibleEvent.text(4, 0, 2, 0, "abc", "c")).stream()
+                        .map(AtspiEventsTest::shape).toList(), "and a pure deletion");
+    }
+
+    /**
+     * Two characters outside the basic plane that share their high surrogate differ only in the
+     * low one, so the model's unit-by-unit comparison starts the range between the halves; what is
+     * said is still the whole character.
+     */
+    @Test
+    void aRangeThatStartsInsideASurrogatePairIsWidenedToTheWholeCharacter() {
+        List<AtspiEvents.Signal> replaced = signals(AccessibleEvent.text(4, 2, 1, 1,
+                "x\uD83D\uDE00", "x\uD83D\uDE01"));
+        assertEquals(List.of(List.of("delete", 1, 1, "\uD83D\uDE00"),
+                        List.of("insert", 1, 1, "\uD83D\uDE01")),
+                replaced.stream().map(AtspiEventsTest::shape).toList());
+    }
+
+    /**
+     * The caret's offset travels in {@code detail1}, in characters, read off the published text
+     * (LINUX-NEW-14): it was always 0, and Orca 50.2 compares it with the last cursor position it
+     * saved.
+     */
+    @Test
+    void aCaretMoveCarriesTheCaretsOffsetInCharactersFromThePublishedText() {
+        limn.accessibility.Accessibility a = new limn.accessibility.Accessibility();
+        a.beginWalk(400, 300, java.util.Locale.ENGLISH);
+        a.begin(1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
+                300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, java.util.Locale.ENGLISH, 0, 0, 200, 30);
+        a.role(Accessible.Role.TEXT_FIELD);
+        a.text("\uD83D\uDE00ab", 1, 3, limn.graphics.ShapedText.Affinity.DOWNSTREAM, 3, 3, 1,
+                null, false);
+        a.inherited(true, true, true, true, true);
+        a.end();
+        a.end();
+        AccessibleTree tree = a.publish(1001, 0, 0, 1f, true);
+
+        AtspiEvents.Signal moved = AtspiEvents.of(AccessibleEvent.of(
+                AccessibleEvent.Type.CARET_MOVED, 1001), over(tree)).get(0);
+        assertEquals("TextCaretMoved", moved.member());
+        assertEquals(2, moved.detail1(), "after the emoji and the a: three units, two characters");
+
+        AtspiEvents.Signal selection = AtspiEvents.of(AccessibleEvent.of(
+                AccessibleEvent.Type.TEXT_SELECTION_CHANGED, 1001), over(tree)).get(0);
+        assertEquals("s", selection.value().sig, "an empty string, as GTK sends; an i is nothing");
+    }
+
+    /** The names of {@link #NAMES} over a tree of the test's own. */
+    private static AtspiEvents.Context over(AccessibleTree tree) {
+        return new AtspiEvents.Context() {
+            @Override public AccessibleTree tree() {
+                return tree;
+            }
+
+            @Override public DBus.Ref application() {
+                return NAMES.application();
+            }
+
+            @Override public DBus.Ref refOf(long id) {
+                return NAMES.refOf(id);
+            }
+
+            @Override public DBus.Ref nullRef() {
+                return NAMES.nullRef();
+            }
+
+            @Override public int indexInParent(long id) {
+                return NAMES.indexInParent(id);
+            }
+        };
+    }
+
+    private static List<Object> shape(AtspiEvents.Signal signal) {
+        return List.of(signal.detail(), signal.detail1(), signal.detail2(), signal.value().value);
+    }
+
     @Test
     void theBodyCarriesTheApplicationItCameFrom() {
         AtspiEvents.Signal signal = one(AccessibleEvent.state(7, Accessible.State.FOCUSED, true));

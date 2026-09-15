@@ -109,6 +109,9 @@ final class AtspiEvents {
     static List<Signal> of(AccessibleEvent event, Context context) {
         long subject = subjectOf(event, context);
         String path = subject == 0 ? Atspi.PATH_ROOT : context.refOf(subject).path;
+        if (event.type() == AccessibleEvent.Type.TEXT_CHANGED) {
+            return textChanged(event, context, path);  // a replacement is two signals
+        }
         Signal one = switch (event.type()) {
             // Nothing. Focus is a state change on this platform -- the dedicated Focus signal is
             // deprecated and Orca subscribes to object:state-changed:focused -- and the difference
@@ -135,14 +138,10 @@ final class AtspiEvents {
             case SELECTION_CHANGED -> event(context, path, I_EVENT_OBJECT, "SelectionChanged", "",
                     0, 0, new DBus.Variant("i", 0));
             case ACTIVE_DESCENDANT_CHANGED -> activeDescendantChanged(event, context, path);
-            case TEXT_CHANGED -> event(context, path, I_EVENT_OBJECT, "TextChanged",
-                    event.inserted() > 0 ? "insert" : "delete", event.offset(),
-                    Math.max(event.inserted(), event.removed()),
-                    new DBus.Variant("s", string(event.newValue())));
-            case CARET_MOVED -> event(context, path, I_EVENT_OBJECT, "TextCaretMoved", "",
-                    event.offset(), 0, new DBus.Variant("i", 0));
+            case CARET_MOVED -> caretMoved(event, context, path);
+            // GTK 4.22.4 and the ATK bridge both send an empty string here; an i arrives as nothing.
             case TEXT_SELECTION_CHANGED -> event(context, path, I_EVENT_OBJECT,
-                    "TextSelectionChanged", "", 0, 0, new DBus.Variant("i", 0));
+                    "TextSelectionChanged", "", 0, 0, new DBus.Variant("s", ""));
             case WINDOW_OPENED -> window(context, path, "Create", nameOf(event, context));
             case WINDOW_CLOSED -> window(context, path, "Destroy", nameOf(event, context));
             case WINDOW_ACTIVATED -> window(context, path, "Activate", nameOf(event, context));
@@ -152,6 +151,84 @@ final class AtspiEvents {
             default -> null;
         };
         return one == null ? List.of() : List.of(one);
+    }
+
+    /**
+     * A text edit: a {@code delete} carrying the removed text, then an {@code insert} carrying the
+     * inserted text, each at its offset and length in characters (LINUX-NEW-14).
+     *
+     * <p>It was one {@code insert} whenever anything was inserted, with the removed length when
+     * that was longer, the offset in UTF-16 units and the whole new text as the value. GTK 4.22.4
+     * sends {@code insert} or {@code delete} with the start, the length and the changed text itself
+     * ({@code gtk_at_spi_context_update_text_contents}), the ATK bridge the same
+     * ({@code text_insert_event_listener}, {@code text_remove_event_listener}), and Orca 50.2 speaks
+     * {@code any_data} as the inserted string ({@code inserted_text}) and drops an insertion longer
+     * than 1000 ({@code _ignore_text_events}) — so the whole field was spoken for one typed
+     * character, and a long field's typing was not spoken at all
+     * (readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-event-shapes.txt,
+     * readings/fedora-orca-event-consumers.txt).
+     *
+     * <p>Offsets are converted from UTF-16 to characters here and nowhere else (§2.3). The model
+     * compares the two strings unit by unit, so a replaced character outside the basic plane can
+     * leave its range starting or ending between the two halves of a surrogate pair; the range is
+     * widened to whole characters on both strings first, which keeps what is said a character and
+     * never half of one.
+     */
+    private static List<Signal> textChanged(AccessibleEvent event, Context context, String path) {
+        String before = string(event.oldValue());
+        String after = string(event.newValue());
+        int start = Math.min(event.offset(), Math.min(before.length(), after.length()));
+        int removedEnd = Math.min(before.length(), start + event.removed());
+        int insertedEnd = Math.min(after.length(), start + event.inserted());
+        if (start > 0 && splitsAPair(before, start) || start > 0 && splitsAPair(after, start)) {
+            start--;
+        }
+        if (splitsAPair(before, removedEnd) || splitsAPair(after, insertedEnd)) {
+            removedEnd = Math.min(before.length(), removedEnd + 1);
+            insertedEnd = Math.min(after.length(), insertedEnd + 1);
+        }
+        int at = before.codePointCount(0, start);
+        List<Signal> out = new java.util.ArrayList<>(2);
+        if (removedEnd > start) {
+            String gone = before.substring(start, removedEnd);
+            out.add(event(context, path, I_EVENT_OBJECT, "TextChanged", "delete", at,
+                    gone.codePointCount(0, gone.length()), new DBus.Variant("s", gone)));
+        }
+        if (insertedEnd > start) {
+            String added = after.substring(start, insertedEnd);
+            out.add(event(context, path, I_EVENT_OBJECT, "TextChanged", "insert", at,
+                    added.codePointCount(0, added.length()), new DBus.Variant("s", added)));
+        }
+        return out;
+    }
+
+    /** Whether {@code index} falls between the high and low halves of one character. */
+    private static boolean splitsAPair(String text, int index) {
+        return index > 0 && index < text.length()
+                && Character.isHighSurrogate(text.charAt(index - 1))
+                && Character.isLowSurrogate(text.charAt(index));
+    }
+
+    /**
+     * The caret moved: {@code TextCaretMoved} with the caret's offset in characters in
+     * {@code detail1}, read off the text the event's tree published (LINUX-NEW-14).
+     *
+     * <p>It was always 0: the model raises the event without the offset, and the mapping read the
+     * event's text offset, which a caret move never sets. Orca 50.2's {@code _on_caret_moved}
+     * compares {@code detail1} with the last cursor position it saved, so a caret said to stand at
+     * 0 every time was a caret that "did not move" (readings/fedora-orca-event-consumers.txt). GTK
+     * 4.22.4 sends the caret position there with an {@code i} 0 value.
+     */
+    private static Signal caretMoved(AccessibleEvent event, Context context, String path) {
+        limn.accessibility.AccessibleNode node = context.tree().find(event.nodeId());
+        int caret = 0;
+        if (node != null && node.text() != null) {
+            String text = node.text().text();
+            caret = text.codePointCount(0, Math.max(0, Math.min(text.length(),
+                    node.text().caretOffset())));
+        }
+        return event(context, path, I_EVENT_OBJECT, "TextCaretMoved", "", caret, 0,
+                new DBus.Variant("i", 0));
     }
 
     /**
