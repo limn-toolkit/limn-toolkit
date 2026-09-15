@@ -160,6 +160,15 @@ public final class UiaBridge extends PlatformBridge {
      */
     private long caretJustRaised;
 
+    /**
+     * Why a re-announcement of the effective focus is owed — the cause the trace names — or
+     * {@code null} when none is. Set by a sweep (this queue's collapse marker, or the model's
+     * {@code INVALIDATED}) and cleared by {@link #reannounce}, which raises it at the tail's place:
+     * before the first event after the tail's {@code STRUCTURE_CHANGED}s, or when nothing more is
+     * waiting. Drain thread only.
+     */
+    private String reannounceOwed;
+
     private UiaBridge(long hwnd, java.util.function.LongSupplier clock) {
         this.hwnd = hwnd;
         this.clock = clock;
@@ -364,11 +373,18 @@ public final class UiaBridge extends PlatformBridge {
      * The drain thread's whole life: take, raise, until stopped. A collapse marker is a sweep of
      * the registry against the published tree — every element whose node has left is released,
      * which is what the swallowed {@code NODE_DESTROYED}s would have done one by one (§1.10) —
-     * followed by one invalidate-everything raise on the root.
+     * followed by one invalidate-everything raise on the root, and then, <b>at the tail's place</b>,
+     * the re-announcement of the effective focus ({@link #reannounceOwed}).
      */
     private void drainLoop() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
+                if (reannounceOwed != null && events.size() == 0) {
+                    // Nothing more is waiting, so the tail this re-announcement follows is over --
+                    // or had no event after its structure changes at all, which is what a collapse
+                    // that moved nothing but the tree's shape leaves. Owed is never dropped.
+                    reannounce();
+                }
                 AccessibleEvent event = events.take();
                 long caret = caretJustRaised;
                 caretJustRaised = 0;
@@ -382,7 +398,7 @@ public final class UiaBridge extends PlatformBridge {
                 }
                 if (event == UiaEvents.COLLAPSE) {
                     sweepAndInvalidate();
-                    raiseFocus("after this bridge's queue collapsed", true);
+                    reannounceOwed = "after this bridge's queue collapsed";
                 } else if (event.type() == AccessibleEvent.Type.INVALIDATED
                         && event.nodeId() == 0) {
                     // The model's own collapse (§1.10): a publish wider than its budget, whose
@@ -390,15 +406,45 @@ public final class UiaBridge extends PlatformBridge {
                     // same sweep as this queue's, and the same re-announcement; the root-targeted
                     // INVALIDATED the sweep raises names the root and comes back through raise().
                     sweepAndInvalidate();
-                    raiseFocus("after the model's INVALIDATED", true);
+                    reannounceOwed = "after the model's INVALIDATED";
                 } else {
+                    if (reannounceOwed != null
+                            && event.type() != AccessibleEvent.Type.STRUCTURE_CHANGED) {
+                        // The tail's structure changes are over: decision 28's order is children
+                        // first, then focus, cursor and selection (semantics 7).
+                        reannounce();
+                    }
                     raise(event);
                 }
             }
         } catch (InterruptedException stopped) {
             // The user-interface thread is emptying the registry and asked this thread to leave
-            // first. Whatever is still queued is about a tree that is going away with it.
+            // first. Whatever is still queued is about a tree that is going away with it, and so
+            // is a re-announcement it owed.
         }
+    }
+
+    /**
+     * The re-announcement a sweep left owed, raised now (semantics 4 as settled 2026-09-15: every
+     * bridge re-announces the effective focus after the model's {@code INVALIDATED} and after its
+     * own queue collapse, <b>after</b> the tail's structure events and not before them).
+     *
+     * <p>Until 2026-09-15 it was raised the moment the sweep finished — before the
+     * {@code STRUCTURE_CHANGED}s the model reserves outside its budget and sends next (decision 28,
+     * semantics 7: children first, then focus, cursor and selection). A reader told where the user
+     * is and then told the shape of the tree under it re-reads and asks again; told in decision
+     * 28's order it does not. Linux reconciles at the same place and macOS posts focus last in the
+     * frame; this is the third bridge joining them.
+     *
+     * <p>Two collapses with no tail between them owe one re-announcement, not two: what the raise
+     * pays for is the element the sweep may have released under the reader, and one raise after the
+     * last sweep says it. Each raise waits for the reader's handler (§13.28), so a second one is a
+     * frame's budget spent saying what has just been said.
+     */
+    private void reannounce() {
+        String cause = reannounceOwed;
+        reannounceOwed = null;
+        raiseFocus(cause, true);
     }
 
     /**

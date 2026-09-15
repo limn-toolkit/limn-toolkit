@@ -3077,6 +3077,25 @@ guard across the platform call, so a client whose focus handler synchronously as
 `GetFocus` would wait for it; NVDA 2024.4.2's handler asks no such thing (reading §1), and phase 5
 watches for it.
 
+**Amended 2026-09-15 (phase-3 fix round; semantics 4 settled to one shape): the re-announcement is
+raised at the tail's place, after the tail's structure events.** The amendment above left it raised
+the instant the sweep finished — "after either the bridge re-raises the focus on the effective
+focus" — which is *before* the `STRUCTURE_CHANGED`s the model reserves outside its budget and sends
+next. Decision 28 and semantics 7 put the tail in one order, children first and then focus, cursor
+and selection, and a reader told where the user is and only then told that the tree under it changed
+re-reads and asks again. So the sweep now leaves the re-announcement **owed**, and the drain raises
+it before the first tail event that is not a `STRUCTURE_CHANGED`, or when nothing more is waiting —
+which is the case a collapse that moved only the tree's shape leaves, and the reason the debt is
+never simply dropped. Linux reconciles at the same place and macOS posts focus last in the frame;
+this is the third bridge joining them, and the semantics' three readings (integration log, phase-3
+critic, contradiction 1) are now one. **Two collapses with no tail between them owe one
+re-announcement, not two**: what the raise pays for is the element the sweep may have released under
+the reader, one raise after the last sweep says it, and each raise waits for the reader's handler
+(§13.28). Pinned by
+`UiaBridgeTest.theFocusIsReannouncedAfterTheTailsStructureEventsAndNotBeforeThem`;
+`theModelsInvalidatedSweepsOncePerEmitAndReannouncesTheFocus` was restated to follow each collapse
+with a tail event, as the model's own always is.
+
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-6's remainder): `CARET_MOVED` and
 `BOUNDS_CHANGED` as built.** `CARET_MOVED` is `Text_TextSelectionChanged`, as its row says, handled
 together with `TEXT_SELECTION_CHANGED` (the settled unmapped-and-window-level-events item): the model
