@@ -303,4 +303,34 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(bridge.eventsOf(AccessibleEvent.Type.FOCUS_CHANGED).isEmpty(),
                 "the focus itself did not move: " + bridge.events);
     }
+
+    /**
+     * Decision 11 (2026-09-13), positive half: a segment publishes {@code FOCUS}, because the
+     * caret is the field's cursor and which segment holds it is not the value; performing it
+     * takes the focus, puts the caret there and changes no value.
+     */
+    @Test
+    void focusOnASegmentPutsTheCaretThereAndChangesNoValue() throws InterruptedException {
+        DateField field = bindField(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 12, 31));
+        frame();
+        AccessibleNode year = segmentNodes().get(2);
+        assertTrue(year.actions().actions().contains(Accessible.Action.FOCUS), describe(tree()));
+        bridge.events.clear();
+
+        assertTrue(perform(year.id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        assertTrue(field.isFocused(), "the field takes the focus");
+        assertEquals(2, field.focusedSegment(), "the caret is in the year");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(), "and no value moved");
+        frame();
+        assertEquals(segmentNodes().get(2).id(), tree().activeDescendant(),
+                "the year is the field's active descendant: " + describe(tree()));
+        assertTrue(bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED).isEmpty(),
+                "nothing announced a value: " + bridge.events);
+
+        assertTrue(perform(segmentNodes().get(1).id(), Accessible.Action.FOCUS,
+                Accessible.Argument.NONE));
+        assertEquals(1, field.focusedSegment(), "and on into the month");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date());
+    }
 }

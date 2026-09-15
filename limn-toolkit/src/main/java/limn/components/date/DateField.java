@@ -1768,8 +1768,20 @@ public class DateField extends Widget {
         }
         event.consume();
         requestFocus();
+        focusSegment(slotAt(sceneToLocalX(event.x())));
+    }
+
+    /**
+     * The caret into one segment, as a click on it puts it there: the field takes the focus
+     * unless a picker is already aiming here, a two-digit year the caret leaves resolves as it
+     * does for every other way out of the year (decision 57), and the move is announced. Used by
+     * the pointer and by a reader's {@code FOCUS} on the segment (decision 11, 2026-09-15).
+     */
+    private void focusSegment(int slot) {
+        if (!keyboardActive) {
+            requestFocus();
+        }
         typedRun.setLength(0);
-        int slot = slotAt(sceneToLocalX(event.x()));
         if (slot >= 0 && slot != focusedSlot) {
             commitTypedYear();
             focusedSlot = slot;
@@ -2074,7 +2086,11 @@ public class DateField extends Widget {
                     a.valueText(field.field() == DatePattern.Field.YEAR
                             ? yearSpoken(field) : segmentText(field), valueRevision);
                 }
-                a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+                // FOCUS puts the caret in this segment and changes no value (decision 11,
+                // 2026-09-15): the caret is the field's cursor, and which segment it is in is
+                // not a value, so a segment is an item whose cursor and value are apart.
+                a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT,
+                        Accessible.Action.FOCUS);
                 if (slot == focusedSlot && caretShown() && !popupHoldsKeyboard()) {
                     a.state(Accessible.State.ACTIVE);
                 }
@@ -2157,6 +2173,10 @@ public class DateField extends Widget {
         ensureParts();
         if (key < 0 || key >= editable.length || !isEnabled()) {
             return false;
+        }
+        if (action == Accessible.Action.FOCUS) {
+            focusSegment((int) key);
+            return true;
         }
         int previous = focusedSlot;
         focusedSlot = (int) key;

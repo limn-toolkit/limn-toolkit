@@ -2507,8 +2507,8 @@ public class CalendarView extends Widget {
      * (eight with week numbers), a header row of {@code COLUMN_HEADER}s, one {@code ROW} per week
      * and one {@code CELL} per day, plus the two paging buttons and the title, a {@code BUTTON}
      * that climbs to the month and year choosers &mdash; the same {@code TABLE}, three rows of
-     * four months or six of four years, each cell carrying {@code SELECT} where it leads
-     * somewhere ({@link #describeChooser}).
+     * four months or six of four years, each cell carrying {@code SELECT} and {@code FOCUS} where
+     * it leads somewhere ({@link #describeChooser}).
      *
      * <p><b>Every role here was mapped by ADR 041</b>, three weeks before this widget existed, and
      * that is the whole accessibility cost of a calendar: no role is added to the model, no facet,
@@ -2651,6 +2651,14 @@ public class CalendarView extends Widget {
                         a.disabled();
                     }
                 }
+                // FOCUS moves the cursor onto the day and selects nothing (decision 11,
+                // 2026-09-15): the cursor and the selection are two things in a calendar, which
+                // is what lets an item publish it, and it is what Up and Down do with the arrows.
+                // Never on a day the bounds or the filter refuse, which carries no verb at all
+                // (decision 30); in NONE, where nothing is selectable, by the same bounds.
+                if (isEnabled() && !isRefused(day)) {
+                    a.action(Accessible.Action.FOCUS);
+                }
                 if (day.equals(cursor) && focusHere(Part.GRID)) {
                     a.state(Accessible.State.ACTIVE);
                 }
@@ -2695,7 +2703,9 @@ public class CalendarView extends Widget {
                     a.selectionItem(periodSelection(index) > 0, index + 1, count);
                 }
                 if (isEnabled() && isChooserCellOffered(index)) {
-                    a.action(Accessible.Action.SELECT);
+                    // SELECT descends (or picks, in the chooser this calendar picks in) and
+                    // FOCUS only moves the chooser's cursor there (decision 11, 2026-09-15).
+                    a.action(Accessible.Action.SELECT, Accessible.Action.FOCUS);
                 } else if (!isChooserCellOffered(index)) {
                     a.disabled(); // a month with no selectable day: decision 30's rule, one level up
                 }
@@ -2709,6 +2719,61 @@ public class CalendarView extends Widget {
             }
             a.endChild();
         }
+    }
+
+    /**
+     * A reader's {@code FOCUS} on a day: the cursor goes there and nothing is selected, the way
+     * an arrow takes it there (decision 11, 2026-09-15). A standalone calendar takes the focus
+     * first, because a cursor is the focused widget's; a picker's grid is no tab stop and is
+     * already driven by its field while it is open. Paging follows the cursor as it does for an
+     * arrow, so a leading day of the month before turns the page.
+     */
+    private void focusDay(LocalDate day) {
+        if (isFocusable() && !keyboardActive) {
+            requestFocus();
+        }
+        Part from = part;
+        if (from != Part.GRID) {
+            part = Part.GRID;
+            damagePartChange(from, part);
+        }
+        if (day.equals(cursor)) {
+            if (from != Part.GRID) {
+                notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+            }
+            return;
+        }
+        moveCursor(day, false);
+    }
+
+    /** A reader's {@code FOCUS} on a chooser cell: the chooser's cursor goes there, no descent. */
+    private void focusChooserCell(int index) {
+        if (isFocusable() && !keyboardActive) {
+            requestFocus();
+        }
+        Part from = part;
+        int was = chooserCursor;
+        part = Part.GRID;
+        chooserCursor = index;
+        if (from != Part.GRID) {
+            damagePartChange(from, part);
+        }
+        damageCell(was);
+        damageCell(index);
+        if (from != Part.GRID || was != index) {
+            notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+        }
+    }
+
+    /**
+     * Whether the bounds or the filter refuse a day, whatever the selection mode: the rule that
+     * takes a day's verbs away (decision 30). {@link #isSelectable} is the same rule plus the
+     * mode, and in {@code NONE} it refuses every day.
+     */
+    private boolean isRefused(LocalDate day) {
+        return minDate != null && day.isBefore(minDate)
+                || maxDate != null && day.isAfter(maxDate)
+                || dateFilter != null && !dateFilter.test(day);
     }
 
     /** Where the cells of the chooser on show are keyed: the months' range or the years'. */
@@ -2769,7 +2834,8 @@ public class CalendarView extends Widget {
      * Picking a day and paging the month, through the same private paths a click takes: an
      * assistive technology's select reaches {@link #pick} exactly as a click does, so it refuses an
      * unselectable day the same way, pages the same way and reaches the handler through the same
-     * {@code USER} seam.
+     * {@code USER} seam. {@code FOCUS} on a day or a chooser cell takes the path an arrow takes
+     * instead, and moves only the cursor (decision 11, 2026-09-15).
      *
      * <p>No enabled guard of its own beyond the two the paths already carry: the scene's dispatcher
      * has walked this widget and every ancestor for the enabled flag, refused an owner that is not
@@ -2818,13 +2884,25 @@ public class CalendarView extends Widget {
             long base = chooserKeyBase();
             long index = base - key;
             if (key > base || index >= chooserText.length
-                    || action != Accessible.Action.SELECT) {
+                    || action != Accessible.Action.SELECT && action != Accessible.Action.FOCUS) {
                 return false;
             }
             if (!isChooserCellOffered((int) index)) {
                 return false;
             }
-            descend((int) index);
+            if (action == Accessible.Action.FOCUS) {
+                focusChooserCell((int) index);
+            } else {
+                descend((int) index);
+            }
+            return true;
+        }
+        if (key >= 0 && key < CELLS && action == Accessible.Action.FOCUS) {
+            LocalDate day = dayAt((int) key);
+            if (isRefused(day)) {
+                return false; // published with no verb (decision 30)
+            }
+            focusDay(day);
             return true;
         }
         if (key >= 0 && key < CELLS && action == Accessible.Action.SELECT) {

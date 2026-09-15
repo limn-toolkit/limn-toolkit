@@ -969,4 +969,85 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertEquals(first, calendar.visibleMonth(), "and back into the range: " + titleNode().name());
     }
+
+    // ------------------------------------------------ FOCUS on an item (decision 11, positive half)
+
+    private AccessibleNode dayNamed(String prefix) {
+        return dayNodes().stream().filter(day -> day.name().startsWith(prefix)).findFirst()
+                .orElseThrow(() -> new AssertionError("no cell named " + prefix + " in "
+                        + describe(tree())));
+    }
+
+    /**
+     * Decision 11 (2026-09-13), its positive half: in a calendar the cursor and the selection are
+     * two things, so a day publishes {@code FOCUS}, and performing it moves the cursor there and
+     * selects nothing -- the calendar takes the focus, the cursor is the day, the day is the
+     * tree's active descendant, and no selection or handler moved. A day the bounds refuse
+     * carries no verb at all, {@code FOCUS} included (decision 30).
+     */
+    @Test
+    void focusOnADayMovesTheCursorThereAndSelectsNothing() throws InterruptedException {
+        CalendarView calendar = bindCalendar();
+        calendar.setClock(SEPTEMBER_9);
+        calendar.setMinDate(LocalDate.of(2026, 9, 5));
+        List<LocalDate> picked = new ArrayList<>();
+        calendar.onSelect(picked::add);
+        frame();
+        AccessibleNode fifteenth = dayNamed("15 de setembro");
+        assertTrue(offers(fifteenth, Accessible.Action.FOCUS), describe(tree()));
+        assertFalse(offers(dayNamed("3 de setembro"), Accessible.Action.FOCUS),
+                "a refused day carries no verb, FOCUS included (decision 30)");
+
+        assertTrue(perform(fifteenth.id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        assertEquals(LocalDate.of(2026, 9, 15), calendar.focusedDate(), "the cursor is on the 15th");
+        assertTrue(calendar.isFocused(), "and the calendar holds the keyboard it moves with");
+        assertNull(calendar.selectedDate(), "FOCUS selects nothing");
+        assertTrue(picked.isEmpty(), "and runs no handler");
+        frame();
+        assertEquals(dayNamed("15 de setembro").id(), tree().activeDescendant(),
+                "the day is the focused grid's active descendant: " + describe(tree()));
+
+        // A second one, from a cursor already in the grid, is the same move an arrow makes.
+        AccessibleNode twentieth = dayNamed("20 de setembro");
+        assertTrue(perform(twentieth.id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        assertEquals(LocalDate.of(2026, 9, 20), calendar.focusedDate());
+        assertNull(calendar.selectedDate());
+        // A refused day's FOCUS, sent anyway, moves nothing: it was never published.
+        perform(dayNamed("3 de setembro").id(), Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        assertEquals(LocalDate.of(2026, 9, 20), calendar.focusedDate(),
+                "the cursor stays where the last published FOCUS put it");
+    }
+
+    /**
+     * The same verb on a chooser cell moves the chooser's cursor and neither descends nor, in
+     * the chooser a month picker picks in, selects: descending and picking are {@code SELECT}.
+     */
+    @Test
+    void focusOnAChooserCellMovesItsCursorWithoutDescendingOrPicking() throws InterruptedException {
+        CalendarView calendar = bindCalendar();
+        calendar.setView(CalendarView.View.MONTHS);
+        frame();
+        AccessibleNode march = dayNodes().get(2);
+        assertTrue(offers(march, Accessible.Action.FOCUS), describe(tree()));
+        assertTrue(perform(march.id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        assertEquals(CalendarView.View.MONTHS, calendar.view(), "no descent");
+        assertEquals(LocalDate.of(2026, 9, 1), calendar.visibleMonth(), "and no page turned");
+        assertTrue(calendar.isFocused());
+        frame();
+        assertEquals(dayNodes().get(2).id(), tree().activeDescendant(),
+                "March holds the chooser's cursor: " + describe(tree()));
+
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        calendar.setSelectedDate(LocalDate.of(2026, 9, 15));
+        frame();
+        LocalDate september = calendar.selectedDate();
+        AccessibleNode june = dayNodes().get(5);
+        assertTrue(offers(june, Accessible.Action.FOCUS));
+        assertTrue(perform(june.id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        assertEquals(september, calendar.selectedDate(), "a month picker's selection stays September");
+        frame();
+        assertEquals(dayNodes().get(5).id(), tree().activeDescendant(), describe(tree()));
+        assertTrue(dayNodes().get(8).selectionItem().selected());
+        assertFalse(dayNodes().get(5).selectionItem().selected());
+    }
 }

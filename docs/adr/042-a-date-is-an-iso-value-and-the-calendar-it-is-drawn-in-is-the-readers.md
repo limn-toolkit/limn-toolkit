@@ -484,6 +484,26 @@ Cancel closes; and the overlay holds the focus with the cursor `ACTIVE` under it
 effective focus, decision 1's in-scene half of item 10) and limn-demo's
 `DatePickerNativePopupTest` (the field takes `COLLAPSE` in a window of its own).
 
+**Amendment, 2026-09-15 (decision 11, its positive half): a cursor a reader can move.** In all
+three widgets the cursor and the value are two things — the calendar's cursor is not its
+selection, a chooser's cursor is not the month on show, and which segment holds a field's caret
+is not the date — so the items publish `FOCUS`, which moves the cursor and does nothing else. A
+**day** publishes it unless the bounds or the filter refuse it (a refused day carries no verb,
+decision 30), in every selection mode including `NONE`; performing it gives a standalone calendar
+the focus, moves the cursor onto the day as an arrow would (paging when the day belongs to the
+month before or after) and selects nothing, and inside an open picker it moves the grid's cursor
+and commits nothing into the field. A **chooser cell** that leads somewhere publishes it beside
+`SELECT` and moves the chooser's cursor without descending or, in the chooser a month or year
+picker picks in, picking. A **segment** publishes it beside `INCREMENT` and `DECREMENT`; performing
+it is a click on the segment: the field takes the focus, the caret moves there and no value moves
+(a two-digit year the caret leaves resolves, as it does for every other way out of the year,
+§3). Before this note no date item published the verb, and the platforms' SetFocus,
+`setAccessibilityFocused:` and GrabFocus on one had no candidate (semantics 5). Pinned by
+`CalendarViewAccessibilityTest.focusOnADayMovesTheCursorThereAndSelectsNothing` and
+`focusOnAChooserCellMovesItsCursorWithoutDescendingOrPicking`,
+`DateFieldAccessibilityTest.focusOnASegmentPutsTheCaretThereAndChangesNoValue` and
+`DatePickerAccessibilityTest.focusOnADayOfTheOpenCalendarMovesItsCursorAndCommitsNothing`.
+
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and
 it is why the calendar could be built at all without reopening the bridges, which live in their own

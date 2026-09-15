@@ -158,4 +158,31 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
             assertTrue(offers(end, Accessible.Action.EXPAND), end.name());
         }
     }
+
+    /**
+     * Decision 11's positive half inside an open picker: {@code FOCUS} on a day of the calendar
+     * moves its cursor and commits nothing -- the popup stays open, the field keeps its date and
+     * the cursor is the tree's effective focus under the overlay. {@code SELECT} is the pick.
+     */
+    @Test
+    void focusOnADayOfTheOpenCalendarMovesItsCursorAndCommitsNothing() throws InterruptedException {
+        bindCaptioned(new DatePicker(), "Data de entrega");
+        List<LocalDate> picked = new ArrayList<>();
+        picker.onSelect(picked::add);
+        picker.open();
+        frame();
+        AccessibleNode twelfth = nodesOf(Accessible.Role.CELL).stream()
+                .filter(cell -> cell.name().startsWith("12 de setembro")).findFirst()
+                .orElseThrow(() -> new AssertionError(describe(tree())));
+        assertTrue(offers(twelfth, Accessible.Action.FOCUS), describe(tree()));
+        assertTrue(perform(twelfth.id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        assertTrue(picker.isOpen(), "FOCUS commits nothing, so the calendar stays open");
+        assertEquals(LocalDate.of(2026, 9, 9), picker.date(), "and the field keeps its date");
+        assertTrue(picked.isEmpty());
+        frame();
+        long cursor = tree().effectiveFocus();
+        AccessibleNode at = tree().node(tree().indexOf(cursor));
+        assertTrue(at.name().startsWith("12 de setembro"),
+                "the cursor is the 12th, and it is the effective focus: " + describe(tree()));
+    }
 }
