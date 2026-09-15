@@ -52,7 +52,11 @@ class TimedBridgeTest {
             timed.publish(aWindowWithAButton(), false);
             assertFalse(real.holdsElementFor(1001), "nothing has asked for the button");
 
-            timed.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            // A property change, which the bridge raises only for a held element. Until
+            // 2026-09-15 this was a focus change; those are raised whether or not anything was
+            // held, since the bridge mints the focused element (WINDOWS-NEW-4).
+            timed.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1001,
+                    "Save", "Save as"));
             assertEquals(1, tally.skipped());
             assertEquals(0, tally.raised());
             assertFalse(real.holdsElementFor(1001),
@@ -61,7 +65,8 @@ class TimedBridgeTest {
             // What a client's navigation does: the element exists from here on.
             real.objectFor(1001);
             assertTrue(real.holdsElementFor(1001));
-            timed.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            timed.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1001,
+                    "Save as", "Save"));
             assertEquals(1, tally.skipped());
             assertEquals(1, tally.raised());
             assertEquals(2, tally.eventsInOpenFrame());

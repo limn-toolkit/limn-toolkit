@@ -5,10 +5,9 @@ import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.Pointer;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -31,6 +30,20 @@ import java.util.concurrent.atomic.AtomicInteger;
  * which is the half that gets forgotten: a caller that checks the pointer instead of the result
  * then follows whatever was in its variable. And every successful query is a reference the caller
  * now owns, so it counts.
+ *
+ * <p><b>Some interfaces come and go while the object lives (W2, 2026-09-15).</b> A node's pattern
+ * set is a fact of the snapshot, and the snapshot moves: a tree gains {@code Invoke} once it has a
+ * cursor row, a leaf that gains children gains {@code ExpandCollapse}, a disabled button loses
+ * {@code Invoke}. An object built once with the set of its first ask answered the gained pattern
+ * with a null forever and kept answering a lost one to a query. So beside the interfaces it always
+ * serves, an object may be made with {@link Varying} ones, asked afresh on every query and every
+ * hand-over: one served now is built the first time it is wanted, in a slot the block reserved for
+ * it, and one not served now is refused to a new query. <b>The object is never replaced</b>, which
+ * is the reason for the reservation: its identity pointer, its reference count and every pointer
+ * already handed to a client stay exactly what they were, so the root a client was given by
+ * {@code UiaReturnRawElementProvider} is the root it keeps, and a pointer to an interface since
+ * withdrawn still reaches live closures (whose slots read the snapshot and refuse what it no longer
+ * allows) until the whole-registry empty frees them.
  *
  * <p>The reference count lives here in Java rather than in the object's memory, because it is
  * touched from every RPC thread at once and an {@code AtomicInteger} says what a hand-rolled
@@ -55,55 +68,91 @@ final class UiaObject {
     record Served(UiaInterfaces.Vtable iface, Map<String, ? extends CallbackI> ownSlots) {
     }
 
-    private final Map<String, Long> byIid = new LinkedHashMap<>();
+    /**
+     * The interfaces an object may serve at one moment and not at another, decided outside it.
+     * Asked on RPC threads; every answer is read off an immutable snapshot, so none blocks.
+     */
+    interface Varying {
+
+        /** @return every interface this object may ever serve beyond its fixed ones; never changes */
+        List<UiaInterfaces.Vtable> candidates();
+
+        /**
+         * @param iface one of {@link #candidates()}
+         * @return whether the object serves it right now
+         */
+        boolean servesNow(UiaInterfaces.Vtable iface);
+
+        /**
+         * @param iface one of {@link #candidates()}, about to be built
+         * @return its slots by name
+         */
+        Map<String, ? extends CallbackI> slotsFor(UiaInterfaces.Vtable iface);
+    }
+
+    /** The varying set of an object that has none. */
+    private static final Varying NONE = new Varying() {
+        @Override
+        public List<UiaInterfaces.Vtable> candidates() {
+            return List.of();
+        }
+
+        @Override
+        public boolean servesNow(UiaInterfaces.Vtable iface) {
+            return false;
+        }
+
+        @Override
+        public Map<String, ? extends CallbackI> slotsFor(UiaInterfaces.Vtable iface) {
+            throw new IllegalStateException("an object with no varying interfaces builds none");
+        }
+    };
+
+    /** Every interface built so far, fixed and varying, by IID; written under {@code this}. */
+    private final Map<String, Long> byIid = new ConcurrentHashMap<>();
+    /** The fixed interfaces, answered to every query whatever the snapshot says. */
+    private final List<UiaInterfaces.Vtable> fixed = new ArrayList<>();
     private final List<Long> vtables = new ArrayList<>();
     private final List<Long> closures = new ArrayList<>();
     private final long block;
+    private final int capacity;
+    private int built;
     private final long primary;
+    private final Varying varying;
+    private final CallbackI queryInterface;
+    private final CallbackI addRef;
+    private final CallbackI release;
     private final AtomicInteger references = new AtomicInteger(1);
     private final Runnable onLastRelease;
 
-    private UiaObject(List<Served> served, Runnable onLastRelease) {
+    private UiaObject(List<Served> served, Varying varying, Runnable onLastRelease) {
         this.onLastRelease = onLastRelease;
-        this.block = MemoryUtil.nmemAllocChecked((long) served.size() * Pointer.POINTER_SIZE);
+        this.varying = varying;
+        this.capacity = served.size() + varying.candidates().size();
+        this.block = MemoryUtil.nmemAllocChecked((long) capacity * Pointer.POINTER_SIZE);
         // IUnknown's three, shared by every vtable: a client calling Release through the fragment
         // interface and one calling it through the simple interface are releasing one object.
-        CallbackI queryInterface = (UiaCom.PPP) (self, riid, out) -> query(riid, out);
-        CallbackI addRef = (UiaCom.P) self -> references.incrementAndGet();
-        CallbackI release = (UiaCom.P) self -> {
+        this.queryInterface = (UiaCom.PPP) (self, riid, out) -> query(riid, out);
+        this.addRef = (UiaCom.P) self -> references.incrementAndGet();
+        this.release = (UiaCom.P) self -> {
             int left = references.decrementAndGet();
             if (left == 0) {
                 onLastRelease.run();
             }
             return left;
         };
-        for (int i = 0; i < served.size(); i++) {
-            Served one = served.get(i);
-            List<CallbackI> slots = new ArrayList<>(one.iface().slotCount());
-            slots.add(queryInterface);
-            slots.add(addRef);
-            slots.add(release);
-            // The order comes from the table and from nowhere else.
-            for (String name : one.iface().slots()) {
-                CallbackI slot = one.ownSlots().get(name);
-                if (slot == null) {
-                    throw new IllegalArgumentException(one.iface().name() + " has no slot for "
-                            + name + ", which the guest reported at position "
-                            + (3 + one.iface().slots().indexOf(name)));
-                }
-                slots.add(slot);
+        synchronized (this) {
+            for (Served one : served) {
+                build(one.iface(), one.ownSlots());
+                fixed.add(one.iface());
             }
-            for (String given : one.ownSlots().keySet()) {
-                if (!one.iface().slots().contains(given)) {
-                    throw new IllegalArgumentException(one.iface().name() + " was given a slot "
-                            + "named " + given + ", which it does not have: " + one.iface().slots());
+            // What the snapshot says now is built now, so an object answers from its first ask
+            // the set a client would read, and a hand-over later builds only what was gained.
+            for (UiaInterfaces.Vtable candidate : varying.candidates()) {
+                if (varying.servesNow(candidate)) {
+                    build(candidate, varying.slotsFor(candidate));
                 }
             }
-            long vtable = UiaCom.vtable(slots, closures);
-            vtables.add(vtable);
-            long pointer = block + (long) i * Pointer.POINTER_SIZE;
-            MemoryUtil.memPutAddress(pointer, vtable);
-            byIid.put(one.iface().iid(), pointer);
         }
         // The first interface served is this object's identity, and IUnknown always answers it.
         this.primary = block;
@@ -116,10 +165,55 @@ final class UiaObject {
      * @return a live object with one outstanding reference, as COM requires of anything handed out
      */
     static UiaObject create(List<Served> served, Runnable onLastRelease) {
+        return create(served, NONE, onLastRelease);
+    }
+
+    /**
+     * @param served        the interfaces always served, in order; the first is this object's
+     *                      identity
+     * @param varying       the interfaces served only while it says so
+     * @param onLastRelease what to run when the final reference is dropped
+     * @return a live object with one outstanding reference
+     */
+    static UiaObject create(List<Served> served, Varying varying, Runnable onLastRelease) {
         if (served.isEmpty()) {
             throw new IllegalArgumentException("an object with no interfaces has no identity");
         }
-        return new UiaObject(served, onLastRelease);
+        return new UiaObject(served, varying, onLastRelease);
+    }
+
+    /** Builds one interface's vtable into the next reserved field; under {@code this}. */
+    private long build(UiaInterfaces.Vtable iface, Map<String, ? extends CallbackI> ownSlots) {
+        if (built == capacity) {
+            throw new IllegalStateException(iface.name() + " has no field left in this object");
+        }
+        List<CallbackI> slots = new ArrayList<>(iface.slotCount());
+        slots.add(queryInterface);
+        slots.add(addRef);
+        slots.add(release);
+        // The order comes from the table and from nowhere else.
+        for (String name : iface.slots()) {
+            CallbackI slot = ownSlots.get(name);
+            if (slot == null) {
+                throw new IllegalArgumentException(iface.name() + " has no slot for "
+                        + name + ", which the guest reported at position "
+                        + (3 + iface.slots().indexOf(name)));
+            }
+            slots.add(slot);
+        }
+        for (String given : ownSlots.keySet()) {
+            if (!iface.slots().contains(given)) {
+                throw new IllegalArgumentException(iface.name() + " was given a slot "
+                        + "named " + given + ", which it does not have: " + iface.slots());
+            }
+        }
+        long vtable = UiaCom.vtable(slots, closures);
+        vtables.add(vtable);
+        long pointer = block + (long) built * Pointer.POINTER_SIZE;
+        MemoryUtil.memPutAddress(pointer, vtable);
+        built++;
+        byIid.put(iface.iid(), pointer);
+        return pointer;
     }
 
     /** @return the pointer a client holds for this object, which is also its {@code IUnknown} */
@@ -129,15 +223,39 @@ final class UiaObject {
 
     /**
      * @param iface one of the interfaces this object serves
-     * @return the pointer for it, or {@code 0} if it does not serve that one
+     * @return the pointer for it, built now if it is a varying one the snapshot serves and has not
+     *         been wanted before; {@code 0} if the object does not serve it at this moment
      */
     long pointerFor(UiaInterfaces.Vtable iface) {
-        return byIid.getOrDefault(iface.iid(), 0L);
+        if (fixed.contains(iface)) {
+            return byIid.get(iface.iid());
+        }
+        return varying.candidates().contains(iface) ? varyingPointer(iface) : 0L;
     }
 
-    /** @return every pointer a call can arrive on, for the registry to resolve back to here */
-    List<Long> pointers() {
-        return List.copyOf(byIid.values());
+    /** A varying interface's pointer while the snapshot serves it, else {@code 0}. */
+    private long varyingPointer(UiaInterfaces.Vtable iface) {
+        if (!varying.servesNow(iface)) {
+            return 0L;
+        }
+        Long pointer = byIid.get(iface.iid());
+        if (pointer != null) {
+            return pointer;
+        }
+        synchronized (this) {
+            // Two RPC threads wanting the same gained pattern build it once.
+            Long again = byIid.get(iface.iid());
+            return again != null ? again : build(iface, varying.slotsFor(iface));
+        }
+    }
+
+    /** @return every pointer built so far, for the registry to resolve back to here */
+    synchronized List<Long> pointers() {
+        List<Long> all = new ArrayList<>(built);
+        for (int i = 0; i < built; i++) {
+            all.add(block + (long) i * Pointer.POINTER_SIZE);
+        }
+        return all;
     }
 
     /** @return how many references are outstanding, for a test and for a leak hunt */
@@ -163,18 +281,29 @@ final class UiaObject {
             // matters is not dereferencing zero.
             return UiaIds.E_NO_INTERFACE;
         }
-        byte[] asked = new byte[16];
-        for (int i = 0; i < asked.length; i++) {
-            asked[i] = MemoryUtil.memGetByte(riid + i);
-        }
+        // Compared in place against bytes parsed once per identifier: UI Automation probes for
+        // many interfaces this bridge never serves, and a miss allocates nothing.
         long answer = 0;
-        if (Arrays.equals(asked, UiaInterfaces.UNKNOWN.iidBytes())) {
+        if (UiaInterfaces.UNKNOWN.isIidAt(riid)) {
             answer = primary;
         } else {
-            for (Map.Entry<String, Long> entry : byIid.entrySet()) {
-                if (Arrays.equals(asked, UiaInterfaces.iidBytes(entry.getKey()))) {
-                    answer = entry.getValue();
+            // Indexed, not for-each: an iterator per list per query is the allocation this avoids.
+            for (int i = 0; i < fixed.size(); i++) {
+                UiaInterfaces.Vtable iface = fixed.get(i);
+                if (iface.isIidAt(riid)) {
+                    answer = byIid.get(iface.iid());
                     break;
+                }
+            }
+            if (answer == 0) {
+                // Only an IID that names a candidate asks the snapshot anything.
+                List<UiaInterfaces.Vtable> candidates = varying.candidates();
+                for (int i = 0; i < candidates.size(); i++) {
+                    UiaInterfaces.Vtable candidate = candidates.get(i);
+                    if (candidate.isIidAt(riid)) {
+                        answer = varyingPointer(candidate);
+                        break;
+                    }
                 }
             }
         }
@@ -188,13 +317,13 @@ final class UiaObject {
     }
 
     /**
-     * Frees the object's memory and its closures.
+     * Frees the object's memory and its closures, every interface it ever built included.
      *
      * <p>Never called from {@code Release} and never from a finalizer: the registry decides, after
      * the count has reached zero, and freeing under a client that still holds a pointer is a crash
      * in that client's process rather than a fault anyone would trace here.
      */
-    void free() {
+    synchronized void free() {
         UiaCom.freeClosures(closures);
         for (long vtable : vtables) {
             MemoryUtil.nmemFree(vtable);

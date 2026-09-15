@@ -14,6 +14,7 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -185,11 +186,13 @@ class UiaPatternsTest {
     }
 
     /**
-     * The one row that is not about this node: ScrollItem says "I can be scrolled into view", which
-     * is a fact about an ancestor.
+     * ScrollItem is the node's own verb (semantics 5, WINDOWS-NEW-7): vended where the node
+     * publishes SCROLL_INTO_VIEW, and not merely because an ancestor scrolls. Until 2026-09-15 this
+     * case read "a node inside a scroll pane vends ScrollItem and one outside does not": a row under
+     * a list whose widget refused the reveal was offered one.
      */
     @Test
-    void aNodeInsideAScrollPaneVendsScrollItemAndOneOutsideDoesNot() {
+    void scrollItemIsVendedWhereTheNodePublishesScrollIntoViewAndNowhereElse() {
         Accessibility a = new Accessibility();
         a.beginWalk(400, 300, Locale.ENGLISH);
         a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
@@ -206,8 +209,14 @@ class UiaPatternsTest {
         a.begin(2002, 2, Locale.ENGLISH, 0, 0, 160, 40);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Deep"), Accessible.NameFrom.CONTENT);
-        a.action(Accessible.Action.PRESS);
+        a.action(Accessible.Action.PRESS, Accessible.Action.SCROLL_INTO_VIEW);
         a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(2003, 2, Locale.ENGLISH, 0, 0, 160, 40);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.name(I18nString.literal("Refuses"), Accessible.NameFrom.CONTENT);
+        a.selectionItem(false, 1, 1);
+        a.inherited(true, true, true, false, false);
         a.end();
         a.end();
         a.end();
@@ -222,22 +231,28 @@ class UiaPatternsTest {
         tree = a.publish(0, 0, 0, 1f, true);
 
         AccessibleNode deep = tree.node(tree.indexOf(2002));
+        AccessibleNode refuses = tree.node(tree.indexOf(2003));
         AccessibleNode outside = tree.node(tree.indexOf(3000));
 
-        assertTrue(vends(deep, UiaIds.SCROLL_ITEM_PATTERN),
-                "two levels down from the pane, found by walking the parent links rather than by "
-                        + "scanning anything");
+        assertTrue(vends(deep, UiaIds.SCROLL_ITEM_PATTERN), "it publishes the verb");
+        assertFalse(vends(refuses, UiaIds.SCROLL_ITEM_PATTERN),
+                "under the same pane and publishing no reveal: offering one would be a move that "
+                        + "does nothing while the client is told it was done");
         assertFalse(vends(outside, UiaIds.SCROLL_ITEM_PATTERN),
                 "nobody can scroll this one into view, and saying otherwise offers a client a "
                         + "move that does nothing");
     }
 
     /**
-     * An in-scene dialog is a container with no HWND: vending IWindowProvider from it would
-     * advertise Close(), SetVisualState() and CanMaximize over an overlay that has none of them.
+     * No node vends Window or Transform (W1, 2026-09-15). An in-scene dialog is a container with no
+     * HWND, so vending IWindowProvider from it would advertise Close(), SetVisualState() and
+     * CanMaximize over an overlay that has none of them; and the real window's two patterns come
+     * from the host provider UI Automation made for its HWND, which the root hands over, while this
+     * bridge serves neither interface. Until 2026-09-15 the window node claimed both and a client's
+     * GetPatternProvider got a null for each.
      */
     @Test
-    void onlyARealWindowVendsWindowAndTransform() {
+    void noNodeVendsWindowOrTransformBecauseTheHostProviderServesTheRealWindows() {
         AccessibleNode dialog = publish(Accessible.Role.DIALOG, a -> { });
 
         assertFalse(vends(dialog, UiaIds.WINDOW_PATTERN));
@@ -248,9 +263,54 @@ class UiaPatternsTest {
         AccessibleNode window = publish(Accessible.Role.WINDOW,
                 a -> a.window(false, true, true, limn.accessibility.WindowFacet.State.NORMAL));
 
-        assertTrue(vends(window, UiaIds.WINDOW_PATTERN));
-        assertTrue(vends(window, UiaIds.TRANSFORM_PATTERN),
-                "moving and sizing are the same facet's, and the same HWND's");
+        assertFalse(vends(window, UiaIds.WINDOW_PATTERN),
+                "the HWND's host provider serves it, and this bridge has no IWindowProvider");
+        assertFalse(vends(window, UiaIds.TRANSFORM_PATTERN), "nor an ITransformProvider");
+        assertNull(UiaPatternProviders.interfaceFor(UiaIds.WINDOW_PATTERN));
+        assertNull(UiaPatternProviders.interfaceFor(UiaIds.TRANSFORM_PATTERN));
+    }
+
+    /**
+     * The ratchet W1 asked for: every pattern a node can be told it vends is one this bridge
+     * serves an interface for, so a claim with nothing behind it (a client's GetPatternProvider
+     * answered with a null) fails here. Asked of one node carrying every facet and every
+     * parameterless verb, which is the most any node can claim. It found Selection and Scroll
+     * claimed and unserved before 2026-09-15, and Window and Transform until the same day.
+     */
+    @Test
+    void everyPatternANodeCanClaimIsOneThisBridgeServes() throws IllegalAccessException {
+        AccessibleNode everything = publish(Accessible.Role.TABLE, a -> {
+            a.toggle(limn.accessibility.ToggleFacet.State.ON);
+            a.value(1, 0, 2, 1);
+            a.valueText("one", 1);
+            a.text("text", 1L, 0, limn.graphics.ShapedText.Affinity.DOWNSTREAM, 0, 0, 1, null, false);
+            a.selection(true, false);
+            a.selectionItem(true, 1, 1);
+            a.expand(true);
+            a.scroll(0.5, 0.5, 0.5, 0.5, true, true);
+            a.window(true, true, true, limn.accessibility.WindowFacet.State.NORMAL);
+            a.table(1, 1);
+            a.cell(0, 0);
+            java.util.List<Accessible.Action> verbs = new ArrayList<>();
+            for (Accessible.Action action : Accessible.Action.values()) {
+                if (action.isParameterless()) {
+                    verbs.add(action);
+                }
+            }
+            a.action(verbs.toArray(new Accessible.Action[0]));
+        });
+        List<String> claimedAndUnserved = new ArrayList<>();
+        for (java.lang.reflect.Field field : UiaIds.class.getDeclaredFields()) {
+            if (!field.getName().endsWith("_PATTERN") || field.getType() != int.class) {
+                continue;
+            }
+            int patternId = field.getInt(null);
+            if (vends(everything, patternId) && UiaPatternProviders.interfaceFor(patternId) == null) {
+                claimedAndUnserved.add(field.getName());
+            }
+        }
+        assertEquals(List.of(), claimedAndUnserved,
+                "a pattern claimed with no interface behind it answers a client a null");
     }
 
     @Test

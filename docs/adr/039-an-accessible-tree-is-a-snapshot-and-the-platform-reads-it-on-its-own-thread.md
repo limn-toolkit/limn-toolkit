@@ -2102,6 +2102,224 @@ pointer-sized and narrow arguments plus the return letter, and `SafeArrayCreateV
 must be zeroed whole — 24 bytes — before every write, because leaving `VT_EMPTY` over a stale payload
 is a latent crash in a caller that trusts the union.
 
+**Amended 2026-09-15 (phase 3, Windows; decision 1, semantics 4; W3, LAB-NEW-4): `GetFocus` and
+`HasKeyboardFocus` answer where the user is.** The row above says `GetFocus` answers "the focused
+node", and so did the code: the focused table, tree, list or calendar, never the row, cell, day or
+segment its cursor is on, and `HasKeyboardFocus` was the node's own `FOCUSED` bit. Both now answer
+the tree's effective focus (`AccessibleTree#effectiveFocus`, the active descendant or the focused
+node): a focused table's cursor cell has the keyboard and the table does not, because NVDA 2024.4.2
+takes a focus change only from a sender that answers `HasKeyboardFocus` true when it reads it, live,
+after the event (readings/nvda-2024.4.2-uia.md §1). Where the cursor resolved into a native popup's
+tree (decision 5), `GetFocus` hands over that window's fragment pointer from that window's own
+provider, and that element is the one answering `HasKeyboardFocus` true. `HasKeyboardFocus` is
+therefore answered by the provider from the tree, not by the per-node property table.
+**Amended again 2026-09-15 (review of that change):** the popup window's own root answered
+`GetFocus` with a null — nothing of its tree is focused — while its day answered `HasKeyboardFocus`
+true, so one provider contradicted itself. A root whose tree has no effective focus of its own now
+answers the node of its tree that another open window's effective focus names
+(`UiaBridgeTest.aCursorInAnotherWindowsTreeIsRaisedAndAnsweredThroughThatWindowsProvider`). Whether
+UI Automation and NVDA accept either answer — a focus element in another window's fragment tree, or
+the focus on a window that is not the active one — is decision 5's live assumption, measured first in
+phase 5.
+
+**Amended 2026-09-15 (phase 3, Windows; decisions 9, 10; semantics 1 and 5; W1's Selection half,
+WINDOWS-NEW-9, WINDOWS-NEW-11): `ISelectionProvider` is served, and the `SelectionItem` verbs are
+candidate lists.** The row above lists `ISelectionProvider` as "to be built"; the pattern was
+claimed from `SelectionFacet` and a client's `GetPatternProvider` got a null. `GetSelection` now
+answers a `SAFEARRAY` of simple pointers to the realized selected members whose selection container,
+resolved once at publish (`AccessibleNode#selectionContainer`), is this node — a selected row the
+widget has not realized is not listed (§4.1) — and `get_CanSelectMultiple`/`get_IsSelectionRequired`
+answer the facet. `get_SelectionContainer` answers that same resolved container, where it had
+climbed to any ancestor with a selection. `Select` posts `SELECT`, `AddToSelection` the first of
+`ADD_TO_SELECTION`, `SELECT` the node publishes, `RemoveFromSelection` `DESELECT`; a node publishing
+none of its list is refused with `0x80131509` and nothing is posted (it had posted `SELECT` for
+both of the first two, whatever the node published). Every `BOOL*` getter writes four bytes of `1`
+or `0`, read on the guest (readings/windows-dump-uia-marshalling.txt); it had written a
+`VARIANT_BOOL`'s two.
+
+**Amended 2026-09-15 (phase 3, Windows; decision 39, semantics 5; W1's Scroll half,
+WINDOWS-NEW-7): `IScrollProvider` is served, `ScrollItem` is the node's verb, and no node claims
+`Window` or `Transform`.** The pattern row above says "Scroll ← `ScrollFacet`; ScrollItem ← a
+scrollable ancestor; Window and Transform ← `WindowFacet`", and the interface row lists
+`IScrollProvider` and `IWindowProvider` as "to be built"; the Scroll, Window and Transform patterns
+were claimed and a client's `GetPatternProvider` got a null for each. As built:
+- **Scroll's getters** answer the scroll facet as the platform's own `ScrollViewerAutomationPeer`
+  does, read as IL on the guest (readings/windows-dump-uia-provider-conventions.txt §1): a percent is
+  the facet's times 100 on an axis that scrolls and `UIA_ScrollPatternNoScroll` (−1, read 2026-09-13)
+  on one that does not; a view size is a percent on either axis (100 for nothing to scroll); the two
+  `BOOL*` flags are four bytes.
+- **`Scroll(h, v)`** maps each `ScrollAmount` (read 2026-09-13) to that axis's `SCROLL_BAR` child's
+  published stepping verb, posted on the bar: `SmallIncrement`/`SmallDecrement` →
+  `INCREMENT`/`DECREMENT`; `LargeIncrement`/`LargeDecrement` → the page verbs decision 39 names "if
+  published", which the model does not have, so a large step is refused; `NoAmount` leaves the axis.
+  **`SetScrollPercent(h, v)`** posts `SET_VALUE` on the axis's bar, its own range scaled by the percent,
+  where the bar accepts one (`AccessibleNode#accepts`); `NoScroll` leaves the axis. The refusals come in
+  the peer's order: `UIA_E_ELEMENTNOTENABLED` (0x80040200, read 2026-09-13) for a node that is not
+  `ENABLED`, then `0x80131509` for an axis asked to move that cannot scroll, then (percent only)
+  `0x80131502`, the managed `ArgumentOutOfRangeException` (read 2026-09-15), for a percent outside
+  0..100 or not a number, then `0x80131509` for an axis with no bar or a bar that does not publish the
+  verb or take the value. Both axes pass every check before either is posted. The scroll bar's own
+  step is one viewport (`ScrollBar`), so a client's small step moves a page; that is decision 39 as
+  written, recorded for phase 5's client runs.
+- **`ScrollItem`** is vended only on a node publishing `SCROLL_INTO_VIEW`, and `ScrollIntoView` posts
+  it through the same candidate gate (semantics 5); it had been vended on any node with a scrollable
+  ancestor and posted whatever the node published.
+- **`Window` and `Transform`** are claimed by no node: the root answers `get_HostRawElementProvider`
+  with the provider UI Automation made for the HWND, which serves both for the real window (the
+  probe's `[Window,Transform]` came from it), and this bridge serves neither interface. An in-scene
+  dialog still says `IsDialog`. `UiaPatternsTest.everyPatternANodeCanClaimIsOneThisBridgeServes` now
+  fails for any claim with no interface behind it.
+
+**Amended 2026-09-15 (review of the Windows phase-3 work): which items lose `ScrollItem`.** Vending
+`ScrollItem` only with `SCROLL_INTO_VIEW` takes it from every item whose widget does not publish that
+verb, and at this date that is most of them. `ListView` rows and `Tree` rows publish it (decision 20),
+and a focusable widget gets it free from the walk, but a `Table`'s synthetic `ROW` publishes `SELECT`,
+`ADD_TO_SELECTION`/`DESELECT` and `FOCUS` and its synthetic cells `FOCUS` only, and a `CalendarView`'s
+day cells `SELECT` and `FOCUS`: none of them vends `ScrollItem` on Windows, so a client asking a table
+row or cell, or a day, to scroll into view finds no pattern. Decision 20 says tree and list rows
+publish `SCROLL_INTO_VIEW` "like Table", which reads as though a table row did; it does not. Owed to
+the `Table` and dates widgets under decision 20 (ADR 041 §7, ADR 042), not to this bridge, which vends
+the pattern the moment the verb is published.
+
+**Amended 2026-09-15 (phase 3, Windows; decisions 2, 7, 20, semantics 5 as amended the same day;
+W6, TREE-MISS-8, WINDOWS-NEW-10, CRIT-7): every verb and setter goes through
+`AccessibleNode#accepts`.** The rows above say `SetFocus` "posted `FOCUS`" and `Invoke` "posted
+`PRESS`", and the pattern slots posted `TOGGLE`, `EXPAND`, `COLLAPSE` and `SET_TEXT` the same way,
+whatever the node published; fix round 2e's `refusedSetter` refused a setter on a node not `ENABLED`
+and nothing else. As built: `Invoke` [`PRESS`], `Toggle` [`TOGGLE`], `Expand` [`EXPAND`], `Collapse`
+[`COLLAPSE`], `SetFocus` [`FOCUS`], `ScrollIntoView` [`SCROLL_INTO_VIEW`] and the `SelectionItem` lists
+post the first verb the node publishes on the snapshot of the call. `Value.SetValue` posts `SET_TEXT`
+on a node with a text facet and `SET_VALUE` carrying the text on a value facet (a spinner's "07:30",
+a combo's item), and `RangeValue.SetValue` posts `SET_VALUE`, each only where `accepts` says the
+node takes it (a writable facet on an `ENABLED` node). A verb or setter the node does not accept is
+refused synchronously and nothing is posted: with `UIA_E_ELEMENTNOTENABLED` (0x80040200) when the
+node is not `ENABLED` — disabled, under a disabled ancestor, outside the layer that owns input — and
+`0x80131509` when it is enabled and does not offer it. The not-enabled code for the **verbs** as well
+as the setters (the addendum names the setters) is the platform's own order, read as IL on the guest
+2026-09-15 (readings/windows-dump-uia-provider-conventions.txt §1b): `ButtonAutomationPeer.Invoke`,
+`ToggleButtonAutomationPeer.Toggle`, `ExpanderAutomationPeer`'s and `TreeViewItemAutomationPeer`'s
+`Expand`/`Collapse`, `SelectorItemAutomationPeer`'s three verbs, `TextBoxAutomationPeer.SetValue` and
+`RangeBaseAutomationPeer.SetValue` all throw `ElementNotEnabledException` before anything else, and
+`InvalidOperationException` only after. Not followed from that reading: `TextBoxAutomationPeer`
+answers a read-only text box's `SetValue` with `ElementNotEnabledException` too; this bridge answers a
+read-only but enabled node `0x80131509`, as semantics 5 words it. `Value.get_IsReadOnly` is the
+`READ_ONLY` state, which the model derives from a value facet's `readOnly` (`Accessibility#value`), so
+it already answered the facet's writability. The Expand/Collapse, Toggle and Value patterns are still
+vended from their facets, because their state is what a reader reads; a verb delegated to a container
+(a tree row's `EXPAND`) is posted on the row's id and the scene routes it (decision 7).
+
+**Amended 2026-09-15 (review of the Windows phase-3 work): the not-enabled order is read for the
+entry points named, and `SetFocus` and `ScrollIntoView` were read afterwards and differ between
+providers.** The amendment above calls the not-enabled-first order "the platform's own order, read as
+IL" for every verb; its reading covers the peers it lists and no `SetFocus` body, and its `ScrollItem`
+listing named a type that does not implement the interface. Both were then read on the same guest
+(`scripts/a11y/windows/dump-uia-focus-and-scroll-item.ps1`,
+readings/windows-dump-uia-focus-and-scroll-item.txt, UIAutomationCore.dll 7.2.26100.9457, 4.8.9347
+assemblies), and the platform's providers do not agree. The client-side proxies of the Win32 controls
+keep the order: `ProxySimple`'s `IRawElementProviderFragment.SetFocus` throws
+`ElementNotEnabledException` (0x80040200) when the window is not enabled and
+`InvalidOperationException` (0x80131509) when the element is not keyboard-focusable; `ListViewItem`'s
+and `WindowsTabItem`'s `ScrollIntoView` throw `ElementNotEnabledException` before
+`InvalidOperationException` for a container that cannot scroll. WPF checks no enabled bit on either:
+`ElementProxy.SetFocus` reaches `UIElementAutomationPeer.SetFocusCore`, which throws
+`InvalidOperationException` when `UIElement.Focus()` refuses (as it does for a disabled element), and
+`ListBoxItemAutomationPeer`, `DataGridItemAutomationPeer`, `TreeViewItemAutomationPeer` and the
+list-box and tree-view item proxies scroll whatever the item's state. This bridge keeps
+`UIA_E_ELEMENTNOTENABLED` first for both, the Win32 proxies' order and the one every other entry
+point here follows, pinned by `UiaFragmentProviderTest.setFocusReachesTheToolkitOnlyWhereTheNodePublishesFocusAndSaysSoWhenTheNodeHasGone`
+and `UiaPatternProvidersTest.scrollIntoViewIsPostedOnlyWhereTheNodePublishesIt`; which of the two
+answers a client prefers is not read, and the choice is put to the owner with the verbs'.
+
+**Amended 2026-09-15 (phase 3, Windows; decision 4, semantics 6; W4, CRIT-6): position, set size and
+level are answered, and tree rows nest in navigation.** The `GetPropertyValue` row names neither
+`PositionInSet` nor `Level`, and the `Navigate` row says "the stored links"; every selection item's
+position answered `VT_EMPTY`, and a tree's rows, published flat under the tree, were all its
+children. As built: `PositionInSet` (30152) and `SizeOfSet` (30153) are the `SelectionItemFacet`'s
+numbers and `Level` (30154, read from UIAutomationCore.dll's type library 2026-09-13) the
+`HierarchyFacet`'s, each an integer and `VT_EMPTY` for a zero. The level passes through unchanged:
+the platform's base was read off native trees on the guest 2026-09-15
+(`scripts/a11y/windows/read-native-tree-levels.ps1`, readings/windows-read-native-tree-levels.txt):
+a Win32 tree view answers `Level` 1 for its root items, 2 and 3 below, and `PositionInSet`/`SizeOfSet`
+one-based among siblings; a WPF 4.8 tree answers 0 for all three (UIA's default for a provider that
+answers nothing). **`Navigate` nests `TREE_ITEM` rows**: a row with a positive level has as its parent
+the nearest earlier sibling row of a lower level, or the node it hangs under when there is none (a
+row whose parent row is not realized); a row's children are its own children, then the later sibling
+rows whose parent that makes it; every other node keeps the stored links. NVDA 2024.4.2 counts a tree
+item's `TreeItem` ancestors for its level and overwrites UIA's `Level` with that count
+(readings/nvda-2024.4.2-uia.md §2), and both native trees nest their items in the raw view, so this is
+what makes NVDA say the right level. Structure changes keep naming the stored parent (a removed row's
+`ChildRemoved` goes to the tree), which a client re-reading the tree reconciles; `UiaFragmentTest`
+holds navigation to one consistent tree reaching every node once, and `UiaTreeRowsTest` a real
+`Tree`'s rows' ancestor counts to their published levels. **Recorded as seen:** through the COM client
+the Win32 tree's items answered `ControlType` Tree and an empty `Name` in that reading, while the
+managed client read them as `TreeItem`s with their names; it bears on no number used here.
+
+**Amended 2026-09-15 (review of the Windows phase-3 work; decision 22): a row nests only through
+unbroken row indices, and a row whose parent row is not published is heard a level too high up.**
+The amendment above takes "the nearest earlier sibling row of a lower level" wherever it stands. A
+`Tree` publishes only its mounted rows and the cursor row it keeps realized off screen while focused
+(decision 22), so that row need not be the row's parent: with a root row kept as the cursor and the
+viewport inside another root's children, those children nested under the cursor row. Now the search
+walks back only while each earlier row carries the flat row index right above the one before it
+(`HierarchyFacet#row`); at a gap, or on a row whose index is unknown (0), it stops and the row hangs
+under its stored parent (`UiaFragmentTest.aRowNestsOnlyUnderARowItsUnbrokenRowIndicesReach`,
+`UiaTreeRowsTest.theKeptCursorRowIsNeverTheParentOfTheRowsInTheViewport`). **The consequence a
+reader hears:** once a `Tree` is scrolled so that a branch's own row is above the viewport, that
+branch's visible child rows have no published parent row and hang under the tree, so NVDA 2024.4.2,
+which counts `TreeItem` ancestors and overwrites `Level` with the count, says a lower level than the
+published one (a level-2 row read as level 1; measured headlessly for a tree scrolled 1000 px into an
+80-row branch, `UiaTreeRowsTest.aTreeScrolledIntoABranchNestsNoRowUnderARowThatIsNotItsParent`). The
+`Level` property still answers the true number, for a client that reads it. A wrong level was
+preferred to a wrong parent: the first is heard only for rows whose branch is scrolled away, the
+second put rows under another branch at a plausible level. What would close it is the widget keeping
+the ancestor rows of its first mounted row realized, as it keeps the cursor row; that is the `Tree`'s
+to decide (ADR 044 §4), and phase 5 hears the degradation on `--scene tree-reader` scrolled into a
+branch.
+
+**Amended 2026-09-15 (phase 3, Windows; decision 8, semantics 2 and 3; WINDOWS-NEW-8, TABLE-NEW-11):
+cells and headers are found by `CellFacet`.** The Grid/Table rows above say `GetItem` answers "a
+realized cell" and "column headers are the header group's children", and the column header item is
+"that grid's header group's child at the cell's column". As built until this date, `GetItem` matched a
+`ROW` child by its `SelectionItemFacet` position (row + 1), so a calendar, whose week rows carry no
+position, answered no day, and a row whose position is not its view index answered the wrong one;
+the header group was the table's *first* `GROUP` child, so a footer or any other group ahead of it
+was answered as the headers; and a cell's header item was the header at the cell's column index among
+the group's children. Now: `GetItem(r, c)` answers the node with `CellFacet(r, c)` among the children
+of the table's `ROW` children whose nearest table is this one (a widget cell under its synthetic row
+included), null for a negative row or an unrealized one; `GetColumnHeaders` answers, in reading order,
+every `CellFacet(-1, c)` child of the table's direct `GROUP` children, a footer's `-2` cells never; and
+`GetColumnHeaderItems` answers the header whose `CellFacet` column is the cell's.
+
+**Amended 2026-09-15 (phase 3, Windows; decision 36): how the platform's own headers carry a sort
+direction, read, and not yet carried.** UI Automation has no sort-direction property (none in
+UIAutomationCore.dll's type library, read 2026-09-13), so it was read off native headers on the
+Windows 11 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9457, .NET Framework 4.8 (Release
+533509, 4.8.09221; UIA and WPF assemblies 4.8.9347, WinForms 4.8.9325); 2026-09-15,
+`scripts/a11y/windows/read-native-sort-direction.ps1`, readings/windows-read-native-sort-direction.txt):
+one column sorted each way and one not, every property id 30000-30200 read through the COM client. **File
+Explorer's details view carries it in `ItemStatus` (30026)** of the sorted column's header — a
+`SplitButton` (50031) of class `UIColumnHeader` under a `Header` — as a localized phrase ("Classificado
+(Crescente)", "Classificado (Descrescente)" on that pt-BR guest, switching with `SortColumns` and
+nothing else changing), and answers no `ItemStatus` on the others. **A WPF `DataGrid` (`SortDirection`),
+a WinForms `DataGridView` (`SortGlyphDirection`) and a Win32 list view (header format flags) carry
+nothing**: no property differs between their sorted and unsorted headers, and the managed peers' and
+proxies' IL (same reading, part 1) reads no direction. So the platform's carrier is Explorer's, a
+status phrase on the header. Not carried by this bridge yet: a Table header says its direction only in
+its description (`TableStrings`, ADR 041), which `HelpText` answers, and the model publishes no
+direction a bridge could turn into `ItemStatus` without reading meaning into a description; decision
+36's "give the model a facet or state then" is owed first. NVDA 2024.4.2 reads `ItemStatus` as a
+description only for an element of class `UIColumnHeader` (readings/nvda-2024.4.2-uia.md), while it
+reads `HelpText` as every element's description, so the description is what it speaks today, and a
+move to `ItemStatus` alone would silence it on Limn's headers.
+
+**Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `UiaRaiseNotificationEvent` and
+`UiaRaiseStructureChangedEvent` are bound and raised.** The event-flush row lists both; neither was
+bound, an `ANNOUNCEMENT` (node `0`) was mapped to the notification event id and then dropped at the
+held-element gate, and a `STRUCTURE_CHANGED` went through `UiaRaiseAutomationEvent`, which carries no
+type and no runtime id. Both entry points are bound optionally, outside `Uia.isAvailable`, with the
+parameter lists read on the guest 2026-09-13 (readings/windows-dump-uia-entry-points.txt: ordinals 97
+and 98, not forwarded). How §2.4 raises them is amended there.
+
 ### 2.2 macOS: NSAccessibility
 
 | Attribute / action / notification | Answered from | Note |
@@ -2325,6 +2543,135 @@ container's multi flag: Windows raises `ElementSelected` for a single-select con
 sends `Activate`/`Deactivate` from the frame's path. `FOCUS_CHANGED` is also raised for a node
 that arrived holding the focus. After a collapse to `INVALIDATED` the structure, focus, cursor,
 selection and window-activation events of that publish still follow it.
+
+**Amended 2026-09-15 (phase 3, Windows; W3, WINDOWS-NEW-4, LAB-NEW-12, WINDOWS-NEW-2, CRIT-3): the
+focus rows as built.** `FOCUS_CHANGED` and `ACTIVE_DESCENDANT_CHANGED` both raise
+`AutomationFocusChanged`, and on the same element: the tree's effective focus as the snapshot has
+it when the drain raises, never the event's own node, so the raise and the `HasKeyboardFocus` a
+reader then reads always agree. The element is **minted if no client holds it** — a row the cursor
+has just reached, a dialog's first field — while every other event keeps being raised only for a
+held element (§13.28's cost argument). A cursor in a native popup's tree is raised on the popup
+window's element, by the popup's bridge, under a guard its whole-registry empty also takes. Nothing
+is suppressed as a repeat: NVDA drops a duplicate focus event itself, and a bridge-local memory would
+silence the return to an element after the focus had been in another window. The model's
+`INVALIDATED` (node `0`) is swept like the bridge's own queue collapse, and after either the bridge
+re-raises the focus on the effective focus; the root-targeted `INVALIDATED` the sweep raises is
+`LayoutInvalidated` and sweeps nothing. The `HasKeyboardFocus` property change the `FOCUS_CHANGED`
+row promises is **not** raised: NVDA 2024.4.2 subscribes to no `HasKeyboardFocus` change (the same
+reading, §3), and the mapping of the remaining unmapped events is a later item of the Windows lane.
+`SELECTION_CHANGED`, as built: more than `InvalidateLimit` members entering and leaving (20, the
+managed provider API's own constant, read on the guest 2026-09-15, and the comparison the
+platform's `SelectorAutomationPeer` makes with it: twenty is still per member) is one
+`Selection_Invalidated` on the container; otherwise a single-select container raises
+`ElementSelected` on the member that entered (or `ElementRemovedFromSelection` on the one that left
+when none entered) and a multi-select one `ElementAddedToSelection`/`ElementRemovedFromSelection` on
+each member. Each is raised only for an element a client holds. NVDA 2024.4.2 speaks none of these
+for a generic item (the same reading, §2); the reader hears the cursor through the focus rows above.
+
+**Amended again 2026-09-15 (review of those focus rows; semantics 4, WINDOWS-NEW-6): remembered,
+and the rows' two promises kept.** Three sentences of the amendment above are withdrawn. *"Nothing is
+suppressed as a repeat"*: semantics 4 has each bridge remember the last effective focus it announced,
+and without it one publish raised `AutomationFocusChanged` on the same element two or three times (a
+focus arriving on a table with a cursor is `FOCUS_CHANGED` and `ACTIVE_DESCENDANT_CHANGED`; a publish
+past the model's budget is `INVALIDATED` followed by both), each raise waiting for the reader
+(§13.28). The memory is now the process's — the bridge and node last announced, since UI Automation
+has one focus and a raise in another window moves it — and a focus event naming it again is skipped,
+while the re-announcement after a collapse or the model's `INVALIDATED` raises whatever it names. It
+is forgotten when a window has nothing focused, when a window is deactivated, and when its bridge
+empties, so the return to an element after the focus was elsewhere is heard, which was the objection
+to a bridge-local memory. *"The `HasKeyboardFocus` property change … is **not** raised"*: it is, as
+the `FOCUS_CHANGED` row says, "on both" — `false` on the element the focus left when a client holds it
+and its node remains, `true` on the one it reached — and only when the announced element changed; NVDA
+2024.4.2 subscribes to none (reading §3), so no reader behaviour depends on it today. *"The mapping of
+the remaining unmapped events is a later item"*: `WINDOW_ACTIVATED` is now the row's "focus change into
+the window", the window's effective focus raised subject to the memory, and `WINDOW_DEACTIVATED`
+raises nothing and forgets the memory; neither pays the event an ask is owed unless something was
+raised (`UiaBridgeTest.theFocusAlreadyAnnouncedIsNotRaisedAgainButIsReannouncedAfterTheModelsInvalidated`,
+`aFocusMoveTellsTheElementItLeftAndTheOneItReachedThatTheKeyboardMoved`,
+`aWindowActivatedAgainRaisesTheFocusItHadBecauseTheDeactivationForgotIt`,
+`aFocusRaisedInAnotherWindowMakesTheReturnHeard`). A raise from another window holds that window's
+guard across the platform call, so a client whose focus handler synchronously asked the host's
+`GetFocus` would wait for it; NVDA 2024.4.2's handler asks no such thing (reading §1), and phase 5
+watches for it.
+
+**Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-6's remainder): `CARET_MOVED` and
+`BOUNDS_CHANGED` as built.** `CARET_MOVED` is `Text_TextSelectionChanged`, as its row says, handled
+together with `TEXT_SELECTION_CHANGED` (the settled unmapped-and-window-level-events item): the model
+emits the two for one field one after the other, and a `TEXT_SELECTION_CHANGED` right behind a raised
+`CARET_MOVED` on the same node is not raised again. Both are raised only for a held element, and no
+element serves `TextPattern` yet (§2.1, §11), so what a client can do with the event is re-read the
+value; NVDA 2024.4.2 maps it to its `caret` event on the focus only (reading §3); phase 5 hears
+whether that says anything over a `ValuePattern` field. **`BOUNDS_CHANGED` keeps no mapping, per node
+and in bulk**, where the row says a `BoundingRectangle` change or one `LayoutInvalidated`: NVDA
+2024.4.2 subscribes to no `BoundingRectangle` change (reading §3) and handles `LayoutInvalidated` only
+for Windows search suggestions (§6), while each raise waits for the reader's handler (§13.28), which
+during a scroll or a drag is one wait per frame for nobody. Both forms now say so in the trace; the
+bulk one (node `0`) returned silently before, and neither pays the event an ask is owed
+(`UiaBridgeTest.aCaretMoveIsTheTextSelectionChangeAndItsPairIsRaisedOnce`,
+`aBoundsChangeIsRaisedNeitherPerNodeNorInBulkAndSaysSo`).
+
+**Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `ANNOUNCEMENT` and
+`STRUCTURE_CHANGED` as built.** `ANNOUNCEMENT` is `UiaRaiseNotificationEvent` on the root's element,
+minted if no client holds it: kind `Other` (4) and processing by politeness, `ASSERTIVE` →
+`ImportantMostRecent` (1), `POLITE` → `All` (2), the enumerators read 2026-09-13; the text and an
+empty activity id travel as `BSTR`s freed after the call, the activity id being what WinForms' own
+`AccessibleObject.RaiseAutomationNotification` passes (read as IL 2026-09-15,
+readings/windows-dump-uia-provider-conventions.txt §4). NVDA 2024.4.2 consumes notifications from any
+element that resolves to a window, while its focus is in this process, cancelling speech first for
+`ImportantMostRecent` and queueing `All` (readings/nvda-2024.4.2-uia.md §4). `STRUCTURE_CHANGED` is
+`UiaRaiseStructureChangedEvent` in the shape the platform's own `AutomationPeer.UpdateChildrenInternal`
+raises, read as IL the same day (§3 of that reading): past the limit — `ItemsInvalidateLimit` (5) for a
+container of items (a node with a selection or table facet), `InvalidateLimit` (20) otherwise, which
+is what `ItemsControlAutomationPeer` and `AutomationPeer` pass — one `ChildrenBulkRemoved` (4),
+`ChildrenBulkAdded` (3) or `ChildrenInvalidated` (2) on the parent with the parent's runtime id;
+otherwise `ChildRemoved` (1) on the parent with each removed child's runtime id, then `ChildAdded` (0)
+on each added child's own element with its own; and one `ChildrenReordered` (5) on the parent for a
+publish that moved surviving children, which the peer has no case for. It is raised only when a client
+holds the parent's element, an added child's element being minted for its `ChildAdded`; the parent is
+the model's, so a nested tree row removed (§2.1's navigation) is reported to the tree. **NVDA 2024.4.2
+subscribes to no structure change** (readings/nvda-2024.4.2-uia.md §5): the event is for the clients
+that do (Narrator, Inspect, a .NET client), and phase 5 counts it with one
+(`UiaBridgeTest.anAnnouncementIsRaisedOnTheRootEvenBeforeAnyClientHeldIt`,
+`aStructureChangeIsRaisedAsThePlatformsOwnPeerRaisesIt`,
+`aStructureChangeIsRaisedWhenTheParentIsHeldAndMintsTheChildItAdds`).
+
+**Amended 2026-09-15 (review of the Windows phase-3 work): where the two structure-change choices
+come from.** The Windows brief asked for `ChildrenBulkAdded`/`ChildrenBulkRemoved` for the model's
+coalesced per-parent event; the amendment above raises single `ChildAdded`/`ChildRemoved` events up to
+the limit and a bulk change only past it. That is an interpretation, taken because the platform's own
+`UpdateChildrenInternal` raises a coalesced change of few children that way (readings/
+windows-dump-uia-provider-conventions.txt §3), and it is put to the owner in the lane log. And the
+`ChildrenReordered` runtime id is not a free choice: `UpdateChildrenInternal` has no case for a move,
+but the same listing holds two client-side proxies that raise `ChildrenReordered` (5), each on its
+element with that element's own runtime id — `EventManager.HandleStructureChangedEventWindow` for
+WinEvent 32772 (its `MakeRuntimeId()`) and `MSAAEventDispatcher.MaybeFireStructureChangeEvent`'s
+default branch (the runtime id of the provider made for the event's object) — which is the shape raised
+here on the parent. That the element is the container whose children moved rests on 32772 being the
+Win32 reorder event, whose header name was not read.
+
+**Amended 2026-09-15 (phase 3, Windows; CRIT-4's Windows half, the settled value-text-event item,
+T7's Windows reading): `VALUE_CHANGED` and `BUSY` as built.** The property-change row's "the
+property id" is, for `VALUE_CHANGED`, the property of **each pattern the node vends that the change
+moved**: `RangeValue.Value` (30047) with both numbers where the node vends `RangeValue` and the
+event's number moved, then `Value.Value` (30045) with the string `get_Value` answers wherever the
+node vends `Value`. A change whose number stood moved the text or the emptiness, so a date segment
+filled with its minimum raises the string alone; a number that moved raises the string too, because
+the event carries no text to compare and a `Value` vended from a value facet is the number's spoken
+form. The old string travels as an empty variant: a COM client's `HandlePropertyChangedEvent`
+receives only the new value (UIAutomationCore.dll's type library, read 2026-09-13). Until this
+amendment one property was raised, `RangeValue.Value` for any node with a number, so a spinner's
+"07:30" and a segment's "empty" were never raised as strings, though NVDA 2024.4.2 reads a control
+that vends both from `Value` (measured on the guest 2026-09-07, §13.19) and maps both properties
+to its `valueChange` (readings/nvda-2024.4.2-uia.md §3); whether it then speaks a change raised as
+both once or twice is phase 5's to hear. An event that moved nothing a vended pattern carries raises nothing and pays nothing an ask
+is owed (`UiaBridgeTest.aValueChangeRaisesThePropertyOfEachVendedPatternItMovedOn`,
+`aValueChangeIsRaisedOnTheHeldElementAsEachPropertyThatMoved`). **`STATE_CHANGED` for `BUSY`** stays
+an `ItemStatus` (30026) property change carrying the localized busy phrase and then an empty string,
+answered by `get_ItemStatus` the same way; **NVDA 2024.4.2 has no handler for it**: `ItemStatus`
+maps to its `UIA_itemStatus` event, which nothing in NVDAObjects handles, and it reads `ItemStatus`
+only as the description of an element whose class name is `UIColumnHeader` (readings/
+nvda-2024.4.2-uia.md, "`event_UIA_itemStatus`"), so a busy tree row is silent to it on Windows until
+a fallback is decided after phase 5's reader run (T7).
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
@@ -2583,6 +2930,37 @@ a concurrent map written out of symmetry.
 
 **No bridge's registry is ever touched by a widget, and no widget is ever reachable from one**, for
 §1.2's reason: an element a client holds for minutes would otherwise pin a detached subtree.
+
+**Amended 2026-09-15 (phase 3, Windows; W2): a Windows element's pattern interfaces follow the
+snapshot, and the registry row above is unchanged by it.** The object behind an element was built
+with the pattern list of the first ask and kept it: a pattern the node gained later (a Tree's
+`Invoke` once it has a cursor row, `ExpandCollapse` on a leaf that gained children, `SelectionItem`
+on a calendar cell first seen in a chooser) was answered with a null for as long as a client held
+the element, and one it lost stayed answerable to `QueryInterface`. The object now reserves a field
+for every pattern interface a node may vend and asks `UiaPatterns.supports` against the tree of the
+moment on every query and every hand-over: a pattern served now is built the first time it is
+wanted (once, under the object's own lock, from whichever RPC thread asks first), and one not served
+now is refused to a new query. **Nothing is re-minted**: the registry entry, the identity pointer,
+the reference count and every pointer already handed out stay what they were, so the root handed to
+`UiaReturnRawElementProvider` is still the one `UiaDisconnectProvider` disconnects, and a pointer to
+a withdrawn interface still reaches live closures (whose slots answer from the snapshot) until the
+whole-registry empty frees them. Retiring the element and minting a successor was the alternative;
+it would have put a second writer on the id map, two objects behind one runtime id, and an exemption
+for the root, which is why it was not taken (`UiaObjectTest`, `UiaBridgeTest`). **And a second
+amendment the same day (W3):** an element may be minted by **another window's drain thread**, when
+that window's focused field has its cursor in this window's tree (decision 5); minting was already
+any thread's, so the id map is unchanged, and the whole-registry empty now takes a per-bridge guard
+that such a raise also holds, so it never frees an element a raise from outside is standing on.
+**Amended again 2026-09-15 (review of that change):** the guard covered the raise and not the answer.
+A host window's `GetFocus`, answering a cursor that lives in the popup's tree, minted and referenced
+the popup's element on the host's RPC thread with no lock, and the popup's detach does not fence that
+call, because it arrives through the host's provider, which is still connected. That hand-over now
+takes the popup bridge's guard too, and answers nothing once the popup has left the process's set of
+open bridges (its detach leaves the set before it empties)
+(`UiaBridgeTest.aHandOverToAnotherWindowsGetFocusWaitsForThatWindowsEmpty`). A bridge's own RPC
+calls are not changed by this: they arrive through its own provider, whose root the empty
+disconnects first, and whatever race that leaves between an RPC thread and the empty is the one they
+already had, not a new one.
 
 ### 3.5 What all three share
 
@@ -2995,6 +3373,18 @@ sweep, re-push or drain.
 **A window move takes the shorter path.** Only the header changed, so the scene re-stamps the previous
 node array with the new origin and factor, publishes that, and emits one window-level
 `BOUNDS_CHANGED`. No walk, no diff, and the node ids are the ones the client is holding.
+
+**Amended 2026-09-15 (phase 3, Windows; the facts above that phase 3 moved for this bridge).** Three
+sentences of this section now read differently on Windows. *"After a collapse … the drain sweeps"*:
+the drain sweeps after its own queue's collapse **and** after the model's `INVALIDATED` (node `0`),
+which is the same loss of per-node events, and after either it re-raises the focus on the tree's
+effective focus (§2.4's amendments of the same day). *"Empty on replacement … the drain thread is
+stopped and joined first"*: still so, and the empty also holds the bridge's vend guard, which another
+window's bridge takes to raise on, or hand over, one of this bridge's elements (a cursor followed into
+a native popup, decision 5; §3.4 as amended). *"A window move … emits one window-level
+`BOUNDS_CHANGED`"*: the scene still emits it, and the Windows bridge raises nothing for it, per node
+or in bulk, and says so in its trace (§2.4's `BOUNDS_CHANGED` amendment: NVDA 2024.4.2 subscribes to
+no bounds change, and every raise waits for the reader).
 
 The **node** flag is set by:
 

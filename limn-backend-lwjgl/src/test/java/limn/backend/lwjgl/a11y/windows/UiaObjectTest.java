@@ -77,6 +77,237 @@ class UiaObjectTest {
         return JNI.invokePI(on, UiaCom.slotOf(on, SLOT_RELEASE));
     }
 
+    /** A varying set holding one candidate, served while {@code on[0]} is true. */
+    private static UiaObject.Varying oneVarying(UiaInterfaces.Vtable candidate, boolean[] on,
+                                                AtomicInteger builds) {
+        return new UiaObject.Varying() {
+            @Override
+            public List<UiaInterfaces.Vtable> candidates() {
+                return List.of(candidate);
+            }
+
+            @Override
+            public boolean servesNow(UiaInterfaces.Vtable iface) {
+                return on[0];
+            }
+
+            @Override
+            public Map<String, ? extends CallbackI> slotsFor(UiaInterfaces.Vtable iface) {
+                builds.incrementAndGet();
+                return fillerFor(iface);
+            }
+        };
+    }
+
+    /**
+     * Review of windows-A: UI Automation probes an element for many interfaces it does not serve,
+     * and since W2 each probe compared the asked identifier against every fixed and candidate one by
+     * parsing their canonical strings into fresh arrays (2.1 us a miss, 3.1 us a candidate hit, over
+     * a 1802-node table on the host). The comparison now reads the asked bytes in place against
+     * bytes parsed once, so a miss, and a candidate the snapshot does not serve, allocate nothing.
+     */
+    @Test
+    void aQueryForAnInterfaceNotServedAllocatesNothing() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(limn.testing.AllocationProbe.isSupported(),
+                "this virtual machine does not count allocation");
+        boolean[] on = {false};
+        UiaObject element = UiaObject.create(
+                List.of(new UiaObject.Served(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE,
+                                fillerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE)),
+                        new UiaObject.Served(UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT,
+                                fillerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT))),
+                // The bridge's candidate list is a constant, so this one is too: List.of per call
+                // would be the fake's allocation, not the object's.
+                new UiaObject.Varying() {
+                    private final List<UiaInterfaces.Vtable> candidates =
+                            List.of(UiaInterfaces.INVOKE_PROVIDER);
+
+                    @Override
+                    public List<UiaInterfaces.Vtable> candidates() {
+                        return candidates;
+                    }
+
+                    @Override
+                    public boolean servesNow(UiaInterfaces.Vtable iface) {
+                        return on[0];
+                    }
+
+                    @Override
+                    public Map<String, ? extends CallbackI> slotsFor(UiaInterfaces.Vtable iface) {
+                        return fillerFor(iface);
+                    }
+                }, () -> { });
+        long out = MemoryUtil.nmemAllocChecked(8);
+        long transform = MemoryUtil.nmemAllocChecked(16);
+        long invoke = MemoryUtil.nmemAllocChecked(16);
+        try {
+            byte[] bytes = UiaInterfaces.TRANSFORM_PROVIDER.iidBytes();
+            byte[] invokeBytes = UiaInterfaces.INVOKE_PROVIDER.iidBytes();
+            for (int i = 0; i < 16; i++) {
+                MemoryUtil.memPutByte(transform + i, bytes[i]);
+                MemoryUtil.memPutByte(invoke + i, invokeBytes[i]);
+            }
+            long on0 = element.pointer();
+            long query = UiaCom.slotOf(on0, SLOT_QUERY_INTERFACE);
+            assertEquals(UiaIds.E_NO_INTERFACE, JNI.invokePPPI(on0, transform, out, query));
+            assertEquals(UiaIds.E_NO_INTERFACE, JNI.invokePPPI(on0, invoke, out, query));
+            long allocated = limn.testing.AllocationProbe.leastAllocatedBy(() -> {
+                for (int i = 0; i < 1_000; i++) {
+                    JNI.invokePPPI(on0, transform, out, query);
+                    JNI.invokePPPI(on0, invoke, out, query);
+                }
+            }, 5);
+            assertEquals(0, allocated,
+                    "a thousand misses and a thousand unserved candidates allocate nothing");
+        } finally {
+            MemoryUtil.nmemFree(invoke);
+            MemoryUtil.nmemFree(transform);
+            MemoryUtil.nmemFree(out);
+            element.free();
+        }
+    }
+
+    /**
+     * W2: an interface the snapshot starts serving after the object was made is answered to a
+     * query from then on, on the same object: the identity pointer is unchanged, and the query
+     * counts a reference like any other while the change itself counts none.
+     */
+    @Test
+    void aVaryingInterfaceGainedLaterIsAnsweredOnTheSameObjectAndCountsLikeAnyOther() {
+        boolean[] on = {false};
+        AtomicInteger builds = new AtomicInteger();
+        UiaObject element = UiaObject.create(
+                List.of(new UiaObject.Served(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE,
+                        fillerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE))),
+                oneVarying(UiaInterfaces.INVOKE_PROVIDER, on, builds), () -> { });
+        long out = MemoryUtil.nmemAllocChecked(8);
+        try {
+            long identity = element.pointer();
+            assertEquals(UiaIds.E_NO_INTERFACE,
+                    queryInterface(identity, UiaInterfaces.INVOKE_PROVIDER.iid(), out));
+            assertEquals(0L, MemoryUtil.memGetAddress(out));
+            assertEquals(0, builds.get(), "nothing is built while nothing is served");
+
+            on[0] = true;
+            assertEquals(1, element.references(), "a change in the snapshot counts no reference");
+            assertEquals(UiaIds.S_OK,
+                    queryInterface(identity, UiaInterfaces.INVOKE_PROVIDER.iid(), out));
+            long invoke = MemoryUtil.memGetAddress(out);
+            assertNotEquals(0L, invoke);
+            assertEquals(invoke, element.pointerFor(UiaInterfaces.INVOKE_PROVIDER));
+            assertEquals(2, element.references(), "the query's reference, as for any interface");
+            assertEquals(identity, element.pointer(), "the identity never moves");
+            assertEquals(UiaIds.S_OK, queryInterface(invoke, UiaInterfaces.UNKNOWN.iid(), out));
+            assertEquals(identity, MemoryUtil.memGetAddress(out),
+                    "and IUnknown through the gained interface is that identity");
+            assertEquals(1, builds.get(), "built once, the first time it was wanted");
+            assertEquals(2, element.pointers().size());
+        } finally {
+            MemoryUtil.nmemFree(out);
+            element.free();
+        }
+    }
+
+    /**
+     * W2, the set shrinking: an interface the snapshot no longer serves is refused to a new query,
+     * and a pointer to it a client already holds still reaches its closures, because nothing is
+     * freed before the whole-registry empty.
+     */
+    @Test
+    void aVaryingInterfaceLostIsRefusedToANewQueryWhileAPointerHandedOutStillCalls() {
+        boolean[] on = {true};
+        AtomicInteger builds = new AtomicInteger();
+        UiaObject element = UiaObject.create(
+                List.of(new UiaObject.Served(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE,
+                        fillerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE))),
+                oneVarying(UiaInterfaces.INVOKE_PROVIDER, on, builds), () -> { });
+        long out = MemoryUtil.nmemAllocChecked(8);
+        try {
+            long invoke = element.pointerFor(UiaInterfaces.INVOKE_PROVIDER);
+            assertNotEquals(0L, invoke, "served from the start, so built with the object");
+
+            on[0] = false;
+
+            assertEquals(0L, element.pointerFor(UiaInterfaces.INVOKE_PROVIDER));
+            assertEquals(UiaIds.E_NO_INTERFACE,
+                    queryInterface(element.pointer(), UiaInterfaces.INVOKE_PROVIDER.iid(), out));
+            assertEquals(0L, MemoryUtil.memGetAddress(out));
+            assertEquals(1, element.references());
+            assertEquals(UiaIds.S_OK, JNI.invokePI(invoke, UiaCom.slotOf(invoke, 3)),
+                    "the held pointer's Invoke slot is still live code");
+
+            on[0] = true;
+            assertEquals(invoke, element.pointerFor(UiaInterfaces.INVOKE_PROVIDER),
+                    "served again, the same interface pointer and no second build");
+            assertEquals(1, builds.get());
+        } finally {
+            MemoryUtil.nmemFree(out);
+            element.free();
+        }
+    }
+
+    /** Three RPC threads wanting one gained interface at once build it once. */
+    @Test
+    void aGainedInterfaceIsBuiltOnceHoweverManyThreadsWantItAtOnce() throws Exception {
+        boolean[] on = {false};
+        AtomicInteger builds = new AtomicInteger();
+        UiaObject element = UiaObject.create(
+                List.of(new UiaObject.Served(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE,
+                        fillerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE))),
+                new UiaObject.Varying() {
+                    @Override
+                    public List<UiaInterfaces.Vtable> candidates() {
+                        return List.of(UiaInterfaces.TOGGLE_PROVIDER);
+                    }
+
+                    @Override
+                    public boolean servesNow(UiaInterfaces.Vtable iface) {
+                        return on[0];
+                    }
+
+                    @Override
+                    public Map<String, ? extends CallbackI> slotsFor(UiaInterfaces.Vtable iface) {
+                        builds.incrementAndGet();
+                        return fillerFor(iface);
+                    }
+                }, () -> { });
+        // Not served at creation, so nothing is built then and the threads race to build it.
+        assertEquals(0, builds.get());
+        UiaObject racedOn = element;
+        on[0] = true;
+        try {
+            CountDownLatch go = new CountDownLatch(1);
+            List<Thread> racers = new ArrayList<>();
+            long[] answers = new long[4];
+            for (int i = 0; i < answers.length; i++) {
+                int at = i;
+                Thread racer = new Thread(() -> {
+                    try {
+                        go.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                    answers[at] = racedOn.pointerFor(UiaInterfaces.TOGGLE_PROVIDER);
+                }, "rpc-" + i);
+                racers.add(racer);
+                racer.start();
+            }
+            go.countDown();
+            for (Thread racer : racers) {
+                racer.join(TimeUnit.SECONDS.toMillis(20));
+                assertFalse(racer.isAlive());
+            }
+            for (long answer : answers) {
+                assertEquals(answers[0], answer);
+            }
+            assertNotEquals(0L, answers[0]);
+            assertEquals(1, builds.get(), "one build, whoever asked first");
+        } finally {
+            element.free();
+        }
+    }
+
     @Test
     void anInterfacePointerFindsItsOwnVtable() {
         UiaObject element = anElementServing(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE,

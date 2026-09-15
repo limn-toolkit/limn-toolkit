@@ -116,8 +116,11 @@ final class UiaProperties {
                 return node.has(Accessible.State.ENABLED);
             case UiaIds.IS_KEYBOARD_FOCUSABLE:
                 return node.has(Accessible.State.FOCUSABLE);
-            case UiaIds.HAS_KEYBOARD_FOCUS:
-                return node.has(Accessible.State.FOCUSED);
+            // HAS_KEYBOARD_FOCUS is not answered here: since 2026-09-15 it is where the user is,
+            // the tree's effective focus (semantics 4), which a node alone cannot say -- the
+            // focused table is FOCUSED and does not have it, its ACTIVE cell does. The provider
+            // answers it from the tree (UiaProvider.Context#hasKeyboardFocus), as it answers the
+            // element-valued properties below.
 
             // The inversion §1.2 warns about: a node scrolled out of a viewport is VISIBLE and not
             // SHOWING, and UI Automation's word for that state is IsOffscreen. Answering it from
@@ -138,6 +141,23 @@ final class UiaProperties {
             case UiaIds.IS_DIALOG:
                 return node.role() == Accessible.Role.DIALOG
                         || node.role() == Accessible.Role.ALERT;
+
+            // Semantics 6 (decision 4; W4, CRIT-6): "n of m" from the selection item's numbers and
+            // the depth from the hierarchy facet, each only when it is not zero, which is the
+            // model's "no number" and a client's too (NVDA 2024.4.2 uses each only when positive,
+            // readings/nvda-2024.4.2-uia.md §2). The level passes through: the platform's base is
+            // one, read off a native Win32 tree on 2026-09-15 (UiaIds#LEVEL). NVDA ignores Level on
+            // a tree item and counts TreeItem ancestors instead, which is why UiaFragment nests
+            // tree rows; the property is for every other client.
+            case UiaIds.POSITION_IN_SET:
+                return node.selectionItem() != null && node.selectionItem().positionInSet() > 0
+                        ? Integer.valueOf(node.selectionItem().positionInSet()) : null;
+            case UiaIds.SIZE_OF_SET:
+                return node.selectionItem() != null && node.selectionItem().sizeOfSet() > 0
+                        ? Integer.valueOf(node.selectionItem().sizeOfSet()) : null;
+            case UiaIds.LEVEL:
+                return node.hierarchy() != null && node.hierarchy().level() > 0
+                        ? Integer.valueOf(node.hierarchy().level()) : null;
 
             // UI Automation has no busy bit; ItemStatus is its field for "the state of this item" as
             // text a client reads out. So BUSY is a word here, in the node's own language, and an

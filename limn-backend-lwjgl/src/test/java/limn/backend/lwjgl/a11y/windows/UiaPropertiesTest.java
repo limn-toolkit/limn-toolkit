@@ -104,7 +104,9 @@ class UiaPropertiesTest {
 
         assertEquals(Boolean.TRUE, UiaProperties.valueOf(on, UiaIds.IS_ENABLED));
         assertEquals(Boolean.TRUE, UiaProperties.valueOf(on, UiaIds.IS_KEYBOARD_FOCUSABLE));
-        assertEquals(Boolean.TRUE, UiaProperties.valueOf(on, UiaIds.HAS_KEYBOARD_FOCUS));
+        assertNull(UiaProperties.valueOf(on, UiaIds.HAS_KEYBOARD_FOCUS),
+                "not a node's own state since 2026-09-15: the provider answers it from the tree's "
+                        + "effective focus (UiaBridgeTest, UiaFragmentTest)");
 
         AccessibleNode off = control(publish(Accessible.Role.BUTTON, "Save", null));
 
@@ -112,7 +114,6 @@ class UiaPropertiesTest {
                 "a disabled control is still published, and a client is told it cannot be used "
                         + "rather than left to find out by being refused");
         assertEquals(Boolean.FALSE, UiaProperties.valueOf(off, UiaIds.IS_KEYBOARD_FOCUSABLE));
-        assertEquals(Boolean.FALSE, UiaProperties.valueOf(off, UiaIds.HAS_KEYBOARD_FOCUS));
     }
 
     /**
@@ -247,6 +248,49 @@ class UiaPropertiesTest {
         assertNull(UiaProperties.valueOf(node, UiaIds.RUNTIME_ID),
                 "prefixed with the host window's own, so the fragment answers it too");
         assertNull(UiaProperties.valueOf(node, 999_999));
+    }
+
+    /** A window holding one tree row with the given numbers. */
+    private static AccessibleNode aRow(int position, int size, int level) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        a.role(Accessible.Role.TREE_ITEM);
+        a.name(I18nString.literal("Reports"), Accessible.NameFrom.CONTENT);
+        a.selectionItem(false, position, size);
+        a.hierarchy(level, 3, 9);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        return control(a.publish(0, 0, 0, 1f, true));
+    }
+
+    /**
+     * Semantics 6 (decision 4; W4, CRIT-6): PositionInSet and SizeOfSet are the selection item's
+     * numbers and Level the hierarchy facet's, each as an integer and only when not zero; the level
+     * passes through, the platform's base being one (read off a native tree 2026-09-15). Until
+     * 2026-09-15 none of the three was answered.
+     */
+    @Test
+    void anItemAnswersItsPositionItsSetSizeAndItsLevelAndNothingForAZero() {
+        AccessibleNode row = aRow(2, 5, 3);
+        assertEquals(2, UiaProperties.valueOf(row, UiaIds.POSITION_IN_SET));
+        assertEquals(5, UiaProperties.valueOf(row, UiaIds.SIZE_OF_SET));
+        assertEquals(3, UiaProperties.valueOf(row, UiaIds.LEVEL), "one-based, as the platform's");
+
+        AccessibleNode unknown = aRow(0, 0, 0);
+        assertNull(UiaProperties.valueOf(unknown, UiaIds.POSITION_IN_SET),
+                "a zero is the model's no number, and VT_EMPTY is the platform's");
+        assertNull(UiaProperties.valueOf(unknown, UiaIds.SIZE_OF_SET));
+        assertNull(UiaProperties.valueOf(unknown, UiaIds.LEVEL));
+
+        AccessibleNode plain = control(publish(Accessible.Role.BUTTON, "OK", null,
+                Accessible.State.ENABLED));
+        assertNull(UiaProperties.valueOf(plain, UiaIds.POSITION_IN_SET), "no selection item");
+        assertNull(UiaProperties.valueOf(plain, UiaIds.LEVEL), "no hierarchy");
     }
 
     @Test
