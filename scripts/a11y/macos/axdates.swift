@@ -15,6 +15,8 @@ import ApplicationServices
 //
 // Printed, per window of the application:
 //   grid    every AXTable: role, subrole, role description; AXRowCount, AXColumnCount, AXColumns;
+//           each AXColumn's role, AXIndex, AXHeader, AXRows count, AXExpanded, actions and attribute
+//           names (a native NSTableView's column lists no actions and answers no AXExpanded);
 //           AXHeader's children and AXColumnHeaderUIElements by title; each AXRow's AXIndex; the cell
 //           AXCellForColumnAndRow answers at every row and column (title or description, AXRowIndexRange,
 //           AXColumnIndexRange, AXSelected, AXEnabled, AXHelp, AXFocused, its column header); and
@@ -103,7 +105,16 @@ for (w, window) in ((attr(application, kAXWindowsAttribute) as? [AXUIElement]) ?
             tables += 1
             let subrole = (attr(element, kAXSubroleAttribute) as? String) ?? "nil"
             print("  grid '\(name(element))' subrole=\(subrole) \(show(element, kAXRoleDescriptionAttribute))")
-            print("  grid \(show(element, "AXRowCount")) \(show(element, "AXColumnCount")) AXColumns=\(((attr(element, "AXColumns") as? [AXUIElement]) ?? []).count)")
+            let columns = (attr(element, "AXColumns") as? [AXUIElement]) ?? []
+            print("  grid \(show(element, "AXRowCount")) \(show(element, "AXColumnCount")) AXColumns=\(columns.count)")
+            for column in columns {
+                var names: CFArray?
+                let namesError = AXUIElementCopyAttributeNames(column, &names)
+                print("  column \(show(column, kAXRoleAttribute)) \(show(column, "AXIndex")) \(show(column, "AXHeader"))"
+                      + " AXRows=\(((attr(column, kAXRowsAttribute) as? [AXUIElement]) ?? []).count)"
+                      + " \(show(column, "AXExpanded")) actions=\(actions(column))"
+                      + " names=" + (namesError == .success ? "\((names as? [String]) ?? [])" : "AXError(\(namesError.rawValue))"))
+            }
             if let header = attr(element, "AXHeader"), CFGetTypeID(header) == AXUIElementGetTypeID() {
                 print("  grid AXHeader children=\(children(header as! AXUIElement).map { name($0) })")
             } else {
