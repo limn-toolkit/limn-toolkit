@@ -4488,6 +4488,18 @@ formatting nothing when null, as `UiaWindow.say` does on Windows, so a test inst
 trace `-Dprobe.trace=true` (`DBus.TRACE`, every message and SASL line on standard error) stays separate.
 A string value is cut to 40 characters; a masked field's text changes carry the mask.)*
 
+*(Amended 2026-09-15, H3: the date widgets have a client on Linux. `scripts/a11y/linux/date-check.py`
+reads, through libatspi, a calendar grid by row and column with its `Selection`, headers, cell states and
+`posinset`/`setsize`; a date field's segments through `Value` and `Text`; and a picker's expand state and
+popup relations, optionally performing an increment or opening the popup. Run on Fedora KDE 44 the same
+day over the gallery's "Calendar grid", "Date field, segmented" and "Date picker, closed" entries, it read
+every cell of the 6 × 8 grid by row and column, the selected day through `Selection`, "15 of 30" on a
+day, each segment's number and text, an increment read back, and the field's expand states — the first
+live reading of the `Selection`, `Value`, `Text` and attribute amendments of §2.3. The same run saw a
+`SelectChild` on the gallery's picker answer false while an in-scene date picker held the input layer,
+which is semantics 5 as the walk publishes it. What it does not replace is Orca speaking them, which is
+phase 5's.)*
+
 **One of these can plausibly move into CI, and it is worth trying.** The Linux bridge is pure Java and
 pure D-Bus, and the Ubuntu runner can install `at-spi2-core` and run the whole probe under
 `dbus-run-session`. If that works, one of the three platforms gains a real gate. It is listed as work,
