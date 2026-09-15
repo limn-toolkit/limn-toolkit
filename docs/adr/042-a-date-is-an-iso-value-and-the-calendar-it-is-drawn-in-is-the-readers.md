@@ -530,7 +530,10 @@ only for `Origin.USER`; `observeChanges` hears everything. The aspects each anno
 Escape from the header announces the cursor.** `CalendarView` announces `VALUE` when what it
 shows moves between days, months and years — the person's (`USER`) from the title, from Ctrl
 with an arrow, from a chooser's Escape and from a picker backing out of a chooser; the caller's
-(`CODE`) from `setView`; nothing for a view already showing — where before only the title's
+(`CODE`) from `setView`; the calendar's own (`ADJUSTMENT`) when `setGranularity` lifts a finer
+view to the new level (added the same day: the first cut assigned the view there directly and
+announced nothing, which a date picker converting its level with the card open reaches); nothing
+for a view already showing — where before only the title's
 published `EXPANDED` flipped and a watcher heard a layout. Escape on a header control puts the
 cursor back on the grid and now announces `ACTIVE` for it, as Down always did. A date field's
 arrow between segments is the same kind of move and reaches a reader as one

@@ -542,7 +542,9 @@ public class CalendarView extends Widget {
      * grid can show, so an hour granularity here does not compile. {@link DatePicker} converts.
      *
      * <p>Changing the level drops the selection, for {@link #setSelectionMode}'s reason: a day is
-     * not a month, and carrying one across as the other would be inventing a choice.
+     * not a month, and carrying one across as the other would be inventing a choice. A view finer
+     * than the new level moves up to it, announced as {@code VALUE} with the origin
+     * {@code ADJUSTMENT} (decision 59): the calendar moved it, because the level moved.
      *
      * @param level the finest view
      * @return this
@@ -559,11 +561,12 @@ public class CalendarView extends Widget {
         selectedRange = null;
         rangeAnchor = null;
         rangePreview = null;
-        if (view.compareTo(level) < 0) {
-            view = level;
-            chooserCursor = -1;
-        }
         markNeedsLayout();
+        if (view.compareTo(level) < 0) {
+            // Through the one path a view change takes, so it is announced like the rest: the
+            // grid stops showing days because the level moved, which is this widget's doing.
+            setView(level, Change.Origin.ADJUSTMENT);
+        }
         if (had) {
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         }

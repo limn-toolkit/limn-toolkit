@@ -582,6 +582,18 @@ class CalendarViewTest extends ComponentTestBase {
         assertTrue(heard.stream().anyMatch(change -> change.aspect() == Change.Aspect.VALUE
                 && change.origin() == Change.Origin.USER),
                 "and that is the person's too: " + heard);
+
+        heard.clear();
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        assertEquals(CalendarView.View.MONTHS, calendar.view(), "a month picker shows no days");
+        assertEquals(List.of(Change.of(Change.Aspect.VALUE, Change.Origin.ADJUSTMENT)), heard,
+                "the level moved the view, and the calendar says so as its own adjustment"
+                        + " (nothing was selected, so no selection is dropped): " + heard);
+
+        heard.clear();
+        calendar.setGranularity(CalendarView.View.DAYS);
+        assertEquals(CalendarView.View.MONTHS, calendar.view());
+        assertTrue(heard.isEmpty(), "a finer level leaves the view where it was: " + heard);
     }
 
     /**
