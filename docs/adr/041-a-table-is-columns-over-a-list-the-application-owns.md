@@ -559,6 +559,24 @@ object attribute; AX `AXSortDirection` on a column) — until then the descripti
 and a bridge maps nothing special. Pinned by
 `TableAccessibilityTest.theHeadersColumnCursorIsTheCursorWhileTheHeaderHoldsTheKeyboard`.
 
+**Amended 2026-09-15 (decision 36's carrier, settled after phase 3): the facet, and the description
+beside it.** The item left for phase 3 above is closed, and the three readings came back disagreeing
+about the *shape* rather than the fact: Windows wants a phrase (`ItemStatus`, File Explorer's
+convention, and `HelpText` too because NVDA 2024.4.2 has no `ItemStatus` handler and speaks a
+description), Linux Orca's `sort` object attribute, macOS `AXSortDirection` — an enumeration on two
+platforms and words on the third. So the model carries both, and neither replaces the other.
+`CellFacet` gains `Sort` (`NONE`, `ASCENDING`, `DESCENDING`; ADR 039 §1.2's amendment of this date),
+declared through `Accessibility#cell(row, column, sort)`, and `Table` sets it on the header cell of
+the column the rows are ordered on; every other cell, header or not, carries `NONE`. The description
+stays exactly as it was. That is the point of keeping it: a bridge reads the snapshot on a
+platform's own thread where no locale scope is open, so a phrase has to be resolved at publish, and
+an enumeration is what the other two want rather than a translated sentence they would parse back.
+No new string — `SORTED_ASCENDING` and `SORTED_DESCENDING` already ship in 21 locales — and Orca's
+fourth value `other` is left out, because nothing in this widget sorts that way. The three bridges'
+mappings are each their own lane's. Pinned by
+`TableAccessibilityTest.aSortedHeaderCarriesItsDirectionOnItsCellFacetAndKeepsThePhraseInItsDescription`
+and, for the differ, `AccessibleLiveMutationTest.aSortDirectionThatIsTheOnlyChangePublishesATree`.
+
 **Per platform**, what the facets become:
 
 | Platform | Table node | Cell node | Header cell |

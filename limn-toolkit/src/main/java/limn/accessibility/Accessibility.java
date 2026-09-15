@@ -181,6 +181,7 @@ public final class Accessibility {
         boolean hasCell;
         int cellRow;
         int cellColumn;
+        CellFacet.Sort cellSort = CellFacet.Sort.NONE;
         boolean hasHierarchy;
         int level;
         int hierarchyRow;
@@ -277,6 +278,7 @@ public final class Accessibility {
             hasCell = false;
             cellRow = 0;
             cellColumn = 0;
+            cellSort = CellFacet.Sort.NONE;
             hasHierarchy = false;
             level = 0;
             hierarchyRow = 0;
@@ -946,10 +948,30 @@ public final class Accessibility {
      * @param column the column as shown, from zero
      */
     public void cell(int row, int column) {
+        cell(row, column, CellFacet.Sort.NONE);
+    }
+
+    /**
+     * Declares that this node is one cell of a table, at a row and a column as shown, and which
+     * way its column's rows are running.
+     *
+     * <p>The direction is a fact about a <b>header</b> cell and is meaningless anywhere else: it
+     * is the column's sort, and the header is the control a reader presses to change it (decision
+     * 36, carrier settled 2026-09-15). Every other cell declares {@link CellFacet.Sort#NONE}, and
+     * so does a header whose column is not the one the table is sorted by. The three bridges each
+     * carry it in their platform's own way; the localized phrase a header also puts in its
+     * description is not this, and neither replaces the other (ADR 041 §7).
+     *
+     * @param row    the row as shown, from zero, or {@code -1} for a cell of the header row
+     * @param column the column as shown, from zero
+     * @param sort   which way this column's rows run; never {@code null}
+     */
+    public void cell(int row, int column, CellFacet.Sort sort) {
         Slot s = slot();
         s.hasCell = true;
         s.cellRow = row;
         s.cellColumn = column;
+        s.cellSort = java.util.Objects.requireNonNull(sort, "sort");
     }
 
     /**
@@ -1819,7 +1841,8 @@ public final class Accessibility {
                 || (a.hasTable && (a.tableRowCount != b.tableRowCount
                         || a.tableColumnCount != b.tableColumnCount))
                 || a.hasCell != b.hasCell
-                || (a.hasCell && (a.cellRow != b.cellRow || a.cellColumn != b.cellColumn))
+                || (a.hasCell && (a.cellRow != b.cellRow || a.cellColumn != b.cellColumn
+                        || a.cellSort != b.cellSort))
                 || a.hasHierarchy != b.hasHierarchy
                 || (a.hasHierarchy && (a.level != b.level || a.hierarchyRow != b.hierarchyRow
                         || a.hierarchyRowCount != b.hierarchyRowCount))
@@ -2042,7 +2065,7 @@ public final class Accessibility {
                 s.hasWindow ? new WindowFacet(s.windowModal, s.windowCanMaximize,
                         s.windowCanMinimize, s.windowState) : null,
                 s.hasTable ? new TableFacet(s.tableRowCount, s.tableColumnCount) : null,
-                s.hasCell ? new CellFacet(s.cellRow, s.cellColumn) : null,
+                s.hasCell ? new CellFacet(s.cellRow, s.cellColumn, s.cellSort) : null,
                 s.hasHierarchy ? new HierarchyFacet(s.level, s.hierarchyRow, s.hierarchyRowCount)
                         : null,
                 s.verbs == 0 ? null : new ActionFacet(verbsOf(s.verbs), s.keyBinding),

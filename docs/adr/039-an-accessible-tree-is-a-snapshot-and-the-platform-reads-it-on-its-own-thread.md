@@ -646,6 +646,26 @@ ToggleFacet, ValueFacet, SelectionFacet, SelectionItemFacet, ExpandFacet, TextFa
 WindowFacet, TableFacet, CellFacet, HierarchyFacet, ActionFacet
 ```
 
+**Amendment, 2026-09-15 (decision 36's carrier): `CellFacet` gains a sort direction, and the closed
+list does not move.** A sorted column's direction was published only as a localized phrase in the
+header's description, which the three bridges each read and could not use: two of them carry a
+direction as an enumeration (Orca's `sort` object attribute, `AXSortDirection`) and would have had
+to parse a translated sentence back into one. So `CellFacet` becomes
+`(int row, int column, Sort sort)` with `Sort` = `NONE | ASCENDING | DESCENDING`, meaningful on a
+header cell (row `-1`) and `NONE` everywhere else — **no new facet and no new `State`**, so the list
+above and §1.1's state list stand as they are. `Accessibility#cell(row, column, sort)` declares it
+and the two-argument call is the same call with `NONE`; the differ compares it, so a column turned
+round republishes even when nothing else about the node moved.
+
+The phrase **stays** in the description beside it, and that is not duplication: a bridge reads the
+snapshot on a platform's own thread with no locale scope open and could not build a phrase there, and
+Windows's carrier *is* a phrase (`ItemStatus`, File Explorer's convention, plus `HelpText` because
+NVDA 2024.4.2 has no `ItemStatus` handler and speaks a description). The enumeration serves the two
+platforms that want a fact, the phrase the one that wants words, and each bridge takes the one its
+platform asks for. No new string: `TableStrings.SORTED_ASCENDING` and `SORTED_DESCENDING` already
+ship in all 21 locales. Orca's fourth value, `other`, is left out: nothing in the toolkit sorts that
+way, and a value no widget can produce is one no bridge could be tested against.
+
 **Amendment, 2026-09-14: a `ValueFacet` can say it holds no number, and a value event is raised
 when the text moves.** A date segment nobody has typed into has a range, a displayed text and no
 number; the facet had no way to say so, so `DateField` published the minimum as if it were typed
