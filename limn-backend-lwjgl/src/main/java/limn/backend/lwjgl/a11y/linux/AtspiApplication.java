@@ -69,6 +69,14 @@ final class AtspiApplication {
 
         /** Lets the connection go. Throws nothing. */
         void close();
+
+        /**
+         * @return how many signals the connection has refused so far, for the trace; -1 when this
+         *         link does not count
+         */
+        default int refused() {
+            return -1;
+        }
     }
 
     /** Joins the accessibility bus as this application and hands the registry its root. */
@@ -430,7 +438,11 @@ final class AtspiApplication {
      */
     void emit(AtspiBridge window, AccessibleEvent event) {
         Joined now = joined.get();
+        java.util.function.Consumer<String> trace = AtspiTrace.trace;
         if (now == null) {
+            if (trace != null) {
+                trace.accept("not joined, nothing sent for " + event);
+            }
             return;
         }
         Link link = now.link();
@@ -439,6 +451,10 @@ final class AtspiApplication {
         AccessibleEvent.Type type = event.type();
         if (type == AccessibleEvent.Type.INVALIDATED) {
             window.reconcileOwed = true;
+            if (trace != null) {
+                trace.accept("INVALIDATED: nothing of its own; focus and cursor reconciled at the "
+                        + "tail's place");
+            }
             return;
         }
         if (window.reconcileOwed && isInTheTail(type)
@@ -447,11 +463,18 @@ final class AtspiApplication {
             reconcile(window, link, context, false);  // Activate reconciles after itself instead
         }
         if (focusGained(event) && window.focusSaid == event.nodeId()) {
-            return;  // already said in this publish: the survivor's STATE_CHANGED, then this
+            // already said in this publish: the survivor's STATE_CHANGED, then this
+            if (trace != null) {
+                trace.accept("already said in this publish, not sent again: " + event);
+            }
+            return;
         }
         if (type == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED) {
             long cursor = cursorOf(event);
             if (cursor != 0 && window.cursorSaid == cursor) {
+                if (trace != null) {
+                    trace.accept("already said in this publish, not sent again: " + event);
+                }
                 return;
             }
         }
@@ -459,7 +482,11 @@ final class AtspiApplication {
         // approximate. Otherwise each goes out from the node it is about, so a client that
         // subscribed by path hears it, and as a signal rather than a reply, so it is the one kind
         // the connection may refuse when a peer has stopped draining.
-        boolean refused = !sendAll(link, AtspiEvents.of(event, context), isInTheTail(type));
+        java.util.List<AtspiEvents.Signal> signals = AtspiEvents.of(event, context);
+        if (signals.isEmpty() && trace != null) {
+            trace.accept("no signal on this platform for " + event);
+        }
+        boolean refused = !sendAll(link, signals, isInTheTail(type));
         if (refused) {
             window.reconcileOwed = true;
         } else if (focusGained(event)) {
@@ -685,8 +712,18 @@ final class AtspiApplication {
 
     /** @return whether the link accepted it */
     private static boolean send(Link link, AtspiEvents.Signal signal, boolean tail) {
-        return link.signal(DBus.Msg.signal(signal.path(), signal.iface(), signal.member(),
-                signal.signature(), signal.body()), tail);
+        DBus.Msg message = DBus.Msg.signal(signal.path(), signal.iface(), signal.member(),
+                signal.signature(), signal.body());
+        boolean accepted = link.signal(message, tail);
+        java.util.function.Consumer<String> trace = AtspiTrace.trace;
+        if (trace != null) {
+            // Every signal and every refusal, named, so a reader that heard nothing can be asked
+            // whether anything was sent (LINUX-NEW-6).
+            trace.accept((accepted ? "sent " : "REFUSED ") + (tail ? "(tail) " : "")
+                    + AtspiTrace.describe(message)
+                    + (accepted ? "" : "; refused so far: " + link.refused()));
+        }
+        return accepted;
     }
 
     /**
@@ -1009,6 +1046,11 @@ final class AtspiApplication {
             @Override
             public void close() {
                 connection.close();
+            }
+
+            @Override
+            public int refused() {
+                return connection.droppedSignals();
             }
         };
     }

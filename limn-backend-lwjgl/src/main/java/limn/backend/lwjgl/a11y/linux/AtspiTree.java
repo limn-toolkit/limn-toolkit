@@ -34,9 +34,6 @@ import java.util.function.Supplier;
  */
 final class AtspiTree {
 
-    /** {@code -Dlimn.a11y.linux.trace=true}: log every inbound call. Off by default and free. */
-    private static final boolean TRACE = Boolean.getBoolean("limn.a11y.linux.trace");
-
     /** Where a node's object path begins; the id follows. */
     private static final String NODE_PREFIX = "/org/a11y/atspi/accessible/";
 
@@ -182,7 +179,8 @@ final class AtspiTree {
      */
     DBus.Msg handle(DBus.Conn conn, DBus.Msg m) {
         String iface = m.iface == null ? "" : m.iface;
-        if (TRACE) {
+        java.util.function.Consumer<String> trace = AtspiTrace.trace;
+        if (trace != null) {
             // Every inbound call, so a desktop that refuses this application can be asked what it
             // wanted rather than guessed at. Two of the three platforms have now produced a defect
             // whose only symptom was silence, and a trace is what turns that into a question.
@@ -191,9 +189,7 @@ final class AtspiTree {
                 if (args.length() > 0) args.append(", ");
                 args.append(arg);
             }
-            System.out.println("[atspi] " + m.path + "  " + iface + "." + m.member
-                    + "(" + args + ")");
-            System.out.flush();
+            trace.accept("call " + m.path + "  " + iface + "." + m.member + "(" + args + ")");
         }
         // Before any path is resolved, because a ping is about the CONNECTION and not about an
         // object: the registry sends it to "/", which is neither the application root nor a node,
@@ -524,9 +520,9 @@ final class AtspiTree {
         if ("Get".equals(m.member)) {
             Object value = all.get(String.valueOf(m.body[1]));
             if (value == null) {
-                if (TRACE) {
-                    System.out.println("[atspi]   REFUSED " + which + "." + m.body[1]);
-                    System.out.flush();
+                java.util.function.Consumer<String> trace = AtspiTrace.trace;
+                if (trace != null) {
+                    trace.accept("  no property " + which + "." + m.body[1]);
                 }
                 return DBus.Msg.err(m, DBus.Conn.INVALID_ARGS,
                         "no property " + which + "." + m.body[1]);

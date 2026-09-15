@@ -4455,6 +4455,16 @@ it over — detail1, detail2, source and `any_data` — and a source's cached ch
 difference with no window. Run on Fedora KDE 44 and Ubuntu 24.04 the same day, identical on both, no
 signal refused. What it does not replace is a talking Orca, which is phase 5's.)*
 
+*(Amended 2026-09-15, LINUX-NEW-6: the Ubuntu row's "`-Dlimn.a11y.linux.trace=true` logs every inbound
+call" was half of what a silent reader needs. The same flag now also names every signal the application
+hands its connection — path, member, detail, both integers and the value — whether the connection
+accepted it and, when it did not, how many it has refused so far; every event that sent nothing and
+why (no mapping on this platform, already said in this publish, raised before the join); and what an
+`INVALIDATED` leaves owed. It goes through one consumer, `AtspiTrace.trace`, read once per site and
+formatting nothing when null, as `UiaWindow.say` does on Windows, so a test installs its own. The wire
+trace `-Dprobe.trace=true` (`DBus.TRACE`, every message and SASL line on standard error) stays separate.
+A string value is cut to 40 characters; a masked field's text changes carry the mask.)*
+
 **One of these can plausibly move into CI, and it is worth trying.** The Linux bridge is pure Java and
 pure D-Bus, and the Ubuntu runner can install `at-spi2-core` and run the whole probe under
 `dbus-run-session`. If that works, one of the three platforms gains a real gate. It is listed as work,

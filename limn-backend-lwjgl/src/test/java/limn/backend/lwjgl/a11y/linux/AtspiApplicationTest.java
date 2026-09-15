@@ -40,6 +40,8 @@ class AtspiApplicationTest {
         final List<Boolean> tails = new ArrayList<>();
         /** A connection whose ordinary backlog is full: it refuses every signal but the tail's. */
         boolean refusesOrdinarySignals;
+        /** How many signals the link has refused. */
+        int refusals;
 
         Runnable lost;
 
@@ -51,6 +53,7 @@ class AtspiApplicationTest {
             return new AtspiApplication.Link() {
                 @Override public boolean signal(DBus.Msg signal, boolean tail) {
                     if (refusesOrdinarySignals && !tail) {
+                        refusals++;
                         return false;
                     }
                     signals.add(signal);
@@ -60,6 +63,10 @@ class AtspiApplicationTest {
 
                 @Override public void close() {
                     closed = true;
+                }
+
+                @Override public int refused() {
+                    return refusals;
                 }
             };
         }
@@ -535,6 +542,58 @@ class AtspiApplicationTest {
                     : m.member + " " + m.body[0] + " " + m.body[1] + " " + m.path);
         }
         return out;
+    }
+
+    /**
+     * The outbound trace (LINUX-NEW-6): every signal handed to the connection is a line naming its
+     * path, member, detail, integers and value, a refusal says so with the running count, and an
+     * event that sent nothing — unmapped, held back as already said, or raised before the join —
+     * says why. The 2026-09-13 tree-reader run could not tell from the application whether its
+     * events had left at all.
+     */
+    @Test
+    void theTraceNamesEverySignalEveryRefusalAndEveryEventThatSentNothing() {
+        List<String> lines = new ArrayList<>();
+        java.util.function.Consumer<String> before = AtspiTrace.trace;
+        AtspiTrace.trace = lines::add;
+        try {
+            AtspiApplication unjoined = new AtspiApplication(new FakeBus(),
+                    AtspiApplication.Starter.ON_THE_CALLER, System::nanoTime);
+            unjoined.window().emit(limn.accessibility.AccessibleEvent.of(
+                    limn.accessibility.AccessibleEvent.Type.FOCUS_CHANGED, 3001));
+            assertEquals(List.of("not joined, nothing sent for AccessibleEvent[FOCUS_CHANGED "
+                    + "node=3001]"), lines, "an event before the join says it went nowhere");
+
+            FakeBus bus = new FakeBus();
+            AtspiApplication app = anApplication(bus);
+            Frames main = new Frames(app.window());
+            main.publish(true, 3001);
+            lines.clear();
+
+            main.publish(true, 3002);
+            assertTrue(lines.contains("sent " + path(3002) + " org.a11y.atspi.Event.Object"
+                    + ".StateChanged detail=focused detail1=1 detail2=0 value=i 0"), "" + lines);
+            assertTrue(lines.contains("already said in this publish, not sent again: "
+                    + "AccessibleEvent[FOCUS_CHANGED node=3002]"), "" + lines);
+
+            lines.clear();
+            app.window().emit(limn.accessibility.AccessibleEvent.of(
+                    limn.accessibility.AccessibleEvent.Type.INVOKED, 3002));
+            assertEquals(List.of("no signal on this platform for AccessibleEvent[INVOKED "
+                    + "node=3002]"), lines);
+
+            lines.clear();
+            bus.refusesOrdinarySignals = true;
+            main.publish(true, 3001);
+            assertTrue(lines.contains("REFUSED " + path(3002) + " org.a11y.atspi.Event.Object"
+                    + ".StateChanged detail=focused detail1=0 detail2=0 value=i 0; refused so far: 2"),
+                    "a refusal is named, with the connection's running count: " + lines);
+            assertTrue(lines.contains("sent (tail) " + path(3001) + " org.a11y.atspi.Event.Object"
+                    + ".StateChanged detail=focused detail1=1 detail2=0 value=i 0"),
+                    "and what was said again after it, as the tail: " + lines);
+        } finally {
+            AtspiTrace.trace = before;
+        }
     }
 
     /** One window's scene as the differ sees it: a persistent builder published frame by frame. */
