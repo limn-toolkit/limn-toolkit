@@ -252,6 +252,39 @@ class AtspiTreeTest {
         return atspi.handle(null, m);
     }
 
+    /**
+     * What a client sees when it sends a member the wrong arguments: an error naming them, from the
+     * same step the reader thread takes, rather than the exception that used to leave the client
+     * waiting out its whole timeout (LINUX-NEW-9).
+     */
+    @Test
+    void aCallWithTheWrongArgumentsIsAnsweredInvalidArgsAndNotLeftUnanswered() {
+        publishAWindowWithAButton();
+        for (DBus.Msg call : List.of(
+                aCall(Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetChildAtIndex", null),
+                aCall(path(1001), Atspi.I_ACTION, "DoAction", "s", "press"),
+                aCall(path(1001), Atspi.I_COMPONENT, "Contains", "ii", 1, 2),
+                aCall(path(1001), Atspi.I_PROPS, "Get", "s", Atspi.I_ACCESSIBLE))) {
+            call.serial = 41;
+            call.sender = ":1.99";
+            DBus.Msg reply = DBus.Conn.replyFor(atspi::handle, null, call);
+            assertEquals(DBus.ERROR, reply.type, call.member + " with <" + call.signature + ">");
+            assertEquals("org.freedesktop.DBus.Error.InvalidArgs", reply.errorName, call.member);
+            assertEquals(41, reply.replySerial, "the reply names the call it answers");
+            assertEquals(":1.99", reply.destination);
+        }
+        assertTrue(performed.isEmpty(), "and nothing was performed on a verb nobody named");
+    }
+
+    private static DBus.Msg aCall(String path, String iface, String member, String sig,
+                                  Object... args) {
+        DBus.Msg m = DBus.Msg.call("org.a11y.atspi.Registry", path, iface, member, sig, args);
+        m.path = path;
+        m.iface = iface;
+        m.member = member;
+        return m;
+    }
+
     @Test
     void aPingIsAnsweredOnAPathThatIsNeitherTheRootNorANode() {
         // "/" is where the registry sends it, and it is neither the application root nor any node,

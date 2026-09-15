@@ -2612,6 +2612,22 @@ the user-interface thread brings its per-window bookkeeping up to that state on 
 (§2.3's amendment of this date). The registration rule is unchanged: nothing joins before some window
 has a tree.
 
+#### Amendment 2026-09-15 — a call is answered even when its handler fails
+
+**What was wrong (LINUX-NEW-9).** "A client that made a method call is waiting for exactly one
+answer" was honoured only when the handler returned. A handler that threw — a member called with too
+few arguments or the wrong types indexes past the body or fails a cast — was logged by the reader
+loop and answered with nothing, and libatspi waits out a newly added application's call timeout (up
+to 15 s) before it pings and declares the process hung. A reply whose body did not match its own
+signature failed to marshal inside the send, with the same result.
+
+**What the code does now.** `DBus.Conn.replyFor` is the one step between a call and its reply, and it
+never throws and never answers nothing: the handler's reply; `UnknownMethod` when there is no handler
+or it declines; `org.freedesktop.DBus.Error.InvalidArgs` when the handler failed on the call's
+arguments (an index out of bounds, a failed cast); `org.freedesktop.DBus.Error.Failed` for any other
+exception, with its text. A reply that cannot be marshalled is replaced by a `Failed` error for the
+same call. `NO_REPLY_EXPECTED` still gets no reply.
+
 ### 3.4 The bridge's own mutable state, and which thread owns each piece
 
 The snapshot is immutable and needs no thread. Everything else a bridge keeps is mutable, is the

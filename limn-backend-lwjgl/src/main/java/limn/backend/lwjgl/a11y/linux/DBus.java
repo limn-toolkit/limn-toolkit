@@ -907,13 +907,70 @@ final class DBus {
             lastHandlerThread = Thread.currentThread();
             Handler h = exports.get(m.path);
             if (h == null) h = fallback;
-            Msg reply = null;
-            if (h != null) reply = h.handle(this, m);
-            if (reply == null) {
-                reply = Msg.err(m, "org.freedesktop.DBus.Error.UnknownMethod",
-                        "no handler for " + m.iface + "." + m.member + " on " + m.path);
+            Msg reply = replyFor(h, this, m);
+            if ((m.flags & NO_REPLY_EXPECTED) != 0) {
+                return;
             }
-            if ((m.flags & NO_REPLY_EXPECTED) == 0) send(reply);
+            byte[] bytes;
+            synchronized (writeLock) {
+                try {
+                    bytes = reply.marshal(serial.getAndIncrement());
+                } catch (RuntimeException e) {
+                    // A reply whose body does not match its own signature cannot be sent, and the
+                    // caller is still owed one.
+                    System.err.println("[conn] reply to " + m + " could not be written: " + e);
+                    bytes = Msg.err(m, FAILED, "the reply could not be written: " + e)
+                            .marshal(serial.getAndIncrement());
+                }
+            }
+            if (TRACE) System.err.println("[->] " + reply);
+            outbound.offerReply(bytes);
+        }
+
+        /** The error a method call gets when its handler fails for a reason of its own. */
+        static final String FAILED = "org.freedesktop.DBus.Error.Failed";
+
+        /** The error a method call gets when its arguments are not the ones its member takes. */
+        static final String INVALID_ARGS = "org.freedesktop.DBus.Error.InvalidArgs";
+
+        /**
+         * The reply a method call is owed, whatever its handler does: the handler's own, an
+         * {@code UnknownMethod} when there is no handler or it declines, and an error when it
+         * throws. Never null and never a throw.
+         *
+         * <p>A handler that threw used to leave the caller with nothing at all (LINUX-NEW-9), and
+         * libatspi waits out a newly added application's whole call timeout — up to fifteen seconds
+         * — before it pings and declares the process hung. Arguments of the wrong number or type
+         * (an index past the body, a cast that does not hold) are the caller's mistake and answer
+         * {@code InvalidArgs}; anything else is this application's and answers {@code Failed}. Both
+         * carry the exception's own text, and both are logged.
+         *
+         * @param handler what answers the call's path, or null
+         * @param conn    the connection it arrived on
+         * @param call    the method call
+         * @return the reply to send
+         */
+        static Msg replyFor(Handler handler, Conn conn, Msg call) {
+            Msg reply = null;
+            if (handler != null) {
+                try {
+                    reply = handler.handle(conn, call);
+                } catch (IndexOutOfBoundsException | ClassCastException e) {
+                    System.err.println("[conn] " + call.iface + "." + call.member + " on "
+                            + call.path + " refused its arguments: " + e);
+                    return Msg.err(call, INVALID_ARGS, call.iface + "." + call.member + " cannot "
+                            + "take the arguments '" + call.signature + "': " + e);
+                } catch (Exception e) {
+                    System.err.println("[conn] " + call.iface + "." + call.member + " on "
+                            + call.path + " failed: " + e);
+                    return Msg.err(call, FAILED, call.iface + "." + call.member + " failed: " + e);
+                }
+            }
+            if (reply == null) {
+                reply = Msg.err(call, "org.freedesktop.DBus.Error.UnknownMethod",
+                        "no handler for " + call.iface + "." + call.member + " on " + call.path);
+            }
+            return reply;
         }
 
         /** Drive the loop on the caller's thread until the deadline (used by the probe's main). */

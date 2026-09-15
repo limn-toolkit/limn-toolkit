@@ -375,6 +375,32 @@ class DBusWireTest {
                 "a call that asked for no reply gets none");
     }
 
+    @Test
+    void aHandlerThatThrowsIsAnsweredWithAnErrorForItsSerialAndOneThatDeclinesWithUnknownMethod() {
+        DBus.Msg call = DBus.Msg.call(":1.7", Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetRole", null);
+        call.serial = 12;
+        call.sender = ":1.99";
+
+        DBus.Msg failed = DBus.Conn.replyFor((conn, m) -> {
+            throw new IllegalStateException("the snapshot is gone");
+        }, null, call);
+        org.junit.jupiter.api.Assertions.assertEquals(DBus.ERROR, failed.type,
+                "a throwing handler still answers the caller");
+        org.junit.jupiter.api.Assertions.assertEquals(12, failed.replySerial);
+        org.junit.jupiter.api.Assertions.assertEquals(":1.99", failed.destination);
+        org.junit.jupiter.api.Assertions.assertEquals("org.freedesktop.DBus.Error.Failed",
+                failed.errorName);
+        org.junit.jupiter.api.Assertions.assertTrue(
+                String.valueOf(failed.body[0]).contains("the snapshot is gone"), "" + failed);
+
+        DBus.Msg declined = DBus.Conn.replyFor((conn, m) -> null, null, call);
+        org.junit.jupiter.api.Assertions.assertEquals("org.freedesktop.DBus.Error.UnknownMethod",
+                declined.errorName);
+        DBus.Msg none = DBus.Conn.replyFor(null, null, call);
+        org.junit.jupiter.api.Assertions.assertEquals("org.freedesktop.DBus.Error.UnknownMethod",
+                none.errorName);
+    }
+
     interface Assertions { void run(DBus.Msg m); }
 
     /**

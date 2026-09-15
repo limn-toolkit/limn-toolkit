@@ -183,6 +183,32 @@ class DBusConnectionTest {
     }
 
     @Test
+    void aHandlerThatThrowsOrAnswersWhatCannotBeWrittenStillAnswersTheCaller() throws Exception {
+        Peer peer = connect();
+        connection.exportFallback((conn, call) -> switch (call.member) {
+            case "GetRole" -> throw new IllegalStateException("no snapshot");
+            case "GetName" -> DBus.Msg.ret(call, "u", "not a number");
+            default -> DBus.Msg.ret(call, null);
+        });
+        DBus.Msg role = DBus.Msg.call(":1.7", Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetRole", null);
+        role.sender = ":1.99";
+        DBus.Msg name = DBus.Msg.call(":1.7", Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetName", null);
+        name.sender = ":1.99";
+        peer.write(role.marshal(21));
+        peer.write(name.marshal(22));
+        peer.write(aPing(23).raw);
+
+        DBus.Msg[] replies = assertTimeoutPreemptively(Duration.ofSeconds(5),
+                () -> new DBus.Msg[] {peer.readMessage(), peer.readMessage(), peer.readMessage()});
+        assertEquals(DBus.ERROR, replies[0].type, "a handler that threw: " + replies[0]);
+        assertEquals(21, replies[0].replySerial);
+        assertEquals(DBus.ERROR, replies[1].type, "a reply that could not be marshalled: " + replies[1]);
+        assertEquals(22, replies[1].replySerial);
+        assertEquals(DBus.METHOD_RETURN, replies[2].type, "and the next call is answered as usual");
+        assertEquals(23, replies[2].replySerial);
+    }
+
+    @Test
     void aConnectionThatEndsOnItsOwnSaysSoOnceAndOneClosedByItsOwnerDoesNot() throws Exception {
         Peer peer = connect();
         CountDownLatch lost = new CountDownLatch(1);
