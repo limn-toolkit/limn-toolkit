@@ -117,6 +117,42 @@ class AtspiConstantsTest {
                 "a node with no expand facet is not collapsed: it cannot open at all");
     }
 
+    /**
+     * The numbers and names the interfaces served since 2026-09-15 take from readings, pinned so an
+     * edit cannot drift from them in silence: the TextGranularity, TextBoundaryType and CoordType
+     * enumerators read off the Fedora KDE 44 guest's typelib (libatspi 2.60.6, 2026-09-13,
+     * readings/fedora-atspi-constants-all.txt), and the interface names the guest's ATK bridge
+     * declares (readings/fedora-dbus-*.xml).
+     */
+    @Test
+    void theTextEnumeratorsAndTheInterfaceNamesAreTheOnesReadOffTheGuest() {
+        assertEquals(java.util.List.of(0, 1, 2, 3, 4), java.util.List.of(Atspi.TEXT_GRANULARITY_CHAR,
+                Atspi.TEXT_GRANULARITY_WORD, Atspi.TEXT_GRANULARITY_SENTENCE,
+                Atspi.TEXT_GRANULARITY_LINE, Atspi.TEXT_GRANULARITY_PARAGRAPH),
+                "TextGranularity CHAR WORD SENTENCE LINE PARAGRAPH");
+        assertEquals(java.util.List.of(0, 1, 2, 3, 4, 5, 6), java.util.List.of(
+                Atspi.TEXT_BOUNDARY_CHAR, Atspi.TEXT_BOUNDARY_WORD_START,
+                Atspi.TEXT_BOUNDARY_WORD_END, Atspi.TEXT_BOUNDARY_SENTENCE_START,
+                Atspi.TEXT_BOUNDARY_SENTENCE_END, Atspi.TEXT_BOUNDARY_LINE_START,
+                Atspi.TEXT_BOUNDARY_LINE_END),
+                "TextBoundaryType CHAR WORD_START WORD_END SENTENCE_START SENTENCE_END LINE_START "
+                        + "LINE_END");
+        assertEquals(java.util.List.of(0, 1, 2), java.util.List.of(Atspi.COORD_SCREEN,
+                Atspi.COORD_WINDOW, Atspi.COORD_PARENT), "CoordType SCREEN WINDOW PARENT");
+        assertEquals(java.util.List.of("org.a11y.atspi.Selection", "org.a11y.atspi.Value",
+                        "org.a11y.atspi.Text", "org.a11y.atspi.EditableText"),
+                java.util.List.of(Atspi.I_SELECTION, Atspi.I_VALUE, Atspi.I_TEXT,
+                        Atspi.I_EDITABLE_TEXT));
+        for (String[] pair : new String[][] {
+                {Atspi.I_SELECTION, Atspi.XML_SELECTION}, {Atspi.I_VALUE, Atspi.XML_VALUE},
+                {Atspi.I_TEXT, Atspi.XML_TEXT}, {Atspi.I_EDITABLE_TEXT, Atspi.XML_EDITABLE_TEXT},
+                {Atspi.I_TABLE, Atspi.XML_TABLE}, {Atspi.I_TABLE_CELL, Atspi.XML_TABLE_CELL}}) {
+            assertTrue(pair[1].startsWith("<interface name=\"" + pair[0] + "\">")
+                    && pair[1].endsWith("</interface>"), "the XML served for " + pair[0]
+                    + " is that interface's, whole");
+        }
+    }
+
     @Test
     void aRoleCarriesThePlatformsOwnNameForIt() {
         assertEquals("push button", AtspiRoles.nameOf(Accessible.Role.BUTTON));

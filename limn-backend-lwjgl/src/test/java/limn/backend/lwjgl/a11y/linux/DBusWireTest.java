@@ -259,6 +259,43 @@ class DBusWireTest {
                 DBus.v("(so)", new Object[] { ":1.9", "/org/a11y/atspi/accessible/11" }),
                 new Object[] { ":1.9", Atspi.PATH_ROOT } }, childrenBack.body);
 
+        // The interfaces served since 2026-09-15, in the shapes libatspi 2.60.6 demands of each
+        // reply (readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt).
+        // Text.GetStringAtOffset "iu=>sii": the string, then its start and end in characters; an
+        // astral character is four UTF-8 bytes on the wire and one character in the offsets.
+        DBus.Msg stringAt = DBus.Msg.ret(getItems, "sii", "\uD83D\uDE00 there", 3, 10);
+        stringAt.destination = ":1.2";
+        DBus.Msg stringAtBack = DBus.Msg.parse(stringAt.marshal(21));
+        check("GetStringAtOffset reply signature", "sii", stringAtBack.signature);
+        check("GetStringAtOffset reply body", new Object[] { "\uD83D\uDE00 there", 3, 10 },
+              stringAtBack.body);
+        // Text.GetAttributeRun: _ATSPI_DBUS_CHECK_SIG "a{ss}ii" before it reads a byte.
+        DBus.Msg run = DBus.Msg.ret(getItems, "a{ss}ii", new java.util.LinkedHashMap<>(), 0, 21);
+        run.destination = ":1.2";
+        DBus.Msg runBack = DBus.Msg.parse(run.marshal(23));
+        check("GetAttributeRun reply signature", "a{ss}ii", runBack.signature);
+        check("GetAttributeRun reply body", new Object[] { java.util.Map.of(), 0, 21 }, runBack.body);
+        // Accessible.GetAttributes with a row's level and place in its set (L5).
+        java.util.Map<Object, Object> attributes = Atspi.attrs("toolkit", "limn", "level", "2",
+                "posinset", "3", "setsize", "4");
+        DBus.Msg attrs = DBus.Msg.ret(getItems, "a{ss}", attributes);
+        attrs.destination = ":1.2";
+        DBus.Msg attrsBack = DBus.Msg.parse(attrs.marshal(25));
+        check("GetAttributes reply body", attributes, attrsBack.body[0]);
+        // Properties.Set(Value, CurrentValue, <d>): how atspi_value_set_current_value writes a
+        // value, which the bridge reads as a variant holding a Double.
+        DBus.Msg setValue = DBus.Msg.call(":1.42", "/org/a11y/atspi/accessible/9", Atspi.I_PROPS,
+                "Set", "ssv", Atspi.I_VALUE, "CurrentValue", DBus.v("d", 20.0));
+        DBus.Msg setValueBack = DBus.Msg.parse(setValue.marshal(27));
+        check("Set(CurrentValue) signature", "ssv", setValueBack.signature);
+        check("Set(CurrentValue) value arrives as a variant d holding a Double",
+              "d 20.0", ((DBus.Variant) setValueBack.body[2]).sig + " "
+                      + ((DBus.Variant) setValueBack.body[2]).value);
+        // Text.GetSelection "i=>ii": two out arguments, not a struct.
+        DBus.Msg selection = DBus.Msg.ret(getItems, "ii", 0, 2);
+        selection.destination = ":1.2";
+        check("GetSelection reply signature", "ii", DBus.Msg.parse(selection.marshal(29)).signature);
+
         DBus.Msg err = DBus.Msg.err(getItems, "org.freedesktop.DBus.Error.UnknownMethod", "nope");
         err.destination = ":1.2";
         DBus.Msg errBack = DBus.Msg.parse(err.marshal(11));
