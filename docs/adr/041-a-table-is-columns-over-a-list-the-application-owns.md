@@ -206,6 +206,15 @@ selected — `rangeAnchor` — which is the lead only until a Shift extension mo
 range's end and leaves the anchor where it was; that is the platform's grammar, and the words are
 what changes.
 
+**Amended 2026-09-15 (fix round; the critic's Page Down finding).** "Placed as the last row in view
+by every reveal" reached Page Down: from the top of a long table the first press moved the cursor a
+page and scrolled by one row, leaving it at the foot; on a viewport showing part of the next row it
+scrolled by that part alone. Page Down and Page Up page now: the cursor moves a page of rows and,
+when it was on screen, the view moves by the same rows, so the cursor keeps its place in the view
+(clamped at either end); a cursor that was off screen is revealed as any move reveals it. The sort,
+End and code keep the least-scroll reveal. Pinned by
+`TableTest.pageDownAndPageUpMoveTheViewAPageWithTheCursor`, on whole rows and on a part row.
+
 **Amended 2026-09-14 (decision 23: a row is its record).** "Selection is a set of model indices"
 held across a `refresh()` by number, so the documented `onSortRequest` recipe — reorder the list,
 call `refresh()` — and any insert, remove or reorder before a `refresh()` moved the selection onto

@@ -354,6 +354,55 @@ class TableTest extends ComponentTestBase {
     }
 
     /**
+     * The critic's phase-2 finding (fix round of 2026-09-15): after decision 40's least-scroll
+     * reveal, the first Page Down from the top of a long table scrolled by one row and left the
+     * cursor at the foot of the view. Page Down and Page Up page: the cursor moves a page of rows
+     * and the view moves with it, so the cursor keeps its place on screen — on a viewport that
+     * holds a whole number of rows and on one that shows part of the next.
+     */
+    @Test
+    void pageDownAndPageUpMoveTheViewAPageWithTheCursor() {
+        for (int partial : new int[] {20, 0}) {
+            Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));
+            table.setRows(people(100));
+            float rowH = rowHeight(table);
+            float headerH = headerHeight(table);
+            int page = 6;
+            FakeCanvas canvas = new FakeCanvas(300, headerH + page * rowH + partial);
+            Scene scene = scene(table, canvas);
+            scene.requestFocus(table);
+            key(scene, Keys.DOWN);
+            scene.renderFrame(canvas);
+            assertEquals(0, table.focusRow());
+            String geometry = partial == 0 ? "whole rows" : "a part of the next row showing";
+
+            key(scene, Keys.PAGE_DOWN);
+            scene.renderFrame(canvas);
+            assertEquals(page, table.focusRow(), "the cursor a page away, " + geometry);
+            assertEquals(page, table.firstVisibleRow(),
+                    "the view a page down, the cursor still at its head, " + geometry);
+
+            key(scene, Keys.DOWN);
+            key(scene, Keys.PAGE_DOWN);
+            scene.renderFrame(canvas);
+            assertEquals(2 * page + 1, table.focusRow(), geometry);
+            assertEquals(2 * page, table.firstVisibleRow(),
+                    "the cursor kept its place, the second row in view, " + geometry);
+
+            key(scene, Keys.PAGE_UP);
+            scene.renderFrame(canvas);
+            assertEquals(page + 1, table.focusRow(), geometry);
+            assertEquals(page, table.firstVisibleRow(), "Page Up is the mirror, " + geometry);
+
+            key(scene, Keys.PAGE_UP);
+            key(scene, Keys.PAGE_UP);
+            scene.renderFrame(canvas);
+            assertEquals(0, table.focusRow(), "clamped at the top, " + geometry);
+            assertEquals(0, table.firstVisibleRow(), geometry);
+        }
+    }
+
+    /**
      * Decision 36 of 2026-09-14 (TABLE-SORT-KEYS): with a sortable column shown, the header is a
      * focus stop of its own, before the rows — Tab enters at the header, Tab again at the rows,
      * Shift+Tab walks the reverse — Left and Right move its column cursor, Home and End go to

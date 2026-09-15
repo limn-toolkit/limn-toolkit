@@ -2615,6 +2615,41 @@ public class Table<T> extends Widget implements Scrollable {
         notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
     }
 
+    /**
+     * Page Down and Page Up: the cursor moves {@code delta} rows and, when it was on screen, the
+     * view moves by the same rows, so the cursor keeps its place in the view. Decision 40's
+     * least-scroll reveal alone put the first Page Down's row at the foot of the view and scrolled
+     * by one row (the critic's phase-2 finding, fixed 2026-09-15); a cursor that was off screen is
+     * revealed as any other move reveals it.
+     */
+    private void pageFocusRow(int delta, int modifiers) {
+        int count = rows.size();
+        if (count == 0) {
+            return;
+        }
+        int from = focusRow < 0 ? anchorIndex : Math.min(focusRow, count - 1);
+        int target = Math.min(Math.max(0, from + delta), count - 1);
+        float top = isPlaced(from) && slotFor(from) != null ? rowTop(from) : Float.NaN;
+        boolean onScreen = !Float.isNaN(top) && top >= rowsTop()
+                && top + slotFor(from).height <= rowsTop() + rowsViewportHeight();
+        int wasAnchor = anchorIndex;
+        float wasAnchorTop = anchorTop;
+        moveFocusRow(target, modifiers);
+        if (onScreen && target != from) {
+            int anchor = wasAnchor + (target - from);
+            if (anchor <= 0) {
+                anchorIndex = 0;
+                anchorTop = 0;
+            } else {
+                anchorIndex = Math.min(anchor, count - 1);
+                anchorTop = wasAnchorTop;
+            }
+            pendingEnsureVisible = -1;
+            markNeedsContainedLayout(); // the layout clamps the view at the last row
+            invalidate();
+        }
+    }
+
     /** What every key and click goes through; an index past an end lands on the end. */
     private void moveFocusRow(int viewIndex, int modifiers) {
         int count = rows.size();
@@ -3196,10 +3231,8 @@ public class Table<T> extends Widget implements Scrollable {
                     focusRow < 0 ? anchorIndex : focusRow + 1, mods));
             case Keys.UP -> consumeAnd(event, () -> moveFocusRow(
                     focusRow < 0 ? anchorIndex : focusRow - 1, mods));
-            case Keys.PAGE_DOWN -> consumeAnd(event, () -> moveFocusRow(
-                    (focusRow < 0 ? anchorIndex : focusRow) + rowsPerPage(tokens()), mods));
-            case Keys.PAGE_UP -> consumeAnd(event, () -> moveFocusRow(
-                    (focusRow < 0 ? anchorIndex : focusRow) - rowsPerPage(tokens()), mods));
+            case Keys.PAGE_DOWN -> consumeAnd(event, () -> pageFocusRow(rowsPerPage(tokens()), mods));
+            case Keys.PAGE_UP -> consumeAnd(event, () -> pageFocusRow(-rowsPerPage(tokens()), mods));
             case Keys.HOME -> consumeAnd(event, () -> moveFocusRow(0, mods));
             case Keys.END -> consumeAnd(event, () -> moveFocusRow(rows.size() - 1, mods));
             case Keys.LEFT -> consumeAnd(event, () -> moveFocusColumn(rtl ? 1 : -1));
