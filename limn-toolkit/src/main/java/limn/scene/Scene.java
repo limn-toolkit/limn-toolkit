@@ -554,6 +554,25 @@ public final class Scene implements WindowInput {
     }
 
     /**
+     * The layer an assistive technology's verb may operate: the layer that owns input, or
+     * {@code null} when the window's backend says a modal is open over it and no layer here owns
+     * input at all. The one rule both halves of ADR 039 read (§1.9 and §1.13, amended
+     * 2026-09-15): the walk publishes every node outside it without {@code ENABLED},
+     * {@code FOCUSABLE}, a verb or a setter, and {@link #performAccessibleAction} refuses every
+     * verb on a widget outside it, so the list a platform is answered from is the list the scene
+     * performs (semantics 5).
+     *
+     * @return the top overlay, the root when no overlay is open, or {@code null} while a native
+     *         modal blocks the window
+     */
+    Widget accessibleInputLayer() {
+        if (window != null && window.isModalBlocked()) {
+            return null;
+        }
+        return inputRoot();
+    }
+
+    /**
      * The colour cleared behind the tree each frame. A translucent one only shows
      * through where the window itself is translucent.
      */
@@ -992,14 +1011,13 @@ public final class Scene implements WindowInput {
                 return; // a control inside a disabled container is one the keyboard refuses too
             }
         }
-        // Two tests and not one. A window's own modal flag answers false for the host of an
-        // in-scene modal by construction, so gating on it alone would invoke a button underneath
-        // an open dialog; and a snapshot can predate the modal, so the layer that owns input has
-        // to be re-checked here whatever the tree said.
-        if (window != null && window.isModalBlocked()) {
-            return;
-        }
-        if (!isInSubtree(owner, inputRoot())) {
+        // Two tests and not one, both inside accessibleInputLayer(), which the walk reads too. A
+        // window's own modal flag answers false for the host of an in-scene modal by
+        // construction, so gating on it alone would invoke a button underneath an open dialog;
+        // and a snapshot can predate the modal, so the layer that owns input has to be re-checked
+        // here whatever the tree said.
+        Widget layer = accessibleInputLayer();
+        if (layer == null || !isInSubtree(owner, layer)) {
             return;
         }
         boolean done;

@@ -959,7 +959,9 @@ public class ComboBox extends Widget {
         // neither offered nor accepted: what a press on a combo means is exactly the ambiguity
         // these two verbs remove, and a platform whose only activation verb is a press has the
         // expand facet to route it through, which is one decision in one bridge rather than a
-        // third meaning here.
+        // third meaning here. While the list is down in the scene the walk takes the COLLAPSE
+        // off again, with every verb beneath the layer that owns input (ADR 039 §1.13, amended
+        // 2026-09-15); in a window of its own the field keeps the input and the verb stands.
         a.action(open ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
         // No CONTROLLER_FOR. In the scene presentation the overlay is the popup's parentless root
         // and carries the field as its inheritance host, so the walk publishes POPUP_FOR there and
@@ -976,7 +978,8 @@ public class ComboBox extends Widget {
      * so the scene's own gate has already walked this field and every ancestor for
      * {@code isEnabled()}, checked that it is showing, that the window is not modal-blocked and
      * that it is inside the layer that owns input. That last test is why a
-     * {@link Accessible.Action#COLLAPSE} on an open in-scene list does nothing: the list's own
+     * {@link Accessible.Action#COLLAPSE} sent to an open in-scene list does nothing, and why the
+     * walk does not publish one there (ADR 039 §1.13, amended 2026-09-15): the list's own
      * overlay is that layer, the field is behind it, and the dismissal that lands there is the
      * overlay's {@code CANCEL} — the same asymmetry the keyboard has, where Esc is delivered to
      * the overlay and handed back here.

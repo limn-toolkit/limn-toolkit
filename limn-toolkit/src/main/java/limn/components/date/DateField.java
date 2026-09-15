@@ -253,14 +253,6 @@ public class DateField extends Widget {
      * {@code null} for a field on its own.
      */
     private java.util.function.BooleanSupplier popupOpen;
-    /**
-     * Whether a verb performed on this field can reach the open popup: true in a window of its
-     * own and headless, false while the popup is an overlay of the scene, whose input gate
-     * refuses every verb on a widget beneath it (the overlay's own {@code CANCEL} is the
-     * closing verb there). A verb the gate would refuse is not published (semantics 5: the
-     * published list is the accepted list, and the platform is answered from the snapshot).
-     */
-    private java.util.function.BooleanSupplier popupCloseReachable;
     private java.util.function.Consumer<Boolean> popupSetter;
     /**
      * Whether a picker is aiming the keyboard at this field although it does not hold the focus:
@@ -1403,12 +1395,10 @@ public class DateField extends Widget {
         charDelegate = delegate;
     }
 
-    /** The picker's, not an application's: see {@link #popupOpen} and {@link #popupCloseReachable}. */
+    /** The picker's, not an application's: see {@link #popupOpen}. */
     void setPopup(java.util.function.BooleanSupplier open,
-                  java.util.function.BooleanSupplier closeReachable,
                   java.util.function.Consumer<Boolean> setOpen) {
         popupOpen = open;
-        popupCloseReachable = closeReachable;
         popupSetter = setOpen;
     }
 
@@ -1444,18 +1434,17 @@ public class DateField extends Widget {
     }
 
     /**
-     * Whether a verb on a segment can be performed right now: the field is enabled and is not
-     * beneath its picker's popup presented as an overlay of the scene, whose input gate refuses
-     * every verb on a widget under it (2026-09-15, semantics 5 and decision 30). The segments'
-     * {@code INCREMENT}, {@code DECREMENT} and {@code FOCUS}, and the {@code SET_VALUE} a
-     * writable value implies, are published only while this holds, because the platform is
-     * answered from the snapshot and a verb published where it is dropped reads as done. The
-     * overlay fact is the one {@code COLLAPSE} is gated on; a popup in a window of its own
-     * leaves the field operable.
+     * Whether a verb on a segment can be performed right now, as far as this field knows: the
+     * field is enabled (2026-09-15, semantics 5 and decision 30). The segments' {@code INCREMENT},
+     * {@code DECREMENT} and {@code FOCUS}, and the {@code SET_VALUE} a writable value implies, are
+     * published only while this holds, because the platform is answered from the snapshot and a
+     * verb published where it is dropped reads as done. Beneath the picker's popup presented as an
+     * overlay of the scene the walk withholds them itself, as it does from every node outside the
+     * layer that owns input (ADR 039 §1.13, amended the same day), so this field no longer asks
+     * where its popup is drawn.
      */
     private boolean segmentsOperable() {
-        return isEnabled() && !(popupOpen != null && popupOpen.getAsBoolean()
-                && !popupCloseReachable.getAsBoolean());
+        return isEnabled();
     }
 
     // ------------------------------------------------------------------ parsing a whole string
@@ -2078,16 +2067,13 @@ public class DateField extends Widget {
             boolean open = popupOpen.getAsBoolean();
             a.expand(open);
             a.state(Accessible.State.HAS_POPUP);
-            // COLLAPSE only where it can be performed (2026-09-14): while the popup is an
-            // overlay of the scene the scene refuses every verb on the field beneath it, so a
-            // COLLAPSE published there would be reported accepted and do nothing. The overlay
-            // publishes CANCEL for that presentation; the state is still told here.
+            // The verb by state. While the popup is an overlay of the scene the field is beneath
+            // the layer that owns input, and the walk takes this COLLAPSE off it with every other
+            // verb (ADR 039 §1.13, amended 2026-09-15); the overlay publishes CANCEL for that
+            // presentation, and the state is still told here. In a window of its own the field
+            // keeps the input and COLLAPSE stands.
             if (isEnabled()) {
-                if (!open) {
-                    a.action(Accessible.Action.EXPAND);
-                } else if (popupCloseReachable.getAsBoolean()) {
-                    a.action(Accessible.Action.COLLAPSE);
-                }
+                a.action(open ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
             }
         }
 
@@ -2101,8 +2087,9 @@ public class DateField extends Widget {
         float pad = t.fieldPadH();
         float x = isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
         // Verbs only where they can be performed (2026-09-15, semantics 5 and decision 30): on a
-        // disabled field, or beneath an in-scene popup, a segment publishes its value read-only
-        // and no verb, as a refused calendar day does, since the scene would drop every one.
+        // disabled field a segment publishes its value read-only and no verb, as a refused
+        // calendar day does, since the scene would drop every one. Beneath an in-scene popup the
+        // walk does the same, for every node outside the layer that owns input.
         boolean operable = segmentsOperable();
         int slot = 0;
         for (DatePattern.Part part : parts) {
@@ -2198,7 +2185,7 @@ public class DateField extends Widget {
             popupSetter.accept(true);
             return true;
         }
-        if (action == Accessible.Action.COLLAPSE && open && popupCloseReachable.getAsBoolean()) {
+        if (action == Accessible.Action.COLLAPSE && open) {
             popupSetter.accept(false);
             return true;
         }

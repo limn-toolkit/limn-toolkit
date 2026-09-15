@@ -1606,6 +1606,33 @@ public final class Accessibility {
         s.states = set(s.states, Accessible.State.SHOWING, showing && !s.offScreen);
     }
 
+    /**
+     * Takes every operation off a node the scene will not operate, because it lies outside the
+     * layer that owns input: beneath an overlay of the scene, or in a window a native modal
+     * blocks (ADR 039 §1.13, amended 2026-09-15). The scene refuses every verb there, and the
+     * platform is answered from the snapshot (semantics 5), so the node publishes no verb &mdash;
+     * neither one it declared nor one its container claimed on it &mdash; and none of the setters
+     * a facet implies: a value is published read-only and a text {@link Accessible.State#READ_ONLY}.
+     * What the node says it is and holds is untouched. The publish step calls this after both
+     * describe hooks ran; a widget never does.
+     *
+     * @param index the node's index in this walk
+     * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
+     */
+    public void inoperableAt(int index) {
+        Objects.checkIndex(index, count);
+        Slot s = slots[index];
+        s.verbs = 0;
+        s.delegated = 0;
+        s.keyBinding = null; // the action facet's, and there is none
+        if (s.hasValue) {
+            s.valueReadOnly = true;
+        }
+        if (s.hasValue || s.hasText) {
+            s.states |= 1L << Accessible.State.READ_ONLY.ordinal();
+        }
+    }
+
     private static long set(long states, Accessible.State state, boolean on) {
         long bit = 1L << state.ordinal();
         return on ? states | bit : states & ~bit;

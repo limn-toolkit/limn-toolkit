@@ -181,17 +181,20 @@ final class AccessibleWalk {
         // §1.13, for the native case: a window whose backend says a modal is open over it has no
         // layer that owns input at all, so nothing in it is reachable and nothing in it -- the
         // window node included, which is what a Win32 owner disabled by its dialog reports and
-        // what a GTK modal grab does to a frame -- is published ENABLED or FOCUSABLE. The in-scene
-        // rule below clears the same two bits for what lies outside the top overlay; without this
+        // what a GTK modal grab does to a frame -- is published ENABLED or FOCUSABLE, or with a
+        // verb or a setter (2026-09-15). The in-scene rule below clears the same for what lies
+        // outside the top overlay; without this
         // one the owner of a native dialog offered a reader a whole interface of operable
         // controls and §1.9's gate refused every invocation with no way to say why. The nodes
         // stay, VISIBLE and SHOWING, because they are on screen. The scrim that the block fades
         // in and out is what re-walks the tree when the bit moves.
-        boolean blocked = window != null && window.isModalBlocked();
-        builder.inherited(!blocked, true, true, false, false);
+        // The layer is the scene's answer and the action gate asks the same method (§1.9 and
+        // §1.13, amended 2026-09-15), so what is published operable and what is performed cannot
+        // be two readings of the overlay stack.
+        Widget layer = scene.accessibleInputLayer();
+        builder.inherited(layer != null, true, true, false, false);
 
-        Widget top = scene.topOverlay();
-        walkWidget(scene, root, null, 0, -1, 0, 0, true, true, top == null && !blocked);
+        walkWidget(scene, root, null, 0, -1, 0, 0, true, true, layer == root);
         List<Widget> overlays = scene.overlays();
         for (int i = 0; i < overlays.size(); i++) {
             Widget overlay = overlays.get(i);
@@ -211,8 +214,7 @@ final class AccessibleWalk {
                     at = at.parent() != null ? at.parent() : at.inheritanceHost()) {
                 hostEnabled &= at.isEnabled();
             }
-            walkWidget(scene, overlay, null, 0, -1, 0, 0, hostEnabled, true,
-                    overlay == top && !blocked);
+            walkWidget(scene, overlay, null, 0, -1, 0, 0, hostEnabled, true, overlay == layer);
         }
         builder.end();
         count = builder.nodeCount();
@@ -527,6 +529,14 @@ final class AccessibleWalk {
         }
 
         record(widget, id, slot, false);
+        if (!reachable) {
+            // Outside the layer that owns input the scene refuses every verb (§1.9), so nothing
+            // there is published operable (§1.13, amended 2026-09-15; semantics 5): no verb the
+            // widget or its container declared, and no setter a writable facet implies. After the
+            // transparency test above, so a node that offered only verbs keeps its place in the
+            // tree while it is covered, and before the routing table below reads the claims.
+            builder.inoperableAt(slot);
+        }
         // What the container claimed on this child, and the key it addresses the child by: the
         // routing table the scene reads when a delegated verb arrives (ADR 039 §1.5, amended
         // 2026-09-14). Recorded on every walk, published or not, like the owner itself.
@@ -537,6 +547,9 @@ final class AccessibleWalk {
         for (int i = slot + 1; i < builder.nodeCount(); i++) {
             record(widget, builder.idAt(i), i, builder.isSyntheticAt(i));
             keys[i] = builder.syntheticKeyAt(i);
+            if (!reachable) {
+                builder.inoperableAt(i); // a synthetic child is refused with its owner
+            }
             // The owner's bits, on every node the owner drew. They cannot ride on the call below:
             // that one writes to the node the walk has open, and these were closed the moment the
             // describe hook finished with them. Focusable and focused are not passed on, because a

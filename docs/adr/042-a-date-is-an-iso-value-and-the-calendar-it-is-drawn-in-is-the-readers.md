@@ -523,6 +523,16 @@ blanks it with the guess off (§3, decision 57), so it is the one case where the
 &mdash; the owner's to confirm against decision 11's "without committing". Pinned by
 `DateFieldAccessibilityTest.aDisabledFieldsSegmentsCarryNoVerbAndAReadOnlyValue` and
 `DatePickerAccessibilityTest.theFieldsSegmentsCarryNoVerbBeneathTheCalendarOverlay`.
+**Amended 2026-09-15 (fix round 2c; ADR 039 §1.13's amendment of that date):** the overlay half of
+that correction, and the 2026-09-14 amendment's `COLLAPSE` withheld from the open field in the
+scene presentation, are no longer the field's. The walk takes every verb and every setter off each
+node outside the layer that owns input — beneath the picker's own overlay, beneath "some other
+in-scene modal", and in a window a native modal blocks — so the field stopped asking where its
+popup is drawn: the picker no longer hands it that fact, the field publishes `COLLAPSE` by state
+wherever it is enabled and the walk withdraws it beneath the overlay, and a segment's gate is the
+field being enabled alone. The disabled *container* stays as this note left it (the scene refuses
+there too; the rule for it is not settled here). The case above now also asserts the field and the
+calendar button publish no verb beneath the overlay, and it goes red with the walk's rule backed out.
 
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and

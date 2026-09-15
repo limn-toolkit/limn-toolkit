@@ -239,9 +239,11 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
 
     /**
      * Semantics 5 beneath the overlay (2026-09-15): while the calendar is an overlay of the
-     * scene, the scene refuses every verb on the field under it, which is why the field drops
-     * {@code COLLAPSE} there; its segments drop theirs for the same reason -- no step, no
-     * {@code FOCUS}, a read-only value -- and get them back when the calendar closes.
+     * scene, the scene refuses every verb on the field under it, so the walk publishes none there
+     * (ADR 039 §1.13, amended that day): the field drops {@code COLLAPSE}, the button its
+     * {@code PRESS}, and the segments theirs -- no step, no {@code FOCUS}, a read-only value --
+     * and all of them get them back when the calendar closes. The rule is the walk's since that
+     * amendment and no longer the field's own, so this case is what holds it for the picker.
      */
     @Test
     void theFieldsSegmentsCarryNoVerbBeneathTheCalendarOverlay() throws InterruptedException {
@@ -254,6 +256,10 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         field = nodesOf(Accessible.Role.GROUP).stream()
                 .filter(group -> group.name().equals("Data de entrega")).findFirst().orElseThrow();
+        assertNull(field.actions(), "the field beneath the overlay carries no verb: "
+                + describe(tree()));
+        assertNull(node("Abrir calendário").actions(),
+                "nor the button beside it: " + describe(tree()));
         List<AccessibleNode> segments = childrenOf(field);
         assertEquals(3, segments.size(), describe(tree()));
         for (AccessibleNode segment : segments) {
@@ -273,6 +279,9 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         field = nodesOf(Accessible.Role.GROUP).get(0);
         assertTrue(offers(childrenOf(field).get(1), Accessible.Action.FOCUS),
                 "closed again, the verbs are back " + describe(tree()));
+        assertTrue(offers(field, Accessible.Action.EXPAND), describe(tree()));
+        assertTrue(offers(node("Abrir calendário"), Accessible.Action.PRESS),
+                describe(tree()));
         assertFalse(childrenOf(field).get(1).value().readOnly());
     }
 }

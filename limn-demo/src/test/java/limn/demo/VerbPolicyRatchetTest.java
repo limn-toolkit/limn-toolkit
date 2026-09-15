@@ -9,9 +9,15 @@ import limn.demo.a11y.AccessibilityGallery;
 import limn.demo.a11y.AccessibilityGallery.Entry;
 import limn.demo.a11y.HeadlessWindow;
 import limn.demo.a11y.Transcript;
+import limn.components.ColorPickerButton;
+import limn.components.ComboBox;
+import limn.components.DisplayMode;
+import limn.components.MenuBar;
+import limn.components.date.DatePicker;
 import limn.concurrent.Subscription;
 import limn.scene.Change;
 import limn.scene.Scene;
+import limn.scene.Widget;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
@@ -38,6 +44,15 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * <p>The published verbs themselves are each widget's own test's business; this is the
  * complement, and it is what stops a synonym being accepted in silence.
+ *
+ * <p>The ratchet runs twice over the gallery: as each entry is built, and again with every
+ * surface that can float above the page asked to open as an overlay of the scene, and a menu bar's
+ * first menu opened (ADR 039 §1.13, amended 2026-09-15). In both, before any verb is sent, it holds
+ * the central rule on the entry's window: a node outside the layer that owns input — outside the
+ * in-scene overlay's subtree, or anywhere in a window a native modal blocks — publishes no verb and
+ * no setter, because the scene refuses every one there. {@link #IN_SCENE_OVERLAYS} names the
+ * entries whose second run has an overlay open, so the rule cannot pass by an overlay failing to
+ * open.
  *
  * <p>{@link #ALLOWLIST} names the nodes that accept an unpublished verb today, each keyed by the
  * item that owns the fix. An entry there is held to the opposite promise: the moment its node
@@ -86,13 +101,39 @@ class VerbPolicyRatchetTest {
             // together and header cells distinctly, and each publishes the verbs it accepts.
     );
 
+    /**
+     * The entries whose run with its surfaces in the scene has an in-scene overlay open at rest.
+     * Exactly these: an entry that opens one and is not listed, or is listed and opens none,
+     * fails, so the central rule is never held over a scene that has nothing covering it. The
+     * popup menu and the dialog in its own window are built open inside the entry, where no
+     * presentation can be asked of them first, and stay windows of their own.
+     */
+    static final Set<String> IN_SCENE_OVERLAYS = Set.of(
+            "Combo box, open", "Date picker, open", "Menu bar", "Dialog, in the scene",
+            "Colour picker button, open");
+
     // ------------------------------------------------------------------------- the ratchet
 
     @TestFactory
     Stream<DynamicTest> everyNodeRefusesEveryVerbItDoesNotPublish() {
         List<DynamicTest> tests = new ArrayList<>();
         for (Entry entry : AccessibilityGallery.entries()) {
-            tests.add(DynamicTest.dynamicTest(entry.name(), () -> check(entry)));
+            tests.add(DynamicTest.dynamicTest(entry.name(), () -> check(entry, false)));
+        }
+        return tests.stream();
+    }
+
+    /**
+     * The same ratchet with every surface that can be an overlay of the scene presented as one
+     * and opened where the entry opens it, and a menu bar's first menu down: the layer beneath
+     * such an overlay is where a published verb the scene refuses was found (fix round 2c,
+     * 2026-09-15), so the rule is ratcheted there too.
+     */
+    @TestFactory
+    Stream<DynamicTest> everyNodeRefusesEveryVerbItDoesNotPublishWithItsSurfacesInTheScene() {
+        List<DynamicTest> tests = new ArrayList<>();
+        for (Entry entry : AccessibilityGallery.entries()) {
+            tests.add(DynamicTest.dynamicTest(entry.name(), () -> check(entry, true)));
         }
         return tests.stream();
     }
@@ -110,11 +151,13 @@ class VerbPolicyRatchetTest {
      * rather than by identifier, because an accepted verb rebuilds the entry from scratch to
      * continue from a clean state, and a fresh build mints fresh identifiers over the same shape.
      */
-    private static void check(Entry entry) {
+    private static void check(Entry entry, boolean inScene) {
         List<String> violations = new ArrayList<>();
         Set<Exemption> used = new LinkedHashSet<>();
-        Run run = new Run(entry);
+        Run run = new Run(entry, inScene);
         try {
+            checkNothingOutsideTheInputLayerIsOperable(entry, inScene,
+                    run.windows.get(0).bridge().tree());
             for (int w = 0; w < run.windows.size(); w++) {
                 for (int i = 0; i < run.windows.get(w).bridge().tree().nodeCount(); i++) {
                     for (Accessible.Action verb : Accessible.Action.values()) {
@@ -140,7 +183,7 @@ class VerbPolicyRatchetTest {
                         // Whatever it did, it did: start the entry over so the next verb is
                         // asked of the tree the entry publishes at rest.
                         run.close();
-                        run = new Run(entry);
+                        run = new Run(entry, inScene);
                     }
                 }
             }
@@ -160,6 +203,68 @@ class VerbPolicyRatchetTest {
                         + "any more; strike it off");
             }
         }
+    }
+
+    /**
+     * The central rule on one window's tree at rest (ADR 039 §1.9 and §1.13, amended 2026-09-15;
+     * semantics 5): a node outside the layer that owns input publishes no verb, no writable value
+     * and no editable text. Outside is outside the subtree of the node published {@code MODAL}
+     * (the top in-scene overlay), or anywhere in a window whose own node is not {@code ENABLED}
+     * (a native modal blocks it).
+     */
+    private static void checkNothingOutsideTheInputLayerIsOperable(Entry entry, boolean inScene,
+                                                                  AccessibleTree tree) {
+        int modal = -1;
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            if (tree.node(i).has(Accessible.State.MODAL)) {
+                modal = i;
+            }
+        }
+        if (inScene) {
+            boolean expected = IN_SCENE_OVERLAYS.contains(entry.name());
+            if (expected != (modal >= 0)) {
+                fail("gallery entry \"" + entry.name() + "\" with its surfaces in the scene "
+                        + (expected ? "opened no in-scene overlay, which IN_SCENE_OVERLAYS says "
+                        + "it does" : "opened an in-scene overlay IN_SCENE_OVERLAYS does not "
+                        + "name; add it") + ":\n" + Transcript.of(tree));
+            }
+        }
+        boolean blocked = !tree.node(0).has(Accessible.State.ENABLED);
+        if (modal < 0 && !blocked) {
+            return;
+        }
+        List<String> violations = new ArrayList<>();
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            if (!blocked && isWithin(tree, i, modal)) {
+                continue;
+            }
+            AccessibleNode node = tree.node(i);
+            if (node.actions() != null) {
+                violations.add(describe(node) + " " + published(node));
+            }
+            if (node.value() != null && !node.value().readOnly()) {
+                violations.add(describe(node) + " publishes a writable value");
+            }
+            if (node.text() != null && !node.has(Accessible.State.READ_ONLY)) {
+                violations.add(describe(node) + " publishes editable text");
+            }
+        }
+        if (!violations.isEmpty()) {
+            fail("gallery entry \"" + entry.name() + "\"" + (inScene ? " with its surfaces in the "
+                    + "scene" : "") + ": " + violations.size() + " node(s) outside the layer that "
+                    + "owns input publish an operation the scene refuses (ADR 039 §1.13, amended "
+                    + "2026-09-15):\n  " + String.join("\n  ", violations) + "\n"
+                    + Transcript.of(tree));
+        }
+    }
+
+    private static boolean isWithin(AccessibleTree tree, int index, int ancestor) {
+        for (int at = index; at != AccessibleNode.NONE; at = tree.node(at).parent()) {
+            if (at == ancestor) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Exemption exemptionFor(String entry, AccessibleNode node,
@@ -189,9 +294,12 @@ class VerbPolicyRatchetTest {
         final List<String> changes = new ArrayList<>();
         private final Subscription watching;
 
-        Run(Entry entry) {
-            windows = new ArrayList<>(harness.show(entry));
+        Run(Entry entry, boolean inScene) {
+            windows = new ArrayList<>(harness.show(inScene ? inTheScene(entry) : entry));
             Scene scene = harness.scenes.get(0);
+            if (inScene) {
+                openAMenuBar(windows.get(0));
+            }
             watching = scene.observeChanges((source, change) -> {
                 if (change.aspect() != Change.Aspect.LAYOUT) {
                     changes.add(change.aspect() + "/" + change.origin() + " on "
@@ -202,6 +310,56 @@ class VerbPolicyRatchetTest {
             // that has gone quiet, and only what it does after that counts.
             harness.settle(FRAMES_AFTER_A_VERB);
             changes.clear();
+        }
+
+        /**
+         * The entry with every surface that can float above the page asked to open as an overlay
+         * of the scene: a combo's list, a date picker's calendar, a menu bar's cascade and a
+         * colour button's dialog. Set on the built tree before the harness binds it, so whatever
+         * the entry opens after its first frame opens in the scene.
+         */
+        private static Entry inTheScene(Entry entry) {
+            return new Entry(entry.name(), entry.covers(), entry.publishes(), () -> {
+                AccessibilityGallery.Built built = entry.build();
+                presentInScene(built.root());
+                return built;
+            });
+        }
+
+        private static void presentInScene(Widget widget) {
+            if (widget instanceof ComboBox combo) {
+                combo.setDisplayMode(DisplayMode.IN_SCENE);
+            } else if (widget instanceof DatePicker picker) {
+                picker.setDisplayMode(DisplayMode.IN_SCENE);
+            } else if (widget instanceof MenuBar bar) {
+                bar.setDisplayMode(DisplayMode.IN_SCENE);
+            } else if (widget instanceof ColorPickerButton button) {
+                button.setPickerDisplayMode(DisplayMode.IN_SCENE);
+            }
+            for (Widget child : widget.children()) {
+                presentInScene(child);
+            }
+        }
+
+        /**
+         * Opens the first menu of a menu bar in the window, through the verb its title publishes,
+         * because no entry opens one and beneath its cascade is where the defect this run holds
+         * was found.
+         */
+        private void openAMenuBar(HeadlessWindow window) {
+            AccessibleTree tree = window.bridge().tree();
+            for (int i = 0; i < tree.nodeCount(); i++) {
+                AccessibleNode node = tree.node(i);
+                if (node.role() == Accessible.Role.MENU_ITEM && node.parent() != AccessibleNode.NONE
+                        && tree.node(node.parent()).role() == Accessible.Role.MENU_BAR
+                        && node.actions() != null
+                        && node.actions().has(Accessible.Action.SHOW_MENU)) {
+                    assertTrue(window.bridge().host.perform(node.id(), Accessible.Action.SHOW_MENU,
+                            Accessible.Argument.NONE));
+                    harness.settle();
+                    return;
+                }
+            }
         }
 
         /**

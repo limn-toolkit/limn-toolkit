@@ -198,9 +198,16 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
 
         openList();
 
-        assertTrue(field().actions().has(Accessible.Action.COLLAPSE), describe(tree()));
-        assertFalse(field().actions().has(Accessible.Action.EXPAND));
         assertTrue(field().expand().expanded(), describe(tree()));
+        assertNull(field().actions(),
+                "down in the scene, the list's own layer owns the input and the scene refuses "
+                        + "every verb on the field beneath it, so the field publishes none, "
+                        + "COLLAPSE included (ADR 039 §1.13, amended 2026-09-15). In a window of "
+                        + "its own the field keeps the input and publishes COLLAPSE, which is the "
+                        + "lab's mounting" + describe(tree()));
+        assertTrue(field().value().readOnly(),
+                "and no SET_VALUE either: the value is published read-only while it cannot be "
+                        + "set" + describe(tree()));
     }
 
     // ---------------------------------------------------------------------------------- the name
@@ -328,6 +335,10 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
                 "the set published focusable is the set the keyboard reaches, and while the list "
                         + "is down the keyboard reaches the layer above" + describe(tree()));
         assertTrue(node.has(Accessible.State.SHOWING), "it is still on screen");
+        assertNull(node.actions(),
+                "and it publishes no verb, because the platform is answered from the snapshot "
+                        + "and a COLLAPSE published here would be reported accepted and dropped"
+                        + describe(tree()));
 
         perform(node.id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE);
         frame();

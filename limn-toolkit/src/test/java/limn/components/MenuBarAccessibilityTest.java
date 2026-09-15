@@ -363,8 +363,11 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
                 "the published EXPAND is performed, not refused as a title already down: the "
                         + "open is asked again, and this time the window can host it"
                         + describe(tree()));
-        assertEquals(java.util.Set.of(Accessible.Action.COLLAPSE),
-                titles().get(0).actions().actions(), describe(tree()));
+        assertNull(titles().get(0).actions(),
+                "down in the scene, so beneath the cascade's layer, where the scene refuses every "
+                        + "verb and the title publishes none (ADR 039 §1.13, amended 2026-09-15); "
+                        + "the COLLAPSE of a title down in a window of its own is "
+                        + "MenuBarNativePopupTest's" + describe(tree()));
     }
 
     /**
@@ -390,14 +393,88 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
 
         assertTrue(bar.isOpen(), "the published synonym is dispatched" + describe(tree()));
         assertTrue(titles().get(1).has(Accessible.State.ACTIVE), describe(tree()));
-        assertEquals(java.util.Set.of(Accessible.Action.COLLAPSE),
-                titles().get(1).actions().actions(),
-                "open: the one verb it accepts now, and neither of the two it would refuse"
+        for (AccessibleNode title : titles()) {
+            assertNull(title.actions(),
+                    "open in the scene: the cascade's layer owns the input and the scene refuses "
+                            + "every verb on the bar beneath it, so no title publishes one (ADR "
+                            + "039 §1.13, amended 2026-09-15). The open title's COLLAPSE and the "
+                            + "closed titles' SHOW_MENU and EXPAND without FOCUS are the verbs of "
+                            + "a cascade in a window of its own, MenuBarNativePopupTest's"
+                            + describe(tree()));
+        }
+    }
+
+    /**
+     * The central rule, read on the bar (ADR 039 §1.9 and §1.13, amended 2026-09-15; semantics
+     * 5): while an in-scene cascade holds the scene's input, the titles beneath it publish no verb
+     * and every verb sent to one anyway moves nothing, and the verbs the cascade publishes are the
+     * ones performed. Until that day the open title published {@code COLLAPSE} and the others
+     * {@code SHOW_MENU} and {@code EXPAND}, each reported accepted and dropped by the scene's gate.
+     */
+    @Test
+    void anInSceneCascadeTakesEveryVerbOffTheBarAndPerformsTheOnesItPublishes() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger chosen =
+                new java.util.concurrent.atomic.AtomicInteger();
+        bindBar(new MenuBar()
+                .setDisplayMode(DisplayMode.IN_SCENE)
+                .addMenu("File", new Menu().addItem("New", chosen::incrementAndGet))
+                .addMenu("Edit", new Menu().addItem("Undo", () -> { })), new StubWindow());
+        assertTrue(perform(titles().get(0).id(), Accessible.Action.SHOW_MENU,
+                Accessible.Argument.NONE));
+        frame();
+        assertTrue(bar.isOpen());
+        assertFalse(nodesWith(Accessible.State.MODAL).isEmpty(),
+                "a cascade is really mounted in the scene" + describe(tree()));
+
+        assertNull(barNode().actions(), describe(tree()));
+        for (AccessibleNode title : titles()) {
+            assertNull(title.actions(), "no title beneath the cascade publishes a verb"
+                    + describe(tree()));
+        }
+        for (Accessible.Action verb : List.of(Accessible.Action.COLLAPSE,
+                Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND, Accessible.Action.FOCUS)) {
+            perform(titles().get(0).id(), verb, Accessible.Argument.NONE);
+            perform(titles().get(1).id(), verb, Accessible.Argument.NONE);
+            frame();
+            assertTrue(bar.isOpen(), verb + " on a title beneath the cascade is refused"
+                    + describe(tree()));
+            assertTrue(titles().get(0).expand().expanded() && titles().get(0).has(
+                    Accessible.State.ACTIVE) && !titles().get(1).has(Accessible.State.ACTIVE),
+                    verb + " moved nothing: the open title is still down and the cursor"
+                            + describe(tree()));
+        }
+
+        AccessibleNode surface = null;
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            AccessibleNode candidate = tree().node(i);
+            if (candidate.actions() != null
+                    && candidate.actions().has(Accessible.Action.CANCEL)) {
+                surface = candidate;
+            }
+        }
+        assertNotNull(surface, "the cascade publishes its dismissal" + describe(tree()));
+        assertTrue(perform(surface.id(), Accessible.Action.CANCEL, Accessible.Argument.NONE));
+        frame();
+        assertFalse(bar.isOpen(), "and its published CANCEL is performed" + describe(tree()));
+        assertNull(titles().get(0).actions(),
+                "while the closed cascade fades out its layer still holds the input, the scene "
+                        + "still refuses the bar, and the titles still publish nothing"
                         + describe(tree()));
-        assertEquals(java.util.Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND),
-                titles().get(0).actions().actions(),
-                "the other titles are still closed, and while a menu is down the open title is "
-                        + "the cursor, so none of them takes FOCUS" + describe(tree()));
+
+        bindBar(new MenuBar()
+                .setDisplayMode(DisplayMode.IN_SCENE)
+                .addMenu("File", new Menu().addItem("New", chosen::incrementAndGet)),
+                new StubWindow());
+        assertTrue(perform(titles().get(0).id(), Accessible.Action.SHOW_MENU,
+                Accessible.Argument.NONE));
+        frame();
+        assertNull(titles().get(0).actions(), describe(tree()));
+        AccessibleNode row = node("New");
+        assertTrue(row.actions().has(Accessible.Action.PRESS), describe(tree()));
+        assertTrue(perform(row.id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        frame();
+        assertEquals(1, chosen.get(), "the cascade's published PRESS is performed");
+        assertFalse(bar.isOpen(), "and choosing closes the cascade" + describe(tree()));
     }
 
     @Test

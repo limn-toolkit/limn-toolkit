@@ -9,6 +9,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -56,6 +57,66 @@ class AccessibleModalTest extends AccessibleTestBase {
                 "it is genuinely on screen, and a reader may still want to read it");
         assertTrue(behind.has(Accessible.State.SHOWING));
         assertTrue(node("confirm").has(Accessible.State.ENABLED));
+    }
+
+    /**
+     * The same rule for what a node offers to do (ADR 039 §1.13, amended 2026-09-15; semantics 5):
+     * the scene refuses every verb outside the layer that owns input, and a platform is answered
+     * from the snapshot, so a node there publishes no verb and none of the setters its facets
+     * would imply -- its value read-only, its text {@code READ_ONLY} -- beneath an in-scene
+     * layer and in a window a native modal blocks alike, and gets them back when the layer goes.
+     */
+    @Test
+    void everythingOutsideTheOpenLayerPublishesNoVerbAndNoSetter() {
+        Group root = new Group();
+        Probe slider = stop("level");
+        slider.value = 40.0;
+        slider.actions = new Accessible.Action[] {Accessible.Action.INCREMENT};
+        root.add(slider);
+        Probe field = stop("notes");
+        field.role = Accessible.Role.TEXT_FIELD;
+        field.text = "draft";
+        root.add(field);
+        bind(root);
+        frame();
+        assertTrue(node("level").actions().has(Accessible.Action.INCREMENT), describe(tree()));
+        assertFalse(node("level").value().readOnly());
+        assertFalse(node("notes").has(Accessible.State.READ_ONLY));
+
+        Group dialog = new Group();
+        Probe confirm = stop("confirm");
+        confirm.value = 1.0;
+        confirm.actions = new Accessible.Action[] {Accessible.Action.PRESS};
+        dialog.add(confirm);
+        scene.pushOverlay(dialog);
+        frame();
+
+        assertNull(node("level").actions(),
+                "a verb the scene refuses beneath the layer is not published: " + describe(tree()));
+        assertTrue(node("level").value().readOnly(), "nor the SET_VALUE a writable value implies");
+        assertTrue(node("level").has(Accessible.State.READ_ONLY));
+        assertEquals(40.0, node("level").value().value(), "what it holds is still said");
+        assertNull(node("notes").actions(), "not even the free verbs");
+        assertTrue(node("notes").has(Accessible.State.READ_ONLY),
+                "nor the SET_TEXT an editable text implies: " + describe(tree()));
+        assertTrue(node("confirm").actions().has(Accessible.Action.PRESS),
+                "the layer that owns input keeps every one");
+        assertFalse(node("confirm").value().readOnly());
+
+        scene.removeOverlay(dialog);
+        frame();
+        assertTrue(node("level").actions().has(Accessible.Action.INCREMENT),
+                "closing the layer gives the operations back: " + describe(tree()));
+        assertFalse(node("level").value().readOnly());
+        assertFalse(node("notes").has(Accessible.State.READ_ONLY));
+
+        window.modalBlocked = true;
+        scene.requestRender();
+        frame();
+        assertNull(node("level").actions(),
+                "a native modal blocks the whole window the same way: " + describe(tree()));
+        assertTrue(node("level").value().readOnly());
+        assertTrue(node("notes").has(Accessible.State.READ_ONLY));
     }
 
     @Test
