@@ -1934,6 +1934,25 @@ by `NativePopupRelationTest` in the demo, where a `HeadlessBackend` opens the po
 second window: the list names the combo, the combo names the list, the calendar's card names the
 picker and the picker names the card; and a closed popup window leaves the picker with no mirror.
 
+**Amendment, 2026-09-15 (CRIT-2, the Windows half): a foreign relation target is handed back as the
+other window's element.** The 2026-09-14 amendment above left "what each platform then does with a
+foreign element" to phase 3, per platform, and the Windows bridge did nothing with it: a target its
+own tree did not hold answered no element, and the array was compacted — so a combo's
+`ControllerFor` was `VT_EMPTY` while its popup was open, the one moment it is worth asking, and a
+`LabeledBy` or `DescribedBy` held elsewhere was empty too. The bridge now asks the process's set of
+open bridges which one holds the target (`AccessibleTree#holds`, the same routing the cursor already
+used for decision 5) and hands back **that** window's element, through its *simple* interface, minted
+and referenced under that bridge's guard, so the whole-registry empty cannot free it under the
+caller. A target no open window holds is still left out rather than handed over as a `NULL` entry of
+a `SAFEARRAY(VT_UNKNOWN)`, which `SafeArrayDestroy` would release one by one. `POPUP_FOR`, the
+mirror the popup's own root carries, is answered by no property: UI Automation has no "popup for"
+among its element-valued properties, and what a client follows from the popup back to its opener is
+the opener's `ControllerFor`. Pinned by
+`UiaProviderTest.aRelationTargetAnotherWindowHoldsIsHandedBackAsThatWindowsElement`, which restates
+`aRelationTargetAnotherWindowHoldsIsLeftOutRatherThanHandedOverAsNull` (2026-09-14), the case that
+pinned the compaction. The live half — a client reading `ControllerFor` on the opener and reaching
+the popup's element — is phase 5's.
+
 ### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
 
 ```

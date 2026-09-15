@@ -932,16 +932,22 @@ public final class UiaBridge extends PlatformBridge {
      * found and referenced while the whole-registry empty cannot run, and not at all once this
      * bridge has left the open set, which its detach does before it empties.
      *
+     * <p>Since 2026-09-15 it also hands over the <b>simple</b> interface, for an element-valued
+     * relation property whose target lives here (CRIT-2): {@code ControllerFor} on the opener of a
+     * native popup names the popup's root, and the property declares
+     * {@code IRawElementProviderSimple**}.
+     *
      * @param nodeId a node of this bridge's tree
+     * @param iface  which of the node's interfaces the caller's out parameter declares
      * @return the pointer, referenced for the caller, or {@code 0} once this bridge is closing or
      *         the node has left
      */
-    private long handOverFromAnotherWindow(long nodeId) {
+    private long handOverFromAnotherWindow(long nodeId, UiaInterfaces.Vtable iface) {
         synchronized (vendGuard) {
             if (closed || !OPEN.contains(this)) {
                 return 0;
             }
-            return handOver(nodeId, UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT);
+            return handOver(nodeId, iface);
         }
     }
 
@@ -1453,7 +1459,21 @@ public final class UiaBridge extends PlatformBridge {
         @Override
         public long elementInAnotherWindowFor(long nodeId) {
             UiaBridge holder = openBridgeHolding(nodeId);
-            return holder == null ? 0 : holder.handOverFromAnotherWindow(nodeId);
+            return holder == null ? 0 : holder.handOverFromAnotherWindow(nodeId,
+                    UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT);
+        }
+
+        /**
+         * <p>The same hand-over, through the simple interface the relation properties declare
+         * (CRIT-2): a {@code ControllerFor}, {@code LabeledBy} or {@code DescribedBy} target that
+         * another open window holds is that window's element, minted and referenced there, under
+         * that bridge's guard.
+         */
+        @Override
+        public long simpleElementInAnotherWindowFor(long nodeId) {
+            UiaBridge holder = openBridgeHolding(nodeId);
+            return holder == null ? 0 : holder.handOverFromAnotherWindow(nodeId,
+                    UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE);
         }
 
         @Override
