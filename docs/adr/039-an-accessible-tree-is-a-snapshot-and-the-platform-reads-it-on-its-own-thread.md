@@ -4289,6 +4289,16 @@ with (`AxSelectors.Kind`), the element class refuses a closure of another shape,
 each shape against the encoding the dump read, and `AxSelectorsTest`'s source scan reads each install's
 shape and refuses an install whose selector it cannot read.
 
+*The regeneration, dated 2026-09-15 (the end of the phase-3 macOS lane):* the committed dump was
+regenerated once, from `scripts/a11y/macos/dump-appkit-constants.swift` run on the macOS 26.6.2 guest
+(25G83). Every line of the 2026-09-13 reading reappeared unchanged; the new dump adds the selectors the
+bridge came to install in phase 3 — the legacy pair, disclosure, expanded, the setters, the named-action
+perform, the column lists and the column class's installs, every one of the 64 install lines "in the
+encodings table" — and the sort direction's attribute and C enum values (unknown 0, ascending 1,
+descending 2, from the SDK the script was compiled against, without quotes). The selectors and symbols
+the test carried as owed to it are retired, so each is now held against the committed dump like any
+other.
+
 ---
 
 ## 13. Risks and open edges

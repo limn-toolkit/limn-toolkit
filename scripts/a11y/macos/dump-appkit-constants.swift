@@ -110,6 +110,9 @@ let attributes = [
     "NSAccessibilitySelectedRowsAttribute", "NSAccessibilitySelectedCellsAttribute",
     "NSAccessibilityColumnsAttribute", "NSAccessibilityIndexAttribute",
     "NSAccessibilityRowCountAttribute", "NSAccessibilityColumnCountAttribute",
+    // A header cell's sort direction (decision 36) and a column's own attributes (M4).
+    "NSAccessibilitySortDirectionAttribute", "NSAccessibilityVisibleColumnsAttribute",
+    "NSAccessibilitySelectedColumnsAttribute", "NSAccessibilityHeaderAttribute",
 ]
 
 // Action names: what a client's AXPerformAction carries, and what accessibilityActionNames lists.
@@ -168,9 +171,8 @@ let selectors = [
     "accessibilityArrayAttributeValues:index:maxCount:", "accessibilityIndexOfChild:",
 ]
 
-// Every selector limn-backend-lwjgl's macOS bridge hands class_addMethod, with where, read out of
-// AxElementClass.java (install, installBusy, installTable, installActions, installFocusedElement,
-// installFocusedElementOnView, installHitTest) and AxActions.java's selector table at f4bc544.
+// Every selector limn-backend-lwjgl's macOS bridge hands class_addMethod, with where: the lists in
+// AxSelectors.java (ON_ELEMENT, ON_VIEW, ON_COLUMN), which AxElementClass installs exactly.
 // This is a copy, and a copy is what goes stale: its use is to show, on the guest, what
 // AxObjC.encodingOf would answer for each one. AxSelectorsTest fails when it and AxSelectors differ.
 let installedByTheBridge: [(String, String)] = [
@@ -347,6 +349,10 @@ if wanted.isEmpty {
     print("  NSAccessibilityPriorityLow = \(NSAccessibilityPriorityLevel.low.rawValue)  (enum NSAccessibilityPriorityLevel)")
     print("  NSAccessibilityPriorityMedium = \(NSAccessibilityPriorityLevel.medium.rawValue)  (enum NSAccessibilityPriorityLevel)")
     print("  NSAccessibilityPriorityHigh = \(NSAccessibilityPriorityLevel.high.rawValue)  (enum NSAccessibilityPriorityLevel)")
+    // What -accessibilitySortDirection (q16@0:8) answers; its three names above are not exported.
+    print("  NSAccessibilitySortDirectionUnknown = \(NSAccessibilitySortDirection.unknown.rawValue)  (enum NSAccessibilitySortDirection)")
+    print("  NSAccessibilitySortDirectionAscending = \(NSAccessibilitySortDirection.ascending.rawValue)  (enum NSAccessibilitySortDirection)")
+    print("  NSAccessibilitySortDirectionDescending = \(NSAccessibilitySortDirection.descending.rawValue)  (enum NSAccessibilitySortDirection)")
 
     print("\n==== selector type encodings ====")
     for selector in selectors {
@@ -434,7 +440,7 @@ if wanted.isEmpty {
         print("  -\(name)  \(places[name]!.joined(separator: "  | "))")
     }
 
-    print("\n==== selectors the bridge installs (AxElementClass and AxActions at f4bc544), looked up as AxObjC.encodingOf does ====")
+    print("\n==== selectors the bridge installs (AxSelectors), looked up as AxObjC.encodingOf does ====")
     for (selector, target) in installedByTheBridge {
         var line = "  -\(selector)"
         if let found = encodingLookup(selector) {
