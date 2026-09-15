@@ -180,6 +180,6 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
 
     @Override
     public void emit(AccessibleEvent event) {
-        application.emit(event);
+        application.emit(this, event);
     }
 }

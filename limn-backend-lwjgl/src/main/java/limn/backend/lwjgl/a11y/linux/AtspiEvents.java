@@ -2,9 +2,12 @@ package limn.backend.lwjgl.a11y.linux;
 
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
+import limn.accessibility.AccessibleTree;
+
+import java.util.List;
 
 /**
- * Turns one of the toolkit's events into the signal a client on this platform is listening for.
+ * Turns one of the toolkit's events into the signals a client on this platform is listening for.
  *
  * <p><b>A reader is told, and does not have to look.</b> Everything else this bridge does answers a
  * question a client thought to ask; these are the pushes it waits on. Orca in particular registers
@@ -13,13 +16,14 @@ import limn.accessibility.AccessibleEvent;
  * the interface is being used.
  *
  * <p>Every AT-SPI event has the same shape whatever it means: a detail string, two integers, a
- * value, and the application it came from. What varies is the interface and member it is sent as,
- * and the detail string, which is the part a client subscribes by.
+ * value, and the application it came from, sent from the object it is about. What varies is the
+ * interface and member it is sent as, the detail string, which is the part a client subscribes by,
+ * and the value, which libatspi 2.60.6 turns into the event's {@code any_data} only when it is a
+ * struct or a string ({@code _atspi_dbus_handle_event},
+ * readings/upstream-at-spi2-core-2.60.6-libatspi.txt): an {@code i} arrives as nothing at all.
  *
- * <p>Not every event the toolkit raises has somewhere to go here, and the ones that do not return
- * {@code null} rather than something approximate. An announcement is one: it is a message to the
- * user rather than a fact about a node, and this platform carries it through a different mechanism
- * than the object events, which is its own step.
+ * <p>Not every event the toolkit raises has somewhere to go here, and the ones that do not map to
+ * no signal rather than something approximate.
  */
 final class AtspiEvents {
 
@@ -31,79 +35,164 @@ final class AtspiEvents {
     /** Window lifecycle, which a desktop shell watches rather than a screen reader. */
     static final String I_EVENT_WINDOW = "org.a11y.atspi.Event.Window";
 
-    /** One signal: which member of which interface, and the four values it carries. */
-    record Signal(String iface, String member, String detail, int detail1, int detail2,
-                  DBus.Variant value) {
+    /**
+     * What a mapping reads besides the event: the tree the event was handed with, and how this
+     * application names a node on the bus. The event carries identifiers; the reference, the index
+     * a client inserts at and the text a client speaks are read off the tree, which on the
+     * user-interface thread is the tree the event describes.
+     */
+    interface Context {
+        /** @return the tree published by the window that raised the event, just before it */
+        AccessibleTree tree();
+
+        /** @return the application object's reference, which every event body carries */
+        DBus.Ref application();
+
+        /** @return the reference a node has on this bus, whichever window holds it */
+        DBus.Ref refOf(long id);
+
+        /** @return the null object's reference on this bus */
+        DBus.Ref nullRef();
+
+        /**
+         * @return where a node stands among its parent's children, in whichever window holds it
+         *         (a window's own node among the application's frames), or -1 when no window does
+         */
+        int indexInParent(long id);
     }
 
     /**
-     * The signal {@code event} is, or {@code null} when this platform has no push for it.
-     *
-     * @param event what the difference between two published trees found
-     * @return the signal to send, or {@code null}
+     * One signal as it goes on the wire: the object it is sent from, its interface and member, its
+     * signature and body.
      */
-    static Signal of(AccessibleEvent event) {
-        return switch (event.type()) {
+    record Signal(String path, String iface, String member, String signature, Object[] body) {
+
+        /** @return the detail string of an event signal */
+        String detail() {
+            return (String) body[0];
+        }
+
+        /** @return the first integer of an event signal */
+        int detail1() {
+            return (Integer) body[1];
+        }
+
+        /** @return the second integer of an event signal */
+        int detail2() {
+            return (Integer) body[2];
+        }
+
+        /** @return the value of an event signal, which a client reads as {@code any_data} */
+        DBus.Variant value() {
+            return (DBus.Variant) body[3];
+        }
+    }
+
+    /**
+     * An event signal: {@code (siiv(so))} from {@code path}.
+     */
+    static Signal event(Context context, String path, String iface, String member, String detail,
+                        int detail1, int detail2, DBus.Variant value) {
+        return new Signal(path, iface, member, SIGNATURE, new Object[] {
+                detail, detail1, detail2, value, context.application().toStruct(),
+        });
+    }
+
+    /**
+     * The signals {@code event} is, in the order they are sent; empty when this platform has no
+     * push for it.
+     *
+     * @param event   what the difference between two published trees found
+     * @param context the tree it was handed with and the bus's names
+     * @return the signals to send
+     */
+    static List<Signal> of(AccessibleEvent event, Context context) {
+        String path = event.nodeId() == 0 ? Atspi.PATH_ROOT : context.refOf(event.nodeId()).path;
+        Signal one = switch (event.type()) {
             // Nothing. Focus is a state change on this platform -- the dedicated Focus signal is
             // deprecated and Orca subscribes to object:state-changed:focused -- and the difference
             // ALSO raises STATE_CHANGED for the FOCUSED bit, on both the node gaining it and the
             // node losing it. Mapping this one too sent the arrival twice and the departure once,
             // so a reader announced the newly focused control and then announced it again.
             case FOCUS_CHANGED -> null;
-            case STATE_CHANGED -> stateChanged(event);
-            case NAME_CHANGED -> new Signal(I_EVENT_OBJECT, "PropertyChange", "accessible-name",
-                    0, 0, new DBus.Variant("s", string(event.newValue())));
-            case DESCRIPTION_CHANGED -> new Signal(I_EVENT_OBJECT, "PropertyChange",
+            case STATE_CHANGED -> stateChanged(event, context, path);
+            case NAME_CHANGED -> event(context, path, I_EVENT_OBJECT, "PropertyChange",
+                    "accessible-name", 0, 0, new DBus.Variant("s", string(event.newValue())));
+            case DESCRIPTION_CHANGED -> event(context, path, I_EVENT_OBJECT, "PropertyChange",
                     "accessible-description", 0, 0,
                     new DBus.Variant("s", string(event.newValue())));
-            case VALUE_CHANGED -> new Signal(I_EVENT_OBJECT, "PropertyChange", "accessible-value",
-                    0, 0, new DBus.Variant("d", number(event.newValue())));
-            case BOUNDS_CHANGED -> new Signal(I_EVENT_OBJECT, "BoundsChanged", "", 0, 0,
+            case VALUE_CHANGED -> event(context, path, I_EVENT_OBJECT, "PropertyChange",
+                    "accessible-value", 0, 0, new DBus.Variant("d", number(event.newValue())));
+            case BOUNDS_CHANGED -> event(context, path, I_EVENT_OBJECT, "BoundsChanged", "", 0, 0,
                     new DBus.Variant("i", 0));
             // Structure and destruction are both "the children of something moved" here: the
             // platform has no separate word for a node that ceased to exist, and a client answers
             // both by re-reading the subtree.
-            case STRUCTURE_CHANGED -> new Signal(I_EVENT_OBJECT, "ChildrenChanged", "", 0, 0,
-                    new DBus.Variant("i", 0));
-            case NODE_DESTROYED -> new Signal(I_EVENT_OBJECT, "ChildrenChanged", "remove", 0, 0,
-                    new DBus.Variant("i", 0));
-            case SELECTION_CHANGED -> new Signal(I_EVENT_OBJECT, "SelectionChanged", "", 0, 0,
-                    new DBus.Variant("i", 0));
-            case ACTIVE_DESCENDANT_CHANGED -> new Signal(I_EVENT_OBJECT,
-                    "ActiveDescendantChanged", "", 0, 0, new DBus.Variant("i", 0));
-            case TEXT_CHANGED -> new Signal(I_EVENT_OBJECT, "TextChanged",
+            case STRUCTURE_CHANGED -> event(context, path, I_EVENT_OBJECT, "ChildrenChanged", "",
+                    0, 0, new DBus.Variant("i", 0));
+            case NODE_DESTROYED -> event(context, path, I_EVENT_OBJECT, "ChildrenChanged",
+                    "remove", 0, 0, new DBus.Variant("i", 0));
+            case SELECTION_CHANGED -> event(context, path, I_EVENT_OBJECT, "SelectionChanged", "",
+                    0, 0, new DBus.Variant("i", 0));
+            case ACTIVE_DESCENDANT_CHANGED -> activeDescendantChanged(event, context, path);
+            case TEXT_CHANGED -> event(context, path, I_EVENT_OBJECT, "TextChanged",
                     event.inserted() > 0 ? "insert" : "delete", event.offset(),
                     Math.max(event.inserted(), event.removed()),
                     new DBus.Variant("s", string(event.newValue())));
-            case CARET_MOVED -> new Signal(I_EVENT_OBJECT, "TextCaretMoved", "", event.offset(), 0,
-                    new DBus.Variant("i", 0));
-            case TEXT_SELECTION_CHANGED -> new Signal(I_EVENT_OBJECT, "TextSelectionChanged", "",
-                    0, 0, new DBus.Variant("i", 0));
-            case WINDOW_OPENED -> new Signal(I_EVENT_WINDOW, "Create", "", 0, 0,
+            case CARET_MOVED -> event(context, path, I_EVENT_OBJECT, "TextCaretMoved", "",
+                    event.offset(), 0, new DBus.Variant("i", 0));
+            case TEXT_SELECTION_CHANGED -> event(context, path, I_EVENT_OBJECT,
+                    "TextSelectionChanged", "", 0, 0, new DBus.Variant("i", 0));
+            case WINDOW_OPENED -> event(context, path, I_EVENT_WINDOW, "Create", "", 0, 0,
                     new DBus.Variant("s", ""));
-            case WINDOW_CLOSED -> new Signal(I_EVENT_WINDOW, "Destroy", "", 0, 0,
+            case WINDOW_CLOSED -> event(context, path, I_EVENT_WINDOW, "Destroy", "", 0, 0,
                     new DBus.Variant("s", ""));
-            case WINDOW_ACTIVATED -> new Signal(I_EVENT_WINDOW, "Activate", "", 0, 0,
+            case WINDOW_ACTIVATED -> event(context, path, I_EVENT_WINDOW, "Activate", "", 0, 0,
                     new DBus.Variant("s", ""));
-            case WINDOW_DEACTIVATED -> new Signal(I_EVENT_WINDOW, "Deactivate", "", 0, 0,
-                    new DBus.Variant("s", ""));
+            case WINDOW_DEACTIVATED -> event(context, path, I_EVENT_WINDOW, "Deactivate", "", 0,
+                    0, new DBus.Variant("s", ""));
             // Everything else: an announcement is a message rather than a node's fact, and the
             // remaining kinds are the toolkit's own bookkeeping. Nothing approximate is sent.
             default -> null;
         };
+        return one == null ? List.of() : List.of(one);
+    }
+
+    /**
+     * The focused node's cursor moved: sent from the focused node, with the new descendant's own
+     * {@code (so)} as the value and its index in its parent as the first integer.
+     *
+     * <p>The reference is what makes the event mean anything. It was an {@code i} 0 until
+     * 2026-09-15 (L1), which libatspi turns into no {@code any_data} at all, and Orca 50.2's
+     * {@code _ignore_active_descendant_or_selection} drops an active-descendant change with none:
+     * the 2026-09-14 baseline counted ten of them from the tree reader, every one ignored "No
+     * any_data". The index is the ATK bridge's convention ({@code active_descendant_event_listener}
+     * in at-spi2-core 2.60.6's {@code atk-adaptor/event.c}, which sends
+     * {@code atk_object_get_index_in_parent (child)}; GTK 4.22.4 sends no such event), read in
+     * readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-event-shapes.txt. The descendant may live in
+     * another window of this process — a native popup's option, decision 5 — which is an ordinary
+     * reference on this connection. A cursor that went away names the null object and no index.
+     */
+    private static Signal activeDescendantChanged(AccessibleEvent event, Context context,
+                                                  String path) {
+        long descendant = event.newValue() instanceof Number n ? n.longValue() : 0L;
+        DBus.Ref ref = descendant == 0 ? context.nullRef() : context.refOf(descendant);
+        int index = descendant == 0 ? -1 : context.indexInParent(descendant);
+        return event(context, path, I_EVENT_OBJECT, "ActiveDescendantChanged", "", index, 0,
+                new DBus.Variant("(so)", ref.toStruct()));
     }
 
     /**
      * A state change, whose detail is the platform's own name for the bit and whose first integer
      * says whether it went on or off.
      */
-    private static Signal stateChanged(AccessibleEvent event) {
+    private static Signal stateChanged(AccessibleEvent event, Context context, String path) {
         Accessible.State state = event.state();
         if (state == null || AtspiStates.bitOf(state) == null) {
             return null;
         }
         boolean on = Boolean.TRUE.equals(event.newValue());
-        return new Signal(I_EVENT_OBJECT, "StateChanged", detailOf(state), on ? 1 : 0, 0,
+        return event(context, path, I_EVENT_OBJECT, "StateChanged", detailOf(state), on ? 1 : 0, 0,
                 new DBus.Variant("i", 0));
     }
 
@@ -111,7 +200,7 @@ final class AtspiEvents {
      * The platform's subscription name for a state: lower case with words separated by hyphens,
      * which is what a client's {@code object:state-changed:<detail>} match string carries.
      */
-    private static String detailOf(Accessible.State state) {
+    static String detailOf(Accessible.State state) {
         return switch (state) {
             case READ_ONLY -> "read-only";
             case MULTI_LINE -> "multi-line";
@@ -129,21 +218,6 @@ final class AtspiEvents {
 
     private static double number(Object value) {
         return value instanceof Number n ? n.doubleValue() : 0;
-    }
-
-    /**
-     * The body every AT-SPI event carries: {@code (siiv(so))} -- detail, two integers, the value,
-     * and the application it came from.
-     *
-     * @param signal what to send
-     * @param sender the application object's reference
-     * @return the marshalled arguments
-     */
-    static Object[] body(Signal signal, DBus.Ref sender) {
-        return new Object[] {
-                signal.detail(), signal.detail1(), signal.detail2(), signal.value(),
-                sender.toStruct(),
-        };
     }
 
     /**

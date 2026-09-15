@@ -87,7 +87,7 @@ final class AtspiTree {
         return new DBus.Ref(busName, NODE_PREFIX + id);
     }
 
-    private DBus.Ref nullRef() {
+    DBus.Ref nullRef() {
         return new DBus.Ref(busName, Atspi.PATH_NULL);
     }
 
@@ -339,6 +339,18 @@ final class AtspiTree {
             case "GetAlpha" -> DBus.Msg.ret(m, "d", 1.0d);
             default -> null;
         };
+    }
+
+    /**
+     * Where a node sits among its siblings, in whichever window holds it: what
+     * {@code GetIndexInParent} on its path answers, so an event and a call can never disagree.
+     *
+     * @param id the node
+     * @return its index, or -1 when no window's snapshot holds it
+     */
+    int indexInParentOf(long id) {
+        Located at = locate(id);
+        return at == null ? -1 : indexInParent(at);
     }
 
     /**

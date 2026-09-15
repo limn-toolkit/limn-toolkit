@@ -346,11 +346,11 @@ final class AtspiApplication {
         if (shows) {
             window.frameId = tree.node(0).id();
             window.shownAsFrame = true;
-            announceFrame(now.link(), "add", frameIndexOf(window), window.frameId);
+            announceFrame(window, now.link(), "add", frameIndexOf(window), window.frameId);
         } else {
             int index = frameIndexOf(window);
             window.shownAsFrame = false;
-            announceFrame(now.link(), "remove", index, window.frameId);
+            announceFrame(window, now.link(), "remove", index, window.frameId);
         }
     }
 
@@ -367,7 +367,7 @@ final class AtspiApplication {
         if (now != null) {
             catchUp(now);
             if (window.shownAsFrame) {
-                announceFrame(now.link(), "remove", frameIndexOf(window), window.frameId);
+                announceFrame(window, now.link(), "remove", frameIndexOf(window), window.frameId);
             }
         }
         window.shownAsFrame = false;
@@ -385,25 +385,55 @@ final class AtspiApplication {
     }
 
     /**
-     * One of the toolkit's events, sent from the node it names. User-interface thread. Dropped while
-     * the application has not joined, as every event before the join always was.
+     * One of the toolkit's events, sent as the signals it maps to. User-interface thread, right
+     * after the publish it describes. Dropped while the application has not joined, as every event
+     * before the join always was.
      *
-     * @param event what the difference between two published trees found
+     * @param window the facade whose scene raised it, whose tree the event describes
+     * @param event  what the difference between two published trees found
      */
-    void emit(AccessibleEvent event) {
+    void emit(AtspiBridge window, AccessibleEvent event) {
         Joined now = joined.get();
         if (now == null) {
             return;
         }
-        AtspiEvents.Signal signal = AtspiEvents.of(event);
-        if (signal == null) {
-            return;  // nothing on this platform carries it; better silent than approximate
+        // Nothing on this platform may carry it, and then nothing is sent: better silent than
+        // approximate. Otherwise each goes out from the node it is about, so a client that
+        // subscribed by path hears it, and as a signal rather than a reply, so it is the one kind
+        // the connection may refuse when a peer has stopped draining.
+        for (AtspiEvents.Signal signal : AtspiEvents.of(event, contextOf(window))) {
+            send(now.link(), signal);
         }
-        // From the node the event is about, so a client that subscribed by path hears it, and as a
-        // signal rather than a reply, so it is the one kind the connection may refuse when a peer
-        // has stopped draining.
-        now.link().signal(DBus.Msg.signal(pathOf(event.nodeId()), signal.iface(), signal.member(),
-                AtspiEvents.SIGNATURE, AtspiEvents.body(signal, objects.rootRef())));
+    }
+
+    /** What an event of {@code window}'s is mapped against: its tree and this bus's names. */
+    private AtspiEvents.Context contextOf(AtspiBridge window) {
+        return new AtspiEvents.Context() {
+            @Override public AccessibleTree tree() {
+                return window.tree();
+            }
+
+            @Override public DBus.Ref application() {
+                return objects.rootRef();
+            }
+
+            @Override public DBus.Ref refOf(long id) {
+                return objects.refOf(id);
+            }
+
+            @Override public DBus.Ref nullRef() {
+                return objects.nullRef();
+            }
+
+            @Override public int indexInParent(long id) {
+                return objects.indexInParentOf(id);
+            }
+        };
+    }
+
+    private static void send(Link link, AtspiEvents.Signal signal) {
+        link.signal(DBus.Msg.signal(signal.path(), signal.iface(), signal.member(),
+                signal.signature(), signal.body()));
     }
 
     /**
@@ -425,11 +455,6 @@ final class AtspiApplication {
         }
     }
 
-    /** The object path an event's node is at; node zero's is the application's. */
-    private static String pathOf(long nodeId) {
-        return nodeId == 0 ? Atspi.PATH_ROOT : "/org/a11y/atspi/accessible/" + nodeId;
-    }
-
     /** Where a window stands among the frames already announced, counting those before it. */
     private int frameIndexOf(AtspiBridge window) {
         int index = 0;
@@ -449,12 +474,11 @@ final class AtspiApplication {
      * root with the index in {@code detail1} and the frame's own reference as the value, which is
      * the struct libatspi turns into an accessible and inserts at that index (or removes).
      */
-    private void announceFrame(Link link, String detail, int index, long frameId) {
-        AtspiEvents.Signal signal = new AtspiEvents.Signal(AtspiEvents.I_EVENT_OBJECT,
-                "ChildrenChanged", detail, index, 0,
-                new DBus.Variant("(so)", objects.refOf(frameId).toStruct()));
-        link.signal(DBus.Msg.signal(Atspi.PATH_ROOT, signal.iface(), signal.member(),
-                AtspiEvents.SIGNATURE, AtspiEvents.body(signal, objects.rootRef())));
+    private void announceFrame(AtspiBridge window, Link link, String detail, int index,
+                               long frameId) {
+        send(link, AtspiEvents.event(contextOf(window), Atspi.PATH_ROOT,
+                AtspiEvents.I_EVENT_OBJECT, "ChildrenChanged", detail, index, 0,
+                new DBus.Variant("(so)", objects.refOf(frameId).toStruct())));
     }
 
     /**

@@ -2,11 +2,13 @@ package limn.backend.lwjgl.a11y.linux;
 
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
+import limn.accessibility.AccessibleTree;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The pushes a client waits on, against the names it subscribes by.
@@ -17,6 +19,41 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * platform's is an event nobody has subscribed to and therefore an event that does not arrive.
  */
 class AtspiEventsTest {
+
+    private static final String BUS = ":1.9";
+
+    /** A context over no tree: names on {@link #BUS}, and every node at index 3 of its parent. */
+    static final AtspiEvents.Context NAMES = new AtspiEvents.Context() {
+        @Override public AccessibleTree tree() {
+            return AccessibleTree.EMPTY;
+        }
+
+        @Override public DBus.Ref application() {
+            return new DBus.Ref(BUS, Atspi.PATH_ROOT);
+        }
+
+        @Override public DBus.Ref refOf(long id) {
+            return new DBus.Ref(BUS, "/org/a11y/atspi/accessible/" + id);
+        }
+
+        @Override public DBus.Ref nullRef() {
+            return new DBus.Ref(BUS, Atspi.PATH_NULL);
+        }
+
+        @Override public int indexInParent(long id) {
+            return 3;
+        }
+    };
+
+    private static List<AtspiEvents.Signal> signals(AccessibleEvent event) {
+        return AtspiEvents.of(event, NAMES);
+    }
+
+    private static AtspiEvents.Signal one(AccessibleEvent event) {
+        List<AtspiEvents.Signal> out = signals(event);
+        assertEquals(1, out.size(), "one signal for " + event + ": " + out);
+        return out.get(0);
+    }
 
     /**
      * Focus travels as a state change, and only once.
@@ -30,44 +67,42 @@ class AtspiEventsTest {
      */
     @Test
     void focusTravelsAsAStateChangeAndIsNotAlsoSentAsItsOwnEvent() {
-        assertNull(AtspiEvents.of(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 7)),
+        assertEquals(List.of(), signals(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 7)),
                 "the state change below is the one that carries it, in both directions");
 
-        AtspiEvents.Signal arriving = AtspiEvents.of(
-                AccessibleEvent.state(7, Accessible.State.FOCUSED, true));
+        AtspiEvents.Signal arriving = one(AccessibleEvent.state(7, Accessible.State.FOCUSED, true));
         assertEquals("StateChanged", arriving.member());
         assertEquals("focused", arriving.detail());
         assertEquals(1, arriving.detail1());
-        assertEquals(0, AtspiEvents.of(
-                AccessibleEvent.state(7, Accessible.State.FOCUSED, false)).detail1(),
+        assertEquals(0, one(AccessibleEvent.state(7, Accessible.State.FOCUSED, false)).detail1(),
                 "and the departure, which only this one raises");
     }
 
     @Test
     void aStateCarriesThePlatformsSpellingAndWhetherItWentOnOrOff() {
-        AtspiEvents.Signal on = AtspiEvents.of(AccessibleEvent.state(3, Accessible.State.CHECKED, true));
+        AtspiEvents.Signal on = one(AccessibleEvent.state(3, Accessible.State.CHECKED, true));
         assertEquals("checked", on.detail());
         assertEquals(1, on.detail1());
 
-        AtspiEvents.Signal off = AtspiEvents.of(AccessibleEvent.state(3, Accessible.State.CHECKED, false));
+        AtspiEvents.Signal off = one(AccessibleEvent.state(3, Accessible.State.CHECKED, false));
         assertEquals(0, off.detail1());
 
-        AtspiEvents.Signal hyphened = AtspiEvents.of(AccessibleEvent.state(3, Accessible.State.READ_ONLY, true));
+        AtspiEvents.Signal hyphened = one(AccessibleEvent.state(3, Accessible.State.READ_ONLY, true));
         assertEquals("read-only", hyphened.detail(),
                 "the platform hyphenates where the toolkit underscores, and a client's match "
                         + "string is the platform's");
 
-        AtspiEvents.Signal mixed = AtspiEvents.of(AccessibleEvent.state(3, Accessible.State.MIXED, true));
+        AtspiEvents.Signal mixed = one(AccessibleEvent.state(3, Accessible.State.MIXED, true));
         assertEquals("indeterminate", mixed.detail(),
                 "and where it uses another word entirely, the word is the platform's");
     }
 
     @Test
     void aStateThisPlatformDoesNotCarryRaisesNothingRatherThanSomethingApproximate() {
-        assertNull(AtspiEvents.of(AccessibleEvent.state(3, Accessible.State.PASSWORD, true)),
+        assertEquals(List.of(), signals(AccessibleEvent.state(3, Accessible.State.PASSWORD, true)),
                 "being a password is the role here, and the nearest-looking bit means the entry "
                         + "was rejected: an approximate event is worse than none");
-        assertNull(AtspiEvents.of(AccessibleEvent.announcement(
+        assertEquals(List.of(), signals(AccessibleEvent.announcement(
                         "saved", Accessible.Politeness.POLITE)),
                 "an announcement is a message to the user rather than a fact about a node, and "
                         + "this platform carries it another way");
@@ -75,39 +110,69 @@ class AtspiEventsTest {
 
     @Test
     void aNameChangeCarriesTheNewNameUnderThePropertyAClientAsksFor() {
-        AtspiEvents.Signal renamed = AtspiEvents.of(AccessibleEvent.property(
+        AtspiEvents.Signal renamed = one(AccessibleEvent.property(
                 AccessibleEvent.Type.NAME_CHANGED, 5, "Save", "Save as"));
 
         assertEquals("PropertyChange", renamed.member());
         assertEquals("accessible-name", renamed.detail());
         assertEquals("Save as", renamed.value().value);
+        assertEquals("/org/a11y/atspi/accessible/5", renamed.path(), "from the node it is about");
     }
 
     @Test
     void aWindowEventGoesOutOnTheWindowInterfaceAndNotTheObjectOne() {
-        AtspiEvents.Signal opened = AtspiEvents.of(AccessibleEvent.of(
-                AccessibleEvent.Type.WINDOW_OPENED, 0));
+        AtspiEvents.Signal opened = one(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_OPENED, 0));
 
         assertEquals(AtspiEvents.I_EVENT_WINDOW, opened.iface(),
                 "a desktop shell watches these and a screen reader watches the object ones");
         assertEquals("Create", opened.member());
         assertEquals(AtspiEvents.I_EVENT_OBJECT,
-                AtspiEvents.of(AccessibleEvent.of(AccessibleEvent.Type.BOUNDS_CHANGED, 1)).iface());
+                one(AccessibleEvent.of(AccessibleEvent.Type.BOUNDS_CHANGED, 1)).iface());
+    }
+
+    /**
+     * The focused node's cursor moved, and the value is the descendant itself (L1).
+     *
+     * <p>It was an {@code i} 0, which libatspi 2.60.6 turns into no {@code any_data} at all
+     * ({@code _atspi_dbus_handle_event}), and Orca 50.2 ignores an active-descendant change with
+     * none: every one of the ten the 2026-09-14 baseline counted was dropped "No any_data". The
+     * first integer is the descendant's index in its parent, the ATK bridge's convention
+     * ({@code active_descendant_event_listener}, at-spi2-core 2.60.6).
+     */
+    @Test
+    void anActiveDescendantChangeCarriesTheDescendantAsAnObjectReferenceAndItsIndex() {
+        AtspiEvents.Signal moved = one(AccessibleEvent.property(
+                AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED, 7, 3L, 9L));
+
+        assertEquals("ActiveDescendantChanged", moved.member());
+        assertEquals("/org/a11y/atspi/accessible/7", moved.path(), "from the focused node");
+        assertEquals("(so)", moved.value().sig,
+                "a reference, the one shape a client makes an accessible of");
+        assertEquals(new DBus.Ref(BUS, "/org/a11y/atspi/accessible/9"),
+                DBus.Ref.of(moved.value().value), "the descendant it moved TO");
+        assertEquals(3, moved.detail1(), "its index in its parent");
+
+        AtspiEvents.Signal gone = one(AccessibleEvent.property(
+                AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED, 7, 9L, 0L));
+        assertEquals(new DBus.Ref(BUS, Atspi.PATH_NULL), DBus.Ref.of(gone.value().value),
+                "a cursor that went away names the null object, never a node called 0");
+        assertEquals(-1, gone.detail1());
     }
 
     @Test
     void theBodyCarriesTheApplicationItCameFrom() {
-        AtspiEvents.Signal signal = AtspiEvents.of(
-                AccessibleEvent.state(7, Accessible.State.FOCUSED, true));
-        Object[] body = AtspiEvents.body(signal, new DBus.Ref(":1.9", Atspi.PATH_ROOT));
+        AtspiEvents.Signal signal = one(AccessibleEvent.state(7, Accessible.State.FOCUSED, true));
+        Object[] body = signal.body();
 
         assertEquals(5, body.length,
                 "detail, two integers, the value and the sender -- and nothing after: at-spi2 "
                         + "rejects the whole signal for a trailing dictionary, and logs it against "
                         + "the interface rather than the sender, so the application looks silent");
+        assertEquals(AtspiEvents.SIGNATURE, signal.signature());
         assertEquals(5, AtspiEvents.SIGNATURE.replace("(so)", "x").length());
         assertEquals("focused", body[0]);
-        assertEquals(":1.9", DBus.Ref.of(body[4]).name,
+        assertEquals(BUS, DBus.Ref.of(body[4]).name,
                 "a client resolves the event against the application that sent it");
+        assertTrue(signal.path().startsWith("/org/a11y/atspi/accessible/"));
     }
 }

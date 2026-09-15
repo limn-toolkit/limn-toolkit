@@ -2379,6 +2379,22 @@ sends `Activate`/`Deactivate` from the frame's path. `FOCUS_CHANGED` is also rai
 that arrived holding the focus. After a collapse to `INVALIDATED` the structure, focus, cursor,
 selection and window-activation events of that publish still follow it.
 
+#### Amendment 2026-09-15 — the Linux column, as the bridge sends it
+
+Read against what a real toolkit on the Fedora guest sends and what Orca 50.2 does with each field
+(readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-event-shapes.txt, fetched on the host for the
+guest's gtk4 4.22.4 and at-spi2-core 2.60.6; readings/fedora-orca-event-consumers.txt and
+ubuntu-orca-event-consumers.txt, `scripts/a11y/linux/read-orca-event-consumers.py` on both guests,
+2026-09-15). Each paragraph names the row it changes; the table above is left as written.
+
+**`ACTIVE_DESCENDANT_CHANGED` (L1).** `ActiveDescendantChanged` from the focused node's path, with
+the new descendant's `(so)` reference as the value and its index in its parent in `detail1` (the ATK
+bridge's `active_descendant_event_listener`; GTK 4.22.4 sends no such event). The value was an `i`
+0, which libatspi 2.60.6 turns into no `any_data`, and Orca drops the event without one. The
+reference and the index are the ones `GetChildAtIndex` and `GetIndexInParent` answer for the same
+node, in whichever window holds it (decision 5's popup option is an ordinary reference on the one
+connection); a cursor that went away names the null object with `detail1` −1.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

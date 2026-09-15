@@ -310,6 +310,47 @@ class AtspiApplicationTest {
     }
 
     @Test
+    void anActiveDescendantIsNamedExactlyAsTheTreeAnswersForItEvenInAnotherWindow() {
+        // Decision 5: the focused field's cursor may be an option in a native popup, which is
+        // another window of this process. The event must name it by the reference and index a
+        // client would get by asking, or the two halves of the conversation disagree.
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        AtspiBridge main = app.window();
+        AtspiBridge popup = app.window();
+        Published opener = aWindow("Main", 0);
+        Published list = aWindow("Options", opener.control());
+        main.publish(opener.tree(), false);
+        popup.publish(list.tree(), false);
+        bus.signals.clear();
+
+        main.emit(limn.accessibility.AccessibleEvent.property(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+                opener.control(), 0L, list.control()));
+        main.emit(limn.accessibility.AccessibleEvent.property(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+                opener.control(), list.control(), list.window()));
+
+        assertEquals(2, bus.signals.size(), "one signal per event: " + bus.signals);
+        for (int i = 0; i < 2; i++) {
+            DBus.Msg signal = bus.signals.get(i);
+            long descendant = i == 0 ? list.control() : list.window();
+            assertEquals(path(opener.control()), signal.path, "from the focused field");
+            assertEquals("ActiveDescendantChanged", signal.member);
+            DBus.Variant value = (DBus.Variant) signal.body[3];
+            assertEquals("(so)", value.sig);
+            String parent = i == 0 ? path(list.window()) : Atspi.PATH_ROOT;
+            int index = i == 0 ? 0 : 1;
+            DBus.Msg asked = call(app, parent, Atspi.I_ACCESSIBLE, "GetChildAtIndex", "i", index);
+            assertEquals(DBus.Ref.of(asked.body[0]), DBus.Ref.of(value.value),
+                    "the reference GetChildAtIndex answers for the same node");
+            assertEquals(path(descendant), DBus.Ref.of(value.value).path);
+            assertEquals(call(app, path(descendant), Atspi.I_ACCESSIBLE, "GetIndexInParent",
+                    null).body[0], signal.body[1], "and the index GetIndexInParent answers");
+        }
+    }
+
+    @Test
     void aFrameArrivingOrLeavingAfterTheJoinIsAnnouncedFromTheApplication() {
         FakeBus bus = new FakeBus();
         AtspiApplication app = anApplication(bus);
