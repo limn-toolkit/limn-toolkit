@@ -2471,6 +2471,31 @@ a change to them (decision 43): Orca 50.2's `object:attributes-changed` handler 
 (readings/fedora-orca-interface-calls.txt). A header's sort direction is not an attribute yet; see the
 sort amendment below.
 
+#### Amendment 2026-09-15 — `GrabFocus`, `GetAccessibleAtPoint` and `Introspect` are answered
+
+**What was wrong (LINUX-NEW-5; settled linux-adr-overstatements).** Three rows promised what nothing
+handled: `Component.GrabFocus` and `GetAccessibleAtPoint` answered `UnknownMethod` — the latter is what
+Orca 50.2's mouse review asks (`ax_component.py:124`, `WINDOW` coordinates;
+readings/fedora-orca-interface-calls.txt) — and `Introspectable.Introspect` was handled on no path,
+while `Atspi.node` and the XML blocks it assembles were referenced nowhere.
+
+**What the bridge does now.** `GrabFocus` posts the first of [`FOCUS`] the node accepts (semantics 5:
+every focusable widget publishes it as the walk's free verb, an item where decision 11 allows) and
+answers false elsewhere. `GetAccessibleAtPoint` is the bounds walk the row names: the point is
+converted once to the window's coordinates from the type asked (`SCREEN`, `WINDOW`, or `PARENT` — 2,
+read 2026-09-13 off the Fedora typelib, readings/fedora-atspi-constants-all.txt — which
+`GetExtents` and `Contains` now also answer, relative to the parent's box), children are tried last
+first because a later sibling is drawn over an earlier one, only a `SHOWING` node is a hit, and the
+deepest hit below the asked node is the answer, the null object when none; asked of the application
+object, it answers the last-joined frame whose window holds the point. `Introspect` answers every path
+this application exports: each intermediate path names its child down to `/org/a11y/atspi`,
+`…/accessible` names the root and every node of every window, and a node's path lists exactly what
+`GetInterfaces` answers, each with the XML a real toolkit's bridge declares — the blocks read off Ubuntu
+24.04 for `Accessible`, `Application`, `Component`, `Action` and `Cache`, and those read off the Fedora
+KDE 44 guest's at-spi2-atk 2.60.6 for `Selection`, `Value`, `Text`, `EditableText`, `Table` and
+`TableCell` (readings/fedora-dbus-<Interface>.xml) — plus the three standard interfaces; a path that
+names nothing is declined.
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |

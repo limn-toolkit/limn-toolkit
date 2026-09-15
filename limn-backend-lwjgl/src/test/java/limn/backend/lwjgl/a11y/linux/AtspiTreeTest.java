@@ -864,6 +864,125 @@ class AtspiTreeTest {
     }
 
     /**
+     * A window drawn at (200, 100) of the screen at factor 1: a group at (20, 30) holding a label, a
+     * button laid over the whole group after it, and a box that is not showing; then a field that
+     * takes focus beside it.
+     */
+    private void publishAWindowWithOverlappingBoxes() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int group = a.begin(9400, 0, Locale.ENGLISH, 20, 30, 200, 200);
+        a.role(Accessible.Role.GROUP);
+        a.inherited(true, true, true, false, false);
+        a.begin(9401, group, Locale.ENGLISH, 30, 40, 50, 20);
+        a.role(Accessible.Role.LABEL);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.begin(9402, group, Locale.ENGLISH, 20, 30, 200, 200);
+        a.role(Accessible.Role.BUTTON);
+        a.action(Accessible.Action.PRESS);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(9403, group, Locale.ENGLISH, 120, 130, 50, 50);
+        a.role(Accessible.Role.BUTTON);
+        a.inherited(true, true, false, false, false);
+        a.end();
+        a.end();
+        a.begin(9404, 0, Locale.ENGLISH, 250, 30, 100, 30);
+        a.role(Accessible.Role.TEXT_FIELD);
+        a.action(Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        tree.set(a.publish(0, 200, 100, 1f, true));
+    }
+
+    private String hitAt(String path, int x, int y, int coords) {
+        return (String) ((Object[]) call(path, Atspi.I_COMPONENT, "GetAccessibleAtPoint", "iiu", x, y,
+                coords).body[0])[1];
+    }
+
+    /**
+     * Component.GetAccessibleAtPoint is a bounds walk over the snapshot (LINUX-NEW-5): it answered
+     * UnknownMethod, which is what Orca 50.2's mouse review got. The deepest showing box wins, a
+     * later sibling over an earlier one, in whichever coordinates the client asks.
+     */
+    @Test
+    void thePointAClientAsksAboutLandsOnTheDeepestShowingBoxDrawnLast() {
+        publishAWindowWithOverlappingBoxes();
+
+        assertEquals(path(9402), hitAt(path(1000), 35, 45, Atspi.COORD_WINDOW),
+                "the button laid over the label after it is what the point is on");
+        assertEquals(path(9402), hitAt(path(1000), 235, 145, Atspi.COORD_SCREEN),
+                "the same point on the screen");
+        assertEquals(path(9402), hitAt(path(9400), 35, 45, Atspi.COORD_WINDOW),
+                "asked of the group, the same child");
+        assertEquals(path(9402), hitAt(path(1000), 125, 135, Atspi.COORD_WINDOW),
+                "a box that is not showing is no hit, whatever it is drawn after");
+        assertEquals(path(9404), hitAt(path(1000), 260, 40, Atspi.COORD_WINDOW));
+        assertEquals(Atspi.PATH_NULL, hitAt(path(1000), 5, 5, Atspi.COORD_WINDOW),
+                "a point on the window and no child is the null object");
+        assertEquals(Atspi.PATH_NULL, hitAt(path(9401), 35, 45, Atspi.COORD_WINDOW),
+                "a leaf has no child at any point");
+        assertEquals(path(1000), hitAt(Atspi.PATH_ROOT, 235, 145, Atspi.COORD_SCREEN),
+                "the application's child at a screen point is the window there");
+
+        Object[] parentBox = (Object[]) call(path(9401), Atspi.I_COMPONENT, "GetExtents", "u",
+                Atspi.COORD_PARENT).body[0];
+        assertEquals(List.of(10, 10, 50, 20), List.of(parentBox), "PARENT is relative to the parent");
+    }
+
+    /**
+     * Component.GrabFocus posts FOCUS where the node publishes it (semantics 5; LINUX-NEW-5): it
+     * answered UnknownMethod although ADR 039 §2.3 promised it.
+     */
+    @Test
+    void grabFocusPostsFocusWhereTheNodeOffersItAndIsRefusedElsewhere() {
+        publishAWindowWithOverlappingBoxes();
+
+        assertEquals(true, call(path(9404), Atspi.I_COMPONENT, "GrabFocus", null).body[0]);
+        assertEquals(false, call(path(9402), Atspi.I_COMPONENT, "GrabFocus", null).body[0],
+                "a node that publishes no FOCUS is refused");
+        assertEquals(List.of("9404:FOCUS"), performed);
+    }
+
+    /**
+     * Introspectable.Introspect on every path this application exports (LINUX-NEW-5): nothing
+     * handled it, so busctl tree and gdbus introspect saw no object at all.
+     */
+    @Test
+    void everyExportedPathIntrospectsAsWhatItServesAndItsChildren() {
+        publishAWindowWithOverlappingBoxes();
+
+        DBus.Msg topReply = call("/", Atspi.I_INTROSPECT, "Introspect", null);
+        assertNotNull(topReply, "answered, where nothing handled Introspect");
+        String top = (String) topReply.body[0];
+        assertTrue(top.contains("<node name=\"org\"/>"), top);
+        String atspiPath = (String) call("/org/a11y/atspi", Atspi.I_INTROSPECT, "Introspect", null)
+                .body[0];
+        assertTrue(atspiPath.contains("<node name=\"accessible\"/>")
+                && atspiPath.contains("<node name=\"cache\"/>"), atspiPath);
+        String nodes = (String) call("/org/a11y/atspi/accessible", Atspi.I_INTROSPECT, "Introspect",
+                null).body[0];
+        assertTrue(nodes.contains("<node name=\"root\"/>") && nodes.contains("<node name=\"9404\"/>"),
+                "the application root and every node, flat: " + nodes);
+
+        String field = (String) call(path(9404), Atspi.I_INTROSPECT, "Introspect", null).body[0];
+        assertTrue(field.contains("<interface name=\"org.a11y.atspi.Accessible\">")
+                && field.contains("<interface name=\"org.a11y.atspi.Component\">")
+                && field.contains("<interface name=\"org.a11y.atspi.Action\">")
+                && field.contains("<interface name=\"org.freedesktop.DBus.Properties\">"), field);
+        assertTrue(!field.contains("org.a11y.atspi.Table"), "only what the node serves");
+        String root = (String) call(Atspi.PATH_ROOT, Atspi.I_INTROSPECT, "Introspect", null).body[0];
+        assertTrue(root.contains("<interface name=\"org.a11y.atspi.Application\">"), root);
+        assertNull(call("/org/a11y/atspi/accessible/999999", Atspi.I_INTROSPECT, "Introspect", null),
+                "a path that names nothing is declined");
+    }
+
+    /**
      * The relation set, one entry per type with every target of that type, in the platform's own
      * numbering: what Orca reads a field's label and its description from when it lands on it.
      */

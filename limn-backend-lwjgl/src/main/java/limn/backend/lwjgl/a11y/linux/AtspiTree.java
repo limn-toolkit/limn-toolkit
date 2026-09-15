@@ -212,6 +212,9 @@ final class AtspiTree {
             }
             return null;
         }
+        if (Atspi.I_INTROSPECT.equals(iface)) {
+            return "Introspect".equals(m.member) ? introspect(m) : null;
+        }
         if (Atspi.PATH_CACHE.equals(m.path)) {
             return cache(m, iface);
         }
@@ -282,6 +285,80 @@ final class AtspiTree {
             return null;
         }
         return DBus.Msg.ret(m, "au", Atspi.stateWords(Atspi.state(AtspiStates.DEFUNCT)));
+    }
+
+    /**
+     * {@code org.freedesktop.DBus.Introspectable.Introspect} on any path this application exports,
+     * synthesised from what the path serves (LINUX-NEW-5; ADR 039 §2.3).
+     *
+     * <p>Not read by libatspi or Orca, and what {@code busctl tree}, {@code gdbus introspect} and
+     * d-feet walk: a bridge that cannot be browsed is much harder to debug. Every intermediate path
+     * down to {@code /org/a11y/atspi} names its one child; {@code …/accessible} names the
+     * application root and every node of every window, which is flat on this bus; a node's own path
+     * lists the interfaces it serves — the same list {@code GetInterfaces} answers — with the XML a
+     * real toolkit's bridge declares for each ({@link Atspi}'s blocks), and the three standard
+     * interfaces. A path that names nothing, a departed node included, is declined.
+     */
+    private DBus.Msg introspect(DBus.Msg m) {
+        String path = m.path == null ? "" : m.path;
+        StringBuilder children = new StringBuilder();
+        switch (path) {
+            case "/" -> children.append("<node name=\"org\"/>");
+            case "/org" -> children.append("<node name=\"a11y\"/>");
+            case "/org/a11y" -> children.append("<node name=\"atspi\"/>");
+            case "/org/a11y/atspi" ->
+                    children.append("<node name=\"accessible\"/><node name=\"cache\"/>");
+            case Atspi.PATH_ACCESSIBLE -> {
+                children.append("<node name=\"root\"/>");
+                for (Frame frame : frames()) {
+                    AccessibleTree tree = frame.tree();
+                    for (int i = 0; i < tree.nodeCount(); i++) {
+                        children.append("<node name=\"").append(tree.node(i).id()).append("\"/>");
+                    }
+                }
+            }
+            case Atspi.PATH_CACHE -> {
+                return DBus.Msg.ret(m, "s", Atspi.node(Atspi.XML_CACHE));
+            }
+            case Atspi.PATH_ROOT -> {
+                return DBus.Msg.ret(m, "s", Atspi.node(xmlOf(interfacesOf(true, null))));
+            }
+            default -> {
+                Located at = nodeOf(path);
+                if (at == null) {
+                    return null;
+                }
+                return DBus.Msg.ret(m, "s", Atspi.node(xmlOf(interfacesOf(false, at.node()))));
+            }
+        }
+        return DBus.Msg.ret(m, "s", Atspi.node(children.toString()));
+    }
+
+    /**
+     * The XML of each interface name, in the order given. The application object's
+     * {@code Component} is listed too, since it answers it.
+     */
+    private static String[] xmlOf(List<Object> interfaces) {
+        List<String> out = new ArrayList<>();
+        for (Object name : interfaces) {
+            String xml = switch (String.valueOf(name)) {
+                case Atspi.I_ACCESSIBLE -> Atspi.XML_ACCESSIBLE;
+                case Atspi.I_APPLICATION -> Atspi.XML_APPLICATION + Atspi.XML_COMPONENT;
+                case Atspi.I_COMPONENT -> Atspi.XML_COMPONENT;
+                case Atspi.I_ACTION -> Atspi.XML_ACTION;
+                case Atspi.I_TABLE -> Atspi.XML_TABLE;
+                case Atspi.I_TABLE_CELL -> Atspi.XML_TABLE_CELL;
+                case Atspi.I_SELECTION -> Atspi.XML_SELECTION;
+                case Atspi.I_VALUE -> Atspi.XML_VALUE;
+                case Atspi.I_TEXT -> Atspi.XML_TEXT;
+                case Atspi.I_EDITABLE_TEXT -> Atspi.XML_EDITABLE_TEXT;
+                default -> null;
+            };
+            if (xml != null) {
+                out.add(xml);
+            }
+        }
+        return out.toArray(new String[0]);
     }
 
     /**
@@ -393,8 +470,26 @@ final class AtspiTree {
             case "GetLayer" -> DBus.Msg.ret(m, "u", Atspi.LAYER_WINDOW);
             case "GetMDIZOrder" -> DBus.Msg.ret(m, "n", (short) 0);
             case "GetAlpha" -> DBus.Msg.ret(m, "d", 1.0d);
+            case "GetAccessibleAtPoint" -> DBus.Msg.ret(m, "(so)", (Object) frameAtPoint(frames,
+                    arg(m, 0), arg(m, 1), coordOf(m.body[2])).toStruct());
             default -> null;
         };
+    }
+
+    /**
+     * The application object's child at a point: the last-joined frame whose window box holds it,
+     * in the coordinates asked for (a window-relative point is tested against each window's own
+     * box), or the null object.
+     */
+    private DBus.Ref frameAtPoint(List<Frame> frames, int x, int y, int coords) {
+        for (int f = frames.size() - 1; f >= 0; f--) {
+            AccessibleTree tree = frames.get(f).tree();
+            int[] box = extentsOf(tree, tree.node(0), coords);
+            if (x >= box[0] && y >= box[1] && x < box[0] + box[2] && y < box[1] + box[3]) {
+                return refOf(tree.node(0).id());
+            }
+        }
+        return nullRef();
     }
 
     /**
@@ -790,8 +885,60 @@ final class AtspiTree {
                 boolean in = x >= b[0] && y >= b[1] && x < b[0] + b[2] && y < b[1] + b[3];
                 return DBus.Msg.ret(m, "b", in);
             }
+            case "GetAccessibleAtPoint": {
+                AccessibleNode hit = descendantAtPoint(tree, node, arg(m, 0), arg(m, 1),
+                        coordOf(m.body[2]));
+                return DBus.Msg.ret(m, "(so)",
+                        (Object) (hit == null ? nullRef() : refOf(hit.id())).toStruct());
+            }
+            case "GrabFocus":
+                // Semantics 5: GrabFocus is [FOCUS], posted where the node publishes it — every
+                // focusable widget (the walk's free verb) and the items whose cursor is apart from
+                // their selection (decision 11) — and false elsewhere.
+                return DBus.Msg.ret(m, "b", performFirst(at, node, Accessible.Action.FOCUS));
             default:
                 return null;
+        }
+    }
+
+    /**
+     * The deepest node below {@code node} whose box holds a point, from the snapshot's boxes
+     * (LINUX-NEW-5; ADR 039 §2.3: a bounds walk over the snapshot, not {@code Widget#hitTest}).
+     *
+     * <p>Children are tried last first, because a later sibling is drawn over an earlier one, and
+     * only a node that is {@code SHOWING} is a hit: a kept cursor row or a column scrolled away has
+     * a box nothing is drawn in. The point is converted once, to the window's own coordinates, and
+     * every box is compared there. Orca 50.2 asks with {@code WINDOW} coordinates
+     * ({@code ax_component.py}, readings/fedora-orca-interface-calls.txt).
+     *
+     * @return the node hit, or {@code null} when no descendant holds the point
+     */
+    private static AccessibleNode descendantAtPoint(AccessibleTree tree, AccessibleNode node, int x,
+                                                    int y, int coords) {
+        int[] own = extentsOf(tree, node, coords);
+        int[] window = extentsOf(tree, node, Atspi.COORD_WINDOW);
+        int wx = x - own[0] + window[0];
+        int wy = y - own[1] + window[1];
+        AccessibleNode hit = null;
+        for (AccessibleNode at = node; ; ) {
+            AccessibleNode next = null;
+            List<AccessibleNode> kids = tree.children(at);
+            for (int i = kids.size() - 1; i >= 0; i--) {
+                AccessibleNode kid = kids.get(i);
+                if (!kid.has(Accessible.State.SHOWING)) {
+                    continue;
+                }
+                int[] b = extentsOf(tree, kid, Atspi.COORD_WINDOW);
+                if (wx >= b[0] && wy >= b[1] && wx < b[0] + b[2] && wy < b[1] + b[3]) {
+                    next = kid;
+                    break;
+                }
+            }
+            if (next == null) {
+                return hit;
+            }
+            hit = next;
+            at = next;
         }
     }
 
@@ -813,6 +960,13 @@ final class AtspiTree {
         if (coords == Atspi.COORD_SCREEN && tree.supportsAbsolutePositioning()) {
             x += tree.screenX();
             y += tree.screenY();
+        } else if (coords == Atspi.COORD_PARENT && node.parent() >= 0
+                && node.parent() < tree.nodeCount()) {
+            // Relative to the parent's own box; a window's node zero, whose parent is the
+            // application object, is relative to the window as WINDOW is.
+            AccessibleNode parent = tree.node(node.parent());
+            x -= parent.x() * factor;
+            y -= parent.y() * factor;
         }
         return new int[] {Math.round(x), Math.round(y),
                 Math.round(node.width() * factor), Math.round(node.height() * factor)};
