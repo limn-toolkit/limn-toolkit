@@ -41,9 +41,14 @@ final class AxSetters {
     /** The four whose argument is a {@code BOOL}, in the order they are installed. */
     static final List<String> BOOL_SETTERS = List.of(FOCUSED, SELECTED, DISCLOSED, EXPANDED);
 
-    /** @return every setter this bridge installs */
+    private static final List<String> SELECTORS = List.of(FOCUSED, SELECTED, DISCLOSED, EXPANDED, VALUE);
+
+    /**
+     * @return every setter this bridge installs; the same list every time, because the gate asks it on
+     *         every selector AppKit checks and a list built per ask would be an allocation per ask
+     */
     static List<String> selectors() {
-        return List.of(FOCUSED, SELECTED, DISCLOSED, EXPANDED, VALUE);
+        return SELECTORS;
     }
 
     /**

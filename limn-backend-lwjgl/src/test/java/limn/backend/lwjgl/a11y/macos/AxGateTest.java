@@ -116,6 +116,30 @@ class AxGateTest {
         }
     }
 
+    /**
+     * AppKit asks the gate before nearly every attribute a client reads, and asks it for selectors
+     * outside the protocol too (read on the guest, 2026-09-13), so the ask VoiceOver drives hardest
+     * allocates nothing for the selectors that are neither rows nor selections.
+     */
+    @Test
+    void aGateAskForAnAttributeAnActionOrASetterAllocatesNothing() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(limn.testing.AllocationProbe.isSupported(),
+                "this virtual machine does not count per-thread allocation");
+        Gate gate = gate();
+        AccessibleNode button = gate.tree().find(1030);
+        AccessibleNode row = gate.tree().find(1011);
+        for (String selector : new String[] {"accessibilityLabel", "accessibilityPerformPress",
+                "setAccessibilityFocused:", "setAccessibilityRole:", "isAccessibilityDisclosed",
+                "accessibilityIndex"}) {
+            Runnable ask = () -> AxGate.allows(gate.grid(), button, selector);
+            Runnable askRow = () -> AxGate.allows(gate.grid(), row, selector);
+            org.junit.jupiter.api.Assertions.assertEquals(0,
+                    limn.testing.AllocationProbe.leastAllocatedBy(ask, 60), selector + " on a button");
+            org.junit.jupiter.api.Assertions.assertEquals(0,
+                    limn.testing.AllocationProbe.leastAllocatedBy(askRow, 60), selector + " on a row");
+        }
+    }
+
     @Test
     void anActionIsOfferedExactlyWhereAVerbIsBehindItAndEveryOtherAttributeEverywhere() {
         Gate gate = gate();
