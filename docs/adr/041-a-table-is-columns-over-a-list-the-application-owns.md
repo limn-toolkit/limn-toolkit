@@ -282,6 +282,20 @@ shown and not a list's length of them. Pinned by
 `TableAccessibilityTest.aRowNodeFollowsItsRecordAcrossTwoRefreshesBeforeAFrame` and
 `anIdentityOncePublishedNeverNamesAnotherRecord`.
 
+**Amended 2026-09-15 (review of the fix round, the cost of an occurrence).** "The occurrence read
+the first time a row is described, one pass for all rows that need it" was a read of every row
+above the deepest newly described one, on every frame that described one, so a reader scrolling
+to the bottom of 5,000 rows without a `rowKey` read 1,676,647 keys. An occurrence is now read
+from an index kept for the list as it stands: each row's key hashed once and chained to the
+nearest row before it with the same hash, its occurrence one more than the nearest such row
+whose key is equal. The index grows as far down as a reader has been shown, is dropped by
+`setRows`, `refresh()` and `rowKey`, and costs three `int`s per row read plus a hash table of two
+to four more; the same walk reads 4,991 keys. With a `rowKey` nothing is read, as before; a quiet
+frame reads nothing either way. The selection's own occurrences (§3's decision-23 amendment,
+"selecting a row without a `rowKey` reads the rows before it once") are unchanged. Pinned by
+`TableAccessibilityTest.aReaderScrollingToTheBottomReadsEachRowOnceForItsOccurrence` and
+`equalRecordsAreToldApartFromUnequalOnesThatHashAlike`.
+
 ---
 
 ## 4. The toolkit sorts, and the application may take that over

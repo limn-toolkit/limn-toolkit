@@ -191,6 +191,18 @@ public class Table<T> extends Widget implements Scrollable {
     // published row a scroll released, or a followed row a describe left out. The next refresh
     // cannot tell where its record went, so it retires every identity it does not follow.
     private boolean publishedLeftBehind;
+    // Each row's occurrence among the equal rows before it, for a table without a rowKey, over
+    // the list as it stands since the last setRows, refresh or rowKey: rows [0, occurrencesRead)
+    // read once each and chained by the hash of their key. Until the review of the fix round
+    // (2026-09-15) every describe that realized a row read every row above it again, so a reader
+    // scrolling to the bottom of a long table cost the square of its length.
+    private int occurrencesRead;
+    private int[] occurrence = new int[0];
+    private int[] occurrenceHash = new int[0];
+    // The nearest row before with the same hash, or -1; and by hash, 1 + the last row read with
+    // it, or 0 for none.
+    private int[] occurrencePrevious = new int[0];
+    private int[] occurrenceTable = new int[0];
     // The header the last click asked to sort by, and the order it asked for: what onSortRequest
     // is told, read back here because a request for the model's order leaves sortColumn null.
     private Column<T> sortRequestColumn;
@@ -589,6 +601,7 @@ public class Table<T> extends Widget implements Scrollable {
         overrideCount = 0;
         clearPublished();
         settleMountedRows();
+        forgetOccurrences();
     }
 
     private void clearPublished() {
@@ -703,13 +716,10 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     /**
-     * Reads the ordinal of every mounted row about to be published for the first time, and
-     * records what this describe publishes, as the followed rows. Without a {@link #rowKey} a
-     * row's ordinal is how many rows before it hold an equal record, which is a read of those
-     * rows; the rows that need one share a single pass. The rows the last refresh followed are
-     * checked first: one this describe leaves out is an identity a reader may hold that the next
-     * refresh would no longer follow. A quiet frame finds every ordinal known and allocates
-     * nothing.
+     * Records what this describe publishes, as the followed rows, with the occurrence of every
+     * row described for the first time. The rows the last refresh followed are checked first:
+     * one this describe leaves out is an identity a reader may hold that the next refresh would
+     * no longer follow. A quiet frame finds every occurrence known and allocates nothing.
      */
     private void notePublishedRows() {
         if (publishedByRefresh) {
@@ -722,46 +732,15 @@ public class Table<T> extends Widget implements Scrollable {
             }
             publishedByRefresh = false;
         }
-        int lacking = 0;
-        int deepest = -1;
-        for (int i = 0; i < mountedCount; i++) {
-            Slot slot = mountedSlots[i];
-            if (slot.ordinalKnown) {
-                continue;
-            }
-            if (rowKey != null) {
-                slot.ordinal = 0; // keys are unique by the contract rowKey states
-                slot.ordinalKnown = true;
-                continue;
-            }
-            slot.ordinal = 0;
-            lacking++;
-            deepest = Math.max(deepest, modelOf(slot.row));
-        }
-        if (lacking > 0) {
-            // The rows that need one, by model, and a counter per key among them.
-            java.util.HashMap<Object, int[]> seen = new java.util.HashMap<>(lacking * 2);
-            Slot[] waiting = new Slot[lacking];
-            int w = 0;
+        if (rowKey == null) {
+            int deepest = -1;
             for (int i = 0; i < mountedCount; i++) {
-                Slot slot = mountedSlots[i];
-                if (!slot.ordinalKnown) {
-                    seen.putIfAbsent(slot.key, new int[1]);
-                    waiting[w++] = slot;
+                if (!mountedSlots[i].ordinalKnown) {
+                    deepest = Math.max(deepest, modelOf(mountedSlots[i].row));
                 }
             }
-            Arrays.sort(waiting, (x, y) -> Integer.compare(modelOf(x.row), modelOf(y.row)));
-            int next = 0;
-            for (int m = 0; m <= deepest; m++) {
-                int[] counter = seen.get(keyOf(rows.get(m)));
-                if (next < lacking && modelOf(waiting[next].row) == m) {
-                    waiting[next].ordinal = counter == null ? 0 : counter[0];
-                    waiting[next].ordinalKnown = true;
-                    next++;
-                }
-                if (counter != null) {
-                    counter[0]++;
-                }
+            if (deepest >= occurrencesRead) {
+                readOccurrences(deepest + 1);
             }
         }
         if (publishedModels.length < mountedCount) {
@@ -774,8 +753,14 @@ public class Table<T> extends Widget implements Scrollable {
         int n = 0;
         for (int i = 0; i < mountedCount; i++) {
             Slot slot = mountedSlots[i];
+            int model = modelOf(slot.row);
+            if (!slot.ordinalKnown) {
+                // Keys are unique by the contract rowKey states; else the row's occurrence.
+                slot.ordinal = rowKey != null ? 0 : occurrence[model];
+                slot.ordinalKnown = true;
+            }
             slot.published = true;
-            publishedModels[n] = modelOf(slot.row);
+            publishedModels[n] = model;
             publishedIds[n] = slot.id;
             publishedKeys[n] = slot.key;
             publishedOrdinals[n] = slot.ordinal;
@@ -785,6 +770,63 @@ public class Table<T> extends Widget implements Scrollable {
             publishedKeys[i] = null;
         }
         publishedCount = n;
+    }
+
+    /**
+     * Reads rows {@code [occurrencesRead, end)} for their occurrence: each row's key is hashed
+     * once and chained to the nearest row before it with the same hash, and its occurrence is
+     * one more than the nearest such row whose key is equal, or {@code 0}. A row no other row
+     * equals costs one hash and one probe, however deep it stands.
+     */
+    private void readOccurrences(int end) {
+        if (occurrence.length < end) {
+            int grown = Math.max(end, occurrence.length * 2);
+            occurrence = Arrays.copyOf(occurrence, grown);
+            occurrenceHash = Arrays.copyOf(occurrenceHash, grown);
+            occurrencePrevious = Arrays.copyOf(occurrencePrevious, grown);
+        }
+        if (occurrenceTable.length < 2 * end) {
+            occurrenceTable = new int[Integer.highestOneBit(Math.max(16, 2 * end - 1)) << 1];
+            for (int m = 0; m < occurrencesRead; m++) {
+                occurrenceTable[occurrenceSlot(occurrenceHash[m])] = m + 1;
+            }
+        }
+        for (int m = occurrencesRead; m < end; m++) {
+            Object key = keyOf(rows.get(m));
+            int hash = Objects.hashCode(key);
+            int slot = occurrenceSlot(hash);
+            int previous = occurrenceTable[slot] - 1;
+            occurrenceHash[m] = hash;
+            occurrencePrevious[m] = previous;
+            occurrenceTable[slot] = m + 1;
+            int ordinal = 0;
+            for (int j = previous; j >= 0; j = occurrencePrevious[j]) {
+                if (Objects.equals(keyOf(rows.get(j)), key)) {
+                    ordinal = occurrence[j] + 1;
+                    break;
+                }
+            }
+            occurrence[m] = ordinal;
+        }
+        occurrencesRead = end;
+    }
+
+    /** The slot of {@code hash} in the occurrence table: the one holding it, else a free one. */
+    private int occurrenceSlot(int hash) {
+        int mask = occurrenceTable.length - 1;
+        int slot = (hash ^ (hash >>> 16)) & mask;
+        while (occurrenceTable[slot] != 0 && occurrenceHash[occurrenceTable[slot] - 1] != hash) {
+            slot = (slot + 1) & mask;
+        }
+        return slot;
+    }
+
+    /** The list changed, or what makes a row its record did: every occurrence is read again. */
+    private void forgetOccurrences() {
+        if (occurrencesRead > 0) {
+            Arrays.fill(occurrenceTable, 0);
+            occurrencesRead = 0;
+        }
     }
 
     /**
@@ -964,6 +1006,7 @@ public class Table<T> extends Widget implements Scrollable {
         Ui.checkUiThread();
         // The nodes a reader holds first, before anything below re-mounts the rows under them.
         followPublishedRows();
+        forgetOccurrences();
         // The row whose widget cell holds the keyboard, found again before anything re-mounts.
         Slot keep = focusedWidgetSlot();
         int keepModel = keep == null ? -1 : findAgain(keep);
@@ -1064,6 +1107,7 @@ public class Table<T> extends Widget implements Scrollable {
             publishedLeftBehind = true;
         }
         clearPublished();
+        forgetOccurrences();
         return this;
     }
 

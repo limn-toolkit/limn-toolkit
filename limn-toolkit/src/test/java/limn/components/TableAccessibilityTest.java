@@ -358,6 +358,34 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(second, rowNodes().get(3).id(), "the second Lee, fourth now, kept its node");
     }
 
+    /** A record whose every instance hashes alike, so equal and unequal ones share a chain. */
+    record Alike(String name) {
+        @Override
+        public int hashCode() {
+            return 7;
+        }
+    }
+
+    /**
+     * The same, when unequal records share a hash: an occurrence counts the equal records before
+     * a row, and a row between two equal ones that merely hashes like them is not one of them.
+     */
+    @Test
+    void equalRecordsAreToldApartFromUnequalOnesThatHashAlike() {
+        Table<Alike> table = new Table<>(List.of(Column.text("Name", Alike::name).width(160)));
+        List<Alike> rows = new ArrayList<>(List.of(new Alike("Lee"), new Alike("Ann"),
+                new Alike("Ann"), new Alike("Lee")));
+        table.setRows(rows);
+        bind(table);
+        long first = rowNodes().get(0).id();
+        long second = rowNodes().get(3).id();
+        rows.add(1, new Alike("Bo"));
+        table.refresh();
+        frame();
+        assertEquals(first, rowNodes().get(0).id(), "the first Lee is still first");
+        assertEquals(second, rowNodes().get(4).id(), "the second Lee, fifth now, kept its node");
+    }
+
     /**
      * The node half of decision 23 across two refreshes with no frame between them (review of
      * the fix round, 2026-09-15): the first refresh followed the published rows and forgot them,
@@ -460,6 +488,44 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                     "a verb on " + name + "'s old node selected " + (selected < 0 ? "nothing"
                             : rows.get(selected).name()) + "; " + context);
         }
+    }
+
+    private static int keyHashes;
+
+    /** A record that counts how often its hash is read, which is what finding its occurrence costs. */
+    record Tally(String name) {
+        @Override
+        public int hashCode() {
+            keyHashes++;
+            return name.hashCode();
+        }
+    }
+
+    /**
+     * Placing a row among equal records without a {@code rowKey} reads the rows before it; a
+     * reader scrolling down read them all again for every frame that realized a row (review of
+     * the fix round, 2026-09-15), so a walk to the bottom of a long table cost the square of its
+     * length. The rows are read once per list now, as far down as the reader has been shown.
+     */
+    @Test
+    void aReaderScrollingToTheBottomReadsEachRowOnceForItsOccurrence() {
+        int count = 5000;
+        List<Tally> rows = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            rows.add(new Tally("Row " + i));
+        }
+        Table<Tally> table = new Table<>(List.of(Column.text("Name", Tally::name).width(160)));
+        table.setRows(rows);
+        bind(table);
+        keyHashes = 0;
+        int frames = 0;
+        while (rowNodes().stream().noneMatch(row -> row.selectionItem().positionInSet() == count)) {
+            table.scrollBy(0, 240);
+            frame();
+            assertTrue(++frames < 2000, "the walk reaches the bottom");
+        }
+        assertTrue(keyHashes <= count,
+                frames + " frames to the bottom read " + keyHashes + " keys for " + count + " rows");
     }
 
     /**
