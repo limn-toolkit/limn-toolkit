@@ -5317,6 +5317,29 @@ live reading of the `Selection`, `Value`, `Text` and attribute amendments of §2
 which is semantics 5 as the walk publishes it. What it does not replace is Orca speaking them, which is
 phase 5's.)*
 
+*(Amended 2026-09-15, the after-lane checks on at-spi2-core 2.52: the Ubuntu row's assertions were run
+against the finished bridge, and the readings are in `readings/ubuntu-2.52-after-lane.txt`. Ubuntu
+24.04.4, GNOME Shell 46.0 on X11, at-spi2-core 2.52.0-1build1, no screen reader started or running,
+no `sudo`, over SSH, with the branch's own `limn-demo-all.jar`. **Registration:** the desktop lists
+exactly one application for the process, with one frame per window — the shape §2.3 prescribes — so
+the 2.60 registration order the Fedora guest forced is right on 2.52 as well, where a wrong one would
+not have shown. **A native ComboBox popup:** `press-the-probe.py` performed the combo box's own
+`expand` through `Action.DoAction` from outside the process — no keyboard touched on the guest — and
+it answered true and opened a real popup window; `frames-check.py` then read one application with two
+frames, the list's `POPUP_FOR` naming the combo box in the other frame and the combo box's
+`CONTROLLER_FOR` naming the list, each resolved through the other frame; `walk-the-probe.py` read the
+open list's five items with `press`/`select`/`focus` and the first `ACTIVE` and `SELECTED`, and the
+combo box itself now `EXPANDED` and offering `collapse`. **A native DatePicker calendar:** the
+gallery's `--reader date-picker` run (pt-BR, the documentation day, the entry's own presentation)
+gave the same shape — two frames, the calendar panel's `POPUP_FOR` naming the "Delivery date" field
+and the field's `CONTROLLER_FOR` naming the panel — and the frame left the application's child list
+when the picker closed, through `children-changed:remove` from the application. So decision 5's
+cross-window relations, which only Linux had implemented by the end of phase 3, are read by libatspi
+2.52 as well as 2.60. `press-the-probe.py` gained the two arguments that made the combo box reachable
+(a role substring and a verb name, defaulting to a button's first action, which is what it did
+before). What this does not settle is what Orca 46.1 SAYS about any of it: that is phase 5's, and the
+reader was deliberately left unstarted.)*
+
 **One of these can plausibly move into CI, and it is worth trying.** The Linux bridge is pure Java and
 pure D-Bus, and the Ubuntu runner can install `at-spi2-core` and run the whole probe under
 `dbus-run-session`. If that works, one of the three platforms gains a real gate. It is listed as work,
