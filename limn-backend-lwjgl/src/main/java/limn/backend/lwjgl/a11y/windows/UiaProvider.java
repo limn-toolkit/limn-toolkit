@@ -379,6 +379,16 @@ final class UiaProvider {
      * is the walk's free verb; an item publishes it where moving the cursor does not select
      * (decision 11). Until 2026-09-15 it was posted for any node, the root and a disabled button
      * included.
+     *
+     * <p><b>0x80040200 here is a choice and not a reading.</b> The two refusal numbers themselves
+     * were read on the guest 2026-09-13 (readings/windows-dump-uia-hresults.txt), but which of them
+     * {@code SetFocus} answers on a node that is not enabled was read 2026-09-15 and came back
+     * split: the Win32 controls' client-side {@code ProxySimple} throws
+     * {@code ElementNotEnabledException} for a disabled window and {@code InvalidOperationException}
+     * for an element that cannot take the keyboard, while WPF's {@code ElementProxy.SetFocus}
+     * checks no enabled bit at all (readings/windows-dump-uia-focus-and-scroll-item.txt). This
+     * bridge answers as it answers every other verb; {@link UiaPatternProviders#refusal} carries
+     * the reasoning and names it as Windows open question 1.
      */
     private static int setFocus(long nodeId, Context context) {
         AccessibleNode node = context.tree().find(nodeId);

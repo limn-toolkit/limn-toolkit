@@ -245,6 +245,13 @@ final class UiaPatternProviders {
 
             // Vended only on a node that publishes the verb (UiaPatterns), and gated on it here as
             // well, because the pointer a client holds outlives the snapshot that vended it.
+            //
+            // Its refusal on a node that is not ENABLED is 0x80040200, a choice and not a reading:
+            // the platform's own providers disagree here, the Win32 controls'
+            // client-side ListViewItem and WindowsTabItem proxies throwing ElementNotEnabledException
+            // before anything else while WPF's item peers scroll whatever the item's state (read
+            // 2026-09-15, readings/windows-dump-uia-focus-and-scroll-item.txt). See refusal()'s
+            // javadoc for the reasoning and Windows open question 1.
             case UiaIds.SCROLL_ITEM_PATTERN -> slots.put("ScrollIntoView",
                     (UiaCom.P) self -> postFirstAccepted(context, nodeId,
                             Accessible.Action.SCROLL_INTO_VIEW));
@@ -590,7 +597,9 @@ final class UiaPatternProviders {
      * {@code ScrollViewerAutomationPeer.Scroll}): a node that is not enabled first
      * ({@code UIA_E_ELEMENTNOTENABLED}), then an axis asked to move that cannot scroll, then an
      * amount it cannot perform ({@code InvalidOperationException}); both axes are checked before
-     * either is posted, so a refused call scrolls neither.
+     * either is posted, so a refused call scrolls neither. The two numbers themselves are the
+     * guest's, read 2026-09-13 (readings/windows-dump-uia-hresults.txt): 0x80040200 for
+     * {@link UiaIds#E_ELEMENT_NOT_ENABLED} and 0x80131509 for {@link UiaIds#E_INVALID_OPERATION}.
      *
      * @return {@code S_OK} when every step asked for was posted and accepted
      */
@@ -665,7 +674,8 @@ final class UiaPatternProviders {
      * ArgumentOutOfRangeException}, §2's 0x80131502; a percent that is not a number is refused the
      * same way here, where the platform's unordered comparison lets it through to a scroll of
      * nothing); then, this bridge's own, an axis with no bar or a bar that takes no value. Both
-     * axes pass every check before either is posted.
+     * axes pass every check before either is posted. The first two numbers are the guest's, read
+     * 2026-09-13 (readings/windows-dump-uia-hresults.txt): 0x80040200 and 0x80131509.
      *
      * @return {@code S_OK} when every value asked for was posted and accepted
      */
@@ -764,6 +774,15 @@ final class UiaPatternProviders {
      * a disabled ancestor, or outside the layer that owns input -- and {@code 0x80131509} on one
      * that is enabled and simply does not offer it.
      *
+     * <p><b>Both numbers were read on the guest, and this is where they are used.</b> 0x80040200 is
+     * the managed {@code UIA_E_ELEMENTNOTENABLED} and 0x80131509 the {@code HResult} of
+     * {@code System.InvalidOperationException}, each read on the Windows 11 ARM64 guest
+     * (10.0.26200, UIAutomationCore.dll 7.2.26100.9278) on 2026-09-13 by
+     * {@code scripts/a11y/windows/dump-uia-hresults.ps1}
+     * (readings/windows-dump-uia-hresults.txt); {@link UiaIds#E_ELEMENT_NOT_ENABLED} and
+     * {@link UiaIds#E_INVALID_OPERATION} carry the full reading, and neither header spelling is
+     * read.
+     *
      * <p>The order is the platform's own providers', read as IL on the guest 2026-09-15
      * (readings/windows-dump-uia-provider-conventions.txt §1b): {@code ButtonAutomationPeer.Invoke},
      * {@code ToggleButtonAutomationPeer.Toggle}, {@code ExpanderAutomationPeer} and
@@ -774,10 +793,12 @@ final class UiaPatternProviders {
      * brtrue; newobj ElementNotEnabledException; throw}, and only then throw
      * {@code InvalidOperationException} for what they cannot do.
      *
-     * <p>{@code SetFocus} and {@code ScrollIntoView} were read separately, the same day
+     * <p><b>A choice and not a reading: {@code SetFocus} and {@code ScrollIntoView}.</b> They were
+     * read separately, the same day
      * (readings/windows-dump-uia-focus-and-scroll-item.txt, {@code
      * scripts/a11y/windows/dump-uia-focus-and-scroll-item.ps1}), and the platform's providers do not
-     * agree on them. The client-side proxies of the Win32 controls follow the order above:
+     * agree on them, so no reading settles what this bridge answers and what follows is argued.
+     * The client-side proxies of the Win32 controls follow the order above:
      * {@code ProxySimple}'s {@code IRawElementProviderFragment.SetFocus} throws
      * {@code ElementNotEnabledException} when the window is not enabled and
      * {@code InvalidOperationException} when the element is not keyboard-focusable, and
@@ -787,8 +808,15 @@ final class UiaPatternProviders {
      * reaches {@code UIElementAutomationPeer.SetFocusCore}, which throws
      * {@code InvalidOperationException} when {@code UIElement.Focus()} refuses, and its item peers'
      * {@code ScrollIntoView} scroll whatever the item's state, as do the list-box and tree-view item
-     * proxies. This bridge answers both the way it answers every other verb, which is the Win32
-     * proxies' order.
+     * proxies. <b>The choice: this bridge answers both the way it answers every other verb, which
+     * is the Win32 proxies' order.</b> Its reasoning is that one answer for every refusal is the
+     * only one a client can rely on — a reader that learns 0x80040200 means "disabled" from
+     * {@code Invoke} would have to learn a second rule for {@code SetFocus} alone — and that the
+     * Win32 proxies are what a reader meets on the desktop's own controls, while WPF's silence is
+     * the absence of a check rather than a decision to answer something else. It was settled again
+     * by the orchestrator after phase 3 (2026-09-15: "Windows answering 0x80040200 for a verb on a
+     * node that is not ENABLED is kept, the same reading as the setter case"), and it is Windows
+     * open question 1, which phase 5 hears NVDA's side of.
      */
     static int refusal(AccessibleNode node) {
         return node.has(Accessible.State.ENABLED) ? UiaIds.E_INVALID_OPERATION

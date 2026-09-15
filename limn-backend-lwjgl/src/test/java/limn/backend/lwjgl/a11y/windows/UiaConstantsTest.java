@@ -127,6 +127,66 @@ class UiaConstantsTest {
         assertEquals(0x80131509, UiaIds.E_INVALID_OPERATION);
     }
 
+    /** The bridge's own source, where a platform number is used rather than declared. */
+    private static final java.nio.file.Path WINDOWS_PACKAGE = java.nio.file.Path.of(
+            "limn-backend-lwjgl/src/main/java/limn/backend/lwjgl/a11y/windows");
+
+    private static String sourceOf(String file) {
+        try {
+            return java.nio.file.Files.readString(
+                    limn.testing.RepositoryRoot.find().resolve(WINDOWS_PACKAGE).resolve(file),
+                    java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException unreadable) {
+            throw new java.io.UncheckedIOException(unreadable);
+        }
+    }
+
+    /**
+     * §12.3: a platform number is cited where it is <b>used</b> and not only where it is declared.
+     * A reader of {@link UiaPatternProviders#refusal} — the one place that chooses between the two
+     * refusal HRESULTs, and the place every verb, setter and pattern entry point of this bridge
+     * routes its refusal through — should not have to open another file to learn that 0x80040200
+     * and 0x80131509 came off a guest and which script read them. The phase-3 critic listed both
+     * uses among the constants "without a reading (or a choice between disagreeing readings)".
+     *
+     * <p>The two direct uses outside it, {@code IScrollProvider}'s own refusal order, cite the same
+     * reading in their own javadoc.
+     */
+    @Test
+    void theTwoRefusalHresultsCiteTheirReadingWhereTheyAreUsed() {
+        String source = sourceOf("UiaPatternProviders.java");
+        assertTrue(source.contains("readings/windows-dump-uia-hresults.txt"),
+                "the file that answers UIA_E_ELEMENTNOTENABLED and the managed "
+                        + "InvalidOperationException HResult does not say where either number came "
+                        + "from: a number with no reading beside it is one nobody can re-check");
+        assertEquals(3, source.split("readings/windows-dump-uia-hresults\\.txt", -1).length - 1,
+                "cited at the refusal itself and at IScrollProvider's two entry points, which "
+                        + "answer the same numbers in the platform's own order");
+    }
+
+    /**
+     * The one use of {@code UIA_E_ELEMENTNOTENABLED} no reading settles, marked as the choice it is
+     * (the settled list, 2026-09-15: "Windows answering 0x80040200 for a verb on a node that is not
+     * ENABLED is kept, the same reading as the setter case"). {@code SetFocus} and
+     * {@code ScrollIntoView} were read on the guest and came back split — the Win32 controls'
+     * client-side proxies refuse a disabled element first, WPF checks nothing — so what this bridge
+     * answers is argued rather than read, and both places where it is answered say so in the words
+     * §12.3 asks for.
+     */
+    @Test
+    void setFocusAndScrollIntoViewMarkTheirRefusalAsAChoiceBetweenDisagreeingReadings() {
+        for (String file : java.util.List.of("UiaPatternProviders.java", "UiaProvider.java")) {
+            String source = sourceOf(file);
+            assertTrue(source.contains("readings/windows-dump-uia-focus-and-scroll-item.txt"),
+                    file + " answers SetFocus or ScrollIntoView without citing the reading that "
+                            + "found the platform's own providers disagreeing");
+            assertTrue(source.contains("choice and not a reading"),
+                    file + " does not mark that refusal as a choice: a number the guest did not "
+                            + "settle, presented as one it did, is what §12.3 calls a defect that "
+                            + "compiles");
+        }
+    }
+
     /** WINDOWS-NEW-11, read 2026-09-13 (readings/windows-dump-uia-marshalling.txt). */
     @Test
     void aBoolOutParameterIsFourBytesOfOneOrZeroAndNotAVariantBool() {
