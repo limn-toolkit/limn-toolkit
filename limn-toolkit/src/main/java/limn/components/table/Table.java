@@ -1402,7 +1402,10 @@ public class Table<T> extends Widget implements Scrollable {
             rangeAnchor = viewOf(anchorModel);
         }
         unmountAllKeeping(keep, keepModel);
-        markNeedsLayout();
+        // Contained: a sort moves rows inside a box whose size it cannot change. A full layout
+        // here made every sort — a header click, Space on the header, setSort — a whole-window
+        // repaint (found putting decision 36's Space under the damage contract, 2026-09-15).
+        markNeedsContainedLayout();
         invalidate();
         if (focusRow >= 0) {
             // Deferred to the layout that re-places the rows: nothing is realized now, so the

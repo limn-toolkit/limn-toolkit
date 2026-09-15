@@ -654,3 +654,12 @@ Still owed: a live screen-reader run over the table on each guest (B9, phase 5) 
 runs were client walks through the probe scripts, and no reader has yet spoken a Limn table;
 its recipe should include Shift+Tab into the header, Right, Space, Right into the switch column,
 and a wheel away from the cursor row.
+
+**Amended 2026-09-15 (fix round; decision 36's damage rows).** `DamageContractTest`'s Table row
+now also drives the header's stop: Shift+Tab into the header, Right and Left on it (each the header
+band, measured at 14% of the box in two identical runs; ceiling 20%) and Space sorting the column
+under its cursor (101%, the box plus the damage margin; ceiling 105%). Putting Space under the
+contract found every sort — a header click, Space, `setSort` — asking for a full layout and so
+repainting the whole window; a sort cannot change the table's size, and it asks for a contained
+layout now. `aMountedWidgetsBarsHaveFadedBeforeTheFirstGesture` holds the harness to measuring
+each row from rest, bars faded.

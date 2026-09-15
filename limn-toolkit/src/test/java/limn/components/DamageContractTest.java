@@ -354,7 +354,19 @@ class DamageContractTest extends ComponentTestBase {
                             // the vertical one is the gesture whose absence let a tree ship with
                             // no wheel handler at all (the Tree row below).
                             wheel().ceiling(1.05f),
-                            tableSidewaysWheel().ceiling(1.05f)), null),
+                            tableSidewaysWheel().ceiling(1.05f),
+                            // The header's stop (decision 36), each measured at 14% of the box in
+                            // both frames of two identical runs on 2026-09-15: the header band,
+                            // where its column cursor is drawn; the rows' ring leaving is off
+                            // screen after the wheel, so it adds nothing.
+                            tableKey("Shift+Tab into the header", Keys.TAB, Keys.MOD_SHIFT)
+                                    .ceiling(0.2f),
+                            tableKey("RIGHT on the header", Keys.RIGHT, 0).ceiling(0.2f),
+                            tableKey("LEFT on the header", Keys.LEFT, 0).ceiling(0.2f),
+                            // A sort moves every row: 101%, the box plus the damage margin. It
+                            // was the whole window until the sort asked for a contained layout.
+                            tableKey("SPACE sorts the header's column", Keys.SPACE, 0)
+                                    .ceiling(1.05f)), null),
             // Right is the gesture only a tree has, and it is the expensive one by construction:
             // opening a row asks for a contained layout, and a contained layout damages the
             // widget's bounds (ADR 043), wherever the row sits. Measured at 101% of the box —
@@ -471,6 +483,15 @@ class DamageContractTest extends ComponentTestBase {
         return new Gesture("sideways wheel", (s, w) -> {
             move(s, centreX(w), centreY(w));
             s.scrolled(3, 0, centreX(w), centreY(w));
+            s.inputBatchEnded();
+        }, 0, ANY, null);
+    }
+
+    /** A key with modifiers held, for the table's header stop (decision 36). */
+    private static Gesture tableKey(String name, int key, int modifiers) {
+        return new Gesture(name, (s, w) -> {
+            s.keyEvent(key, true, false, modifiers);
+            s.keyEvent(key, false, false, modifiers);
             s.inputBatchEnded();
         }, 0, ANY, null);
     }
