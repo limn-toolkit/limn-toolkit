@@ -333,4 +333,36 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(1, field.focusedSegment(), "and on into the month");
         assertEquals(LocalDate.of(2026, 12, 31), field.date());
     }
+
+    /**
+     * Semantics 5 with decision 30's rule (2026-09-15): a disabled field's segments are not
+     * {@code ENABLED}, and a verb published on one would be answered "accepted" from the snapshot
+     * and dropped by the scene. So they carry none -- no step, no {@code FOCUS} -- and publish
+     * their value read-only, which is what withdraws the {@code SET_VALUE} a writable value
+     * implies. Enabled again, every verb is back.
+     */
+    @Test
+    void aDisabledFieldsSegmentsCarryNoVerbAndAReadOnlyValue() throws InterruptedException {
+        DateField field = bindField(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 12, 31));
+        field.setEnabled(false);
+        frame();
+        for (AccessibleNode segment : segmentNodes()) {
+            assertFalse(segment.has(Accessible.State.ENABLED), describe(tree()));
+            assertTrue(segment.actions() == null || segment.actions().actions().isEmpty(),
+                    "a disabled segment carries no verb, FOCUS included: " + describe(tree()));
+            assertTrue(segment.value().readOnly(),
+                    "and no SET_VALUE either: its value is read-only " + describe(tree()));
+        }
+        perform(segmentNodes().get(1).id(), Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        assertEquals(0, field.focusedSegment(), "nothing moved the caret");
+        assertFalse(field.isFocused());
+
+        field.setEnabled(true);
+        frame();
+        AccessibleNode month = segmentNodes().get(1);
+        assertTrue(month.actions().actions().containsAll(List.of(Accessible.Action.INCREMENT,
+                Accessible.Action.DECREMENT, Accessible.Action.FOCUS)), describe(tree()));
+        assertFalse(month.value().readOnly());
+    }
 }

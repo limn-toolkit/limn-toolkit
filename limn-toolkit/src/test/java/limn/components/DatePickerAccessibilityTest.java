@@ -236,4 +236,43 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(at.name().startsWith("12 de setembro"),
                 "the cursor is the 12th, and it is the effective focus: " + describe(tree()));
     }
+
+    /**
+     * Semantics 5 beneath the overlay (2026-09-15): while the calendar is an overlay of the
+     * scene, the scene refuses every verb on the field under it, which is why the field drops
+     * {@code COLLAPSE} there; its segments drop theirs for the same reason -- no step, no
+     * {@code FOCUS}, a read-only value -- and get them back when the calendar closes.
+     */
+    @Test
+    void theFieldsSegmentsCarryNoVerbBeneathTheCalendarOverlay() throws InterruptedException {
+        bindCaptioned(new DatePicker(), "Data de entrega");
+        AccessibleNode field = nodesOf(Accessible.Role.GROUP).get(0);
+        AccessibleNode month = childrenOf(field).get(1);
+        assertTrue(offers(month, Accessible.Action.FOCUS), "closed, the segment is operable "
+                + describe(tree()));
+        picker.open();
+        frame();
+        field = nodesOf(Accessible.Role.GROUP).stream()
+                .filter(group -> group.name().equals("Data de entrega")).findFirst().orElseThrow();
+        List<AccessibleNode> segments = childrenOf(field);
+        assertEquals(3, segments.size(), describe(tree()));
+        for (AccessibleNode segment : segments) {
+            for (Accessible.Action verb : List.of(Accessible.Action.INCREMENT,
+                    Accessible.Action.DECREMENT, Accessible.Action.FOCUS)) {
+                assertFalse(offers(segment, verb),
+                        "beneath the overlay a segment carries no " + verb + ": " + describe(tree()));
+            }
+            assertTrue(segment.value().readOnly(), "nor a writable value: " + describe(tree()));
+        }
+        int caret = picker.field().focusedSegment();
+        perform(segments.get(1).id(), Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        assertEquals(caret, picker.field().focusedSegment(), "which the scene would have dropped");
+
+        picker.close();
+        frame();
+        field = nodesOf(Accessible.Role.GROUP).get(0);
+        assertTrue(offers(childrenOf(field).get(1), Accessible.Action.FOCUS),
+                "closed again, the verbs are back " + describe(tree()));
+        assertFalse(childrenOf(field).get(1).value().readOnly());
+    }
 }

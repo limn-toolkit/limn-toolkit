@@ -509,6 +509,20 @@ it is a click on the segment: the field takes the focus, the caret moves there a
 `focusOnAChooserCellMovesItsCursorWithoutDescendingOrPicking`,
 `DateFieldAccessibilityTest.focusOnASegmentPutsTheCaretThereAndChangesNoValue` and
 `DatePickerAccessibilityTest.focusOnADayOfTheOpenCalendarMovesItsCursorAndCommitsNothing`.
+**Corrected the same day (semantics 5, decision 30's rule; phase-2 fix review):** a segment
+published its three verbs whatever the field's state, so on a disabled field, and on the field
+beneath its picker's calendar presented as an overlay of the scene, `INCREMENT`, `DECREMENT` and
+`FOCUS` were answered "accepted" from the snapshot and then dropped by the scene, which refuses
+every verb on a disabled widget and on one under the overlay (the fact `COLLAPSE` above is gated
+on). In both states a segment now publishes no verb and its value read-only, which withdraws the
+`SET_VALUE` a writable value implies; a popup in a window of its own leaves the segments operable.
+Two things this note does not settle: the field inside a disabled *container*, or beneath some
+other in-scene modal, still publishes them, as every widget there does (the rule is the model's
+and not this record's); and `FOCUS` out of a year typed as two digits resolves that year, or
+blanks it with the guess off (§3, decision 57), so it is the one case where the verb moves a value
+&mdash; the owner's to confirm against decision 11's "without committing". Pinned by
+`DateFieldAccessibilityTest.aDisabledFieldsSegmentsCarryNoVerbAndAReadOnlyValue` and
+`DatePickerAccessibilityTest.theFieldsSegmentsCarryNoVerbBeneathTheCalendarOverlay`.
 
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and

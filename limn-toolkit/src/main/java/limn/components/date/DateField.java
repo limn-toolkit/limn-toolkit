@@ -1443,6 +1443,21 @@ public class DateField extends Widget {
         return popupOpen != null && !keyboardActive && popupOpen.getAsBoolean();
     }
 
+    /**
+     * Whether a verb on a segment can be performed right now: the field is enabled and is not
+     * beneath its picker's popup presented as an overlay of the scene, whose input gate refuses
+     * every verb on a widget under it (2026-09-15, semantics 5 and decision 30). The segments'
+     * {@code INCREMENT}, {@code DECREMENT} and {@code FOCUS}, and the {@code SET_VALUE} a
+     * writable value implies, are published only while this holds, because the platform is
+     * answered from the snapshot and a verb published where it is dropped reads as done. The
+     * overlay fact is the one {@code COLLAPSE} is gated on; a popup in a window of its own
+     * leaves the field operable.
+     */
+    private boolean segmentsOperable() {
+        return isEnabled() && !(popupOpen != null && popupOpen.getAsBoolean()
+                && !popupCloseReachable.getAsBoolean());
+    }
+
     // ------------------------------------------------------------------ parsing a whole string
 
     /**
@@ -2085,6 +2100,10 @@ public class DateField extends Widget {
         }
         float pad = t.fieldPadH();
         float x = isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
+        // Verbs only where they can be performed (2026-09-15, semantics 5 and decision 30): on a
+        // disabled field, or beneath an in-scene popup, a segment publishes its value read-only
+        // and no verb, as a refused calendar day does, since the scene would drop every one.
+        boolean operable = segmentsOperable();
         int slot = 0;
         for (DatePattern.Part part : parts) {
             float pieceWidth = pieceWidth(ruler, font, neutral, part);
@@ -2099,18 +2118,22 @@ public class DateField extends Widget {
                     // range stands, the number is absent, and the spoken text is a word rather
                     // than the dashes that are drawn -- "--" read aloud is nothing. It published
                     // its minimum as if typed until the facet could say empty.
-                    a.emptyValue(segmentMin(field.field()), segmentMax(field.field()), 1, false);
+                    a.emptyValue(segmentMin(field.field()), segmentMax(field.field()), 1,
+                            !operable);
                     a.valueText(DateStrings.SEGMENT_EMPTY.get(), valueRevision);
                 } else {
-                    a.value(value, segmentMin(field.field()), segmentMax(field.field()), 1);
+                    a.value(value, segmentMin(field.field()), segmentMax(field.field()), 1,
+                            !operable);
                     a.valueText(field.field() == DatePattern.Field.YEAR
                             ? yearSpoken(field) : segmentText(field), valueRevision);
                 }
                 // FOCUS puts the caret in this segment and changes no value (decision 11,
                 // 2026-09-15): the caret is the field's cursor, and which segment it is in is
                 // not a value, so a segment is an item whose cursor and value are apart.
-                a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT,
-                        Accessible.Action.FOCUS);
+                if (operable) {
+                    a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT,
+                            Accessible.Action.FOCUS);
+                }
                 if (slot == focusedSlot && caretShown() && !popupHoldsKeyboard()) {
                     a.state(Accessible.State.ACTIVE);
                 }
@@ -2191,7 +2214,7 @@ public class DateField extends Widget {
     protected boolean onSyntheticAction(long key, Accessible.Action action,
                                         Accessible.Argument arg) {
         ensureParts();
-        if (key < 0 || key >= editable.length || !isEnabled()) {
+        if (key < 0 || key >= editable.length || !segmentsOperable()) {
             return false;
         }
         if (action == Accessible.Action.FOCUS) {
