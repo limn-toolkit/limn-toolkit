@@ -14,6 +14,7 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -337,12 +338,15 @@ class ContextRegionAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * A region inside a disabled container still publishes the verb, and the scene refuses it.
+     * A region inside a disabled container publishes no verb, and the scene refuses one sent
+     * anyway.
      *
-     * <p>The split every other component keeps, and what stops this one growing a second copy of a
-     * guard the scene already applies: §1.9's gate walks the widget and every ancestor, so the
-     * hook needs no enabled check of its own, and withholding the verb from the tree instead would
-     * make an action appear and disappear on a property change that is not about structure.
+     * <p>Until 2026-09-15 the verb stayed published here, on the argument that withholding it would
+     * make an action appear and disappear on a property change that is not about structure. The
+     * published list is what a node accepts now (semantics 5), and the scene refuses every verb
+     * under a disabled ancestor, so the walk withdraws it from every node that is not
+     * {@code ENABLED} (ADR 039 §1.5, amended that day). The hook still needs no enabled check of
+     * its own: §1.9's gate walks the widget and every ancestor.
      */
     @Test
     void aRegionInsideADisabledContainerRefusesTheMenu() throws Exception {
@@ -354,9 +358,9 @@ class ContextRegionAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode group = region();
         assertFalse(group.has(Accessible.State.ENABLED),
                 "the ancestor's flag is inherited down the walk" + describe(tree()));
-        assertTrue(group.actions().has(Accessible.Action.SHOW_MENU),
-                "and the verb is still published, because it is a fact about the widget and not "
-                        + "about the container above it" + describe(tree()));
+        assertNull(group.actions(),
+                "and no verb is published, because the scene refuses every one there"
+                        + describe(tree()));
 
         perform(group.id(), Accessible.Action.SHOW_MENU, Accessible.Argument.NONE);
 

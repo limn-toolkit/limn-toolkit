@@ -538,26 +538,32 @@ final class AccessibleWalk {
         keys[slot] = childKey;
         delegated[slot] = builder.delegatedVerbsAt(slot);
         delegates[slot] = delegated[slot] == 0 ? null : parent;
-        if (!reachable) {
-            // Outside the layer that owns input the scene refuses every verb (§1.9), so nothing
-            // there is published operable (§1.13, amended 2026-09-15; semantics 5): no verb the
-            // widget or its container declared, and no setter a writable facet implies. After the
-            // transparency test above, so a node that offered only verbs keeps its place in the
-            // tree while it is covered; the layer gate refuses the routed verb while it is.
+        if (!ownEnabled) {
+            // A node that is not ENABLED is one the scene refuses every verb on (§1.9), so nothing
+            // there is published operable (semantics 5; §1.5 and §1.13, amended 2026-09-15): no
+            // verb the widget or its container declared, and no setter a writable facet implies.
+            // One flag for both of the reasons it is clear -- the widget or an ancestor is
+            // disabled, or it lies outside the layer that owns input -- because it is the flag the
+            // ENABLED bit is published from. After the transparency test above, so a node that
+            // offered only verbs keeps its place in the tree while it is refused; the gate
+            // refuses a routed verb while it is.
             builder.inoperableAt(slot);
         }
         boolean showing = widget.isShowing();
         for (int i = slot + 1; i < builder.nodeCount(); i++) {
             record(widget, builder.idAt(i), i, builder.isSyntheticAt(i));
             keys[i] = builder.syntheticKeyAt(i);
-            if (!reachable) {
-                builder.inoperableAt(i); // a synthetic child is refused with its owner
-            }
             // The owner's bits, on every node the owner drew. They cannot ride on the call below:
             // that one writes to the node the walk has open, and these were closed the moment the
             // describe hook finished with them. Focusable and focused are not passed on, because a
             // thing a widget paints is not a tab stop and never holds the keyboard.
             builder.inheritedAt(i, ownEnabled, ownVisible, showing);
+            if (!builder.isEnabledAt(i)) {
+                // The same rule, read off the bit just published: a synthetic child is refused
+                // with its owner, and so is one its owner narrowed (a refused day, decision 30)
+                // or one under such a child.
+                builder.inoperableAt(i);
+            }
         }
         boolean focused = scene.focusedWidget() == widget;
         if (focused) {

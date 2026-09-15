@@ -119,6 +119,133 @@ class AccessibleModalTest extends AccessibleTestBase {
         assertTrue(node("notes").has(Accessible.State.READ_ONLY));
     }
 
+    /**
+     * The other axis of the same rule (semantics 5; ADR 039 §1.5, amended 2026-09-15): the scene
+     * refuses every verb on a disabled widget and under a disabled ancestor, so a node published
+     * without {@code ENABLED} offers no verb, no verb its container claimed on it, no key binding
+     * and no setter — by its own flag, by an ancestor's, and on a synthetic child its enabled
+     * owner narrowed, and one nested under that child. What it is and holds stays, and enabling
+     * it gives everything back.
+     */
+    @Test
+    void aDisabledNodePublishesNoVerbNoClaimNoKeyBindingAndNoSetter() {
+        Group root = new Group();
+        Probe slider = stop("level");
+        slider.value = 40.0;
+        slider.actions = new Accessible.Action[] {Accessible.Action.INCREMENT};
+        root.add(slider);
+        Probe field = stop("notes");
+        field.role = Accessible.Role.TEXT_FIELD;
+        field.text = "draft";
+        root.add(field);
+        Claiming list = new Claiming();
+        Keyed row = new Keyed("row");
+        list.add(row);
+        root.add(list);
+        Days days = new Days();
+        root.add(days);
+        bind(root);
+        frame();
+        assertTrue(node("level").actions().has(Accessible.Action.INCREMENT), describe(tree()));
+        assertTrue(node("row").actions().has(Accessible.Action.SELECT),
+                "the claim" + describe(tree()));
+        assertEquals("Ctrl+K", node("row").actions().keyBinding(), describe(tree()));
+        assertTrue(node("open day").actions().has(Accessible.Action.SELECT), describe(tree()));
+        assertNull(node("refused day").actions(),
+                "a child its owner narrowed offers nothing though it declared SELECT"
+                        + describe(tree()));
+        assertFalse(node("refused day").has(Accessible.State.ENABLED), describe(tree()));
+        assertNull(node("hour of a refused day").actions(),
+                "nor does one nested under it" + describe(tree()));
+
+        slider.setEnabled(false);
+        field.setEnabled(false);
+        list.setEnabled(false);
+        days.setEnabled(false);
+        frame();
+
+        assertNull(node("level").actions(), "its own flag: no verb" + describe(tree()));
+        assertTrue(node("level").value().readOnly(), "and no SET_VALUE" + describe(tree()));
+        assertEquals(40.0, node("level").value().value(), "what it holds is still said");
+        assertNull(node("notes").actions(), describe(tree()));
+        assertTrue(node("notes").has(Accessible.State.READ_ONLY), "no SET_TEXT" + describe(tree()));
+        assertTrue(row.isEnabled(), "the fixture leaves the row's own flag alone");
+        assertNull(node("row").actions(),
+                "an ancestor's flag: no verb, no claim, no key binding" + describe(tree()));
+        assertNull(node("open day").actions(), "a child of a disabled owner" + describe(tree()));
+
+        slider.setEnabled(true);
+        field.setEnabled(true);
+        list.setEnabled(true);
+        days.setEnabled(true);
+        frame();
+        assertTrue(node("level").actions().has(Accessible.Action.INCREMENT), describe(tree()));
+        assertFalse(node("level").value().readOnly());
+        assertFalse(node("notes").has(Accessible.State.READ_ONLY));
+        assertEquals(java.util.Set.of(Accessible.Action.PRESS, Accessible.Action.SELECT),
+                node("row").actions().actions(), describe(tree()));
+        assertEquals("Ctrl+K", node("row").actions().keyBinding());
+        assertTrue(node("open day").actions().has(Accessible.Action.SELECT));
+    }
+
+    /** A widget with a verb and the key that performs it. */
+    private static final class Keyed extends Probe {
+        Keyed(String name) {
+            super(Accessible.Role.LIST_ITEM, name);
+            actions = new Accessible.Action[] {Accessible.Action.PRESS};
+        }
+
+        @Override
+        protected void onAccessibility(limn.accessibility.Accessibility a) {
+            super.onAccessibility(a);
+            a.keyBinding("Ctrl+K");
+        }
+    }
+
+    /** A container that claims SELECT on each child. */
+    private static final class Claiming extends Group {
+        @Override
+        protected void onAccessibility(limn.accessibility.Accessibility a) {
+            a.role(Accessible.Role.LIST);
+        }
+
+        @Override
+        protected void onAccessibilityChild(Widget child, limn.accessibility.Accessibility a) {
+            a.delegate(Accessible.Action.SELECT);
+        }
+    }
+
+    /**
+     * A widget drawing two days, the second narrowed as a refused day is, with a child nested
+     * under it; both declare SELECT.
+     */
+    private static final class Days extends Probe {
+        Days() {
+            super(Accessible.Role.TABLE, "days");
+        }
+
+        @Override
+        protected void onAccessibility(limn.accessibility.Accessibility a) {
+            super.onAccessibility(a);
+            a.child(1);
+            a.role(Accessible.Role.CELL);
+            a.name(limn.i18n.I18nString.literal("open day"));
+            a.action(Accessible.Action.SELECT);
+            a.endChild();
+            a.child(2);
+            a.role(Accessible.Role.CELL);
+            a.name(limn.i18n.I18nString.literal("refused day"));
+            a.action(Accessible.Action.SELECT);
+            a.disabled();
+            a.child(3);
+            a.role(Accessible.Role.BUTTON);
+            a.name(limn.i18n.I18nString.literal("hour of a refused day"));
+            a.action(Accessible.Action.PRESS);
+            a.endChild();
+            a.endChild();
+        }
+    }
+
     @Test
     void theOpenLayerItselfCarriesModal() {
         Group root = new Group();

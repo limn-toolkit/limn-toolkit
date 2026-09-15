@@ -647,8 +647,10 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(id, node.id(), "a disabled picker is not a rebuild" + describe(tree()));
         assertFalse(node.has(Accessible.State.ENABLED),
                 "the bit is inherited down the walk from the picker" + describe(tree()));
-        assertEquals(hue(210), node.value(),
-                "a disabled ramp is heard as disabled rather than vanishing" + describe(tree()));
+        assertEquals(readOnly(hue(210)), node.value(),
+                "a disabled ramp is heard as disabled rather than vanishing, and its value is "
+                        + "published read-only" + describe(tree()));
+        assertNull(node.actions(), "no verb the scene refuses is published" + describe(tree()));
         bridge.events.clear();
 
         perform(id, Accessible.Action.INCREMENT, Accessible.Argument.NONE);

@@ -483,8 +483,9 @@ class ToolBarAccessibilityTest extends AccessibleComponentTestBase {
      * <p>§1.6's predicate reads the facts a widget declared for itself and never the bits carried
      * down the walk, so disabling the strip does not materialise a group for the column above it
      * or for anything else that was deleted. What changes is the items: they lose {@code ENABLED},
-     * they stop being tab stops, and the walk's focus verbs go with that — while each keeps its own
-     * role and its own verb, so a reader hears a disabled command rather than an absent one.
+     * they stop being tab stops, and every verb goes with that, the walk's focus verbs and the
+     * item's own (semantics 5, 2026-09-15) — while each keeps its own role, so a reader hears a
+     * disabled command rather than an absent one.
      */
     @Test
     void aDisabledBarPublishesItsItemsDisabledAndGrowsNoSkeleton() {
@@ -503,11 +504,11 @@ class ToolBarAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode button = node("Save");
         assertFalse(button.has(Accessible.State.ENABLED), describe(tree()));
         assertFalse(button.has(Accessible.State.FOCUSABLE), describe(tree()));
-        assertFalse(button.actions().has(Accessible.Action.FOCUS),
-                "a disabled item is not a tab stop, so the walk offers no focus verb"
+        assertNull(button.actions(),
+                "a disabled item is not a tab stop, so the walk offers no focus verb, and the "
+                        + "scene refuses its press, so that is not published either"
                         + describe(tree()));
-        assertTrue(button.actions().has(Accessible.Action.PRESS),
-                "its own verb is its own business" + describe(tree()));
+        assertEquals(Accessible.Role.BUTTON, button.role(), describe(tree()));
         assertEquals(nodes, tree().nodeCount(),
                 "a disabled bar grows no group around anything" + describe(tree()));
     }

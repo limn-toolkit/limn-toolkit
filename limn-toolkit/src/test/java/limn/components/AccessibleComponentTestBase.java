@@ -234,6 +234,19 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
     }
 
     /**
+     * The same facet published read-only, which is how a node that is not {@code ENABLED}
+     * publishes its value: the walk withdraws the {@code SET_VALUE} a writable facet implies from
+     * it (semantics 5; ADR 039 §1.5, amended 2026-09-15).
+     *
+     * @param facet a writable facet
+     * @return that facet with {@code readOnly} set
+     */
+    protected static limn.accessibility.ValueFacet readOnly(limn.accessibility.ValueFacet facet) {
+        return new limn.accessibility.ValueFacet(facet.value(), facet.min(), facet.max(),
+                facet.step(), facet.text(), true, facet.empty());
+    }
+
+    /**
      * @param state the state to look for
      * @return every node carrying it, in tree order
      */

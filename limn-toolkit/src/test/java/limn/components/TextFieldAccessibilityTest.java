@@ -344,8 +344,17 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(fieldNode().has(Accessible.State.INVALID), describe(tree()));
     }
 
+    /**
+     * A disabled field is an editable control that is disabled, and it accepts no text now.
+     *
+     * <p>§7's row warned "never {@code READ_ONLY} from disabled", from §1.2's separation of the two
+     * bits. On 2026-09-15 semantics 5 was extended to the disabled axis: a node that is not
+     * {@code ENABLED} publishes no setter, and {@code READ_ONLY} is the text facet's only way to
+     * withdraw {@code SET_TEXT} (ADR 039 §1.5 and §1.13, amended that day). {@code EDITABLE} stays,
+     * because it says what the control is; {@code READ_ONLY} goes back off with {@code ENABLED}.
+     */
     @Test
-    void aDisabledFieldIsStillEditableAndNeverReadOnly() {
+    void aDisabledFieldIsStillEditableAndAcceptsNoTextWhileDisabled() {
         bindField();
         field.setText("typed");
         field.setEnabled(false);
@@ -358,9 +367,15 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node.has(Accessible.State.EDITABLE),
                 "a disabled field is an editable control that is disabled, which is not the same "
                         + "fact as a field whose text can never be typed into" + describe(tree()));
-        assertFalse(node.has(Accessible.State.READ_ONLY),
-                "the row's own warning: never READ_ONLY from disabled" + describe(tree()));
+        assertTrue(node.has(Accessible.State.READ_ONLY),
+                "no SET_TEXT while the scene would refuse it (semantics 5)" + describe(tree()));
+        assertNull(node.actions(), "and no verb" + describe(tree()));
         assertEquals("typed", node.text().text(), describe(tree()));
+
+        field.setEnabled(true);
+        frame();
+        assertFalse(fieldNode().has(Accessible.State.READ_ONLY),
+                "enabled again, the field is editable again" + describe(tree()));
     }
 
     // -------------------------------------------------------------------------- the text facet

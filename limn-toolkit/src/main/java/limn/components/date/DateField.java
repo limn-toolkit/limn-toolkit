@@ -1433,20 +1433,6 @@ public class DateField extends Widget {
         return popupOpen != null && !keyboardActive && popupOpen.getAsBoolean();
     }
 
-    /**
-     * Whether a verb on a segment can be performed right now, as far as this field knows: the
-     * field is enabled (2026-09-15, semantics 5 and decision 30). The segments' {@code INCREMENT},
-     * {@code DECREMENT} and {@code FOCUS}, and the {@code SET_VALUE} a writable value implies, are
-     * published only while this holds, because the platform is answered from the snapshot and a
-     * verb published where it is dropped reads as done. Beneath the picker's popup presented as an
-     * overlay of the scene the walk withholds them itself, as it does from every node outside the
-     * layer that owns input (ADR 039 §1.13, amended the same day), so this field no longer asks
-     * where its popup is drawn.
-     */
-    private boolean segmentsOperable() {
-        return isEnabled();
-    }
-
     // ------------------------------------------------------------------ parsing a whole string
 
     /**
@@ -2071,10 +2057,9 @@ public class DateField extends Widget {
             // the layer that owns input, and the walk takes this COLLAPSE off it with every other
             // verb (ADR 039 §1.13, amended 2026-09-15); the overlay publishes CANCEL for that
             // presentation, and the state is still told here. In a window of its own the field
-            // keeps the input and COLLAPSE stands.
-            if (isEnabled()) {
-                a.action(open ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
-            }
+            // keeps the input and COLLAPSE stands. On a disabled field the walk takes it off too
+            // (§1.5, amended the same day), so no enabled test is written here.
+            a.action(open ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
         }
 
         TextRuler ruler = textRuler();
@@ -2088,9 +2073,10 @@ public class DateField extends Widget {
         float x = isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
         // Verbs only where they can be performed (2026-09-15, semantics 5 and decision 30): on a
         // disabled field a segment publishes its value read-only and no verb, as a refused
-        // calendar day does, since the scene would drop every one. Beneath an in-scene popup the
-        // walk does the same, for every node outside the layer that owns input.
-        boolean operable = segmentsOperable();
+        // calendar day does, since the scene would drop every one, and beneath an in-scene popup
+        // likewise. Both are the walk's, for every node that is not ENABLED (ADR 039 §1.5 and
+        // §1.13, amended the same day), so the segments declare their verbs and a writable value
+        // here and the walk withdraws them.
         int slot = 0;
         for (DatePattern.Part part : parts) {
             float pieceWidth = pieceWidth(ruler, font, neutral, part);
@@ -2106,21 +2092,19 @@ public class DateField extends Widget {
                     // than the dashes that are drawn -- "--" read aloud is nothing. It published
                     // its minimum as if typed until the facet could say empty.
                     a.emptyValue(segmentMin(field.field()), segmentMax(field.field()), 1,
-                            !operable);
+                            false);
                     a.valueText(DateStrings.SEGMENT_EMPTY.get(), valueRevision);
                 } else {
                     a.value(value, segmentMin(field.field()), segmentMax(field.field()), 1,
-                            !operable);
+                            false);
                     a.valueText(field.field() == DatePattern.Field.YEAR
                             ? yearSpoken(field) : segmentText(field), valueRevision);
                 }
                 // FOCUS puts the caret in this segment and changes no value (decision 11,
                 // 2026-09-15): the caret is the field's cursor, and which segment it is in is
                 // not a value, so a segment is an item whose cursor and value are apart.
-                if (operable) {
-                    a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT,
-                            Accessible.Action.FOCUS);
-                }
+                a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT,
+                        Accessible.Action.FOCUS);
                 if (slot == focusedSlot && caretShown() && !popupHoldsKeyboard()) {
                     a.state(Accessible.State.ACTIVE);
                 }
@@ -2201,7 +2185,7 @@ public class DateField extends Widget {
     protected boolean onSyntheticAction(long key, Accessible.Action action,
                                         Accessible.Argument arg) {
         ensureParts();
-        if (key < 0 || key >= editable.length || !segmentsOperable()) {
+        if (key < 0 || key >= editable.length || !isEnabled()) {
             return false;
         }
         if (action == Accessible.Action.FOCUS) {

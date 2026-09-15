@@ -755,7 +755,10 @@ public class SegmentedControl extends Widget {
      * 2026-09-14 the dead side dropped the verb without the state, because a widget could not say
      * "disabled" of a synthetic child; from that day to 2026-09-15 it carried the state and kept
      * the verb, so that a pattern set Windows froze on first read (W2) would not lose Invoke when
-     * the side came alive. Phase 3 rebuilds pattern sets on a change, and the verb goes.
+     * the side came alive. Phase 3 rebuilds pattern sets on a change, and the verb goes. The
+     * arrow declares {@code PRESS} either way and the walk withdraws it from every node that is
+     * not {@code ENABLED} (ADR 039 §1.5, amended 2026-09-15), so the narrowing is the only thing
+     * written here.
      * {@link #onSyntheticAction} still answers a press that arrives on a dead side anyway by
      * whether the scroll moved, which on that side is not at all.
      *
@@ -777,14 +780,13 @@ public class SegmentedControl extends Widget {
         a.role(Accessible.Role.BUTTON);
         a.name(back ? ComponentStrings.SEGMENT_PREVIOUS : ComponentStrings.SEGMENT_NEXT,
                 Accessible.NameFrom.CONTENT);
-        if (live) {
-            a.action(Accessible.Action.PRESS);
-        } else {
-            // Disabled and with no verb (decision 30; semantics 5, 2026-09-15): a disabled
-            // synthetic item carries no verb, as a refused day carries no SELECT, and a bridge
-            // reads the absence. The verb was kept here on 2026-09-14 so that Windows' frozen
-            // pattern set would not lose Invoke when the side came alive (W2); phase 3 rebuilds
-            // pattern sets on a change, so the verb goes.
+        a.action(Accessible.Action.PRESS);
+        if (!live) {
+            // Disabled, and so with no verb (decision 30; semantics 5, 2026-09-15): the walk takes
+            // PRESS off a node that is not ENABLED, as it takes SELECT off a refused day, and a
+            // bridge reads the absence. The verb was kept here on 2026-09-14 so that Windows'
+            // frozen pattern set would not lose Invoke when the side came alive (W2); phase 3
+            // rebuilds pattern sets on a change, so the verb goes.
             a.disabled();
         }
         a.endChild();

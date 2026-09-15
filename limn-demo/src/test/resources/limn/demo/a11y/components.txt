@@ -6,10 +6,10 @@
  5   label "A very long text demonstrating ellipsis truncation measured with real glyphs"
  6   label "With wrap enabled, the paragraph breaks on words using the font's real measurement; words that are too wide break mid-word."
  7   button "Click here" [focusable] actions: press, scroll into view, focus
- 8   button "Disabled" [disabled] actions: press
+ 8   button "Disabled" [disabled]
  9   label "clicks: 0"
 10   check box "Notifications" [focusable] toggle=off actions: toggle, scroll into view, focus
 11   switch "Airplane mode" [focusable] toggle=off actions: toggle, scroll into view, focus
 12   switch "On" [focusable, checked] toggle=on actions: toggle, scroll into view, focus
-13   check box "Locked (disabled)" [disabled, checked] toggle=on actions: toggle
+13   check box "Locked (disabled)" [disabled, checked] toggle=on
 14   button "Switch to light theme" [focusable] actions: press, scroll into view, focus

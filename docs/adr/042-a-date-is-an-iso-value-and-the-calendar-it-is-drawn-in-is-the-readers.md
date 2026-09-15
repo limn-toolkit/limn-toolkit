@@ -533,6 +533,16 @@ wherever it is enabled and the walk withdraws it beneath the overlay, and a segm
 field being enabled alone. The disabled *container* stays as this note left it (the scene refuses
 there too; the rule for it is not settled here). The case above now also asserts the field and the
 calendar button publish no verb beneath the overlay, and it goes red with the walk's rule backed out.
+**Amended 2026-09-15 (fix round 2d; ADR 039 §1.5's amendment of that date):** the disabled half is
+the walk's as well, and the disabled *container* is settled with it. The walk withdraws every verb
+and setter from each node that is not `ENABLED`, so a segment on a disabled field, on a field inside
+a disabled container, and a refused day or a chooser cell with no selectable day all publish no
+verb and a read-only value without a gate of the field's or the calendar's own: `DateField` declares
+its segments' verbs and a writable value and the walk withdraws them, and `CalendarView` declares
+`SELECT` on every day of a selecting grid and narrows the refused ones. The `FOCUS` a refused day
+withholds in a grid that selects nothing stays the calendar's, because no day is narrowed there.
+`DateFieldAccessibilityTest.aDisabledFieldsSegmentsCarryNoVerbAndAReadOnlyValue` still pins the
+field.
 
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and

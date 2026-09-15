@@ -508,8 +508,10 @@ class ColorPickerAlphaRailAccessibilityTest extends AccessibleComponentTestBase 
         assertFalse(node.has(Accessible.State.ENABLED),
                 "the bit is inherited down the walk from the picker" + describe(tree()));
         assertFalse(node.has(Accessible.State.FOCUSABLE), describe(tree()));
-        assertEquals(percent(50), node.value(),
-                "a disabled rail is heard as disabled rather than vanishing" + describe(tree()));
+        assertEquals(readOnly(percent(50)), node.value(),
+                "a disabled rail is heard as disabled rather than vanishing, and its value is "
+                        + "published read-only" + describe(tree()));
+        assertNull(node.actions(), "no verb the scene refuses is published" + describe(tree()));
         bridge.events.clear();
 
         perform(id, Accessible.Action.INCREMENT, Accessible.Argument.NONE);

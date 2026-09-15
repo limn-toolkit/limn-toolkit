@@ -2559,12 +2559,12 @@ public class CalendarView extends Widget {
         if (granularity != View.YEARS) {
             a.expand(climbed);
         }
-        if (isEnabled()) {
-            if (climbed) {
-                a.action(Accessible.Action.PRESS, Accessible.Action.COLLAPSE);
-            } else if (granularity != View.YEARS) {
-                a.action(Accessible.Action.PRESS, Accessible.Action.EXPAND);
-            }
+        // No enabled test: the walk withdraws every verb from a node that is not ENABLED (ADR 039
+        // §1.5, amended 2026-09-15), a disabled calendar's children included.
+        if (climbed) {
+            a.action(Accessible.Action.PRESS, Accessible.Action.COLLAPSE);
+        } else if (granularity != View.YEARS) {
+            a.action(Accessible.Action.PRESS, Accessible.Action.EXPAND);
         }
         if (focusHere(Part.TITLE)) {
             a.state(Accessible.State.ACTIVE);
@@ -2644,10 +2644,11 @@ public class CalendarView extends Widget {
                     // no verb (decision 30, 2026-09-14): the cursor stops on it, so a reader
                     // hears "unavailable" where the eye sees the muted number, and Enter is
                     // refused by pick(). Narrowing only -- Accessibility.disabled -- which is
-                    // the one route a synthetic child has to be less enabled than its owner.
-                    if (isEnabled() && isSelectable(day)) {
-                        a.action(Accessible.Action.SELECT);
-                    } else if (!isSelectable(day)) {
+                    // the one route a synthetic child has to be less enabled than its owner, and
+                    // the walk withdraws SELECT from the node it narrowed, as it does from every
+                    // day of a disabled calendar (ADR 039 §1.5, amended 2026-09-15).
+                    a.action(Accessible.Action.SELECT);
+                    if (!isSelectable(day)) {
                         a.disabled();
                     }
                 }
@@ -2655,8 +2656,10 @@ public class CalendarView extends Widget {
                 // 2026-09-15): the cursor and the selection are two things in a calendar, which
                 // is what lets an item publish it, and it is what Up and Down do with the arrows.
                 // Never on a day the bounds or the filter refuse, which carries no verb at all
-                // (decision 30); in NONE, where nothing is selectable, by the same bounds.
-                if (isEnabled() && !isRefused(day)) {
+                // (decision 30); in NONE, where nothing is selectable and no day is narrowed,
+                // by the same bounds, which is why this test stays when the walk withdraws the
+                // verbs of a narrowed or disabled day.
+                if (!isRefused(day)) {
                     a.action(Accessible.Action.FOCUS);
                 }
                 if (day.equals(cursor) && focusHere(Part.GRID)) {
@@ -2702,11 +2705,11 @@ public class CalendarView extends Widget {
                 if (terminal) {
                     a.selectionItem(periodSelection(index) > 0, index + 1, count);
                 }
-                if (isEnabled() && isChooserCellOffered(index)) {
-                    // SELECT descends (or picks, in the chooser this calendar picks in) and
-                    // FOCUS only moves the chooser's cursor there (decision 11, 2026-09-15).
-                    a.action(Accessible.Action.SELECT, Accessible.Action.FOCUS);
-                } else if (!isChooserCellOffered(index)) {
+                // SELECT descends (or picks, in the chooser this calendar picks in) and FOCUS only
+                // moves the chooser's cursor there (decision 11, 2026-09-15); the walk withdraws
+                // both from a cell narrowed here or inside a disabled calendar.
+                a.action(Accessible.Action.SELECT, Accessible.Action.FOCUS);
+                if (!isChooserCellOffered(index)) {
                     a.disabled(); // a month with no selectable day: decision 30's rule, one level up
                 }
                 // The cell on show is not marked with a state here: CHECKED is the toggle
@@ -2819,9 +2822,7 @@ public class CalendarView extends Widget {
             case MONTHS -> previous ? DateStrings.PREVIOUS_YEAR : DateStrings.NEXT_YEAR;
             case YEARS -> previous ? DateStrings.PREVIOUS_YEARS : DateStrings.NEXT_YEARS;
         }, Accessible.NameFrom.CONTENT);
-        if (isEnabled()) {
-            a.action(Accessible.Action.PRESS);
-        }
+        a.action(Accessible.Action.PRESS); // withdrawn by the walk while the calendar is disabled
         // The roving cursor is published as the active descendant, which is the vocabulary every
         // bridge already has for "focus is here without the focus moving".
         if (focusHere(key == KEY_PREVIOUS ? Part.PREVIOUS : Part.NEXT)) {

@@ -65,10 +65,12 @@ platform**: a bridge accepts or refuses a verb synchronously from the published 
 posts, and the `false` a hook answers later is bookkeeping nobody hears. So the only refusal a
 reader can see is the published one — a node accepts exactly the parameterless verbs it publishes
 plus the setters its writable facets imply, and a widget that accepts a synonym publishes it.
-Beneath a layer that owns input — an overlay of the scene, or a native modal over the window — the
-scene refuses every verb, and the walk withdraws them for you: every verb, a read-only value and a
-`READ_ONLY` text on every node outside that layer. Do not gate a verb on where your popup is drawn;
-gate it on your own state.
+On a node that is not enabled — a disabled widget, anything under a disabled ancestor, and
+everything beneath a layer that owns input (an overlay of the scene, or a native modal over the
+window) — the scene refuses every verb, and the walk withdraws them for you: every verb, a read-only
+value and a `READ_ONLY` text on each such node, a synthetic child you declared `disabled()`
+included. Do not gate a verb on whether you are enabled or on where your popup is drawn; gate it on
+the rest of your own state.
 
 **Transparent and ignored are different, and getting them the wrong way round deletes controls.**
 Transparent is no node with the children **hoisted into the parent's place**; ignored is no node

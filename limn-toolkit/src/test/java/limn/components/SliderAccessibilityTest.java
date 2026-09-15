@@ -454,8 +454,10 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(node.has(Accessible.State.FOCUSABLE),
                 "the keyboard does not reach a disabled control, and the tree agrees with it"
                         + describe(tree()));
-        assertEquals(facet(30, 5), node.value(),
-                "a disabled slider is heard as disabled rather than vanishing" + describe(tree()));
+        assertEquals(readOnly(facet(30, 5)), node.value(),
+                "a disabled slider is heard as disabled rather than vanishing, and its value is "
+                        + "published read-only" + describe(tree()));
+        assertNull(node.actions(), "no verb the scene refuses is published" + describe(tree()));
         bridge.events.clear();
 
         perform(node.id(), Accessible.Action.INCREMENT, Accessible.Argument.NONE);
@@ -476,6 +478,9 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(slider.isEnabled(), "the fixture has to leave the slider's own flag alone");
         assertFalse(sliderNode().has(Accessible.State.ENABLED),
                 "the bit is inherited down the walk" + describe(tree()));
+        assertNull(sliderNode().actions(),
+                "and so is the withdrawal of its verbs" + describe(tree()));
+        assertTrue(sliderNode().value().readOnly(), describe(tree()));
         bridge.events.clear();
 
         perform(sliderNode().id(), Accessible.Action.INCREMENT, Accessible.Argument.NONE);

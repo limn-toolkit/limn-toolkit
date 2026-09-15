@@ -1417,9 +1417,7 @@ public class DatePicker extends Widget {
         protected void onAccessibility(Accessibility a) {
             a.role(Accessible.Role.BUTTON);
             a.name(DateStrings.OPEN_CALENDAR, Accessible.NameFrom.CONTENT);
-            if (isEnabled()) {
-                a.action(Accessible.Action.PRESS);
-            }
+            a.action(Accessible.Action.PRESS); // withdrawn by the walk while it is not ENABLED
         }
 
         @Override

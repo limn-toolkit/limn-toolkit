@@ -208,6 +208,14 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
             assertEquals("", node.description(),
                     "and the description stays empty, because the tooltip was spent on the name"
                             + describe(tree()));
+            if (node.id() == previousNode().id()) {
+                // At rest the strip is on its first tab, so the leading chevron is disabled and
+                // publishes no verb (semantics 5, 2026-09-15); its verb set is read below, once
+                // the strip has somewhere to go back to.
+                assertNull(node.actions(), describe(tree()));
+                assertEquals(List.of(), childrenOf(node), describe(tree()));
+                continue;
+            }
             assertTrue(node.actions().has(Accessible.Action.PRESS), describe(tree()));
             assertFalse(node.actions().has(Accessible.Action.FOCUS),
                     "none of the three is a tab stop: the keyboard reaches the strip through the "
@@ -234,10 +242,15 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
                     "the strip's own node carries the scroll facet" + describe(tree()));
         }
 
-        assertEquals(Set.of(Accessible.Action.PRESS), previousNode().actions().actions(),
-                "a chevron scrolls and does nothing else" + describe(tree()));
         assertEquals(Set.of(Accessible.Action.PRESS), nextNode().actions().actions(),
-                describe(tree()));
+                "a chevron scrolls and does nothing else" + describe(tree()));
+        pane.setSelectedIndex(SIX.length - 1);
+        frame();
+        assertEquals(Set.of(Accessible.Action.PRESS), previousNode().actions().actions(),
+                "and so does the leading one, once there is somewhere to scroll back to"
+                        + describe(tree()));
+        assertNull(nextNode().actions(), "while the trailing one, at its end, offers none"
+                + describe(tree()));
         assertEquals(Set.of(Accessible.Action.PRESS, Accessible.Action.SHOW_MENU),
                 allNode().actions().actions(),
                 "both, and not the menu verb alone: one platform vends its invoke pattern from the "
@@ -339,6 +352,8 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
         assertFalse(previousNode().has(Accessible.State.ENABLED),
                 "at rest the strip is on its first tab and there is nothing before it"
                         + describe(tree()));
+        assertNull(previousNode().actions(),
+                "so it publishes no verb (semantics 5, 2026-09-15)" + describe(tree()));
         assertTrue(nextNode().has(Accessible.State.ENABLED), describe(tree()));
 
         float restingX = strip().children().get(0).localToSceneX();

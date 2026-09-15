@@ -1205,8 +1205,10 @@ public final class Accessibility {
      * control's dead chevron) hang no widget under the node — so a widget that does owes the walk
      * and the gate the same narrowing in the same change (2026-09-15, the widgets review).
      *
-     * <p>A disabled child carries no verb of its own accord: that is the widget's to leave out,
-     * as the refused day leaves out its {@code SELECT}, and a bridge reads the absence.
+     * <p>A disabled child carries no verb: the publish step withdraws every verb and setter from a
+     * node that is not {@code ENABLED} ({@link #inoperableAt}, ADR 039 §1.5, amended 2026-09-15),
+     * so a refused day may declare its {@code SELECT} and still publishes none, and a bridge reads
+     * the absence.
      *
      * @throws IllegalStateException if no synthetic child is open
      */
@@ -1607,14 +1609,30 @@ public final class Accessibility {
     }
 
     /**
-     * Takes every operation off a node the scene will not operate, because it lies outside the
-     * layer that owns input: beneath an overlay of the scene, or in a window a native modal
-     * blocks (ADR 039 §1.13, amended 2026-09-15). The scene refuses every verb there, and the
+     * Whether the node at an index of the walk in progress is published {@code ENABLED}, as
+     * {@link #inherited} or {@link #inheritedAt} settled it. The publish step asks, after that
+     * call, to know whether the node is one {@link #inoperableAt} applies to.
+     *
+     * @param index the node's index in this walk
+     * @return whether the node carries {@link Accessible.State#ENABLED}
+     * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
+     */
+    public boolean isEnabledAt(int index) {
+        Objects.checkIndex(index, count);
+        return (slots[index].states & (1L << Accessible.State.ENABLED.ordinal())) != 0;
+    }
+
+    /**
+     * Takes every operation off a node the scene will not operate, because it is not
+     * {@code ENABLED}: it or an ancestor is disabled, or it lies outside the layer that owns
+     * input &mdash; beneath an overlay of the scene, or in a window a native modal blocks
+     * (ADR 039 §1.5 and §1.13, amended 2026-09-15) &mdash; or it is a synthetic child its owner
+     * {@linkplain #disabled() narrowed}. The scene or the owner refuses every verb there, and the
      * platform is answered from the snapshot (semantics 5), so the node publishes no verb &mdash;
      * neither one it declared nor one its container claimed on it &mdash; and none of the setters
      * a facet implies: a value is published read-only and a text {@link Accessible.State#READ_ONLY}.
      * What the node says it is and holds is untouched. The publish step calls this after both
-     * describe hooks ran; a widget never does.
+     * describe hooks ran and after the delegate routing was read; a widget never does.
      *
      * @param index the node's index in this walk
      * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
