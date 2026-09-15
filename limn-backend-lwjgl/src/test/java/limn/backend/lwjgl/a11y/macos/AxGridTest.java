@@ -299,7 +299,12 @@ class AxGridTest {
         assertArrayEquals(AxGrid.NOT_FOUND, f.grid().columnIndexRange(f.node(1041)));
         assertArrayEquals(AxGrid.NOT_FOUND, f.grid().rowIndexRange(f.node(1050)));
         assertArrayEquals(AxGrid.NOT_FOUND, f.grid().columnIndexRange(f.node(1050)));
+        // NSNotFound is NSIntegerMax, which on a 64-bit NSInteger is Long.MAX_VALUE: read from the
+        // running Foundation on the macOS 26.6.2 guest on 2026-09-15 (list-probe.swift), and read
+        // back through the AX API from an NSAccessibilityElement that answers it for AXIndex.
         assertEquals(Long.MAX_VALUE, AxGrid.NOT_FOUND[0], "NSNotFound");
+        assertEquals("0x7fffffffffffffff", "0x" + Long.toHexString(AxGrid.NOT_FOUND[0]),
+                "the number an out-of-process client read for such an element's AXIndex");
     }
 
     @Test

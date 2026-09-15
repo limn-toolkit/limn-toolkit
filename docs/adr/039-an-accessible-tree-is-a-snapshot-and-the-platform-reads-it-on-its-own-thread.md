@@ -5376,6 +5376,30 @@ descending 2, from the SDK the script was compiled against, without quotes). The
 the test carried as owed to it are retired, so each is now held against the committed dump like any
 other.
 
+#### Amendment 2026-09-15 (the fix round) — the three macOS facts that were still without a reading
+
+The phase-3 critic's completeness pass listed three things this bridge uses that no reading named.
+Two of them turned out to be read already; one was not, and now is. The dump was **not** regenerated
+again: nothing in the fix round adds an AppKit symbol or a selector, and `AxConstantsTest` stays
+green against the 2026-09-15 dump.
+
+- **`NSNotFound` as `AXIndex`** (`AxGrid.NOT_FOUND`, `Long.MAX_VALUE`) had no reading, and it is not
+  an exported symbol for `dlsym` to find — it is `NSIntegerMax`, the constants rule's narrow case
+  again. It is read instead through the platform's own behaviour, which is stronger:
+  `scripts/a11y/macos/list-probe.swift` prints `NSNotFound` from the running Foundation
+  (`9223372036854775807`, `0x7fffffffffffffff`, equal to `NSIntegerMax` on a 64-bit `NSInteger`) and
+  hangs an `NSAccessibilityElement` answering `NSNotFound` for `accessibilityIndex` off a plain
+  view's children — how this bridge vends every element — which an out-of-process client reads back
+  as `AXIndex=9223372036854775807`, `objCType=q`. `readings/macos-list-probe.txt`.
+- **`-[NSObject isKindOfClass:]` `B24@0:8#16` and `-[NSNumber stringValue]` `@16@0:8`** were read on
+  the guest on 2026-09-15 with the other Foundation messages and are cited in `AxElementClass#isKindOf`'s
+  javadoc; the critic's list was out of date. Re-read at the fix round's HEAD and byte-identical:
+  `readings/macos-foundation-messages-probe-3.txt`. Not a defect.
+- The same run settled the two macOS entries the critic filed as **choices between readings**: a
+  native list's selection notification and `AXRowCountChanged` on a trigger that is not a
+  disclosure. Both are now read on a native `NSTableView` rather than inferred from the outline;
+  §2.2's macOS column and `AxNotifications` cite them.
+
 ---
 
 ## 13. Risks and open edges

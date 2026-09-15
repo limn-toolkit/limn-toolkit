@@ -214,6 +214,16 @@ final class AxNotifications {
      * What a {@code SELECTION_CHANGED} is posted as, on its container, by the shape of that container's
      * members: the notification of the attribute its selection is read from.
      *
+     * <p><b>A list posts the rows notification, and that is read rather than reasoned.</b> The outline
+     * half was read on the macOS 26.6.2 guest on 2026-09-15 ({@code outline-probe.swift}: a selection
+     * write delivered {@code AXSelectedRowsChanged} only, to an observer that also asked for
+     * {@code AXValueChanged}), and the list half was inferred from it — a divergence the phase-3 critic
+     * listed as a constant without a reading. It is read now, on a native {@code NSTableView} used as
+     * a list, one column and no header (2026-09-15, {@code scripts/a11y/macos/list-probe.swift}):
+     * writing {@code AXSelected} on a row delivered {@code AXSelectedRowsChanged} on the table's
+     * registration and on the application's, and that view vends no {@code AXSelectedChildren} at all
+     * ({@code kAXErrorAttributeUnsupported}), so the children notification is not a list's.
+     *
      * @param shape what the container's members are
      * @return the posting
      */

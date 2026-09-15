@@ -1003,9 +1003,15 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * flipping — a lazy load landing under a row already open, a refresh, a model adding roots — and a
      * list's and a table's with no expansion at all; a native outline posted {@code AXRowCountChanged}
      * on itself when its rows changed (read on the macOS 26.6.2 guest, 2026-09-15,
-     * {@code scripts/a11y/macos/outline-probe.swift}, for a disclosure, the one trigger read). The count
-     * is the model's, not the realized rows': a scroll changes which rows are realized and not how many
-     * the widget has.
+     * {@code scripts/a11y/macos/outline-probe.swift}, for a disclosure).
+     *
+     * <p><b>The triggers that are not a disclosure are read too</b>, which the phase-3 critic listed as
+     * inferred: a native {@code NSTableView} whose data source gained a row and then lost two, each
+     * followed by {@code reloadData()} and with no row expanding or collapsing anywhere, delivered
+     * {@code AXRowCountChanged} on the table and on the application both times (2026-09-15,
+     * {@code scripts/a11y/macos/list-probe.swift}). So a lazy load, a refresh and a model adding roots
+     * are that same trigger. The count is the model's, not the realized rows': a scroll changes which
+     * rows are realized and not how many the widget has.
      */
     private void noteRowCountChanges(AccessibleTree before, AccessibleTree now) {
         if (before.nodeCount() == 0 || now.nodeCount() == 0) return;

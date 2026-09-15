@@ -55,7 +55,19 @@ import limn.accessibility.AccessibleTree;
  */
 final class AxGrid {
 
-    /** {@code NSNotFound} and a zero length: the range of a cell that is not in the grid. */
+    /**
+     * {@code NSNotFound} and a zero length: the range of a cell that is not in the grid, and the
+     * index of a row whose number is unknown.
+     *
+     * <p>{@code NSNotFound} is {@code NSIntegerMax}, which on a 64-bit {@code NSInteger} is exactly
+     * {@link Long#MAX_VALUE} — read on the macOS 26.6.2 guest (25G83), 2026-09-15,
+     * {@code scripts/a11y/macos/list-probe.swift}: the running Foundation printed
+     * {@code NSNotFound=9223372036854775807 hex=0x7fffffffffffffff NSIntegerMax=9223372036854775807
+     * equal=true}, and an {@code NSAccessibilityElement} answering {@code NSNotFound} for its
+     * {@code accessibilityIndex} — vended off a plain view's children, as this bridge vends one — was
+     * read by an out-of-process client as {@code AXIndex=9223372036854775807}, {@code objCType=q}.
+     * The value was used here before that run without a reading behind it (the phase-3 critic).
+     */
     static final long[] NOT_FOUND = {Long.MAX_VALUE, 0};
 
     private final AxElementClass.Source source;
@@ -528,8 +540,16 @@ final class AxGrid {
     }
 
     /**
+     * {@code accessibilityRowCount}: the table facet's count.
+     *
+     * <p>Read in passing on 2026-09-15 ({@code scripts/a11y/macos/list-probe.swift}) and left as it
+     * is: a native {@code NSTableView} answers <em>no</em> {@code AXRowCount} at all
+     * ({@code kAXErrorAttributeUnsupported}), so serving it is more than the platform's own tables
+     * offer rather than less. Whether to keep serving it is the owner's open pick (this lane's
+     * "AXRowCount/AXColumnCount/AXColumnHeaderUIElements"), and nothing here decides it.
+     *
      * @param node the node asked
-     * @return {@code accessibilityRowCount}: the table facet's count, or zero
+     * @return the table facet's count, or zero
      */
     long rowCount(AccessibleNode node) {
         return node.table() == null ? 0 : node.table().rowCount();
