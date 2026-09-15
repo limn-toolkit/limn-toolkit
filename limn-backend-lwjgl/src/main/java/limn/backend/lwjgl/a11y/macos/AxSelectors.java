@@ -19,8 +19,9 @@ import java.util.function.Function;
  * before it reaches a Mac. The selectors used to be literals scattered over the element class and
  * the action table, and two of them were not in the dump at all (MACOS-NEW-6). {@code AxConstantsTest}
  * now asserts every name here has an encoding in the dump, {@code AxSelectorsTest} that the element
- * class installs exactly these, and {@link AxElementClass} refuses to install a selector that is not
- * listed.
+ * class installs exactly these, each with the closure shape listed ({@link Kind}), and
+ * {@link AxElementClass} refuses to install a selector that is not listed or a closure of another
+ * shape.
  *
  * <p><b>A listed selector the running AppKit does not declare is left out, loudly.</b> It was a
  * thrown {@code IllegalStateException} out of the element class's constructor, which
@@ -36,30 +37,107 @@ final class AxSelectors {
     private AxSelectors() {
     }
 
+    /**
+     * The shape of the libffi closure a selector is installed with: its return and its arguments
+     * after {@code self} and {@code _cmd}.
+     *
+     * <p>The encoding handed to {@code class_addMethod} is read from the running AppKit, but the
+     * closure under it is written in {@link AxElementClass}, and nothing in the encoding stops a
+     * closure of another shape from being installed under it: a {@code BOOL} closure under an
+     * {@code NSInteger} getter compiles, passes every test off a Mac, and misreads a return register
+     * on one. So each selector names its shape here; the element class refuses a closure of any other
+     * shape, and {@code AxConstantsTest} holds each shape against the encodings the dump read.
+     */
+    enum Kind {
+        /** {@code (id, SEL) -> id}. */
+        ID,
+        /** {@code (id, SEL) -> BOOL}. */
+        BOOL,
+        /** {@code (id, SEL) -> NSInteger}. */
+        INTEGER,
+        /** {@code (id, SEL) -> NSRange}. */
+        RANGE,
+        /** {@code (id, SEL, id) -> id}. */
+        ID_OF_ID,
+        /** {@code (id, SEL, SEL) -> BOOL}. */
+        BOOL_OF_SELECTOR,
+        /** {@code (id, SEL, NSInteger, NSInteger) -> id}. */
+        ID_OF_TWO_INTEGERS,
+        /** {@code (id, SEL, CGPoint) -> id}. */
+        ID_OF_POINT
+    }
+
     /** Installed on the element class every node is vended as, in the order they are installed. */
     static final List<String> ON_ELEMENT;
 
     /** Installed on the one content-view subclass, where AppKit asks where the focus is (§13.22). */
     static final List<String> ON_VIEW = List.of("accessibilityFocusedUIElement");
 
+    /** Every listed selector's closure shape. */
+    private static final Map<String, Kind> KINDS;
+
     static {
-        List<String> element = new ArrayList<>(List.of(
-                "accessibilityRole", "accessibilitySubrole", "accessibilityTitle",
-                "accessibilityLabel", "accessibilityHelp", "accessibilityRoleDescription",
-                "accessibilityValue", "accessibilityIdentifier", "accessibilityChildren",
-                "accessibilityParent", "accessibilityLinkedUIElements", "isAccessibilityElement",
-                "isAccessibilityEnabled", "isAccessibilityFocused",
-                "accessibilityHitTest:", "accessibilityFocusedUIElement"));
-        for (String action : AxActions.selectors()) element.add(action);
-        element.addAll(List.of(
-                "isAccessibilitySelectorAllowed:",
-                "accessibilityRows", "accessibilityVisibleRows", "accessibilitySelectedRows",
-                "accessibilityColumns", "accessibilityHeader", "accessibilityColumnHeaderUIElements",
-                "accessibilityRowCount", "accessibilityColumnCount", "accessibilityIndex",
-                "accessibilityRowIndexRange", "accessibilityColumnIndexRange",
-                "accessibilityCellForColumn:row:", "isAccessibilitySelected",
-                "accessibilityAttributeValue:", "accessibilityAttributeNames"));
-        ON_ELEMENT = Collections.unmodifiableList(element);
+        Map<String, Kind> kinds = new LinkedHashMap<>();
+        for (String selector : List.of("accessibilityRole", "accessibilitySubrole",
+                "accessibilityTitle", "accessibilityLabel", "accessibilityHelp",
+                "accessibilityRoleDescription", "accessibilityValue", "accessibilityIdentifier",
+                "accessibilityChildren", "accessibilityParent", "accessibilityLinkedUIElements")) {
+            kinds.put(selector, Kind.ID);
+        }
+        for (String selector : List.of("isAccessibilityElement", "isAccessibilityEnabled",
+                "isAccessibilityFocused")) {
+            kinds.put(selector, Kind.BOOL);
+        }
+        kinds.put("accessibilityHitTest:", Kind.ID_OF_POINT);
+        kinds.put("accessibilityFocusedUIElement", Kind.ID);
+        for (String action : AxActions.selectors()) kinds.put(action, Kind.BOOL);
+        kinds.put("isAccessibilitySelectorAllowed:", Kind.BOOL_OF_SELECTOR);
+        for (String selector : List.of("accessibilityRows", "accessibilityVisibleRows",
+                "accessibilitySelectedRows", "accessibilityColumns", "accessibilityHeader",
+                "accessibilityColumnHeaderUIElements")) {
+            kinds.put(selector, Kind.ID);
+        }
+        for (String selector : List.of("accessibilityRowCount", "accessibilityColumnCount",
+                "accessibilityIndex")) {
+            kinds.put(selector, Kind.INTEGER);
+        }
+        kinds.put("accessibilityRowIndexRange", Kind.RANGE);
+        kinds.put("accessibilityColumnIndexRange", Kind.RANGE);
+        kinds.put("accessibilityCellForColumn:row:", Kind.ID_OF_TWO_INTEGERS);
+        kinds.put("isAccessibilitySelected", Kind.BOOL);
+        kinds.put("accessibilityAttributeValue:", Kind.ID_OF_ID);
+        kinds.put("accessibilityAttributeNames", Kind.ID);
+        ON_ELEMENT = List.copyOf(kinds.keySet());
+        KINDS = Collections.unmodifiableMap(kinds);
+    }
+
+    /**
+     * @param selector a listed selector
+     * @return the shape of closure it is installed with, or {@code null} when it is not listed
+     */
+    static Kind kindOf(String selector) {
+        return KINDS.get(selector);
+    }
+
+    /**
+     * The check the element class makes before installing a closure, off a Mac as well as on one.
+     *
+     * @param selector the selector about to be installed
+     * @param closure  the shape of the closure about to be installed under it
+     * @return {@code null} when it may be installed; otherwise why not, naming the mistake in the
+     *         element class it is
+     */
+    static String refusal(String selector, Kind closure) {
+        Kind listed = KINDS.get(selector);
+        if (listed == null) {
+            return "-" + selector + " is not in AxSelectors, so nothing ties it to the dump of "
+                    + "AppKit's encodings; list it there";
+        }
+        if (listed != closure) {
+            return "-" + selector + " is listed as a " + listed + " closure and was about to be "
+                    + "installed with a " + closure + " one, which would read the wrong registers";
+        }
+        return null;
     }
 
     /**
@@ -101,7 +179,7 @@ final class AxSelectors {
      * @return whether the bridge is allowed to install it
      */
     static boolean isListed(String selector) {
-        return ON_ELEMENT.contains(selector) || ON_VIEW.contains(selector);
+        return KINDS.containsKey(selector);
     }
 
     /**

@@ -4076,7 +4076,11 @@ the guest. Selectors that mean something only together are now skipped together 
 every action selector with the gate; the two legacy entry points with each other), and the warning names
 what was withheld with what. The `ERROR` covers every `Throwable` from the whole open, AppKit's loading
 and the content view included, not only the constructor's exceptions. Skipping rather than refusing to
-build the class is the implementer's choice, awaiting the owner's.
+build the class is the implementer's choice, awaiting the owner's. And a name in the dump says only that
+a selector exists: each listed selector now also names the shape of the libffi closure it is installed
+with (`AxSelectors.Kind`), the element class refuses a closure of another shape, `AxConstantsTest` holds
+each shape against the encoding the dump read, and `AxSelectorsTest`'s source scan reads each install's
+shape and refuses an install whose selector it cannot read.
 
 ---
 

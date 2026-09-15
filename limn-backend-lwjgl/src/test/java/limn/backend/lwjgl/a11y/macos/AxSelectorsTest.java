@@ -7,14 +7,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -28,30 +27,151 @@ class AxSelectorsTest {
     private static final Path ELEMENT_CLASS = Path.of(
             "limn-backend-lwjgl/src/main/java/limn/backend/lwjgl/a11y/macos/AxElementClass.java");
 
+    /** The install helpers that fix a closure's shape by their own signature. */
+    private static final Map<String, AxSelectors.Kind> HELPERS = Map.of(
+            "addId", AxSelectors.Kind.ID,
+            "addBool", AxSelectors.Kind.BOOL,
+            "addLong", AxSelectors.Kind.INTEGER,
+            "addRange", AxSelectors.Kind.RANGE);
+
+    /** The closure classes a direct {@code addMethod} call may be handed, and their shapes. */
+    private static final Map<String, AxSelectors.Kind> CLOSURES = Map.of(
+            "IdGetter", AxSelectors.Kind.ID,
+            "BoolGetter", AxSelectors.Kind.BOOL,
+            "LongGetter", AxSelectors.Kind.INTEGER,
+            "RangeGetter", AxSelectors.Kind.RANGE,
+            "AttributeGetter", AxSelectors.Kind.ID_OF_ID,
+            "SelectorGate", AxSelectors.Kind.BOOL_OF_SELECTOR,
+            "CellAt", AxSelectors.Kind.ID_OF_TWO_INTEGERS,
+            "HitTest", AxSelectors.Kind.ID_OF_POINT);
+
+    /**
+     * What {@code AxElementClass}'s source installs, selector to closure shape, read off the source.
+     *
+     * <p>Every call to an install method outside the install methods' own bodies must be one of three
+     * forms, or the scan fails naming it: a helper with a literal selector ({@code addBool("…", …)}),
+     * {@code addMethod(target, "…", variable)} with the variable declared in the same file as
+     * {@code Closure variable = new Closure()}, or the one loop over {@code AxActions.selectors()}
+     * whose body hands its loop variable to a helper. A selector passed through any other variable
+     * would escape the literal match and be refused only at run time, on a Mac.
+     */
+    static Map<String, AxSelectors.Kind> installedBy(String source) {
+        // The install methods' own bodies forward a parameter; they are the funnel, not install sites.
+        String sites = Pattern.compile("(?ms)^    private (?:<[^>]+> )?(?:void|boolean) add\\w*\\(.*?^    \\}\\n")
+                .matcher(source).replaceAll("");
+        Map<String, AxSelectors.Kind> installed = new java.util.LinkedHashMap<>();
+        List<String> unread = new java.util.ArrayList<>();
+        Matcher call = Pattern.compile("(?<![\\w.])(add(?:Id|Bool|Long|Range|Method))\\(([^\\n]*)")
+                .matcher(sites);
+        Pattern helperLiteral = Pattern.compile("^\\s*\"([A-Za-z:]+)\"\\s*,");
+        Pattern directLiteral = Pattern.compile("^\\s*\\w+\\s*,\\s*\"([A-Za-z:]+)\"\\s*,\\s*(\\w+)\\s*\\)");
+        Matcher loop = Pattern.compile("for \\(String (\\w+) : AxActions\\.selectors\\(\\)\\) \\{\\s*"
+                + "(add(?:Id|Bool|Long|Range))\\(\\1,").matcher(sites);
+        java.util.Set<Integer> loopSites = new java.util.HashSet<>();
+        while (loop.find()) {
+            loopSites.add(loop.start(2));
+            for (String action : AxActions.selectors()) {
+                installed.put(action, HELPERS.get(loop.group(2)));
+            }
+        }
+        while (call.find()) {
+            String method = call.group(1);
+            String rest = call.group(2);
+            if (loopSites.contains(call.start(1))) continue;
+            if (HELPERS.containsKey(method)) {
+                Matcher literal = helperLiteral.matcher(rest);
+                if (literal.find()) {
+                    installed.put(literal.group(1), HELPERS.get(method));
+                    continue;
+                }
+            } else {
+                Matcher literal = directLiteral.matcher(rest);
+                if (literal.find()) {
+                    Matcher declared = Pattern.compile("\\b(\\w+) " + literal.group(2) + " = new \\1\\(")
+                            .matcher(sites);
+                    AxSelectors.Kind kind = declared.find() ? CLOSURES.get(declared.group(1)) : null;
+                    if (kind != null) {
+                        installed.put(literal.group(1), kind);
+                        continue;
+                    }
+                }
+            }
+            unread.add(method + "(" + rest.strip());
+        }
+        assertTrue(unread.isEmpty(), "install calls whose selector or closure shape the scan cannot "
+                + "read, so no test holds them against the list: " + unread);
+        return installed;
+    }
+
     /**
      * The element class runs only where AppKit is, so off a Mac this is the one check that it installs
-     * nothing the list does not name: every selector literal handed to one of its install helpers is
-     * read out of the source, and the one call to {@code class_addMethod} must be the funnel's.
+     * exactly what the list names, each with the closure shape the list names, and that the one call to
+     * {@code class_addMethod} is the funnel's.
      */
     @Test
-    void theElementClassInstallsExactlyTheListedSelectors() throws IOException {
+    void theElementClassInstallsExactlyTheListedSelectorsWithTheListedShapes() throws IOException {
         String source = Files.readString(RepositoryRoot.find().resolve(ELEMENT_CLASS),
                 StandardCharsets.UTF_8);
-        Matcher literal = Pattern.compile(
-                "\\badd(?:Id|Bool|Long|Range|Method)\\(\\s*(?:\\w+,\\s*)?\"([A-Za-z:]+)\"")
-                .matcher(source);
-        Set<String> installed = new LinkedHashSet<>();
-        while (literal.find()) installed.add(literal.group(1));
-        for (String action : AxActions.selectors()) installed.add(action);   // installed in a loop
-
-        assertEquals(AxSelectors.all(), installed,
+        Map<String, AxSelectors.Kind> installed = installedBy(source);
+        assertEquals(AxSelectors.all(), installed.keySet(),
                 "AxSelectors must list exactly what AxElementClass installs, or a selector reaches "
                         + "a Mac that no test has held against the dump");
+        for (Map.Entry<String, AxSelectors.Kind> entry : installed.entrySet()) {
+            assertEquals(AxSelectors.kindOf(entry.getKey()), entry.getValue(),
+                    "-" + entry.getKey() + " is installed with a closure of another shape than listed");
+        }
         Matcher calls = Pattern.compile("ObjCRuntime\\.class_addMethod\\(").matcher(source);
         int count = 0;
         while (calls.find()) count++;
         assertEquals(1, count, "every install goes through addMethod, the one class_addMethod call, "
                 + "which refuses an unlisted selector and skips one AppKit lacks");
+    }
+
+    @Test
+    void theScanReadsTheLoopAndRefusesASelectorItCannotRead() {
+        String loopOnly = """
+                    private void installActions() {
+                        for (String selector : AxActions.selectors()) {
+                            addBool(selector, new BoolGetter() {
+                            });
+                        }
+                    }
+                """;
+        Map<String, AxSelectors.Kind> installed = installedBy(loopOnly);
+        List<String> actions = new java.util.ArrayList<>();
+        AxActions.selectors().forEach(actions::add);
+        assertEquals(actions, List.copyOf(installed.keySet()), "the loop is an install site");
+        assertEquals(java.util.Set.of(AxSelectors.Kind.BOOL), java.util.Set.copyOf(installed.values()));
+
+        assertTrue(installedBy("""
+                    private void installActions() {
+                        for (String selector : AxActions.selectors()) {
+                        }
+                    }
+                """).isEmpty(), "a loop that installs nothing installs nothing");
+
+        String throughAVariable = """
+                    private void install() {
+                        String name = "accessibilityRole";
+                        addId(name, get(node -> 0));
+                    }
+                """;
+        AssertionError refused = org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                () -> installedBy(throughAVariable));
+        assertTrue(refused.getMessage().contains("addId(name"), refused.getMessage());
+    }
+
+    @Test
+    void aSelectorIsRefusedUnlistedOrWithAClosureOfAnotherShape() {
+        assertNull(AxSelectors.refusal("accessibilityRowCount", AxSelectors.Kind.INTEGER));
+        String wrongShape = AxSelectors.refusal("accessibilityRowCount", AxSelectors.Kind.BOOL);
+        assertTrue(wrongShape != null && wrongShape.contains("INTEGER") && wrongShape.contains("BOOL"),
+                "a BOOL closure under an NSInteger getter misreads the register: " + wrongShape);
+        String unlisted = AxSelectors.refusal("accessibilityPerformPick", AxSelectors.Kind.BOOL);
+        assertTrue(unlisted != null && unlisted.contains("not in AxSelectors"), unlisted);
+        for (String selector : AxSelectors.all()) {
+            assertNotNull(AxSelectors.kindOf(selector), selector + " is listed with no shape");
+        }
     }
 
     @Test

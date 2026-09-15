@@ -217,18 +217,20 @@ final class AxElementClass {
      * reaches {@code class_addMethod} unlisted or with an encoding that was not read.
      *
      * <p>A selector {@link AxSelectors} does not list is a mistake in this file and refuses to build
-     * the class; {@code AxSelectorsTest} catches it off a Mac, where this cannot run. A listed
+     * the class, and so does a closure whose shape is not the one listed for the selector
+     * ({@link AxSelectors.Kind}); {@code AxSelectorsTest} catches both off a Mac, where this cannot
+     * run. A listed
      * selector the running AppKit declares nothing for is skipped and its closure freed, and so is
      * one installed only together with a selector that was skipped (the actions with the gate); the
      * constructor's warning names every one (MACOS-NEW-6).
      *
      * @return whether it was installed
      */
-    private boolean addMethod(long target, String selector, Callback body) {
-        if (!AxSelectors.isListed(selector)) {
+    private <C extends Callback & Shaped> boolean addMethod(long target, String selector, C body) {
+        String refusal = AxSelectors.refusal(selector, body.kind());
+        if (refusal != null) {
             body.free();
-            throw new IllegalStateException("-" + selector + " is not in AxSelectors, so nothing "
-                    + "ties it to the dump of AppKit's encodings; list it there");
+            throw new IllegalStateException(refusal);
         }
         String encoding = selectors.encodingOf(selector);
         if (encoding == null) {
@@ -631,6 +633,11 @@ final class AxElementClass {
 
     // ---- the two shapes of implementation, and the libffi closures under them -------------------
 
+    /** A closure that says which {@link AxSelectors.Kind} it is, so that the install can check it. */
+    private interface Shaped {
+        AxSelectors.Kind kind();
+    }
+
     private interface NodeToId {
         long apply(AccessibleNode node);
     }
@@ -673,8 +680,9 @@ final class AxElementClass {
         long invoke(long self, long cmd);
     }
 
-    private abstract static class IdGetter extends Callback implements IdGetterI {
+    private abstract static class IdGetter extends Callback implements IdGetterI, Shaped {
         protected IdGetter() { super(IdGetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.ID; }
     }
 
     /** {@code (id self, SEL _cmd, id) -> id}, encoding {@code @24@0:8@16}. */
@@ -691,8 +699,9 @@ final class AxElementClass {
         long invoke(long self, long cmd, long attribute);
     }
 
-    private abstract static class AttributeGetter extends Callback implements AttributeGetterI {
+    private abstract static class AttributeGetter extends Callback implements AttributeGetterI, Shaped {
         protected AttributeGetter() { super(AttributeGetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.ID_OF_ID; }
     }
 
     /** {@code (id self, SEL _cmd) -> BOOL}, encoding {@code B16@0:8}. */
@@ -709,8 +718,9 @@ final class AxElementClass {
         boolean invoke(long self, long cmd);
     }
 
-    private abstract static class BoolGetter extends Callback implements BoolGetterI {
+    private abstract static class BoolGetter extends Callback implements BoolGetterI, Shaped {
         protected BoolGetter() { super(BoolGetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.BOOL; }
     }
 
     /** {@code (id self, SEL _cmd, SEL) -> BOOL}, encoding {@code B24@0:8:16}. */
@@ -727,8 +737,9 @@ final class AxElementClass {
         boolean invoke(long self, long cmd, long selector);
     }
 
-    private abstract static class SelectorGate extends Callback implements SelectorGateI {
+    private abstract static class SelectorGate extends Callback implements SelectorGateI, Shaped {
         protected SelectorGate() { super(SelectorGateI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.BOOL_OF_SELECTOR; }
     }
 
     /** {@code (id self, SEL _cmd) -> NSInteger}, encoding {@code q16@0:8}. */
@@ -742,8 +753,9 @@ final class AxElementClass {
         long invoke(long self, long cmd);
     }
 
-    private abstract static class LongGetter extends Callback implements LongGetterI {
+    private abstract static class LongGetter extends Callback implements LongGetterI, Shaped {
         protected LongGetter() { super(LongGetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.INTEGER; }
     }
 
     /**
@@ -762,8 +774,9 @@ final class AxElementClass {
         long[] invoke(long self, long cmd);
     }
 
-    private abstract static class RangeGetter extends Callback implements RangeGetterI {
+    private abstract static class RangeGetter extends Callback implements RangeGetterI, Shaped {
         protected RangeGetter() { super(RangeGetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.RANGE; }
     }
 
     /** {@code (id self, SEL _cmd, NSInteger column, NSInteger row) -> id}, encoding {@code @32@0:8q16q24}. */
@@ -780,8 +793,9 @@ final class AxElementClass {
         long invoke(long self, long cmd, long column, long row);
     }
 
-    private abstract static class CellAt extends Callback implements CellAtI {
+    private abstract static class CellAt extends Callback implements CellAtI, Shaped {
         protected CellAt() { super(CellAtI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.ID_OF_TWO_INTEGERS; }
     }
 
     /** {@code (id self, SEL _cmd, CGPoint) -> id}, encoding {@code @32@0:8{CGPoint=dd}16}. */
@@ -799,7 +813,8 @@ final class AxElementClass {
         long invoke(long self, long cmd, double x, double y);
     }
 
-    private abstract static class HitTest extends Callback implements HitTestI {
+    private abstract static class HitTest extends Callback implements HitTestI, Shaped {
         protected HitTest() { super(HitTestI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.ID_OF_POINT; }
     }
 }

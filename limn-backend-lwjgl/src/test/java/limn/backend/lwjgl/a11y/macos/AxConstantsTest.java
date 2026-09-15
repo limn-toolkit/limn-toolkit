@@ -127,6 +127,52 @@ class AxConstantsTest {
                 + "list and read it on the guest before installing it.");
     }
 
+    /**
+     * The encoding each closure shape is written for, in the dump's own spelling. These are not
+     * handed to {@code class_addMethod} — the running AppKit's are — but what the closure in
+     * {@code AxElementClass} was written to read; a selector whose dump encoding is not its listed
+     * shape's would be installed with a closure that reads the wrong registers.
+     */
+    private static final Map<AxSelectors.Kind, String> SHAPES = Map.of(
+            AxSelectors.Kind.ID, "@16@0:8",
+            AxSelectors.Kind.BOOL, "B16@0:8",
+            AxSelectors.Kind.INTEGER, "q16@0:8",
+            AxSelectors.Kind.RANGE, "{_NSRange=QQ}16@0:8",
+            AxSelectors.Kind.ID_OF_ID, "@24@0:8@16",
+            AxSelectors.Kind.BOOL_OF_SELECTOR, "B24@0:8:16",
+            AxSelectors.Kind.ID_OF_TWO_INTEGERS, "@32@0:8q16q24",
+            AxSelectors.Kind.ID_OF_POINT, "@32@0:8{CGPoint=dd}16");
+
+    /**
+     * The review of MACOS-NEW-6: tying a selector to the dump by name says it exists, not that the
+     * closure installed under it has its shape. Every listed selector the dump reads must have exactly
+     * the encoding of the shape {@link AxSelectors} lists for it.
+     */
+    @Test
+    void everyInstalledSelectorsEncodingInTheDumpIsTheShapeOfItsClosure() {
+        Dump dump = read();
+        assertEquals(java.util.EnumSet.allOf(AxSelectors.Kind.class), java.util.EnumSet.copyOf(SHAPES.keySet()),
+                "a closure shape with no encoding to hold it against checks nothing");
+        Map<String, String> misshapen = new TreeMap<>();
+        Set<AxSelectors.Kind> held = new java.util.HashSet<>();
+        for (String selector : AxSelectors.all()) {
+            String read = dump.encodings().get(selector);
+            if (read == null) continue;   // an owed selector: the test above accounts for it
+            AxSelectors.Kind kind = AxSelectors.kindOf(selector);
+            held.add(kind);
+            if (!read.equals(SHAPES.get(kind))) {
+                misshapen.put(selector, "listed " + kind + " (" + SHAPES.get(kind) + "), dump " + read);
+            }
+        }
+        assertTrue(misshapen.isEmpty(), "selectors whose closure is not the shape AppKit declares: "
+                + misshapen);
+        Set<AxSelectors.Kind> unheld = java.util.EnumSet.allOf(AxSelectors.Kind.class);
+        unheld.removeAll(held);
+        // ID_OF_ID is only the owed accessibilityAttributeValue: until the regeneration reads it.
+        unheld.remove(AxSelectors.Kind.ID_OF_ID);
+        assertTrue(unheld.isEmpty(), "shapes no installed selector in the dump exercised: " + unheld);
+    }
+
     @Test
     void theSelectorsOwedToTheRegenerationAreInstalledAndStillOwed() {
         Dump dump = read();
