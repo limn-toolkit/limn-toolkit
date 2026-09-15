@@ -487,6 +487,47 @@ class AxBridgeTest {
     }
 
     @Test
+    void aDestroyedNodesElementIsReleasedWhenItsFrameEndsAndNeverByAPublish() {
+        // MACOS-NEW-1: AxElements.forget had no caller, so every element a client ever pulled stayed
+        // retained and mapped, answering nil, for the life of the window.
+        AxBridge bridge = PlatformFreeBridges.make();
+        AccessibleTree tree = aNestedWindow(2);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));
+        assertEquals(3, bridge.elementCount());
+
+        bridge.publish(aNestedWindow(1), true);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, 1003));
+        assertEquals(3, bridge.elementCount(), "a reentrant publish releases nothing (§3.2)");
+        bridge.frameEnded();
+        assertEquals(2, bridge.elementCount(), "the frame's end releases the destroyed node's element");
+        assertTrue(bridge.teardown().isEmpty(), "and a release in a live session is no teardown");
+
+        List<String> trace = traced(bridge);
+        bridge.publish(aNestedWindow(0), false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, 1002));
+        bridge.frameEnded();
+        assertEquals(1, bridge.elementCount());
+        assertTrue(posted(trace).isEmpty(), "posting nothing: AppKit posts AXUIElementDestroyed itself (§13.20)");
+    }
+
+    @Test
+    void aDestroyedIdentifierThatIsBackInTheTreeKeepsItsElement() {
+        // A row keyed by its index or its record comes back under the same identifier, and a client
+        // may be using its element: releasing it would tell that client it was destroyed.
+        AxBridge bridge = PlatformFreeBridges.make();
+        AccessibleTree tree = aNestedWindow(2);
+        bridge.publish(tree, false);
+        long button = bridge.childElementsOf(tree.find(1001))[1];
+        bridge.publish(aNestedWindow(1), false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, 1003));
+        bridge.publish(aNestedWindow(2), false);
+        bridge.frameEnded();
+        assertEquals(3, bridge.elementCount(), "the node is in the tree the frame ended with");
+        assertEquals(button, bridge.elementFor(1003), "and it is the same object (§1.3)");
+    }
+
+    @Test
     void aCollapsedQueueSweepsTheRegistryAndForcesAFreshPush() {
         AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(2);

@@ -2244,6 +2244,12 @@ phrase names a column (left for a later pass to translate). The native table als
 `AXRowCount`, `AXColumnCount` or `AXColumnHeaderUIElements`; the bridge keeps answering those three,
 which carry the model's counts and a cell's header that the realized rows cannot, until a reader run
 says otherwise.
+*Release on `NODE_DESTROYED` (MACOS-NEW-1, the same day):* the paragraph below says the bridge releases
+on `NODE_DESTROYED`, and until this date nothing called the registry's release, so every element a
+client ever pulled stayed retained, answering nil. The release now happens at the end of the frame that
+emitted the destruction, after that frame's posts, and only for a node still absent from the tree then:
+an identifier keyed by a row that is destroyed and published again within the frame is the same node,
+whose element a client may be using. It posts nothing, as the paragraph says.
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a

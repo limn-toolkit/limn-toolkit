@@ -162,6 +162,22 @@ class AxOutlineSceneTest {
     }
 
     @Test
+    void closingABranchReleasesTheElementsOfTheRowsItHidAndKeepsTheRest() {
+        // MACOS-NEW-1 over a real Tree: the rows a collapse hides leave the tree, and the elements a
+        // client pulled for them go when the frame ends, where they stayed retained and answering nil.
+        Tree<Node> tree = bindTree();
+        AxGrid grid = new AxGrid(bridge);
+        long[] rows = grid.rows(only(Accessible.Role.TREE));
+        long readme = rows[5];
+        int before = bridge.elementCount();
+        tree.collapse(documents);
+        frame();
+        assertEquals(before - 3, bridge.elementCount(),
+                "Reports, Q1 and Notes left the tree, and their elements went with them");
+        assertEquals(readme, grid.rows(only(Accessible.Role.TREE))[2], "a row that stayed keeps its object");
+    }
+
+        @Test
     void aRealOutlinesRowsDiscloseAsTheNativeOutlinesDidAndOpeningOneIsToldOnTheRow() {
         Tree<Node> tree = bindTree();
         AxGrid grid = new AxGrid(bridge);

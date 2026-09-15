@@ -691,6 +691,10 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         }
         for (AccessibleEvent event : drained) {
             if (event.type() == AccessibleEvent.Type.INVALIDATED) swept = true;
+            if (event.type() == AccessibleEvent.Type.NODE_DESTROYED) {
+                noteDestroyed(event.nodeId());
+                continue;
+            }
             AxNotifications.Posting posting = AxNotifications.of(event);
             // A null is a decision, not a gap: AppKit is already telling the client, or the event
             // names the window root this bridge elides.
@@ -722,6 +726,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         }
         recountedContainers.clear();
         toldSelections.clear();
+        releaseDestroyed();
         // A column whose table left the tree or no longer shows it goes when the frame ends, never from
         // a reentrant publish (§3.2), which drains nothing.
         columns.reconcile(tree());
@@ -742,6 +747,37 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         lastDrainDrained = drained.size();
         lastDrainPosted = postedNow;
         return swept;
+    }
+
+    /** The nodes this drain was told were destroyed, whose elements it releases after posting. */
+    private long[] destroyed = new long[8];
+    private int destroyedCount;
+
+    private void noteDestroyed(long nodeId) {
+        if (destroyedCount == destroyed.length) destroyed = Arrays.copyOf(destroyed, destroyedCount * 2);
+        destroyed[destroyedCount++] = nodeId;
+    }
+
+    /**
+     * Releases the element of every node this frame destroyed (MACOS-NEW-1; §2.2, §1.10), at the
+     * frame's end and after the posts, so a notification about the node goes out on an element that
+     * still exists; never from a reentrant publish, which drains nothing (§3.2). It posts nothing:
+     * AppKit posts {@code AXUIElementDestroyed} itself when the element goes (§13.20).
+     *
+     * <p><b>Only a node still absent from the tree.</b> Identities keyed by a row come back — a list
+     * row keyed by its index, a table row by its record — and an identifier destroyed and published
+     * again within the frame is the same node (§1.3), whose element a client may be using: releasing
+     * it would make AppKit tell that client the element was destroyed. The pushed array needs no
+     * forgetting here: the root's children are pushed before the drain on every path that reaches it,
+     * so a node absent from the tree is never among them.
+     */
+    private void releaseDestroyed() {
+        AccessibleTree tree = tree();
+        for (int i = 0; i < destroyedCount; i++) {
+            long nodeId = destroyed[i];
+            if (elements.holds(nodeId) && tree.indexOf(nodeId) == AccessibleNode.NONE) elements.forget(nodeId);
+        }
+        destroyedCount = 0;
     }
 
     /**
