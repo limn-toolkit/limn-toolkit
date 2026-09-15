@@ -608,7 +608,65 @@ class AxBridgeTest {
                 "100 000 frames of two events, their posts and a focus ask each grew the bridge");
     }
 
-    /** Every collection's and map's size reachable from {@code root} through this package's classes. */
+    /**
+     * CRIT-5's other half: with nobody tracing, the two paths VoiceOver and the scene drive hardest
+     * build nothing at all — not a line kept, and not a line built and dropped. The retention walk
+     * above cannot see a String made and thrown away; this can.
+     */
+    @Test
+    void withTheTraceOffAnEmitAndAFocusAskBuildNoLine() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(limn.testing.AllocationProbe.isSupported(),
+                "this virtual machine does not count per-thread allocation");
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindowWithFocus(1002);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));   // the focused button has its element
+        AccessibleEvent event = AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1002);
+        // Grow the queue's backing array once, so that a measured emit only stores a reference;
+        // the probe's attempts stay far below the capacity, so the queue never collapses either.
+        for (int i = 0; i < AxEvents.CAPACITY - 1; i++) bridge.emit(event);
+        bridge.frameEnded();
+        assertEquals(0, bridge.queuedEvents());
+
+        Runnable emit = () -> bridge.emit(event);
+        assertEquals(0, limn.testing.AllocationProbe.leastAllocatedBy(emit, 60),
+                "an emit with no trace attached builds no line");
+        assertEquals(61, bridge.queuedEvents(), "and it did enqueue, so the measurement measured it");
+
+        // A focus ask is not free, and not because of the trace: the registry is a HashMap<Long, Long>,
+        // so the lookup boxes the node id and captures its minting method reference, measured at 40
+        // bytes on this host whatever the trace is. So the ask is held to exactly what that same
+        // lookup costs on a registry of its own, and a line built with nobody to take it is on top.
+        AxElements registry = new AxElements(Thread.currentThread(), new AxElements.Factory() {
+            private long next = 0x1000;
+
+            @Override public long newElement(long nodeId) {
+                return next += 0x10;
+            }
+
+            @Override public void release(long element) {
+            }
+        });
+        registry.elementFor(1002);
+        Runnable ask = bridge::focusedElement;
+        Runnable lookup = () -> registry.elementFor(1002);
+        long[] typical = limn.testing.AllocationProbe.typicalAllocatedByEach(ask, lookup, 61);
+        assertEquals(typical[1], typical[0],
+                "a focus ask with no trace attached allocates only its registry lookup, no line");
+        assertTrue(bridge.focusedElement() != 0, "and it answered an element, not the none path");
+
+        AxBridge nobodyFocused = AxBridge.withoutThePlatform();
+        nobodyFocused.publish(aNestedWindow(1), false);
+        Runnable askNone = nobodyFocused::focusedElement;
+        assertEquals(0, limn.testing.AllocationProbe.leastAllocatedBy(askNone, 60),
+                "and the answer 'nothing is focused' builds no line either");
+    }
+
+    /**
+     * Every collection's and map's size, every character sequence's length and every array's length
+     * reachable from {@code root} through this package's classes. A sink of any of those shapes that
+     * grows per event, post or ask changes one of these numbers.
+     */
     private static java.util.Map<String, Integer> retainedSizes(Object root) throws Exception {
         java.util.Map<String, Integer> sizes = new java.util.TreeMap<>();
         collectSizes(root, root.getClass().getSimpleName(), sizes,
@@ -631,6 +689,10 @@ class AxBridgeTest {
                     sizes.put(at, collection.size());
                 } else if (value instanceof java.util.Map<?, ?> map) {
                     sizes.put(at, map.size());
+                } else if (value instanceof CharSequence text) {
+                    sizes.put(at, text.length());
+                } else if (value != null && value.getClass().isArray()) {
+                    sizes.put(at, java.lang.reflect.Array.getLength(value));
                 } else if (value != null
                         && value.getClass().getPackageName().equals(AxBridge.class.getPackageName())) {
                     collectSizes(value, at, sizes, seen);
