@@ -99,6 +99,9 @@ final class AxElementClass {
          */
         boolean perform(long nodeId, limn.accessibility.Accessible.Action action);
 
+        /** @return the published tree every answer is read from; never {@code null} */
+        limn.accessibility.AccessibleTree tree();
+
         /**
          * Called on entry to every implementation below. §6's honest gate on this platform is
          * "someone has asked", and this is the ask: there is no {@code UiaClientsAreListening} here
@@ -461,7 +464,8 @@ final class AxElementClass {
      * responds to all of them, and AppKit builds the action list a client is shown out of what an
      * object responds to — a button would advertise "increment" and a slider "show menu". So
      * {@code isAccessibilitySelectorAllowed:} answers from the node's own {@code ActionFacet}, and
-     * the list becomes per node instead of per class.
+     * the list becomes per node instead of per class. The same gate refuses a row or table getter on
+     * a node that has no answer for it ({@link AxGate}), because AppKit honours a refused getter too.
      *
      * <p>Which is why the two are installed as one unit: an AppKit that declared no gate would leave
      * every action here advertised on every element, so {@link AxSelectors#REQUIRES} withholds the
@@ -488,11 +492,7 @@ final class AxElementClass {
                 source.entered();
                 AccessibleNode node = source.nodeFor(self);
                 if (node == null) return false;
-                String name = ObjCRuntime.sel_getName(selector);
-                // Only the action selectors are gated. Everything else this class implements is an
-                // attribute, and answering false for one of those would hide the node's name.
-                if (!AxActions.isActionSelector(name)) return true;
-                return AxActions.verbFor(node, name) != null;
+                return AxGate.allows(grid, node, ObjCRuntime.sel_getName(selector));
             }
         };
         addMethod(elementClass, "isAccessibilitySelectorAllowed:", gate);

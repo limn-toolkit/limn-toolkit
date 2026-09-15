@@ -2,6 +2,7 @@ package limn.backend.lwjgl.a11y.macos;
 
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
+import limn.accessibility.AccessibleTree;
 
 /**
  * What NSAccessibilityTable, NSAccessibilityRow and NSAccessibilityCell ask, answered in Java
@@ -13,17 +14,26 @@ import limn.accessibility.AccessibleNode;
  * lookup here takes a {@link AxElementClass.Source} — which the platform-free bridge implements —
  * and hands back element pointers, numbers and {@code null}, so a test can pin it.
  *
- * <p>Rows are the table's {@code ROW} children and the header is its first group child, so the
+ * <p>A table's rows are its {@code ROW} children and the header is its first group child, so the
  * elements handed back are the ones AppKit already holds for those nodes. Columns are none: the
  * toolkit has no column node, and a column index range on every cell is what VoiceOver reads
  * "column 2 of 3" from. A cell asked for by column and row is answered only for a row the walk
  * published, which is the degradation ADR 039 §4.1 accepts.
  *
+ * <p><b>An outline and a list are tables of rows too</b> (M2; semantics 1 and 2): their rows are the
+ * realized members of their selection — the children whose selection container is the outline or
+ * the list, whatever role an application's cell kept — and a row's index is where it stands among
+ * every row the widget shows, not among the realized ones: the hierarchy facet's flat row for an
+ * outline row, the position in the set for a list row, each less one. Zero-based because a native
+ * NSOutlineView's rows answer AXIndex 0, 1, 2… down the visible outline (read on the macOS 26.6.2
+ * guest, 2026-09-15, {@code scripts/a11y/macos/outline-probe.swift}); a row whose number is unknown
+ * answers {@code NSNotFound}. An outline answers no row count, as the native one answers none.
+ *
  * <p>This is the 2026-09-15 extraction of those answers out of the element class, and it changed
- * none of them. The lookups it inherited still have the defects the audit recorded — the first group
- * as the header (MACOS-NEW-9), a row located by its selection position (MACOS-NEW-4), no rows for an
- * outline or a list (M2), no columns (M4) — and {@code AxGridTest} pins today's answers so that each
- * of those fixes turns a named case red on purpose.
+ * none of them; the outline and list rows came after it. The table lookups it inherited still have
+ * the defects the audit recorded — the first group as the header (MACOS-NEW-9), a row located by its
+ * selection position (MACOS-NEW-4), no columns (M4) — and {@code AxGridTest} pins today's answers so
+ * that each of those fixes turns a named case red on purpose.
  */
 final class AxGrid {
 
@@ -54,12 +64,51 @@ final class AxGrid {
 
     /**
      * @param node the node asked
-     * @return {@code accessibilityRows}: the elements of a table's {@code ROW} children, or
-     *         {@code null} for a node with no table facet
+     * @return whether it answers as a table of rows: a table, or an outline or a list holding a
+     *         selection, which is what makes its items rows (semantics 1)
+     */
+    boolean isRowContainer(AccessibleNode node) {
+        return node.table() != null || isOutlineOrList(node);
+    }
+
+    private static boolean isOutlineOrList(AccessibleNode node) {
+        return (node.role() == Accessible.Role.TREE || node.role() == Accessible.Role.LIST)
+                && node.selection() != null;
+    }
+
+    /**
+     * @param node the node asked
+     * @return whether it is a row: a table's {@code ROW}, or a member of an outline's or a list's
+     *         selection
+     */
+    boolean isRow(AccessibleNode node) {
+        if (node.role() == Accessible.Role.ROW) return true;
+        AccessibleNode container = containerOf(node);
+        return container != null && isOutlineOrList(container);
+    }
+
+    /** The container a member's selection belongs to, in the tree being answered from, or null. */
+    private AccessibleNode containerOf(AccessibleNode node) {
+        int at = node.selectionContainer();
+        AccessibleTree tree = source.tree();
+        if (at == AccessibleNode.NONE || at >= tree.nodeCount()) return null;
+        return tree.node(at);
+    }
+
+    /** Keeps the children that are rows of {@code container}, which {@link #isRowContainer} holds. */
+    private NodeFilter rowOf(AccessibleNode container) {
+        if (container.table() != null) return child -> child.role() == Accessible.Role.ROW;
+        int at = source.tree().indexOf(container.id());
+        return child -> at != AccessibleNode.NONE && child.selectionContainer() == at;
+    }
+
+    /**
+     * @param node the node asked
+     * @return {@code accessibilityRows}: the elements of a table's {@code ROW} children, or of an
+     *         outline's or a list's realized members; {@code null} for any other node
      */
     long[] rows(AccessibleNode node) {
-        return node.table() == null ? null
-                : childrenOf(node, child -> child.role() == Accessible.Role.ROW);
+        return isRowContainer(node) ? childrenOf(node, rowOf(node)) : null;
     }
 
     /**
@@ -67,9 +116,9 @@ final class AxGrid {
      * @return {@code accessibilityVisibleRows}: those rows that are {@code SHOWING}, or {@code null}
      */
     long[] visibleRows(AccessibleNode node) {
-        return node.table() == null ? null
-                : childrenOf(node, child -> child.role() == Accessible.Role.ROW
-                        && child.has(Accessible.State.SHOWING));
+        if (!isRowContainer(node)) return null;
+        NodeFilter row = rowOf(node);
+        return childrenOf(node, child -> row.keep(child) && child.has(Accessible.State.SHOWING));
     }
 
     /**
@@ -78,9 +127,9 @@ final class AxGrid {
      *         {@code null}
      */
     long[] selectedRows(AccessibleNode node) {
-        return node.table() == null ? null
-                : childrenOf(node, child -> child.role() == Accessible.Role.ROW
-                        && child.has(Accessible.State.SELECTED));
+        if (!isRowContainer(node)) return null;
+        NodeFilter row = rowOf(node);
+        return childrenOf(node, child -> row.keep(child) && child.has(Accessible.State.SELECTED));
     }
 
     /**
@@ -135,15 +184,26 @@ final class AxGrid {
     }
 
     /**
-     * NSAccessibilityRow's index: the row's place among the data rows, from the facet the walk
-     * numbered it with, so an unrealized row above it still counts.
+     * NSAccessibilityRow's index: the row's place among the rows, from the facet the walk numbered it
+     * with, so an unrealized row above it still counts. A table's row by its position in the set; an
+     * outline's by the hierarchy facet's flat row (decision 4), never its place among its siblings; a
+     * list's by its position in the set (semantics 2). Zero-based, as a native outline's rows are.
      *
      * @param node the node asked
-     * @return {@code accessibilityIndex}, or {@code -1} for anything but a row with a selection item
+     * @return {@code accessibilityIndex}; {@code NSNotFound} for an outline or list row whose number
+     *         is unknown; {@code -1} for anything that is not a row, and for a table row with no
+     *         selection item
      */
     long index(AccessibleNode node) {
-        return node.role() == Accessible.Role.ROW && node.selectionItem() != null
-                ? node.selectionItem().positionInSet() - 1 : -1;
+        if (node.role() == Accessible.Role.ROW) {
+            return node.selectionItem() != null ? node.selectionItem().positionInSet() - 1 : -1;
+        }
+        AccessibleNode container = containerOf(node);
+        if (container == null || !isOutlineOrList(container)) return -1;
+        int oneBased = container.role() == Accessible.Role.TREE
+                ? (node.hierarchy() == null ? 0 : node.hierarchy().row())
+                : node.selectionItem().positionInSet();
+        return oneBased > 0 ? oneBased - 1 : NOT_FOUND[0];
     }
 
     /**

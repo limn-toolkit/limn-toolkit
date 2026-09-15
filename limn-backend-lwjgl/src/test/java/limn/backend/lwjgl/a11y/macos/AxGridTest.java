@@ -30,9 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p><b>These are characterization cases, not a specification.</b> Several of them pin answers the
  * audit found wrong, and say so by name: the header is the table's first group child whatever it holds
- * (MACOS-NEW-9), a row is found by its selection position (MACOS-NEW-4), an outline and a list have no
- * rows (M2), a table has no columns while its column count says otherwise (M4). The fix for each is
- * meant to turn its case red on purpose and restate it; everything else here is meant to stay green.
+ * (MACOS-NEW-9), a row is found by its selection position (MACOS-NEW-4), a table has no columns while
+ * its column count says otherwise (M4). The fix for each is meant to turn its case red on purpose and
+ * restate it; everything else here is meant to stay green. M2's (an outline and a list had no rows)
+ * was restated when outline and list rows landed, 2026-09-15.
  */
 class AxGridTest {
 
@@ -280,23 +281,85 @@ class AxGridTest {
                 "while the cell itself says where it is");
     }
 
-    @Test
-    void anOutlineHasNoRowsAndItsItemsNoIndexToday() {
-        // M2 pinned: a TREE with a selection facet and TREE_ITEM children answers no rows.
+    /**
+     * WINDOW > TREE 1001 (selection) > [TREE_ITEM 1010 (row 4 of 9, level 1, selected), TREE_ITEM
+     * 1011 (row 5, level 2, not showing), TREE_ITEM 1012 (row unknown), SCROLL_BAR 1013].
+     */
+    private static AccessibleTree anOutline() {
         Shape s = new Shape();
         Accessibility a = s.a;
         int tree = s.open(1001, 0, Accessible.Role.TREE, true);
         a.selection(false, false);
-        for (int i = 0; i < 3; i++) {
-            s.open(1010 + i, tree, Accessible.Role.TREE_ITEM, true);
-            a.selectionItem(i == 0, i + 1, 3);
+        int[][] rows = {{1010, 4, 1}, {1011, 5, 2}, {1012, 0, 0}};
+        for (int[] r : rows) {
+            s.open(r[0], tree, Accessible.Role.TREE_ITEM, r[0] != 1011);
+            a.selectionItem(r[0] == 1010, 1, 1);
+            if (r[1] != 0) a.hierarchy(r[2], r[1], 9);
             a.end();
         }
+        s.open(1013, tree, Accessible.Role.SCROLL_BAR, true);
+        a.end();
+        a.end();
+        return s.publish();
+    }
+
+    @Test
+    void anOutlinesRowsAreItsItemsAndEachIndexIsItsFlatRowLessOne() {
+        // M2, restated 2026-09-15: this case was anOutlineHasNoRowsAndItsItemsNoIndexToday, which
+        // pinned null rows, a row count of zero and an index of -1 on every item.
+        Fixture f = over(anOutline());
+        AccessibleNode tree = f.node(1001);
+        assertTrue(f.grid().isRowContainer(tree));
+        assertArrayEquals(f.elements(1010, 1011, 1012), f.grid().rows(tree), "the bar is not a row");
+        assertArrayEquals(f.elements(1010, 1012), f.grid().visibleRows(tree));
+        assertArrayEquals(f.elements(1010), f.grid().selectedRows(tree));
+        assertEquals(3, f.grid().index(f.node(1010)),
+                "the flat row among every row the outline shows, zero-based as a native outline's, "
+                        + "and never the place among siblings the selection item carries");
+        assertEquals(4, f.grid().index(f.node(1011)));
+        assertEquals(AxGrid.NOT_FOUND[0], f.grid().index(f.node(1012)), "no number is NSNotFound");
+        assertEquals(-1, f.grid().index(f.node(1013)), "and the bar is no row at all");
+        assertTrue(f.grid().isRow(f.node(1010)));
+        assertTrue(!f.grid().isRow(f.node(1013)) && !f.grid().isRow(tree));
+    }
+
+    @Test
+    void aListsRowsAreItsMembersWhateverRoleACellKeptAndTheIndexIsItsPositionLessOne() {
+        // WINDOW > LIST 1001 (selection) > [LIST_ITEM 1010 (3 of 40), BUTTON 1011 (4 of 40,
+        // selected: an application cell that kept its role), SCROLL_BAR 1012].
+        Shape s = new Shape();
+        Accessibility a = s.a;
+        int list = s.open(1001, 0, Accessible.Role.LIST, true);
+        a.selection(false, false);
+        s.open(1010, list, Accessible.Role.LIST_ITEM, true);
+        a.selectionItem(false, 3, 40);
+        a.end();
+        s.open(1011, list, Accessible.Role.BUTTON, true);
+        a.selectionItem(true, 4, 40);
+        a.end();
+        s.open(1012, list, Accessible.Role.SCROLL_BAR, true);
+        a.end();
+        a.end();
+        Fixture f = over(s.publish());
+        AccessibleNode node = f.node(1001);
+        assertArrayEquals(f.elements(1010, 1011), f.grid().rows(node));
+        assertArrayEquals(f.elements(1011), f.grid().selectedRows(node));
+        assertEquals(2, f.grid().index(f.node(1010)), "the model's position, not the realized place");
+        assertEquals(3, f.grid().index(f.node(1011)));
+        assertEquals(0, f.grid().rowCount(node), "a list has no table facet to count from");
+    }
+
+    @Test
+    void aContainerWithNoSelectionIsNoTableOfRows() {
+        Shape s = new Shape();
+        Accessibility a = s.a;
+        int list = s.open(1001, 0, Accessible.Role.LIST, true);
+        s.open(1010, list, Accessible.Role.LIST_ITEM, true);
+        a.end();
         a.end();
         Fixture f = over(s.publish());
         assertNull(f.grid().rows(f.node(1001)));
-        assertEquals(0, f.grid().rowCount(f.node(1001)));
-        assertEquals(-1, f.grid().index(f.node(1012)));
+        assertTrue(!f.grid().isRow(f.node(1010)));
     }
 
     record Person(String name, int age) {

@@ -2151,7 +2151,17 @@ focused widget when there is one, so the table under the keyboard answers false 
 true. A cursor resolved into a native popup's tree (decision 5) is answered with the element the
 popup window's own bridge mints, and the popup's view, with nothing of its own focused, answers the
 same element; the bridges of a process's open windows find each other through one process-wide set,
-entered on a publish and left on a detach.
+entered on a publish and left on a detach. *Rows* (M2; semantics 1 and 2): an outline and a list
+holding a selection answer `accessibilityRows`, `accessibilityVisibleRows` and
+`accessibilitySelectedRows` from their realized members, whatever role a cell kept, and each member
+answers `accessibilityIndex` zero-based — the hierarchy facet's flat row less one for an outline row,
+its position in the set less one for a list row, `NSNotFound` when the number is unknown — because a
+native `NSOutlineView` answered AXIndex 0, 1, 2… down its visible rows and no `AXRowCount` (read on
+the macOS 26.6.2 guest, 2026-09-15, `scripts/a11y/macos/outline-probe.swift`). *The gate refuses
+getters too*: AppKit honours a refused getter (read 2026-09-13, §6 of that day's macOS readings), so
+the row selectors are refused on everything that is not a table, an outline or a list, the index on
+everything that is not a row, and the two counts on everything that is not a table, instead of
+answering nil, −1 or zero there.
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a
