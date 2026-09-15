@@ -1634,6 +1634,12 @@ public class ComboBox extends Widget {
             // exactly while they are performed (semantics 5), and not through the fade-out or on
             // a combo disabled under its open list, where the hook refuses all three.
             boolean operable = optionsOperable();
+            // A combo disabled under its open list: the options say so themselves. The walk no
+            // longer reads a parentless overlay's enabled axis off its inheritance host, because
+            // the keyboard and the pointer never did (ADR 039 §1.9, amended 2026-09-15), and a
+            // list in a window of its own was never walked through the field at all, so this is
+            // the one place both mountings learn it. Narrowing takes every verb off the row too.
+            boolean inert = !ComboBox.this.isEnabled();
             for (int i = 0; i < items.size(); i++) {
                 float top = rowTop(i, t);
                 a.child(i);
@@ -1664,7 +1670,9 @@ public class ComboBox extends Widget {
                 if (top + itemH < 0 || top > viewport) {
                     a.offScreen();
                 }
-                if (operable) {
+                if (inert) {
+                    a.disabled();
+                } else if (operable) {
                     // The two-argument form; the variable-argument one allocates an array per
                     // call. SELECT and PRESS both, because choosing an option in a combo is one
                     // gesture.

@@ -483,14 +483,15 @@ class AccessibleActionTest extends AccessibleTestBase {
     }
 
     /**
-     * An overlay is parentless, and its enabled axis resolves through its host: the walk publishes
-     * the contents of a disabled control's popup without {@code ENABLED} and so with no verb (ADR
-     * 039 §1.5, amended 2026-09-15), and the scene refuses them on the same chain, so what is
-     * published and what is performed are one reading (§1.9, corrected the same day). Until then
-     * the gate stopped at the overlay and performed a press the snapshot no longer offered.
+     * An overlay's enabled axis is its own subtree's, as the keyboard and the pointer read it
+     * (ADR 039 §1.9, amended 2026-09-15, the 2d review): a control disabled after it opened the
+     * overlay leaves the overlay's contents published {@code ENABLED}, with their verbs, and
+     * performed, because Tab and Return still reach them. A control disabled inside the overlay
+     * is refused on both sides. Until that day the walk and the gate climbed the overlay's
+     * inheritance host, so a dialog the keyboard was answering was inert to a reader.
      */
     @Test
-    void aVerbInsideAnOverlayWhoseHostIsDisabledIsNeitherPublishedNorPerformed() throws Exception {
+    void aVerbInsideAnOverlayIsReadOnTheOverlaysOwnChainAsTheKeyboardReadsIt() throws Exception {
         Group root = new Group();
         Group form = new Group();
         Probe opener = new Probe(Accessible.Role.BUTTON, "Opener");
@@ -509,15 +510,26 @@ class AccessibleActionTest extends AccessibleTestBase {
                 Accessible.Argument.NONE));
         assertEquals(List.of("PRESS(None[])"), confirm.performed, "an enabled host: performed");
 
-        form.setEnabled(false); // the host's own flag stays: its parent is what is disabled
+        form.setEnabled(false); // the host's parent: the host resolves disabled through it
+        scene.requestRender();
+        frame();
+        assertTrue(node("Confirm").has(Accessible.State.ENABLED),
+                "a disabled host is neither the overlay nor an ancestor of it" + describe(tree()));
+        assertTrue(node("Confirm").actions().has(Accessible.Action.PRESS),
+                "so its contents keep the verb the keyboard still performs" + describe(tree()));
+        performOffThread(node("Confirm").id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        assertEquals(List.of("PRESS(None[])", "PRESS(None[])"), confirm.performed,
+                "and the scene performs it, on the chain the walk read");
+
+        dialog.setEnabled(false); // the overlay itself: an ancestor of the button
         scene.requestRender();
         frame();
         assertFalse(node("Confirm").has(Accessible.State.ENABLED), describe(tree()));
         assertNull(node("Confirm").actions(),
-                "the popup of a disabled control publishes no verb" + describe(tree()));
+                "inside a disabled overlay nothing is published operable" + describe(tree()));
         performOffThread(node("Confirm").id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
-        assertEquals(List.of("PRESS(None[])"), confirm.performed,
-                "and the scene refuses the one sent anyway, on the chain the walk read");
+        assertEquals(List.of("PRESS(None[])", "PRESS(None[])"), confirm.performed,
+                "and the scene refuses the one sent anyway");
     }
 
     /** The other half: a container clipped out of an ancestor performs nothing it claimed. */

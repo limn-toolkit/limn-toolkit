@@ -198,23 +198,18 @@ final class AccessibleWalk {
         List<Widget> overlays = scene.overlays();
         for (int i = 0; i < overlays.size(); i++) {
             Widget overlay = overlays.get(i);
-            // An overlay is parentless, so the tree cannot say whether the control that opened it
-            // is enabled -- and that is exactly the case inheritanceHost() is documented for: the
-            // widget an inherited axis resolves through when the tree cannot say. Passing a
-            // literal true here published a disabled control's popup with every option ENABLED,
-            // and the assistive technology was then the only caller refused, because the hooks
-            // guard on the owner while the scene's own ancestor gate walks the same parentless
-            // chain and finds nothing to stop. Climbing parent-then-host is the idiom resolve()
-            // already uses, and for the same reason: a menu's host is often an item inside
-            // another overlay. Only the enabled axis resolves this way; visibility does not,
-            // because a popup is routinely opened from a control that has since scrolled out of
-            // its viewport, and that popup is still on screen and still being read.
-            boolean hostEnabled = true;
-            for (Widget at = overlay.inheritanceHost(); at != null;
-                    at = at.parent() != null ? at.parent() : at.inheritanceHost()) {
-                hostEnabled &= at.isEnabled();
-            }
-            walkWidget(scene, overlay, null, 0, -1, 0, 0, hostEnabled, true, overlay == layer);
+            // An overlay's enabled axis is its own subtree's, exactly as the input path reads it:
+            // the keyboard's traversal and the pointer start at the layer that owns input and read
+            // each widget's own flag from there down, and never climb an overlay's inheritance
+            // host, so a dialog shown from a control disabled since is still answered by Tab,
+            // Return and a click. Until 2026-09-15 (fix round 2d's review) the walk climbed the
+            // host parent-then-host and published that dialog's buttons neither ENABLED nor
+            // FOCUSABLE and, with §1.5's rule, with no verb, and the scene's gate climbed the same
+            // chain to refuse them: a reader shut out of a dialog the keyboard was working. A
+            // popup that must go inert with its opener says so itself (a combo narrows its
+            // options while it is disabled) or closes; the inheritance host stays what it is for
+            // the other axes, and the relation.
+            walkWidget(scene, overlay, null, 0, -1, 0, 0, true, true, overlay == layer);
         }
         builder.end();
         count = builder.nodeCount();

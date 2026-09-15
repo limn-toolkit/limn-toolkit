@@ -166,6 +166,33 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
         pumpUntilSettled();
     }
 
+    /**
+     * Presents the dialog in scene with {@code show(owner)} over a Save button disabled before it
+     * opens, the shape an application gives a confirmation, and drives the fade until it settles.
+     */
+    private void showInSceneOverADisabledOwner(Dialog under) {
+        dialog = under;
+        bridge = RecordingAccessibilityBridge.listening();
+        OverlayHost host = new OverlayHost();
+        host.accessibility = bridge;
+        window = host;
+        canvas = new FakeCanvas(400, 300);
+        Column form = new Column();
+        Button save = new Button("Save");
+        form.add(save);
+        scene = new Scene(form, clock::get);
+        scene.setTextRuler(RULER);
+        scene.bind(window);
+        frame();
+        save.setEnabled(false);
+        frame();
+        bridge.events.clear();
+
+        dialog.setDisplayMode(DisplayMode.IN_SCENE).show(save);
+        assertNull(dialog.modalWindow(), "in the scene");
+        pumpUntilSettled();
+    }
+
     /** Advances the clock and renders, until the fade-in is over and its ticker has gone. */
     private void pumpUntilSettled() {
         for (int i = 0; i < 100 && dialog.fadeLevel() < 1; i++) {
@@ -630,6 +657,71 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("ok", resultNow());
         assertEquals(1, bridge.countOf(AccessibleEvent.Type.INVOKED),
                 "the second press was not reported done: " + bridge.events);
+    }
+
+    /**
+     * A dialog shown with {@code show(owner)} over an owner that is disabled is published exactly
+     * as operable as the keyboard, the pointer and a reader find it (semantics 5; ADR 039 §1.9,
+     * amended 2026-09-15, the 2d review). The owner is the card's inheritance host, which is
+     * neither the overlay nor an ancestor of it: Tab and Return never climb there, and until that
+     * day the walk and the scene's gate did, so the buttons were published neither
+     * {@code ENABLED} nor {@code FOCUSABLE} and with no verb, the card had no {@code CANCEL}, and
+     * a reader's press was refused while Return answered the dialog. Three presentations, one per
+     * way in, each answering it.
+     */
+    @Test
+    void overADisabledOwnerTheTreeTheKeyboardThePointerAndAReaderAgree() throws Exception {
+        showInSceneOverADisabledOwner(cancelAndOk());
+        assertFalse(node("Save").has(Accessible.State.ENABLED), "the owner is disabled"
+                + describe(tree()));
+        for (String button : List.of("Cancel", "OK")) {
+            AccessibleNode node = node(button);
+            assertTrue(node.has(Accessible.State.ENABLED), button + describe(tree()));
+            assertTrue(node.has(Accessible.State.FOCUSABLE),
+                    button + " is a tab stop, as the keyboard finds it" + describe(tree()));
+            assertTrue(node.actions().has(Accessible.Action.PRESS), button + describe(tree()));
+        }
+        assertTrue(card().actions().has(Accessible.Action.CANCEL), describe(tree()));
+        assertEquals(List.of("Cancel", "OK"),
+                nodesWith(Accessible.State.FOCUSABLE).stream().map(AccessibleNode::name).toList(),
+                "the published tab stops are the keyboard's" + describe(tree()));
+        // The keyboard: Tab lands on a published tab stop, Return answers.
+        scene.keyEvent(Keys.TAB, true, false, 0);
+        scene.keyEvent(Keys.TAB, false, false, 0);
+        scene.inputBatchEnded();
+        tick();
+        assertEquals(1, nodesWith(Accessible.State.FOCUSED).size(), describe(tree()));
+        assertTrue(nodesWith(Accessible.State.FOCUSED).get(0).has(Accessible.State.FOCUSABLE),
+                describe(tree()));
+        scene.keyEvent(Keys.ENTER, true, false, 0);
+        scene.keyEvent(Keys.ENTER, false, false, 0);
+        scene.inputBatchEnded();
+        for (int i = 0; i < 100 && dialogIsPublished(); i++) {
+            tick();
+        }
+        assertEquals("ok", resultNow(), "Return answers the dialog over a disabled owner");
+
+        // A reader: the press it was offered is performed.
+        showInSceneOverADisabledOwner(cancelAndOk());
+        assertTrue(perform(node("Cancel").id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        for (int i = 0; i < 100 && dialogIsPublished(); i++) {
+            tick();
+        }
+        assertEquals("cancel", resultNow(), "a reader's press answers it too" + describe(tree()));
+
+        // The pointer: a click on OK's published box.
+        showInSceneOverADisabledOwner(cancelAndOk());
+        AccessibleNode ok = node("OK");
+        float x = ok.x() + ok.width() / 2;
+        float y = ok.y() + ok.height() / 2;
+        scene.mouseMoved(x, y);
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        scene.inputBatchEnded();
+        for (int i = 0; i < 100 && dialogIsPublished(); i++) {
+            tick();
+        }
+        assertEquals("ok", resultNow(), "and so does a click");
     }
 
     /**

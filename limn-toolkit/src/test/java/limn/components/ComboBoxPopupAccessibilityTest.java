@@ -550,10 +550,10 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
                         + "window of its own: the scene's gate walks the panel's ancestors, and "
                         + "there the panel has none");
         assertFalse(options().get(2).has(Accessible.State.ENABLED),
-                "and the row says so. The list is a parentless overlay, so the enabled axis "
-                        + "reaches it through the inheritance host rather than through a parent; "
-                        + "while it did not, the row advertised SELECT and PRESS on a control "
-                        + "that refuses both, which is a node lying about what it will do"
+                "and the row says so. The list is a parentless overlay whose enabled axis is "
+                        + "its own, as the keyboard reads it (2026-09-15), so the panel narrows "
+                        + "each option itself while the combo is disabled; before either, the "
+                        + "row advertised SELECT and PRESS on a control that refuses both"
                         + describe(tree()));
         assertNull(options().get(2).actions(),
                 "nor does it offer any of the three verbs the hook refuses on a disabled combo "
