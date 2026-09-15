@@ -246,6 +246,81 @@ class AccessibleModalTest extends AccessibleTestBase {
         }
     }
 
+    /**
+     * A widget hung under a synthetic node its enabled container narrowed with
+     * {@code disabled()} is refused loudly (the 2d review, 2026-09-15): the node publishes no
+     * verb, while the widget would take its enabled bit from the widget tree and publish
+     * {@code ENABLED} and its verbs beneath it. The walk throws, the scene contains it as an
+     * accessibility crash, and the previous tree stands. Under a live row, and under a narrowed
+     * row of a disabled container, the widget publishes as it always did.
+     */
+    @Test
+    void aWidgetUnderASyntheticNodeItsOwnerNarrowedIsRefusedLoudly() {
+        Group root = new Group();
+        Rows rows = new Rows();
+        Probe cell = stop("cell");
+        cell.actions = new Accessible.Action[] {Accessible.Action.PRESS};
+        rows.add(cell);
+        root.add(rows);
+        bind(root);
+        frame();
+        AccessibleNode published = node("cell");
+        assertEquals("live row", tree().node(published.parent()).name(), describe(tree()));
+        assertTrue(published.actions().has(Accessible.Action.PRESS), describe(tree()));
+
+        List<Throwable> contained = new ArrayList<>();
+        limn.backend.CrashHandler recorder = (phase, error) -> {
+            contained.add(error);
+            return true;
+        };
+        limn.backend.Crashes.install(recorder);
+        try {
+            rows.narrowed = true;
+            rows.invalidateAccessible();
+            frame();
+        } finally {
+            limn.backend.Crashes.uninstall(recorder);
+        }
+        assertEquals(1, contained.size(), "one refusal, dispatched as a crash: " + contained);
+        assertTrue(contained.get(0) instanceof IllegalStateException, contained.get(0).toString());
+        assertTrue(contained.get(0).getMessage().contains("narrowed with disabled()"),
+                contained.get(0).getMessage());
+        assertTrue(node("cell").actions().has(Accessible.Action.PRESS),
+                "the previous tree stands" + describe(tree()));
+
+        rows.setEnabled(false); // the container's own flag: nothing under it is enabled anyway
+        frame();
+        assertNull(node("cell").actions(), describe(tree()));
+        assertFalse(node("cell").has(Accessible.State.ENABLED), describe(tree()));
+    }
+
+    /** A container that hangs every widget child under one synthetic row it may narrow. */
+    private static final class Rows extends Probe {
+        boolean narrowed;
+
+        Rows() {
+            super(Accessible.Role.TABLE, "rows");
+        }
+
+        @Override
+        protected void onAccessibility(limn.accessibility.Accessibility a) {
+            super.onAccessibility(a);
+            a.child(1);
+            a.role(Accessible.Role.ROW);
+            a.name(limn.i18n.I18nString.literal(narrowed ? "dead row" : "live row"));
+            if (narrowed) {
+                a.disabled();
+            }
+            a.endChild();
+        }
+
+        @Override
+        protected void onAccessibilityChildIdentity(Widget child,
+                                                    limn.accessibility.Accessibility a) {
+            a.under(1);
+        }
+    }
+
     @Test
     void theOpenLayerItselfCarriesModal() {
         Group root = new Group();

@@ -429,6 +429,20 @@ final class AccessibleWalk {
                                 + " hangs a child under a synthetic node but published none");
                     }
                     host = builder.pendingHostIndex(parentSlot);
+                    if (enabled && !builder.isEnabledAt(host)) {
+                        // A synthetic node the parent narrowed with disabled() publishes no verb,
+                        // while a widget under it takes its enabled bit from the widget tree, as
+                        // the scene's gate does, and would publish ENABLED and its verbs beneath a
+                        // node that is not: a tree that contradicts itself. No widget combines the
+                        // two, so the combination is refused rather than half-supported; one that
+                        // needs it owes the walk and the gate the same narrowing (the 2d review,
+                        // 2026-09-15). The host's bit is settled: the parent's synthetic children
+                        // were published before its widget children are walked.
+                        throw new IllegalStateException(parent.getClass().getName()
+                                + " hangs a widget under a synthetic node it narrowed with "
+                                + "disabled(): the widget would publish verbs the node beneath "
+                                + "it withdrew");
+                    }
                 }
                 long owner = host >= 0 ? builder.idAt(host) : parentId;
                 if (builder.hasPendingKey()) {

@@ -1197,13 +1197,15 @@ public final class Accessibility {
      * narrows through the nesting: a synthetic child declared inside a disabled one publishes
      * without {@code ENABLED} too, whether or not it called this itself.
      *
-     * <p><b>It does not reach a widget.</b> A widget child a container hangs under a disabled
-     * synthetic node with {@link #under(long)} takes its enabled bit from the widget tree, as the
-     * scene's action gate does, and would publish {@code ENABLED} beneath its disabled row. No
-     * widget combines the two today — {@code Table} is the only caller of {@code under} and never
-     * disables a row, and this method's callers (a calendar's refused day and month, a segmented
-     * control's dead chevron) hang no widget under the node — so a widget that does owes the walk
-     * and the gate the same narrowing in the same change (2026-09-15, the widgets review).
+     * <p><b>It does not reach a widget, and the walk refuses the combination.</b> A widget child a
+     * container hangs under a disabled synthetic node with {@link #under(long)} would take its
+     * enabled bit from the widget tree, as the scene's action gate does, and publish
+     * {@code ENABLED} and its verbs beneath its disabled row. No widget combines the two —
+     * {@code Table} is the only caller of {@code under} and never disables a row, and this
+     * method's callers (a calendar's refused day and month, a segmented control's dead chevron,
+     * a combo's options and a menu's rows) hang no widget under the node — so the walk throws
+     * when an enabled container does, and the previous tree stands (2026-09-15, the 2d review). A
+     * widget that needs it owes the walk and the gate the same narrowing in the same change.
      *
      * <p>A disabled child carries no verb: the publish step withdraws every verb and setter from a
      * node that is not {@code ENABLED} ({@link #inoperableAt}, ADR 039 §1.5, amended 2026-09-15),
