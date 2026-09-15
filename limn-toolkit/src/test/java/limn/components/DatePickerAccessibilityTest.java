@@ -6,12 +6,16 @@ import limn.components.date.DatePicker;
 import limn.i18n.I18n;
 import limn.scene.layout.Column;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.logging.Handler;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -54,9 +58,56 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         bind(root);
     }
 
+    /** Every record the walk logged while a test ran; see {@link #thePickerIsNeverNamedInTheLog}. */
+    private final List<LogRecord> logged = new ArrayList<>();
+
+    private final Handler capture = new Handler() {
+        @Override
+        public void publish(LogRecord record) {
+            logged.add(record);
+        }
+
+        @Override
+        public void flush() {
+        }
+
+        @Override
+        public void close() {
+        }
+    };
+
+    private Logger walkLogger;
+
+    @BeforeEach
+    void captureTheWalksLog() {
+        walkLogger = Logger.getLogger("limn.scene.AccessibleWalk");
+        walkLogger.addHandler(capture);
+    }
+
     @AfterEach
     void resetLocale() {
         I18n.setLocale(Locale.US);
+    }
+
+    /**
+     * A single picker is no node (decision 55) and paints its box, so the walk's
+     * paints-and-says-nothing guard named {@code DatePicker} in an application's log and advised
+     * a name, which would undo the decision. Checked after every case, as {@code TabbedPane}'s
+     * test does, because the walk names a class once per virtual machine: whichever case here
+     * binds a single picker first is the one that catches a lost {@code paintsDecoration}.
+     */
+    @AfterEach
+    void thePickerIsNeverNamedInTheLog() {
+        walkLogger.removeHandler(capture);
+        List<String> aboutThePicker = new ArrayList<>();
+        for (LogRecord record : logged) {
+            if (record.getParameters() != null && record.getParameters().length > 0
+                    && DatePicker.class.getName().equals(record.getParameters()[0])) {
+                aboutThePicker.add(record.getMessage());
+            }
+        }
+        assertTrue(aboutThePicker.isEmpty(),
+                "the toolkit's picker is named in an application's log: " + aboutThePicker);
     }
 
     private List<AccessibleNode> nodesOf(Accessible.Role role) {
