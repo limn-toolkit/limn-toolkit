@@ -124,6 +124,14 @@ class UiaConstantsTest {
         assertEquals(0x80131509, UiaIds.E_INVALID_OPERATION);
     }
 
+    /** WINDOWS-NEW-11, read 2026-09-13 (readings/windows-dump-uia-marshalling.txt). */
+    @Test
+    void aBoolOutParameterIsFourBytesOfOneOrZeroAndNotAVariantBool() {
+        assertEquals(1, UiaIds.BOOL_TRUE, "the guest's managed provider wrote 01 00 00 00");
+        assertEquals(0, UiaIds.BOOL_FALSE, "and 00 00 00 00");
+        assertEquals(-1, UiaVariant.TRUE, "which is not the VARIANT_BOOL a VARIANT carries");
+    }
+
     /**
      * A handful of readings spot-checked against what §2.1 says the bridge answers with, so that a
      * re-run of the dump script that renamed or renumbered something fails here rather than in a

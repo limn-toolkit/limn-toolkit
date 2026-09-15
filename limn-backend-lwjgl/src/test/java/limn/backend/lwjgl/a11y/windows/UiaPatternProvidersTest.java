@@ -316,6 +316,13 @@ class UiaPatternProvidersTest {
         return block + 4;
     }
 
+    /** A {@code BOOL*} answer: four bytes of 1 or 0, and nothing written past them. */
+    private static void assertBool(boolean expected, long out) {
+        assertEquals(expected ? 1 : 0, MemoryUtil.memGetInt(out),
+                "a four-byte BOOL, as the guest's own provider writes it");
+        assertEquals(0xAAAAAAAA, MemoryUtil.memGetInt(out + 4), "and nothing past it");
+    }
+
     private void goneFromTheTree() {
         tree = AccessibleTree.EMPTY;
     }
@@ -412,15 +419,15 @@ class UiaPatternProvidersTest {
     }
 
     @Test
-    void valueIsReadOnlyIsTheReadOnlyStateWrittenAsTwoBytes() {
+    void valueIsReadOnlyIsTheReadOnlyStateWrittenAsAFourByteBool() {
         long editable = buffer();
         long fixed = buffer();
         assertEquals(UiaIds.S_OK, get(UiaIds.VALUE_PATTERN, 1003, "get_IsReadOnly", editable));
         assertEquals(UiaIds.S_OK, get(UiaIds.VALUE_PATTERN, 1004, "get_IsReadOnly", fixed));
-        // Pinned as of 048f7d0: a VARIANT_BOOL's two bytes written into a four-byte BOOL, so the
-        // upper half is whatever the caller's slot held (WINDOWS-NEW-11).
-        assertEquals(0xAAAA0000, MemoryUtil.memGetInt(editable));
-        assertEquals(0xAAAAFFFF, MemoryUtil.memGetInt(fixed));
+        // Four bytes of 0 or 1 (WINDOWS-NEW-11, read 2026-09-13); until 2026-09-15 the two bytes of
+        // a VARIANT_BOOL, which read 0xAAAA0000 and 0xAAAAFFFF here.
+        assertBool(false, editable);
+        assertBool(true, fixed);
 
         goneFromTheTree();
         assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
@@ -460,14 +467,14 @@ class UiaPatternProvidersTest {
     }
 
     @Test
-    void rangeValueIsReadOnlyIsTheFacetsFlagWrittenAsTwoBytes() {
+    void rangeValueIsReadOnlyIsTheFacetsFlagWrittenAsAFourByteBool() {
         long writable = buffer();
         long fixed = buffer();
         assertEquals(UiaIds.S_OK, get(UiaIds.RANGE_VALUE_PATTERN, 1005, "get_IsReadOnly", writable));
         assertEquals(UiaIds.S_OK, get(UiaIds.RANGE_VALUE_PATTERN, 1006, "get_IsReadOnly", fixed));
-        // Pinned as of 048f7d0 (WINDOWS-NEW-11), as Value's.
-        assertEquals(0xAAAA0000, MemoryUtil.memGetInt(writable));
-        assertEquals(0xAAAAFFFF, MemoryUtil.memGetInt(fixed));
+        // WINDOWS-NEW-11, as Value's.
+        assertBool(false, writable);
+        assertBool(true, fixed);
 
         goneFromTheTree();
         assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
@@ -509,14 +516,14 @@ class UiaPatternProvidersTest {
     }
 
     @Test
-    void isSelectedIsTheFacetsFlagWrittenAsTwoBytes() {
+    void isSelectedIsTheFacetsFlagWrittenAsAFourByteBool() {
         long selected = buffer();
         long not = buffer();
         assertEquals(UiaIds.S_OK, get(UiaIds.SELECTION_ITEM_PATTERN, 1009, "get_IsSelected", selected));
         assertEquals(UiaIds.S_OK, get(UiaIds.SELECTION_ITEM_PATTERN, 1011, "get_IsSelected", not));
-        // Pinned as of 048f7d0 (WINDOWS-NEW-11).
-        assertEquals(0xAAAAFFFF, MemoryUtil.memGetInt(selected));
-        assertEquals(0xAAAA0000, MemoryUtil.memGetInt(not));
+        // WINDOWS-NEW-11.
+        assertBool(true, selected);
+        assertBool(false, not);
         assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
                 get(UiaIds.SELECTION_ITEM_PATTERN, 1001, "get_IsSelected", buffer()));
     }

@@ -279,6 +279,29 @@ final class UiaIds {
     /** @see #S_OK */
     static final int E_NO_INTERFACE = 0x80004002;
 
+    /**
+     * What a pattern getter declared {@code BOOL*} writes: four bytes, {@code 1} for true and
+     * {@code 0} for false. Not a {@code VARIANT_BOOL}, which is two bytes with true {@code -1}
+     * ({@link UiaVariant#TRUE}) and belongs inside a {@code VARIANT} only.
+     *
+     * <p>Read on the Windows 11 ARM64 guest (UIAutomationCore.dll 7.2.26100.9278, .NET Framework
+     * 4.8 release 533509) on 2026-09-13 by {@code scripts/a11y/windows/dump-uia-marshalling.ps1}
+     * (readings/windows-dump-uia-marshalling.txt): every boolean getter of the provider
+     * interfaces -- {@code ISelectionItemProvider.get_IsSelected},
+     * {@code IValueProvider}/{@code IRangeValueProvider.get_IsReadOnly},
+     * {@code ISelectionProvider.get_CanSelectMultiple}/{@code get_IsSelectionRequired},
+     * {@code IScrollProvider.get_Horizontally}/{@code VerticallyScrollable} -- is
+     * {@code MarshalAs(UnmanagedType.Bool)}, and the managed provider wrote
+     * {@code 01 00 00 00} for true and {@code 00 00 00 00} for false into a buffer pre-filled
+     * with {@code AA}, through both a delegate and {@code DispCallFunc}. Before 2026-09-15 this
+     * bridge wrote the two {@code VARIANT_BOOL} bytes there, leaving the upper half to whatever the
+     * caller's slot held (WINDOWS-NEW-11).
+     */
+    static final int BOOL_TRUE = 1;
+
+    /** @see #BOOL_TRUE */
+    static final int BOOL_FALSE = 0;
+
     /** {@code UIA_E_ELEMENTNOTAVAILABLE}: what a stale element answers until its refcount drops. */
     static final int E_ELEMENT_NOT_AVAILABLE = 0x80040201;
 

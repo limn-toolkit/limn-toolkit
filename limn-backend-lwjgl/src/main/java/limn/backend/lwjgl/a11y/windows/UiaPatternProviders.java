@@ -114,9 +114,7 @@ final class UiaPatternProviders {
                     if (node == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
-                    MemoryUtil.memPutShort(out,
-                            node.has(Accessible.State.READ_ONLY) ? UiaVariant.TRUE
-                                    : UiaVariant.FALSE);
+                    putBool(out, node.has(Accessible.State.READ_ONLY));
                     return UiaIds.S_OK;
                 });
             }
@@ -142,8 +140,7 @@ final class UiaPatternProviders {
                     if (node == null || node.value() == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
-                    MemoryUtil.memPutShort(out,
-                            node.value().readOnly() ? UiaVariant.TRUE : UiaVariant.FALSE);
+                    putBool(out, node.value().readOnly());
                     return UiaIds.S_OK;
                 });
             }
@@ -182,8 +179,7 @@ final class UiaPatternProviders {
                     if (node == null || node.selectionItem() == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
-                    MemoryUtil.memPutShort(out,
-                            node.selectionItem().selected() ? UiaVariant.TRUE : UiaVariant.FALSE);
+                    putBool(out, node.selectionItem().selected());
                     return UiaIds.S_OK;
                 });
                 slots.put("get_SelectionContainer", (UiaCom.PP) (self, out) -> {
@@ -372,6 +368,14 @@ final class UiaPatternProviders {
             }
         }
         return null;
+    }
+
+    /**
+     * Writes a {@code BOOL*} out-parameter: four bytes, as the guest read them
+     * ({@link UiaIds#BOOL_TRUE}). Never {@link UiaVariant#TRUE}, which is a {@code VARIANT}'s.
+     */
+    static void putBool(long out, boolean value) {
+        MemoryUtil.memPutInt(out, value ? UiaIds.BOOL_TRUE : UiaIds.BOOL_FALSE);
     }
 
     /** A getter answering one double off the value facet. */

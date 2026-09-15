@@ -120,13 +120,13 @@ class UiaSetterRefusalTest {
                 .get("SetValue")).invoke(0, 0);
     }
 
-    private short isReadOnly(int patternId, long nodeId) {
+    private int isReadOnly(int patternId, long nodeId) {
         long out = MemoryUtil.nmemAllocChecked(8);
         try {
             int hr = ((UiaCom.PP) UiaPatternProviders.slotsFor(patternId, nodeId, context)
                     .get("get_IsReadOnly")).invoke(0, out);
             assertEquals(UiaIds.S_OK, hr);
-            return MemoryUtil.memGetShort(out);
+            return MemoryUtil.memGetInt(out);
         } finally {
             MemoryUtil.nmemFree(out);
         }
@@ -141,9 +141,9 @@ class UiaSetterRefusalTest {
         assertEquals(UiaIds.E_INVALID_OPERATION, valueSetValue(),
                 "and a disabled field's Value.SetValue");
         assertEquals(List.of(), posted, "and nothing reaches the toolkit");
-        assertEquals(UiaVariant.FALSE, isReadOnly(UiaIds.RANGE_VALUE_PATTERN, 1001),
+        assertEquals(UiaIds.BOOL_FALSE, isReadOnly(UiaIds.RANGE_VALUE_PATTERN, 1001),
                 "while the value is still not read-only: disabled is not read-only (§1.2)");
-        assertEquals(UiaVariant.FALSE, isReadOnly(UiaIds.VALUE_PATTERN, 1002));
+        assertEquals(UiaIds.BOOL_FALSE, isReadOnly(UiaIds.VALUE_PATTERN, 1002));
     }
 
     @Test
