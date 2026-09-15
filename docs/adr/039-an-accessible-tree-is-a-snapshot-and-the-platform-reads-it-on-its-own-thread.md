@@ -2480,6 +2480,17 @@ per container however many publishes or openings moved it: a lazy load landing u
 open, a refresh, and a list growing or shrinking are row-count changes too; a scroll, which changes
 which rows are realized and not how many there are, is none. Only the disclosure trigger was read on
 the native outline; the others follow from the same attribute.
+*And the window's own events (MACOS-NEW-3, the same day):* `ANNOUNCEMENT` names no node and
+`INVALIDATED` names none either, and a `STRUCTURE_CHANGED` of the root names the node this bridge elides,
+so all three were posted on an element no client held — which is to say never. An announcement is now
+`AnnouncementRequested` posted **on the window**, carrying `NSAccessibilityAnnouncementKey` (its text)
+and `NSAccessibilityPriorityKey` (10 polite, 90 assertive) as user info; `INVALIDATED` and a change of
+the root's children are one `LayoutChanged` on the window per frame. The window, because on the macOS
+26.6.2 guest (2026-09-15, `scripts/a11y/macos/announcement-probe.swift`) a notification posted on the
+window reached both an observer registered on the window and one registered on the application, one
+posted on `NSApp` only the application's, and one posted on the content view nobody's. Whether VoiceOver
+speaks an announcement posted there is phase 5's to hear. `NODE_DESTROYED` releases the element at the
+frame's end and still posts nothing (§2.2's note of the same date).
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that

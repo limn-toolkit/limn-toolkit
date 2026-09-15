@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import ObjectiveC
 
@@ -7,7 +8,9 @@ import ObjectiveC
 // to read off the running Foundation, not to recall. For each message it prints the encoding
 // class_getInstanceMethod answers on the class the bridge sends it to, and, as a behaviour check,
 // what the message answers for the kinds of object an AX client's write arrives as (a string, an
-// integer, a fraction, a boolean, an array of two).
+// integer, a fraction, a boolean, an array of two). Class messages (a factory sent to the class
+// object) are read with class_getClassMethod in a section of their own; the dictionary an
+// announcement's user info is built as is then built through those messages and printed.
 //
 // Build with `swiftc -O -o foundation-messages-probe foundation-messages-probe.swift`; run it
 // anywhere, no window and no trust needed.
@@ -22,6 +25,15 @@ let messages: [(String, String)] = [
     ("NSNumber", "stringValue"),
     ("NSArray", "count"),
     ("NSArray", "objectAtIndex:"),
+    // Added 2026-09-15 (macos-C, MACOS-NEW-3): an announcement's user info, and the window a view is in.
+    ("NSMutableDictionary", "setObject:forKey:"),
+    ("NSView", "window"),
+]
+
+let classMessages: [(String, String)] = [
+    ("NSMutableDictionary", "dictionary"),
+    ("NSNumber", "numberWithInteger:"),
+    ("NSString", "stringWithUTF8String:"),
 ]
 
 print("==== encodings (class_getInstanceMethod on the class named) ====")
@@ -32,6 +44,25 @@ for (className, selector) in messages {
     }
     let encoding = method_getTypeEncoding(method).map { String(cString: $0) } ?? "<none>"
     print("  -[\(className) \(selector)] \(encoding)")
+}
+
+print("\n==== class messages (class_getClassMethod on the class named) ====")
+for (className, selector) in classMessages {
+    guard let cls = NSClassFromString(className) else { print("  \(className) !! NO SUCH CLASS"); continue }
+    guard let method = class_getClassMethod(cls, NSSelectorFromString(selector)) else {
+        print("  +[\(className) \(selector)] !! NOT DECLARED"); continue
+    }
+    let encoding = method_getTypeEncoding(method).map { String(cString: $0) } ?? "<none>"
+    print("  +[\(className) \(selector)] \(encoding)")
+}
+
+print("\n==== an announcement's user info, built through those messages ====")
+let info = NSMutableDictionary()
+info.setObject("Saved" as NSString, forKey: NSAccessibility.NotificationUserInfoKey.announcement.rawValue as NSString)
+info.setObject(NSNumber(value: 90), forKey: NSAccessibility.NotificationUserInfoKey.priority.rawValue as NSString)
+for key in (info.allKeys as! [String]).sorted() {
+    let value = info.object(forKey: key)!
+    print("  \(key) = \(value) (\(NSStringFromClass(type(of: value as AnyObject))))")
 }
 
 print("\n==== what the messages answer for a client's write ====")

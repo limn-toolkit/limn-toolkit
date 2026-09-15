@@ -711,10 +711,32 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                 focusOwed = true;
                 continue;
             }
+            if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED && tree().nodeCount() > 0
+                    && event.nodeId() == tree().root().id()) {
+                posting = AxNotifications.WINDOW_LAYOUT_CHANGED;
+            }
+            if (posting.subject() == AxNotifications.Subject.WINDOW) {
+                if (event.type() == AccessibleEvent.Type.ANNOUNCEMENT) {
+                    if (announce(event)) postedNow++;
+                } else {
+                    windowLayoutOwed = true;
+                }
+                continue;
+            }
             long subject = elementForEvent(event);
             if (subject == 0) continue;
             post(subject, posting);
             postedNow++;
+        }
+        if (windowLayoutOwed) {
+            // Once, however many root changes and invalidations the frame held: one "re-read the window".
+            windowLayoutOwed = false;
+            long window = windowElement();
+            // A window with nothing published has nothing of ours to re-read.
+            if (window != 0 && tree().nodeCount() > 0) {
+                post(window, AxNotifications.WINDOW_LAYOUT_CHANGED);
+                postedNow++;
+            }
         }
         for (int i = 0; i < recountedContainers.size(); i++) {
             long container = recountedContainers.get(i);
@@ -873,13 +895,61 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                 ? AxGrid.SelectionShape.CHILDREN : grid.selectionShape(container));
     }
 
+    /** Whether this drain owes the window one layout change: a root structure change or INVALIDATED. */
+    private boolean windowLayoutOwed;
+
+    /**
+     * Posts an announcement on the window (MACOS-NEW-3) with its text and its priority as user info,
+     * {@code NSAccessibilityAnnouncementKey} and {@code NSAccessibilityPriorityKey}. The dictionary is
+     * built with {@code +[NSMutableDictionary dictionary]} ({@code @16@0:8}) and
+     * {@code -setObject:forKey:} ({@code v32@0:8@16@24}), read on the macOS 26.6.2 guest (25G83),
+     * 2026-09-15, {@code scripts/a11y/macos/foundation-messages-probe.swift}.
+     *
+     * @return whether it reached a window
+     */
+    private boolean announce(AccessibleEvent event) {
+        long window = windowElement();
+        if (window == 0 || !(event.newValue() instanceof String text) || event.politeness() == null) return false;
+        int priority = AxNotifications.priorityFor(event.politeness());
+        Consumer<String> to = trace;
+        if (to != null) {
+            to.accept("posted NSAccessibilityAnnouncementRequestedNotification on the window '" + text
+                    + "' priority " + priority);
+        }
+        if (objc != null) {
+            long info = ObjC.msg(ObjC.cls("NSMutableDictionary"), "dictionary");
+            ObjC.msgVoid(info, "setObject:forKey:", objc.string(text),
+                    objc.constant(AxNotifications.ANNOUNCEMENT_KEY_SYMBOL));
+            ObjC.msgVoid(info, "setObject:forKey:", objc.number(priority),
+                    objc.constant(AxNotifications.PRIORITY_KEY_SYMBOL));
+            objc.post(window, objc.constant("NSAccessibilityAnnouncementRequestedNotification"), info);
+        }
+        return true;
+    }
+
+    /**
+     * The window AppKit vends for this scene, the subject of what is about the whole window: the
+     * content view's {@code -window} ({@code @16@0:8}, read on the guest with the other Foundation and
+     * AppKit messages, 2026-09-15). Zero when the view is in no window.
+     */
+    private long windowElement() {
+        // Off AppKit, a number that stands for it, as the application element's does.
+        if (objc == null) return SYNTHETIC_WINDOW;
+        return ObjC.msg(contentView, "window");
+    }
+
+    private static final long SYNTHETIC_WINDOW = 0x2;
+
     /** The one application-level notification: the focused element changed. */
     private static final AxNotifications.Posting FOCUS_POSTING =
             AxNotifications.of(AccessibleEvent.Type.FOCUS_CHANGED);
 
     private void post(long subject, AxNotifications.Posting posting) {
         Consumer<String> to = trace;
-        if (to != null) to.accept("posted " + posting.notificationSymbol());
+        if (to != null) {
+            to.accept("posted " + posting.notificationSymbol()
+                    + (posting.subject() == AxNotifications.Subject.WINDOW ? " on the window" : ""));
+        }
         if (objc != null) {
             objc.post(subject, posting.literal()
                     ? objc.string(posting.notificationSymbol())

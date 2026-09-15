@@ -112,6 +112,8 @@ class AxSceneTimingTest {
         assertTrue(trace.contains("emitted ANNOUNCEMENT#0"), String.valueOf(trace));
         assertEquals(0, bridge.queuedEvents(),
                 "a frame that changed nothing in the tree still ends, and what it said is drained");
+        assertEquals(List.of("NSAccessibilityAnnouncementRequestedNotification on the window 'Saved' priority 10"),
+                posted(), "and posted on the window in that frame, where it reached AppKit never at all (MACOS-NEW-3)");
     }
 
     @Test

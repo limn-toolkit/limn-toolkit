@@ -138,10 +138,14 @@ class AxFocusTest {
         bridge.frameEnded();
         assertEquals(3, bridge.elementCount(), "semantics 7: macOS reconciles on the model's INVALIDATED");
         assertEquals(pushes + 1, bridge.pushes(), "and the array AppKit holds is pushed again");
-        assertEquals(List.of("NSAccessibilityRowCountChangedNotification",
+        // Restated 2026-09-15 (MACOS-NEW-3): the INVALIDATED's layout change now reaches the window it
+        // is about, where it was posted on the element of node 0 and so never posted at all.
+        assertEquals(List.of("NSAccessibilityLayoutChangedNotification on the window",
+                        "NSAccessibilityRowCountChangedNotification",
                         "NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
-                "the sweep may have released what the reader stood on, so where it is goes out again, "
-                        + "last; and the list, which went from three rows to two, says its count changed");
+                "the window is told to re-read itself; the sweep may have released what the reader stood on, "
+                        + "so where it is goes out again, last; and the list, which went from three rows to "
+                        + "two, says its count changed");
     }
 
     @Test
@@ -192,8 +196,11 @@ class AxFocusTest {
             bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
         }
         bridge.frameEnded();
-        assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
-                "the focus change the collapse dropped is said again (semantics 4)");
+        // Restated 2026-09-15 (MACOS-NEW-3): the collapse's own INVALIDATED is the window's layout
+        // change, which went nowhere before.
+        assertEquals(List.of("NSAccessibilityLayoutChangedNotification on the window",
+                        "NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
+                "the collapse says re-read the window, and the focus change it dropped is said again (semantics 4)");
 
         AxBridge unfocused = PlatformFreeBridges.make();
         List<String> quiet = new ArrayList<>();

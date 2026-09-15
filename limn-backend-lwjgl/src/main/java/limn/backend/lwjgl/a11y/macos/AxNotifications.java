@@ -35,6 +35,11 @@ import java.util.Map;
  * (decision 1), posted the same way. That is the one place where "post the notification on its
  * subject" is wrong here, and it is a fact about AppKit rather than a choice. The bridge posts at most
  * one of them per frame: a publish that moved both the focus and the cursor is one move for a reader.
+ *
+ * <p><b>And what is about the whole window is posted on the window</b> (MACOS-NEW-3): an announcement,
+ * with its text and priority, and a layout change for the model's {@code INVALIDATED} or a change of the
+ * elided root's children — at most one of those per frame. Each named node 0 or the root, which no
+ * element stands for, so none of them had ever been posted.
  */
 final class AxNotifications {
 
@@ -47,6 +52,16 @@ final class AxNotifications {
         NODE,
         /** On the process's application element, which is the only registration focus reaches. */
         APPLICATION,
+        /**
+         * On the window AppKit vends for this scene: what has no element of its own to be posted on,
+         * because it is about the whole window — an announcement, and a layout change of the window
+         * root the bridge elides. Read on the macOS 26.6.2 guest, 2026-09-15
+         * ({@code scripts/a11y/macos/announcement-probe.swift}): AXAnnouncementRequested and
+         * AXLayoutChanged posted on the window reached an observer registered on the window and one
+         * registered on the application; posted on NSApp, only the application's; posted on the
+         * content view, nobody's.
+         */
+        WINDOW,
     }
 
     /**
@@ -82,6 +97,10 @@ final class AxNotifications {
         BY_TYPE.put(type, new Posting(symbol, Subject.APPLICATION));
     }
 
+    private static void postToWindow(AccessibleEvent.Type type, String symbol) {
+        BY_TYPE.put(type, new Posting(symbol, Subject.WINDOW));
+    }
+
     static {
         postToApplication(AccessibleEvent.Type.FOCUS_CHANGED,
                 "NSAccessibilityFocusedUIElementChangedNotification");
@@ -107,13 +126,17 @@ final class AxNotifications {
         post(AccessibleEvent.Type.CARET_MOVED, "NSAccessibilitySelectedTextChangedNotification");
         post(AccessibleEvent.Type.TEXT_SELECTION_CHANGED,
                 "NSAccessibilitySelectedTextChangedNotification");
-        post(AccessibleEvent.Type.ANNOUNCEMENT,
+        // An announcement has no node (its identifier is 0), so it goes on the window, with its text
+        // and priority as user info (MACOS-NEW-3): it was posted on the element of node 0, which no
+        // client holds, so no announcement ever reached AppKit.
+        postToWindow(AccessibleEvent.Type.ANNOUNCEMENT,
                 "NSAccessibilityAnnouncementRequestedNotification");
         // The collapse of a queue too small for the difference it was handed. One layout-changed on
         // the window is exactly the right thing to say -- "re-read everything" -- and it is what a
         // client already does with it. The bridge's own work for this event is the reconciliation
-        // sweep over its registry, not the notification.
-        post(AccessibleEvent.Type.INVALIDATED, "NSAccessibilityLayoutChangedNotification");
+        // sweep over its registry, not the notification. On the window, because the event names no
+        // node (MACOS-NEW-3).
+        postToWindow(AccessibleEvent.Type.INVALIDATED, "NSAccessibilityLayoutChangedNotification");
 
         // Deliberately absent, each for a stated reason. They are put in the map as nulls rather
         // than left out, so that a reader of this file sees the decision instead of a gap, and so
@@ -141,6 +164,24 @@ final class AxNotifications {
     static Posting of(AccessibleEvent.Type type) {
         return BY_TYPE.get(type);
     }
+
+    /**
+     * @param type an event type
+     * @return whether this table has a row for it, a row saying "nothing" included — which is what the
+     *         coverage test holds every type to, since {@link #of(AccessibleEvent.Type)} answers null
+     *         both for a row of nothing and for no row at all (MACOS-NEW-13)
+     */
+    static boolean hasDecision(AccessibleEvent.Type type) {
+        return BY_TYPE.containsKey(type);
+    }
+
+    /**
+     * What a structure change of the window root is posted as: the root is elided (§2.2), so no
+     * element of ours stands for it, and its children's change is the window's layout changing
+     * (MACOS-NEW-3).
+     */
+    static final Posting WINDOW_LAYOUT_CHANGED =
+            new Posting("NSAccessibilityLayoutChangedNotification", Subject.WINDOW);
 
     /**
      * The same decision for one event, where the state that changed can decide it.

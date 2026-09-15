@@ -528,6 +528,50 @@ class AxBridgeTest {
     }
 
     @Test
+    void anAnnouncementIsPostedOnTheWindowWithItsTextAndItsPriority() {
+        // MACOS-NEW-3: an announcement names node 0, whose element no client holds, so it was dropped.
+        AxBridge bridge = PlatformFreeBridges.make();
+        List<String> trace = traced(bridge);
+        bridge.publish(aNestedWindow(1), false);
+        bridge.emit(AccessibleEvent.announcement("Saved", Accessible.Politeness.ASSERTIVE));
+        bridge.emit(AccessibleEvent.announcement("Still saving", Accessible.Politeness.POLITE));
+        bridge.frameEnded();
+        assertEquals(List.of(
+                        "NSAccessibilityAnnouncementRequestedNotification on the window 'Saved' priority 90",
+                        "NSAccessibilityAnnouncementRequestedNotification on the window 'Still saving' priority 10"),
+                posted(trace), "each announcement, in order, on the window, carrying its text and priority");
+    }
+
+    @Test
+    void aRootStructureChangeAndAnInvalidationAreOneLayoutChangeOnTheWindow() {
+        // MACOS-NEW-3: the root is elided (§2.2), so a change of its children named a node no element
+        // stands for, and the model's INVALIDATED named node 0; both went nowhere.
+        AxBridge bridge = PlatformFreeBridges.make();
+        List<String> trace = traced(bridge);
+        AccessibleTree tree = aNestedWindow(1);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));
+        bridge.publish(aWindowWithTwoGroups(), false);
+        bridge.emit(AccessibleEvent.structure(1000, List.of(new AccessibleEvent.Child(1011, 1, 0)),
+                List.of(), List.of()));
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+        bridge.emit(AccessibleEvent.structure(1001, List.of(), List.of(new AccessibleEvent.Child(1002, 0, 0)),
+                List.of()));
+        bridge.frameEnded();
+        assertEquals(List.of("NSAccessibilityLayoutChangedNotification",
+                        "NSAccessibilityLayoutChangedNotification on the window"), posted(trace),
+                "a held group's own change stays on the group; the window's two are one on the window");
+
+        trace.clear();
+        bridge.publish(aNestedWindow(1), false);
+        bridge.emit(AccessibleEvent.structure(1000, List.of(), List.of(new AccessibleEvent.Child(1011, 1, 0)),
+                List.of()));
+        bridge.frameEnded();
+        assertEquals(List.of("NSAccessibilityLayoutChangedNotification on the window"), posted(trace),
+                "a change of the root's children alone is the window's layout changing");
+    }
+
+    @Test
     void aCollapsedQueueSweepsTheRegistryAndForcesAFreshPush() {
         AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(2);

@@ -261,7 +261,6 @@ final class AxObjC {
      */
     void post(long element, long notification, long userInfo) {
         if (postNotificationWithUserInfo == NULL) return;
-        JNI.invokePPPV(element, notification, userInfo, postNotification == NULL
-                ? postNotificationWithUserInfo : postNotificationWithUserInfo);
+        JNI.invokePPPV(element, notification, userInfo, postNotificationWithUserInfo);
     }
 }

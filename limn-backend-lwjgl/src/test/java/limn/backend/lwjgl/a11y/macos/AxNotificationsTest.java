@@ -21,13 +21,11 @@ class AxNotificationsTest {
 
     @Test
     void everyEventTypeHasADecision() {
+        // MACOS-NEW-13: this caught an IllegalStateException that of(type), a map lookup, never throws,
+        // so a type with no row passed as silently as a row saying "nothing". It asks for the row itself.
         Set<String> undecided = new TreeSet<>();
         for (AccessibleEvent.Type type : AccessibleEvent.Type.values()) {
-            try {
-                AxNotifications.of(type);
-            } catch (IllegalStateException e) {
-                undecided.add(type.name());
-            }
+            if (!AxNotifications.hasDecision(type)) undecided.add(type.name());
         }
         assertTrue(undecided.isEmpty(),
                 "event types with no macOS row, not even a row saying 'nothing': " + undecided);
@@ -85,12 +83,16 @@ class AxNotificationsTest {
     }
 
     @Test
-    void focusAndTheCursorArePostedAtApplicationLevelAndEverythingElseAtItsOwnNode() {
+    void focusAndTheCursorArePostedAtApplicationLevelTheWindowsEventsOnTheWindowAndEverythingElseAtItsOwnNode() {
         // Restated 2026-09-15 (decision 1; M3): a cursor move under the focused node is a focus move
         // on this platform, so ACTIVE_DESCENDANT_CHANGED joined FOCUS_CHANGED at application level. It
-        // was a selected-children change on its own node.
+        // was a selected-children change on its own node. Restated again the same day (MACOS-NEW-3):
+        // ANNOUNCEMENT and INVALIDATED name no node, so they go on the window, which an observer on the
+        // window and one on the application both received on the guest (announcement-probe.swift).
         java.util.Set<AccessibleEvent.Type> toApplication = EnumSet.of(
                 AccessibleEvent.Type.FOCUS_CHANGED, AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        java.util.Set<AccessibleEvent.Type> toWindow = EnumSet.of(
+                AccessibleEvent.Type.ANNOUNCEMENT, AccessibleEvent.Type.INVALIDATED);
         for (AccessibleEvent.Type type : toApplication) {
             AxNotifications.Posting posting = AxNotifications.of(type);
             assertEquals(AxNotifications.Subject.APPLICATION, posting.subject(),
@@ -98,9 +100,14 @@ class AxNotificationsTest {
             assertEquals("NSAccessibilityFocusedUIElementChangedNotification", posting.notificationSymbol(),
                     type + " is where the user is, and a client asks the focused element after it");
         }
+        for (AccessibleEvent.Type type : toWindow) {
+            assertEquals(AxNotifications.Subject.WINDOW, AxNotifications.of(type).subject(),
+                    type + " names no node, and the element of node 0 is held by no client");
+        }
+        assertEquals(AxNotifications.Subject.WINDOW, AxNotifications.WINDOW_LAYOUT_CHANGED.subject());
         for (AccessibleEvent.Type type : AccessibleEvent.Type.values()) {
             AxNotifications.Posting posting = AxNotifications.of(type);
-            if (posting == null || toApplication.contains(type)) continue;
+            if (posting == null || toApplication.contains(type) || toWindow.contains(type)) continue;
             assertEquals(AxNotifications.Subject.NODE, posting.subject(),
                     type + " has no reason to be posted anywhere but its own node");
         }
