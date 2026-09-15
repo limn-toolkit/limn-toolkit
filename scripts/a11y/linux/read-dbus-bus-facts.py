@@ -5,8 +5,9 @@ on this machine rather than from memory of the specification.
 Run it ON THE MACHINE, inside the user's graphical session environment (DBUS_SESSION_BUS_ADDRESS must
 name the session bus as unix:path=...). It speaks the wire protocol itself, over a plain unix socket,
 the way limn-backend-lwjgl's DBus.Conn does, so what it prints is what a client of that shape is sent.
-It never owns a name anyone else uses and never touches org.a11y.*; every connection it opens is its
-own and is closed before it exits.
+It never owns a name anyone else uses; of org.a11y.* it only calls org.a11y.Bus.GetAddress and says
+Hello on the accessibility bus (no Embed, no registration); every connection it opens is its own and
+is closed before it exits.
 
   1. the error names the bridge answers with (org.freedesktop.DBus.Error.Failed, .InvalidArgs,
      .UnknownMethod): whether the installed libdbus carries each as a NUL-terminated string, and the
@@ -17,7 +18,9 @@ own and is closed before it exits.
      arg0 clause keeps away;
   3. the longest message the bus accepts: after Hello, a fixed 16-byte header whose lengths declare a
      message of exactly 2^27 bytes, and on another connection one of 2^27 + 8, and whether the bus
-     drops the connection at once or waits for the rest.
+     drops the connection at once or waits for the rest -- on the session bus, and on the
+     accessibility bus whose address org.a11y.Bus.GetAddress gives (the bus a bridge joins), with
+     the configured limits the two daemons were started with printed beside it.
 
 usage: read-dbus-bus-facts.py
 """
@@ -161,21 +164,22 @@ def parse(msg):
             "signature": sig, "body": body}
 
 
-def socket_path():
-    address = os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")
+def socket_path(address=None):
+    if address is None:
+        address = os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")
     for part in address.split(";"):
         if part.startswith("unix:"):
             for kv in part[5:].split(","):
                 if kv.startswith("path="):
                     return kv[5:]
-    sys.exit("DBUS_SESSION_BUS_ADDRESS has no unix:path= transport: %r" % address)
+    sys.exit("the address has no unix:path= transport: %r" % address)
 
 
 class Conn:
-    def __init__(self, label):
+    def __init__(self, label, path=None):
         self.label = label
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.connect(socket_path())
+        self.sock.connect(path or socket_path())
         self.serial = 1
         self.sock.sendall(b"\0AUTH EXTERNAL " + str(os.getuid()).encode().hex().encode() + b"\r\n")
         line = self.readline()
@@ -357,8 +361,28 @@ def section_name_owner_changed():
 def section_length():
     say("")
     say("==== 3. the longest message the bus accepts")
+    say("-- the limits the daemons were configured with")
+    run("sh", "-c", "grep -n max_message_size /usr/share/dbus-1/session.conf "
+        "/usr/share/defaults/at-spi2/accessibility.conf")
+    run("sh", "-c", "command -v dbus-broker >/dev/null && dbus-broker --help | grep -E 'max-(bytes|fds)'")
+    c = Conn("address")
+    try:
+        reply = c.call("org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus", "GetAddress")
+        a11y = reply["body"][0] if reply["type"] == "METHOD_RETURN" else None
+        say("org.a11y.Bus.GetAddress -> %s" % show(reply))
+    finally:
+        c.close()
+    buses = [("the session bus", socket_path())]
+    if a11y:
+        buses.append(("the accessibility bus", socket_path(a11y)))
+    for label, path in buses:
+        say("-- %s (%s)" % (label, path))
+        length_on(path)
+
+
+def length_on(path):
     for total in (1 << 27, (1 << 27) + 8):
-        c = Conn("length")
+        c = Conn("length", path)
         # NameAcquired follows Hello unasked; read it (and anything else queued) before the probe,
         # so every byte that follows the header is the bus's answer to the header.
         for m in c.drain(0.5):

@@ -365,7 +365,7 @@ final class AtspiTree {
                     System.out.println("[atspi]   REFUSED " + which + "." + m.body[1]);
                     System.out.flush();
                 }
-                return DBus.Msg.err(m, "org.freedesktop.DBus.Error.InvalidArgs",
+                return DBus.Msg.err(m, DBus.Conn.INVALID_ARGS,
                         "no property " + which + "." + m.body[1]);
             }
             return DBus.Msg.ret(m, "v", value);

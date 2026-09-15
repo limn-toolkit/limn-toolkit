@@ -43,6 +43,14 @@ final class PlayedBus {
             }
         }
 
+        /** Plays a SASL server that refuses: the NUL, the AUTH line, then REJECTED. */
+        void refuse() throws IOException {
+            ByteBuffer nul = ByteBuffer.allocate(1);
+            readFully(nul);
+            handshake.add(readLine());
+            write("REJECTED EXTERNAL\r\n".getBytes(StandardCharsets.US_ASCII));
+        }
+
         String readLine() throws IOException {
             StringBuilder sb = new StringBuilder();
             ByteBuffer one = ByteBuffer.allocate(1);

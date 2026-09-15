@@ -82,6 +82,39 @@ class DBusConnectionTest {
     }
 
     @Test
+    void aConnectionWhoseHandshakeIsRefusedClosesItsSocketBeforeTheErrorLeaves() throws Exception {
+        // LINUX-NEW-12: a socket that connected and then failed its handshake is still a
+        // descriptor, and a join retried on a back-off would leave one behind per attempt. The bus
+        // side sees the close as the end of its stream.
+        String address = "unix:path=" + directory.resolve("bus");
+        for (boolean threadsOfItsOwn : new boolean[] {true, false}) {
+            Exception[] failed = new Exception[1];
+            Thread client = new Thread(() -> {
+                try {
+                    if (threadsOfItsOwn) {
+                        DBus.Conn.open(address);
+                    } else {
+                        DBus.Conn.openOnThisThread(address);
+                    }
+                } catch (Exception e) {
+                    failed[0] = e;
+                }
+            });
+            client.start();
+            PlayedBus.Peer peer = new PlayedBus.Peer(server.accept());
+            peer.refuse();
+            client.join(10_000);
+            String which = threadsOfItsOwn ? "open" : "openOnThisThread";
+            assertTrue(failed[0] instanceof IOException, which + " reports the refusal: " + failed[0]);
+            int read = assertTimeoutPreemptively(Duration.ofSeconds(3),
+                    () -> peer.channel.read(ByteBuffer.allocate(1)),
+                    which + ": the refused client's socket must be closed, not left for the collector");
+            assertEquals(-1, read, which + ": the bus reads the end of the stream");
+            peer.channel.close();
+        }
+    }
+
+    @Test
     void theHandshakeAuthenticatesAndBeginsAndNegotiatesNothingElse() throws Exception {
         PlayedBus.Peer peer = connect();
         assertEquals(2, peer.handshake.size(), "what the client said: " + peer.handshake);

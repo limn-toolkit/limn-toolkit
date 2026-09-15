@@ -708,7 +708,21 @@ final class DBus {
             while (bb.hasRemaining()) if (ch.read(bb) < 0) throw new IOException("EOF on D-Bus socket");
         }
 
-        /** The largest message the specification allows: 2^27 bytes. */
+        /**
+         * The largest message a bus accepts: 2^27 bytes, headers, padding and body together.
+         *
+         * <p>Read, not remembered (readings/fedora-dbus-bus-facts.txt, dbus-broker 37;
+         * readings/ubuntu-dbus-bus-facts.txt, dbus-daemon 1.14.10; 2026-09-15,
+         * {@code scripts/a11y/linux/read-dbus-bus-facts.py} §3): on the session bus and on the
+         * accessibility bus of both guests, a fixed header declaring exactly 134217728 bytes is
+         * waited on and one declaring 134217736 is disconnected at once. The limits the daemons are
+         * configured with are not it: both {@code session.conf} and at-spi2's
+         * {@code accessibility.conf} set {@code max_message_size} to 1000000000, above what either
+         * bus accepted, and dbus-broker's {@code --max-bytes} is, in its own help on the Fedora
+         * guest, the "maximum number of bytes each user may allocate in the broker" — a per-user
+         * quota, not a message size. A length past this one is not a message any bus relays, so
+         * the stream cannot be followed past it, and nothing is allocated for it.
+         */
         static final int MAX_MESSAGE = 1 << 27;
 
         /**
@@ -968,8 +982,7 @@ final class DBus {
                     }
                     boolean owed = header.type == METHOD_CALL
                             && (header.flags & NO_REPLY_EXPECTED) == 0 && header.sender != null;
-                    return new Inbound(null, owed ? Msg.err(header,
-                            "org.freedesktop.DBus.Error.InvalidArgs",
+                    return new Inbound(null, owed ? Msg.err(header, INVALID_ARGS,
                             "this application cannot read a message of signature '"
                                     + header.signature + "': " + failure) : null, failure);
                 }
@@ -1010,11 +1023,23 @@ final class DBus {
             outbound.offerReply(bytes);
         }
 
+        /*
+         * The three error names this connection answers with. Each is a NUL-terminated string in
+         * the installed libdbus on both guests, and the bus itself answers InvalidArgs to a call
+         * with arguments of the wrong type and UnknownMethod to a member it does not have
+         * (readings/fedora-dbus-bus-facts.txt, libdbus 1.16.2, dbus-broker 37;
+         * readings/ubuntu-dbus-bus-facts.txt, libdbus 1.14.10, dbus-daemon 1.14.10; 2026-09-15,
+         * scripts/a11y/linux/read-dbus-bus-facts.py section 1).
+         */
+
         /** The error a method call gets when its handler fails for a reason of its own. */
         static final String FAILED = "org.freedesktop.DBus.Error.Failed";
 
         /** The error a method call gets when its arguments are not the ones its member takes. */
         static final String INVALID_ARGS = "org.freedesktop.DBus.Error.InvalidArgs";
+
+        /** The error a method call gets when nothing here answers its member on its path. */
+        static final String UNKNOWN_METHOD = "org.freedesktop.DBus.Error.UnknownMethod";
 
         /**
          * The reply a method call is owed, whatever its handler does: the handler's own, an
@@ -1058,7 +1083,7 @@ final class DBus {
                 }
             }
             if (reply == null) {
-                reply = Msg.err(call, "org.freedesktop.DBus.Error.UnknownMethod",
+                reply = Msg.err(call, UNKNOWN_METHOD,
                         "no handler for " + call.iface + "." + call.member + " on " + call.path);
             }
             return reply;

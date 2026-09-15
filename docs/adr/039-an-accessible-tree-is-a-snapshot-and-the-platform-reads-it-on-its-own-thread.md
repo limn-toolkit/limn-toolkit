@@ -2651,6 +2651,12 @@ connection, and the application joined again for every such call. `StackOverflow
 the virtual machine itself is failing still end the reader, and the join's back-off (the correction
 above) paces the rejoin. Pinned by
 `DBusConnectionTest.aHandlerThatOverflowsTheStackIsAnsweredAndNeitherTheReaderNorTheConnectionEnds`.
+The three error names are read, not remembered: each is a string in the installed libdbus on both
+guests, and each bus answers `InvalidArgs` to a call with arguments of the wrong type and
+`UnknownMethod` to a member it lacks (`readings/fedora-dbus-bus-facts.txt`, dbus-broker 37;
+`readings/ubuntu-dbus-bus-facts.txt`, dbus-daemon 1.14.10; 2026-09-15,
+`scripts/a11y/linux/read-dbus-bus-facts.py`), which also read the 2^27-byte message limit the reader
+refuses past on the session and accessibility buses of both.
 
 ### 3.4 The bridge's own mutable state, and which thread owns each piece
 
