@@ -535,6 +535,41 @@ final class AxElementClass {
             }
         };
         addMethod(elementClass, "isAccessibilitySelectorAllowed:", gate);
+        installNamedActions();
+    }
+
+    /**
+     * The legacy action pair, for the one action with no selector: {@code AXScrollToVisible}
+     * ({@link AxActions#SCROLL_TO_VISIBLE_SYMBOL} says what the guest showed). Answering
+     * {@code accessibilityActionNames} replaces the list AppKit would derive, so it lists every action
+     * the node offers; {@code accessibilityPerformAction:} posts the verb a listed name means, where the
+     * node accepts it, and nothing otherwise. A name this AppKit exports no global for is neither listed
+     * nor performed.
+     */
+    private void installNamedActions() {
+        addId("accessibilityActionNames", get(node -> {
+            long array = objc.mutableArray();
+            for (String symbol : AxActions.actionSymbolsFor(node)) {
+                long name = objc.constantOrNull(symbol);
+                if (name != NULL) objc.addObject(array, name);
+            }
+            return array;
+        }));
+        IdSetter performNamed = new IdSetter() {
+            @Override public void invoke(long self, long cmd, long named) {
+                source.entered();
+                AccessibleNode node = source.nodeFor(self);
+                if (node == null || named == NULL) return;
+                for (String symbol : AxActions.actionSymbols()) {
+                    long name = objc.constantOrNull(symbol);
+                    if (name == NULL || (ObjC.msg(named, "isEqualToString:", name) & 0xFF) == 0) continue;
+                    Accessible.Action verb = AxActions.verbForActionSymbol(node, symbol);
+                    if (verb != null) source.perform(node.id(), verb);
+                    return;
+                }
+            }
+        };
+        addMethod(elementClass, "accessibilityPerformAction:", performNamed);
     }
 
     /**

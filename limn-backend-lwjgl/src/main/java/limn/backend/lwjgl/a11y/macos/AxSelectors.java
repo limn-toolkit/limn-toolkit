@@ -96,6 +96,8 @@ final class AxSelectors {
         kinds.put("accessibilityFocusedUIElement", Kind.ID);
         for (String action : AxActions.selectors()) kinds.put(action, Kind.BOOL);
         kinds.put("isAccessibilitySelectorAllowed:", Kind.BOOL_OF_SELECTOR);
+        kinds.put("accessibilityActionNames", Kind.ID);
+        kinds.put("accessibilityPerformAction:", Kind.VOID_OF_ID);
         for (String setter : AxSetters.BOOL_SETTERS) kinds.put(setter, Kind.VOID_OF_BOOL);
         kinds.put(AxSetters.VALUE, Kind.VOID_OF_ID);
         for (String selector : List.of("accessibilityRows", "accessibilityVisibleRows",
@@ -179,6 +181,12 @@ final class AxSelectors {
         for (String setter : AxSetters.selectors()) {
             requires.put(setter, List.of("isAccessibilitySelectorAllowed:"));
         }
+        // The legacy action pair is a unit, and goes with the gate: a list of names nothing performs,
+        // or a perform of names nothing lists, is an action a reader offers and a user finds dead.
+        requires.put("accessibilityActionNames",
+                List.of("isAccessibilitySelectorAllowed:", "accessibilityPerformAction:"));
+        requires.put("accessibilityPerformAction:",
+                List.of("isAccessibilitySelectorAllowed:", "accessibilityActionNames"));
         requires.put("accessibilityAttributeValue:", List.of("accessibilityAttributeNames"));
         requires.put("accessibilityAttributeNames", List.of("accessibilityAttributeValue:"));
         REQUIRES = Collections.unmodifiableMap(requires);

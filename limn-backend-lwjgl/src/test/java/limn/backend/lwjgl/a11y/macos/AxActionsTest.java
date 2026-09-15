@@ -93,6 +93,33 @@ class AxActionsTest {
     }
 
     @Test
+    void theListedActionsAreEveryActionTheNodeOffersAndScrollToVisibleWhereItScrolls() {
+        // Answering accessibilityActionNames replaces AppKit's derived list (read on the guest,
+        // 2026-09-15), so it has to name every action the node offers, not only the new one.
+        AccessibleNode slider = nodeWith(Accessible.Role.SLIDER, Accessible.Action.INCREMENT,
+                Accessible.Action.DECREMENT, Accessible.Action.SCROLL_INTO_VIEW);
+        assertEquals(java.util.List.of("NSAccessibilityIncrementAction", "NSAccessibilityDecrementAction",
+                        AxActions.SCROLL_TO_VISIBLE_SYMBOL), AxActions.actionSymbolsFor(slider));
+        AccessibleNode combo = nodeWith(Accessible.Role.COMBO_BOX, Accessible.Action.EXPAND);
+        assertEquals(java.util.List.of("NSAccessibilityPressAction", "NSAccessibilityConfirmAction"),
+                AxActions.actionSymbolsFor(combo), "a press that opens is still a press and a confirm");
+        assertEquals(java.util.List.of(), AxActions.actionSymbolsFor(nodeWith(Accessible.Role.LABEL)));
+    }
+
+    @Test
+    void aNamedActionPerformsTheVerbItsSelectorWouldAndScrollToVisibleScrolls() {
+        AccessibleNode row = nodeWith(Accessible.Role.LIST_ITEM, Accessible.Action.SELECT,
+                Accessible.Action.SCROLL_INTO_VIEW);
+        assertEquals(Accessible.Action.SCROLL_INTO_VIEW,
+                AxActions.verbForActionSymbol(row, AxActions.SCROLL_TO_VISIBLE_SYMBOL));
+        assertEquals(Accessible.Action.SELECT, AxActions.verbForActionSymbol(row, "NSAccessibilityPressAction"));
+        assertNull(AxActions.verbForActionSymbol(row, "NSAccessibilityIncrementAction"));
+        assertNull(AxActions.verbForActionSymbol(nodeWith(Accessible.Role.LABEL), AxActions.SCROLL_TO_VISIBLE_SYMBOL),
+                "a node that does not scroll into view is not scrolled");
+        assertNull(AxActions.verbForActionSymbol(row, "NSAccessibilityPickAction"), "a name nobody lists");
+    }
+
+    @Test
     void aConfirmIsTheSameActivationAndNotASecondVerb() {
         AccessibleNode checkBox = nodeWith(Accessible.Role.CHECK_BOX, Accessible.Action.TOGGLE);
         assertEquals(AxActions.verbFor(checkBox, "accessibilityPerformPress"),

@@ -248,10 +248,12 @@ class AxSelectorsTest {
         List<String> actions = new java.util.ArrayList<>();
         AxActions.selectors().forEach(actions::add);
         List<String> gated = new java.util.ArrayList<>(actions);
+        gated.addAll(List.of("accessibilityActionNames", "accessibilityPerformAction:"));
         gated.addAll(AxSetters.selectors());
         assertEquals(gated, resolution.withheld(),
-                "every action goes with the gate, or a button advertises increment; and every setter, "
-                        + "or every element reports AXFocused and AXValue settable (restated 2026-09-15)");
+                "every action goes with the gate, or a button advertises increment; the named-action "
+                        + "pair likewise; and every setter, or every element reports AXFocused and AXValue "
+                        + "settable (restated 2026-09-15)");
         for (String action : gated) assertNull(resolution.encodingOf(action), action);
         assertEquals("B16@0:8", resolution.encodingOf("isAccessibilityFocused"),
                 "and nothing that is not an action goes with it");
@@ -269,6 +271,18 @@ class AxSelectorsTest {
         assertTrue(resolution.withheld().isEmpty(), "a gate with fewer actions still gates them");
         assertEquals("B16@0:8", resolution.encodingOf("isAccessibilitySelectorAllowed:"));
         assertEquals("B16@0:8", resolution.encodingOf("accessibilityPerformPress"));
+    }
+
+    @Test
+    void theNamedActionPairIsInstalledTogetherOrNotAtAll() {
+        for (String absent : List.of("accessibilityActionNames", "accessibilityPerformAction:")) {
+            AxSelectors.Resolution resolution = AxSelectors.resolve(selector ->
+                    selector.equals(absent) ? null : "@16@0:8");
+            assertNull(resolution.encodingOf("accessibilityActionNames"), absent);
+            assertNull(resolution.encodingOf("accessibilityPerformAction:"), absent);
+            assertEquals("@16@0:8", resolution.encodingOf("accessibilityPerformPress"),
+                    "the actions with selectors of their own do not go with it");
+        }
     }
 
     @Test

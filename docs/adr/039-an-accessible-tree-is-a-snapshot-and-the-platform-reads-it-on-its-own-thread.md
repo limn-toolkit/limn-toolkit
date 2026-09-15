@@ -2189,6 +2189,14 @@ that verb, never waited for. **Settable is the gate's answer for the setter** (r
 row that can open as the native outline's is, and every other `setAccessibility…` selector —
 `NSAccessibilityElement`'s stored setters, which a client read as settable on every element, `AXRole`
 included — is refused on every node. The setters are installed only together with the gate.
+*`AXScrollToVisible`* (new in macOS 26, and with no selector anywhere): read on the guest 2026-09-15
+(`scripts/a11y/macos/scroll-to-visible-probe.swift`), an `NSAccessibilityElement` subclass answering
+the legacy `accessibilityActionNames` has its perform of that name delivered to
+`accessibilityPerformAction:`, while a custom action of that name is never run and a guessed
+`accessibilityPerformScrollToVisible` never entered; and answering the names replaces AppKit's derived
+list. So the bridge answers `accessibilityActionNames` with every action the node offers plus
+scroll-to-visible where it accepts `SCROLL_INTO_VIEW`, and `accessibilityPerformAction:` posts the verb
+a listed name means; the pair is installed together, and only with the gate.
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a

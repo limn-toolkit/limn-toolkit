@@ -208,6 +208,19 @@ final class AxObjC {
     }
 
     /**
+     * {@link #constant(String)} for a global a running AppKit may predate: the scroll-to-visible action
+     * name is macOS 26's.
+     *
+     * @param symbol the global's name
+     * @return the string object, or zero when this AppKit exports no such global
+     */
+    long constantOrNull(String symbol) {
+        Long cached = constants.get(symbol);
+        if (cached != null) return cached;
+        return appKit.getFunctionAddress(symbol) == NULL ? NULL : constant(symbol);
+    }
+
+    /**
      * The type encoding AppKit itself declares for a selector, searched across the classes that
      * might declare it.
      *

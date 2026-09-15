@@ -205,6 +205,8 @@ let installedByTheBridge: [(String, String)] = [
     ("setAccessibilityFocused:", "element"), ("setAccessibilitySelected:", "element"),
     ("setAccessibilityDisclosed:", "element"), ("setAccessibilityExpanded:", "element"),
     ("setAccessibilityValue:", "element"),
+    // The legacy action pair, for AXScrollToVisible (MACOS-NEW-11).
+    ("accessibilityActionNames", "element"), ("accessibilityPerformAction:", "element"),
 ]
 
 // Fragments searched for across the class chains and the protocols below, so a name is read rather

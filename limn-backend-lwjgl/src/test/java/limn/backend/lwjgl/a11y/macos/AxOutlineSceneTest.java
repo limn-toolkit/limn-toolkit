@@ -230,6 +230,32 @@ class AxOutlineSceneTest {
     }
 
     @Test
+    void aReadersScrollToVisibleOnAPartlyShownRowScrollsTheListToIt() {
+        ListView list = new ListView(new ListView.Adapter() {
+            @Override public int rowCount() {
+                return 50;
+            }
+
+            @Override public Widget rowAt(int index) {
+                return new SizedBox(200, 24, new Label("Row " + index));
+            }
+        });
+        bind(list);
+        AxGrid grid = new AxGrid(bridge);
+        long[] rows = grid.rows(only(Accessible.Role.LIST));
+        long last = rows[rows.length - 1];
+        assertTrue(AxActions.actionSymbolsFor(bridge.nodeFor(last)).contains(AxActions.SCROLL_TO_VISIBLE_SYMBOL),
+                "a list row lists AXScrollToVisible");
+        assertEquals(0, only(Accessible.Role.LIST).scroll().verticalPercent(), 1e-9);
+        Accessible.Action verb = AxActions.verbForActionSymbol(bridge.nodeFor(last),
+                AxActions.SCROLL_TO_VISIBLE_SYMBOL);
+        assertEquals(Accessible.Action.SCROLL_INTO_VIEW, verb);
+        assertTrue(perform(last, verb));
+        assertTrue(only(Accessible.Role.LIST).scroll().verticalPercent() > 0,
+                "the row the reader asked for was scrolled into view: " + only(Accessible.Role.LIST).scroll());
+    }
+
+    @Test
     void aReaderWritesAFieldsTextAndASlidersValueThroughAXValue() {
         limn.components.TextField field = new limn.components.TextField();
         limn.components.Slider slider = new limn.components.Slider(0, 100);

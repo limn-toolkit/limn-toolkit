@@ -115,7 +115,9 @@ class AxConstantsTest {
             // MACOS-NEW-11, the same reading: -setAccessibilityDisclosed: v20@0:8B16,
             // -setAccessibilityExpanded: v20@0:8B16, -setAccessibilityValue: v24@0:8@16, each from
             // NSAccessibilityElement.
-            "setAccessibilityDisclosed:", "setAccessibilityExpanded:", "setAccessibilityValue:");
+            "setAccessibilityDisclosed:", "setAccessibilityExpanded:", "setAccessibilityValue:",
+            // The legacy action perform (the scroll-to-visible route): v24@0:8@16, from NSView.
+            "accessibilityPerformAction:");
 
     /**
      * The encoding the 2026-09-13 guest reading gave each owed selector, copied from
@@ -131,7 +133,8 @@ class AxConstantsTest {
             "isAccessibilityExpanded", "B16@0:8",
             "setAccessibilityDisclosed:", "v20@0:8B16",
             "setAccessibilityExpanded:", "v20@0:8B16",
-            "setAccessibilityValue:", "v24@0:8@16");
+            "setAccessibilityValue:", "v24@0:8@16",
+            "accessibilityPerformAction:", "v24@0:8@16");
 
     @Test
     void everyOwedSelectorIsReadAndItsReadEncodingIsTheShapeOfItsClosure() {
@@ -230,6 +233,7 @@ class AxConstantsTest {
     private static Set<String> allSymbols() {
         Set<String> symbols = new LinkedHashSet<>(AxRoles.symbols());
         symbols.addAll(AxNotifications.symbols());
+        symbols.addAll(AxActions.actionSymbols());
         return symbols;
     }
 
@@ -243,10 +247,17 @@ class AxConstantsTest {
      * into source, so what is owed is only the dump's line; the one regeneration at the end of the
      * macOS lane empties this map, and the companion test fails until it does.
      */
-    private static final Map<String, String> SYMBOLS_OWED_TO_THE_REGENERATION = Map.of(
-            "NSAccessibilitySelectedCellsChangedNotification", "AXSelectedCellsChanged",
-            "NSAccessibilityRowExpandedNotification", "AXRowExpanded",
-            "NSAccessibilityRowCollapsedNotification", "AXRowCollapsed");
+    private static final Map<String, String> SYMBOLS_OWED_TO_THE_REGENERATION = Map.ofEntries(
+            Map.entry("NSAccessibilitySelectedCellsChangedNotification", "AXSelectedCellsChanged"),
+            Map.entry("NSAccessibilityRowExpandedNotification", "AXRowExpanded"),
+            Map.entry("NSAccessibilityRowCollapsedNotification", "AXRowCollapsed"),
+            Map.entry("NSAccessibilityPressAction", "AXPress"),
+            Map.entry("NSAccessibilityConfirmAction", "AXConfirm"),
+            Map.entry("NSAccessibilityIncrementAction", "AXIncrement"),
+            Map.entry("NSAccessibilityDecrementAction", "AXDecrement"),
+            Map.entry("NSAccessibilityShowMenuAction", "AXShowMenu"),
+            Map.entry("NSAccessibilityCancelAction", "AXCancel"),
+            Map.entry("NSAccessibilityScrollToVisibleAction", "AXScrollToVisible"));
 
     @Test
     void everySymbolTheTablesNameIsExportedByAppKit() {
