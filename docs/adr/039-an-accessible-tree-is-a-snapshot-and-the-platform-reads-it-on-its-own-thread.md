@@ -1535,6 +1535,41 @@ superseded: pinned by
 `AccessibleActionTest.aVerbInsideAnOverlayIsReadOnTheOverlaysOwnChainAsTheKeyboardReadsIt` and
 `DialogPanelAccessibilityTest.overADisabledOwnerTheTreeTheKeyboardThePointerAndAReaderAgree`.
 
+**Amendment, 2026-09-15 (decision 66): the showing test becomes a visibility test, and what is only
+clipped is revealed and performed.** "That `isShowing()` is true, not `isVisible()`" stood from the
+first draft, with the two free verbs exempted from it. It is wrong in both halves.
+
+It is wrong about a control **scrolled out of a viewport**. That node is visible through its
+ancestry — nothing hid it, a pane clipped it — it publishes the verbs it offers, `Host#perform`
+answers yes from the snapshot, and this gate then dropped the verb in silence. A reader was shown
+"Chapter 20" below the fold, the media bar's Volume slider, a colour picker's rails in a scrolled
+panel, and could work none of them; the two verbs that were exempted are exactly the two that make
+the case obvious, because `SCROLL_INTO_VIEW` is asked for precisely when the node is not showing.
+So every verb takes the free verbs' path: the gate reads **visibility through the ancestry**, and
+where the node is visible and not showing the scene **reveals it and then performs** — `revealInView()`
+on the owner, or on the container for a verb it claimed, which is whose `isShowing()` the gate used
+to refuse on. A container that is on the glass and holds a child outside its own viewport reveals
+nothing, so decision 22's kept cursor row is still expanded and selected where it stands.
+
+It is wrong about the other half too, by leaving it in the gate alone. A control **nobody can see** —
+an unselected tab's contents, a collapsed panel, anything under a widget whose own visible flag is
+false — was published with its verbs and its setters and refused on arrival, which is the same
+broken promise. `VISIBLE` now joins `ENABLED` as the operable bit: the walk takes every verb off such
+a node through the same `Accessibility#inoperableAt` as the disabled and input-layer axes (§1.5's
+amendment of this date), and `AccessibleNode#accepts` implies a setter only on a node that is
+`ENABLED` **and** `VISIBLE`. The snapshot and this gate are then one reading of one fact, which is
+what semantics 5 asks for. The reveal itself is gated on `accepts`, because a reveal is a visible
+effect and a verb the node never published must move nothing at all.
+
+Pinned by `ScrollViewAccessibilityTest.aButtonScrolledOutOfTheViewportPublishesItsPressAndIsRevealedAndPressed`
+and `aControlNobodyCanSeePublishesNoVerbAndNoSetterAndPerformsNothing`,
+`TabbedPaneTabHeaderAccessibilityTest.anOverflowingStripRevealsAndSelectsTheTabItHasScrolledAway`,
+`AccessibleActionTest.aDelegatedVerbOnAChildOfAContainerClippedAwayIsRevealedAndPerformed` and its
+invisible-container twin, and ratcheted over the whole gallery by
+`VerbPolicyRatchetTest.everyPublishedVerbMovesSomething` — the parameterless half's second direction,
+which the setter pass has had since fix round 2e and which is where a published verb this gate
+refuses in silence shows up. `VerbPolicyRatchetTest.SETTER_ALLOWLIST` is empty as of this amendment.
+
 Parameterless verbs live in `ActionFacet`: `PRESS`, `TOGGLE`, `EXPAND`, `COLLAPSE`, `SELECT`,
 `DESELECT`, `SHOW_MENU`, `INCREMENT`, `DECREMENT`, `SCROLL_INTO_VIEW`, `FOCUS`, `CANCEL`. Each
 carries a localized name, because `Action.GetActions` returns `a(sss)` — name, description, key
@@ -2057,6 +2092,20 @@ from before an overlay opened, and sent it after the overlay closed but before t
 dispatched to the child's own hook instead of the container's. The walk now records the routing
 first and withdraws publication after; while the overlay is up §1.9's layer gate refuses the verb.
 Pinned by `AccessibleActionTest.aDelegatedVerbSentAfterAnOverlayClosedStillReachesTheContainer`.
+
+**Amended 2026-09-15 (decision 66): the third axis, and the place all three meet.** This section's
+argument — a control the scene will not operate must say so in the tree, or the reader offers a whole
+interface that does nothing — is not about modals. It is about every reason the scene refuses, and
+there are three: the widget or an ancestor is disabled, the node lies outside the layer that owns
+input, and **nobody can see it**. The third was still only enforced: a slider in a tab nobody
+selected, a hidden media bar's Volume, a button under a widget whose visible flag is false, each
+published `ENABLED` with its verbs and its writable value, and each refused on arrival with nothing
+said about why — the defect of the first paragraph above, one axis over. The walk now withdraws
+verbs from a node published without `VISIBLE` through the same `Accessibility#inoperableAt` call, and
+`AccessibleNode#accepts` reads `ENABLED` and `VISIBLE` together (§1.9's amendment of this date).
+`VISIBLE` and not `SHOWING`: a node merely clipped out of a scroll viewport keeps everything and is
+revealed by the gate before it is performed. Ratcheted over the gallery by
+`VerbPolicyRatchetTest.everyPublishedVerbMovesSomething`.
 
 ---
 
