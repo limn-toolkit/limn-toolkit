@@ -594,6 +594,28 @@ class AtspiApplicationTest {
     }
 
     @Test
+    void anAnnouncementIsSentFromTheFrameOfTheWindowWhoseSceneSaidIt() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        AtspiBridge main = app.window();
+        AtspiBridge popup = app.window();
+        Published first = aWindow("Main", 0);
+        Published second = aWindow("Calendar", 0);
+        main.publish(first.tree(), false);
+        popup.publish(second.tree(), false);
+        bus.signals.clear();
+
+        popup.emit(limn.accessibility.AccessibleEvent.announcement("Saved",
+                Accessible.Politeness.POLITE));
+
+        assertEquals(1, bus.signals.size());
+        assertEquals(path(second.window()), bus.signals.get(0).path,
+                "the toolkit names no node; the window that spoke is a frame a reader can place, "
+                        + "the application object is not");
+        assertEquals("Announcement", bus.signals.get(0).member);
+    }
+
+    @Test
     void aWindowLevelBoxChangeIsSentFromTheFrameWithTheFramesNewExtents() {
         FakeBus bus = new FakeBus();
         AtspiApplication app = anApplication(bus);

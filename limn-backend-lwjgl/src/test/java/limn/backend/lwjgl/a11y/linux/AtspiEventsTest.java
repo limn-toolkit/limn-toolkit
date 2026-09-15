@@ -102,10 +102,29 @@ class AtspiEventsTest {
         assertEquals(List.of(), signals(AccessibleEvent.state(3, Accessible.State.PASSWORD, true)),
                 "being a password is the role here, and the nearest-looking bit means the entry "
                         + "was rejected: an approximate event is worse than none");
-        assertEquals(List.of(), signals(AccessibleEvent.announcement(
-                        "saved", Accessible.Politeness.POLITE)),
-                "an announcement is a message to the user rather than a fact about a node, and "
-                        + "this platform carries it another way");
+    }
+
+    /**
+     * An announcement goes out as the installed interface declares it (LINUX-NEW-3):
+     * {@code Announcement(s, i politeness, i, v, a{sv})} with the message as a string, which is the
+     * only {@code any_data} Orca 50.2's {@code _on_announcement} presents, and the politeness as
+     * {@code Atspi.Live} (POLITE 1, ASSERTIVE 2, read off the Fedora guest's typelib 2026-09-13).
+     * It was mapped to nothing.
+     */
+    @Test
+    void anAnnouncementGoesOutAsAnObjectAnnouncementWithItsTextAndItsLiveValue() {
+        AtspiEvents.Signal polite = one(AccessibleEvent.announcement("Saved",
+                Accessible.Politeness.POLITE));
+        assertEquals(AtspiEvents.I_EVENT_OBJECT, polite.iface());
+        assertEquals("Announcement", polite.member());
+        assertEquals("", polite.detail());
+        assertEquals(1, polite.detail1(), "Atspi.Live.POLITE");
+        assertEquals(0, polite.detail2());
+        assertEquals("s", polite.value().sig, "a string, the one any_data Orca presents");
+        assertEquals("Saved", polite.value().value);
+
+        assertEquals(2, one(AccessibleEvent.announcement("Deleted",
+                Accessible.Politeness.ASSERTIVE)).detail1(), "Atspi.Live.ASSERTIVE");
     }
 
     @Test

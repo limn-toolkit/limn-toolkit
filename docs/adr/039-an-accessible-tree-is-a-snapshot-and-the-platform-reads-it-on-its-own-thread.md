@@ -2416,6 +2416,13 @@ name. Node zero's events (`BOUNDS_CHANGED` for a wide scroll) are sent from the 
 the application object, and `BoundsChanged` carries the node's screen extents as `(iiii)`, the
 rectangle libatspi makes an `AtspiRect` of, instead of an `i` that arrived as nothing.
 
+**`ANNOUNCEMENT` (LINUX-NEW-3).** `Announcement` as the installed interface declares it,
+`(s, i politeness, i, v, a{sv})` (readings/fedora-dbus-Event.Object.xml): empty detail, `detail1` =
+`Atspi.Live` (`POLITE` 1, `ASSERTIVE` 2, read 2026-09-13 off the Fedora typelib), `detail2` 0, and
+the text as a string value, which is the only `any_data` Orca 50.2's `_on_announcement` presents —
+GTK 4.22.4's `gtk_at_spi_context_announce` fills it the same way. Sent from the frame of the window
+whose scene said it. It was mapped to nothing.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

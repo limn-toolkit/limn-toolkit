@@ -68,6 +68,16 @@ final class Atspi {
     static final int RELATION_POPUP_FOR      = 15;   // ATSPI_RELATION_POPUP_FOR
     static final int RELATION_DESCRIBED_BY   = 18;   // ATSPI_RELATION_DESCRIBED_BY
 
+    // ---- AtspiLive ------------------------------------------------------------------------------
+    // Read 2026-09-13 off the Fedora KDE 44 guest's typelib (libatspi 2.60.6, Atspi.Live, every
+    // enumerator) by scripts/a11y/linux/dump-atspi-constants.py --all
+    // (readings/fedora-atspi-constants-all.txt). An Announcement's detail1 is one of these: GTK
+    // 4.22.4 sends POLITE for a low or medium priority and ASSERTIVE for a high one, and Orca 50.2's
+    // _get_priority compares detail1 with them (readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-
+    // event-shapes.txt, readings/fedora-orca-event-consumers.txt).
+    static final int LIVE_POLITE    = 1;   // Atspi.Live.POLITE
+    static final int LIVE_ASSERTIVE = 2;   // Atspi.Live.ASSERTIVE
+
     // ---- AtspiCoordType / AtspiComponentLayer (typelib) -------------------------------------
     static final int COORD_SCREEN = 0, COORD_WINDOW = 1;
     static final int LAYER_WIDGET = 3, LAYER_WINDOW = 7;

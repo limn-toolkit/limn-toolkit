@@ -147,8 +147,8 @@ final class AtspiEvents {
             case WINDOW_CLOSED -> window(context, path, "Destroy", nameOf(event, context));
             case WINDOW_ACTIVATED -> window(context, path, "Activate", nameOf(event, context));
             case WINDOW_DEACTIVATED -> window(context, path, "Deactivate", nameOf(event, context));
-            // Everything else: an announcement is a message rather than a node's fact, and the
-            // remaining kinds are the toolkit's own bookkeeping. Nothing approximate is sent.
+            case ANNOUNCEMENT -> announcement(event, context, path);
+            // Everything else is the toolkit's own bookkeeping. Nothing approximate is sent.
             default -> null;
         };
         return one == null ? List.of() : List.of(one);
@@ -198,6 +198,25 @@ final class AtspiEvents {
                 : AtspiTree.extentsOf(tree, node, Atspi.COORD_SCREEN);
         return event(context, path, I_EVENT_OBJECT, "BoundsChanged", "", 0, 0,
                 new DBus.Variant("(iiii)", (Object) new Object[] {box[0], box[1], box[2], box[3]}));
+    }
+
+    /**
+     * The application said something: {@code Announcement} with the text as a string value and the
+     * politeness as {@code Atspi.Live} in {@code detail1} (LINUX-NEW-3).
+     *
+     * <p>The shape is the installed interface's, {@code Announcement(s, i politeness, i, v, a{sv})}
+     * (readings/fedora-dbus-Event.Object.xml), filled as GTK 4.22.4's
+     * {@code gtk_at_spi_context_announce} fills it: an empty detail, the live value, 0, and the
+     * message string. The string matters most: Orca 50.2's {@code _on_announcement} presents an
+     * announcement only when {@code any_data} is a {@code str}. The toolkit raises it on no node;
+     * it is sent from the frame of the window whose scene said it, which is where GTK's comes from
+     * too (the widget's own context). Until 2026-09-15 this platform sent nothing at all.
+     */
+    private static Signal announcement(AccessibleEvent event, Context context, String path) {
+        int live = event.politeness() == Accessible.Politeness.ASSERTIVE
+                ? Atspi.LIVE_ASSERTIVE : Atspi.LIVE_POLITE;
+        return event(context, path, I_EVENT_OBJECT, "Announcement", "", live, 0,
+                new DBus.Variant("s", string(event.newValue())));
     }
 
     /**
