@@ -594,6 +594,12 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
                     "a fading option offers no verb, because the hook performs none of them"
                             + describe(tree()));
         }
+        List<AccessibleNode> layer = nodesWith(Accessible.State.MODAL);
+        assertEquals(1, layer.size(), "the fading layer still owns input" + describe(tree()));
+        assertFalse(layer.get(0).actions() != null
+                        && layer.get(0).actions().has(Accessible.Action.CANCEL),
+                "and offers no CANCEL, which close()'s guard would drop (2026-09-15)"
+                        + describe(tree()));
         for (Accessible.Action verb : List.of(Accessible.Action.SELECT, Accessible.Action.PRESS,
                 Accessible.Action.FOCUS)) {
             perform(fading.get(3).id(), verb, Accessible.Argument.NONE);

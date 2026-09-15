@@ -369,6 +369,13 @@ public class ComboBox extends Widget {
             popupBlurHandle = null;
         }
         if (popupWindow != null) {
+            // The options stop offering their verbs now (optionsOperable() reads `open`), and a
+            // window's fade moves only its opacity and damages nothing in the panel, so the walk
+            // that withdraws them is asked for: without it the popup's tree kept publishing
+            // SELECT, PRESS and FOCUS through the whole fade (2026-09-15, semantics 5).
+            if (popupPanel != null) {
+                popupPanel.invalidateAccessible();
+            }
             // Relinquish the fields now (a fresh open() can build a new popup
             // while this one fades out), then fade the old window to transparent
             // and destroy it once it has fully vanished.
@@ -1223,8 +1230,13 @@ public class ComboBox extends Widget {
             // layer is the click-outside dismissal that CANCEL already names, and offering both
             // would be two verbs for one behaviour. FOCUS and SCROLL_INTO_VIEW arrive free
             // because the widget is focusable, and MODAL arrives free from the walk, so neither
-            // is written here.
-            a.action(Accessible.Action.CANCEL);
+            // is written here. Only while the list is open: through the fade-out after close()
+            // the layer is still the top overlay and was still published with CANCEL, which
+            // close()'s own guard then dropped while the hook answered done (2026-09-15,
+            // semantics 5); the hook below reads the same field.
+            if (open) {
+                a.action(Accessible.Action.CANCEL);
+            }
             // No bounds call. The node's box is this overlay's own, which is the whole scene --
             // the layer that genuinely captures every press, the same shape as a dialog's scrim
             // -- so a platform hit test outside the list resolves to this node, and that is
@@ -1234,8 +1246,8 @@ public class ComboBox extends Widget {
         @Override
         protected boolean onAccessibilityAction(Accessible.Action action,
                                                 Accessible.Argument arg) {
-            if (action != Accessible.Action.CANCEL) {
-                return false;
+            if (action != Accessible.Action.CANCEL || !open) {
+                return false; // not while the list fades out, where nothing publishes CANCEL
             }
             // The path Esc takes, with its own guards: close() checks the thread and returns on
             // a popup that is already closing, and the posted action has already re-checked
