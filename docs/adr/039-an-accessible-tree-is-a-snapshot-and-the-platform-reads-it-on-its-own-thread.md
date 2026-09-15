@@ -1335,6 +1335,20 @@ buys the frame only when a bridge is attached and listening; with nothing listen
 still enqueued and still bounded, so an application's diagnostics do not depend on a reader being
 present, but no frame is spent on speech nobody will hear.
 
+**Amendment, 2026-09-15 (phase-3 fix round, brief item 4): there is something to press.** Every
+other fact in this record is reachable by walking a tree, and an announcement is not: it is the
+application speaking, so a live run has to make it speak. Nothing in the toolkit or the demo called
+`announce`, so the three bridges' announcement paths — a UIA notification, an AT-SPI
+`Announcement`, an `NSAccessibility` announcement posted on the window (§2.1–2.3) — had no scene to
+be heard on, and phase 5's "VoiceOver hearing an announcement posted on the window" had nothing to
+press. The accessibility gallery gains an `Announcements` entry: two buttons whose handlers call
+`announce`, one `POLITE` and one `ASSERTIVE`, with the reader script `announcement` pressing both.
+Both levels, because the three platforms map them to different values and a run that heard one would
+leave the other unread. `ReaderStepsTest` holds it twice over: the script's two presses change
+nothing in any tree, so the "every step changes something or announces something" rule passes on the
+announcement alone and a scene that stopped announcing fails as a silent step, and
+`theAnnouncementEntrySpeaksBothPolitenessLevels` names the two strings and the two levels.
+
 ### 1.6 Transparent and ignored are different, and both are needed
 
 **Transparent** means no node and children hoisted into the parent in place. **Ignored** means no

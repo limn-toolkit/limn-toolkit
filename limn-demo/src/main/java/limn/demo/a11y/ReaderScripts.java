@@ -128,6 +128,25 @@ public final class ReaderScripts {
                     .expecting(row("Andes").with(SELECTED), row("Urals").with(SELECTED))));
 
     /**
+     * "Announcements": the application speaking. Nothing else in the gallery calls
+     * {@code Scene#announce}, so this is the only script that can put a bridge's announcement path
+     * in front of a reader (brief item 4 of the phase-3 fix round, 2026-09-15). Both politeness
+     * levels are pressed, because the three platforms map them to different values.
+     *
+     * <p>Every step's fact is only where the cursor stands, and that is the point: a press that
+     * announces changes nothing in any tree, so {@code ReaderStepsTest}'s "changed something"
+     * rule is satisfied by the announcement alone, and a scene that stopped announcing would fail
+     * it as a silent step.
+     */
+    public static final ReaderScript ANNOUNCEMENT = new ReaderScript("announcement", List.of(
+            Step.press(Keys.SPACE, "presses Save, which announces \"Saved\" politely")
+                    .expecting(cursor(BUTTON, "Save")),
+            Step.press(Keys.TAB, "moves to Stop")
+                    .expecting(cursor(BUTTON, "Stop")),
+            Step.press(Keys.SPACE, "presses Stop, which announces assertively and cuts in")
+                    .expecting(cursor(BUTTON, "Stop"))));
+
+    /**
      * "Calendar grid": September 2026 with the 15th selected, days before the 2nd refused, Sundays
      * refused and the 21st marked (decision 30: the cursor stops on a refused day and says so).
      * The climb to the months lands the cursor on the month on show, so step 12 names it like
