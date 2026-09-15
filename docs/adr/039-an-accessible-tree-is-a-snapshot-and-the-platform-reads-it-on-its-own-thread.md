@@ -1934,6 +1934,25 @@ by `NativePopupRelationTest` in the demo, where a `HeadlessBackend` opens the po
 second window: the list names the combo, the combo names the list, the calendar's card names the
 picker and the picker names the card; and a closed popup window leaves the picker with no mirror.
 
+**Amendment, 2026-09-15 (CRIT-2, the macOS half): the bridge answers a foreign target, and what it
+answers for an elided root is the window.** Phase 3 built the model half above and the Linux half,
+and left `AxBridge#linkedElementsOf` skipping any target its own tree does not hold — so a date
+field's `CONTROLLER_FOR` on the calendar window it had opened came back as an empty
+`AXLinkedUIElements`, and the popup was nameable from nowhere. It now routes the target the way
+`focusedElement()` routes a cursor: through the process's set of open bridges, to the one whose
+published tree holds it, minting there, because an element belongs to the window whose tree it
+stands for. Where the target is that window's **root**, which §2.2 elides, the answer is the object
+AppKit vends for that window — the content view's `-window`, whose `@16@0:8` was read with the other
+messages on the macOS 26.6.2 guest — which is the paragraph above applied rather than bent. A target
+no open window holds is still dropped. Pinned by
+`AxBridgeTest.aRelationTargetAnotherWindowHoldsIsAnsweredThroughThatWindowsBridge`.
+
+**What this does not buy on macOS, and why.** The mirror direction stays unreachable here: the
+popup's root carries `POPUP_FOR` on the opener, and that root is exactly the node AppKit's own window
+object stands for, so there is no element of ours for a client to ask it on. A reader walks the link
+from the opener outwards only. Nothing is lost that this platform ever had, and §13.27's probe is
+still what would decide whether AppKit can be made to carry the other direction.
+
 ### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
 
 ```

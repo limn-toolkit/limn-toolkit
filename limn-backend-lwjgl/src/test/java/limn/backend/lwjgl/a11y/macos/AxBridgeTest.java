@@ -16,6 +16,7 @@ import java.util.Locale;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -239,6 +240,82 @@ class AxBridgeTest {
 
         assertEquals(0, bridge.linkedElementsOf(tree.find(1004)).length,
                 "a node that declares no relation links to nothing");
+    }
+
+    /**
+     * A native popup's window, holding a grid with one day; its root is the node an opener's
+     * {@code CONTROLLER_FOR} names (§1.11), and the grid is an ordinary node of that tree.
+     */
+    private static AccessibleTree aPopupWindow() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(200, 200, Locale.ENGLISH);
+        a.begin(2000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(2001, 0, Locale.ENGLISH, 0, 0, 200, 200);
+        a.role(Accessible.Role.GROUP);
+        a.name(I18nString.literal("September 2026"), Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    /**
+     * The window that opened it: a date field carrying the mirror {@code CONTROLLER_FOR} on the
+     * popup's root and a {@code DESCRIBED_BY} on a node inside that other window.
+     */
+    private static AccessibleTree aWindowOpening(long popupRoot, long insidePopup) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 10, 10, 200, 30);
+        a.role(Accessible.Role.TEXT_FIELD);
+        a.name(I18nString.literal("Date"), Accessible.NameFrom.LABEL);
+        a.relation(Accessible.Relation.CONTROLLER_FOR, popupRoot);
+        a.relation(Accessible.Relation.DESCRIBED_BY, insidePopup);
+        a.inherited(true, true, true, true, true);
+        a.end();
+        a.end();
+        a.resolveRelations((kind, target) -> (Long) target);
+        return a.publish(1001, 0, 0, 1f, true);
+    }
+
+    /**
+     * CRIT-2, the macOS half of §1.11's cross-window relations: a target another window holds is
+     * answered through that window's bridge — its own element for an ordinary node, and the object
+     * AppKit vends for that window where the target is the root this platform elides. Before this
+     * the opener's {@code AXLinkedUIElements} was empty and the popup it had opened was nameable
+     * from nowhere.
+     */
+    @Test
+    void aRelationTargetAnotherWindowHoldsIsAnsweredThroughThatWindowsBridge() {
+        AxBridge host = PlatformFreeBridges.make();
+        AxBridge popup = PlatformFreeBridges.make();
+        AccessibleTree popupTree = aPopupWindow();
+        AccessibleTree hostTree = aWindowOpening(2000, 2001);
+        popup.publish(popupTree, false);
+        host.publish(hostTree, false);
+        int hostElements = host.elementCount();
+
+        long[] linked = host.linkedElementsOf(hostTree.find(1001));
+        assertEquals(2, linked.length, "both targets are named, and both live in the other window");
+        assertEquals(hostElements, host.elementCount(),
+                "neither is minted here: an element belongs to the window whose tree it stands for");
+        assertEquals(popup.windowElement(), linked[0],
+                "the popup's root is elided, so what names it is the window AppKit vends for it");
+        assertNotEquals(host.windowElement(), linked[0],
+                "and that is the popup's window, not the window the relation was asked in");
+        assertEquals(2001L, popup.nodeFor(linked[1]).id(),
+                "an ordinary node of the other tree is that bridge's own element, minted there");
+
+        // A target in no open window at all stays dropped, as a target that left the tree does.
+        AccessibleTree orphaned = aWindowOpening(9000, 9001);
+        host.publish(orphaned, false);
+        assertEquals(0, host.linkedElementsOf(orphaned.find(1001)).length,
+                "a relation naming a node no open window holds names nothing");
     }
 
     @Test

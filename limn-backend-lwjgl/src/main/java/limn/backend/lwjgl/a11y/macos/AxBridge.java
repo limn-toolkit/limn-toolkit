@@ -601,21 +601,58 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         return elements.elementFor(tree().node(parent).id());
     }
 
+    /**
+     * {@code accessibilityLinkedUIElements}: what every relation of this node names.
+     *
+     * <p><b>A target in another window is answered through that window's bridge</b> (CRIT-2;
+     * §1.11's 2026-09-14 amendment, whose per-platform half is this). Identifiers are process-wide
+     * (§1.3), so a native popup's {@code POPUP_FOR} and the opener's mirror {@code CONTROLLER_FOR}
+     * name nodes across windows; an element belongs to the window whose tree it stands for, exactly
+     * as a cursor's does in {@link #focusedElement()}, so it is minted in that bridge's registry and
+     * not in ours. Until this it was skipped, and the opener named nothing at all.
+     */
     @Override
     public long[] linkedElementsOf(AccessibleNode node) {
         AccessibleTree tree = tree();
         List<Long> linked = new ArrayList<>();
         for (var relation : node.relations()) {
-            int index = tree.indexOf(relation.target());
-            // The window root is not vended (§2.2), so a relation resolving to it has no element
+            long target = relation.target();
+            int index = tree.indexOf(target);
+            // Our own window root is not vended (§2.2), so a relation resolving to it has no element
             // of ours to name; §1.11 drops that case before it reaches a bridge, and this is the
-            // same rule applied to a target that left the tree between publish and ask.
-            if (index <= 0) continue;
-            linked.add(elements.elementFor(relation.target()));
+            // same rule applied here.
+            if (index == 0) continue;
+            if (index > 0) {
+                linked.add(elements.elementFor(target));
+                continue;
+            }
+            // Not in this tree: another open window's, or a target that left between publish and ask.
+            AxBridge holder = openBridgeHolding(target);
+            if (holder == null) continue;
+            long element = holder.elementForForeignRelation(target);
+            if (element != 0) linked.add(element);
         }
         long[] answer = new long[linked.size()];
         for (int i = 0; i < answer.length; i++) answer[i] = linked.get(i);
         return answer;
+    }
+
+    /**
+     * The element this bridge answers for a node of its tree that another window's relation names.
+     *
+     * <p>The root is the case §1.11 wrote the rule for: a native popup's root <em>is</em> that
+     * window's root, and the opener's {@code CONTROLLER_FOR} names it — so the answer is "the object
+     * AppKit already vends for that window, which is the same object the elision defers to and is
+     * reachable from the content view the bridge holds", the content view's {@code -window}. Every
+     * other node is an ordinary element of this registry.
+     *
+     * @param nodeId a node of this bridge's published tree
+     * @return its element, or {@code 0} when the node has left the tree or the view is in no window
+     */
+    private long elementForForeignRelation(long nodeId) {
+        int index = tree().indexOf(nodeId);
+        if (index < 0) return 0;
+        return index == 0 ? windowElement() : elements.elementFor(nodeId);
     }
 
     // ---- the publish path ------------------------------------------------------------------------
@@ -992,13 +1029,22 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * content view's {@code -window} ({@code @16@0:8}, read on the guest with the other Foundation and
      * AppKit messages, 2026-09-15). Zero when the view is in no window.
      */
-    private long windowElement() {
+    long windowElement() {
         // Off AppKit, a number that stands for it, as the application element's does.
-        if (objc == null) return SYNTHETIC_WINDOW;
+        if (objc == null) return syntheticWindow;
         return ObjC.msg(contentView, "window");
     }
 
-    private static final long SYNTHETIC_WINDOW = 0x2;
+    /**
+     * Off AppKit, one number per bridge stands for its window, so that two windows of one process are
+     * told apart where a real one would be: a relation naming another window's elided root is answered
+     * with that window's object, and a test of it that could not distinguish the two windows would
+     * pass on the wrong one. A test sentinel, not a platform constant.
+     */
+    private final long syntheticWindow = SYNTHETIC_WINDOWS.getAndAdd(0x10);
+
+    private static final java.util.concurrent.atomic.AtomicLong SYNTHETIC_WINDOWS =
+            new java.util.concurrent.atomic.AtomicLong(0x2);
 
     /** The one application-level notification: the focused element changed. */
     private static final AxNotifications.Posting FOCUS_POSTING =
