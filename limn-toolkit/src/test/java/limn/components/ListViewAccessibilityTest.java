@@ -595,9 +595,10 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         for (AccessibleNode row : rowNodes()) {
             assertNotNull(row.actions(), "a row carries the verb the list delegated onto it: "
                     + describe(tree()));
-            assertEquals(java.util.Set.of(Accessible.Action.SELECT), row.actions().actions(),
-                    "the one verb the list delegated onto the row, and nothing written by the "
-                            + "cell: " + describe(tree()));
+            assertTrue(row.actions().has(Accessible.Action.SELECT),
+                    "the verb the list delegated onto the row: " + describe(tree()));
+            assertFalse(row.actions().has(Accessible.Action.PRESS),
+                    "and nothing written by the cell: " + describe(tree()));
         }
         List<limn.scene.Change> changes = new ArrayList<>();
         scene.observeChanges((source, change) -> changes.add(change));
@@ -612,6 +613,71 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(limn.scene.Change.Aspect.SELECTION, changes.get(0).aspect());
         assertEquals(limn.scene.Change.Origin.USER, changes.get(0).origin(),
                 "and from the user, which is who a reader is");
+    }
+
+    /**
+     * Decision 20's row verb set, read against this widget (ADR 039 §7's ListView row, amended
+     * 2026-09-14): {@code SELECT} and, on a cell that cannot take the keyboard,
+     * {@code SCROLL_INTO_VIEW}, both delegated; never {@code FOCUS} (decision 11: the selection
+     * is the cursor), never {@code ADD_TO_SELECTION} or {@code DESELECT} (one selected row, no
+     * multi-select). The reveal lands on the row a reader addressed and moves neither the
+     * selection nor the cursor.
+     */
+    @Test
+    void aRowThatCannotTakeTheKeyboardCarriesScrollIntoViewAndTheListRevealsItInPlace()
+            throws Exception {
+        ListView list = bindNamed(500, 50);
+        list.requestFocus();
+        list.setSelectedIndex(0);
+        frame();
+        assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.SCROLL_INTO_VIEW),
+                rowNode(0).actions().actions(),
+                "the two verbs the list delegates, and no FOCUS: " + describe(tree()));
+
+        list.scrollBy(50f * 2 * VISIBLE);
+        frame();
+        AccessibleNode kept = rowNode(0);
+        assertNotNull(kept, "the cursor row is kept while the list holds the keyboard: "
+                + describe(tree()));
+        assertFalse(kept.has(Accessible.State.SHOWING), describe(tree()));
+        bridge.events.clear();
+
+        assertTrue(perform(kept.id(), Accessible.Action.SCROLL_INTO_VIEW, Accessible.Argument.NONE));
+        frame();
+
+        assertTrue(rowNode(0).has(Accessible.State.SHOWING),
+                "revealed where it stands: " + describe(tree()));
+        assertEquals(0, list.firstVisibleIndex());
+        assertEquals(0, list.selectedIndex(), "the selection did not move");
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.SELECTION_CHANGED), bridge.events.toString());
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "and neither did the cursor: " + bridge.events);
+
+        perform(rowNode(3).id(), Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        frame();
+
+        assertEquals(0, list.selectedIndex(),
+                "FOCUS on a row is neither published nor performed: a focus that selected would "
+                        + "be SELECT under another name");
+        assertEquals(listNode().id(), tree().focused(), describe(tree()));
+        assertEquals(rowNode(0).id(), tree().activeDescendant(), describe(tree()));
+    }
+
+    @Test
+    void aRowThatCanTakeTheKeyboardGetsTheWalksFreeVerbsAndTheListDelegatesNoneOfThem() {
+        bindList(new Rows(500, 50, true, height -> {
+            Cell cell = new Cell(height);
+            cell.setFocusable(true);
+            return cell;
+        }));
+
+        for (AccessibleNode row : rowNodes()) {
+            assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.FOCUS,
+                            Accessible.Action.SCROLL_INTO_VIEW), row.actions().actions(),
+                    "the walk's two free verbs on a focusable widget and the list's SELECT; a "
+                            + "delegation of either free verb would be refused as a second "
+                            + "performer, so the list makes none: " + describe(tree()));
+        }
     }
 
     // ---------------------------------------------------------------------------------- the names

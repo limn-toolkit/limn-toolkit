@@ -431,6 +431,50 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("42", spinnerNode().value().text(), describe(tree()));
     }
 
+    /**
+     * Decision 5 (CRIT-7's widget half): a set by <em>text</em> goes through the same reader a
+     * typed commit does, because a platform's value pattern hands over the string a client spoke
+     * or typed, and a spinner that could only be set by number could not be set by a reader at
+     * all. What the reader cannot parse is refused as a non-number is, before the clamp.
+     */
+    @Test
+    void aSetByTextIsReadAsATypedCommitIsAndWhatCannotBeReadIsRefused() throws Exception {
+        bindSpinner(new Spinner(0, 99, 0.5).setValue(7));
+        long id = spinnerNode().id();
+
+        assertTrue(perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("42")));
+        frame();
+        assertEquals(42.0, spinner.value(), "the digits a client spoke");
+        assertEquals(List.of(42.0), changed, "from the user, as a typed commit is");
+
+        perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText(" 1,5 "));
+        frame();
+        assertEquals(1.5, spinner.value(),
+                "the comma most of the world types, and the padding a client leaves");
+
+        perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("٣٤"));
+        frame();
+        assertEquals(34.0, spinner.value(), "any known digit set, as the editor accepts");
+
+        bridge.events.clear();
+        changed.clear();
+        perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("forty"));
+        perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText(""));
+        perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("1.2.3"));
+        frame();
+        assertEquals(34.0, spinner.value(), "what the reader cannot read is refused whole");
+        assertEquals(List.of(), changed, "refused before any handler");
+        assertTrue(bridge.events.isEmpty(), bridge.events.toString());
+
+        bindSpinner(Spinner.time().setValue(7 * 60 + 30));
+        perform(spinnerNode().id(), Accessible.Action.SET_VALUE,
+                new Accessible.Argument.OfText("18:45"));
+        frame();
+        assertEquals(18 * 60 + 45.0, spinner.value(),
+                "a time spinner reads the clock face it shows, in the minutes it publishes");
+        assertEquals("18:45", spinnerNode().value().text(), describe(tree()));
+    }
+
     @Test
     void aValueThatIsNotANumberIsRefusedBeforeTheClamp() throws Exception {
         bindSpinner(new Spinner(0, 99, 1).setValue(7));

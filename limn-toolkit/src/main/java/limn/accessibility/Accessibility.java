@@ -1193,7 +1193,9 @@ public final class Accessibility {
      * and wrong for a refused day inside an enabled calendar. So this is <b>narrowing only</b>: a
      * child may be less enabled than its owner and never more, because the owner's bit is the
      * keyboard's and a child published operable inside a disabled owner would be refused by
-     * §1.9's gate with nothing said about why. Clear by default and cleared for every child.
+     * §1.9's gate with nothing said about why. Clear by default and cleared for every child. It
+     * narrows through the nesting: a synthetic child declared inside a disabled one publishes
+     * without {@code ENABLED} too, whether or not it called this itself.
      *
      * <p>A disabled child carries no verb of its own accord: that is the widget's to leave out,
      * as the refused day leaves out its {@code SELECT}, and a bridge reads the absence.
@@ -1584,7 +1586,14 @@ public final class Accessibility {
     public void inheritedAt(int index, boolean enabled, boolean visible, boolean showing) {
         Objects.checkIndex(index, count);
         Slot s = slots[index];
-        s.states = set(s.states, Accessible.State.ENABLED, enabled && !s.disabled);
+        // Through the nesting, not one level deep (2026-09-14): a synthetic child under a
+        // synthetic child that declared itself disabled is no more enabled than that parent, so
+        // a cell of a refused row is refused with it. The parent was begun before this node and
+        // so sits at a lower index, which is the order the publish step calls this in, so its
+        // bit has already been settled by the time this one is read.
+        boolean parentEnabled = s.parent == AccessibleNode.NONE || !slots[s.parent].synthetic
+                || (slots[s.parent].states & (1L << Accessible.State.ENABLED.ordinal())) != 0;
+        s.states = set(s.states, Accessible.State.ENABLED, enabled && !s.disabled && parentEnabled);
         s.states = set(s.states, Accessible.State.VISIBLE, visible);
         s.states = set(s.states, Accessible.State.SHOWING, showing && !s.offScreen);
     }

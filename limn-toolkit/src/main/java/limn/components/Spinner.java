@@ -1522,7 +1522,13 @@ public class Spinner extends Widget {
      * a direction of the value, not a side of the box. A hook built out of the mirrored horizontal
      * pair would run backwards in Arabic and Hebrew.
      *
-     * <p>{@code SET_VALUE} refuses anything that is not a number <em>before</em> the clamp, which
+     * <p>{@code SET_VALUE} takes a number or a text (decision 5; CRIT-7's widget half,
+     * 2026-09-14). A text is read by {@link #parse}, the same reader a typed commit goes
+     * through — {@code 42}, {@code 1,5} with the comma most of the world types, {@code 7:30} on a
+     * time spinner, any known digit set — because a platform's value pattern hands over the
+     * string a client spoke or typed ({@code Value.SetValue("42")} on Windows, once the bridge
+     * routes it here), and a reader that could only set by number could not set at all. It
+     * refuses anything that is not a number, in either form, <em>before</em> the clamp, which
      * is where the real defect would be: {@code Math.max}/{@code Math.min} pass {@code NaN}
      * through untouched and {@code Math.rint} keeps it, so an unguarded set would store it and
      * publish it forever. It then cancels the edit for the reason {@link #setValue}'s own
@@ -1548,7 +1554,13 @@ public class Spinner extends Widget {
             case INCREMENT -> stepAsAKeyWould(1);
             case DECREMENT -> stepAsAKeyWould(-1);
             case SET_VALUE -> {
-                double asked = Accessible.Argument.finiteValueOf(arg);
+                double asked;
+                if (arg instanceof Accessible.Argument.OfText text) {
+                    Double parsed = parse(text.text());
+                    asked = parsed != null && Double.isFinite(parsed) ? parsed : Double.NaN;
+                } else {
+                    asked = Accessible.Argument.finiteValueOf(arg);
+                }
                 if (Double.isNaN(asked)) {
                     return false;
                 }

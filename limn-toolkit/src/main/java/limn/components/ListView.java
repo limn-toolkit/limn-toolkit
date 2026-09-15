@@ -55,13 +55,23 @@ import java.util.function.IntConsumer;
  * item it is, not showing. A screen reader whose cursor follows the focus onto a row is otherwise
  * left standing on a node a page scroll deleted. Every other row outside the viewport goes back
  * to the adapter, and so does that one the moment the focus leaves it or the data is refreshed.
+ * <b>And so is the selected row while the list itself holds the keyboard</b> (decision 22,
+ * 2026-09-14): the selection is the reader's cursor here, and a wheel or a bar drag that scrolled
+ * it away used to recycle it, leaving the reader's cursor on nothing until the next arrow key.
+ * It is kept the same way — mounted, outside the viewport, published not showing and still the
+ * cursor — across a refresh too, and released by the first pass after the keyboard leaves.
  *
  * <p><b>Size steps propagate rather than being imposed.</b> Rows are adapter-supplied
  * widgets in this list's subtree, so they resolve the {@link limn.scene.ControlSize}
  * themselves and {@code list.setControlSize(SMALL)} shortens them because <em>they</em>
- * re-measure. Only three metrics are the list's own: the frame-0 row-height seed used
- * before anything has been measured, the intrinsic width under an unbounded constraint,
- * and the selection ring's corner radius.
+ * re-measure. Only three metrics are the list's own: the row-height seed, used for every
+ * scroll estimate before anything has been measured and for the intrinsic height under an
+ * unbounded constraint always ({@link #setVisibleRows} rows of it), the intrinsic width under
+ * an unbounded constraint, and the selection ring's corner radius.
+ *
+ * <p><b>Inside a scroller</b> the list scrolls itself first and hands the wheel on at either
+ * end: a detent that finds this list already at the top or the bottom is left unconsumed and
+ * reaches the scroll pane that holds it (decision 44).
  *
  * <p><b>The scroll bar does not take part in the size axis</b> ({@link ScrollBar#thickness()}
  * is 15 pt at every step), and it overlays the rows rather than insetting them, so at a
@@ -98,11 +108,15 @@ public class ListView extends Widget implements Scrollable {
          * selected row that is <em>not</em> realized, which has no widget to carry a name and is
          * announced from the list's own node instead.
          *
-         * <p><b>Hand back a string this adapter holds.</b> The tree compares a name by reference,
-         * locale and translation epoch, so a string built inside this call allocates once per
-         * realized row per damaged frame and republishes the whole tree every frame, because two
-         * freshly built strings are never the same object. A field, a constant, or an entry in the
-         * adapter's own data is what belongs here.
+         * <p><b>Hand back a string this adapter holds.</b> The tree carries a name over from the
+         * previous walk when the source is the same object under the same locale and translation
+         * epoch, at no cost; a string built inside this call is never the same object, so it is
+         * allocated and resolved again — once per realized row per walk that describes this list,
+         * which is every damaged frame — and that is the zero-allocation promise this widget
+         * otherwise keeps, broken by the application. It does <em>not</em> republish the tree or
+         * raise an event: the difference compares the resolved text, and equal text is no change
+         * (corrected 2026-09-14; the earlier text of this paragraph said it republished every
+         * frame). A field, a constant, or an entry in the adapter's own data is what belongs here.
          *
          * @param index a row in {@code [0, rowCount)}
          * @return the row's name, or {@code null} when the adapter has none to give
@@ -113,11 +127,19 @@ public class ListView extends Widget implements Scrollable {
     }
 
     /**
-     * Rows of intrinsic height when the height axis is unbounded. A row <b>count</b>, not a
-     * length: it multiplies whatever a row currently measures, so it must not move with the
-     * step.
+     * Rows of intrinsic height when the height axis is unbounded, until {@link #setVisibleRows}
+     * says otherwise. A row <b>count</b>, not a length: it multiplies the step's seed row height,
+     * so it must not move with the step.
      */
     private static final int VISIBLE_ROWS_HINT = 6;
+
+    /**
+     * How many seed rows tall this list prefers to be under an unbounded height (decision 44,
+     * 2026-09-14). Multiplied by the token's seed and never by the realized average: the average
+     * moves as rows of other heights scroll in, and a preference that moved with it re-laid out
+     * the parent on every such scroll and made a list inside a scroll pane jitter.
+     */
+    private int visibleRows = VISIBLE_ROWS_HINT;
 
     private final Adapter adapter;
     private final ScrollBar vBar;
@@ -230,6 +252,35 @@ public class ListView extends Widget implements Scrollable {
     public ListView setScrollbarPolicy(ScrollBar.Policy policy) {
         vBar.setPolicy(policy);
         return this;
+    }
+
+    /**
+     * Sets how many rows tall this list prefers to be when its parent gives it no height — a
+     * list inside a {@link ScrollView} or an unconstrained column — as a count of the step's
+     * seed rows (default 6). A bounded height from the parent always wins; this is the free-axis
+     * fallback only. The preference is the seed's and not the realized rows' on purpose
+     * (decision 44): a preference that followed the measured average moved every time a row of
+     * another height scrolled in, and re-laid out the parent with it. UI thread only.
+     *
+     * @param rows a row count of at least one
+     * @return this list
+     * @throws IllegalArgumentException if {@code rows} is below one
+     */
+    public ListView setVisibleRows(int rows) {
+        Ui.checkUiThread();
+        if (rows < 1) {
+            throw new IllegalArgumentException("visible rows must be at least 1, not " + rows);
+        }
+        if (rows != visibleRows) {
+            visibleRows = rows;
+            markNeedsLayout();
+        }
+        return this;
+    }
+
+    /** How many seed rows tall this list prefers to be under an unbounded height. */
+    public int visibleRows() {
+        return visibleRows;
     }
 
     /**
@@ -502,10 +553,14 @@ public class ListView extends Widget implements Scrollable {
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = tokens();
         // Both are free-axis fallbacks a real parent overrides; they only bind when the list is
-        // measured unbounded, which is also the only time the row-height estimate is a seed.
+        // measured unbounded. The height is the SEED's and not avgRowHeight's (decision 44,
+        // 2026-09-14): the measured mean moves as rows of other heights scroll in, and a
+        // measured size that moved under a contained layout re-laid out the parent on every
+        // such scroll (Widget.markNeedsContainedLayout's contract), so a list in a scroll pane
+        // jittered. The seed is a token and stands still.
         float w = constraints.hasBoundedWidth() ? constraints.maxWidth() : t.listWidth();
         float h = constraints.hasBoundedHeight() ? constraints.maxHeight()
-                : VISIBLE_ROWS_HINT * avgRowHeight(t);
+                : visibleRows * t.listRowSeed();
         return constraints.constrain(w, h);
     }
 
@@ -560,6 +615,7 @@ public class ListView extends Widget implements Scrollable {
             bottom = placeDown(count, rowX, w, h);
         }
         recycleExcept(placedFrom, placedTo, count);
+        keepCursorRow(count, w);
         placeKeptOutside(rowX, w, bottom);
         updateAverageHeight();
         vBar.refresh();
@@ -652,8 +708,8 @@ public class ListView extends Widget implements Scrollable {
 
     /**
      * Recycles every mounted row outside {@code [from, toExclusive)}, keeping the rest in order —
-     * except the one row that holds the keyboard focus, which stays mounted while its index is
-     * still below {@code count}.
+     * except the one row that holds the keyboard focus, and the selected row while this list
+     * itself does, which stay mounted while their index is still below {@code count}.
      *
      * <p>A scroll used to release that row with the others and move the focus up to the list,
      * and the keyboard user never noticed: the arrows move by selection, and the selected row is
@@ -665,9 +721,17 @@ public class ListView extends Widget implements Scrollable {
      * outside the viewport. It is released by the first pass that finds it outside the run and no
      * longer holding the focus, or by any pass that releases everything.
      *
+     * <p>The selected row is the same story one step up (decision 22, 2026-09-14; ADR 039 §1.10's
+     * cursor amendment): while the list holds the keyboard the selected row is the reader's
+     * cursor — the one node below the focused list published {@code ACTIVE} — and a wheel or a
+     * bar drag that scrolled it away recycled it, so the cursor resolved to nothing until the
+     * next arrow key. A row that is the cursor is kept exactly as a row holding the focus is,
+     * and released by the first pass after the keyboard leaves the list.
+     *
      * <p>{@code count} is the adapter's row count as the caller read it, and {@code 0} means
      * spare nothing: {@link #refresh} unmounts every cell because each is bound to a datum the
      * adapter may have replaced, and a row whose index the adapter no longer has is not a row.
+     * The cursor row comes back on the next pass, through {@link #keepCursorRow}, bound afresh.
      *
      * @param from        the first row to keep
      * @param toExclusive one past the last row to keep
@@ -680,7 +744,8 @@ public class ListView extends Widget implements Scrollable {
             Widget cell = mountedCells[i];
             boolean inRun = row >= from && row < toExclusive;
             boolean hasFocus = !inRun && containsFocus(cell);
-            if (inRun || (hasFocus && row < count)) {
+            boolean cursor = !inRun && row == selectedIndex && isFocused();
+            if (inRun || ((hasFocus || cursor) && row < count)) {
                 mountedRows[kept] = row;
                 mountedCells[kept] = cell;
                 kept++;
@@ -699,9 +764,30 @@ public class ListView extends Widget implements Scrollable {
     }
 
     /**
-     * Lays out every mounted row outside the placed run — the focused row a scroll spared —
-     * wholly outside the viewport, on the side of the run its index lies, at the distance the
-     * scroll estimate puts it.
+     * Realizes the selected row when this list holds the keyboard and the pass left it
+     * unrealized: after a {@link #refresh}, which releases everything, or on the first pass after
+     * the list took the focus with its selection already scrolled away. {@link #recycleExcept}
+     * keeps a cursor row that is mounted; this is what mounts one that is not, so the two
+     * together are decision 22's "kept while focused, across refresh too".
+     *
+     * <p>Nothing is placed here: {@link #placeKeptOutside} runs next and puts every mounted row
+     * outside the run where the scroll estimate says it is, this one included.
+     *
+     * @param count the adapter's row count as this pass read it
+     * @param w     the row width this pass resolved
+     */
+    private void keepCursorRow(int count, float w) {
+        if (selectedIndex < 0 || selectedIndex >= count || !isFocused()
+                || isPlaced(selectedIndex) || cellFor(selectedIndex) != null) {
+            return;
+        }
+        measuredHeight(selectedIndex, w); // mounts it, in data order
+    }
+
+    /**
+     * Lays out every mounted row outside the placed run — the focused row a scroll spared, or
+     * the cursor row kept while the list holds the keyboard — wholly outside the viewport, on the
+     * side of the run its index lies, at the distance the scroll estimate puts it.
      *
      * <p>It has to be placed, not left: {@link #ensureVisible}'s far jump moves the anchor and
      * not the cells, so a spared row left at its last box could sit inside the viewport on top of
@@ -953,9 +1039,19 @@ public class ListView extends Widget implements Scrollable {
             case WHEEL -> {
                 // A detent is a device unit: the same flick travels the same distance in a
                 // dense list and a roomy one, so the step is locked, not tabled.
-                if (event.scrollY() != 0 && estimatedContentHeight(tokens()) > height()) {
-                    scrollBy(-event.scrollY() * Strokes.WHEEL_STEP);
-                    event.consume();
+                if (event.scrollY() != 0) {
+                    SizeTokens t = tokens(); // one resolution: the test and the scroll must agree
+                    float dy = -event.scrollY() * Strokes.WHEEL_STEP;
+                    float offset = estimatedOffset(t);
+                    float max = Math.max(0, estimatedContentHeight(t) - height());
+                    // Consumed only where this list can still move that way (decision 44,
+                    // 2026-09-14): at either end the detent is left for the scroller that holds
+                    // the list, as a list whose content fits already left every detent. Without
+                    // this a list inside a scroll pane was a wall the wheel could not get past.
+                    if (dy < 0 ? offset > 0 : offset < max) {
+                        scrollBy(dy);
+                        event.consume();
+                    }
                 }
             }
             case MOVE, DRAG -> vBar.onHostActivity();
@@ -1108,9 +1204,12 @@ public class ListView extends Widget implements Scrollable {
                 // synthetic phantom row, which is declared before the widget children and would
                 // put a selection below the viewport ahead of every realized row. Set only while
                 // that row is unrealized: a mounted one carries its own name and its own SELECTED,
-                // and a second copy here is the same name spoken twice. The known cost is that
-                // while it stands, the walk's tooltip-as-description default has nowhere to go on
-                // a list that has both an application name and a tooltip.
+                // and a second copy here is the same name spoken twice. Since decision 22 (the
+                // cursor row is kept while the list holds the keyboard) this is reached only on
+                // an UNFOCUSED list, where the row is genuinely gone and nothing else can name
+                // it, so it duplicates nothing. The known cost is that while it stands, the
+                // walk's tooltip-as-description default has nowhere to go on a list that has
+                // both an application name and a tooltip.
                 I18nString name = adapter.rowName(selectedIndex);
                 if (name != null) {
                     a.description(name);
@@ -1167,13 +1266,20 @@ public class ListView extends Widget implements Scrollable {
      * cell would have handed the outer list its selected row as the outer list's own cursor,
      * which is the cost the earlier text of this paragraph accepted and this gate removes.
      *
-     * <p>One verb, {@code SELECT}, and it is <em>delegated</em> rather than written: a verb
-     * written onto a row would be dispatched to the application's own cell widget, whose hook
-     * answers false, which is why the record's survey was wrong to ask for a row verb and why
-     * §11 recorded per-row actuation as absent. A delegated verb is published on the row and
-     * routed to {@link #onAccessibilityChildAction} (ADR 039 §1.5, amended 2026-09-14), so a
-     * reader's "select this row" lands on the row it addressed and the list performs it.
-     * {@code PRESS} stays on the list — see {@link #onAccessibility}.
+     * <p>The verbs are <em>delegated</em> rather than written: a verb written onto a row would
+     * be dispatched to the application's own cell widget, whose hook answers false, which is why
+     * the record's survey was wrong to ask for a row verb and why §11 recorded per-row actuation
+     * as absent. A delegated verb is published on the row and routed to
+     * {@link #onAccessibilityChildAction} (ADR 039 §1.5, amended 2026-09-14), so a reader's
+     * "select this row" lands on the row it addressed and the list performs it. The row verb set
+     * of decision 20, read against this widget: {@code SELECT} always, because a list has no
+     * selection mode and is never {@code NONE}; {@code SCROLL_INTO_VIEW} on a cell that cannot
+     * take the keyboard, because on one that can the walk already grants it free and a second
+     * performer is refused; never {@code ADD_TO_SELECTION} or {@code DESELECT}, because this
+     * list selects one row and has no multi-select to add to; and never {@code FOCUS}
+     * (decision 11), because the selection is the cursor here and a focus that selected would be
+     * {@code SELECT} under another name. {@code PRESS} stays on the list — see
+     * {@link #onAccessibility}.
      *
      * @param child the child being described, which is the bar or one mounted cell
      * @param a     the child's node
@@ -1202,25 +1308,44 @@ public class ListView extends Widget implements Scrollable {
         }
         // The row's own SELECT, published on the cell a reader addresses and performed by the
         // list (ADR 039 §1.5, amended 2026-09-14; decision 7): what §11's "not per-row
-        // actuation" said could not be delivered, delivered. The rest of the row verb set
-        // (decision 20: ADD_TO_SELECTION and DESELECT in a multi-select list) is the widget
-        // lane's; FOCUS stays refused on a row here, where the cursor is the selection.
+        // actuation" said could not be delivered, delivered.
         a.delegate(Accessible.Action.SELECT);
+        if (!child.isFocusable()) {
+            // The widget's own flag and not the walk's enabled-and-visible reading of it: a
+            // focusable cell that is disabled today is granted the free verb the moment it is
+            // enabled, and a delegation standing on it then would be the two-performer conflict
+            // the walk refuses loudly.
+            a.delegate(Accessible.Action.SCROLL_INTO_VIEW);
+        }
     }
 
     /**
      * A verb the list claimed on a row's cell: {@code SELECT} makes that row the selection, as a
-     * click on it does, through the same {@code USER} seam and with the same reveal.
+     * click on it does, through the same {@code USER} seam and with the same reveal;
+     * {@code SCROLL_INTO_VIEW} reveals the row where it is, as the walk's free verb reveals a
+     * focusable one, and moves neither the selection nor the cursor (decision 20).
      */
     @Override
     protected boolean onAccessibilityChildAction(Widget child, long key, Accessible.Action action,
                                                  Accessible.Argument arg) {
         int index = indexOfCell(child);
-        if (index < 0 || action != Accessible.Action.SELECT) {
+        if (index < 0) {
             return false;
         }
-        select(index, true, Change.Origin.USER);
-        return true;
+        switch (action) {
+            case SELECT -> {
+                select(index, true, Change.Origin.USER);
+                return true;
+            }
+            case SCROLL_INTO_VIEW -> {
+                ensureVisible(index);
+                invalidate();
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
     }
 
     /**
@@ -1249,10 +1374,17 @@ public class ListView extends Widget implements Scrollable {
     @Override
     protected void onFocusGained() {
         focusFade.to(1);
+        // The cursor row is kept only while the list holds the keyboard, so the keyboard arriving
+        // and leaving are the two moments a pass has to run: to realize a selection already
+        // scrolled away, and to release one. Contained, for scrollBy's reason: what moves is
+        // which rows are mounted, inside a box this widget clips and whose size a focus change
+        // cannot move.
+        markNeedsContainedLayout();
     }
 
     @Override
     protected void onFocusLost() {
         focusFade.to(0);
+        markNeedsContainedLayout();
     }
 }

@@ -965,7 +965,13 @@ public final class Scene implements WindowInput {
         // precisely because the node is scrolled out of view, and Tab already reaches a widget
         // below the fold and reveals it on arrival. They are gated on visibility instead, which is
         // the same walk without the clip -- a widget inside an unselected tab is still refused.
-        if (free ? !isVisibleThroughAncestry(owner) : !owner.isShowing()) {
+        // The same exception for a SCROLL_INTO_VIEW a container delegated onto a widget child
+        // (ADR 039 §1.5, amended 2026-09-14; decision 20): a list's cursor row kept outside the
+        // viewport is exactly the node a reader sends it to, and a showing gate would refuse
+        // the one verb whose purpose is the not-showing case.
+        boolean revealing = free || (delegated
+                && action == limn.accessibility.Accessible.Action.SCROLL_INTO_VIEW);
+        if (revealing ? !isVisibleThroughAncestry(owner) : !owner.isShowing()) {
             return;
         }
         for (Widget at = owner; at != null; at = at.parent()) {

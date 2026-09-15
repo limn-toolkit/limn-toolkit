@@ -381,26 +381,114 @@ class ListViewTest extends ComponentTestBase {
             Size size = list.measure(unbounded());
             assertEquals(t.listWidth(), size.width(), EPS,
                     step + ": the unbounded width is listWidth");
-            // Six rows of the seed: the seed is the only row height known before layout has
-            // measured one, and the 6 is a row COUNT that must not move with the step.
+            // Six rows of the seed: the 6 is a row COUNT that must not move with the step, and
+            // the seed is a token that stands still once rows are measured (decision 44).
             assertEquals(6 * t.listRowSeed(), size.height(), EPS,
                     step + ": the unbounded height is 6 seed rows");
         }
     }
 
+    /**
+     * Decision 44 (2026-09-14): the unbounded height is the seed's and stands still once rows are
+     * measured. Until that day it followed the measured average, so a list in a scroll pane
+     * changed its measured size whenever rows of another height scrolled in, and every such
+     * contained layout fell back to a full pass of the parent.
+     */
     @Test
-    void aMeasuredRowHeightSupersedesTheSeed() {
-        // The seed exists for frame 0 only; once real rows have been measured the estimate is
-        // theirs, so the same list measures the same intrinsic height at every step.
+    void theUnboundedHeightIsTheSeedsAndDoesNotMoveOnceRowsAreMeasured() {
         for (ControlSize step : ControlSize.values()) {
-            ListView list = list(100, i -> 40);
+            SizeTokens t = SizeTokens.of(step);
+            ListView list = list(100, i -> i % 2 == 0 ? 40 : 90);
             list.setControlSize(step);
             FakeCanvas canvas = new FakeCanvas(300, 200);
-            scene(list, canvas);
+            Scene scene = scene(list, canvas);
 
-            assertEquals(6 * 40, list.measure(unbounded()).height(), EPS,
-                    step + ": 40pt rows were measured, so the seed is out of the picture");
+            assertEquals(6 * t.listRowSeed(), list.measure(unbounded()).height(), EPS,
+                    step + ": rows of 40 and 90 were measured and the preference did not move");
+
+            scene.scrolled(0, -10, 10, 50);
+            scene.inputBatchEnded();
+            scene.renderFrame(canvas);
+            assertEquals(6 * t.listRowSeed(), list.measure(unbounded()).height(), EPS,
+                    step + ": nor after a scroll realized rows of the other height");
         }
+    }
+
+    @Test
+    void setVisibleRowsChangesTheUnboundedHeightAndRefusesLessThanOne() {
+        ListView list = list(100, i -> 40);
+        SizeTokens t = SizeTokens.of(ControlSize.MEDIUM);
+        assertEquals(6, list.visibleRows(), "the default");
+
+        list.setVisibleRows(3);
+
+        assertEquals(3 * t.listRowSeed(), list.measure(unbounded()).height(), EPS,
+                "three seed rows: a count of the seed, never of the realized rows");
+        assertEquals(t.listWidth(), list.measure(unbounded()).width(), EPS,
+                "the width is untouched");
+        assertThrows(IllegalArgumentException.class, () -> list.setVisibleRows(0));
+        assertEquals(3, list.visibleRows(), "a refused count changes nothing");
+        assertEquals(200, list.measure(new Constraints(0, 300, 0, 200)).height(), EPS,
+                "a bounded height from the parent wins over the preference");
+    }
+
+    /**
+     * Decision 44's second half: a wheel that finds the list at either end passes to the scroller
+     * that holds it, so a list inside a scroll pane is not a wall the wheel cannot get past.
+     * The list is a column's first child inside a vertical scroll pane, so it measures unbounded
+     * (six seed rows) and the column overflows the pane by the box below it.
+     */
+    @Test
+    void aWheelAtEitherEndOfTheListPassesToTheScrollerThatHoldsIt() {
+        ListView list = list(20, i -> 40);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(list);
+        column.add(new Widget() {
+            @Override
+            protected Size onMeasure(Constraints c) {
+                return c.constrain(c.maxWidth(), 400);
+            }
+        });
+        ScrollView pane = new ScrollView(column);
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = new Scene(pane);
+        scene.setTextRuler(RULER);
+        scene.renderFrame(canvas);
+        float seedHeight = 6 * SizeTokens.of(ControlSize.MEDIUM).listRowSeed();
+        assertEquals(seedHeight, list.height(), EPS, "the fixture: the list is six seed rows tall");
+        float listMax = 20 * 40 - seedHeight;
+
+        // Down: the list takes every detent until it rests on its last row.
+        int notches = 0;
+        while (pane.offsetY() == 0 && notches < 100) {
+            scene.scrolled(0, -1, 50, 50);
+            scene.inputBatchEnded();
+            scene.renderFrame(canvas);
+            notches++;
+            if (notches * Strokes.WHEEL_STEP < listMax) {
+                assertEquals(0, pane.offsetY(), EPS,
+                        "the pane stays put while the list can still scroll: notch " + notches);
+            }
+        }
+        assertEquals((int) Math.ceil(listMax / Strokes.WHEEL_STEP) + 1, notches,
+                "the first detent the list cannot use is the pane's");
+        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), EPS, "one notch of the pane");
+
+        // Up: the list is at its end and not at its top, so it takes the detent back first.
+        scene.scrolled(0, 1, 50, 50);
+        scene.inputBatchEnded();
+        scene.renderFrame(canvas);
+        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), EPS,
+                "the list could move up, so it did and the pane did not");
+
+        // Up at the top: the list scrolled back to zero, and the next detent is the pane's.
+        for (int i = 0; i < 40; i++) {
+            scene.scrolled(0, 1, 50, 50);
+            scene.inputBatchEnded();
+            scene.renderFrame(canvas);
+        }
+        assertEquals(0, list.firstVisibleIndex(), "the list is back at its first row");
+        assertEquals(0, pane.offsetY(), EPS, "and the pane took the detents the list could not");
     }
 
     @Test

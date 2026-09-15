@@ -460,9 +460,10 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode export = rowsOf(rootColumn()).get(3);
         assertTrue(export.has(Accessible.State.HAS_POPUP), describe(tree()));
         assertFalse(export.expand().expanded(), describe(tree()));
-        assertEquals(Set.of(Accessible.Action.SHOW_MENU), export.actions().actions(),
-                "one verb: expand, collapse and press are accepted below without being advertised"
-                        + describe(tree()));
+        assertEquals(Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND),
+                export.actions().actions(),
+                "closed: the verb and the synonym that both open it, and no other (ADR 039 "
+                        + "§1.5, amended 2026-09-14; decision 2)" + describe(tree()));
 
         assertTrue(perform(export.id(), Accessible.Action.SHOW_MENU, Accessible.Argument.NONE),
                 "accepted, which is not the same as done");
@@ -470,6 +471,9 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode opener = node(export.id());
         assertTrue(opener.expand().expanded(), describe(tree()));
+        assertEquals(Set.of(Accessible.Action.COLLAPSE), opener.actions().actions(),
+                "open: the one verb it accepts now, and neither of the two it would refuse"
+                        + describe(tree()));
         AccessibleNode submenu = columnUnder(opener);
         assertEquals("Export", submenu.name(),
                 "a submenu is titled by the row that opened it" + describe(tree()));
@@ -558,7 +562,7 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         perform(export.id(), Accessible.Action.EXPAND, Accessible.Argument.NONE);
         frame();
         assertEquals(2, popup.columnCountForTest(),
-                "the unadvertised verb is still dispatched" + describe(tree()));
+                "the published synonym is dispatched" + describe(tree()));
 
         perform(rowsOf(rootColumn()).get(0).id(), Accessible.Action.COLLAPSE,
                 Accessible.Argument.NONE);
@@ -771,20 +775,54 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(popup.isOpen(), "choosing a check row in a menu closes it, as a click does");
     }
 
+    /**
+     * A row publishes exactly the verbs it accepts (ADR 039 §1.5, amended 2026-09-14; decision 2;
+     * CRIT-1): a check row takes {@code TOGGLE} beside {@code PRESS} and says so, and a command
+     * row, which took it in silence until that day, refuses it now.
+     */
     @Test
-    void toggleIsAcceptedOnACheckRowWithoutBeingAdvertised() throws Exception {
+    void aCheckRowPublishesToggleBesidePressAndACommandRowRefusesIt() throws Exception {
         open(everyShape());
 
-        assertEquals(Set.of(Accessible.Action.PRESS),
+        assertEquals(Set.of(Accessible.Action.PRESS, Accessible.Action.TOGGLE),
                 rowsOf(rootColumn()).get(1).actions().actions(),
-                "choosing a check row in a menu is one gesture" + describe(tree()));
+                "choosing a check row in a menu is one gesture, and a platform that routes its "
+                        + "toggle pattern by the facet needs the verb it sends to be published"
+                        + describe(tree()));
+        assertEquals(Set.of(Accessible.Action.PRESS),
+                rowsOf(rootColumn()).get(0).actions().actions(),
+                "a command row has nothing to toggle" + describe(tree()));
+
+        perform(rowsOf(rootColumn()).get(0).id(), Accessible.Action.TOGGLE,
+                Accessible.Argument.NONE);
+        frame();
+        assertEquals(List.of(), chosen,
+                "toggle on a command row is a verb it does not publish, so it does nothing");
+        assertTrue(popup.isOpen(), describe(tree()));
 
         perform(rowsOf(rootColumn()).get(1).id(), Accessible.Action.TOGGLE,
                 Accessible.Argument.NONE);
         frame();
 
         assertEquals(List.of(true), toggled,
-                "and the unadvertised verb is still dispatched" + describe(tree()));
+                "and the published one is dispatched" + describe(tree()));
+    }
+
+    @Test
+    void pressIsNoLongerASynonymASubmenuRowAnswersInSilence() throws Exception {
+        open(everyShape());
+        AccessibleNode export = rowsOf(rootColumn()).get(3);
+        int published = bridge.published.size();
+
+        perform(export.id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        frame();
+
+        assertEquals(1, popup.columnCountForTest(),
+                "a verb the row does not publish is one it does not perform: a reader cannot "
+                        + "see it, and one platform would send it by accident" + describe(tree()));
+        assertFalse(node(export.id()).expand().expanded(), describe(tree()));
+        assertEquals(published, bridge.published.size(), describe(tree()));
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED), bridge.events.toString());
     }
 
     @Test

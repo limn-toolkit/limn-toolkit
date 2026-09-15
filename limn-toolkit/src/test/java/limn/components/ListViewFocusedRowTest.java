@@ -39,6 +39,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * scrolled away. It is released by the first realization pass that finds it outside the run and
  * no longer holding the focus, and by {@link ListView#refresh()}, which releases everything.
  *
+ * <p>Since 2026-09-14 (decision 22) the selected row is kept the same way while the <em>list</em>
+ * holds the keyboard, because it is then the reader's cursor; the cases under "the cursor row"
+ * pin that, and that a refresh realizes it again rather than losing it.
+ *
  * <p>Every case drives the list's public API and the scene's own key path on a bound scene, and
  * reads back what the scene published. Nothing constructs a node.
  */
@@ -339,16 +343,123 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
         assertNull(rowNode(1), describe(tree()));
     }
 
-    // ------------------------------------------------------------------- everyone else, as before
+    // ------------------------------------------------------------------------- the cursor row
 
-    @Test
-    void aRowThatDoesNotHoldTheFocusIsStillRecycled() {
+    /** Binds a list of {@link #ROWS} button rows with the list itself holding the keyboard. */
+    private void bindWithFocusOnTheList() {
         rows = new Rows();
         list = new ListView(rows);
         bind(list);
         list.requestFocus();
         list.setSelectedIndex(1);
         frame();
+        assertTrue(list.isFocused(), "the fixture: the keyboard is on the list");
+    }
+
+    /** Wheels the list a long way down, as a pointer does, without moving the selection. */
+    private void wheelFarDown() {
+        scene.scrolled(0, -30, 20, 100);
+        scene.inputBatchEnded();
+        frame();
+    }
+
+    /**
+     * Decision 22 (2026-09-14), the {@code ListView} copy: while the list holds the keyboard the
+     * selected row is the reader's cursor — the one node below the focused list published
+     * {@code ACTIVE} — and a wheel that scrolled it away used to recycle it, so the cursor
+     * resolved to nothing until the next arrow key. The row is kept exactly as a row holding
+     * the focus is, and released by the first pass after the keyboard leaves.
+     */
+    @Test
+    void theSelectedRowIsKeptWhileTheListHoldsTheKeyboardAndReleasedWhenItLeaves() {
+        bindWithFocusOnTheList();
+        ButtonRow rowOne = cellOf(1);
+        long cursorBefore = tree().activeDescendant();
+        assertEquals(rowNode(1).id(), cursorBefore, "the fixture: the cursor is row one");
+
+        wheelFarDown();
+
+        assertTrue(list.firstVisibleIndex() > VISIBLE, "the viewport left row one behind");
+        assertSame(rowOne, cellOf(1), "kept, on the same widget");
+        assertFalse(rows.recycled.contains(rowOne), "and the adapter was not handed it back");
+        assertEquals(1, mountedIndices().get(0), "in data order, ahead of the viewport's rows");
+        AccessibleNode kept = rowNode(1);
+        assertNotNull(kept, "the cursor row is still in the tree: " + describe(tree()));
+        assertTrue(kept.selectionItem().selected(), describe(tree()));
+        assertTrue(kept.has(Accessible.State.ACTIVE), "still the cursor: " + describe(tree()));
+        assertFalse(kept.has(Accessible.State.SHOWING), "and not on screen: " + describe(tree()));
+        assertTrue(kept.y() + kept.height() <= listNode().y(),
+                "its box is wholly above the list's: " + describe(tree()));
+        assertEquals(cursorBefore, tree().activeDescendant(),
+                "the tree resolves the same cursor it did before the wheel: " + describe(tree()));
+        assertEquals("", listNode().description(),
+                "the row speaks for itself, so the list does not name it a second time: "
+                        + describe(tree()));
+
+        scene.requestFocus(null);
+        frame();
+
+        assertNull(cellOf(1), "released by the first pass after the keyboard left");
+        assertTrue(rows.recycled.contains(rowOne), "the adapter has it back");
+        assertNull(rowNode(1), describe(tree()));
+        assertEquals("Row 1", listNode().description(),
+                "and the unfocused list names its unrealized selection the way it always did: "
+                        + describe(tree()));
+    }
+
+    @Test
+    void takingTheKeyboardRealizesASelectionAlreadyScrolledAway() {
+        rows = new Rows();
+        list = new ListView(rows);
+        bind(list);
+        list.setSelectedIndex(1);
+        frame();
+        wheelFarDown();
+        assertNull(cellOf(1), "unfocused: the selected row went back with the others");
+        assertEquals("Row 1", listNode().description(), describe(tree()));
+
+        list.requestFocus();
+        frame();
+
+        assertNotNull(cellOf(1), "the pass the keyboard's arrival buys realizes the cursor row");
+        AccessibleNode kept = rowNode(1);
+        assertNotNull(kept, describe(tree()));
+        assertTrue(kept.has(Accessible.State.ACTIVE), describe(tree()));
+        assertFalse(kept.has(Accessible.State.SHOWING), describe(tree()));
+        assertEquals(kept.id(), tree().activeDescendant(), describe(tree()));
+        assertEquals("", listNode().description(), describe(tree()));
+        assertTrue(list.firstVisibleIndex() > VISIBLE,
+                "and the viewport did not move: taking the keyboard is not a reveal");
+    }
+
+    @Test
+    void aRefreshKeepsTheCursorRowWhileTheListHoldsTheKeyboard() {
+        bindWithFocusOnTheList();
+        ButtonRow rowOne = cellOf(1);
+        wheelFarDown();
+        assertSame(rowOne, cellOf(1));
+
+        list.refresh();
+        frame();
+
+        assertTrue(rows.recycled.contains(rowOne),
+                "a refresh unmounts every cell, because each is bound to a datum the adapter "
+                        + "may have replaced");
+        ButtonRow again = cellOf(1);
+        assertNotNull(again, "and the next pass realizes the cursor row afresh");
+        assertEquals(1, again.index, "bound to the datum the adapter now holds at that index");
+        AccessibleNode kept = rowNode(1);
+        assertNotNull(kept, describe(tree()));
+        assertTrue(kept.has(Accessible.State.ACTIVE), describe(tree()));
+        assertFalse(kept.has(Accessible.State.SHOWING), describe(tree()));
+        assertEquals(1, list.selectedIndex());
+    }
+
+    // ------------------------------------------------------------------- everyone else, as before
+
+    @Test
+    void aRowThatIsNeitherTheCursorNorTheFocusIsStillRecycled() {
+        bindWithFocusOnTheList();
         List<Widget> firstPage = new ArrayList<>();
         for (int i = 0; i < VISIBLE; i++) {
             firstPage.add(cellOf(i));
@@ -358,9 +469,10 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
         pageDown();
         pageDown();
 
-        assertEquals(19, list.selectedIndex());
+        assertEquals(19, list.selectedIndex(), "the page keys move the selection, and so the cursor");
         assertTrue(rows.recycled.containsAll(firstPage),
-                "every row of the first page went back to the adapter: " + rows.recycled.size());
+                "every row of the first page went back to the adapter, row one included: it "
+                        + "holds no focus and is no longer the cursor: " + rows.recycled.size());
         assertEquals(List.of(19, 20, 21, 22, 23, 24), mountedIndices(),
                 "the viewport's rows and nothing else");
         assertEquals(VISIBLE, rowNodes().size(), describe(tree()));
