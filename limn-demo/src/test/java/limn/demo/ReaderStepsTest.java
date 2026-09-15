@@ -14,7 +14,9 @@ import limn.demo.a11y.AccessibilityGallery;
 import limn.demo.a11y.AccessibilityGallery.Entry;
 import limn.demo.a11y.AccessibilityGallery.Step;
 import limn.demo.a11y.HeadlessWindow;
+import limn.demo.a11y.ReaderDriver;
 import limn.demo.a11y.Transcript;
+import limn.i18n.I18n;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import org.junit.jupiter.api.DynamicTest;
@@ -24,6 +26,7 @@ import org.junit.jupiter.api.TestFactory;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -106,9 +109,15 @@ class ReaderStepsTest {
         List<DynamicTest> tests = new ArrayList<>();
         for (Entry entry : AccessibilityGallery.readerEntries()) {
             tests.add(DynamicTest.dynamicTest(entry.reader().id() + ", as built",
-                    () -> runScript(entry, null)));
+                    () -> runScript(entry, null, null)));
             tests.add(DynamicTest.dynamicTest(entry.reader().id() + ", in the scene",
-                    () -> runScript(entry, DisplayMode.IN_SCENE)));
+                    () -> runScript(entry, DisplayMode.IN_SCENE, null)));
+            // The language a run speaks (decision 65): a date field's segments come in another
+            // order there, and a week may start on another day, so a step silent only in pt-BR
+            // is found before a guest is spent on it.
+            tests.add(DynamicTest.dynamicTest(entry.reader().id() + ", as built, in "
+                            + ReaderDriver.READER_LOCALE.toLanguageTag(),
+                    () -> runScript(entry, null, ReaderDriver.READER_LOCALE)));
         }
         return tests.stream();
     }
@@ -118,7 +127,7 @@ class ReaderStepsTest {
      * the first layout, each step sent to the entry's scene and the scene settled; a step that
      * leaves a row busy is waited out, as the driver's three seconds wait it out.
      */
-    private static void runScript(Entry entry, DisplayMode presentation) {
+    private static void runScript(Entry entry, DisplayMode presentation, Locale locale) {
         Entry shown = presentation == null ? entry : new Entry(entry.name(), entry.covers(),
                 entry.publishes(), () -> {
                     AccessibilityGallery.Built built = entry.build();
@@ -126,6 +135,9 @@ class ReaderStepsTest {
                     return built;
                 }, entry.reader());
         try (Harness harness = new Harness(Palette.LIGHT)) {
+            if (locale != null) {
+                I18n.setLocale(locale);
+            }
             harness.show(shown);
             Scene scene = harness.scenes.get(0);
             Widget focus = harness.built.focus();
@@ -155,10 +167,13 @@ class ReaderStepsTest {
                             .append(Transcript.of(window.bridge().tree()));
                 }
                 fail("reader script \"" + entry.reader().id() + "\" on \"" + entry.name() + "\""
-                        + (presentation == null ? "" : " in the scene") + ": " + silent.size()
+                        + (presentation == null ? "" : " in the scene")
+                        + (locale == null ? "" : " in " + locale.toLanguageTag()) + ": " + silent.size()
                         + " step(s) changed nothing published and announced nothing:\n  "
                         + String.join("\n  ", silent) + "\nthe trees at the end:\n" + trees);
             }
+        } finally {
+            I18n.setLocale(Locale.ENGLISH);
         }
     }
 
