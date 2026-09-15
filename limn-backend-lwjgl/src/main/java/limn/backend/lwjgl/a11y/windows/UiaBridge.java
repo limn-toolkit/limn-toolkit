@@ -829,8 +829,20 @@ public final class UiaBridge extends PlatformBridge {
      * is the platform's: {@link UiaIds#ITEMS_INVALIDATE_LIMIT} for a container of items (a list,
      * tree, table or grid: a node with a selection or a table facet), which is what
      * {@code ItemsControlAutomationPeer} passes, else {@link UiaIds#INVALIDATE_LIMIT}. A publish
-     * that moved surviving children adds one {@code ChildrenReordered} on the parent, which the
-     * platform's peer has no case for and the model's event carries.
+     * that moved surviving children adds one {@code ChildrenReordered} on the parent with the
+     * parent's own runtime id. {@code UpdateChildrenInternal} has no case for a move; the shape is
+     * the one the platform's client-side proxies raise it in, read in the same listing (§3):
+     * {@code EventManager.HandleStructureChangedEventWindow} raises {@code ChildrenReordered} (5)
+     * on its element with that element's own {@code MakeRuntimeId()}, for WinEvent 32772, and
+     * {@code MSAAEventDispatcher.MaybeFireStructureChangeEvent}'s default branch raises it on the
+     * provider made for the event's object with that provider's own runtime id. That the element
+     * such a proxy raises it on is the container whose children moved rests on 32772 being the
+     * Win32 reorder event, a header name not read on the guest.
+     *
+     * <p>The per-child raises up to the limit depart from the Windows brief's wording
+     * ("ChildrenBulkAdded/Removed for coalesced"): the model coalesces per parent per publish, and
+     * the platform's own peer raises a coalesced change of few children as single
+     * {@code ChildAdded}/{@code ChildRemoved} events, so this follows the peer.
      *
      * @param event          a {@code STRUCTURE_CHANGED}
      * @param itemsContainer whether its parent is a container of items

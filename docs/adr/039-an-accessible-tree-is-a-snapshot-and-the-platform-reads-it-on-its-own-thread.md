@@ -2602,6 +2602,20 @@ that do (Narrator, Inspect, a .NET client), and phase 5 counts it with one
 `aStructureChangeIsRaisedAsThePlatformsOwnPeerRaisesIt`,
 `aStructureChangeIsRaisedWhenTheParentIsHeldAndMintsTheChildItAdds`).
 
+**Amended 2026-09-15 (review of the Windows phase-3 work): where the two structure-change choices
+come from.** The Windows brief asked for `ChildrenBulkAdded`/`ChildrenBulkRemoved` for the model's
+coalesced per-parent event; the amendment above raises single `ChildAdded`/`ChildRemoved` events up to
+the limit and a bulk change only past it. That is an interpretation, taken because the platform's own
+`UpdateChildrenInternal` raises a coalesced change of few children that way (readings/
+windows-dump-uia-provider-conventions.txt §3), and it is put to the owner in the lane log. And the
+`ChildrenReordered` runtime id is not a free choice: `UpdateChildrenInternal` has no case for a move,
+but the same listing holds two client-side proxies that raise `ChildrenReordered` (5), each on its
+element with that element's own runtime id — `EventManager.HandleStructureChangedEventWindow` for
+WinEvent 32772 (its `MakeRuntimeId()`) and `MSAAEventDispatcher.MaybeFireStructureChangeEvent`'s
+default branch (the runtime id of the provider made for the event's object) — which is the shape raised
+here on the parent. That the element is the container whose children moved rests on 32772 being the
+Win32 reorder event, whose header name was not read.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

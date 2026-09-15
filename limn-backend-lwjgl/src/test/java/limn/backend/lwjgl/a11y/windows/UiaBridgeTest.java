@@ -1524,7 +1524,10 @@ class UiaBridgeTest {
      * as IL on the guest 2026-09-15): ChildRemoved on the parent with each removed child's runtime
      * id, then ChildAdded on each added child with its own; one bulk change on the parent with the
      * parent's id past the limit, 20 for a plain container and 5 for a container of items; one
-     * ChildrenReordered on the parent for a move.
+     * ChildrenReordered on the parent for a move, with the parent's own runtime id, as the
+     * platform's client-side proxies raise it on their element with that element's own
+     * (EventManager.HandleStructureChangedEventWindow, MSAAEventDispatcher.MaybeFireStructureChangeEvent,
+     * the same reading's §3).
      */
     @Test
     void aStructureChangeIsRaisedAsThePlatformsOwnPeerRaisesIt() {
