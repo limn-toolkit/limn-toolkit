@@ -28,8 +28,10 @@ import java.util.Set;
  * its own with week numbers, bounds, a filter and marks.
  *
  * <p>Every date here is fixed rather than taken from the clock, so two runs and two captures show
- * the same month. The one exception is deliberate: nothing marks today, because a capture taken on
- * a different day would move the ring and the gallery would churn.
+ * the same month. Today is the one fact the widgets read from a clock, and the calendar rings it
+ * when it falls in the month on show: run by hand that is the machine's today, and a
+ * {@code --screenshot} capture pins it to the documentation day (2026-09-09, see
+ * {@link #pinForCapture}) so a render taken on another day rings the same cell.
  */
 final class DatesScene {
 
