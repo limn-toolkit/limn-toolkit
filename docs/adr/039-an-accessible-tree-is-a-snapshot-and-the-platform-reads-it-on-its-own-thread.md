@@ -2258,6 +2258,39 @@ demands no number. A change of the text or of the emptiness alone is a `VALUE_CH
 this bridge posts it as `ValueChanged` like any other; the row's "minValue / maxValue" are still not
 installed.
 
+**The macOS rows as built (dated 2026-09-15; MACOS-NEW-7).** The table at the head of this section is
+kept as it was written, and the dated notes above say what changed item by item. This is the whole of
+what the bridge installs at the end of phase 3, row by row, so that nothing a reader of this section is
+told is a promise the code does not keep. Every selector named here is listed in `AxSelectors`, tied to
+the committed AppKit dump by `AxConstantsTest`, and answered only where `isAccessibilitySelectorAllowed:`
+(`AxGate`) allows it; everything else a row of the table above names is marked *not installed*.
+
+| Attribute / action / notification | As built |
+| --- | --- |
+| `accessibilityRole`, `accessibilitySubrole` | `AxRoles`, resolved by `dlsym`; unchanged |
+| `accessibilityRoleDescription` | **installed** (the row said "not yet implemented"): the toolkit's own phrase for the role under the node's locale (`RoleNames`); a column element keeps AppKit's own `column` |
+| `accessibilityTitle` / `accessibilityLabel`, `accessibilityHelp`, `accessibilityIdentifier` | as the rows say |
+| `accessibilityValue` | toggle 0/1/2, text, a value's displayed text else its number, an empty value its word (`AxValues`); **`accessibilityMinValue` / `accessibilityMaxValue` not installed** |
+| `setAccessibilityFrameInParentSpace:` | pushed for every held element and column element on each ordinary publish and on mint; **`accessibilityFrame` is not installed** (the row said it was): AppKit answers it from the pushed box |
+| `accessibilityParent`, `accessibilityChildren` | the snapshot links; a table's children end with its column elements; the root's children pushed, re-pushed when they change |
+| `accessibilityFocusedUIElement`, `isAccessibilityFocused` | **installed** (the row said "not claimed"), on the content view's own subclass and on the element class, from the tree's effective focus, across a native popup's window |
+| `setAccessibilityFocused:`, `setAccessibilitySelected:`, `setAccessibilityDisclosed:`, `setAccessibilityExpanded:`, `setAccessibilityValue:`, `setAccessibilitySelectedRows:` | installed with the gate, each posting the verb it means where `AccessibleNode#accepts` holds; every other stored setter refused |
+| `accessibilitySelectedChildren`, `accessibilitySelectedRows`, `accessibilitySelectedCells` | the one of the container's selection shape (children / rows / cells) |
+| `accessibilityRows`, `accessibilityVisibleRows`, `accessibilityIndex` | tables, outlines and lists; a table row's index its cells' row, an outline row's the hierarchy facet's flat row, a list row's its position, each less one |
+| `accessibilityRowCount`, `accessibilityColumnCount` | tables only, the table facet's counts (a native table answers neither; kept, see the columns note) |
+| `accessibilityColumns`, `accessibilityVisibleColumns`, `accessibilitySelectedColumns` | **one column element per shown column** (the row said "synthesised, one per header cell"), answering role, index, header, rows, visible rows and parent; selected columns empty |
+| `accessibilityHeader`, `accessibilityColumnHeaderUIElements` | the group holding the header cells, matched by `CellFacet(−1, c)` (the row said "the first group child"); none on a headerless table |
+| `accessibilityRowIndexRange`, `accessibilityColumnIndexRange`, `accessibilityCellForColumn:row:` | data cells; the cell found by its own cell facet |
+| `isAccessibilityDisclosed`, `accessibilityDisclosureLevel`, `accessibilityDisclosedByRow`, `accessibilityDisclosedRows`, `isAccessibilityExpanded` | outline rows (zero-based level); expanded on everything else with an expand facet |
+| `accessibilityHitTest:` | as the row says |
+| `accessibilityPerformPress`, `…Confirm`, `…Increment`, `…Decrement`, `…ShowMenu`, `…Cancel` | installed with the gate; press and confirm map to `PRESS`, `TOGGLE`, `SELECT`, `EXPAND`, `COLLAPSE`; **`…Pick` is not installed** (the row listed it) |
+| `accessibilityActionNames`, `accessibilityPerformAction:` | installed, for `AXScrollToVisible` |
+| `accessibilityAttributeValue:`, `accessibilityAttributeNames` | installed, forwarding, for `AXElementBusy` (ADR 044 §2) |
+| `accessibilityNumberOfCharacters`, `accessibilitySelectedText`, `accessibilitySelectedTextRange`, `accessibilityStringForRange:`, `accessibilityRangeForLine:`, `accessibilityInsertionPointLineNumber` | **not installed** (the row said "`TextFacet`"): a text is read through `accessibilityValue` alone; owed |
+| `isAccessibilityModal` (a dialog's `AXModal`, the elided-root paragraph below) | **not installed**; owed |
+| `NSAccessibilityPostNotification` | at the end of the frame that emitted it (§1.10's amendment), not "the event flush"; `…WithUserInfo` for an announcement, on the window |
+| sort direction | not served: the model carries it only as the sorted header's localized description; the reading of `AXSortDirection` is in ADR 041 §7's note of this date |
+
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a
 node the platform has asked about — and keeps a map from node id to element so a client's retained
@@ -2498,6 +2531,23 @@ window reached both an observer registered on the window and one registered on t
 posted on `NSApp` only the application's, and one posted on the content view nobody's. Whether VoiceOver
 speaks an announcement posted there is phase 5's to hear. `NODE_DESTROYED` releases the element at the
 frame's end and still posts nothing (§2.2's note of the same date).
+
+**The macOS column as built (dated 2026-09-15; MACOS-NEW-7).** The table above is kept as written; this
+is what the bridge posts at the end of phase 3, where the macOS cells above say otherwise.
+`FOCUS_CHANGED` and `ACTIVE_DESCENDANT_CHANGED`: one `FocusedUIElementChanged` per frame at application
+level, last. `STRUCTURE_CHANGED`: `LayoutChanged` on the held parent — not `Created` or
+`UIElementDestroyed`, which AppKit posts itself — and on the window for the elided root's children.
+`NAME_CHANGED` `TitleChanged`; `DESCRIPTION_CHANGED` `LayoutChanged`; `STATE_CHANGED` `ValueChanged`,
+except `BUSY` (`AXElementBusyChanged`), `ACTIVE` (nothing), `SELECTED` on a member whose container is told
+the selection in the same frame (nothing) and `EXPANDED` on an outline row (`RowExpanded` /
+`RowCollapsed` and the outline's `RowCountChanged`); `VALUE_CHANGED` and `TEXT_CHANGED` `ValueChanged`;
+`SELECTION_CHANGED` the container's shape; `CARET_MOVED` and `TEXT_SELECTION_CHANGED`
+`SelectedTextChanged`; a row container whose count moved `RowCountChanged`. `BOUNDS_CHANGED`: **nothing**
+(the cell said `Moved`/`Resized` and a bulk `LayoutChanged`; the boxes are pushed instead).
+`WINDOW_OPENED`/`CLOSED`/`ACTIVATED`/`DEACTIVATED`: **nothing** (the cells named AppKit's own
+notifications, which AppKit posts for the window it vends). `NODE_DESTROYED`: release at the frame's end,
+nothing posted. `INVOKED`: nothing. `ANNOUNCEMENT`: `AnnouncementRequested` on the window with its text and
+priority. `INVALIDATED`: `LayoutChanged` on the window, the registry swept, the focus change posted again.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that

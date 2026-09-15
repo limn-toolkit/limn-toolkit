@@ -586,6 +586,18 @@ cells (2026-09-15, `scripts/a11y/macos/table-probe.swift`), not `NSAccessibility
 The row's `accessibilityColumns` is now true (M4, decision 34, the same day): one `AXColumn` element per
 shown column, as the native table vends, answering its index, its header cell and its cells; ADR 039
 §2.2's note of the same date says how they are kept.
+The macOS row as built, the same day (MACOS-NEW-7): table node `NSAccessibilityTableRole` with
+`accessibilityRows`, `accessibilityVisibleRows`, `accessibilitySelectedRows`, `accessibilityColumns` and
+`accessibilityVisibleColumns` (column elements), `accessibilityHeader` (the header group, none when the
+header is hidden), `accessibilityRowCount` and `accessibilityColumnCount`, and the parameterized cell
+lookup; cell node `NSAccessibilityCellRole` with the two index ranges and its column header; header cell
+`NSAccessibilityButtonRole` / `NSAccessibilitySortButtonSubrole` under `accessibilityHeader`. **Sort
+direction, read and not served:** a native header button answers `AXSortDirection` as
+`AXUnknownSortDirection`, `AXAscendingSortDirection` or `AXDescendingSortDirection`, and an element whose
+`accessibilitySortDirection` (`q16@0:8`) answers 1 or 2 reads ascending or descending (read on the macOS
+26.6.2 guest, 2026-09-15, `table-probe.swift`); the bridge maps nothing yet, because the direction is
+carried only as the sorted header's localized description and a bridge cannot read a direction out of a
+translation. The facet or state this record left for phase 3 is the model's to add.
 
 ### 7.1 What the live clients found
 
