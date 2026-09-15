@@ -2221,6 +2221,20 @@ holds navigation to one consistent tree reaching every node once, and `UiaTreeRo
 the Win32 tree's items answered `ControlType` Tree and an empty `Name` in that reading, while the
 managed client read them as `TreeItem`s with their names; it bears on no number used here.
 
+**Amended 2026-09-15 (phase 3, Windows; decision 8, semantics 2 and 3; WINDOWS-NEW-8, TABLE-NEW-11):
+cells and headers are found by `CellFacet`.** The Grid/Table rows above say `GetItem` answers "a
+realized cell" and "column headers are the header group's children", and the column header item is
+"that grid's header group's child at the cell's column". As built until this date, `GetItem` matched a
+`ROW` child by its `SelectionItemFacet` position (row + 1), so a calendar, whose week rows carry no
+position, answered no day, and a row whose position is not its view index answered the wrong one;
+the header group was the table's *first* `GROUP` child, so a footer or any other group ahead of it
+was answered as the headers; and a cell's header item was the header at the cell's column index among
+the group's children. Now: `GetItem(r, c)` answers the node with `CellFacet(r, c)` among the children
+of the table's `ROW` children whose nearest table is this one (a widget cell under its synthetic row
+included), null for a negative row or an unrealized one; `GetColumnHeaders` answers, in reading order,
+every `CellFacet(-1, c)` child of the table's direct `GROUP` children, a footer's `-2` cells never; and
+`GetColumnHeaderItems` answers the header whose `CellFacet` column is the cell's.
+
 ### 2.2 macOS: NSAccessibility
 
 | Attribute / action / notification | Answered from | Note |

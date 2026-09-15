@@ -200,9 +200,11 @@ class UiaPatternProvidersTest {
      *     synthetic ROW
      *       synthetic CELL "15" selected     synthetic CELL "16"
      *   1020 TABLE 2x2
-     *     1021 GROUP (the header)  1022 COLUMN_HEADER (-1,0)  1023 COLUMN_HEADER (-1,1)
+     *     1033 GROUP (a toolbar)   1034 BUTTON
+     *     1021 GROUP (the header)  1023 COLUMN_HEADER (-1,1)  1022 COLUMN_HEADER (-1,0)
      *     1024 ROW 1/2             1025 CELL (0,0)            1026 CELL (0,1)
-     *     1027 ROW 2/2             1028 CELL (1,0)            1029 CELL (1,1)
+     *     1027 ROW 7/9 (sorted)    1028 CELL (1,0)            1029 SWITCH (1,1), a widget cell
+     *     1035 GROUP (the footer)  1036 CELL (-2,0)
      *   1030 TABLE 1x1, calendar-shaped: its ROW carries no position
      *     1031 ROW                 1032 CELL (0,0)
      *   1040 SCROLL_PANE v 25% of 50%, scrolls vertically only
@@ -302,9 +304,13 @@ class UiaPatternProvidersTest {
         a.end();
         int table = node(a, 1020, window, Accessible.Role.TABLE);
         a.table(2, 2);
+        int toolbar = node(a, 1033, table, Accessible.Role.GROUP);
+        node(a, 1034, toolbar, Accessible.Role.BUTTON);
+        a.end();
+        a.end();
         int header = node(a, 1021, table, Accessible.Role.GROUP);
-        cell(a, 1022, header, Accessible.Role.COLUMN_HEADER, -1, 0);
         cell(a, 1023, header, Accessible.Role.COLUMN_HEADER, -1, 1);
+        cell(a, 1022, header, Accessible.Role.COLUMN_HEADER, -1, 0);
         a.end();
         int row0 = node(a, 1024, table, Accessible.Role.ROW);
         a.selectionItem(false, 1, 2);
@@ -312,9 +318,12 @@ class UiaPatternProvidersTest {
         cell(a, 1026, row0, Accessible.Role.CELL, 0, 1);
         a.end();
         int row1 = node(a, 1027, table, Accessible.Role.ROW);
-        a.selectionItem(false, 2, 2);
+        a.selectionItem(false, 7, 9);
         cell(a, 1028, row1, Accessible.Role.CELL, 1, 0);
-        cell(a, 1029, row1, Accessible.Role.CELL, 1, 1);
+        cell(a, 1029, row1, Accessible.Role.SWITCH, 1, 1);
+        a.end();
+        int footer = node(a, 1035, table, Accessible.Role.GROUP);
+        cell(a, 1036, footer, Accessible.Role.CELL, -2, 0);
         a.end();
         a.end();
         int calendar = node(a, 1030, window, Accessible.Role.TABLE);
@@ -966,20 +975,31 @@ class UiaPatternProvidersTest {
 
     // ---- Grid and Table
 
-    @Test
-    void getItemFindsACellOfARowByTheRowsPositionAndNothingInACalendarShapedGrid() {
+    private long getItem(long table, int row, int column) {
         long out = buffer();
         assertEquals(UiaIds.S_OK,
-                ((UiaCom.PIIP) slot(UiaIds.GRID_PATTERN, 1020, "GetItem")).invoke(0, 1, 0, out));
-        assertEquals(SIMPLE + 1028, MemoryUtil.memGetAddress(out));
-        assertEquals(UiaIds.S_OK,
-                ((UiaCom.PIIP) slot(UiaIds.GRID_PATTERN, 1020, "GetItem")).invoke(0, 5, 0, out));
-        assertEquals(0L, MemoryUtil.memGetAddress(out), "an unrealized row answers null");
-        // Pinned as of 048f7d0: a row with no position is never matched, so a calendar's day is
-        // not found (WINDOWS-NEW-8; semantics 2 finds it by CellFacet).
-        assertEquals(UiaIds.S_OK,
-                ((UiaCom.PIIP) slot(UiaIds.GRID_PATTERN, 1030, "GetItem")).invoke(0, 0, 0, out));
-        assertEquals(0L, MemoryUtil.memGetAddress(out));
+                ((UiaCom.PIIP) slot(UiaIds.GRID_PATTERN, table, "GetItem")).invoke(0, row, column, out));
+        return MemoryUtil.memGetAddress(out);
+    }
+
+    /**
+     * Semantics 2 (decision 8; WINDOWS-NEW-8): a cell is the node whose CellFacet is the pair, under
+     * the table's rows, whatever the row's position in set says; a widget cell under its row is
+     * found like a synthetic one; a calendar's week row, which carries no position, is searched
+     * too. Until 2026-09-15 a row was matched by its position (row + 1), so the calendar answered no
+     * day and a sorted row's position named the wrong one.
+     */
+    @Test
+    void getItemFindsTheCellByItsCellFacetUnderTheTablesRows() {
+        assertEquals(SIMPLE + 1028, getItem(1020, 1, 0), "row 1, whose row publishes position 7");
+        assertEquals(SIMPLE + 1029, getItem(1020, 1, 1), "a widget cell under its row");
+        assertEquals(SIMPLE + 1025, getItem(1020, 0, 0));
+        assertEquals(0L, getItem(1020, 5, 0), "an unrealized row answers null");
+        assertEquals(0L, getItem(1020, -1, 0), "a header is not a grid item");
+        assertEquals(0L, getItem(1020, -2, 0), "nor a footer");
+        assertEquals(SIMPLE + 1032, getItem(1030, 0, 0),
+                "a calendar-shaped grid's cell, under a row with no position");
+        long out = buffer();
 
         assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
                 ((UiaCom.PIIP) slot(UiaIds.GRID_PATTERN, 1001, "GetItem")).invoke(0, 0, 0, out),
@@ -999,15 +1019,22 @@ class UiaPatternProvidersTest {
                 get(UiaIds.GRID_PATTERN, 1020, "get_ColumnCount", out));
     }
 
+    /**
+     * Semantics 3 (the settled header-group rule; TABLE-NEW-11): the column headers are the
+     * CellFacet(-1, c) children of the table's direct groups, in reading order; a group before the
+     * header group (a toolbar) and the footer's (-2, c) cells are not headers. Until 2026-09-15 the
+     * children of the first group were answered, which here would be the toolbar's button.
+     */
     @Test
-    void theTableAnswersNoRowHeadersTheHeaderGroupsChildrenAndRowMajor() {
+    void theTableAnswersNoRowHeadersTheHeaderCellsOfItsGroupsAndRowMajor() {
         long out = buffer();
         assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_PATTERN, 1020, "GetRowHeaders", out));
         assertEquals(ARRAY, MemoryUtil.memGetAddress(out));
         assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_PATTERN, 1020, "GetColumnHeaders", out));
         assertEquals(ARRAY + 1, MemoryUtil.memGetAddress(out));
         assertArrayEquals(new long[0], arrays.get(0));
-        assertArrayEquals(new long[] {SIMPLE + 1022, SIMPLE + 1023}, arrays.get(1));
+        assertArrayEquals(new long[] {SIMPLE + 1023, SIMPLE + 1022}, arrays.get(1),
+                "the header cells in reading order, and nothing of the toolbar or the footer");
         assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_PATTERN, 1020, "get_RowOrColumnMajor", out));
         assertEquals(UiaIds.ROW_OR_COLUMN_MAJOR_ROW_MAJOR, MemoryUtil.memGetInt(out));
 
@@ -1039,15 +1066,22 @@ class UiaPatternProvidersTest {
                 get(UiaIds.GRID_ITEM_PATTERN, 1028, "get_ContainingGrid", out));
     }
 
+    /**
+     * Semantics 3: a cell's column header is the header whose CellFacet column is the cell's, never
+     * the header at the cell's column index among the group's children. Until 2026-09-15 it was the
+     * latter, which in this fixture (headers in the order 1, 0) names the other column's header.
+     */
     @Test
-    void aCellsHeaderItemsAreNoneForTheRowAndTheHeaderAtItsColumn() {
+    void aCellsHeaderItemsAreNoneForTheRowAndTheHeaderOfItsColumn() {
         long out = buffer();
         assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_ITEM_PATTERN, 1029, "GetRowHeaderItems", out));
         assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_ITEM_PATTERN, 1029, "GetColumnHeaderItems", out));
         assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_ITEM_PATTERN, 1032, "GetColumnHeaderItems", out));
+        assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_ITEM_PATTERN, 1028, "GetColumnHeaderItems", out));
         assertArrayEquals(new long[0], arrays.get(0));
-        assertArrayEquals(new long[] {SIMPLE + 1023}, arrays.get(1));
+        assertArrayEquals(new long[] {SIMPLE + 1023}, arrays.get(1), "column 1's header");
         assertArrayEquals(new long[0], arrays.get(2), "a grid with no header group has none");
+        assertArrayEquals(new long[] {SIMPLE + 1022}, arrays.get(3), "column 0's header");
 
         goneFromTheTree();
         assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,

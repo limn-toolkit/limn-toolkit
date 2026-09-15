@@ -290,9 +290,11 @@ final class UiaPatternProviders {
                 });
             }
 
-            // ADR 041 §7. Cells are answered from what the walk published: a row the table has not
-            // realized has no node, so GetItem on it answers null, the degradation ADR 039 §4.1
-            // accepts. Column headers are the header group's children; row headers are none.
+            // ADR 041 §7; semantics 2 and 3. Cells are answered from what the walk published: a row
+            // the table has not realized has no node, so GetItem on it answers null, the degradation
+            // ADR 039 §4.1 accepts. A cell is found by its own CellFacet, never by a row's position;
+            // a column's header is the CellFacet(-1, c) child of one of the table's direct groups,
+            // a footer cell (row -2) never; row headers are none.
             case UiaIds.GRID_PATTERN -> {
                 slots.put("GetItem", (UiaCom.PIIP) (self, row, column, out) -> {
                     AccessibleTree tree = context.tree();
@@ -378,12 +380,13 @@ final class UiaPatternProviders {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
                     AccessibleNode table = tableOf(tree, cell);
-                    List<AccessibleNode> headers = table == null ? List.of()
-                            : columnHeadersOf(tree, table);
-                    int column = cell.cell().column();
-                    long[] pointers = column >= 0 && column < headers.size()
-                            ? new long[] {context.simpleElementFor(headers.get(column).id())}
-                            : new long[0];
+                    // Matched by column, never by the header's place among its siblings (semantics
+                    // 3): until 2026-09-15 the header at the cell's column index was answered, which
+                    // is another column's header once the group holds anything else first.
+                    AccessibleNode header = table == null ? null
+                            : headerOf(tree, table, cell.cell().column());
+                    long[] pointers = header == null ? new long[0]
+                            : new long[] {context.simpleElementFor(header.id())};
                     MemoryUtil.memPutAddress(out, context.unknownArray(pointers));
                     return UiaIds.S_OK;
                 });
@@ -424,28 +427,77 @@ final class UiaPatternProviders {
         return null;
     }
 
-    /** The header group's children: the table's first group child's children, in order. */
+    /**
+     * The table's column headers in reading order (semantics 3, the settled header-group rule): every
+     * node with a {@code CellFacet} of row {@code -1} among the children of the table's direct
+     * {@code GROUP} children. A footer cell (row {@code -2}) is never one, and a group that holds
+     * no header cell (a toolbar, a footer) contributes nothing. Until 2026-09-15 the children of the
+     * table's first group were answered, whatever they were.
+     */
     private static List<AccessibleNode> columnHeadersOf(AccessibleTree tree, AccessibleNode table) {
-        for (AccessibleNode child : tree.children(table)) {
-            if (child.role() == Accessible.Role.GROUP) {
-                return tree.children(child);
+        List<AccessibleNode> headers = new java.util.ArrayList<>();
+        for (int group = table.firstChild(); group != AccessibleNode.NONE;
+                group = tree.node(group).nextSibling()) {
+            if (tree.node(group).role() != Accessible.Role.GROUP) {
+                continue;
+            }
+            for (int at = tree.node(group).firstChild(); at != AccessibleNode.NONE;
+                    at = tree.node(at).nextSibling()) {
+                AccessibleNode candidate = tree.node(at);
+                if (candidate.cell() != null && candidate.cell().row() == -1) {
+                    headers.add(candidate);
+                }
             }
         }
-        return List.of();
+        return headers;
     }
 
-    /** The realized cell shown at {@code row}, {@code column}; null when the row is unrealized. */
+    /** @return the header of {@code column} by {@link #columnHeadersOf}'s rule, or null for none */
+    private static AccessibleNode headerOf(AccessibleTree tree, AccessibleNode table, int column) {
+        for (int group = table.firstChild(); group != AccessibleNode.NONE;
+                group = tree.node(group).nextSibling()) {
+            if (tree.node(group).role() != Accessible.Role.GROUP) {
+                continue;
+            }
+            for (int at = tree.node(group).firstChild(); at != AccessibleNode.NONE;
+                    at = tree.node(at).nextSibling()) {
+                AccessibleNode candidate = tree.node(at);
+                if (candidate.cell() != null && candidate.cell().row() == -1
+                        && candidate.cell().column() == column) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The realized cell at {@code row}, {@code column} of a table (semantics 2, decision 8): the
+     * node whose {@code CellFacet} is that pair, among the children of the table's {@code ROW}
+     * children, whose nearest table is this one. A widget cell hangs under its synthetic row
+     * (decision 3) and is found there like a synthetic one; a calendar's week rows carry no
+     * position, which is why the row's {@code SelectionItemFacet} is never read. Until 2026-09-15 a
+     * row was matched by its position in set, which found no day in a calendar (WINDOWS-NEW-8).
+     *
+     * @return the cell, or null when that row is not realized or the pair names no data cell
+     */
     private static AccessibleNode cellAt(AccessibleTree tree, AccessibleNode table, int row,
                                          int column) {
-        for (AccessibleNode child : tree.children(table)) {
-            if (child.role() == Accessible.Role.ROW && child.selectionItem() != null
-                    && child.selectionItem().positionInSet() == row + 1) {
-                for (AccessibleNode cell : tree.children(child)) {
-                    if (cell.cell() != null && cell.cell().column() == column) {
-                        return cell;
-                    }
+        if (row < 0) {
+            return null;
+        }
+        for (int at = table.firstChild(); at != AccessibleNode.NONE; at = tree.node(at).nextSibling()) {
+            if (tree.node(at).role() != Accessible.Role.ROW) {
+                continue;
+            }
+            for (int child = tree.node(at).firstChild(); child != AccessibleNode.NONE;
+                    child = tree.node(child).nextSibling()) {
+                AccessibleNode cell = tree.node(child);
+                if (cell.cell() != null && cell.cell().row() == row
+                        && cell.cell().column() == column
+                        && tableOf(tree, cell).id() == table.id()) {
+                    return cell;
                 }
-                return null;
             }
         }
         return null;
