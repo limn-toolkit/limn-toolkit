@@ -129,6 +129,11 @@ class DatePickerNativePopupTest {
         assertTrue(cursor != 0, "the popup's tree holds the cursor " + Transcript.of(popupTree));
         assertEquals(cursor, tree.effectiveFocus(),
                 "and the host tree's effective focus is that cursor, read across the windows");
+        AccessibleNode day = popupTree.node(popupTree.indexOf(cursor));
+        assertEquals(Accessible.Role.CELL, day.role(),
+                "the cursor is a day of the calendar, not a header control " + Transcript.of(popupTree));
+        assertTrue(day.name().startsWith("September 9, 2026"),
+                "the day the field holds: " + day.name());
         assertEquals(field.id(), tree.focused(), "while the focused node is still the field");
 
         picker.close();
