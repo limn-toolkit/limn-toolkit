@@ -52,7 +52,16 @@ import static org.junit.jupiter.api.Assertions.fail;
  * in-scene overlay's subtree, or anywhere in a window a native modal blocks — publishes no verb and
  * no setter, because the scene refuses every one there. {@link #IN_SCENE_OVERLAYS} names the
  * entries whose second run has an overlay open, so the rule cannot pass by an overlay failing to
- * open.
+ * open. The rule is held on every window the entry ended up with, not only its own.
+ *
+ * <p>Two more checks keep the rule honest in both directions (fix round 2d, 2026-09-15). In the
+ * run with its surfaces in the scene, a node inside the open layer still publishes a verb and
+ * performing one moves something, so a walk that withdrew every verb everywhere cannot pass. And
+ * for the entries in {@link #FADE_OUT_ENTRIES} the surface is closed through the verb it
+ * publishes and one frame of its fade-out is sampled: what is still drawn of the closing surface
+ * publishes no verb but the two the scene performs itself on a focusable widget, because every
+ * other verb those surfaces carry (an option's choice, a dialog button's answer, the dismissal)
+ * resolves a surface that is already on its way out and is refused.
  *
  * <p>{@link #ALLOWLIST} names the nodes that accept an unpublished verb today, each keyed by the
  * item that owns the fix. An entry there is held to the opposite promise: the moment its node
@@ -112,6 +121,19 @@ class VerbPolicyRatchetTest {
             "Combo box, open", "Date picker, open", "Menu bar", "Dialog, in the scene",
             "Colour picker button, open");
 
+    /**
+     * The entries whose open surface is closed and sampled one frame into its fade-out, in both
+     * runs: a combo's list (a window of its own, then an overlay of the scene) and a dialog (a
+     * window, and an overlay). Where the two hooks the fade-out defects lived (fdd9533 and fix
+     * round 2d). Only surfaces whose every verb resolves them belong here: a dialog holding
+     * controls of its own (the colour picker button's) keeps them operable through its fade, and
+     * they rightly publish their verbs. The date picker's calendar and a popup menu are not here
+     * because this sample recognises a fading surface by a {@code DIALOG} or {@code LIST_ITEM}
+     * node, which they do not have.
+     */
+    static final Set<String> FADE_OUT_ENTRIES = Set.of(
+            "Combo box, open", "Dialog, in its own window", "Dialog, in the scene");
+
     // ------------------------------------------------------------------------- the ratchet
 
     @TestFactory
@@ -156,8 +178,17 @@ class VerbPolicyRatchetTest {
         Set<Exemption> used = new LinkedHashSet<>();
         Run run = new Run(entry, inScene);
         try {
-            checkNothingOutsideTheInputLayerIsOperable(entry, inScene,
-                    run.windows.get(0).bridge().tree());
+            checkNothingOutsideTheInputLayerIsOperable(entry, inScene, run.windows);
+            if (inScene && IN_SCENE_OVERLAYS.contains(entry.name())) {
+                checkTheOpenLayerIsStillOperable(entry, run);
+                run.close();
+                run = new Run(entry, inScene);
+            }
+            if (FADE_OUT_ENTRIES.contains(entry.name())) {
+                run.close();
+                checkAFadeOutFrame(entry, inScene);
+                run = new Run(entry, inScene);
+            }
             for (int w = 0; w < run.windows.size(); w++) {
                 for (int i = 0; i < run.windows.get(w).bridge().tree().nodeCount(); i++) {
                     for (Accessible.Action verb : Accessible.Action.values()) {
@@ -206,29 +237,49 @@ class VerbPolicyRatchetTest {
     }
 
     /**
-     * The central rule on one window's tree at rest (ADR 039 §1.9 and §1.13, amended 2026-09-15;
-     * semantics 5): a node outside the layer that owns input publishes no verb, no writable value
-     * and no editable text. Outside is outside the subtree of the node published {@code MODAL}
-     * (the top in-scene overlay), or anywhere in a window whose own node is not {@code ENABLED}
-     * (a native modal blocks it).
+     * The central rule on every window of the entry at rest (ADR 039 §1.9 and §1.13, amended
+     * 2026-09-15; semantics 5): a node outside the layer that owns input publishes no verb, no
+     * writable value and no editable text. Outside is outside the subtree of the node published
+     * {@code MODAL} (the top in-scene overlay of that window), or anywhere in a window whose own
+     * node is not {@code ENABLED} (a native modal blocks it). With its surfaces in the scene, an
+     * overlay is open in some window exactly when {@link #IN_SCENE_OVERLAYS} names the entry.
      */
     private static void checkNothingOutsideTheInputLayerIsOperable(Entry entry, boolean inScene,
-                                                                  AccessibleTree tree) {
+                                                                  List<HeadlessWindow> windows) {
+        boolean anyModal = false;
+        StringBuilder all = new StringBuilder();
+        for (HeadlessWindow window : windows) {
+            AccessibleTree tree = window.bridge().tree();
+            anyModal |= modalOf(tree) >= 0;
+            all.append(Transcript.of(tree));
+            checkNothingOutsideTheInputLayerIsOperable(entry, inScene, tree);
+        }
+        if (inScene) {
+            boolean expected = IN_SCENE_OVERLAYS.contains(entry.name());
+            if (expected != anyModal) {
+                fail("gallery entry \"" + entry.name() + "\" with its surfaces in the scene "
+                        + (expected ? "opened no in-scene overlay, which IN_SCENE_OVERLAYS says "
+                        + "it does" : "opened an in-scene overlay IN_SCENE_OVERLAYS does not "
+                        + "name; add it") + ":\n" + all);
+            }
+        }
+    }
+
+    /** @return the index of the last node published {@code MODAL}, or {@code -1} */
+    private static int modalOf(AccessibleTree tree) {
         int modal = -1;
         for (int i = 0; i < tree.nodeCount(); i++) {
             if (tree.node(i).has(Accessible.State.MODAL)) {
                 modal = i;
             }
         }
-        if (inScene) {
-            boolean expected = IN_SCENE_OVERLAYS.contains(entry.name());
-            if (expected != (modal >= 0)) {
-                fail("gallery entry \"" + entry.name() + "\" with its surfaces in the scene "
-                        + (expected ? "opened no in-scene overlay, which IN_SCENE_OVERLAYS says "
-                        + "it does" : "opened an in-scene overlay IN_SCENE_OVERLAYS does not "
-                        + "name; add it") + ":\n" + Transcript.of(tree));
-            }
-        }
+        return modal;
+    }
+
+    /** {@link #checkNothingOutsideTheInputLayerIsOperable(Entry, boolean, List)} on one tree. */
+    private static void checkNothingOutsideTheInputLayerIsOperable(Entry entry, boolean inScene,
+                                                                  AccessibleTree tree) {
+        int modal = modalOf(tree);
         boolean blocked = !tree.node(0).has(Accessible.State.ENABLED);
         if (modal < 0 && !blocked) {
             return;
@@ -256,6 +307,142 @@ class VerbPolicyRatchetTest {
                     + "2026-09-15):\n  " + String.join("\n  ", violations) + "\n"
                     + Transcript.of(tree));
         }
+    }
+
+    /**
+     * The other direction, with the surfaces in the scene: inside the open layer a node still
+     * publishes a verb that moves something when performed. The central rule only ever withdraws,
+     * so a walk that withdrew every verb from every node would satisfy it and the complement at
+     * once; this is what refuses that walk. The two free verbs are not asked, because focusing a
+     * node that has the focus, or revealing one already in view, rightly moves nothing.
+     */
+    private static void checkTheOpenLayerIsStillOperable(Entry entry, Run run) {
+        for (int w = 0; w < run.windows.size(); w++) {
+            AccessibleTree tree = run.windows.get(w).bridge().tree();
+            int modal = modalOf(tree);
+            if (modal < 0) {
+                continue;
+            }
+            for (int i = modal; i < tree.nodeCount(); i++) {
+                AccessibleNode node = run.windows.get(w).bridge().tree().node(i);
+                if (!isWithin(run.windows.get(w).bridge().tree(), i, modal)
+                        || node.actions() == null) {
+                    continue;
+                }
+                for (Accessible.Action verb : node.actions().actions()) {
+                    if (verb == Accessible.Action.FOCUS
+                            || verb == Accessible.Action.SCROLL_INTO_VIEW) {
+                        continue;
+                    }
+                    if (run.perform(w, node.id(), verb) != null) {
+                        return;
+                    }
+                }
+            }
+        }
+        StringBuilder all = new StringBuilder();
+        for (HeadlessWindow window : run.windows) {
+            all.append(Transcript.of(window.bridge().tree()));
+        }
+        fail("gallery entry \"" + entry.name() + "\" with its surfaces in the scene: no node "
+                + "inside the open layer publishes a verb that moves anything when performed, so "
+                + "the layer that owns input offers a reader nothing to do (ADR 039 §1.13):\n"
+                + all);
+    }
+
+    /**
+     * Closes the entry's open surface through the verb it publishes for that — {@code CANCEL} on
+     * a dialog or an in-scene list's layer, else {@code COLLAPSE} on the combo field whose list
+     * is a window of its own — renders one frame, and holds the fading surface to the verb
+     * policy: nothing still drawn of it publishes a verb other than the free pair on a focusable
+     * widget, and the central rule holds on every window. The frame is always one of the fade:
+     * the entry settled first, and a fade registered on a scene with no ticker running starts at
+     * {@code dt == 0} ({@code Scene.tickAnimations}), wall clock or not. A sample that finds the
+     * surface gone anyway is a failure and not a pass.
+     */
+    private static void checkAFadeOutFrame(Entry entry, boolean inScene) {
+        try (Run run = new Run(entry, inScene)) {
+            if (!sampleAFadeOutFrame(entry, inScene, run)) {
+                StringBuilder all = new StringBuilder();
+                for (HeadlessWindow window : run.harness.windows()) {
+                    all.append(Transcript.of(window.bridge().tree()));
+                }
+                fail("gallery entry \"" + entry.name() + "\"" + (inScene ? " with its surfaces in "
+                        + "the scene" : "") + ": one frame after closing its surface nothing of it "
+                        + "was still published, so no fade-out frame was sampled:\n" + all);
+            }
+        }
+    }
+
+    /** @return whether a frame of the fade-out was sampled; {@code false} when it was missed */
+    private static boolean sampleAFadeOutFrame(Entry entry, boolean inScene, Run run) {
+        int windowsAtRest = run.harness.windows().size();
+        boolean hadModal = modalOf(run.windows.get(0).bridge().tree()) >= 0;
+        if (!run.closeTheOpenSurface()) {
+            fail("gallery entry \"" + entry.name() + "\"" + (inScene ? " with its surfaces in "
+                    + "the scene" : "") + ": no node publishes CANCEL or COLLAPSE to close "
+                    + "its surface with:\n" + Transcript.of(run.windows.get(0).bridge().tree()));
+        }
+        run.harness.settle(1);
+        List<HeadlessWindow> now = run.harness.windows();
+        List<AccessibleNode> surface = new ArrayList<>();
+        List<AccessibleTree> trees = new ArrayList<>();
+        if (hadModal) {
+            AccessibleTree tree = now.get(0).bridge().tree();
+            int modal = modalOf(tree);
+            for (int i = 0; modal >= 0 && i < tree.nodeCount(); i++) {
+                if (isWithin(tree, i, modal)) {
+                    surface.add(tree.node(i));
+                }
+            }
+        } else if (now.size() == windowsAtRest) {
+            for (int w = 1; w < now.size(); w++) {
+                AccessibleTree tree = now.get(w).bridge().tree();
+                for (int i = 0; i < tree.nodeCount(); i++) {
+                    surface.add(tree.node(i));
+                }
+            }
+        }
+        boolean drawn = false;
+        for (AccessibleNode node : surface) {
+            drawn |= node.role() == Accessible.Role.DIALOG
+                    || node.role() == Accessible.Role.LIST_ITEM;
+        }
+        if (!drawn) {
+            return false;
+        }
+        for (HeadlessWindow window : now) {
+            trees.add(window.bridge().tree());
+        }
+        List<String> violations = new ArrayList<>();
+        for (AccessibleNode node : surface) {
+            if (node.actions() == null) {
+                continue;
+            }
+            for (Accessible.Action verb : node.actions().actions()) {
+                boolean free = (verb == Accessible.Action.FOCUS
+                        || verb == Accessible.Action.SCROLL_INTO_VIEW)
+                        && node.has(Accessible.State.FOCUSABLE);
+                if (!free) {
+                    violations.add(describe(node) + " publishes " + verb);
+                }
+            }
+        }
+        if (!violations.isEmpty()) {
+            StringBuilder all = new StringBuilder();
+            for (AccessibleTree tree : trees) {
+                all.append(Transcript.of(tree));
+            }
+            fail("gallery entry \"" + entry.name() + "\"" + (inScene ? " with its surfaces in "
+                    + "the scene" : "") + ", one frame into the fade-out of its closed surface: "
+                    + violations.size() + " node(s) of the closing surface publish a verb its "
+                    + "hook refuses once the surface is on its way out (semantics 5):\n  "
+                    + String.join("\n  ", violations) + "\n" + all);
+        }
+        for (AccessibleTree tree : trees) {
+            checkNothingOutsideTheInputLayerIsOperable(entry, inScene, tree);
+        }
+        return true;
     }
 
     private static boolean isWithin(AccessibleTree tree, int index, int ancestor) {
@@ -363,6 +550,31 @@ class VerbPolicyRatchetTest {
         }
 
         /**
+         * Sends the verb that closes the entry's open surface: {@code CANCEL} wherever it is
+         * published first (a dialog's card, an in-scene list's layer), else {@code COLLAPSE} on a
+         * combo field. Posted through the host as a bridge does, and not yet run.
+         *
+         * @return whether a node offered either verb
+         */
+        boolean closeTheOpenSurface() {
+            for (Accessible.Action verb : List.of(Accessible.Action.CANCEL,
+                    Accessible.Action.COLLAPSE)) {
+                for (HeadlessWindow window : windows) {
+                    AccessibleTree tree = window.bridge().tree();
+                    for (int i = 0; i < tree.nodeCount(); i++) {
+                        AccessibleNode node = tree.node(i);
+                        if (node.actions() != null && node.actions().has(verb)) {
+                            assertTrue(window.bridge().host.perform(node.id(), verb,
+                                    Accessible.Argument.NONE));
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        /**
          * Performs one verb on one node the way a bridge does, and reads what moved.
          *
          * @return {@code null} when nothing moved; otherwise what did, for the message
@@ -421,8 +633,14 @@ class VerbPolicyRatchetTest {
             return out.append("(only the numbering moved)").toString();
         }
 
+        private boolean closed;
+
         @Override
         public void close() {
+            if (closed) {
+                return;
+            }
+            closed = true;
             watching.cancel();
             harness.close();
         }

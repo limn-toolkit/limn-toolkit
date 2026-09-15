@@ -1144,6 +1144,18 @@ transcript holds a disabled node outside a blocked window. Pinned by
 `AccessibleModalTest.aDisabledNodePublishesNoVerbNoClaimNoKeyBindingAndNoSetter` and the disabled
 cases of the component tests.
 
+**Amendment, 2026-09-15 (fix round 2d): the ratchet holds both directions and a fade-out frame.**
+The central rule only withdraws, so a walk that withdrew every verb, with a gate refusing every one,
+passed both it and the complement. `VerbPolicyRatchetTest` now also asserts, in the run with the
+surfaces in the scene, that a node inside the open layer publishes a verb that moves something when
+performed; holds the central rule on every window an entry ends up with and not only its first; and
+for a combo's list and a dialog with no controls of its own, in both runs, closes the surface through
+the verb it publishes and samples one frame of the fade-out, where nothing still drawn of the surface
+may publish a verb but the scene's free pair on a focusable widget (a dialog's own controls stay
+operable through its fade and are not held to this). The first sample found the closing combo list still
+offering its options' verbs in a window of its own and `CANCEL` on its in-scene layer, both fixed
+the same day (§7's `ComboBox.PopupPanel` and `ComboBox.ScenePopup` rows).
+
 **What a widget gets for free, with no override at all:** bounds from `x/y/width/height`; `ENABLED`,
 `FOCUSABLE`, `FOCUSED`, `VISIBLE` and `SHOWING` from the existing predicates; `locale()` for the
 node's language; children from `children()` in tree order; the `FOCUS` and `SCROLL_INTO_VIEW`
