@@ -362,6 +362,18 @@ cell stays, a focused one included; `markNeedsLayout()` is the call that asks fo
 widget is bound to a record the list may no longer hold — so a widget cell holding the keyboard
 still hands it to the table there; `Column.visible` says both. Pinned by
 `TableTest.aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre`.
+**Amended 2026-09-15 (fix round; decision 22, the widget-cell half).** "`refresh()` still
+rebuilds every realized row ... a widget cell holding the keyboard still hands it to the table"
+is withdrawn: `ListView`'s reason does not reach a table, whose rows follow their records
+(decision 23, §3's amendments). A `refresh()` — with or without a change to the shown set — and a
+sort release every realized row except the one whose widget cell holds the keyboard; that row is
+found again by its record (key and occurrence when known, else the equal key nearest where it
+stood) and kept, re-bound to the row that shows the record now, its widgets children and the
+focus where it was. It is released, and the keyboard handed to the table, only when the list no
+longer holds its record or its own column is hidden. Its widgets are the ones built for the record;
+its value cells are re-read. Pinned by
+`TableTest.aRefreshOrASortKeepsTheWidgetCellThatHoldsTheKeyboardWhileItsRecordStays` and the tail
+of `aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre`.
 
 **The footer is a summary row**, pinned under the rows the way the header is pinned over them,
 and it exists as soon as one column has something for it: a fixed text, one of the aggregates a

@@ -836,8 +836,8 @@ class TableTest extends ComponentTestBase {
      * so hiding a value column, with or without a refresh, rebuilt every widget cell and took
      * the keyboard off the switch a user was on. The layout now releases only a hidden widget
      * column's widgets and builds only a newly shown one's, in their places among the children;
-     * a refresh still rebuilds every row, as {@code ListView}'s does, and says so in
-     * {@code Column.visible}.
+     * a refresh rebuilds every other row and, since 2026-09-15, keeps the one whose widget cell
+     * holds the keyboard (decision 22), as {@code Column.visible} says.
      */
     @Test
     void aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre() {
@@ -891,10 +891,63 @@ class TableTest extends ComponentTestBase {
         assertEquals(2 + built, table.children().size(), "hidden again, its widgets are released");
         assertSame(target, scene.focusedWidget(), "and the Open the user is on stays");
 
+        // A refresh that also shows a widget column (the Column.visible recipe) rebuilds every
+        // other row, and keeps the row whose switch holds the keyboard (decision 22).
+        more.visible(true);
         table.refresh();
         scene.renderFrame(canvas);
-        assertTrue(opens.size() > built, "a refresh rebuilds every row, as documented");
-        assertSame(table, scene.focusedWidget(), "and the released widget hands the keyboard to the table");
+        assertTrue(opens.size() > built, "a refresh rebuilds every other row, as documented");
+        assertSame(target, scene.focusedWidget(), "and keeps the Open the user is on");
+        assertTrue(table.children().contains(target), "a child still");
+    }
+
+    /**
+     * Decision 22 of 2026-09-14, the widget-cell half (fix round of 2026-09-15): a refresh or a
+     * sort released the row whose widget cell held the keyboard and handed the keyboard to the
+     * table (ac431b4), {@code ListView}'s rule for a widget bound to data the list may no longer
+     * hold. A table follows its records (decision 23), so a record found again keeps its row and
+     * the widget the user is on; only a record the list lost releases it.
+     */
+    @Test
+    void aRefreshOrASortKeepsTheWidgetCellThatHoldsTheKeyboardWhileItsRecordStays() {
+        List<Widget> opens = new ArrayList<>();
+        Column<Person> open = Column.<Person>widget("Open", p -> {
+            Button b = new Button("Open " + p.name());
+            opens.add(b);
+            return b;
+        }).width(120);
+        Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn(), open));
+        List<Person> rows = new ArrayList<>(people(50));
+        table.setRows(rows);
+        FakeCanvas canvas = new FakeCanvas(400, 200);
+        Scene scene = scene(table, canvas);
+        Widget target = opens.get(2); // Person 2's
+        scene.requestFocus(target);
+        scene.renderFrame(canvas);
+        float wasY = target.y();
+        int builtBefore = opens.size();
+
+        rows.add(0, new Person("Newcomer", 99));
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertTrue(opens.size() > builtBefore + 2, "the other rows were rebuilt: " + opens.size());
+        float rowHeight = opens.get(builtBefore + 1).y() - opens.get(builtBefore).y();
+        assertTrue(rowHeight > 0, "Newcomer's button above Person 0's");
+        assertSame(target, scene.focusedWidget(), "the refresh left the keyboard on Person 2's button");
+        assertTrue(table.children().contains(target), "which is still the table's child");
+        assertEquals(wasY + rowHeight, target.y(), EPS, "one row further down, with its record");
+        assertEquals(1, table.children().stream().filter(w -> w == target).count());
+
+        table.setSort(table.columns().get(1), SortOrder.DESCENDING);
+        scene.renderFrame(canvas);
+        assertSame(target, scene.focusedWidget(), "a sort keeps it too");
+        assertTrue(table.children().contains(target));
+
+        rows.remove(new Person("Person 2", 2));
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertFalse(table.children().contains(target), "a record the list lost releases its row");
+        assertSame(table, scene.focusedWidget(), "and hands the keyboard to the table");
     }
 
     /**

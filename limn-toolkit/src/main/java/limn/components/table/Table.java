@@ -926,6 +926,9 @@ public class Table<T> extends Widget implements Scrollable {
         Ui.checkUiThread();
         // The nodes a reader holds first, before anything below re-mounts the rows under them.
         followPublishedRows();
+        // The row whose widget cell holds the keyboard, found again before anything re-mounts.
+        Slot keep = focusedWidgetSlot();
+        int keepModel = keep == null ? -1 : findAgain(keep);
         int count = rows.size();
         boolean moved = false;
         int wasFocusRow = focusRow;
@@ -977,7 +980,7 @@ public class Table<T> extends Widget implements Scrollable {
             resort();
         }
         anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, count - 1)));
-        unmountAll();
+        unmountAllKeeping(keepModel >= 0 ? keep : null, keepModel);
         textEpoch++;
         recomputeFooter();
         markNeedsLayout();
@@ -1388,6 +1391,8 @@ public class Table<T> extends Widget implements Scrollable {
         int count = rows.size();
         int focusModel = focusRow >= 0 && focusRow < count ? modelOf(focusRow) : -1;
         int anchorModel = rangeAnchor >= 0 && rangeAnchor < count ? modelOf(rangeAnchor) : -1;
+        Slot keep = focusedWidgetSlot();
+        int keepModel = keep == null ? -1 : modelOf(keep.row);
         resort();
         int wasFocusRow = focusRow;
         if (focusModel >= 0) {
@@ -1396,7 +1401,7 @@ public class Table<T> extends Widget implements Scrollable {
         if (anchorModel >= 0) {
             rangeAnchor = viewOf(anchorModel);
         }
-        unmountAll();
+        unmountAllKeeping(keep, keepModel);
         markNeedsLayout();
         invalidate();
         if (focusRow >= 0) {
@@ -2208,6 +2213,77 @@ public class Table<T> extends Widget implements Scrollable {
 
     private void unmountAll() {
         recycleExcept(0, 0, 0);
+    }
+
+    /** The mounted row one of whose widget cells holds the keyboard, or {@code null}. */
+    private Slot focusedWidgetSlot() {
+        for (int i = 0; i < mountedCount; i++) {
+            if (mountedSlots[i].widgetCount > 0 && containsFocus(mountedSlots[i])) {
+                return mountedSlots[i];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Where the list holds {@code slot}'s record now, or {@code -1}: by its key and its ordinal
+     * when the ordinal is known (a {@link #rowKey}, or a row a reader was told of), else at the
+     * occurrence of its key nearest the row it stood at, which is exact for a record no other
+     * row equals. One read of the rows at most.
+     */
+    private int findAgain(Slot slot) {
+        int was = modelOf(slot.row);
+        if (rowKey != null || slot.ordinalKnown) {
+            return rediscover(new Object[] {slot.key},
+                    new int[] {rowKey != null ? 0 : slot.ordinal}, 1)[0];
+        }
+        int best = -1;
+        int count = rows.size();
+        for (int m = 0; m < count; m++) {
+            if (best >= 0 && m - was > Math.abs(was - best)) {
+                break; // every row from here is further than the one found
+            }
+            if (Objects.equals(keyOf(rows.get(m)), slot.key)
+                    && (best < 0 || Math.abs(m - was) < Math.abs(best - was))) {
+                best = m;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Releases every mounted row but {@code keep}, whose widget cell holds the keyboard and whose
+     * record stands at {@code model} now: it stays mounted, its widgets children and the focus
+     * where it is, re-bound to the row that shows its record (decision 22 of 2026-09-14, the
+     * widget-cell half, 2026-09-15). Until then a refresh or a sort released it and handed the
+     * keyboard to the table, which is {@code ListView}'s rule for rows bound to data the list may
+     * no longer hold; a table follows its records (decision 23), and a record found again is the
+     * one the widget was built for. With no row to keep this is {@link #unmountAll()}.
+     */
+    private void unmountAllKeeping(Slot keep, int model) {
+        if (keep == null || model < 0 || model >= rows.size()) {
+            unmountAll();
+            return;
+        }
+        int at = 0;
+        while (mountedSlots[at] != keep) {
+            at++;
+        }
+        // Out of the run for the release, then back as the only mounted row.
+        System.arraycopy(mountedRows, at + 1, mountedRows, at, mountedCount - at - 1);
+        System.arraycopy(mountedSlots, at + 1, mountedSlots, at, mountedCount - at - 1);
+        mountedCount--;
+        unmountAll();
+        int view = viewOf(model);
+        keep.row = view;
+        keep.top = Float.NaN;
+        keep.id = rowIdOf(model);
+        keep.key = keyOf(rows.get(model));
+        keep.ordinalKnown = false;
+        rebind(keep);
+        mountedRows[0] = view;
+        mountedSlots[0] = keep;
+        mountedCount = 1;
     }
 
     /**
