@@ -219,10 +219,10 @@ final class AxObjC {
      * gives the answer.
      *
      * @param selector the selector
-     * @return its encoding
-     * @throws IllegalStateException when nothing declares it, because the alternative is guessing
+     * @return its encoding, or {@code null} when no class declares it — which the caller answers by
+     *         not installing the selector, because the alternative is guessing (MACOS-NEW-6)
      */
-    String encodingOf(String selector) {
+    String encodingOrNull(String selector) {
         for (String className : new String[] {
                 "NSAccessibilityElement", "NSView", "NSWindow", "NSResponder", "NSApplication" }) {
             long c = ObjC.cls(className);
@@ -230,8 +230,7 @@ final class AxObjC {
             long method = ObjCRuntime.class_getInstanceMethod(c, ObjC.sel(selector));
             if (method != NULL) return ObjCRuntime.method_getTypeEncoding(method);
         }
-        throw new IllegalStateException("no AppKit class declares -" + selector
-                + "; nothing here may guess an encoding");
+        return null;
     }
 
     /**

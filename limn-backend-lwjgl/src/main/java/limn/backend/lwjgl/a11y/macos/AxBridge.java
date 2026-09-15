@@ -63,8 +63,20 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         if (objc == null) return NONE;
         long contentView = ObjC.msg(nsWindow, "contentView");
         if (contentView == 0) return NONE;
-        return new AxBridge(objc, contentView);
+        try {
+            return new AxBridge(objc, contentView);
+        } catch (RuntimeException refused) {
+            // Said here rather than left to Bridges.openFor, whose catch answers NONE for every
+            // platform in silence: a window whose accessibility could not be built must say why
+            // somewhere a developer looks (MACOS-NEW-6). A selector the running AppKit lacks no
+            // longer lands here at all; the element class skips it and warns.
+            LOG.log(System.Logger.Level.ERROR, "macOS accessibility could not be opened for this "
+                    + "window, which therefore has none", refused);
+            return NONE;
+        }
     }
+
+    private static final System.Logger LOG = System.getLogger(AxBridge.class.getName());
 
     private final AxObjC objc;
     private final long contentView;

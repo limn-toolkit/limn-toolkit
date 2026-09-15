@@ -107,6 +107,13 @@ final class AxElementClass {
     private final List<Callback> callbacks = new ArrayList<>();
     /** The table, row and cell lookups the closures below wrap. */
     private final AxGrid grid;
+    /**
+     * Whether {@code NSAccessibilityElement} itself lacked a legacy entry point, so AXElementBusy was
+     * not installed; named in the constructor's warning.
+     */
+    private boolean skippedForBusy;
+    /** Every listed selector's encoding, read from the running AppKit before anything is installed. */
+    private final AxSelectors.Resolution selectors;
     /** The retained {@code NSString} {@link #BUSY_ATTRIBUTE}; zero until installed and after free. */
     private long busyAttribute;
 
@@ -125,6 +132,7 @@ final class AxElementClass {
         this.objc = objc;
         this.source = source;
         this.grid = new AxGrid(source);
+        this.selectors = AxSelectors.resolve(objc::encodingOrNull);
         this.superclass = ObjC.cls("NSAccessibilityElement");
         if (superclass == NULL) {
             throw new IllegalStateException("no NSAccessibilityElement: this is not AppKit");
@@ -137,6 +145,19 @@ final class AxElementClass {
         this.elementClass = created;
         install();
         ObjCRuntime.objc_registerClassPair(created);
+        String warning = selectors.warning();
+        if (warning != null) LOG.log(System.Logger.Level.WARNING, warning);
+        if (skippedForBusy) {
+            LOG.log(System.Logger.Level.WARNING, "NSAccessibilityElement answers no legacy attribute "
+                    + "entry point on this macOS, so AXElementBusy is not served (ADR 044 §2)");
+        }
+    }
+
+    private static final System.Logger LOG = System.getLogger(AxElementClass.class.getName());
+
+    /** @return the listed selectors the running AppKit declared nothing for, and that were skipped. */
+    List<String> missingSelectors() {
+        return selectors.missing();
     }
 
     /** @return a new, retained instance; the caller owns it until it releases it. */
@@ -191,16 +212,39 @@ final class AxElementClass {
         }
     }
 
-    private void addId(String selector, IdGetter body) {
+    /**
+     * The one place a method is added to a class: every install goes through here, so that nothing
+     * reaches {@code class_addMethod} unlisted or with an encoding that was not read.
+     *
+     * <p>A selector {@link AxSelectors} does not list is a mistake in this file and refuses to build
+     * the class; {@code AxSelectorsTest} catches it off a Mac, where this cannot run. A listed
+     * selector the running AppKit declares nothing for is skipped and its closure freed, and the
+     * constructor's warning names it (MACOS-NEW-6).
+     *
+     * @return whether it was installed
+     */
+    private boolean addMethod(long target, String selector, Callback body) {
+        if (!AxSelectors.isListed(selector)) {
+            body.free();
+            throw new IllegalStateException("-" + selector + " is not in AxSelectors, so nothing "
+                    + "ties it to the dump of AppKit's encodings; list it there");
+        }
+        String encoding = selectors.encodingOf(selector);
+        if (encoding == null) {
+            body.free();
+            return false;
+        }
         callbacks.add(body);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), body.address(),
-                objc.encodingOf(selector));
+        ObjCRuntime.class_addMethod(target, ObjC.sel(selector), body.address(), encoding);
+        return true;
+    }
+
+    private void addId(String selector, IdGetter body) {
+        addMethod(elementClass, selector, body);
     }
 
     private void addBool(String selector, BoolGetter body) {
-        callbacks.add(body);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), body.address(),
-                objc.encodingOf(selector));
+        addMethod(elementClass, selector, body);
     }
 
     private void install() {
@@ -286,16 +330,20 @@ final class AxElementClass {
      * name onto the protocol getters above. The inherited implementations are taken from the
      * superclass before these are added to our class, so a forward reaches AppKit's and can never
      * come back into this one. A superclass with no such method would make that forward
-     * {@code _objc_msgForward}, which is a crash rather than a missing attribute, so the class
-     * refuses to build instead.
+     * {@code _objc_msgForward}, which is a crash rather than a missing attribute, so neither is
+     * installed then and the constructor warns: the busy attribute goes unserved and the rest of the
+     * element is built (MACOS-NEW-6).
      */
     private void installBusy() {
         long valueSelector = ObjC.sel("accessibilityAttributeValue:");
         long namesSelector = ObjC.sel("accessibilityAttributeNames");
         if (ObjCRuntime.class_getInstanceMethod(superclass, valueSelector) == NULL
                 || ObjCRuntime.class_getInstanceMethod(superclass, namesSelector) == NULL) {
-            throw new IllegalStateException("NSAccessibilityElement answers no legacy attribute "
-                    + "entry point; AXElementBusy has nowhere to be served from");
+            // Refused, and not thrown: a forward to a method the superclass lacks would be
+            // _objc_msgForward, a crash rather than a missing attribute, but a thrown constructor
+            // would take every other attribute of the window with it (MACOS-NEW-6).
+            skippedForBusy = true;
+            return;
         }
         long inheritedValue = ObjCRuntime.class_getMethodImplementation(superclass, valueSelector);
         long inheritedNames = ObjCRuntime.class_getMethodImplementation(superclass, namesSelector);
@@ -313,9 +361,7 @@ final class AxElementClass {
                 return JNI.invokePPPP(self, cmd, attribute, inheritedValue);
             }
         };
-        callbacks.add(value);
-        ObjCRuntime.class_addMethod(elementClass, valueSelector, value.address(),
-                objc.encodingOf("accessibilityAttributeValue:"));
+        addMethod(elementClass, "accessibilityAttributeValue:", value);
 
         addId("accessibilityAttributeNames", new IdGetter() {
             @Override public long invoke(long self, long cmd) {
@@ -353,9 +399,7 @@ final class AxElementClass {
                 return node == null ? NULL : grid.cellAt(node, column, row);
             }
         };
-        callbacks.add(cellAt);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel("accessibilityCellForColumn:row:"),
-                cellAt.address(), objc.encodingOf("accessibilityCellForColumn:row:"));
+        addMethod(elementClass, "accessibilityCellForColumn:row:", cellAt);
         addBool("isAccessibilitySelected", is(node -> node.has(Accessible.State.SELECTED)));
     }
 
@@ -375,9 +419,7 @@ final class AxElementClass {
                 return node == null ? 0 : body.apply(node);
             }
         };
-        callbacks.add(getter);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), getter.address(),
-                objc.encodingOf(selector));
+        addMethod(elementClass, selector, getter);
     }
 
     private void addRange(String selector, NodeToRange body) {
@@ -388,9 +430,7 @@ final class AxElementClass {
                 return node == null ? AxGrid.NOT_FOUND : body.apply(node);
             }
         };
-        callbacks.add(getter);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), getter.address(),
-                objc.encodingOf(selector));
+        addMethod(elementClass, selector, getter);
     }
 
     private interface NodeToLong {
@@ -438,9 +478,7 @@ final class AxElementClass {
                 return AxActions.verbFor(node, name) != null;
             }
         };
-        callbacks.add(gate);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel("isAccessibilitySelectorAllowed:"),
-                gate.address(), objc.encodingOf("isAccessibilitySelectorAllowed:"));
+        addMethod(elementClass, "isAccessibilitySelectorAllowed:", gate);
     }
 
     /**
@@ -515,9 +553,7 @@ final class AxElementClass {
                 return focused;
             }
         };
-        callbacks.add(body);
-        ObjCRuntime.class_addMethod(subclass, ObjC.sel("accessibilityFocusedUIElement"),
-                body.address(), objc.encodingOf("accessibilityFocusedUIElement"));
+        addMethod(subclass, "accessibilityFocusedUIElement", body);
         ObjCRuntime.objc_registerClassPair(subclass);
         this.swizzledView = contentView;
         this.viewClassBefore = viewClass;
@@ -546,9 +582,7 @@ final class AxElementClass {
                 return node == null ? self : descend(self, node, x, y);
             }
         };
-        callbacks.add(hitTest);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel("accessibilityHitTest:"),
-                hitTest.address(), objc.encodingOf("accessibilityHitTest:"));
+        addMethod(elementClass, "accessibilityHitTest:", hitTest);
     }
 
     private long descend(long element, AccessibleNode node, double x, double y) {

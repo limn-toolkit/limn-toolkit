@@ -4048,6 +4048,27 @@ form of it is the narrow one: the three numbers are written down as literals, in
 this paragraph as the reason — and the dump script keeps listing them as unexported so that the
 exception stays visible rather than becoming a habit.
 
+#### Amendment 2026-09-15 — selectors are covered too, and a missing one no longer takes the window
+
+**What was wrong (MACOS-NEW-6).** "Type encodings from the running AppKit" was true at run time and
+checked nowhere before it. `AxConstantsTest` asserted the role and notification symbols against the
+committed dump and no selector at all; the selectors were literals across `AxElementClass` and
+`AxActions`, and the two f4bc544 added for `AXElementBusy` (`accessibilityAttributeValue:`,
+`accessibilityAttributeNames`) were never in the committed dump. At run time a selector no class
+declared made `AxObjC` throw inside the element class's constructor, and `Bridges.openFor` answered
+`NONE` for it: one misspelt or withdrawn selector removed the window's accessibility, silently.
+
+**The rule.** Every selector the bridge installs is listed once, in `AxSelectors`, and the element class
+installs through one method that refuses an unlisted selector. `AxConstantsTest` asserts every listed
+selector has an encoding in the dump's encodings section; `AxSelectorsTest` asserts, from the source,
+that the element class installs exactly the list. The two legacy selectors were read on the macOS
+26.6.2 guest on 2026-09-13 by this recipe (the readings' copy of the dump) and are carried in the test
+as owed to the committed dump's one regeneration at the end of the macOS lane, which a companion
+assertion forces to retire. At run time a listed selector the running AppKit declares nothing for is
+skipped — never given a guessed encoding — and the bridge logs a warning naming it; the rest of the
+window's accessibility is built. A failure to build the bridge for any other reason is logged at
+`ERROR` before `NONE` is answered.
+
 ---
 
 ## 13. Risks and open edges

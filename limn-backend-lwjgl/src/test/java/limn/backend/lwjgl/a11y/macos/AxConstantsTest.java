@@ -7,11 +7,14 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -38,19 +41,30 @@ class AxConstantsTest {
 
     private static final Pattern EXPORTED = Pattern.compile("^\\s{2}(\\w+) = \"(.+)\"$");
     private static final Pattern NOT_EXPORTED = Pattern.compile("^\\s*!! NOT EXPORTED BY THIS APPKIT: (.+)$");
+    /** A line of the dump's "selector type encodings" section: {@code   -name  encoding  (from Class)}. */
+    private static final Pattern ENCODING = Pattern.compile("^\\s{2}-(\\S+)\\s{2}(\\S+)\\s{2}\\(from (\\w+)\\)$");
+    private static final String ENCODINGS_SECTION = "==== selector type encodings ====";
 
-    private record Dump(Set<String> exported, Set<String> missing) {
+    private record Dump(Set<String> exported, Set<String> missing, Map<String, String> encodings) {
     }
 
     private static Dump read() {
         Set<String> exported = new TreeSet<>();
         Set<String> missing = new TreeSet<>();
+        Map<String, String> encodings = new TreeMap<>();
+        boolean inEncodings = false;
         try (InputStream in = AxConstantsTest.class.getResourceAsStream("appkit-constants.txt")) {
             if (in == null) {
                 throw new IllegalStateException("appkit-constants.txt is missing; regenerate it with "
                         + "scripts/a11y/macos/dump-appkit-constants.swift on the guest");
             }
             for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
+                if (line.startsWith("==== ")) inEncodings = line.equals(ENCODINGS_SECTION);
+                Matcher encoded = ENCODING.matcher(line);
+                if (inEncodings && encoded.matches()) {
+                    encodings.put(encoded.group(1), encoded.group(2));
+                    continue;
+                }
                 Matcher hit = EXPORTED.matcher(line);
                 if (hit.matches()) {
                     exported.add(hit.group(1));
@@ -64,7 +78,7 @@ class AxConstantsTest {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new Dump(exported, missing);
+        return new Dump(exported, missing, encodings);
     }
 
     @Test
@@ -75,6 +89,53 @@ class AxConstantsTest {
         assertTrue(dump.exported().size() > 50,
                 "only " + dump.exported().size() + " symbols parsed out of the dump; the format changed");
         assertTrue(dump.exported().contains("NSAccessibilityButtonRole"), "the dump has no button role");
+        assertTrue(dump.encodings().size() > 50,
+                "only " + dump.encodings().size() + " selector encodings parsed; the format changed");
+        assertEquals("@16@0:8", dump.encodings().get("accessibilityRole"),
+                "the encodings section did not parse as AxObjC reads it");
+    }
+
+    /**
+     * The two selectors f4bc544 installed for AXElementBusy that the committed dump predates.
+     *
+     * <p>Read on the macOS 26.6.2 guest on 2026-09-13 by this same script, with these very selectors
+     * already in its list (readings/macos-appkit-constants.txt: {@code -accessibilityAttributeValue:
+     * @24@0:8@16} and {@code -accessibilityAttributeNames @16@0:8}, both from
+     * {@code NSAccessibilityElement}); the committed resource is regenerated once, at the end of the
+     * macOS lane, and that regeneration empties this set — the test below fails until it does.
+     */
+    private static final Set<String> OWED_TO_THE_REGENERATION =
+            Set.of("accessibilityAttributeValue:", "accessibilityAttributeNames");
+
+    /**
+     * MACOS-NEW-6: every selector the bridge installs has an encoding in the dump. An encoding is read
+     * from the running AppKit at run time and never written into source (§12.3), so this is the only
+     * check a selector gets before it reaches a Mac: a name no AppKit declares, or a new one nobody
+     * read off the guest, fails here on any machine.
+     */
+    @Test
+    void everySelectorTheBridgeInstallsHasAnEncodingInTheDump() {
+        Dump dump = read();
+        Set<String> unread = new LinkedHashSet<>();
+        for (String selector : AxSelectors.all()) {
+            if (!dump.encodings().containsKey(selector) && !OWED_TO_THE_REGENERATION.contains(selector)) {
+                unread.add(selector);
+            }
+        }
+        assertTrue(unread.isEmpty(), "the bridge installs selectors the dump has no encoding for: "
+                + unread + ". Add each to scripts/a11y/macos/dump-appkit-constants.swift's selector "
+                + "list and read it on the guest before installing it.");
+    }
+
+    @Test
+    void theSelectorsOwedToTheRegenerationAreInstalledAndStillOwed() {
+        Dump dump = read();
+        for (String owed : OWED_TO_THE_REGENERATION) {
+            assertTrue(AxSelectors.all().contains(owed),
+                    owed + " is no longer installed, so it is owed nothing: drop it from the set");
+            assertFalse(dump.encodings().containsKey(owed),
+                    "the dump now reads " + owed + ": the regeneration has paid it, drop it from the set");
+        }
     }
 
     /** Every symbol any table in this module names. */
