@@ -342,6 +342,21 @@ The recipes are `scripts/a11y/linux/run-tree-reader.sh` with `tree-check.py`,
 `axoutline.swift`. Until these are fixed and re-run, the tree is readable by a client and not yet
 navigable by a person using a screen reader.
 
+**Amendment, 2026-09-15: the scene those runs drove is the accessibility gallery's now.**
+`TreeScene.reader()` and the fifteen arrows inline in `Main` are gone (decision 24 of the
+2026-09-13 pass). `--scene tree-reader` is kept as a spelling of `--reader tree-loading`, the one
+reader driver, which builds the gallery entry "Tree with branches that load" alone in a window
+titled "Limn accessibility gallery", focuses the tree and sends its declared steps three seconds
+apart. Its first rows and cells are the old scene's, in the same order, so steps 1 to 15 are the
+same arrows landing on the same rows and the recipes' step numbers keep their meaning; steps 16
+to 21 add Trash, whose load finds nothing, and Empty folder. What changed for a recipe: the
+window title (it was "Limn UI: Kitchen Sink"), the step line (`--- step N KEYS - label
+focus=Widget`, still starting `--- step N `), the language (pt-BR unless `--locale` says
+otherwise, the guests' reader language), and a default exit five seconds after the last step,
+so an `--exit-after 62000` left in a recipe ends the run before step 21. The long tail of 24
+archive rows and the fourteen-level chain are not in the gallery entry: they were there for the
+captures, and the runs never reached them. `ReaderStepsTest` holds every step headlessly.
+
 **Later the same day: two of those findings have one cause, and it was the widget's.** A realized
 row's cell was bound to its row's index, and nothing re-bound it when opening, closing or loading
 a row moved the rows below. The cell at an old index went on drawing and naming the node that used

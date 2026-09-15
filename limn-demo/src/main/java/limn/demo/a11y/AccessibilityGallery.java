@@ -306,14 +306,6 @@ public final class AccessibilityGallery {
     /** A transparent picture, for the same reason. */
     private static final Image BLANK_PICTURE = new Image(16, 16, new byte[16 * 16 * 4]);
 
-    /**
-     * The language every date entry is built in (settled reader-scene-clock; LAB-NEW-13), as its
-     * today is {@link limn.demo.DocumentationDay}'s: a cell's name, a segment's name and the
-     * week's first day are the locale's, and a guest's process locale is not the
-     * host's. English (United States), because the captions these entries carry are English.
-     */
-    static final java.util.Locale READER_LOCALE = java.util.Locale.US;
-
     private AccessibilityGallery() {
     }
 
@@ -913,14 +905,17 @@ public final class AccessibilityGallery {
     /**
      * Pins {@link limn.demo.DocumentationDay} on every date widget under {@code root} (a calendar
      * names its today cell ", today" and a field steps an empty segment from today, so an entry on
-     * the real clock spoke differently on each guest and each day) and declares
-     * {@link #READER_LOCALE} on {@code root} itself, which every descendant inherits. In the
-     * entries rather than in whatever runs them, so the gallery window a reader is pointed at,
-     * the headless tests and a driver all build the same tree; these scenes are not published as
-     * samples, so the pinned clock is copied into nobody's application.
+     * the real clock spoke differently on each guest and each day). In the entries rather than in
+     * whatever runs them, so the gallery window a reader is pointed at, the headless tests and the
+     * reader driver all build the same tree; these scenes are not published as samples, so the
+     * pinned clock is copied into nobody's application.
+     *
+     * <p>The language is <b>not</b> pinned here (decision 65, 2026-09-15, which replaced the
+     * en-US the entries declared from 2026-09-14): an entry speaks the process's, so the reader
+     * driver's pt-BR — the guests' reader language — reaches every widget string, and the headless
+     * tests' English stays theirs. The captions are the entries' own English words either way.
      */
     private static Widget pinnedForReaders(Widget root) {
-        root.setLocale(READER_LOCALE);
         limn.demo.DocumentationDay.pin(root);
         return root;
     }

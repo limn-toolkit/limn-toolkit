@@ -185,8 +185,13 @@ record DemoOptions(Path screenshotFile, String scene, float scale, long exitAfte
                                  [--video-frame <n>] [--video-source <n>] [--direction <dir>]
                                  [--theme <name>]
                        limn-demo --gl-info
+                       limn-demo --reader <script> [--exit-after <ms>] [--presentation in-scene|native]
+                                 [--locale <tag>]
                   --gl-info       prints the graphics stack this machine offers, then exits
                                   (non-zero where there is no context); takes no other argument
+                  --reader        drives one accessibility gallery entry's reader script on a timer,
+                                  in pt-BR unless --locale says otherwise (an unknown script lists
+                                  them); --scene tree-reader is --reader tree-loading
                   --screenshot    renders with an invisible window and saves a PNG (visual verification)
                   --scene         scene: components (default) | components-light | widgets | testcard | text
                   --scale         forces the content scale in screenshot scenes (e.g. 1.25)
