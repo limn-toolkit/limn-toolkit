@@ -2584,6 +2584,23 @@ a concurrent map written out of symmetry.
 **No bridge's registry is ever touched by a widget, and no widget is ever reachable from one**, for
 §1.2's reason: an element a client holds for minutes would otherwise pin a detached subtree.
 
+**Amended 2026-09-15 (phase 3, Windows; W2): a Windows element's pattern interfaces follow the
+snapshot, and the registry row above is unchanged by it.** The object behind an element was built
+with the pattern list of the first ask and kept it: a pattern the node gained later (a Tree's
+`Invoke` once it has a cursor row, `ExpandCollapse` on a leaf that gained children, `SelectionItem`
+on a calendar cell first seen in a chooser) was answered with a null for as long as a client held
+the element, and one it lost stayed answerable to `QueryInterface`. The object now reserves a field
+for every pattern interface a node may vend and asks `UiaPatterns.supports` against the tree of the
+moment on every query and every hand-over: a pattern served now is built the first time it is
+wanted (once, under the object's own lock, from whichever RPC thread asks first), and one not served
+now is refused to a new query. **Nothing is re-minted**: the registry entry, the identity pointer,
+the reference count and every pointer already handed out stay what they were, so the root handed to
+`UiaReturnRawElementProvider` is still the one `UiaDisconnectProvider` disconnects, and a pointer to
+a withdrawn interface still reaches live closures (whose slots answer from the snapshot) until the
+whole-registry empty frees them. Retiring the element and minting a successor was the alternative;
+it would have put a second writer on the id map, two objects behind one runtime id, and an exemption
+for the root, which is why it was not taken (`UiaObjectTest`, `UiaBridgeTest`).
+
 ### 3.5 What all three share
 
 - The tree is read from a snapshot, never from live widgets, on every platform.

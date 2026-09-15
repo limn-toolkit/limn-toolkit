@@ -151,6 +151,103 @@ class UiaBridgeTest {
         }
     }
 
+    /** A window holding one CELL (1001), carrying a selection item or not: a calendar's day. */
+    private static AccessibleTree aWindowWithACell(boolean selectionItem) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 40, 40);
+        a.role(Accessible.Role.CELL);
+        a.name(I18nString.literal("15"), Accessible.NameFrom.CONTENT);
+        if (selectionItem) {
+            a.selectionItem(false, 15, 30);
+        }
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    /**
+     * W2: a pattern the node gains after a client first asked for its element is served on the
+     * same element. Before 2026-09-15 the interface list was fixed at the first ask, so a Tree
+     * minted before its cursor row existed answered Invoke with a null for as long as the client
+     * held it.
+     */
+    @Test
+    void aPatternANodeGainsAfterItsElementWasMintedIsServedOnTheSameElement() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, false), false);
+            UiaObject before = bridge.objectFor(1001);
+            long identity = before.pointer();
+            assertEquals(0L, bridge.contextForTests().patternProviderFor(1001, UiaIds.INVOKE_PATTERN),
+                    "no PRESS yet, so no Invoke");
+
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+
+            assertNotEquals(0L,
+                    bridge.contextForTests().patternProviderFor(1001, UiaIds.INVOKE_PATTERN),
+                    "the node publishes PRESS now, so the element a client holds serves Invoke");
+            assertSame(before, bridge.objectFor(1001), "on the same object");
+            assertEquals(identity, bridge.objectFor(1001).pointer(), "under the same identity");
+            assertEquals(1, bridge.elementCount(), "and nothing was minted beside it");
+        } finally {
+            bridge.detach();
+        }
+    }
+
+    /**
+     * W2's calendar shape: a day cell first seen as a chooser cell (no selection item) and seen
+     * again as a day regains SelectionItem, with its runtime id, which is its node id, unchanged.
+     */
+    @Test
+    void aCellSeenFirstWithoutASelectionItemServesOneOnceItHasIt() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        try {
+            bridge.publish(aWindowWithACell(false), false);
+            UiaObject cell = bridge.objectFor(1001);
+            assertEquals(0L, cell.pointerFor(UiaInterfaces.SELECTION_ITEM_PROVIDER));
+
+            bridge.publish(aWindowWithACell(true), false);
+
+            assertNotEquals(0L, cell.pointerFor(UiaInterfaces.SELECTION_ITEM_PROVIDER),
+                    "the day view's cell is selectable again through the element already held");
+            assertNotEquals(0L, bridge.contextForTests().patternProviderFor(1001,
+                    UiaIds.SELECTION_ITEM_PATTERN));
+            assertSame(cell, bridge.objectFor(1001));
+        } finally {
+            bridge.detach();
+        }
+    }
+
+    /**
+     * W2, the set shrinking (phase 3 addendum (c)): a button that stops publishing PRESS (disabled,
+     * or under an overlay) stops vending Invoke on the element a client already holds. Before, the
+     * element kept answering the interface it was built with.
+     */
+    @Test
+    void aPatternANodeLosesIsWithdrawnFromTheElementAClientHolds() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            UiaObject button = bridge.objectFor(1001);
+            assertNotEquals(0L, button.pointerFor(UiaInterfaces.INVOKE_PROVIDER));
+
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, false), false);
+
+            assertEquals(0L, button.pointerFor(UiaInterfaces.INVOKE_PROVIDER),
+                    "no PRESS published, so no Invoke on the held element");
+            assertEquals(0L,
+                    bridge.contextForTests().patternProviderFor(1001, UiaIds.INVOKE_PATTERN));
+            assertSame(button, bridge.objectFor(1001), "and it is still the same element");
+        } finally {
+            bridge.detach();
+        }
+    }
+
     @Test
     void anElementIsMintedOnceAndFoundAgain() {
         UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);

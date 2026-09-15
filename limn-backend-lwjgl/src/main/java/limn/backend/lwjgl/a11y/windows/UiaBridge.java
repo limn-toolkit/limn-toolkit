@@ -792,6 +792,18 @@ public final class UiaBridge extends PlatformBridge {
      * queried for the toggle interface and one that queried for the fragment interface are holding
      * the same thing and can tell.
      *
+     * <p><b>The pattern interfaces are the node's set as the snapshot has it at each ask, not at
+     * the first one (W2, 2026-09-15).</b> They are the object's {@linkplain UiaObject.Varying
+     * varying} interfaces: every query and every hand-over reads {@link UiaPatterns#supports}
+     * against the tree of that moment, builds a pattern gained since in a field the object
+     * reserved, and refuses one lost since. Before, the list was fixed when the element was
+     * minted, so a Tree element minted before its cursor row existed answered {@code Invoke} with
+     * a null for as long as the client held it, and a calendar cell first seen in the month
+     * chooser never regained {@code SelectionItem} in the day view. <b>Nothing is re-minted</b>:
+     * the registry entry, the identity pointer, the reference count and every pointer a client
+     * holds stay what they were, the root's included, so {@link #disconnectRootProvider} still
+     * disconnects the one root UI Automation was handed.
+     *
      * @param nodeId a node from the tree() tree
      * @return its element, or {@code null} when the tree no longer holds that node
      */
@@ -802,7 +814,6 @@ public final class UiaBridge extends PlatformBridge {
             return null;
         }
         boolean isRoot = tree.root().id() == nodeId;
-        AccessibleNode node = tree.node(index);
         return elements.forNode(nodeId, id -> {
             List<UiaObject.Served> served = new ArrayList<>();
             served.add(new UiaObject.Served(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE,
@@ -817,21 +828,41 @@ public final class UiaBridge extends PlatformBridge {
                 served.add(new UiaObject.Served(UiaInterfaces.ADVISE_EVENTS,
                         UiaProvider.adviseEventsSlots(context)));
             }
-            for (int patternId : PATTERNS) {
-                if (!UiaPatterns.supports(tree, node, patternId)) {
-                    continue;
-                }
-                UiaInterfaces.Vtable iface = UiaPatternProviders.interfaceFor(patternId);
-                Map<String, org.lwjgl.system.CallbackI> slots =
-                        UiaPatternProviders.slotsFor(patternId, id, context);
-                if (iface != null && slots != null) {
-                    served.add(new UiaObject.Served(iface, slots));
-                }
-            }
-            UiaObject object = UiaObject.create(served, () -> { });
+            UiaObject object = UiaObject.create(served, new PatternsOf(id), () -> { });
             object.pointers().forEach(pointer -> objects.put(pointer, object));
             return new Element(id, object);
         });
+    }
+
+    /**
+     * One node's pattern interfaces as the snapshot of the moment decides them: what an element's
+     * object asks on every query and hand-over. Holds the node's identifier and nothing else.
+     */
+    private final class PatternsOf implements UiaObject.Varying {
+
+        private final long nodeId;
+
+        PatternsOf(long nodeId) {
+            this.nodeId = nodeId;
+        }
+
+        @Override
+        public List<UiaInterfaces.Vtable> candidates() {
+            return PATTERN_INTERFACES;
+        }
+
+        @Override
+        public boolean servesNow(UiaInterfaces.Vtable iface) {
+            AccessibleTree tree = tree();
+            AccessibleNode node = tree.find(nodeId);
+            return node != null && UiaPatterns.supports(tree, node, patternOf(iface));
+        }
+
+        @Override
+        public Map<String, ? extends org.lwjgl.system.CallbackI> slotsFor(
+                UiaInterfaces.Vtable iface) {
+            return UiaPatternProviders.slotsFor(patternOf(iface), nodeId, context);
+        }
     }
 
     /** The patterns a node may vend, asked in a fixed order so an element is built the same way. */
@@ -842,6 +873,15 @@ public final class UiaBridge extends PlatformBridge {
             UiaIds.GRID_PATTERN, UiaIds.TABLE_PATTERN, UiaIds.GRID_ITEM_PATTERN,
             UiaIds.TABLE_ITEM_PATTERN,
     };
+
+    /** The interface each of {@link #PATTERNS} is served through, in the same order. */
+    private static final List<UiaInterfaces.Vtable> PATTERN_INTERFACES =
+            java.util.Arrays.stream(PATTERNS).mapToObj(UiaPatternProviders::interfaceFor).toList();
+
+    /** @return the pattern an interface of {@link #PATTERN_INTERFACES} serves */
+    private static int patternOf(UiaInterfaces.Vtable iface) {
+        return PATTERNS[PATTERN_INTERFACES.indexOf(iface)];
+    }
 
     /** One node's COM object, as the registry sees it. */
     private record Element(long nodeId, UiaObject object) implements UiaElement {
