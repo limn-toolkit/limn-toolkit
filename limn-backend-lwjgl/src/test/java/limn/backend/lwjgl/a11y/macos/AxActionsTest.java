@@ -48,6 +48,51 @@ class AxActionsTest {
     }
 
     @Test
+    void aNodeWhoseOnlyActivationIsOpeningOrClosingIsPressedOpenOrShut() {
+        // MACOS-NEW-5 and semantics 5: a combo box publishes only EXPAND when closed and only COLLAPSE
+        // when open, and had no press at all, so AXPress was withheld from it and a reader could not
+        // open it. The list's order keeps PRESS, TOGGLE and SELECT first where a node has both.
+        assertEquals(Accessible.Action.EXPAND,
+                AxActions.verbFor(nodeWith(Accessible.Role.COMBO_BOX, Accessible.Action.EXPAND),
+                        "accessibilityPerformPress"), "a closed combo box opens");
+        assertEquals(Accessible.Action.COLLAPSE,
+                AxActions.verbFor(nodeWith(Accessible.Role.COMBO_BOX, Accessible.Action.COLLAPSE),
+                        "accessibilityPerformPress"), "an open one closes");
+        assertEquals(Accessible.Action.EXPAND,
+                AxActions.verbFor(nodeWith(Accessible.Role.MENU_ITEM, Accessible.Action.EXPAND,
+                        Accessible.Action.SHOW_MENU), "accessibilityPerformConfirm"),
+                "a closed menu title confirms open, as it presses open");
+        assertEquals(Accessible.Action.SHOW_MENU,
+                AxActions.verbFor(nodeWith(Accessible.Role.MENU_ITEM, Accessible.Action.EXPAND,
+                        Accessible.Action.SHOW_MENU), "accessibilityPerformShowMenu"));
+        assertEquals(Accessible.Action.SELECT,
+                AxActions.verbFor(nodeWith(Accessible.Role.TREE_ITEM, Accessible.Action.SELECT,
+                        Accessible.Action.EXPAND), "accessibilityPerformPress"),
+                "a row that selects and opens is pressed as a click selects it; opening is AXDisclosing's");
+    }
+
+    @Test
+    void aVerbThatIsNotPublishedIsNeverPressedWhateverFacetTheNodeHas() {
+        // Semantics 5: no facet implies a parameterless verb. An expand facet with no verb published
+        // (a menu title whose popup was refused) is not something a press may open.
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 0, 0, 40, 20);
+        a.role(Accessible.Role.COMBO_BOX);
+        a.expand(false);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        AccessibleNode combo = a.publish(0, 0, 0, 1f, true).find(1001);
+        for (String selector : AxActions.selectors()) {
+            assertNull(AxActions.verbFor(combo, selector), selector + " on a combo box that publishes no verb");
+        }
+    }
+
+    @Test
     void aConfirmIsTheSameActivationAndNotASecondVerb() {
         AccessibleNode checkBox = nodeWith(Accessible.Role.CHECK_BOX, Accessible.Action.TOGGLE);
         assertEquals(AxActions.verbFor(checkBox, "accessibilityPerformPress"),
@@ -82,6 +127,7 @@ class AxActionsTest {
         // offers and a user finds does nothing.
         AccessibleNode everything = nodeWith(Accessible.Role.BUTTON,
                 Accessible.Action.PRESS, Accessible.Action.TOGGLE, Accessible.Action.SELECT,
+                Accessible.Action.EXPAND,
                 Accessible.Action.INCREMENT, Accessible.Action.DECREMENT,
                 Accessible.Action.SHOW_MENU, Accessible.Action.CANCEL);
         for (String selector : AxActions.selectors()) {

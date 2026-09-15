@@ -37,14 +37,20 @@ final class AxActions {
     private static final Map<String, List<Accessible.Action>> BY_SELECTOR = new LinkedHashMap<>();
 
     static {
-        // Activation. What it does is the widget's to say, so all three candidates are offered and
-        // the node's own facet decides.
+        // Activation. What it does is the widget's to say, so every candidate is offered and the
+        // node's published verbs decide (semantics 5): a button is pressed, a check box toggled, a
+        // radio button selected, and a node whose only activation is opening or closing -- a combo
+        // box, a menu title, a date field, a tree row -- opens when closed and closes when open,
+        // which is exactly the one of EXPAND and COLLAPSE it publishes at that moment.
         List<Accessible.Action> activate = List.of(
-                Accessible.Action.PRESS, Accessible.Action.TOGGLE, Accessible.Action.SELECT);
+                Accessible.Action.PRESS, Accessible.Action.TOGGLE, Accessible.Action.SELECT,
+                Accessible.Action.EXPAND, Accessible.Action.COLLAPSE);
         BY_SELECTOR.put("accessibilityPerformPress", activate);
         // Confirm is Return on a control that has one, and on everything this toolkit publishes the
         // thing Return does is the activation. Two selectors reaching one verb is the same shape as
         // two roles sharing one control type: the platform draws a distinction the toolkit does not.
+        // Semantics 5 names the one list for both, so a confirm opens a closed combo box as a press
+        // does, on purpose (MACOS-NEW-5, correction 2).
         BY_SELECTOR.put("accessibilityPerformConfirm", activate);
 
         BY_SELECTOR.put("accessibilityPerformIncrement", List.of(Accessible.Action.INCREMENT));
@@ -80,9 +86,11 @@ final class AxActions {
      */
     static Accessible.Action verbFor(AccessibleNode node, String selector) {
         List<Accessible.Action> candidates = BY_SELECTOR.get(selector);
-        if (candidates == null || node.actions() == null) return null;
-        for (Accessible.Action candidate : candidates) {
-            if (node.actions().has(candidate)) return candidate;
+        if (candidates == null) return null;
+        for (int i = 0; i < candidates.size(); i++) {   // indexed: an iterator is an allocation
+            Accessible.Action candidate = candidates.get(i);
+            // The toolkit's one reading of "does this node accept this verb now".
+            if (node.accepts(candidate)) return candidate;
         }
         return null;
     }

@@ -2174,7 +2174,11 @@ while their flat row numbers run without a gap — a gap answers nothing rather 
 because the native outline's rows answered AXDisclosureLevel 0 at the top, their parent row and the
 rows one level down, on leaves too, and **no `AXExpanded`**; so `isAccessibilityExpanded` is answered
 for every other node with an expand facet and refused on an outline row, and a level of zero refuses
-the level getter (semantics 6).
+the level getter (semantics 6). *Press and confirm* (MACOS-NEW-5; semantics 5): both map to the
+candidates `PRESS`, `TOGGLE`, `SELECT`, `EXPAND`, `COLLAPSE` in that order, the first the node accepts
+(`AccessibleNode#accepts`) posted, so a combo box, a menu title or a date field that publishes only the
+one of `EXPAND`/`COLLAPSE` its state allows is pressed open or shut, and a node publishing no verb is
+offered no press whatever facet it carries; `…Pick` stays absent (AxActions says why).
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a
