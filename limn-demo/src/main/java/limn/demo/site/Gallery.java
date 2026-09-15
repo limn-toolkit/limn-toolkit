@@ -798,6 +798,19 @@ public final class Gallery {
                 if (owner != window) {
                     return;
                 }
+                // A failed run takes no further frame, and it is this driver that says so.
+                // fail() and the flat-frame bail-out both drop the scene and request close, and
+                // a frame delivered after either one would fall through to
+                // "scene == null && !advance()" at the bottom -- which builds, themes and binds
+                // the NEXT shot and asks for another frame, resuming a capture that has already
+                // been declared over and had its cause printed. Nothing delivers that frame
+                // today: requestClose posts, the post drains at the top of the loop's next
+                // iteration, and the render phase skips a close-requested window. That is the
+                // backend holding the driver's invariant for it, one layer away and for its own
+                // reasons; this is the driver holding its own.
+                if (failed) {
+                    return;
+                }
                 // A capture that never happens must end the run rather than spin. Without
                 // this, any future mistake in the cursor is an unbounded wait instead of a
                 // failed build, which is exactly how the first version of this driver

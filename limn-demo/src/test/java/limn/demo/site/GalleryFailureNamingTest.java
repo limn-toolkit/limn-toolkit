@@ -74,9 +74,9 @@ class GalleryFailureNamingTest {
         ui.close();
     }
 
-    /** What the loop below is left holding. */
+    /** What the loop below is left holding, including the callback, to hand it more frames. */
     private record Run(HeadlessWindow window, Gallery.Driver driver, List<Throwable> escaped,
-                       int frames) {
+                       int frames, FrameCallback callback) {
     }
 
     /** A gallery entry whose scene is one button, recording each time it is built. */
@@ -136,7 +136,7 @@ class GalleryFailureNamingTest {
                 escaped.add(e);
             }
         }
-        return new Run(inner, driver, escaped, frames);
+        return new Run(inner, driver, escaped, frames, callback.get());
     }
 
     /** A renderer over a canvas that draws nothing; its capture sink is the seam. */
@@ -213,5 +213,44 @@ class GalleryFailureNamingTest {
         assertTrue(first.get(), "the first shot was built");
         assertFalse(second.get(), "and the frame ended there: the run did not go on to build"
                 + " the next shot after declaring itself failed");
+    }
+
+    /**
+     * And a frame delivered AFTER the run failed is not taken either, which is the driver
+     * stating that invariant rather than borrowing it.
+     *
+     * <p>Under the real backend nothing delivers such a frame: {@code requestClose} posts, the
+     * post drains at the top of the next iteration, and the render phase skips a close-requested
+     * window. The driver used to hold nothing itself -- the frame would have fallen through to
+     * "scene == null && !advance()" and built, themed and bound the next shot. This loop hands
+     * it ten of them anyway.
+     */
+    @Test
+    void aFrameDeliveredAfterTheRunFailedIsNotTaken() throws IOException {
+        Path blocked = dir.resolve("blocked");
+        Files.writeString(blocked, "not a directory", StandardCharsets.UTF_8);
+        AtomicBoolean first = new AtomicBoolean();
+        AtomicBoolean second = new AtomicBoolean();
+        GpuRenderer renderer = new TestRenderer() {
+            @Override
+            public void captureFramebuffer(Consumer<Image> sink) {
+                sink.accept(drawn());
+            }
+        };
+
+        Run run = run(renderer, 200, List.of(first, second),
+                blocked.resolve("one-dark@2x.png"), dir.resolve("two-dark@2x.png"));
+        assertTrue(run.driver().failed(), "the run failed: " + run.driver().failure());
+        assertFalse(second.get(), "and stopped before the next shot");
+
+        for (int i = 0; i < 10; i++) {
+            run.callback().onFrame(renderer, new FrameInfo(WIDTH, HEIGHT, 1f));
+        }
+
+        assertFalse(second.get(), "a failed run takes no further frame: ten more of them did"
+                + " not resume the capture at the next shot");
+        assertTrue(String.valueOf(run.driver().failure()).contains("one-dark@2x.png"),
+                "and the failure still names the shot it happened on: "
+                        + run.driver().failure());
     }
 }
