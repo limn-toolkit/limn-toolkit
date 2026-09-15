@@ -55,6 +55,9 @@ class AxNotificationsTest {
         assertEquals("NSAccessibilityValueChangedNotification", checked.notificationSymbol(),
                 "and a state read back off AXValue is still a value change");
         assertTrue(!checked.literal());
+
+        assertNull(AxNotifications.of(AccessibleEvent.state(7, Accessible.State.ACTIVE, true)),
+                "ACTIVE is read back off no attribute: the focused node's cursor event is the focus change");
     }
 
     @Test

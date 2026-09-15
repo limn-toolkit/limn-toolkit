@@ -561,12 +561,19 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         boolean swept = collapsing;
         boolean focusOwed = false;
         List<AccessibleEvent> drained = events.drain();
+        for (int i = 0; i < drained.size(); i++) {
+            AccessibleEvent event = drained.get(i);
+            if (event.type() == AccessibleEvent.Type.SELECTION_CHANGED && elements.holds(event.nodeId())) {
+                toldSelections.add(event.nodeId());
+            }
+        }
         for (AccessibleEvent event : drained) {
             if (event.type() == AccessibleEvent.Type.INVALIDATED) swept = true;
             AxNotifications.Posting posting = AxNotifications.of(event);
             // A null is a decision, not a gap: AppKit is already telling the client, or the event
             // names the window root this bridge elides.
             if (posting == null) continue;
+            if (selectedToldOnItsContainer(event)) continue;
             if (event.type() == AccessibleEvent.Type.SELECTION_CHANGED) posting = selectionPosting(event);
             AccessibleNode opened = openedOutlineRow(event);
             if (opened != null) {
@@ -590,6 +597,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             postedNow++;
         }
         recountedOutlines.clear();
+        toldSelections.clear();
         if (swept) {
             elements.reconcile(liveNodeIds());
             // The pushed array may name elements that were just released, and comparing it against
@@ -611,6 +619,29 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
 
     /** The outlines a drain owes a row-count change, once each; emptied by the drain that fills it. */
     private final List<Long> recountedOutlines = new ArrayList<>();
+
+    /** The containers a drain posts a selection change on; emptied by the drain that fills it. */
+    private final List<Long> toldSelections = new ArrayList<>();
+
+    /**
+     * Whether an event is a member's selected state flipping while its container is posted the
+     * selection change in the same drain (M3 correction f). The container's notification is the one a
+     * reader re-reads the selection after, and {@code AXSelected} is read off the member when it does;
+     * a value-changed on each member on top of it was two more posts per arrow in a tree — on the row
+     * the selection left and on the row it reached — where a native outline posted only
+     * {@code AXSelectedRowsChanged} (read on the macOS 26.6.2 guest, 2026-09-15,
+     * {@code scripts/a11y/macos/outline-probe.swift}). A member whose container is not told — none, or
+     * one no client holds — is still told on itself.
+     */
+    private boolean selectedToldOnItsContainer(AccessibleEvent event) {
+        if (toldSelections.isEmpty() || event.type() != AccessibleEvent.Type.STATE_CHANGED
+                || event.state() != Accessible.State.SELECTED) return false;
+        AccessibleTree tree = tree();
+        AccessibleNode member = tree.find(event.nodeId());
+        if (member == null) return false;
+        int at = member.selectionContainer();
+        return at != AccessibleNode.NONE && at < tree.nodeCount() && toldSelections.contains(tree.node(at).id());
+    }
 
     /**
      * @return the outline row an event says opened or closed, or {@code null}: a row of an outline

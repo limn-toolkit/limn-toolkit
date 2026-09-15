@@ -295,14 +295,11 @@ class AxOutlineSceneTest {
         assertEquals("Readme", bridge.nodeFor(bridge.focusedElement()).name(), "the cursor moved with it");
         List<String> posted = trace.stream().filter(line -> line.startsWith("posted "))
                 .map(line -> line.substring("posted ".length())).toList();
-        assertEquals(1, posted.stream()
-                        .filter("NSAccessibilityFocusedUIElementChangedNotification"::equals).count(),
-                "one focus change for one cursor move, in the frame that moved it: " + trace);
-        assertEquals("NSAccessibilityFocusedUIElementChangedNotification", posted.get(posted.size() - 1),
-                "told last: " + trace);
-        assertEquals(List.of("NSAccessibilitySelectedRowsChangedNotification"), posted.stream()
-                        .filter(line -> line.startsWith("NSAccessibilitySelected")).toList(),
-                "and the selection it moved, once, on the outline, as a native outline posts it: " + trace);
+        assertEquals(List.of("NSAccessibilitySelectedRowsChangedNotification",
+                        "NSAccessibilityFocusedUIElementChangedNotification"), posted,
+                "one cursor move is the selection it moved, once, on the outline, as a native outline "
+                        + "posts it, and one focus change told last; no value change on the row the "
+                        + "selection or the cursor left or reached (M3 correction f): " + trace);
     }
 
     @Test

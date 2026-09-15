@@ -177,6 +177,33 @@ class AxSelectionTest {
     }
 
     @Test
+    void aMembersSelectedFlipIsToldOnlyByItsContainersChangeAndACursorFlipByNothing() {
+        AccessibleTree tree = aWindow();
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        List<String> trace = new ArrayList<>();
+        bridge.trace(trace::add);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1020));   // the outline's rows are held, as a reader's walk holds them
+        bridge.childElementsOf(tree.find(1001));   // and the tabs
+
+        // One arrow in a tree: the selection and the cursor leave one row for the next.
+        bridge.emit(AccessibleEvent.state(1021, Accessible.State.SELECTED, false));
+        bridge.emit(AccessibleEvent.state(1022, Accessible.State.SELECTED, true));
+        bridge.emit(AccessibleEvent.state(1021, Accessible.State.ACTIVE, false));
+        bridge.emit(AccessibleEvent.state(1022, Accessible.State.ACTIVE, true));
+        bridge.emit(AccessibleEvent.selection(1020, false, new long[] {1022}, new long[] {1021}));
+        // A tab strip told nothing of its selection in this frame: its member's flip is still told.
+        bridge.emit(AccessibleEvent.state(1002, Accessible.State.SELECTED, true));
+        bridge.frameEnded();
+        List<String> posted = trace.stream().filter(line -> line.startsWith("posted "))
+                .map(line -> line.substring("posted ".length())).toList();
+        assertEquals(List.of("NSAccessibilitySelectedRowsChangedNotification",
+                        "NSAccessibilityValueChangedNotification"), posted,
+                "the outline's rows change once, and neither row is told a value change for its "
+                        + "selected or its active flip; the tab whose strip said nothing is still told");
+    }
+
+    @Test
     void theSelectionNotificationsAreNamedForTheConstantsTest() {
         assertTrue(AxNotifications.symbols().contains("NSAccessibilitySelectedRowsChangedNotification"));
         assertTrue(AxNotifications.symbols().contains("NSAccessibilitySelectedCellsChangedNotification"));

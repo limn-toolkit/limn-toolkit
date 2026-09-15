@@ -2412,7 +2412,13 @@ attribute: `SelectedRowsChanged` for an outline, a list or a table of rows — w
 and `SelectedChildrenChanged` for anything else. `STATE_CHANGED` of `EXPANDED` on an outline row is
 `RowExpanded` or `RowCollapsed` on the row, plus one `RowCountChanged` per outline per frame on the
 outline, as the native outline posted them when its row's `AXDisclosing` was set; on anything else it
-stays `ValueChanged`.
+stays `ValueChanged`. *Corrected the same day (the macos-B review; M3 correction f):* a
+member's `STATE_CHANGED` of `SELECTED` is not posted when its container is posted the selection change
+in the same frame, and `STATE_CHANGED` of `ACTIVE` is posted nowhere — no attribute is read back off
+it, and where it matters the focused node's `ACTIVE_DESCENDANT_CHANGED` is the focus change — because
+one arrow in a focused `Tree` posted four `ValueChanged` on the rows beside `SelectedRowsChanged` and
+the focus change, where the native outline delivered only `AXSelectedRowsChanged` to an observer that
+also asked for `AXValueChanged`. One cursor move now posts exactly those two.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that

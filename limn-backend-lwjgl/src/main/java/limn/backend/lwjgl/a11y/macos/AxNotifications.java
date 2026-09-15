@@ -145,17 +145,26 @@ final class AxNotifications {
     /**
      * The same decision for one event, where the state that changed can decide it.
      *
-     * <p>One state does: {@code BUSY} is not read back off {@code AXValue} as every other state is,
+     * <p>Two states do. {@code BUSY} is not read back off {@code AXValue} as every other state is,
      * but off the element's own busy attribute, which has a notification of its own. A value-changed
      * posted for it would send a client to re-read an attribute that did not move.
+     *
+     * <p>And {@code ACTIVE} is told nothing at all: no attribute of this platform is read back off it.
+     * Where it matters — the cursor under the focused widget — it is the focused element, and the
+     * focused node's {@code ACTIVE_DESCENDANT_CHANGED} already posts the focus change a reader asks
+     * after; anywhere else it is a cursor nobody is on. A value-changed for it, on the row the cursor
+     * left and on the row it reached, was two posts per arrow that a native outline never makes (read
+     * on the macOS 26.6.2 guest, 2026-09-15, {@code scripts/a11y/macos/outline-probe.swift}: a selection
+     * write delivered only {@code AXSelectedRowsChanged} to an observer that also asked for
+     * {@code AXValueChanged}).
      *
      * @param event the event
      * @return how this platform is told, or {@code null} when it is not
      */
     static Posting of(AccessibleEvent event) {
-        if (event.type() == AccessibleEvent.Type.STATE_CHANGED
-                && event.state() == Accessible.State.BUSY) {
-            return new Posting(BUSY_CHANGED, Subject.NODE, true);
+        if (event.type() == AccessibleEvent.Type.STATE_CHANGED) {
+            if (event.state() == Accessible.State.BUSY) return new Posting(BUSY_CHANGED, Subject.NODE, true);
+            if (event.state() == Accessible.State.ACTIVE) return null;
         }
         return of(event.type());
     }
