@@ -2455,6 +2455,17 @@ model has no clipboard verb. Orca 50.2 calls none of these (readings/fedora-orca
 the signatures are libatspi 2.60.6's (`s=>b`, `isi=>b`, `ii=>b`, `i=>b`, `CopyText` `ii` with no reply
 value).
 
+**Corrected 2026-09-15 (review of the interfaces item): `InsertText`'s length is bytes, as read.** The
+paragraph above took `length` as characters, a choice and not a reading, which misread a byte count that
+covers part of a multibyte string (a length of 2 for "é😀x" inserted "é😀"). Read on the Fedora KDE 44
+guest: GTK 3.24.52's ATK bridge counts UTF-8 bytes — `InsertText(1, "é😀x", n)` into "ab" leaves "ab"
+for 1, "aéb" for 2 and 3, "aé😀b" for 6, and all of it for 7, 100 and −1, a character the count would
+cut being left out (readings/fedora-gtk3-interface-replies.txt) — while GTK 4.22.4 ignores the length and
+inserts everything (readings/fedora-gtk4-interface-replies.txt;
+`scripts/a11y/linux/read-gtk-interface-replies.py`, 2026-09-15). The bridge now inserts the whole
+characters that fit in `length` bytes, all of them for a negative length (`AtspiTree.prefixInBytes`), the
+ATK bridge's unit, whose XML it serves.
+
 #### Amendment 2026-09-15 — `GetAttributes` carries a row's level and place in its set
 
 **What was wrong (L5).** The `GetAttributes` row answered `toolkit` alone, while Orca 50.2 reads a

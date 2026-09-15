@@ -822,6 +822,42 @@ class AtspiTreeTest {
     }
 
     /**
+     * EditableText.InsertText's length counts UTF-8 bytes, as GTK 3's ATK bridge reads it on the
+     * Fedora guest: "é" is two bytes and the emoji four, so a length of 2 or 3 inserts "é" alone,
+     * 6 inserts both, 1 inserts nothing, and a negative length all of it. It was taken as
+     * characters, which inserted "é😀" for a length of 2 (the review of sub-lane linux-C).
+     */
+    @Test
+    void anInsertionsLengthCountsUtf8BytesAndNeverCutsACharacter() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(9211, 0, Locale.ENGLISH, 0, 0, 400, 30);
+        a.role(Accessible.Role.TEXT_FIELD);
+        a.text("ab", 2, 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1, null, false);
+        a.state(Accessible.State.EDITABLE);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        tree.set(a.publish(0, 0, 0, 1f, true));
+
+        for (int length : new int[] {1, 2, 3, 6, 7, 100, -1}) {
+            assertEquals(true, call(path(9211), Atspi.I_EDITABLE_TEXT, "InsertText", "isi", 1,
+                    "\u00e9\uD83D\uDE00x", length).body[0], "length " + length);
+        }
+        assertEquals(List.of(new Accessible.Argument.OfText("ab"),
+                        new Accessible.Argument.OfText("a\u00e9b"),
+                        new Accessible.Argument.OfText("a\u00e9b"),
+                        new Accessible.Argument.OfText("a\u00e9\uD83D\uDE00b"),
+                        new Accessible.Argument.OfText("a\u00e9\uD83D\uDE00xb"),
+                        new Accessible.Argument.OfText("a\u00e9\uD83D\uDE00xb"),
+                        new Accessible.Argument.OfText("a\u00e9\uD83D\uDE00xb")), arguments,
+                "what GTK 3's ATK bridge left in \"ab\" for the lengths 1, 2, 3, 6, 7, 100 and -1");
+    }
+
+    /**
      * A row's level, position and set size are object attributes (L5, semantics 6): Orca 50.2 reads
      * {@code level}, {@code posinset} and {@code setsize} first, and the bridge answered
      * {@code toolkit} alone, so no tree item had a level and no row an "n of m". A zero publishes

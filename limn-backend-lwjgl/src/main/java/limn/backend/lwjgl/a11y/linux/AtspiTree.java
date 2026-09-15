@@ -1145,10 +1145,12 @@ final class AtspiTree {
      * (LINUX-NEW-4).
      *
      * <p>{@code SetTextContents} replaces it; {@code InsertText} inserts at a character offset the
-     * first {@code length} characters of what it is given, or all of it when {@code length} is
-     * negative or at least its length — so a client that counts the length in UTF-8 bytes, which is
-     * never fewer than the characters, still inserts the whole string; {@code DeleteText} removes a
-     * character range. A masked field publishes its mask and not its text ({@code TextFacet}), so an
+     * whole characters of what it is given whose UTF-8 encoding fits in {@code length} bytes, or all
+     * of it when {@code length} is negative — the unit GTK 3's ATK bridge reads on the Fedora guest
+     * ({@code InsertText(1, "é😀x", n)} into "ab" leaves "ab" for 1, "aéb" for 2 and 3, "aé😀b"
+     * for 6, and all of it for 7 and for -1; readings/fedora-gtk3-interface-replies.txt, 2026-09-15),
+     * whose XML this bridge serves; GTK 4.22.4 ignores the length and inserts everything
+     * (readings/fedora-gtk4-interface-replies.txt); {@code DeleteText} removes a character range. A masked field publishes its mask and not its text ({@code TextFacet}), so an
      * insertion or deletion built on it would write the mask back: both are refused on a
      * {@code PASSWORD} node, where only a whole replacement means what the client asked. The
      * clipboard is not the bridge's: {@code CutText} and {@code PasteText} answer false and
@@ -1170,10 +1172,7 @@ final class AtspiTree {
                 }
                 int at0 = AtspiText.unitsOf(text, arg(m, 0));
                 String given = String.valueOf(m.body[1]);
-                int length = arg(m, 2);
-                int count = given.codePointCount(0, given.length());
-                String inserted = length < 0 || length >= count ? given
-                        : given.substring(0, given.offsetByCodePoints(0, length));
+                String inserted = prefixInBytes(given, arg(m, 2));
                 return DBus.Msg.ret(m, "b", performFirst(at, node, new Accessible.Argument.OfText(
                         text.substring(0, at0) + inserted + text.substring(at0)),
                         Accessible.Action.SET_TEXT));
@@ -1196,6 +1195,29 @@ final class AtspiTree {
             default:
                 return null;
         }
+    }
+
+    /**
+     * The longest run of whole characters from the start of {@code text} whose UTF-8 encoding takes
+     * at most {@code bytes} bytes, or all of it when {@code bytes} is negative: a character the
+     * count would cut is left out, never half inserted.
+     */
+    static String prefixInBytes(String text, int bytes) {
+        if (bytes < 0) {
+            return text;
+        }
+        int used = 0;
+        int end = 0;
+        while (end < text.length()) {
+            int cp = text.codePointAt(end);
+            int size = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+            if (used + size > bytes) {
+                break;
+            }
+            used += size;
+            end += Character.charCount(cp);
+        }
+        return text.substring(0, end);
     }
 
     // ------------------------------------------------------------------ org.a11y.atspi.Selection
