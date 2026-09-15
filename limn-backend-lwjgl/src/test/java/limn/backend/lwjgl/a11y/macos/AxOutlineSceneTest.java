@@ -312,6 +312,35 @@ class AxOutlineSceneTest {
     }
 
     @Test
+    void aReaderSelectsRowsOfARealMultiSelectTreeByWritingAXSelectedRows() {
+        Tree<Node> tree = bindTree();
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        frame();
+        AxGrid grid = new AxGrid(bridge);
+        AccessibleNode outline = only(Accessible.Role.TREE);
+        long[] rows = grid.rows(outline);
+        assertTrue(AxSetters.offers(grid, outline, AxSetters.SELECTED_ROWS));
+        List<AccessibleNode> written = List.of(bridge.nodeFor(rows[3]), bridge.nodeFor(rows[5]));
+        for (AxSetters.RowSetting setting : AxSetters.forSelectedRows(grid, outline, written)) {
+            assertTrue(bridge.perform(setting.nodeId(), setting.action()), String.valueOf(setting));
+        }
+        ui.runtime().drain();
+        frame();
+        assertEquals(List.of(notes, readme), tree.selectedNodes(),
+                "the tree's selection is exactly the two rows written, as the native outline's became");
+
+        trace.clear();
+        rows = grid.rows(only(Accessible.Role.TREE));
+        for (AxSetters.RowSetting setting : AxSetters.forSelectedRows(grid, only(Accessible.Role.TREE),
+                List.of(bridge.nodeFor(rows[0])))) {
+            assertTrue(bridge.perform(setting.nodeId(), setting.action()), String.valueOf(setting));
+        }
+        ui.runtime().drain();
+        frame();
+        assertEquals(List.of(documents), tree.selectedNodes(), "and one row written replaces them");
+    }
+
+    @Test
     void aReadersScrollToVisibleOnAPartlyShownRowScrollsTheListToIt() {
         ListView list = new ListView(new ListView.Adapter() {
             @Override public int rowCount() {

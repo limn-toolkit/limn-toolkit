@@ -2188,7 +2188,19 @@ that verb, never waited for. **Settable is the gate's answer for the setter** (r
 2026-09-13), so each of these is offered exactly where its write would post, AXDisclosing only on a
 row that can open as the native outline's is, and every other `setAccessibility…` selector —
 `NSAccessibilityElement`'s stored setters, which a client read as settable on every element, `AXRole`
-included — is refused on every node. The setters are installed only together with the gate.
+included — is refused on every node. The setters are installed only together with the gate. *Corrected
+the same day (the macos-B review; MACOS-NEW-11's last setter):* `setAccessibilitySelectedRows:` is
+installed too, settable where a container's selection is its rows and a realized row takes a selection
+verb. Read on the guest 2026-09-15 (`scripts/a11y/macos/selection-writes-probe.swift`), a native
+outline's selection becomes exactly the rows written in either mode — one row replaces, two rows in a
+multi-select outline become the selection, an empty array empties it, two rows in a single-select
+outline are refused (`kAXErrorIllegalArgument`) — and `AXSelected` YES on a second row of a
+multi-select outline **replaces** the selection too, so the `SELECT` it posts is right in both modes.
+So one row written posts `SELECT`; several, or none, post the difference — `DESELECT` on each selected
+row left out, `ADD_TO_SELECTION` on each written row not selected — and the write is refused whole
+unless every row accepts its verb, or when it names an element that is not a row of the container. A
+single-select row publishes no `DESELECT` (decision 20), so there an empty array, and `AXSelected` NO,
+are refused where the native outline, which allows an empty selection, clears it.
 *`AXScrollToVisible`* (new in macOS 26, and with no selector anywhere): read on the guest 2026-09-15
 (`scripts/a11y/macos/scroll-to-visible-probe.swift`), an `NSAccessibilityElement` subclass answering
 the legacy `accessibilityActionNames` has its perform of that name delivered to

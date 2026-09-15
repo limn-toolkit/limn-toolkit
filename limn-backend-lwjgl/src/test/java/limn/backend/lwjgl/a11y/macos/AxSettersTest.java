@@ -9,6 +9,7 @@ import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
@@ -50,6 +51,124 @@ class AxSettersTest {
 
     private static One one(Accessible.Role role, Consumer<Accessibility> describe) {
         return one(role, true, describe);
+    }
+
+    private record Outline(AxGrid grid, AccessibleTree tree) {
+        AccessibleNode node(long id) {
+            return tree.find(id);
+        }
+    }
+
+    /**
+     * WINDOW > TREE 1010 (multi or single) > TREE_ITEM 1011 (selected), 1012, 1013, each publishing
+     * the row verbs Tree publishes (decision 20); BUTTON 1020; TAB_LIST 1030 > TAB 1031.
+     */
+    private static Outline anOutline(boolean multi) {
+        return anOutline(multi, true);
+    }
+
+    private static Outline anOutline(boolean multi, boolean rowsTakeVerbs) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int outline = a.begin(1010, 0, Locale.ENGLISH, 0, 0, 200, 90);
+        a.role(Accessible.Role.TREE);
+        a.selection(multi, false);
+        a.inherited(true, true, true, true, false);
+        for (int i = 0; i < 3; i++) {
+            boolean selected = i == 0;
+            a.begin(1011 + i, outline, Locale.ENGLISH, 0, 30L * i, 200, 30);
+            a.role(Accessible.Role.TREE_ITEM);
+            a.name(I18nString.literal("row " + i), Accessible.NameFrom.CONTENT);
+            a.selectionItem(selected, i + 1, 3);
+            a.hierarchy(1, i + 1, 3);
+            if (rowsTakeVerbs && !multi) a.action(Accessible.Action.SELECT);
+            else if (rowsTakeVerbs && selected) a.action(Accessible.Action.SELECT, Accessible.Action.DESELECT);
+            else if (rowsTakeVerbs) a.action(Accessible.Action.SELECT, Accessible.Action.ADD_TO_SELECTION);
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        a.begin(1020, 0, Locale.ENGLISH, 0, 100, 80, 30);
+        a.role(Accessible.Role.BUTTON);
+        a.action(Accessible.Action.PRESS);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        int tabs = a.begin(1030, 0, Locale.ENGLISH, 0, 140, 200, 30);
+        a.role(Accessible.Role.TAB_LIST);
+        a.selection(false, true);
+        a.inherited(true, true, true, false, false);
+        a.begin(1031, tabs, Locale.ENGLISH, 0, 140, 60, 30);
+        a.role(Accessible.Role.TAB);
+        a.selectionItem(true, 1, 1);
+        a.action(Accessible.Action.SELECT);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        a.end();
+        AccessibleTree tree = a.publish(0, 0, 0, 1f, true);
+        AxBridge bridge = PlatformFreeBridges.make();
+        bridge.publish(tree, false);
+        return new Outline(new AxGrid(bridge), tree);
+    }
+
+    private static List<AxSetters.RowSetting> write(Outline o, long... rows) {
+        List<AccessibleNode> written = new java.util.ArrayList<>();
+        for (long row : rows) written.add(o.node(row));
+        return AxSetters.forSelectedRows(o.grid(), o.node(1010), written);
+    }
+
+    private static AxSetters.RowSetting row(long id, Accessible.Action action) {
+        return new AxSetters.RowSetting(id, action);
+    }
+
+    @Test
+    void aSelectedRowsWriteLeavesExactlyTheWrittenRowsSelectedAsANativeOutlinesDoes() {
+        Outline multi = anOutline(true);
+        assertTrue(AxSetters.offers(multi.grid(), multi.node(1010), AxSetters.SELECTED_ROWS),
+                "a native outline's AXSelectedRows read settable");
+        assertEquals(List.of(row(1012, Accessible.Action.SELECT)), write(multi, 1012),
+                "one row replaces the selection, as [Charlie] replaced [Alpha, Charlie] natively: a click");
+        assertEquals(List.of(row(1011, Accessible.Action.DESELECT), row(1012, Accessible.Action.ADD_TO_SELECTION),
+                        row(1013, Accessible.Action.ADD_TO_SELECTION)), write(multi, 1012, 1013),
+                "two rows become the selection, as [Alpha, Charlie] did natively");
+        assertEquals(List.of(row(1011, Accessible.Action.DESELECT)), write(multi, new long[0]),
+                "an empty array empties it, as natively");
+        assertEquals(List.of(row(1012, Accessible.Action.ADD_TO_SELECTION)), write(multi, 1011, 1012),
+                "a row already selected and written stays; only the difference is posted");
+        assertNull(write(multi, 1012, 1020), "a button is no row of the outline: the write is refused whole");
+        assertNull(AxSetters.forSelectedRows(multi.grid(), multi.node(1010),
+                java.util.Arrays.asList(multi.node(1012), null)), "nor is an element that stands for no node");
+
+        Outline single = anOutline(false);
+        assertTrue(AxSetters.offers(single.grid(), single.node(1010), AxSetters.SELECTED_ROWS),
+                "settable in a single-select outline too, as natively");
+        assertEquals(List.of(row(1013, Accessible.Action.SELECT)), write(single, 1013));
+        assertNull(write(single, 1012, 1013),
+                "two rows in a single-select outline are refused, as natively (kAXErrorIllegalArgument)");
+        assertNull(write(single, new long[0]),
+                "an empty array is refused: a single-select row publishes no DESELECT (decision 20), where "
+                        + "a native outline allowing an empty selection clears it");
+    }
+
+    @Test
+    void theSelectedRowsAreSettableOnlyWhereAContainersSelectionIsItsRowsAndARowTakesAVerb() {
+        Outline o = anOutline(true);
+        assertFalse(AxSetters.offers(o.grid(), o.node(1030), AxSetters.SELECTED_ROWS),
+                "a tab strip's selection is its children, not rows");
+        assertFalse(AxSetters.offers(o.grid(), o.node(1020), AxSetters.SELECTED_ROWS), "a button holds none");
+        assertFalse(AxSetters.offers(o.grid(), o.node(1011), AxSetters.SELECTED_ROWS), "nor does a row");
+        assertNull(AxSetters.forSelectedRows(o.grid(), o.node(1030), List.of(o.node(1031))),
+                "and nothing offered is nothing written");
+        assertTrue(AxGate.allows(o.grid(), o.node(1010), AxSetters.SELECTED_ROWS),
+                "the gate's answer for the setter is what a client reads as settable");
+        assertFalse(AxGate.allows(o.grid(), o.node(1030), AxSetters.SELECTED_ROWS));
+        Outline inert = anOutline(true, false);
+        assertFalse(AxSetters.offers(inert.grid(), inert.node(1010), AxSetters.SELECTED_ROWS),
+                "an outline whose rows publish no selection verb — disabled, or beneath a layer that owns "
+                        + "input — says its selected rows are not settable (semantics 5)");
     }
 
     @Test

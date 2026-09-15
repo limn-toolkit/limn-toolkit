@@ -574,7 +574,7 @@ final class AxElementClass {
 
     /**
      * The setter half (MACOS-NEW-11): a reader's write to AXFocused, AXSelected, AXDisclosing,
-     * AXExpanded or AXValue, posted as the verb it means where the node accepts that verb, and
+     * AXExpanded, AXValue or AXSelectedRows, posted as the verb it means where the node accepts that verb, and
      * nothing anywhere else. Whether each is settable is the gate's answer for the setter selector,
      * which is {@link AxSetters#offers}; the write checks again, because a client need not ask first.
      * Each installed only with the gate ({@link AxSelectors#REQUIRES}), or every element would report
@@ -613,6 +613,26 @@ final class AxElementClass {
             }
         };
         addMethod(elementClass, "setAccessibilityValue:", valueSetter);
+
+        // A table's, an outline's or a list's selection written as an array of its row elements
+        // (MACOS-NEW-11): -count Q16@0:8 and -objectAtIndex: @24@0:8Q16, read with the other
+        // Foundation messages (isKindOf). An element that stands for no node of ours refuses the write.
+        IdSetter selectedRowsSetter = new IdSetter() {
+            @Override public void invoke(long self, long cmd, long written) {
+                source.entered();
+                AccessibleNode node = source.nodeFor(self);
+                if (node == null || written == NULL || !isKindOf(written, "NSArray")) return;
+                long count = ObjC.msg(written, "count");
+                List<AccessibleNode> rows = new ArrayList<>();
+                for (long i = 0; i < count; i++) {
+                    rows.add(source.nodeFor(ObjC.msg(written, "objectAtIndex:", i)));
+                }
+                List<AxSetters.RowSetting> settings = AxSetters.forSelectedRows(grid, node, rows);
+                if (settings == null) return;
+                for (AxSetters.RowSetting setting : settings) source.perform(setting.nodeId(), setting.action());
+            }
+        };
+        addMethod(elementClass, "setAccessibilitySelectedRows:", selectedRowsSetter);
     }
 
     /**
@@ -622,7 +642,9 @@ final class AxElementClass {
      * boolean as kinds of {@code NSNumber}, were read on the macOS 26.6.2 guest (25G83), 2026-09-15,
      * {@code scripts/a11y/macos/foundation-messages-probe.swift}; so were the other Foundation messages
      * the closures send: {@code -[NSNumber stringValue]} {@code @16@0:8} ("55", "55.5", and "1" for
-     * {@code kCFBooleanTrue}) and {@code -[NSString isEqualToString:]} {@code B24@0:8@16}.
+     * {@code kCFBooleanTrue}), {@code -[NSString isEqualToString:]} {@code B24@0:8@16}, and the two an
+     * array write needs, {@code -[NSArray count]} {@code Q16@0:8} and {@code -[NSArray objectAtIndex:]}
+     * {@code @24@0:8Q16}.
      */
     private static boolean isKindOf(long object, String className) {
         return (ObjC.msg(object, "isKindOfClass:", ObjC.cls(className)) & 0xFF) != 0;

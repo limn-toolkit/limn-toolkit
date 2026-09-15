@@ -204,7 +204,7 @@ let installedByTheBridge: [(String, String)] = [
     // The setter half (MACOS-NEW-11).
     ("setAccessibilityFocused:", "element"), ("setAccessibilitySelected:", "element"),
     ("setAccessibilityDisclosed:", "element"), ("setAccessibilityExpanded:", "element"),
-    ("setAccessibilityValue:", "element"),
+    ("setAccessibilityValue:", "element"), ("setAccessibilitySelectedRows:", "element"),
     // The legacy action pair, for AXScrollToVisible (MACOS-NEW-11).
     ("accessibilityActionNames", "element"), ("accessibilityPerformAction:", "element"),
 ]

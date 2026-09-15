@@ -100,6 +100,7 @@ final class AxSelectors {
         kinds.put("accessibilityPerformAction:", Kind.VOID_OF_ID);
         for (String setter : AxSetters.BOOL_SETTERS) kinds.put(setter, Kind.VOID_OF_BOOL);
         kinds.put(AxSetters.VALUE, Kind.VOID_OF_ID);
+        kinds.put(AxSetters.SELECTED_ROWS, Kind.VOID_OF_ID);
         for (String selector : List.of("accessibilityRows", "accessibilityVisibleRows",
                 "accessibilitySelectedRows", "accessibilitySelectedChildren",
                 "accessibilitySelectedCells", "accessibilityColumns", "accessibilityHeader",

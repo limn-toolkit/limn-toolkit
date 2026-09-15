@@ -264,6 +264,42 @@ final class AxGrid {
     }
 
     /**
+     * @param container a container whose selection is its rows
+     * @return whether a realized row among its children takes a selection verb now; allocates nothing,
+     *         because the gate asks it whenever a client asks whether the selected rows are settable
+     */
+    boolean aRowTakesASelectionVerb(AccessibleNode container) {
+        AccessibleTree tree = source.tree();
+        int at = tree.indexOf(container.id());
+        if (at == AccessibleNode.NONE) return false;
+        for (int child = tree.node(at).firstChild(); child != AccessibleNode.NONE;
+                child = tree.node(child).nextSibling()) {
+            AccessibleNode row = tree.node(child);
+            if (row.selectionContainer() != at) continue;
+            if (row.accepts(Accessible.Action.SELECT) || row.accepts(Accessible.Action.ADD_TO_SELECTION)
+                    || row.accepts(Accessible.Action.DESELECT)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param container a container whose selection is its rows
+     * @return the realized members of its selection among its children, in order: the rows a
+     *         selected-rows write can name
+     */
+    java.util.List<AccessibleNode> selectionRows(AccessibleNode container) {
+        AccessibleTree tree = source.tree();
+        int at = tree.indexOf(container.id());
+        java.util.List<AccessibleNode> rows = new java.util.ArrayList<>();
+        if (at == AccessibleNode.NONE) return rows;
+        for (int child = tree.node(at).firstChild(); child != AccessibleNode.NONE;
+                child = tree.node(child).nextSibling()) {
+            if (tree.node(child).selectionContainer() == at) rows.add(tree.node(child));
+        }
+        return rows;
+    }
+
+    /**
      * The realized members of a container's selection that are selected, wherever they hang under it
      * (semantics 1: a calendar's day under its week row, a tab under its strip), in reading order.
      *
