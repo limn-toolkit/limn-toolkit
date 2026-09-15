@@ -487,7 +487,10 @@ final class UiaIds {
      * Where the platform's own provider answers it first, before any other refusal, was read on
      * 2026-09-15 (readings/windows-dump-uia-provider-conventions.txt §1:
      * {@code ScrollViewerAutomationPeer}'s {@code Scroll} and {@code SetScrollPercent} both begin
-     * {@code call AutomationPeer::IsEnabled(); brtrue; newobj ElementNotEnabledException; throw}).
+     * {@code call AutomationPeer::IsEnabled(); brtrue; newobj ElementNotEnabledException; throw}),
+     * and for {@code SetFocus} and {@code ScrollIntoView} the same day, where only the Win32
+     * controls' client-side proxies answer it first and WPF checks nothing
+     * (readings/windows-dump-uia-focus-and-scroll-item.txt; {@link UiaPatternProviders#refusal}).
      */
     static final int E_ELEMENT_NOT_ENABLED = 0x80040200;
 

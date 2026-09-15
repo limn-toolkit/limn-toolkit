@@ -830,6 +830,10 @@ class UiaPatternProvidersTest {
         posted.clear();
         assertEquals(UiaIds.E_INVALID_OPERATION,
                 verb(UiaIds.SCROLL_ITEM_PATTERN, 1046, "ScrollIntoView"));
+        assertEquals(UiaIds.E_ELEMENT_NOT_ENABLED,
+                verb(UiaIds.SCROLL_ITEM_PATTERN, 1018, "ScrollIntoView"),
+                "a disabled item: not enabled first, as the platform's client-side ListViewItem and "
+                        + "WindowsTabItem ScrollIntoView answer (read as IL 2026-09-15)");
         assertEquals(List.of(), posted);
         goneFromTheTree();
         assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,

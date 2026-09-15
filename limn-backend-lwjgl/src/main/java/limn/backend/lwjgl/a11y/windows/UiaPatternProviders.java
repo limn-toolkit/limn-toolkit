@@ -752,6 +752,22 @@ final class UiaPatternProviders {
      * {@code RangeBaseAutomationPeer.SetValue} all begin {@code call AutomationPeer::IsEnabled();
      * brtrue; newobj ElementNotEnabledException; throw}, and only then throw
      * {@code InvalidOperationException} for what they cannot do.
+     *
+     * <p>{@code SetFocus} and {@code ScrollIntoView} were read separately, the same day
+     * (readings/windows-dump-uia-focus-and-scroll-item.txt, {@code
+     * scripts/a11y/windows/dump-uia-focus-and-scroll-item.ps1}), and the platform's providers do not
+     * agree on them. The client-side proxies of the Win32 controls follow the order above:
+     * {@code ProxySimple}'s {@code IRawElementProviderFragment.SetFocus} throws
+     * {@code ElementNotEnabledException} when the window is not enabled and
+     * {@code InvalidOperationException} when the element is not keyboard-focusable, and
+     * {@code ListViewItem}'s and {@code WindowsTabItem}'s {@code ScrollIntoView} throw
+     * {@code ElementNotEnabledException} before {@code InvalidOperationException} for a container
+     * that cannot scroll. WPF checks no enabled bit for either: {@code ElementProxy.SetFocus}
+     * reaches {@code UIElementAutomationPeer.SetFocusCore}, which throws
+     * {@code InvalidOperationException} when {@code UIElement.Focus()} refuses, and its item peers'
+     * {@code ScrollIntoView} scroll whatever the item's state, as do the list-box and tree-view item
+     * proxies. This bridge answers both the way it answers every other verb, which is the Win32
+     * proxies' order.
      */
     static int refusal(AccessibleNode node) {
         return node.has(Accessible.State.ENABLED) ? UiaIds.E_INVALID_OPERATION

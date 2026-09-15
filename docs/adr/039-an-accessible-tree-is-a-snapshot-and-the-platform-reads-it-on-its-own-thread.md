@@ -2197,6 +2197,28 @@ it already answered the facet's writability. The Expand/Collapse, Toggle and Val
 vended from their facets, because their state is what a reader reads; a verb delegated to a container
 (a tree row's `EXPAND`) is posted on the row's id and the scene routes it (decision 7).
 
+**Amended 2026-09-15 (review of the Windows phase-3 work): the not-enabled order is read for the
+entry points named, and `SetFocus` and `ScrollIntoView` were read afterwards and differ between
+providers.** The amendment above calls the not-enabled-first order "the platform's own order, read as
+IL" for every verb; its reading covers the peers it lists and no `SetFocus` body, and its `ScrollItem`
+listing named a type that does not implement the interface. Both were then read on the same guest
+(`scripts/a11y/windows/dump-uia-focus-and-scroll-item.ps1`,
+readings/windows-dump-uia-focus-and-scroll-item.txt, UIAutomationCore.dll 7.2.26100.9457, 4.8.9347
+assemblies), and the platform's providers do not agree. The client-side proxies of the Win32 controls
+keep the order: `ProxySimple`'s `IRawElementProviderFragment.SetFocus` throws
+`ElementNotEnabledException` (0x80040200) when the window is not enabled and
+`InvalidOperationException` (0x80131509) when the element is not keyboard-focusable; `ListViewItem`'s
+and `WindowsTabItem`'s `ScrollIntoView` throw `ElementNotEnabledException` before
+`InvalidOperationException` for a container that cannot scroll. WPF checks no enabled bit on either:
+`ElementProxy.SetFocus` reaches `UIElementAutomationPeer.SetFocusCore`, which throws
+`InvalidOperationException` when `UIElement.Focus()` refuses (as it does for a disabled element), and
+`ListBoxItemAutomationPeer`, `DataGridItemAutomationPeer`, `TreeViewItemAutomationPeer` and the
+list-box and tree-view item proxies scroll whatever the item's state. This bridge keeps
+`UIA_E_ELEMENTNOTENABLED` first for both, the Win32 proxies' order and the one every other entry
+point here follows, pinned by `UiaFragmentProviderTest.setFocusReachesTheToolkitOnlyWhereTheNodePublishesFocusAndSaysSoWhenTheNodeHasGone`
+and `UiaPatternProvidersTest.scrollIntoViewIsPostedOnlyWhereTheNodePublishesIt`; which of the two
+answers a client prefers is not read, and the choice is put to the owner with the verbs'.
+
 **Amended 2026-09-15 (phase 3, Windows; decision 4, semantics 6; W4, CRIT-6): position, set size and
 level are answered, and tree rows nest in navigation.** The `GetPropertyValue` row names neither
 `PositionInSet` nor `Level`, and the `Navigate` row says "the stored links"; every selection item's

@@ -136,6 +136,11 @@ class UiaFragmentProviderTest {
         a.name(I18nString.literal("Cancel"), Accessible.NameFrom.CONTENT);
         a.inherited(true, true, true, true, focusedId == 1003);
         a.end();
+        a.begin(1004, 0, Locale.ENGLISH, 0, 280, 10, 10);
+        a.role(Accessible.Role.BUTTON);
+        a.name(I18nString.literal("Greyed"), Accessible.NameFrom.CONTENT);
+        a.inherited(false, true, true, false, false);
+        a.end();
         a.end();
         published.set(a.publish(focusedId, 0, 0, 1f, true));
     }
@@ -320,6 +325,10 @@ class UiaFragmentProviderTest {
         assertEquals(UiaIds.S_OK, JNI.invokePI(button, UiaCom.slotOf(button, slot)));
         assertEquals(UiaIds.E_INVALID_OPERATION, JNI.invokePI(other, UiaCom.slotOf(other, slot)),
                 "a node that publishes no FOCUS is refused, and nothing reaches the toolkit");
+        long greyed = fragmentFor(1004);
+        assertEquals(UiaIds.E_ELEMENT_NOT_ENABLED, JNI.invokePI(greyed, UiaCom.slotOf(greyed, slot)),
+                "a node that is not enabled is refused with UIA_E_ELEMENTNOTENABLED first, as the "
+                        + "platform's client-side ProxySimple.SetFocus answers (read as IL 2026-09-15)");
         assertEquals(List.of(1002L), focusRequests);
 
         published.set(AccessibleTree.EMPTY);
