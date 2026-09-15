@@ -845,13 +845,56 @@ class AtspiApplicationTest {
     }
 
     /**
-     * The bridge remembers what it last announced (semantics 4): a collapse that moved neither the
-     * focus nor the cursor says neither again, however many publishes cross the budget — a fast
-     * scroll of a large list is one such publish per frame. Until the review of linux-B the memory
-     * was cleared on every publish, and every collapse repeated both.
+     * A collapse whose tail holds nothing after its structure signals — the focus did not move, so
+     * there is no {@code FOCUS_CHANGED} to reconcile before — says the focus again when the frame
+     * ends, in the frame it belongs to. It used to wait for this window's next publish, which on a
+     * window that then goes still never comes.
      */
     @Test
-    void aCollapseThatMovesNeitherTheFocusNorTheCursorSaysNeitherAgain() {
+    void aCollapseWhoseTailIsStructureAloneSaysTheFocusAgainWhenTheFrameEnds() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        AtspiBridge window = app.window();
+        Frames main = new Frames(window);
+        long[] ids = buttons(300);
+        main.publish(true, 3001, id -> true, ids);
+        window.frameEnded();
+        bus.signals.clear();
+        bus.tails.clear();
+
+        List<limn.accessibility.AccessibleEvent> events = main.publish(true, 3001,
+                id -> id == 3001, java.util.Arrays.copyOf(ids, 299));
+        assertEquals(limn.accessibility.AccessibleEvent.Type.INVALIDATED, events.get(0).type(),
+                "the fixture must cross the budget: " + events.size() + " events");
+        assertEquals(List.of("ChildrenChanged remove 299 " + path(3000),
+                "RemoveAccessible " + Atspi.PATH_CACHE), spoken(bus.signals),
+                "the tail's structure, and nothing else has arrived to reconcile at");
+
+        window.frameEnded();
+        assertEquals(List.of("ChildrenChanged remove 299 " + path(3000),
+                "RemoveAccessible " + Atspi.PATH_CACHE,
+                "StateChanged focused 1 " + path(3001)), spoken(bus.signals),
+                "the structure first, then where the reader stands, in this frame");
+        assertTrue(bus.tails.stream().allMatch(tail -> tail),
+                "and as tail signals, which no backlog refuses");
+
+        window.frameEnded();
+        assertEquals(3, spoken(bus.signals).size(), "a frame that owed nothing says nothing");
+    }
+
+    /**
+     * A collapse says the focus and the cursor again even when neither moved (semantics 4, settled
+     * for the three bridges on 2026-09-15), at the frame's end when its tail held nothing after the
+     * structure signals. Linux was the bridge that sent nothing there, because it compared against
+     * what it had announced; what a client lost in the collapse is exactly what that comparison
+     * says it already has. Orca 50.2 drops a locus set to the object it is already on
+     * (focus_manager.py 278-281), so the repeat costs a message and no speech.
+     *
+     * <p>The memory itself stays, and is what keeps an ordinary publish quiet: the assertions below
+     * count one focus and one cursor per collapse, not one per publish.
+     */
+    @Test
+    void aCollapseSaysTheFocusAndTheCursorAgainAtTheFramesEndEvenWhenNeitherMoved() {
         FakeBus bus = new FakeBus();
         AtspiApplication app = anApplication(bus);
         AtspiBridge window = app.window();
@@ -881,20 +924,30 @@ class AtspiApplicationTest {
             for (limn.accessibility.AccessibleEvent event : List.copyOf(a.events())) {
                 window.emit(event);
             }
+            window.frameEnded();  // every frame ends, as a scene ends it
         };
         publish.accept(300);
         List<String> first = spoken(bus.signals);
         assertTrue(first.contains("StateChanged focused 1 " + path(4001))
-                && first.contains("ActiveDescendantChanged  7 " + path(4001)),
-                "the fixture announces the focus and the cursor once: " + first);
+                        && first.contains("ActiveDescendantChanged  7 " + path(4001)),
+                "the fixture announces the focus and the cursor: " + first);
+        bus.signals.clear();
+
+        publish.accept(300);
+        assertEquals(List.of(), spoken(bus.signals),
+                "a publish that changed nothing says nothing: the memory still holds");
         bus.signals.clear();
 
         publish.accept(10);
         publish.accept(300);
         List<String> sent = spoken(bus.signals);
-        assertFalse(sent.stream().anyMatch(line -> line.startsWith("StateChanged focused")
-                        || line.startsWith("ActiveDescendantChanged")),
-                "two collapses in which the reader's position stood still: " + sent);
+        assertEquals(2, java.util.Collections.frequency(sent,
+                "StateChanged focused 1 " + path(4001)),
+                "two collapses, and each says where the reader stands again: " + sent);
+        assertEquals(2, java.util.Collections.frequency(sent,
+                "ActiveDescendantChanged  7 " + path(4001)), sent.toString());
+        assertFalse(sent.contains("StateChanged focused 0 " + path(4001)),
+                "and never a focused 0 for the node that still holds it: " + sent);
     }
 
     /**

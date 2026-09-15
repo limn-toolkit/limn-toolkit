@@ -69,8 +69,9 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     /**
      * The node this window last told clients was focused, or 0, across publishes (semantics 4: a
      * bridge remembers the last effective focus it announced). UI thread. What a collapse or a
-     * refusal is reconciled against: said again only when the tree now says otherwise, with a
-     * {@code focused} 0 for this node when it still stands and lost the focus.
+     * refusal is reconciled against: a {@code focused} 0 goes to this node when it still stands and
+     * lost the focus, and the node focused now hears {@code focused} 1 — after a collapse or a
+     * refusal even when it is this same node (semantics 4, 2026-09-15).
      */
     long announcedFocus;
     /** The descendant this window last named in an {@code ActiveDescendantChanged}, across publishes. */
@@ -80,7 +81,8 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     /**
      * Whether the model's {@code INVALIDATED} or a refused signal left the focus and cursor to be
      * reconciled at the tail's place: before the first tail event after the structure signals, or,
-     * when the publish carried none, before this window's next publish replaces its tree. UI thread.
+     * when the publish carried none, at {@link #frameEnded()} — and, for a refusal that came after
+     * that, before this window's next publish replaces its tree. UI thread.
      */
     boolean reconcileOwed;
     /**
@@ -230,5 +232,14 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     @Override
     public void emit(AccessibleEvent event) {
         application.emit(this, event);
+    }
+
+    @Override
+    public void frameEnded() {
+        // Nothing is posted here — this bridge writes from its own writer thread, and every signal
+        // of this frame has already been queued. What is owed is the re-announcement of the focus
+        // and the cursor after a collapse whose tail held nothing after its structure signals
+        // (semantics 4): it belongs to this frame, not to whenever the tree next changes.
+        application.frameEnded(this);
     }
 }

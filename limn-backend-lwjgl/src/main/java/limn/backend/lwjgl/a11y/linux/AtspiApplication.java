@@ -421,11 +421,13 @@ final class AtspiApplication {
      * does not refuse. {@code INVALIDATED} itself sends nothing of its own — this bridge holds no
      * per-node state to sweep, and a client's cache is kept by the tail's structure signals — and
      * neither does a refused signal at the moment it is refused: each leaves the focus and the
-     * cursor owed, and they are reconciled against what this window last announced at the tail's
-     * place, after the structure signals and before the first tail event that follows them
-     * ({@link #reconcile}). The tail's own {@code FOCUS_CHANGED} and cursor change arrive there, so a
-     * collapse sends decision 28's order: children-changed and the cache, then focus, cursor,
-     * selection and the window's activation.
+     * cursor owed, and they are said again at the tail's place, after the structure signals and
+     * before the first tail event that follows them ({@link #reconcile}) — or, when the tail held
+     * nothing after them, at {@link #frameEnded}. The tail's own {@code FOCUS_CHANGED} and cursor
+     * change arrive there, so a collapse sends decision 28's order: children-changed and the cache,
+     * then focus, cursor, selection and the window's activation. An owed reconcile says the focus
+     * and the cursor <b>whether or not they moved</b> (semantics 4), which is what a client that
+     * lost the collapsed events needs and what the other two bridges already did.
      *
      * <p>Until the review of linux-B the focus was said the moment {@code INVALIDATED} arrived —
      * before the structure, and before an {@code Activate} after which it was then not said again
@@ -519,14 +521,36 @@ final class AtspiApplication {
     }
 
     /**
+     * The frame is over: everything this window had to say has been emitted. User-interface thread,
+     * once per frame per window, whether or not the window published.
+     *
+     * <p><b>This is where a collapse's re-announcement lands when its tail held nothing after the
+     * structure signals</b> (semantics 4). The reconcile runs at the first tail event that follows
+     * them, and a tail of structure alone has none; before 2026-09-15 the window then waited for its
+     * next publish, so a collapse on a window that then went still re-announced nothing at all —
+     * the case the semantics are about. Here it is said in the frame it belongs to, against the tree
+     * that frame published.
+     *
+     * @param window the facade whose frame ended
+     */
+    void frameEnded(AtspiBridge window) {
+        reconcileIfOwed(window);
+    }
+
+    /**
      * A window is about to replace its tree. User-interface thread. A reconcile its last publish
-     * owed and never reached — a collapse whose tail held nothing after its structure signals, a
-     * refusal after the last tail event — runs now, against the tree it was owed for, which is
-     * still this window's tree; its signals then follow every signal of that publish.
+     * owed and never reached — a refusal after this window's frame had already ended — runs now,
+     * against the tree it was owed for, which is still this window's tree; its signals then follow
+     * every signal of that publish.
      *
      * @param window the facade about to publish
      */
     void publishing(AtspiBridge window) {
+        reconcileIfOwed(window);
+    }
+
+    /** Says the focus and the cursor again if something left them owed. User-interface thread. */
+    private void reconcileIfOwed(AtspiBridge window) {
         if (!window.reconcileOwed) {
             return;
         }
@@ -598,8 +622,20 @@ final class AtspiApplication {
      * The focus and the cursor as the window's tree has them, against what this window last
      * announced, as tail signals (semantics 4 and 7; decision 28; LINUX-NEW-15, LAB-NEW-2).
      *
-     * <p>Said only when they differ from what was announced: a collapse or a refusal that moved
-     * neither says nothing. When the focus moved, the node last announced focused first hears
+     * <p><b>A reconcile that is owed says them again whether or not they moved</b> (semantics 4,
+     * settled for all three bridges on 2026-09-15). A reconcile is owed by the model's
+     * {@code INVALIDATED} and by a signal this connection refused: in both cases what the client
+     * holds is not what this window published, and a focus that did not move is exactly the case
+     * where the client is left standing on a node whose state it never received. Linux was the
+     * bridge that sent nothing there, while Windows re-raises and macOS re-posts unconditionally.
+     * Saying it twice is safe on the one client read: Orca 50.2's {@code set_locus_of_focus}
+     * returns without a word when the locus is already that object (focus_manager.py 278-281,
+     * readings/fedora-orca-focus-manager.txt). A reconcile that is <em>not</em> owed — the one after
+     * every {@code Activate} — keeps the older rule below, so an activation does not repeat a focus
+     * it has just said.
+     *
+     * <p>Otherwise said only when they differ from what was announced. When the focus moved, the
+     * node last announced focused first hears
      * {@code focused} 0 if it still stands — libatspi 2.60.6's {@code cache_process_state_changed}
      * sets or clears only the bit an event names, so a collapse that lost the loser's change left a
      * long-lived cache holding FOCUSED on two nodes — and then the node now focused hears 1. A
@@ -623,10 +659,13 @@ final class AtspiApplication {
      */
     private void reconcile(AtspiBridge window, Link link, AtspiEvents.Context context,
                            boolean afterTheLocusMoved) {
+        // Read before it is cleared: an owed reconcile follows an INVALIDATED or a refusal, and
+        // says the focus and the cursor again even when neither moved.
+        boolean owed = window.reconcileOwed;
         window.reconcileOwed = false;
         AccessibleTree tree = window.tree();
         long focused = tree.focused();
-        boolean sayFocus = window.announcedFocus != focused
+        boolean sayFocus = owed || window.announcedFocus != focused
                 || afterTheLocusMoved && focused != 0 && window.focusSaid != focused;
         if (sayFocus) {
             long was = window.announcedFocus;

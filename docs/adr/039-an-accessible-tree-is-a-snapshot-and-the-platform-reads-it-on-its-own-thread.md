@@ -3264,6 +3264,25 @@ was not sent at all. Two identical copies waiting in Orca's queue together are h
 (readings/fedora-orca-event-queue.txt). Orca's queue is ordered by `_get_priority` before arrival;
 the numeric values of its constants were not read.)*
 
+*(Amended 2026-09-15, semantics 4 settled for the three bridges after phase 3. Two sentences above
+change. "It sends only what differs from the memory" is now true of an ordinary publish only: **an
+owed reconcile — one the model's `INVALIDATED` or a refused signal asked for — says the focus and
+the cursor again whether or not they moved.** Linux was the only bridge that sent nothing when the
+focus had not moved, while Windows re-raises and macOS re-posts unconditionally after their own
+sweeps; and a focus that did not move is precisely the case where the client is standing on a node
+whose state changes it lost in the collapse. The repeat costs a message and no speech: Orca 50.2's
+`set_locus_of_focus` returns at once when the locus is already that object (focus_manager.py
+278-281, readings/fedora-orca-focus-manager.txt). The memory stays, and is what keeps an ordinary
+publish quiet. And "when the publish carries none, before the window's next publish replaces its
+tree" becomes **at the end of the frame** (`AccessibilityBridge#frameEnded`, §5.3): a collapse whose
+tail holds nothing after its structure signals used to wait for a next publish that a window going
+still never makes, so the re-announcement the semantics ask for never happened at all. The publish
+path stays as the later net for a refusal that comes after the frame has ended. Order is unchanged
+and is semantics 7's: the structure signals first, then focus, then the cursor, then selection and
+the window's activation. Pinned by
+`AtspiApplicationTest.aCollapseWhoseTailIsStructureAloneSaysTheFocusAgainWhenTheFrameEnds` and
+`aCollapseSaysTheFocusAndTheCursorAgainAtTheFramesEndEvenWhenNeitherMoved`.)*
+
 **`STATE_CHANGED` for `EXPANDED` and `EXPANDABLE` (L3; decision 27; semantics 9).** Both reach the
 bus as `StateChanged` `expanded` / `expandable` (bits 10 and 9) from the difference, and whenever the
 bit this platform derives from them — `COLLAPSED` (5), published as `EXPANDABLE` without `EXPANDED` —
