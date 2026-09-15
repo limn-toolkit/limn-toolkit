@@ -2411,6 +2411,22 @@ guard across the platform call, so a client whose focus handler synchronously as
 `GetFocus` would wait for it; NVDA 2024.4.2's handler asks no such thing (reading §1), and phase 5
 watches for it.
 
+**Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-6's remainder): `CARET_MOVED` and
+`BOUNDS_CHANGED` as built.** `CARET_MOVED` is `Text_TextSelectionChanged`, as its row says, handled
+together with `TEXT_SELECTION_CHANGED` (the settled unmapped-and-window-level-events item): the model
+emits the two for one field one after the other, and a `TEXT_SELECTION_CHANGED` right behind a raised
+`CARET_MOVED` on the same node is not raised again. Both are raised only for a held element, and no
+element serves `TextPattern` yet (§2.1, §11), so what a client can do with the event is re-read the
+value; NVDA 2024.4.2 maps it to its `caret` event on the focus only (reading §3); phase 5 hears
+whether that says anything over a `ValuePattern` field. **`BOUNDS_CHANGED` keeps no mapping, per node
+and in bulk**, where the row says a `BoundingRectangle` change or one `LayoutInvalidated`: NVDA
+2024.4.2 subscribes to no `BoundingRectangle` change (reading §3) and handles `LayoutInvalidated` only
+for Windows search suggestions (§6), while each raise waits for the reader's handler (§13.28), which
+during a scroll or a drag is one wait per frame for nobody. Both forms now say so in the trace; the
+bulk one (node `0`) returned silently before, and neither pays the event an ask is owed
+(`UiaBridgeTest.aCaretMoveIsTheTextSelectionChangeAndItsPairIsRaisedOnce`,
+`aBoundsChangeIsRaisedNeitherPerNodeNorInBulkAndSaysSo`).
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

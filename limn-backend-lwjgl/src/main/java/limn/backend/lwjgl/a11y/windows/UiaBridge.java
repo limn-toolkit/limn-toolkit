@@ -147,6 +147,13 @@ public final class UiaBridge extends PlatformBridge {
 
     private final java.util.function.LongSupplier clock;
 
+    /**
+     * The node the event just drained raised {@code CARET_MOVED} on, or {@code 0}: a
+     * {@code TEXT_SELECTION_CHANGED} on the same node right behind it is the same
+     * {@code Text_TextSelectionChanged} and is not raised twice. Drain thread only.
+     */
+    private long caretJustRaised;
+
     private UiaBridge(long hwnd, java.util.function.LongSupplier clock) {
         this.hwnd = hwnd;
         this.clock = clock;
@@ -357,6 +364,16 @@ public final class UiaBridge extends PlatformBridge {
         try {
             while (!Thread.currentThread().isInterrupted()) {
                 AccessibleEvent event = events.take();
+                long caret = caretJustRaised;
+                caretJustRaised = 0;
+                if (caret != 0 && event.type() == AccessibleEvent.Type.TEXT_SELECTION_CHANGED
+                        && event.nodeId() == caret) {
+                    // The model names a caret move and a selection move of one field one after
+                    // the other; UI Automation has one event for both (ADR 039 §2.4).
+                    UiaWindow.say("TEXT_SELECTION_CHANGED for node " + caret
+                            + " raised with its CARET_MOVED");
+                    continue;
+                }
                 if (event == UiaEvents.COLLAPSE) {
                     sweepAndInvalidate();
                     raiseFocus("after this bridge's queue collapsed", true);
@@ -464,11 +481,23 @@ public final class UiaBridge extends PlatformBridge {
             case WINDOW_OPENED -> UiaIds.WINDOW_OPENED;
             case WINDOW_CLOSED -> UiaIds.WINDOW_CLOSED;
             case TEXT_CHANGED -> UiaIds.TEXT_CHANGED;
-            case TEXT_SELECTION_CHANGED -> UiaIds.TEXT_SELECTION_CHANGED;
+            // A caret move is a selection move of no length to UI Automation, and both are the
+            // one event (§2.4; settled unmapped-and-window-level-events: handled together).
+            case CARET_MOVED, TEXT_SELECTION_CHANGED -> UiaIds.TEXT_SELECTION_CHANGED;
             case INVALIDATED -> UiaIds.LAYOUT_INVALIDATED;
             // The rest are property changes, which UI Automation takes through a call of its own.
             default -> 0;
         };
+        if (event.type() == AccessibleEvent.Type.BOUNDS_CHANGED) {
+            // Not raised, per node or in bulk (node 0), and said so for either rather than dropped
+            // silently at node 0. UI Automation watches an HWND's own bounds and a client re-reads
+            // a fragment's when it needs them; NVDA 2024.4.2 subscribes to no BoundingRectangle
+            // change (readings/nvda-2024.4.2-uia.md §3) and handles LayoutInvalidated only for
+            // Windows search suggestions (§6), while every raise waits for the reader's handler
+            // (§13.28) -- during a scroll or a drag, one per frame for nobody.
+            UiaWindow.say("unmapped " + event.type() + " for node " + event.nodeId());
+            return;
+        }
         UiaElement element = elements.peek(event.nodeId());
         if (element == null) {
             // Nothing has ever asked for this node, so no client is holding an element to be told
@@ -483,9 +512,9 @@ public final class UiaBridge extends PlatformBridge {
             node = index < 0 ? null : tree.node(index);
             propertyId = changedProperty(event, node);
             if (propertyId == 0) {
-                // Mapped to nothing on this platform: BOUNDS_CHANGED, CARET_MOVED, a state with
-                // no property of its own. (The window's activation, which names the window node
-                // every client that asked holds, is handled above since 2026-09-15.) Nothing is
+                // Mapped to nothing on this platform: a state with no property of its own. (The
+                // window's activation, BOUNDS_CHANGED and CARET_MOVED are handled above since
+                // 2026-09-15.) Nothing is
                 // raised, so nothing pays the change a client that asked is owed: only a raise
                 // that reached the client may clear the flag (WINDOWS-NEW-6).
                 UiaWindow.say("unmapped " + event.type() + " for node " + event.nodeId());
@@ -501,6 +530,9 @@ public final class UiaBridge extends PlatformBridge {
         // The one change a client that asked was owed. From here it is its subscription, or a
         // fresh ask, that keeps this window read.
         owedAnEvent = false;
+        if (event.type() == AccessibleEvent.Type.CARET_MOVED) {
+            caretJustRaised = event.nodeId();
+        }
         UiaWindow.say("raised " + event.type() + " for node " + event.nodeId() + " in "
                     + (System.nanoTime() - started) / 1_000 + " us on "
                     + Thread.currentThread().getName());
@@ -871,9 +903,7 @@ public final class UiaBridge extends PlatformBridge {
                 case BUSY -> UiaIds.ITEM_STATUS;
                 default -> 0;
             };
-            // A rectangle that moved is not raised: UI Automation watches an HWND's own bounds and
-            // a client re-reads a fragment's when it needs them, so raising it per node would be a
-            // storm of events during every drag for something nobody asked to be told.
+            // A rectangle that moved is not raised (raise() says why, before it gets here).
             default -> 0;
         };
     }

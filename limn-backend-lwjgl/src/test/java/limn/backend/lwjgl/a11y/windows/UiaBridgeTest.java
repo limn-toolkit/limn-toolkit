@@ -1249,6 +1249,73 @@ class UiaBridgeTest {
         }
     }
 
+    /**
+     * §2.4's CARET_MOVED row and the settled unmapped-and-window-level-events item: a caret move is
+     * Text_TextSelectionChanged, handled together with TEXT_SELECTION_CHANGED, so the pair the
+     * model emits for one field one after the other is raised once, while a selection move alone
+     * is still raised. Until the review of windows-A a caret move traced "unmapped".
+     */
+    @Test
+    void aCaretMoveIsTheTextSelectionChangeAndItsPairIsRaisedOnce() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.TEXT_FIELD, false), false);
+            bridge.objectFor(1000);
+            bridge.objectFor(1001);
+            bridge.noteAsked();
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.CARET_MOVED, 1001));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.TEXT_SELECTION_CHANGED, 1001));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.TEXT_SELECTION_CHANGED, 1001));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.CARET_MOVED, 1001));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000, "", "end"));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised NAME_CHANGED for node 1000")));
+            assertEquals(java.util.List.of(
+                            "raised CARET_MOVED for node 1001",
+                            "TEXT_SELECTION_CHANGED for node 1001 raised with its CARET_MOVED",
+                            "raised TEXT_SELECTION_CHANGED for node 1001",
+                            "raised CARET_MOVED for node 1001"),
+                    linesOf(trace, l -> l.contains("node 1001")).stream()
+                            .map(l -> l.replaceFirst(" in \\d+ us on .*", "")).toList(),
+                    "three raises for four events: " + trace);
+            assertFalse(bridge.owesAnEvent());
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * WINDOWS-NEW-6's remainder: a rectangle that moved is raised neither per node nor in bulk
+     * (node 0), and both say so; before, the bulk one returned at node 0 without a trace line.
+     * Nothing raised is nothing paid.
+     */
+    @Test
+    void aBoundsChangeIsRaisedNeitherPerNodeNorInBulkAndSaysSo() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.objectFor(1000);
+            bridge.objectFor(1001);
+            bridge.noteAsked();
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.BOUNDS_CHANGED, 1001));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.BOUNDS_CHANGED, 0));
+            assertNotNull(awaitTrace(trace, l -> l.equals("unmapped BOUNDS_CHANGED for node 0")),
+                    "the bulk change reached the drain and said what became of it: " + trace);
+            assertEquals(java.util.List.of("unmapped BOUNDS_CHANGED for node 1001",
+                    "unmapped BOUNDS_CHANGED for node 0"), linesOf(trace, l -> true));
+            assertTrue(bridge.owesAnEvent(), "nothing raised, nothing paid");
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
     // ---- selection (decisions 9, 10; semantics 1; WINDOWS-NEW-5, W1's Selection half)
 
     private static String raisesOf(AccessibleEvent event) {
