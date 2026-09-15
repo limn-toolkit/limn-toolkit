@@ -327,6 +327,8 @@ final class AtspiApplication {
      * @param tree   what it published, already stored on the facade
      */
     void published(AtspiBridge window, AccessibleTree tree) {
+        window.focusSaid = 0;
+        window.cursorSaid = 0;
         if (!window.member) {
             windows.add(window);
             window.member = true;
@@ -345,13 +347,26 @@ final class AtspiApplication {
         }
         if (shows) {
             window.frameId = tree.node(0).id();
+            window.frameName = tree.node(0).name();
             window.shownAsFrame = true;
             announceFrame(window, now.link(), "add", frameIndexOf(window), window.frameId);
+            send(now.link(), AtspiEvents.window(contextOf(window),
+                    objects.refOf(window.frameId).path, "Create", window.frameName));
         } else {
             int index = frameIndexOf(window);
             window.shownAsFrame = false;
-            announceFrame(window, now.link(), "remove", index, window.frameId);
+            frameLeaves(window, now.link(), index);
         }
+    }
+
+    /**
+     * A frame clients were told about is leaving: {@code Destroy} from its own path while that path
+     * still names a window, then {@code ChildrenChanged remove} from the application object.
+     */
+    private void frameLeaves(AtspiBridge window, Link link, int index) {
+        send(link, AtspiEvents.window(contextOf(window), objects.refOf(window.frameId).path,
+                "Destroy", window.frameName));
+        announceFrame(window, link, "remove", index, window.frameId);
     }
 
     /**
@@ -367,7 +382,7 @@ final class AtspiApplication {
         if (now != null) {
             catchUp(now);
             if (window.shownAsFrame) {
-                announceFrame(window, now.link(), "remove", frameIndexOf(window), window.frameId);
+                frameLeaves(window, now.link(), frameIndexOf(window));
             }
         }
         window.shownAsFrame = false;
@@ -401,8 +416,56 @@ final class AtspiApplication {
         // approximate. Otherwise each goes out from the node it is about, so a client that
         // subscribed by path hears it, and as a signal rather than a reply, so it is the one kind
         // the connection may refuse when a peer has stopped draining.
-        for (AtspiEvents.Signal signal : AtspiEvents.of(event, contextOf(window))) {
+        AtspiEvents.Context context = contextOf(window);
+        for (AtspiEvents.Signal signal : AtspiEvents.of(event, context)) {
             send(now.link(), signal);
+        }
+        switch (event.type()) {
+            case STATE_CHANGED -> {
+                if (event.state() == limn.accessibility.Accessible.State.FOCUSED
+                        && Boolean.TRUE.equals(event.newValue())) {
+                    window.focusSaid = event.nodeId();
+                }
+            }
+            case ACTIVE_DESCENDANT_CHANGED ->
+                    window.cursorSaid = event.newValue() instanceof Number n ? n.longValue() : 0;
+            case WINDOW_ACTIVATED -> sayFocusAgain(window, now.link(), context);
+            default -> {
+            }
+        }
+    }
+
+    /**
+     * After {@code Activate}, the focus and the cursor again, from the tree that says the window is
+     * active (LINUX-NEW-15, LAB-NEW-2; semantics 7).
+     *
+     * <p>Orca 50.2's {@code _on_window_activated} puts its locus of focus on the frame itself
+     * (readings/fedora-orca-active-window.txt), so a {@code focused} change a client heard before
+     * the activation — the 2026-09-14 baseline's arrived 176 ms before the frame was active and was
+     * dropped for it, "[frame] lacks active state" — has to be told again after it. Not twice in one
+     * publish: a change already sent since this window's last publish stands, because the same type
+     * from the same application inside 0.1 s is dropped by {@code _ignore_by_spam_filter}.
+     */
+    private void sayFocusAgain(AtspiBridge window, Link link, AtspiEvents.Context context) {
+        AccessibleTree tree = window.tree();
+        long focused = tree.focused();
+        if (focused == 0) {
+            return;
+        }
+        if (window.focusSaid != focused) {
+            for (AtspiEvents.Signal signal : AtspiEvents.of(AccessibleEvent.state(focused,
+                    limn.accessibility.Accessible.State.FOCUSED, true), context)) {
+                send(link, signal);
+            }
+            window.focusSaid = focused;
+        }
+        long cursor = tree.activeDescendant();
+        if (cursor != 0 && window.cursorSaid != cursor) {
+            for (AtspiEvents.Signal signal : AtspiEvents.of(AccessibleEvent.property(
+                    AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED, focused, 0L, cursor), context)) {
+                send(link, signal);
+            }
+            window.cursorSaid = cursor;
         }
     }
 
@@ -451,6 +514,8 @@ final class AtspiApplication {
             window.shownAsFrame = frame != null;
             if (frame != null) {
                 window.frameId = frame;
+                AccessibleTree tree = window.tree();
+                window.frameName = tree.nodeCount() > 0 ? tree.node(0).name() : "";
             }
         }
     }

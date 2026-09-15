@@ -2395,6 +2395,27 @@ reference and the index are the ones `GetChildAtIndex` and `GetIndexInParent` an
 node, in whichever window holds it (decision 5's popup option is an ordinary reference on the one
 connection); a cursor that went away names the null object with `detail1` −1.
 
+**`FOCUS_CHANGED`.** `StateChanged` `focused` 1 on the node gaining it and 0 on the node losing it,
+both from the `STATE_CHANGED` the difference raises; `FOCUS_CHANGED` itself sends nothing, and the
+deprecated `Event.Focus.Focus` the row names is not sent — Orca 50.2's `Script.get_listeners`
+registers no `focus:` event (readings/fedora-orca-event-handlers.txt). The row overstated it
+(settled linux-adr-overstatements).
+
+**`WINDOW_ACTIVATED` / `WINDOW_DEACTIVATED`, `WINDOW_OPENED` / `WINDOW_CLOSED` (LINUX-NEW-2,
+LINUX-NEW-15, LAB-NEW-2).** `Event.Window` `Activate`/`Deactivate` from the frame's own path (the
+window node the difference names, arriving after the publish whose tree marks it `ACTIVE`, so its
+`state-changed:active` precedes it as GTK 4.22.4's does), with the window's name as the string value
+(the ATK bridge's convention; GTK sends "0"). After `Activate` the focused node's `focused` 1 and
+the cursor's `ActiveDescendantChanged` are sent again from that tree, unless the same publish
+already sent them: Orca 50.2's `_on_window_activated` moves its locus to the frame, and its 0.1 s
+same-type filter would drop a second copy. A frame that arrives after the join sends `Create` from
+its path after the application's `ChildrenChanged add`; one that leaves sends `Destroy` from its path
+before the `remove`. The frames the registry read at the join send no `Create`. The model's
+`WINDOW_OPENED`/`WINDOW_CLOSED`, which nothing raises, map to the same members from the node they
+name. Node zero's events (`BOUNDS_CHANGED` for a wide scroll) are sent from the frame, never from
+the application object, and `BoundsChanged` carries the node's screen extents as `(iiii)`, the
+rectangle libatspi makes an `AtspiRect` of, instead of an `i` that arrived as nothing.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

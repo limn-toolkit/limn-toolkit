@@ -363,12 +363,14 @@ class AtspiApplicationTest {
         Published second = aWindow("Calendar", 0);
         popup.publish(second.tree(), false);
         popup.publish(second.tree(), false);
-        assertEquals(1, bus.signals.size(), "one arrival, announced once: " + bus.signals);
+        assertEquals(2, bus.signals.size(), "one arrival, announced once: " + bus.signals);
         assertFrameSignal(bus.signals.get(0), "add", 1, second.window());
+        assertWindowSignal(bus.signals.get(1), "Create", second.window(), "Calendar");
 
         popup.detach();
-        assertEquals(2, bus.signals.size());
-        assertFrameSignal(bus.signals.get(1), "remove", 1, second.window());
+        assertEquals(4, bus.signals.size());
+        assertWindowSignal(bus.signals.get(2), "Destroy", second.window(), "Calendar");
+        assertFrameSignal(bus.signals.get(3), "remove", 1, second.window());
         assertFalse(bus.closed, "the application stays while it still has a window");
         assertEquals(List.of(path(first.window())),
                 pathsOf(call(app, Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetChildren", null).body[0]));
@@ -494,6 +496,125 @@ class AtspiApplicationTest {
         main.publish(aWindow("Main", 0).tree(), false);
         assertEquals(1, threads.size(), "a reader that comes back is joined for at once: the ended "
                 + "wait holds nothing");
+    }
+
+    /**
+     * An {@code Event.Window} signal from a frame's own path, whose value is the window's name (the
+     * ATK bridge's {@code window_event_listener}, at-spi2-core 2.60.6).
+     */
+    private static void assertWindowSignal(DBus.Msg signal, String member, long frame,
+                                           String name) {
+        assertEquals(AtspiEvents.I_EVENT_WINDOW, signal.iface, "a window event: " + signal);
+        assertEquals(member, signal.member);
+        assertEquals(path(frame), signal.path, "sent from the frame, never the application object");
+        assertEquals(AtspiEvents.SIGNATURE, signal.signature);
+        DBus.Variant value = (DBus.Variant) signal.body[3];
+        assertEquals("s", value.sig);
+        assertEquals(name, value.value, "the window's name, a string libatspi hands on as any_data");
+    }
+
+    /** The members of the signals sent, each as "member detail detail1 path", for order checks. */
+    private static List<String> spoken(List<DBus.Msg> signals) {
+        List<String> out = new ArrayList<>();
+        for (DBus.Msg m : signals) {
+            out.add(m.member + " " + m.body[0] + " " + m.body[1] + " " + m.path);
+        }
+        return out;
+    }
+
+    /** One window's scene as the differ sees it: a persistent builder published frame by frame. */
+    private static final class Frames {
+        final Accessibility a = new Accessibility();
+        final AtspiBridge window;
+
+        Frames(AtspiBridge window) {
+            this.window = window;
+        }
+
+        /**
+         * Publishes window 3000 ("Main") holding buttons 3001 and 3002, with the window ACTIVE or
+         * not and {@code focused} holding the focus, and hands the bridge every event the
+         * difference found, as a scene does.
+         */
+        List<limn.accessibility.AccessibleEvent> publish(boolean active, long focused) {
+            a.beginWalk(400, 300, Locale.ENGLISH);
+            a.begin(3000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            a.role(Accessible.Role.WINDOW);
+            a.name(I18nString.literal("Main"), Accessible.NameFrom.EXPLICIT);
+            if (active) {
+                a.state(Accessible.State.ACTIVE);
+            }
+            a.inherited(true, true, true, false, false);
+            for (long id = 3001; id <= 3002; id++) {
+                a.begin(id, 0, Locale.ENGLISH, 10, 20 + (id - 3001) * 50, 160, 40);
+                a.role(Accessible.Role.BUTTON);
+                a.name(I18nString.literal("Button " + id), Accessible.NameFrom.CONTENT);
+                a.inherited(true, true, true, true, focused == id);
+                a.end();
+            }
+            a.end();
+            AccessibleTree tree = a.publish(focused, 0, 0, 1f, true);
+            window.publish(tree, false);
+            List<limn.accessibility.AccessibleEvent> events = List.copyOf(a.events());
+            for (limn.accessibility.AccessibleEvent event : events) {
+                window.emit(event);
+            }
+            return events;
+        }
+    }
+
+    @Test
+    void aWindowsActivationIsSentFromItsFrameWithItsNameAndTheFocusIsSaidAgainAfterIt() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        Frames main = new Frames(app.window());
+        main.publish(false, 3001);
+        bus.signals.clear();
+
+        main.publish(true, 3001);
+        List<String> sent = spoken(bus.signals);
+        int active = sent.indexOf("StateChanged active 1 " + path(3000));
+        int activate = sent.indexOf("Activate  0 " + path(3000));
+        int focused = sent.lastIndexOf("StateChanged focused 1 " + path(3001));
+        assertTrue(active >= 0 && activate > active, "the frame says it is active, then the window "
+                + "event, both from the frame: " + sent);
+        assertWindowSignal(bus.signals.get(activate), "Activate", 3000, "Main");
+        assertTrue(focused > activate, "and the focus is said again after it, because Orca puts "
+                + "its locus on the frame when a window activates: " + sent);
+
+        main.publish(false, 3001);
+        assertTrue(spoken(bus.signals).contains("Deactivate  0 " + path(3000)));
+        bus.signals.clear();
+        main.publish(true, 3002);
+        sent = spoken(bus.signals);
+        assertEquals(1, java.util.Collections.frequency(sent, "StateChanged focused 1 "
+                + path(3002)), "a focus change already sent in this publish is not sent twice, "
+                + "which Orca's 0.1 s filter would drop: " + sent);
+        assertTrue(sent.indexOf("Activate  0 " + path(3000)) >= 0, sent.toString());
+    }
+
+    @Test
+    void aWindowLevelBoxChangeIsSentFromTheFrameWithTheFramesNewExtents() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        AtspiBridge main = app.window();
+        Published first = aWindow("Main", 0);
+        main.publish(first.tree(), false);
+        bus.signals.clear();
+
+        main.emit(limn.accessibility.AccessibleEvent.of(
+                limn.accessibility.AccessibleEvent.Type.BOUNDS_CHANGED, 0));
+
+        assertEquals(1, bus.signals.size());
+        DBus.Msg signal = bus.signals.get(0);
+        assertEquals(path(first.window()), signal.path,
+                "node zero is the window here, and the application object has no geometry");
+        DBus.Variant value = (DBus.Variant) signal.body[3];
+        assertEquals("(iiii)", value.sig, "a rectangle, which libatspi makes an AtspiRect of");
+        Object[] asked = (Object[]) call(app, path(first.window()), Atspi.I_COMPONENT, "GetExtents",
+                "u", Atspi.COORD_SCREEN).body[0];
+        assertEquals(List.of(asked), List.of((Object[]) value.value),
+                "the extents GetExtents answers in screen coordinates");
     }
 
     private static void assertFrameSignal(DBus.Msg signal, String detail, int index, long frame) {

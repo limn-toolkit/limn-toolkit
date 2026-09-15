@@ -107,7 +107,8 @@ final class AtspiEvents {
      * @return the signals to send
      */
     static List<Signal> of(AccessibleEvent event, Context context) {
-        String path = event.nodeId() == 0 ? Atspi.PATH_ROOT : context.refOf(event.nodeId()).path;
+        long subject = subjectOf(event, context);
+        String path = subject == 0 ? Atspi.PATH_ROOT : context.refOf(subject).path;
         Signal one = switch (event.type()) {
             // Nothing. Focus is a state change on this platform -- the dedicated Focus signal is
             // deprecated and Orca subscribes to object:state-changed:focused -- and the difference
@@ -123,8 +124,7 @@ final class AtspiEvents {
                     new DBus.Variant("s", string(event.newValue())));
             case VALUE_CHANGED -> event(context, path, I_EVENT_OBJECT, "PropertyChange",
                     "accessible-value", 0, 0, new DBus.Variant("d", number(event.newValue())));
-            case BOUNDS_CHANGED -> event(context, path, I_EVENT_OBJECT, "BoundsChanged", "", 0, 0,
-                    new DBus.Variant("i", 0));
+            case BOUNDS_CHANGED -> boundsChanged(event, context, path);
             // Structure and destruction are both "the children of something moved" here: the
             // platform has no separate word for a node that ceased to exist, and a client answers
             // both by re-reading the subtree.
@@ -143,19 +143,61 @@ final class AtspiEvents {
                     event.offset(), 0, new DBus.Variant("i", 0));
             case TEXT_SELECTION_CHANGED -> event(context, path, I_EVENT_OBJECT,
                     "TextSelectionChanged", "", 0, 0, new DBus.Variant("i", 0));
-            case WINDOW_OPENED -> event(context, path, I_EVENT_WINDOW, "Create", "", 0, 0,
-                    new DBus.Variant("s", ""));
-            case WINDOW_CLOSED -> event(context, path, I_EVENT_WINDOW, "Destroy", "", 0, 0,
-                    new DBus.Variant("s", ""));
-            case WINDOW_ACTIVATED -> event(context, path, I_EVENT_WINDOW, "Activate", "", 0, 0,
-                    new DBus.Variant("s", ""));
-            case WINDOW_DEACTIVATED -> event(context, path, I_EVENT_WINDOW, "Deactivate", "", 0,
-                    0, new DBus.Variant("s", ""));
+            case WINDOW_OPENED -> window(context, path, "Create", nameOf(event, context));
+            case WINDOW_CLOSED -> window(context, path, "Destroy", nameOf(event, context));
+            case WINDOW_ACTIVATED -> window(context, path, "Activate", nameOf(event, context));
+            case WINDOW_DEACTIVATED -> window(context, path, "Deactivate", nameOf(event, context));
             // Everything else: an announcement is a message rather than a node's fact, and the
             // remaining kinds are the toolkit's own bookkeeping. Nothing approximate is sent.
             default -> null;
         };
         return one == null ? List.of() : List.of(one);
+    }
+
+    /**
+     * The node an event is sent from: the one it names, or — for the window-level events the model
+     * raises on node zero (a scroll that moved more boxes than it lists, a window stamp) — the
+     * window's own node, which is its frame here.
+     *
+     * <p>Node zero used to be sent from the application object (LINUX-NEW-2), an object with no
+     * geometry, no ACTIVE and no SHOWING, which no reader treats as a window.
+     */
+    private static long subjectOf(AccessibleEvent event, Context context) {
+        if (event.nodeId() != 0) {
+            return event.nodeId();
+        }
+        AccessibleTree tree = context.tree();
+        return tree.nodeCount() > 0 ? tree.node(0).id() : 0;
+    }
+
+    /**
+     * An {@code Event.Window} signal from the window's frame, with the window's name as the value:
+     * the ATK bridge's {@code window_event_listener} (at-spi2-core 2.60.6) sends
+     * {@code atk_object_get_name}; GTK 4.22.4 sends the string "0". A string either way, which is
+     * what libatspi makes {@code any_data} of; the name is the one a client could use.
+     */
+    static Signal window(Context context, String path, String member, String name) {
+        return event(context, path, I_EVENT_WINDOW, member, "", 0, 0, new DBus.Variant("s", name));
+    }
+
+    private static String nameOf(AccessibleEvent event, Context context) {
+        limn.accessibility.AccessibleNode node = context.tree().find(subjectOf(event, context));
+        return node == null ? "" : node.name();
+    }
+
+    /**
+     * A box moved: {@code BoundsChanged} with the node's new extents as an {@code (iiii)} in
+     * screen coordinates, the rectangle libatspi's {@code demarshal_rect} makes an
+     * {@code AtspiRect} of (GTK 4.22.4's {@code emit_bounds_changed} sends the same shape). It was
+     * an {@code i} 0, which arrives as nothing.
+     */
+    private static Signal boundsChanged(AccessibleEvent event, Context context, String path) {
+        AccessibleTree tree = context.tree();
+        limn.accessibility.AccessibleNode node = tree.find(subjectOf(event, context));
+        int[] box = node == null ? new int[4]
+                : AtspiTree.extentsOf(tree, node, Atspi.COORD_SCREEN);
+        return event(context, path, I_EVENT_OBJECT, "BoundsChanged", "", 0, 0,
+                new DBus.Variant("(iiii)", (Object) new Object[] {box[0], box[1], box[2], box[3]}));
     }
 
     /**

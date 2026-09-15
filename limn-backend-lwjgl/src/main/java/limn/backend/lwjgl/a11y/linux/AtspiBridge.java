@@ -49,6 +49,16 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     boolean shownAsFrame;
     /** The node id this window was announced as, so its departure names the same object. UI thread. */
     long frameId;
+    /** The name this window was announced with, which its {@code Destroy} carries. UI thread. */
+    String frameName = "";
+    /**
+     * The node a {@code focused} state change was sent for since this window's last publish, or 0.
+     * UI thread; so focus said again after an activation is not said twice in one frame, which
+     * Orca 50.2's 0.1 s same-type filter would drop and restamp.
+     */
+    long focusSaid;
+    /** The descendant an {@code ActiveDescendantChanged} named since the last publish, or 0. UI thread. */
+    long cursorSaid;
 
     AtspiBridge(AtspiApplication application) {
         this.application = application;

@@ -650,7 +650,7 @@ final class AtspiTree {
      * because a screen origin is user-interface-thread-confined and a client's thread cannot ask
      * for it. This is the one place that conversion happens.
      */
-    private static int[] extentsOf(AccessibleTree tree, AccessibleNode node, int coords) {
+    static int[] extentsOf(AccessibleTree tree, AccessibleNode node, int coords) {
         float factor = tree.logicalToScreenFactor();
         float x = node.x() * factor;
         float y = node.y() * factor;
