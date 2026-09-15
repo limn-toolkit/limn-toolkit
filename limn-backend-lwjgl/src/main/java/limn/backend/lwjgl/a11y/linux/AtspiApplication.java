@@ -504,12 +504,6 @@ final class AtspiApplication {
             waitOutTheBackOffAndAskAgain();
             return;
         }
-        if (!enabled) {
-            // The switch went off while the join ran: nothing is reading, so nothing stays joined.
-            link.close();
-            joining.set(false);
-            return;
-        }
         Joined now = new Joined(link, ++generations, Map.copyOf(frames), clock.getAsLong());
         joined.set(now);
         // The join is let go of before the loss handler can see this state, so a loss it handles
@@ -518,9 +512,15 @@ final class AtspiApplication {
         self.set(now);
         if (lostEarly.get()) {
             connectionLost(now);
-        } else if (windows.isEmpty()) {
-            // Every window left while the join ran: an application with no frame is what the next
-            // window must not register into.
+        } else if (!enabled || windows.isEmpty()) {
+            // The switch went off, or every window left, while the join ran: nothing is reading,
+            // and an application with no frame is what the next window must not register into.
+            //
+            // Read AFTER the joined state is published, never before: enabled(false) writes the
+            // switch and then reads the joined state, so each of the two threads reads what the
+            // other wrote first and one of them always lets the join go. The check used to come
+            // before the publication, and a switch turned off between the two found nothing to
+            // leave while this thread found nothing turned off (the linux-A review).
             leave(now);
         }
     }

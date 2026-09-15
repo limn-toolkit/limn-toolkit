@@ -185,6 +185,36 @@ class AtspiApplicationTest {
         assertTrue(closed[0]);
     }
 
+    @Test
+    void aSwitchTurnedOffBetweenTheJoinsLastLookAndItsPublicationStillLeaves() {
+        // The window the review named: the joiner has its link and has not yet published the
+        // joined state when the reader quits. The clock is read in exactly that gap (the join's
+        // timestamp), so the test turns the switch off there: enabled(false) then finds nothing
+        // joined to leave, and only a look at the switch after the publication can let it go.
+        AtspiApplication[] app = new AtspiApplication[1];
+        boolean[] armed = {false};
+        boolean[] closed = {false};
+        app[0] = new AtspiApplication((objects, lost) -> {
+            armed[0] = true;
+            return new AtspiApplication.Link() {
+                @Override public boolean signal(DBus.Msg signal) { return true; }
+                @Override public void close() { closed[0] = true; }
+            };
+        }, AtspiApplication.Starter.ON_THE_CALLER, () -> {
+            if (armed[0]) {
+                armed[0] = false;
+                app[0].enabled(false);
+                assertFalse(app[0].isJoined(), "the switch went off before the state was published");
+            }
+            return 1_000_000_000L;
+        });
+        app[0].enabled(true);
+        app[0].window().publish(aWindow("Main", 0).tree(), false);
+        assertFalse(app[0].isJoined(), "nothing stays joined for a switch that is off, whichever "
+                + "thread looked first");
+        assertTrue(closed[0]);
+    }
+
     private static String path(long id) {
         return "/org/a11y/atspi/accessible/" + id;
     }
