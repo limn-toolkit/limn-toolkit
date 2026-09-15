@@ -44,14 +44,31 @@ final class TreeScene {
     /** The names whose children this model refuses to answer until it has fetched them. */
     private static final Map<String, List<Node>> FETCHED = Map.of(
             "Remote", List.of(Node.leaf("index.json"), Node.leaf("manifest.json"),
-                    Node.of("thumbnails", Node.leaf("01.png"), Node.leaf("02.png"))));
+                    Node.of("thumbnails", Node.leaf("01.png"), Node.leaf("02.png"))),
+            // A row that has to be read and turns out to hold nothing: it stays an open branch
+            // with the tree's "Empty" line under it (decision 45).
+            "Trash", List.of());
+
+    /** A folder the model calls a branch whatever it holds: empty, it opens onto the same line. */
+    private static final String EMPTY_FOLDER = "Empty folder";
 
     /** A scene and what to run once it has been laid out; the capture shape every variant uses. */
     record Built(Scene scene, Runnable afterLayout) {
     }
 
     /** The scene and the tree inside it, so a capture variant can drive the widget. */
-    private record Parts(Scene scene, Tree<Node> tree, Node deep, Node remote) {
+    private record Parts(Scene scene, Tree<Node> tree, Node deep, Node remote, Node trash,
+                         Node emptyFolder, Node documents, Node reports, Node pdf) {
+    }
+
+    /**
+     * A render variant asked for through {@code LIMN_TREE_DEMO}, so a reviewer can reproduce a
+     * still without a scene name per state: {@code empty} opens the two rows that hold nothing,
+     * and {@code walk} walks the deep scene down its chain with the keyboard.
+     */
+    private static String variant() {
+        String value = System.getenv("LIMN_TREE_DEMO");
+        return value == null ? "" : value.trim();
     }
 
     static Scene create() {
@@ -67,7 +84,35 @@ final class TreeScene {
      */
     static Built scrolled() {
         Parts parts = parts();
-        return new Built(parts.scene(), () -> parts.tree().scrollBy(120));
+        Tree<Node> tree = parts.tree();
+        return switch (variant()) {
+            case "focus" -> new Built(parts.scene(), () -> {
+                // The keyboard in the tree, the cursor and the selection on "Reports".
+                tree.requestFocus();
+                tree.setSelected(parts.reports());
+            });
+            case "multi" -> new Built(parts.scene(), () -> {
+                // MULTI with the cursor outside the selection: "Documents" and "2026.pdf"
+                // selected, then Space toggles "2026.pdf" off and the cursor stays on it.
+                tree.requestFocus();
+                tree.setSelectedNodes(List.of(parts.documents(), parts.pdf()));
+                parts.scene().keyEvent(limn.input.Keys.SPACE, true, false, 0);
+                parts.scene().keyEvent(limn.input.Keys.SPACE, false, false, 0);
+                parts.scene().inputBatchEnded();
+            });
+            case "none" -> new Built(parts.scene(), () -> {
+                // NONE: nothing is ever selected, and the cursor walks: three Downs from nowhere
+                // land on "Q3 regional revenue…".
+                tree.setSelectionMode(Tree.SelectionMode.NONE);
+                tree.requestFocus();
+                for (int i = 0; i < 3; i++) {
+                    parts.scene().keyEvent(limn.input.Keys.DOWN, true, false, 0);
+                    parts.scene().keyEvent(limn.input.Keys.DOWN, false, false, 0);
+                    parts.scene().inputBatchEnded();
+                }
+            });
+            default -> new Built(parts.scene(), () -> tree.scrollBy(120));
+        };
     }
 
     /**
@@ -106,6 +151,11 @@ final class TreeScene {
      * cannot be photographed together: widening the content moves where a cell ellipsizes, from
      * the edge of the box to the edge of the content (ADR 044 §1, amended). The shallow scene is
      * where a name contains itself; this one is where depth runs out of width.
+     *
+     * <p>With {@code LIMN_TREE_DEMO=walk} the keyboard goes into the tree instead of the scroll:
+     * the cursor is put on level one and Down is pressed thirteen times, so it lands on level
+     * fourteen and the outline has moved sideways, row by row, by the least that shows each row's
+     * triangle and the start of its name (TREE-NEW-5).
      */
     static Built deep() {
         Parts parts = parts();
@@ -113,15 +163,35 @@ final class TreeScene {
                 node = node.kids().isEmpty() ? null : node.kids().get(0)) {
             parts.tree().expand(node);
         }
+        if (variant().equals("walk")) {
+            return new Built(parts.scene(), () -> {
+                parts.tree().requestFocus();
+                parts.tree().setSelected(parts.deep());
+                for (int i = 0; i < 13; i++) {
+                    parts.scene().keyEvent(limn.input.Keys.DOWN, true, false, 0);
+                    parts.scene().keyEvent(limn.input.Keys.DOWN, false, false, 0);
+                    parts.scene().inputBatchEnded();
+                }
+            });
+        }
         return new Built(parts.scene(), () -> parts.tree().scrollHorizontallyBy(140));
     }
 
     /**
      * The same tree with "Remote" opened once it has a height, and photographed before its load
-     * lands: the one moment a tree over a disk or a network owes the reader a busy row.
+     * lands: the one moment a tree over a disk or a network owes the reader a busy row. With
+     * {@code LIMN_TREE_DEMO=empty} it is "Trash" and "Empty folder" that open instead — the row
+     * whose load finds nothing and the branch that never had anything — photographed once the
+     * load has landed (run with {@code -Dlimn.demo.treeLoadMillis=1}).
      */
     static Built loading() {
         Parts parts = parts();
+        if (variant().equals("empty")) {
+            return new Built(parts.scene(), () -> {
+                parts.tree().expand(parts.trash());
+                parts.tree().expand(parts.emptyFolder());
+            });
+        }
         return new Built(parts.scene(), () -> parts.tree().expand(parts.remote()));
     }
 
@@ -137,6 +207,8 @@ final class TreeScene {
                 Node.leaf("clip.mp4"),
                 Node.leaf("cover artwork, 4000 by 4000, before the crop.png"));
         Node remote = new Node("Remote", List.of());
+        Node trash = new Node("Trash", List.of());
+        Node emptyFolder = new Node(EMPTY_FOLDER, List.of());
         // A chain and not a bush: fourteen levels of one child each is the shape that runs out of
         // width without running out of rows, which is the case horizontal scrolling exists for.
         // Left closed in `--scene tree`, so that scene's content stays exactly its box.
@@ -144,7 +216,10 @@ final class TreeScene {
         for (int i = 13; i >= 1; i--) {
             deep = Node.of("level-" + String.format("%02d", i), deep);
         }
-        List<Node> roots = new java.util.ArrayList<>(List.of(docs, media, remote, deep));
+        // The two rows that hold nothing come after the chain, so the reader recipe's arrows
+        // (Main's `tree-reader` steps) land on the rows they always did.
+        List<Node> roots = new java.util.ArrayList<>(
+                List.of(docs, media, remote, deep, trash, emptyFolder));
         // Enough rows that the outline is taller than its box: a bar with nothing to scroll
         // does not draw, so a short fixture photographs as "no scroll bar" and proves nothing.
         for (int i = 1; i <= 24; i++) {
@@ -165,6 +240,13 @@ final class TreeScene {
             }
 
             @Override
+            public boolean isLeaf(Node node) {
+                // A folder is a branch whatever it holds, as a file system's is: empty, it
+                // opens onto the tree's "Empty" line rather than losing its triangle.
+                return !node.name().equals(EMPTY_FOLDER) && Tree.Model.super.isLeaf(node);
+            }
+
+            @Override
             public Work<List<Node>> load(Node node) {
                 List<Node> fetched = FETCHED.get(node.name());
                 return Ui.work(progress -> {
@@ -181,6 +263,14 @@ final class TreeScene {
             }
 
             @Override
+            public float maxCellWidth() {
+                // This model knows its cells: an icon, a name and a count or a button. Declared,
+                // the deepest open row keeps this much width for them rather than the tree's
+                // guess of a menu's minimum, 168 points here (decision 50).
+                return 240;
+            }
+
+            @Override
             public Widget cellFor(Node node) {
                 // The cell is the application's, and it is an ordinary Row: the tree reserves
                 // the indent and the triangle and hands the rest of the width to this, so an
@@ -188,6 +278,7 @@ final class TreeScene {
                 Label text = new Label(node.name());
                 text.setIcon(limn.graphics.SvgIcon.fromResource(
                         node.kids().isEmpty() && !FETCHED.containsKey(node.name())
+                                && !node.name().equals(EMPTY_FOLDER)
                                 ? "/limn/components/icons/info.svg"
                                 : "/limn/components/icons/settings.svg"));
                 limn.scene.layout.Row row = new limn.scene.layout.Row();
@@ -232,6 +323,7 @@ final class TreeScene {
         Widget root = new Padding(Insets.all(24), page);
         Scene scene = new Scene(root);
         scene.setBackground(Theme.current().background);
-        return new Parts(scene, tree, deep, remote);
+        return new Parts(scene, tree, deep, remote, trash, emptyFolder, docs,
+                docs.kids().get(0), docs.kids().get(0).kids().get(1));
     }
 }

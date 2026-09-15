@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -295,6 +296,63 @@ class ReservedBarStripTest extends ComponentTestBase {
                 "the horizontal bar has faded too, so the tree is what the bottom strip reaches");
         press(10, HEIGHT - STRIP / 2);
         assertTrue(deep.selectedNodes().isEmpty(), "a press on the bottom strip selected a row");
+    }
+
+    /**
+     * A selection move damages the rows' viewport and never a strip: the strip is the bar's, and
+     * damaging it repaints the bar for a highlight that was never drawn there (TREE-MISS-7; the
+     * spinner's damage already made this promise). The open chain reserves both strips, and a
+     * selected row scrolled to straddle the horizontal one is the row whose band reaches both if
+     * any does: clearing the selection damages that band alone — no reveal, no cursor move, no
+     * layout — and the frame's own repaint passes say where the damage went. They carry the
+     * one-point feather every damage carries, and nothing more.
+     */
+    @Test
+    void aSelectionChangeDamagesTheViewportAndNotTheStrips() {
+        for (LayoutDirection direction : LayoutDirection.values()) {
+            Node top = chain();
+            Tree<Node> tree = tree(List.of(top), new java.util.HashMap<>(), direction,
+                    ScrollGutters.Layout.RESERVED, ScrollBar.Policy.ALWAYS);
+            Node third = top.children().get(0).children().get(0);
+            tree.setSelected(third); // revealed: its foot on the strip's edge
+            tree.scrollBy(-20); // and back up, so it straddles the strip
+            scene.layoutPass(BOX, HEIGHT);
+            RecordingTestCanvas settled = new RecordingTestCanvas(BOX, HEIGHT);
+            for (int frame = 0; frame < 60; frame++) {
+                now[0] += 50_000_000L; // the bars' own fades run on this clock
+                settled.reset();
+                scene.renderFrame(settled);
+                if (settled.nothingPainted()) {
+                    break;
+                }
+            }
+            assertTrue(settled.nothingPainted(), "the fixture has to be at rest first");
+            Widget cell = cellsOf(tree).stream()
+                    .filter(c -> c.y() < HEIGHT - STRIP && c.y() + c.height() > HEIGHT - STRIP)
+                    .findFirst().orElseThrow(() -> new AssertionError(
+                            "the fixture has to put a row across the horizontal strip"));
+            assertTrue(cell.y() > 0, "and that row starts inside the viewport: " + cell.y());
+
+            tree.clearSelection();
+            RecordingTestCanvas canvas = new RecordingTestCanvas(BOX, HEIGHT);
+            scene.renderFrame(canvas);
+            assertFalse(canvas.cleared, "a selection change is a band, not a frame");
+            List<Rect> passes = canvas.passClips();
+            assertTrue(!passes.isEmpty(), "clearing the selection repaints the row's band");
+            boolean rtl = direction == LayoutDirection.RTL;
+            float viewLeft = rtl ? STRIP : 0;
+            float viewRight = rtl ? BOX : BOX - STRIP;
+            float feather = 1;
+            for (Rect pass : passes) {
+                assertTrue(pass.x() >= viewLeft - feather - EPS,
+                        "damage reached into the vertical strip reading " + direction + ": " + pass);
+                assertTrue(pass.x() + pass.width() <= viewRight + feather + EPS,
+                        "damage reached into the vertical strip reading " + direction + ": " + pass);
+                assertTrue(pass.y() + pass.height() <= HEIGHT - STRIP + feather + EPS,
+                        "damage reached into the horizontal strip reading " + direction + ": "
+                                + pass);
+            }
+        }
     }
 
     private void press(float x, float y) {

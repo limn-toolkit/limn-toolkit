@@ -42,10 +42,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>The roles are ADR 044 §4's step 1b, published once the AT-SPI numbers for {@code TREE} and
  * {@code TREE_ITEM} came off the Fedora guest; before that the tree said {@code LIST} and
- * {@code LIST_ITEM}. Step 1b did not bring depth or position-in-level, so a row is still numbered
- * in traversal order against every visible row, not among its siblings. The role case pins that
- * too, and if the numbering ever moves to a level, it is the case that has to change,
- * deliberately.
+ * {@code LIST_ITEM}. Since 2026-09-14 a row is numbered among its siblings (decision 4) and
+ * carries its depth and its place in the outline through the hierarchy facet; the role case
+ * pins both.
  */
 class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
@@ -460,20 +459,457 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
         assertEquals(List.of(readme), tree.selectedNodes(), "the row addressed, not the lead");
         assertEquals(readme, tree.leadNode());
+        assertEquals(readme, tree.cursorNode(), "and the cursor moved with it, as a click's does");
         assertTrue(node("readme").selectionItem().selected(), describe(tree()));
-        assertEquals(1, changes.size(), "announced once, as a click is: " + changes);
+        assertEquals(List.of(limn.scene.Change.Aspect.ACTIVE, limn.scene.Change.Aspect.SELECTION),
+                changes.stream().map(limn.scene.Change::aspect).toList(),
+                "announced as a click is, the cursor first and then the selection: " + changes);
         assertEquals(limn.scene.Change.Origin.USER, changes.get(0).origin(),
                 "and from the user, which is who a reader is");
+        assertEquals(limn.scene.Change.Origin.USER, changes.get(1).origin());
 
         tree.setSelectionMode(Tree.SelectionMode.NONE);
         frame();
         for (AccessibleNode row : rowNodes()) {
-            assertNull(row.actions(), "nothing to select, so no verb on any row: " + describe(tree()));
+            assertFalse(row.actions().has(Accessible.Action.SELECT),
+                    "nothing to select, so no SELECT on any row: " + describe(tree()));
+            assertTrue(row.actions().has(Accessible.Action.FOCUS),
+                    "but the cursor still moves, so FOCUS stays: " + describe(tree()));
         }
     }
 
+    /**
+     * Every verb a row publishes reaches the tree and does what the equivalent gesture does
+     * (decisions 7, 20 and 11 of 2026-09-14; ADR 039 §1.5 amended): EXPAND and COLLAPSE act like
+     * the triangle and leave the cursor where it is; FOCUS moves the cursor and nothing else,
+     * and takes the keyboard so the cursor is published; SCROLL_INTO_VIEW reveals the row; the
+     * tree's own PRESS activates the cursor row. Before, a row carried SELECT alone and EXPAND
+     * and COLLAPSE sat on the tree, acting on whatever row the cursor was on.
+     */
     @Test
-    void aTreeIsATreeOfItemsThatOpenNumberedInTraversalOrder() {
+    void aRowsVerbsReachTheTreeAndActOnThatRowNotTheCursor() throws Exception {
+        Node readme = Node.leaf("readme");
+        Node docs = Node.of("docs", Node.leaf("a.md"), Node.leaf("b.md"));
+        Node top = Node.of("root", docs, readme);
+        bindTree(ROW_H, List.of(top));
+        tree.expand(top);
+        tree.setSelected(readme);
+        List<Node> activated = new ArrayList<>();
+        tree.onActivate(activated::add);
+        frame();
+
+        assertTrue(perform(node("docs").id(), Accessible.Action.EXPAND, Accessible.Argument.NONE));
+        frame();
+        assertTrue(tree.isExpanded(docs), "EXPAND on the row opened it: " + describe(tree()));
+        assertEquals(readme, tree.cursorNode(), "like the triangle, without moving the cursor");
+        assertEquals(List.of(readme), tree.selectedNodes(), "or the selection");
+        assertTrue(node("docs").actions().has(Accessible.Action.COLLAPSE), describe(tree()));
+
+        assertTrue(perform(node("docs").id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE));
+        frame();
+        assertFalse(tree.isExpanded(docs), "COLLAPSE on the row closed it: " + describe(tree()));
+        assertEquals(readme, tree.cursorNode());
+
+        assertTrue(nodesWith(Accessible.State.ACTIVE).isEmpty(),
+                "nobody is in the tree yet, so no row is the cursor: " + describe(tree()));
+        assertTrue(perform(node("docs").id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        frame();
+        assertEquals(docs, tree.cursorNode(), "FOCUS moved the cursor onto the row");
+        assertEquals(List.of(readme), tree.selectedNodes(), "and selected nothing (decision 11)");
+        assertEquals(treeNode().id(), tree().focused(), "and took the keyboard: " + describe(tree()));
+        assertTrue(node("docs").has(Accessible.State.ACTIVE),
+                "so the row is published as the cursor: " + describe(tree()));
+        assertEquals(node("docs").id(), tree().activeDescendant(), describe(tree()));
+
+        assertTrue(perform(treeNode().id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(docs), activated,
+                "the tree's PRESS activates the cursor row, which is not the selected one");
+    }
+
+    /**
+     * A collapse that hides the cursor row moves the cursor onto the row that closed (decision
+     * 21), so a reader standing on a child row is told the parent it landed on rather than left
+     * with no cursor at all: exactly one {@code ACTIVE_DESCENDANT_CHANGED} on the tree, naming
+     * the collapsed row, and that row {@code ACTIVE}; the selection it hid stays selected.
+     */
+    @Test
+    void collapsingTheBranchTheCursorIsInMovesTheCursorOntoItAndSaysSo() throws Exception {
+        Node readme = Node.leaf("readme");
+        Node docs = Node.of("docs", Node.leaf("a.md"), Node.leaf("b.md"));
+        Node top = Node.of("root", docs, readme);
+        bindTree(ROW_H, List.of(top));
+        tree.expand(top);
+        tree.setSelected(readme);
+        scene.requestFocus(tree);
+        frame();
+        assertEquals(node("readme").id(), tree().activeDescendant(), describe(tree()));
+        bridge.events.clear();
+
+        assertTrue(perform(node("root").id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE));
+        frame();
+
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one row is the cursor: " + describe(tree()));
+        assertEquals("root", active.get(0).name(), "the row that closed: " + describe(tree()));
+        assertEquals(node("root").id(), tree().activeDescendant());
+        assertEquals(List.of(readme), tree.selectedNodes(), "the hidden selection stands");
+        List<limn.accessibility.AccessibleEvent> moved = bridge.eventsOf(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(), "one cursor event, on the tree: " + bridge.events);
+        assertEquals(node("root").id(), moved.get(0).newValue());
+    }
+
+    /**
+     * While the tree holds the keyboard its cursor row stays realized across a wheel scroll that
+     * carries it out of the box: published, not {@code SHOWING}, still {@code ACTIVE}, so the
+     * reader's cursor never resolves to nothing because of a scroll (decision 22 of 2026-09-14;
+     * ADR 039 §1.10's effective-focus rule). It is released when the focus leaves. Before, only
+     * a cell holding the focus was spared, and the tree itself holds it, so a wheel recycled the
+     * cursor row and the tree lost its active descendant (TREE-NEW-6).
+     */
+    @Test
+    void theCursorRowStaysPublishedAcrossAWheelScrollWhileTheTreeHoldsTheKeyboard() {
+        bindTree(ROW_H, leaves(40));
+        scene.requestFocus(tree);
+        tree.setSelected(Node.leaf("row 2"));
+        frame();
+        long cursorId = node("row 2").id();
+        assertTrue(node("row 2").has(Accessible.State.ACTIVE), describe(tree()));
+        assertTrue(node("row 2").has(Accessible.State.SHOWING));
+
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        scene.scrolled(0, -20, x, y); // twenty notches: well past the box, clamped to the end
+        scene.inputBatchEnded();
+        frame();
+
+        assertTrue(treeNode().scroll().verticalPercent() > 0.9,
+                "the wheel carried the tree to its end: " + describe(tree()));
+        AccessibleNode kept = node("row 2");
+        assertEquals(cursorId, kept.id(), "the same node, not a re-minted one");
+        assertFalse(kept.has(Accessible.State.SHOWING),
+                "outside the box, and it says so: " + describe(tree()));
+        assertTrue(kept.has(Accessible.State.ACTIVE), "still the cursor: " + describe(tree()));
+        assertEquals(cursorId, tree().activeDescendant(),
+                "the tree's cursor never resolves to nothing because of a scroll: "
+                        + describe(tree()));
+        assertTrue(node("row 40").has(Accessible.State.SHOWING), describe(tree()));
+
+        scene.requestFocus(null);
+        frame();
+
+        assertNull(limn.testing.AccessibleTrees.named(tree(), "row 2"),
+                "with the focus gone the row is released like any other: " + describe(tree()));
+        assertEquals(List.of(Node.leaf("row 2")), tree.selectedNodes(), "the selection stands");
+        assertEquals(Node.leaf("row 2"), tree.cursorNode(), "and so does the cursor");
+    }
+
+    /**
+     * A refresh releases every cell, and the cursor row comes back fresh from the model at the
+     * height it measures, like a placed row. It came back mounted and never laid out, at height
+     * zero: a zero-height {@code ACTIVE} node to a reader, and a zero in the average row height
+     * that sizes the scroll estimate the tree publishes, until the row scrolled back into the
+     * placed run (the review of tree-A, 2026-09-14; decision 22's refresh case).
+     */
+    @Test
+    void theCursorRowComesBackFromARefreshAtItsHeightAndTheScrollEstimateStands() {
+        bindTree(ROW_H, leaves(40));
+        scene.requestFocus(tree);
+        tree.setSelected(Node.leaf("row 2"));
+        frame();
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        scene.scrolled(0, -20, x, y);
+        scene.inputBatchEnded();
+        frame();
+        AccessibleNode spared = node("row 2");
+        assertFalse(spared.has(Accessible.State.SHOWING), describe(tree()));
+        assertEquals(ROW_H, spared.height(), "spared by the wheel at its height");
+        double viewSize = treeNode().scroll().verticalViewSize();
+
+        tree.refresh();
+        frame();
+        AccessibleNode back = node("row 2");
+        assertEquals(ROW_H, back.height(),
+                "mounted back at the height it measures: " + describe(tree()));
+        assertTrue(back.has(Accessible.State.ACTIVE), "still the cursor: " + describe(tree()));
+        assertFalse(back.has(Accessible.State.SHOWING), "still outside the box");
+        assertEquals(viewSize, treeNode().scroll().verticalViewSize(), 1e-9,
+                "no zero reached the average row height, so the scroll estimate stands");
+    }
+
+    /**
+     * A refresh releases the identifier of a node the model no longer has, and with it the node:
+     * the identifier table was the one place a removed node stayed strongly held, for the tree's
+     * life (TREE-NEW-8). Only a bound tree mints identifiers, which is why this case is here.
+     * Driven by garbage collection, so it is a loop with a deadline rather than one
+     * {@code System.gc()}.
+     */
+    @Test
+    void aRefreshReleasesANodeTheModelNoLongerHas() {
+        List<Node> roots = new ArrayList<>(List.of(Node.leaf("keep")));
+        java.lang.ref.WeakReference<Node> dropped = addRootToDrop(roots);
+        bindTree(ROW_H, roots);
+        frame();
+        assertNotNull(node("drop").id(), "published, so it holds an identifier: " + describe(tree()));
+
+        roots.remove(1); // by index: a reference held here would keep the node alive itself
+        tree.refresh();
+        frame();
+        assertEquals(1, rowNodes().size(), describe(tree()));
+
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+        while (dropped.get() != null) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("the dropped node is still held after the refresh");
+            }
+            System.gc();
+            Thread.onSpinWait();
+        }
+    }
+
+    /** In a method of its own so no local of the caller's frame keeps the node alive. */
+    private static java.lang.ref.WeakReference<Node> addRootToDrop(List<Node> roots) {
+        Node drop = Node.leaf("drop");
+        roots.add(drop);
+        return new java.lang.ref.WeakReference<>(drop);
+    }
+
+    /**
+     * A row whose cell is a composite — an icon, a label and a count in a {@code Row}, the
+     * demo's shape — is named from the text of its labels, since neither the cell nor the model
+     * names it: a nameless tree item is one a reader never speaks (TREE-ROW-NAME, from the L4
+     * baseline on Fedora: Orca's name generator yielded nothing for such rows). The model's
+     * {@code nameOf} wins where it gives one, a cell that names itself keeps its name, and the
+     * derived name follows the labels when they change.
+     */
+    @Test
+    void aRowWhoseCellIsACompositeIsNamedFromItsLabels() {
+        Node docs = Node.of("Documents", Node.leaf("notes.md"), Node.leaf("todo.md"));
+        Node readme = Node.leaf("README");
+        Label[] badge = new Label[1]; // the newest: a cell built before the ruler was set is released
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(docs, readme);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                if (node.children().isEmpty()) {
+                    return new Label(node.name().english()); // names itself
+                }
+                limn.scene.layout.Row row = new limn.scene.layout.Row();
+                row.add(limn.scene.layout.Expanded.of(new Label(node.name().english())));
+                Label count = new Label(String.valueOf(node.children().size())).setMuted(true);
+                badge[0] = count;
+                row.add(count);
+                return row;
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.setTextRuler(RULER);
+        frame();
+
+        List<AccessibleNode> rows = rowNodes();
+        assertEquals(List.of("Documents 2", "README"),
+                rows.stream().map(AccessibleNode::name).toList(),
+                "the composite row is named from its labels, the label row by itself: "
+                        + describe(tree()));
+        assertEquals(Accessible.NameFrom.CONTENT, rows.get(0).nameFrom());
+        int published = bridge.published.size();
+        for (int i = 0; i < 3; i++) {
+            tree.invalidate();
+            frame();
+        }
+        assertEquals(published, bridge.published.size(),
+                "a name read the same is not a change: nothing was published again");
+
+        badge[0].setText("3");
+        frame();
+        assertEquals("Documents 3", rowNodes().get(0).name(),
+                "and the name follows the label: " + describe(tree()));
+    }
+
+    /** The model's name wins over the cell's labels, as it does over a cell that names itself. */
+    @Test
+    void theModelsNameWinsOverTheCellsLabels() {
+        Node docs = Node.of("Documents", Node.leaf("notes.md"));
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(docs);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                limn.scene.layout.Row row = new limn.scene.layout.Row();
+                row.add(new Label(node.name().english()));
+                row.add(new Label("1"));
+                return row;
+            }
+
+            @Override
+            public I18nString nameOf(Node node) {
+                return I18nString.literal("Documents folder");
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.setTextRuler(RULER);
+        frame();
+
+        assertEquals("Documents folder", rowNodes().get(0).name(), describe(tree()));
+    }
+
+    /** {@code SCROLL_INTO_VIEW} on a row that sits half under the top edge brings it back. */
+    @Test
+    void scrollIntoViewOnARowRevealsIt() throws Exception {
+        bindTree(ROW_H, leaves(40));
+        tree.scrollBy(ROW_H / 2);
+        frame();
+        AccessibleNode first = node("row 1");
+        assertEquals(-ROW_H / 2, first.y() - tree.localToSceneY(), 1e-3,
+                "half of the first row is above the box: " + describe(tree()));
+        assertTrue(first.actions().has(Accessible.Action.SCROLL_INTO_VIEW), describe(tree()));
+
+        assertTrue(perform(first.id(), Accessible.Action.SCROLL_INTO_VIEW, Accessible.Argument.NONE));
+        frame();
+
+        assertEquals(0, node("row 1").y() - tree.localToSceneY(), 1e-3,
+                "and the reveal scrolled it back into the box: " + describe(tree()));
+    }
+
+    /**
+     * In {@code MULTI} an unselected row publishes {@code ADD_TO_SELECTION} and a selected one
+     * {@code DESELECT} (decisions 10 and 20), each performed as the command-click that toggles
+     * the row; the one a row did not publish does nothing, which is what the published list
+     * promises (semantics 5).
+     */
+    @Test
+    void inMultiARowOffersToJoinOrLeaveTheSelectionByItsState() throws Exception {
+        Node one = Node.leaf("one");
+        Node two = Node.leaf("two");
+        bindTree(ROW_H, List.of(one, two, Node.leaf("three")));
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelected(one);
+        frame();
+        assertTrue(treeNode().selection().multiSelectable(), describe(tree()));
+        assertTrue(node("one").actions().has(Accessible.Action.DESELECT), describe(tree()));
+        assertFalse(node("one").actions().has(Accessible.Action.ADD_TO_SELECTION));
+        assertTrue(node("two").actions().has(Accessible.Action.ADD_TO_SELECTION), describe(tree()));
+        assertFalse(node("two").actions().has(Accessible.Action.DESELECT));
+
+        assertTrue(perform(node("two").id(), Accessible.Action.ADD_TO_SELECTION,
+                Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(one, two), tree.selectedNodes(), "two joined, one stayed");
+        assertEquals(two, tree.leadNode());
+        assertEquals(two, tree.cursorNode());
+        assertTrue(node("two").actions().has(Accessible.Action.DESELECT),
+                "and its verb turned over: " + describe(tree()));
+
+        assertTrue(perform(node("one").id(), Accessible.Action.ADD_TO_SELECTION,
+                Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(one, two), tree.selectedNodes(),
+                "a verb the row did not publish does nothing: " + describe(tree()));
+
+        assertTrue(perform(node("one").id(), Accessible.Action.DESELECT, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(two), tree.selectedNodes(), "one left");
+        assertEquals(two, tree.leadNode(), "the lead was already elsewhere");
+        assertEquals(one, tree.cursorNode(), "and the cursor is on the row that was addressed");
+
+        tree.setSelectionMode(Tree.SelectionMode.SINGLE);
+        frame();
+        for (AccessibleNode row : rowNodes()) {
+            assertFalse(row.actions().has(Accessible.Action.ADD_TO_SELECTION),
+                    "SINGLE has nothing to add to: " + describe(tree()));
+            assertFalse(row.actions().has(Accessible.Action.DESELECT));
+        }
+    }
+
+    /**
+     * A control inside a cell keeps its own verbs: the tree claims the row's verbs on the cell
+     * and nothing on what the cell holds, so a reader's {@code PRESS} on a button in a row
+     * reaches the button, and {@code SELECT} on the row reaches the tree.
+     */
+    @Test
+    void aControlInsideACellKeepsItsOwnVerbs() throws Exception {
+        Node one = Node.leaf("one");
+        Node two = Node.leaf("two");
+        List<String> pressed = new ArrayList<>();
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(one, two);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                limn.scene.layout.Row row = new limn.scene.layout.Row();
+                row.add(limn.scene.layout.Expanded.of(new Label(node.name().english())));
+                Button open = new Button("Open " + node.name().english());
+                open.onAction(() -> pressed.add(node.name().english()));
+                row.add(open);
+                return row;
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.setTextRuler(RULER);
+        frame();
+
+        AccessibleNode rowTwo = rowNodes().get(1);
+        AccessibleNode button = node("Open two");
+        assertTrue(button.actions().has(Accessible.Action.PRESS), describe(tree()));
+        assertFalse(button.actions().has(Accessible.Action.SELECT),
+                "the row's verbs are the cell's, not the button's: " + describe(tree()));
+        assertTrue(rowTwo.actions().has(Accessible.Action.SELECT), describe(tree()));
+        assertFalse(rowTwo.actions().has(Accessible.Action.PRESS),
+                "and the button's is not the row's: " + describe(tree()));
+
+        assertTrue(perform(button.id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of("two"), pressed, "the button's own handler ran");
+        assertTrue(tree.selectedNodes().isEmpty(), "and the tree selected nothing for it");
+
+        assertTrue(perform(rowTwo.id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(two), tree.selectedNodes(), "SELECT on the row reached the tree");
+        assertEquals(List.of("two"), pressed, "and pressed nothing");
+    }
+
+    /**
+     * A row is numbered among its siblings — "2 of 5" counts the parent's children, not the
+     * outline — which is decision 4 of 2026-09-13 and what ADR 044 §4 always meant by "its
+     * position among its siblings". Until 2026-09-14 the row's place in the whole outline stood
+     * in for it, and the case that pinned that said the numbering was meant to move; where a row
+     * stands in the outline is the hierarchy facet's now (ADR 039 §1.2, amended).
+     */
+    @Test
+    void aTreeIsATreeOfItemsThatOpenNumberedAmongTheirSiblings() {
         Node readme = Node.leaf("readme");
         Node docs = Node.of("docs", Node.leaf("a.md"), Node.leaf("b.md"));
         Node top = Node.of("root", docs, readme);
@@ -489,23 +925,34 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         List<AccessibleNode> rows = rowNodes();
         assertEquals(3, rows.size(), describe(tree()));
         String[] names = {"root", "docs", "readme"};
+        int[] positions = {1, 1, 2};
+        int[] siblings = {1, 2, 2};
         for (int i = 0; i < rows.size(); i++) {
             AccessibleNode row = rows.get(i);
             assertEquals(Accessible.Role.TREE_ITEM, row.role(),
                     "every realized row is an item of the tree, since ADR 044's step 1b: "
                             + describe(tree()));
             assertEquals(names[i], row.name(), describe(tree()));
-            assertEquals(i + 1, row.selectionItem().positionInSet(),
-                    "numbered in traversal order: " + describe(tree()));
-            assertEquals(3, row.selectionItem().sizeOfSet(),
-                    "against the rows that are visible, which is what is open");
-            assertNotNull(row.actions(), "a row carries the verb the tree delegated onto it: "
+            assertEquals(positions[i], row.selectionItem().positionInSet(),
+                    "numbered among its siblings, not the outline: " + describe(tree()));
+            assertEquals(siblings[i], row.selectionItem().sizeOfSet(),
+                    "against its parent's children: the root is 1 of 1, and both of its "
+                            + "children are of 2: " + describe(tree()));
+            assertNotNull(row.actions(), "a row carries the verbs the tree delegated onto it: "
                     + describe(tree()));
-            assertEquals(java.util.Set.of(Accessible.Action.SELECT), row.actions().actions(),
-                    "a row carries the one verb the tree delegated onto it (ADR 039 §1.5, "
-                            + "amended 2026-09-14); the rest stays the tree's until the Tree "
-                            + "lane's row verb set: " + describe(tree()));
         }
+        // The row verb set (decision 20): SELECT in SINGLE, EXPAND or COLLAPSE by state on a row
+        // that can open, and the free pair on every row, because a cell is not focusable and
+        // the cursor is not the selection (decision 11). PRESS is the tree's.
+        assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.COLLAPSE,
+                        Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW),
+                rows.get(0).actions().actions(), "an open row: " + describe(tree()));
+        assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.EXPAND,
+                        Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW),
+                rows.get(1).actions().actions(), "a closed row: " + describe(tree()));
+        assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.FOCUS,
+                        Accessible.Action.SCROLL_INTO_VIEW),
+                rows.get(2).actions().actions(), "a leaf: " + describe(tree()));
 
         assertNotNull(rows.get(0).expand(), describe(tree()));
         assertTrue(rows.get(0).expand().expanded(), "the root is open");
@@ -522,8 +969,12 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(rows.get(1).id(), tree().activeDescendant(),
                 "the tree's cursor is the first active node below the focused one: "
                         + describe(tree()));
-        assertTrue(outline.actions().actions().contains(Accessible.Action.EXPAND),
-                "the lead row is closed, so the tree offers to open it: " + describe(tree()));
+        assertTrue(outline.actions().has(Accessible.Action.PRESS),
+                "the tree's one verb of its own acts on the cursor row: " + describe(tree()));
+        assertFalse(outline.actions().has(Accessible.Action.EXPAND),
+                "opening and closing a row are the row's, not the tree's (decision 20): "
+                        + describe(tree()));
+        assertFalse(outline.actions().has(Accessible.Action.COLLAPSE));
 
         tree.expand(docs);
         frame();
@@ -532,15 +983,24 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(5, rows.size(), describe(tree()));
         AccessibleNode opened = node("docs");
         assertTrue(opened.expand().expanded(), describe(tree()));
-        assertEquals(5, opened.selectionItem().sizeOfSet(), "every row is renumbered against five");
-        assertEquals(5, node("readme").selectionItem().positionInSet(),
-                "and the rows below the opened one move down by its children: " + describe(tree()));
+        assertEquals(2, opened.selectionItem().sizeOfSet(),
+                "opening a row renumbers nothing: docs is still 1 of 2: " + describe(tree()));
+        assertEquals(1, opened.selectionItem().positionInSet());
+        assertEquals(2, node("readme").selectionItem().positionInSet(),
+                "and readme is still 2 of 2, whatever opened above it: " + describe(tree()));
+        assertEquals(1, node("a.md").selectionItem().positionInSet(),
+                "the children count among themselves: " + describe(tree()));
+        assertEquals(2, node("b.md").selectionItem().positionInSet());
+        assertEquals(2, node("b.md").selectionItem().sizeOfSet());
+        assertEquals(5, node("readme").hierarchy().row(),
+                "where readme stands in the outline moved down by the two rows that opened, "
+                        + "and that is the hierarchy facet's to say: " + describe(tree()));
         for (AccessibleNode row : rows) {
             assertEquals(Accessible.Role.TREE_ITEM, row.role(), describe(tree()));
         }
-        assertTrue(treeNode().actions().actions().contains(Accessible.Action.COLLAPSE),
-                "and the verb turns over with it: " + describe(tree()));
-        assertFalse(treeNode().actions().actions().contains(Accessible.Action.EXPAND));
+        assertTrue(opened.actions().actions().contains(Accessible.Action.COLLAPSE),
+                "and the row's verb turns over with it: " + describe(tree()));
+        assertFalse(opened.actions().actions().contains(Accessible.Action.EXPAND));
     }
 
     /**
@@ -699,9 +1159,11 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(rows.get(0).expand().expanded(), "and still open");
         assertFalse(rows.get(1).has(Accessible.State.BUSY), "the row below is not");
         assertEquals(2, rows.get(0).selectionItem().sizeOfSet(),
-                "numbered among the nodes, so the line is not counted: " + describe(tree()));
+                "numbered among the siblings, so the line is not counted: " + describe(tree()));
         assertEquals(2, rows.get(1).selectionItem().positionInSet(),
-                "and the row below it is the second, not the third");
+                "and the row below it is the second root, not the third");
+        assertEquals(2, rows.get(1).hierarchy().row(),
+                "nor is the line a row of the outline: " + describe(tree()));
         bridge.events.clear();
 
         ui.pumpUntil(() -> tree.visibleRowCount() == 4);
@@ -722,11 +1184,140 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * A row whose load found nothing is an open branch with no items under it and no longer
+     * busy (decision 45 of 2026-09-14): the "Empty" line says so to a sighted user, and to a
+     * reader the expanded state over no children says the same thing, so the line is not an
+     * item — one a reader could walk onto that is not a node — and the rows below are numbered
+     * as though it were not there.
+     */
+    @Test
+    void aRowWhoseLoadFoundNothingIsAnOpenBranchWithNoItemsAndItsEmptyLineIsNotOne() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node trash = Node.leaf("trash");
+        Node below = Node.leaf("b");
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(trash, below);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node == trash ? null : node.children(); // "not known yet"
+            }
+
+            @Override
+            public limn.concurrent.Work<List<Node>> load(Node node) {
+                return limn.concurrent.Ui.work(progress -> List.of());
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Cell(ROW_H);
+            }
+
+            @Override
+            public I18nString nameOf(Node node) {
+                return node.name();
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        tree.observeChanges((source, change) -> changes.add(change));
+
+        tree.expand(trash);
+        frame();
+        ui.pumpUntil(() -> changes.stream().anyMatch(
+                c -> c.aspect() == limn.scene.Change.Aspect.CHILDREN
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT));
+        frame();
+
+        List<AccessibleNode> rows = rowNodes();
+        assertEquals(List.of("trash", "b"), rows.stream().map(AccessibleNode::name).toList(),
+                "the empty line is not an item: " + describe(tree()));
+        assertFalse(describe(tree()).contains("Empty"),
+                "and it is nowhere else in the tree either: " + describe(tree()));
+        assertTrue(rows.get(0).expand().expanded(), "the row is still open: " + describe(tree()));
+        assertTrue(nodesWith(Accessible.State.BUSY).isEmpty(),
+                "and busy no longer: " + describe(tree()));
+        assertEquals(new limn.accessibility.HierarchyFacet(1, 2, 2), rows.get(1).hierarchy(),
+                "the row below is the second of the outline, not the third: " + describe(tree()));
+    }
+
+    /**
+     * A load that lands after the tree is on screen, in the demo's exact shape — {@code Label}
+     * cells and no {@code nameOf} — publishes the children under their own names, each with its
+     * own expand state, and moves the rows below with theirs (T6's one missing headless pin,
+     * 2026-09-14). The lazy case above resolves names through {@code nameOf}, which reads the
+     * node at the row's index and not the cell, so a cell left bound to an old index is
+     * invisible to it; only a cell that names its own row can catch the mis-binding that ADR 044
+     * §4's "later the same day" paragraph records (654632d). Red with the re-binding of mounted
+     * cells to their nodes disabled.
+     */
+    @Test
+    void aLoadThatLandsOnScreenPublishesItsChildrenUnderTheirOwnNames() {
+        Node remote = Node.leaf("remote");
+        Node below = Node.of("b", Node.leaf("b.1"));
+        List<Node> fetched = List.of(Node.leaf("one"), Node.of("two", Node.leaf("two.1")));
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(remote, below);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node == remote ? null : node.children(); // "not known yet"
+            }
+
+            @Override
+            public limn.concurrent.Work<List<Node>> load(Node node) {
+                return limn.concurrent.Ui.work(progress -> fetched);
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name().english());
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.setTextRuler(RULER);
+        frame();
+        assertEquals(List.of("remote", "b"),
+                rowNodes().stream().map(AccessibleNode::name).toList(), describe(tree()));
+
+        tree.expand(remote);
+        frame();
+        assertEquals(List.of("remote", "b"),
+                rowNodes().stream().map(AccessibleNode::name).toList(),
+                "open and busy, the loading line is not an item: " + describe(tree()));
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        frame();
+
+        List<AccessibleNode> rows = rowNodes();
+        assertEquals(List.of("remote", "one", "two", "b"),
+                rows.stream().map(AccessibleNode::name).toList(),
+                "the children landed under their own names and b moved down with its: "
+                        + describe(tree()));
+        assertTrue(rows.get(0).expand().expanded(), "remote is open: " + describe(tree()));
+        assertNull(rows.get(1).expand(), "one is a leaf, and says so on its own row");
+        assertNotNull(rows.get(2).expand(), "two can open, and says so on its own row");
+        assertFalse(rows.get(2).expand().expanded(), "and is closed");
+        assertNotNull(rows.get(3).expand(), "b can open wherever the landing carried it");
+        assertEquals(2, rows.get(3).selectionItem().positionInSet(),
+                "b is still the second root: " + describe(tree()));
+    }
+
+    /**
      * Every row says how deep it is and which open row of the outline it is, through
      * {@code HierarchyFacet} (ADR 039 §1.2, amended 2026-09-14): one-based, the loading line not
      * counted, and renumbered when a branch opens. Where a row stands among its siblings is
-     * {@code SelectionItemFacet}'s and the Tree lane's (decision 4); the numbering pinned above is
-     * untouched here.
+     * {@code SelectionItemFacet}'s (decision 4), pinned in the role case above.
      */
     @Test
     void aTreeItemSaysItsLevelAndWhichOpenRowOfTheOutlineItIs() {

@@ -17,11 +17,14 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The three things a tree does that a list cannot: an order that is a traversal, a row that opens,
- * and a row that promises children before it can name them (ADR 044).
+ * and a row that promises children before it can name them (ADR 044) — and, since 2026-09-14,
+ * the cursor and the selection it leads (§6), the wheel and the free height (§3), the handlers
+ * and the mirrored arrows (§5).
  *
  * <p>Every case reads the widget's own answers — which rows are visible, what is selected, what
  * the model was asked — rather than pixels: what is drawn at a depth is the indent arithmetic,
@@ -47,6 +50,12 @@ class TreeTest extends ComponentTestBase {
         /** Nodes whose children this model refuses to answer until {@link #loads} is consulted. */
         final Map<String, List<Node>> loads;
         int loadCalls;
+        /** Every node whose children the tree asked for, in order. */
+        final List<String> childrenAsked = new ArrayList<>();
+        /** Held by every load's body before it answers; open by default. */
+        final java.util.concurrent.CountDownLatch gate = new java.util.concurrent.CountDownLatch(0);
+        /** What a load answers instead of {@link #loads}, when set: the reload that changed. */
+        volatile Map<String, List<Node>> reloads;
 
         CountingModel(List<Node> roots) {
             this(roots, Map.of());
@@ -64,6 +73,7 @@ class TreeTest extends ComponentTestBase {
 
         @Override
         public List<Node> children(Node node) {
+            childrenAsked.add(node.name());
             // A node named in `loads` says "not known yet", which is what makes it non-leaf and
             // sends the tree to load().
             return loads.containsKey(node.name()) ? null : node.children();
@@ -72,8 +82,12 @@ class TreeTest extends ComponentTestBase {
         @Override
         public Work<List<Node>> load(Node node) {
             loadCalls++;
-            List<Node> kids = loads.get(node.name());
-            return Ui.work(progress -> kids);
+            Map<String, List<Node>> source = reloads != null ? reloads : loads;
+            List<Node> kids = source.get(node.name());
+            return Ui.work(progress -> {
+                gate.await();
+                return kids;
+            });
         }
 
         @Override
@@ -237,20 +251,948 @@ class TreeTest extends ComponentTestBase {
         scene.requestFocus(tree);
 
         press(Keys.DOWN);   // onto the root
-        assertEquals(root, tree.leadNode(), "the first arrow lands on the first row");
+        assertEquals(root, tree.cursorNode(), "the first arrow lands on the first row");
 
         press(Keys.RIGHT);  // opens it
         assertTrue(tree.isExpanded(root), "Right opens a closed row");
-        assertEquals(root, tree.leadNode(), "and stays on it");
+        assertEquals(root, tree.cursorNode(), "and stays on it");
 
         press(Keys.RIGHT);  // steps into it
-        assertEquals(docs, tree.leadNode(), "Right again steps into an open row");
+        assertEquals(docs, tree.cursorNode(), "Right again steps into an open row");
 
         press(Keys.LEFT);   // docs is closed, so this goes to the parent
-        assertEquals(root, tree.leadNode(), "Left on a closed row goes to its parent");
+        assertEquals(root, tree.cursorNode(), "Left on a closed row goes to its parent");
 
         press(Keys.LEFT);   // closes the root
         assertFalse(tree.isExpanded(root), "Left on an open row closes it");
+    }
+
+    /**
+     * The three handlers hear the user's gesture and never the caller's verb (ADR 040):
+     * Right and Left reach {@code onExpand} and {@code onCollapse} with the row they opened or
+     * closed, Enter reaches {@code onActivate} with the cursor row, and {@code expand()},
+     * {@code collapse()} and {@code activate()} reach none of them. No test drove a handler
+     * before this one (T8).
+     */
+    @Test
+    void theHandlersHearTheUserAndNeverTheCaller() {
+        Node root = forest();
+        Tree<Node> tree = mount(new CountingModel(List.of(root)));
+        List<String> heard = new ArrayList<>();
+        tree.onExpand(node -> heard.add("expand " + node.name()));
+        tree.onCollapse(node -> heard.add("collapse " + node.name()));
+        tree.onActivate(node -> heard.add("activate " + node.name()));
+        scene.requestFocus(tree);
+
+        press(Keys.DOWN);  // onto the root
+        press(Keys.RIGHT); // opens it
+        assertEquals(List.of("expand root"), heard);
+        press(Keys.LEFT);  // closes it
+        assertEquals(List.of("expand root", "collapse root"), heard);
+        press(Keys.ENTER);
+        assertEquals(List.of("expand root", "collapse root", "activate root"), heard);
+
+        heard.clear();
+        tree.expand(root);
+        tree.collapse(root);
+        tree.activate();
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(), heard, "a caller's verb reaches a watcher, never a handler");
+    }
+
+    /**
+     * Read right to left the horizontal arrows swap, as every other pair in this toolkit does
+     * (ADR 044 §5): Left opens and steps in, Right closes and steps out. The mirror of
+     * {@link #theArrowsOpenStepInCloseAndStepOut}, which no RTL case had walked (T8).
+     */
+    @Test
+    void rightToLeftTheArrowsSwap() {
+        Node root = forest();
+        Tree<Node> tree = mount(new CountingModel(List.of(root)));
+        tree.setLayoutDirection(limn.scene.LayoutDirection.RTL);
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+
+        press(Keys.DOWN);  // onto the root
+        assertEquals(root, tree.cursorNode());
+        press(Keys.LEFT);  // opens it: the arrow that goes deeper, mirrored
+        assertTrue(tree.isExpanded(root), "Left opens a closed row reading right to left");
+        press(Keys.LEFT);  // steps into it
+        assertEquals("docs", tree.cursorNode().name(), "and steps into an open one");
+        press(Keys.RIGHT); // docs is closed, so this goes to the parent
+        assertEquals(root, tree.cursorNode(), "Right steps out to the parent of a closed row");
+        press(Keys.RIGHT); // closes the root
+        assertFalse(tree.isExpanded(root), "and closes an open one");
+    }
+
+    /**
+     * {@code NONE} selects nothing and freezes nothing: the cursor walks the outline exactly as
+     * it does in the other two modes, and Enter activates the row it stands on (decisions 14 and
+     * 32 of 2026-09-14). Before, {@code selectOnly} returned before moving the cursor, so in NONE
+     * every arrow, Right, Left and Enter were dead — against the enum's own javadoc.
+     */
+    @Test
+    void inNoneTheCursorStillMovesAndEnterActivatesTheRowItIsOn() {
+        Node root = forest();
+        Node docs = root.children().get(0);
+        CountingModel model = new CountingModel(List.of(root));
+        Tree<Node> tree = mount(model);
+        List<Node> activated = new ArrayList<>();
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        tree.onActivate(activated::add);
+        scene.requestFocus(tree);
+
+        press(Keys.DOWN);
+        assertEquals(root, tree.cursorNode(), "the first arrow lands on the first row");
+        assertTrue(tree.selectedNodes().isEmpty(), "and selects nothing");
+        assertNull(tree.leadNode(), "so there is no lead");
+
+        press(Keys.RIGHT);
+        assertTrue(tree.isExpanded(root), "Right opens the row the cursor is on");
+        press(Keys.DOWN);
+        assertEquals(docs, tree.cursorNode(), "Down walks into it");
+        assertTrue(tree.selectedNodes().isEmpty());
+
+        press(Keys.ENTER);
+        assertEquals(List.of(docs), activated,
+                "Enter activates the cursor row, which was never selected");
+    }
+
+    /**
+     * The cursor is announced as {@code ACTIVE} before the selection that moved with it, with
+     * the gesture's origin, the way {@code Table} announces its focus cell (ADR 040 §7.2); and
+     * where nothing is selected the cursor is still announced, so a watcher hears a cursor move
+     * in {@code NONE} too. Before, the tree never announced {@code ACTIVE} at all.
+     */
+    @Test
+    void theCursorMovingIsAnnouncedAsActiveBeforeTheSelection() {
+        Node root = forest();
+        CountingModel model = new CountingModel(List.of(root, Node.leaf("two")));
+        Tree<Node> tree = mount(model);
+        scene.requestFocus(tree);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        press(Keys.DOWN);
+        assertEquals(List.of(limn.scene.Change.Aspect.ACTIVE, limn.scene.Change.Aspect.SELECTION),
+                changes.stream().map(limn.scene.Change::aspect).toList(),
+                "the cursor first, then the selection: " + changes);
+        assertEquals(limn.scene.Change.Origin.USER, changes.get(0).origin());
+        assertEquals(limn.scene.Change.Origin.USER, changes.get(1).origin());
+
+        changes.clear();
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        changes.clear();
+        press(Keys.DOWN);
+        assertEquals(List.of(limn.scene.Change.Aspect.ACTIVE),
+                changes.stream().map(limn.scene.Change::aspect).toList(),
+                "in NONE the cursor moved and nothing else did: " + changes);
+
+        changes.clear();
+        press(Keys.DOWN); // past the end: the cursor stays on the last row
+        assertTrue(changes.isEmpty(), "a cursor that did not move is not announced: " + changes);
+    }
+
+    /**
+     * Space in {@code MULTI} toggles the cursor row off and leaves the cursor on it: a lead that
+     * followed the toggle would hand {@code onSelect}'s reader the row that was just deselected,
+     * which is what {@code leadNode()} used to answer. The cursor stays so Space can toggle it
+     * back and Enter still activates it (decision 14).
+     */
+    @Test
+    void aToggleOffKeepsTheCursorOnTheRowAndTakesTheLeadOffIt() {
+        Node root = forest();
+        CountingModel model = new CountingModel(List.of(root, Node.leaf("two")));
+        Tree<Node> tree = mount(model);
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        List<Node> activated = new ArrayList<>();
+        List<List<Node>> selections = new ArrayList<>();
+        tree.onActivate(activated::add);
+        tree.onSelect(() -> selections.add(tree.selectedNodes()));
+        scene.requestFocus(tree);
+
+        press(Keys.DOWN);
+        assertEquals(List.of(root), tree.selectedNodes());
+        assertEquals(root, tree.leadNode());
+
+        press(Keys.SPACE);
+        assertTrue(tree.selectedNodes().isEmpty(), "Space toggled the cursor row off");
+        assertNull(tree.leadNode(), "so nothing leads the selection");
+        assertEquals(root, tree.cursorNode(), "and the cursor is still on the row");
+        assertEquals(List.of(List.of(root), List.of()), selections,
+                "the handler heard both moves and read the selection back");
+
+        press(Keys.SPACE);
+        assertEquals(List.of(root), tree.selectedNodes(), "Space toggles it back on");
+        assertEquals(root, tree.leadNode());
+
+        press(Keys.SPACE);
+        press(Keys.ENTER);
+        assertEquals(List.of(root), activated, "Enter activates the cursor row, selected or not");
+    }
+
+    /**
+     * A refresh that drops the node the cursor stands on takes the cursor off it even when
+     * nothing is selected — after a toggle-off, or in {@code NONE}, where nothing ever is.
+     * Before, {@code pruneSelection} returned on an empty selection before it looked at the
+     * cursor, so Enter and a reader's {@code PRESS} went on activating a node the model no longer
+     * had.
+     */
+    @Test
+    void aRefreshTakesTheCursorOffANodeTheModelDropped() {
+        Node keep = Node.leaf("keep");
+        Node drop = Node.leaf("drop");
+        List<Node> roots = new ArrayList<>(List.of(keep, drop));
+        CountingModel model = new CountingModel(roots);
+        Tree<Node> tree = mount(model);
+        List<limn.scene.Change> changes = new ArrayList<>();
+
+        tree.setSelected(drop);
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        assertEquals(drop, tree.cursorNode(), "NONE keeps the cursor where it was");
+        assertTrue(tree.selectedNodes().isEmpty());
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        roots.remove(drop);
+        tree.refresh();
+        scene.layoutPass(220, 200);
+
+        assertNull(tree.cursorNode(), "the cursor cannot stand on a node the model dropped");
+        assertTrue(changes.stream().anyMatch(c -> c.aspect() == limn.scene.Change.Aspect.ACTIVE
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT),
+                "and the tree said so, as an adjustment of its own: " + changes);
+    }
+
+    // ------------------------------------------------------------------------- MULTI
+
+    /** The cell drawing {@code name}, found among the tree's children. */
+    private static Widget cellOf(Tree<Node> tree, String name) {
+        for (Widget child : tree.children()) {
+            if (child instanceof Label label && label.text().equals(name)) {
+                return child;
+            }
+        }
+        throw new AssertionError("no cell is drawing " + name);
+    }
+
+    /** A press and release at the middle of {@code name}'s cell, with {@code modifiers} held. */
+    private void click(Tree<Node> tree, String name, int modifiers) {
+        Widget cell = cellOf(tree, name);
+        float x = cell.localToSceneX() + cell.width() / 2;
+        float y = cell.localToSceneY() + cell.height() / 2;
+        scene.mouseButton(Keys.MOUSE_LEFT, true, modifiers, x, y);
+        scene.mouseButton(Keys.MOUSE_LEFT, false, modifiers, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+    }
+
+    private void press(int key, int modifiers) {
+        scene.keyEvent(key, true, false, modifiers);
+        scene.keyEvent(key, false, false, modifiers);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+    }
+
+    /** The open forest as rows: root, docs, a.md, b.md, readme. */
+    private Tree<Node> openForest(Node root) {
+        Tree<Node> tree = mount(new CountingModel(List.of(root, Node.leaf("two"))));
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.expand(root);
+        tree.expand(root.children().get(0));
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+        return tree;
+    }
+
+    /**
+     * The command modifier is the platform's — {@link Accelerator#commandModifier()}, Command
+     * on macOS and Control elsewhere — and not a fixed Super bit, which is what the press site
+     * read and what made the demo's "the command modifier adds a row" false on Windows and
+     * Linux (T1). The modifier is injected, so the case reads the same on this Mac and on CI's
+     * Ubuntu.
+     */
+    @Test
+    void aCommandClickAddsARowToAMultiSelection() {
+        Node root = forest();
+        Tree<Node> tree = openForest(root);
+        Node docs = root.children().get(0);
+        Node readme = root.children().get(1);
+
+        click(tree, "docs", 0);
+        click(tree, "readme", Accelerator.commandModifier());
+        assertEquals(List.of(docs, readme), tree.selectedNodes(),
+                "the second click, with the platform's command modifier, added a row");
+        assertEquals(readme, tree.leadNode());
+
+        click(tree, "docs", Accelerator.commandModifier());
+        assertEquals(List.of(readme), tree.selectedNodes(), "and a third took one away");
+        assertEquals(readme, tree.leadNode(), "the lead was already on the other row");
+        assertEquals(docs, tree.cursorNode(), "the cursor is on the row that was clicked");
+    }
+
+    /**
+     * Shift extends a range from the anchor over the visible rows, replacing the selection as
+     * {@code Table}'s does: Shift+click, then Shift+arrows from the same anchor (T2; decision 31).
+     * A node hidden under a closed branch is not between two visible rows and leaves when a
+     * range replaces the selection, though a collapse alone keeps it (ADR 044 §6).
+     */
+    @Test
+    void shiftClickAndShiftArrowsSelectARangeOverTheVisibleRows() {
+        Node root = forest();
+        Tree<Node> tree = openForest(root);
+        Node docs = root.children().get(0);
+        Node aMd = docs.children().get(0);
+        Node bMd = docs.children().get(1);
+        Node readme = root.children().get(1);
+
+        click(tree, "docs", 0);
+        click(tree, "readme", Keys.MOD_SHIFT);
+        assertEquals(List.of(docs, aMd, bMd, readme), tree.selectedNodes(),
+                "from the anchor to the row clicked, in traversal order, the children included");
+        assertEquals(readme, tree.leadNode());
+        assertEquals(readme, tree.cursorNode());
+
+        press(Keys.UP, Keys.MOD_SHIFT);
+        assertEquals(List.of(docs, aMd, bMd), tree.selectedNodes(),
+                "Shift+Up shrinks the range back toward the same anchor");
+        assertEquals(bMd, tree.cursorNode());
+
+        press(Keys.UP, Keys.MOD_SHIFT);
+        press(Keys.UP, Keys.MOD_SHIFT);
+        press(Keys.UP, Keys.MOD_SHIFT);
+        assertEquals(List.of(root, docs), tree.selectedNodes(),
+                "and past the anchor the range runs the other way from it");
+
+        press(Keys.END, Keys.MOD_SHIFT);
+        assertEquals(List.of(docs, aMd, bMd, readme, tree.cursorNode()), tree.selectedNodes(),
+                "Shift+End takes everything from the anchor to the last row");
+
+        tree.setSelected(bMd);
+        tree.collapse(docs);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(bMd), tree.selectedNodes(),
+                "a collapse alone keeps a hidden selection (ADR 044 §6)");
+        click(tree, "root", 0);
+        click(tree, "readme", Keys.MOD_SHIFT);
+        assertEquals(List.of(root, docs, readme), tree.selectedNodes(),
+                "a range replaces the selection, and the hidden node is not in it");
+    }
+
+    /**
+     * Ctrl+A or Cmd+A selects every open row and {@link Tree#selectAll()} enters the same seam
+     * as a caller's write: what is visible, so a node under a closed branch is not taken. In
+     * SINGLE the chord does nothing.
+     */
+    @Test
+    void commandASelectsEveryOpenRowAndSelectAllIsTheCallersWrite() {
+        Node root = forest();
+        Tree<Node> tree = openForest(root);
+        Node docs = root.children().get(0);
+        tree.collapse(docs);
+        scene.layoutPass(220, 200);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        press(Keys.A, Accelerator.commandModifier());
+        assertEquals(4, tree.selectedNodes().size(),
+                "the two roots and the open root's children: " + tree.selectedNodes());
+        assertEquals(List.of(root, docs, root.children().get(1)), tree.selectedNodes().subList(0, 3),
+                "every open row, in traversal order");
+        assertFalse(tree.selectedNodes().contains(docs.children().get(0)),
+                "a node under a closed branch is not an open row");
+        assertEquals(1, changes.size(), "announced once: " + changes);
+        assertEquals(limn.scene.Change.Origin.USER, changes.get(0).origin());
+        assertEquals(root, tree.leadNode(), "with nothing leading, the first row does");
+
+        tree.clearSelection();
+        changes.clear();
+        tree.selectAll();
+        assertEquals(4, tree.selectedNodes().size());
+        assertEquals(limn.scene.Change.Origin.CODE, changes.get(0).origin(),
+                "the caller's write announces as the caller's: " + changes);
+
+        tree.setSelectionMode(Tree.SelectionMode.SINGLE);
+        tree.setSelected(docs);
+        press(Keys.A, Accelerator.commandModifier());
+        assertEquals(List.of(docs), tree.selectedNodes(), "SINGLE has no select-all");
+    }
+
+    /**
+     * The programmatic set: {@link Tree#setSelectedNodes} replaces the selection with the nodes
+     * named, the last as the lead and under the cursor, and {@link Tree#clearSelection()} drops
+     * it and leaves the cursor; each announces once as {@code CODE}, and neither reaches
+     * {@code onSelect}, which is the user's. The modes that cannot hold the set refuse it.
+     */
+    @Test
+    void setSelectedNodesAndClearSelectionAnnounceOnceAsCode() {
+        Node root = forest();
+        Tree<Node> tree = openForest(root);
+        Node docs = root.children().get(0);
+        Node readme = root.children().get(1);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        int[] userHeard = {0};
+        tree.onSelect(() -> userHeard[0]++);
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        tree.setSelectedNodes(List.of(readme, docs));
+        assertEquals(List.of(readme, docs), tree.selectedNodes(), "in the order named");
+        assertEquals(docs, tree.leadNode(), "the last named leads");
+        assertEquals(docs, tree.cursorNode(), "and is under the cursor");
+        assertEquals(List.of(limn.scene.Change.Aspect.ACTIVE, limn.scene.Change.Aspect.SELECTION),
+                changes.stream().map(limn.scene.Change::aspect).toList(), changes.toString());
+        assertEquals(limn.scene.Change.Origin.CODE, changes.get(1).origin());
+
+        changes.clear();
+        tree.setSelectedNodes(List.of(readme, docs));
+        assertTrue(changes.isEmpty(), "the same set again moves nothing: " + changes);
+
+        tree.clearSelection();
+        assertTrue(tree.selectedNodes().isEmpty());
+        assertNull(tree.leadNode());
+        assertEquals(docs, tree.cursorNode(), "clearing the selection leaves the cursor");
+        assertEquals(List.of(limn.scene.Change.Aspect.SELECTION),
+                changes.stream().map(limn.scene.Change::aspect).toList(), changes.toString());
+        assertEquals(0, userHeard[0], "none of it was the user's");
+
+        tree.setSelectionMode(Tree.SelectionMode.SINGLE);
+        assertThrows(IllegalStateException.class,
+                () -> tree.setSelectedNodes(List.of(readme, docs)), "SINGLE holds one");
+        tree.setSelectedNodes(List.of(readme));
+        assertEquals(List.of(readme), tree.selectedNodes());
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        assertThrows(IllegalStateException.class, () -> tree.setSelectedNodes(List.of(readme)),
+                "NONE holds nothing");
+    }
+
+    /**
+     * A second press on the same row within the table's 400 ms activates it, like Enter
+     * (decision 46 of 2026-09-14); a press with a modifier does not, and one outside the window
+     * is a first press again.
+     */
+    @Test
+    void aDoubleClickActivatesTheRowLikeEnter() {
+        Node root = forest();
+        CountingModel model = new CountingModel(List.of(root, Node.leaf("two")));
+        long[] now = {1_000_000_000L};
+        Tree<Node> tree = new Tree<>(model);
+        scene = new Scene(tree, () -> now[0]);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        scene.renderFrame(new RecordingTestCanvas(220, 200));
+        List<Node> activated = new ArrayList<>();
+        tree.onActivate(activated::add);
+
+        click(tree, "root", 0);
+        now[0] += 200_000_000L;
+        click(tree, "root", 0);
+        assertEquals(List.of(root), activated, "two presses 200 ms apart on one row activate it");
+
+        now[0] += 200_000_000L;
+        click(tree, "root", 0);
+        assertEquals(List.of(root), activated,
+                "the third press starts over rather than activating again");
+
+        now[0] += 1_000_000_000L;
+        click(tree, "two", 0);
+        now[0] += 500_000_000L;
+        click(tree, "two", 0);
+        assertEquals(List.of(root), activated, "half a second apart is two clicks");
+
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        now[0] += 1_000_000_000L;
+        click(tree, "two", Accelerator.commandModifier());
+        now[0] += 100_000_000L;
+        click(tree, "two", Accelerator.commandModifier());
+        assertEquals(List.of(root), activated, "a modified double press toggles and activates nothing");
+    }
+
+    /**
+     * With several rows selected, toggling the lead off moves the lead to the row selected most
+     * recently that is still selected, as {@code Table} does (TREE-NEW-10); the cursor stays on
+     * the row that was toggled.
+     */
+    @Test
+    void aToggleOffMovesTheLeadToTheRowSelectedLastThatIsStillSelected() {
+        Node root = forest();
+        Tree<Node> tree = openForest(root);
+        Node docs = root.children().get(0);
+        Node readme = root.children().get(1);
+
+        click(tree, "root", 0);
+        click(tree, "docs", Accelerator.commandModifier());
+        click(tree, "readme", Accelerator.commandModifier());
+        assertEquals(List.of(root, docs, readme), tree.selectedNodes());
+        assertEquals(readme, tree.leadNode());
+
+        press(Keys.SPACE, 0); // toggles the cursor row, readme, off
+        assertEquals(List.of(root, docs), tree.selectedNodes());
+        assertEquals(docs, tree.leadNode(), "the lead falls back to the last row still selected");
+        assertEquals(readme, tree.cursorNode(), "and the cursor stays on the toggled row");
+
+        click(tree, "docs", Accelerator.commandModifier());
+        assertEquals(root, tree.leadNode());
+        assertEquals(docs, tree.cursorNode());
+    }
+
+    /** A press on {@code name}'s triangle: the band before the cell, at the row's middle. */
+    private void pressTriangle(Tree<Node> tree, String name) {
+        Widget cell = cellOf(tree, name);
+        // The band sits immediately before the cell; half a band back from the cell's edge is
+        // inside it at every depth, and the other test of this widget aims the same way.
+        float x = cell.localToSceneX() - 8;
+        float y = cell.localToSceneY() + cell.height() / 2;
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+    }
+
+    /**
+     * Closing the branch the cursor is in puts the cursor on the row that closed and leaves the
+     * selection where it is, in every mode (decision 21 of 2026-09-14; ADR 044 §6): what
+     * Explorer, Finder and GTK do. Before, the cursor stayed on the hidden row, where Left and
+     * Right were dead, Up and Down restarted at the viewport's top, no row was ACTIVE, and Enter
+     * activated something nobody could see (TREE-MISS-4).
+     */
+    @Test
+    void closingTheBranchTheCursorIsInPutsTheCursorOnTheBranch() {
+        Node root = forest();
+        Node readme = root.children().get(1);
+        Node two = Node.leaf("two");
+        CountingModel model = new CountingModel(List.of(root, two));
+        Tree<Node> tree = mount(model);
+        tree.expand(root);
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+        press(Keys.DOWN);
+        press(Keys.DOWN);
+        press(Keys.DOWN);
+        assertEquals(readme, tree.cursorNode(), "three arrows down land on readme");
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        pressTriangle(tree, "root");
+        assertFalse(tree.isExpanded(root), "the triangle closed the root: " + drawn(tree));
+        assertEquals(root, tree.cursorNode(), "and the cursor climbed onto it");
+        assertEquals(List.of(readme), tree.selectedNodes(), "while the selection stayed hidden");
+        assertEquals(readme, tree.leadNode());
+        assertTrue(changes.stream().anyMatch(c -> c.aspect() == limn.scene.Change.Aspect.ACTIVE
+                        && c.origin() == limn.scene.Change.Origin.USER),
+                "announced as the user's cursor move: " + changes);
+
+        press(Keys.DOWN);
+        assertEquals(two, tree.cursorNode(), "and the arrows walk on from the row it landed on");
+
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        tree.expand(root);
+        scene.layoutPass(220, 200);
+        press(Keys.UP); // from "two" back onto readme, under the re-opened root
+        assertEquals(readme, tree.cursorNode());
+        tree.collapse(root);
+        scene.layoutPass(220, 200);
+        assertEquals(root, tree.cursorNode(), "a collapse from code moves it the same way");
+    }
+
+    /**
+     * Selecting a node under a closed branch selects it where it is — re-opening the branch
+     * finds it selected — and neither reveals it nor moves the cursor, which stays on a row the
+     * user can see (decision 21). Before, the cursor moved onto the hidden node with all of
+     * TREE-MISS-4's consequences.
+     */
+    @Test
+    void selectingAHiddenNodeSelectsItWithoutMovingTheCursor() {
+        Node root = forest();
+        Node docs = root.children().get(0);
+        Node aMd = docs.children().get(0);
+        CountingModel model = new CountingModel(List.of(root));
+        Tree<Node> tree = mount(model);
+        tree.expand(root);
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+        press(Keys.DOWN);
+        assertEquals(root, tree.cursorNode());
+
+        tree.setSelected(aMd);
+        assertEquals(List.of(aMd), tree.selectedNodes(), "selected where it is");
+        assertEquals(aMd, tree.leadNode());
+        assertEquals(root, tree.cursorNode(), "the cursor stays on a row the user can see");
+        assertFalse(tree.isExpanded(docs), "and nothing opened to reveal it");
+
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectedNodes(List.of(root, aMd));
+        assertEquals(root, tree.cursorNode(), "the same for the programmatic set");
+
+        tree.expand(docs);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(root, aMd), tree.selectedNodes(), "re-opening the branch finds it");
+        press(Keys.DOWN);
+        press(Keys.DOWN);
+        assertEquals(aMd, tree.cursorNode(), "and the cursor can walk onto it now");
+    }
+
+    /** Whether some cell is drawing {@code name}, mounted anywhere. */
+    private static boolean hasCell(Tree<Node> tree, String name) {
+        for (Widget child : tree.children()) {
+            if (child instanceof Label label && label.text().equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The cell drawing {@code name}, mounted anywhere; fails when none does. */
+    private static Widget cell(Tree<Node> tree, String name) {
+        for (Widget child : tree.children()) {
+            if (child instanceof Label label && label.text().equals(name)) {
+                return label;
+            }
+        }
+        throw new AssertionError("no cell draws " + name + ": " + drawn(tree));
+    }
+
+    /**
+     * The cursor row is kept realized while the tree holds the keyboard: spared by a scroll,
+     * and mounted again, fresh from the model, after a refresh released every cell (decision 22
+     * of 2026-09-14). When the focus leaves, the next pass releases it like any other row.
+     */
+    @Test
+    void theCursorRowIsKeptRealizedWhileTheTreeHoldsTheKeyboardAndReleasedWhenItLeaves() {
+        List<Node> many = new ArrayList<>();
+        for (int i = 1; i <= 40; i++) {
+            many.add(Node.leaf("row " + i));
+        }
+        CountingModel model = new CountingModel(many);
+        Tree<Node> tree = mount(model);
+        scene.requestFocus(tree);
+        press(Keys.DOWN);
+        press(Keys.DOWN);
+        assertEquals(many.get(1), tree.cursorNode());
+        int builtBefore = java.util.Collections.frequency(model.cellsBuilt, "row 2");
+
+        tree.scrollBy(10_000);
+        scene.layoutPass(220, 200);
+        assertTrue(hasCell(tree, "row 40"), "the wheel reached the end: " + drawn(tree));
+        assertTrue(hasCell(tree, "row 2"), "and the cursor row was spared, outside the box");
+        assertFalse(drawn(tree).contains("row 2"), "outside, not drawn among the visible rows");
+        assertEquals(builtBefore, java.util.Collections.frequency(model.cellsBuilt, "row 2"),
+                "spared, so not built again");
+        float rowHeight = cell(tree, "row 40").height();
+        assertEquals(rowHeight, cell(tree, "row 2").height(), "spared at its height");
+
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertTrue(hasCell(tree, "row 2"), "a refresh releases every cell and mounts it back");
+        assertEquals(builtBefore + 1, java.util.Collections.frequency(model.cellsBuilt, "row 2"),
+                "fresh from the model, since the refresh may have changed what it draws");
+        Widget back = cell(tree, "row 2");
+        assertEquals(rowHeight, back.height(),
+                "laid out at the height it measures, like a placed row: a fresh cell has no "
+                        + "height of its own, and a zero here reached the average row height "
+                        + "and the node a reader is handed");
+        assertTrue(back.y() + back.height() <= 0, "and wholly above the box: y=" + back.y());
+
+        scene.requestFocus(null);
+        scene.layoutPass(220, 200);
+        assertFalse(hasCell(tree, "row 2"), "with the focus gone it is released: " + drawn(tree));
+        assertEquals(many.get(1), tree.cursorNode(), "though the cursor still stands on it");
+    }
+
+    // --------------------------------------------------------------- refresh and pruning
+
+    /**
+     * Opening or closing a row asks the model nothing about the branches that stay closed: a
+     * collapse cannot remove a node, so there is nothing to prune, and the walk that used to run
+     * from every root on each press asked {@code children} of every closed branch — which a
+     * generated model answers without end (TREE-NEW-2).
+     */
+    @Test
+    void openingOrClosingARowDoesNotAskTheModelAboutClosedBranches() {
+        Node deep = Node.of("closed", Node.of("c.1", Node.of("c.1.1", Node.leaf("c.1.1.1"))));
+        Node other = Node.of("other", Node.leaf("o.1"));
+        CountingModel model = new CountingModel(List.of(deep, other));
+        Tree<Node> tree = mount(model);
+        tree.setSelected(other);
+        model.childrenAsked.clear();
+
+        tree.expand(other);
+        scene.layoutPass(220, 200);
+        tree.collapse(other);
+        scene.layoutPass(220, 200);
+
+        assertFalse(model.childrenAsked.contains("c.1"),
+                "nothing under the closed root was asked about: " + model.childrenAsked);
+        assertFalse(model.childrenAsked.contains("c.1.1"), model.childrenAsked.toString());
+
+        // And a model whose children are always new nodes: every expand used to overflow the
+        // stack the moment anything was selected.
+        Tree.Model<Node> endless = new Tree.Model<>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(Node.of("1"));
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                int n = Integer.parseInt(node.name());
+                return List.of(Node.of(String.valueOf(2 * n)), Node.of(String.valueOf(2 * n + 1)));
+            }
+
+            @Override
+            public boolean isLeaf(Node node) {
+                return false;
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name());
+            }
+        };
+        Tree<Node> generated = mount(endless);
+        generated.setSelected(Node.of("1"));
+        generated.expand(Node.of("1"));
+        scene.layoutPass(220, 200);
+        assertEquals(3, generated.visibleRowCount(), "opened without walking the whole model");
+        generated.collapse(Node.of("1"));
+        scene.layoutPass(220, 200);
+        assertEquals(1, generated.visibleRowCount());
+        assertEquals(List.of(Node.of("1")), generated.selectedNodes());
+    }
+
+    /**
+     * A hidden node's recorded path is the chain of its own ancestors and nothing of the branch
+     * before it: a selection under a row that follows an open deeper branch is recorded at
+     * {@code [b, b.1]} and confirmed by a refresh. The paths are read off one pass over the rows
+     * carrying the ancestors by depth, and a chain that never shed the earlier branch would have
+     * looked for {@code b} under {@code a.1.1} and dropped the selection (tree-A review,
+     * 2026-09-14).
+     */
+    @Test
+    void aRefreshKeepsASelectionHiddenUnderARowThatFollowsADeeperBranch() {
+        Node aOne = Node.of("a.1", Node.leaf("a.1.1"));
+        Node a = Node.of("a", aOne);
+        Node bOne = Node.leaf("b.1");
+        Node b = Node.of("b", bOne);
+        CountingModel model = new CountingModel(List.of(a, b));
+        Tree<Node> tree = mount(model);
+        tree.expand(a);
+        tree.expand(aOne);
+        tree.expand(b);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("a", "a.1", "a.1.1", "b", "b.1"), drawn(tree));
+        tree.setSelected(bOne);
+        tree.collapse(b);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(bOne), tree.selectedNodes(), "hidden by the collapse, still selected");
+        assertEquals(b, tree.cursorNode(), "the cursor climbed onto the row that closed over it");
+
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(bOne), tree.selectedNodes(),
+                "the model still has it under b, at the path it was recorded at; asked: "
+                        + model.childrenAsked);
+        assertEquals(b, tree.cursorNode());
+    }
+
+    /**
+     * A refresh under an open row whose children have to be fetched again keeps the selection
+     * and the cursor while the load is in flight, and confirms them when it lands: the
+     * file-manager case, where a watcher's refresh deselected the user's file on every change
+     * (TREE-MISS-2). Before, the reload emptied the cache, the walk found nothing under the row,
+     * and everything under it was dropped at once.
+     */
+    @Test
+    void aRefreshKeepsTheSelectionUnderARowThatHasToLoadAgain() {
+        Node remote = new Node("remote", List.of());
+        Node one = Node.leaf("one");
+        CountingModel model = new CountingModel(List.of(remote, Node.leaf("b")),
+                Map.of("remote", List.of(one, Node.leaf("two"))));
+        Tree<Node> tree = mount(model);
+        scene.requestFocus(tree);
+        tree.expand(remote);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        scene.layoutPass(220, 200);
+        tree.setSelected(one);
+        assertEquals(one, tree.cursorNode());
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertEquals(2, tree.visibleRowCount(), "the reload is in flight: " + drawn(tree));
+        assertEquals(List.of(one), tree.selectedNodes(),
+                "kept while the row's children are on their way");
+        assertEquals(one, tree.cursorNode(), "and so is the cursor");
+        assertTrue(changes.stream().noneMatch(c -> c.aspect() == limn.scene.Change.Aspect.SELECTION),
+                "nothing was dropped, so nothing was announced: " + changes);
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(one), tree.selectedNodes(), "confirmed when the children landed");
+        assertEquals(one, tree.cursorNode());
+        assertTrue(hasCell(tree, "one"), "and the row is back: " + drawn(tree));
+    }
+
+    /**
+     * The counterpart: when the reload no longer brings the selected node, it is dropped once
+     * the load has landed and said so — one announcement later, as the tree's own adjustment —
+     * and not before, when nothing could be known.
+     */
+    @Test
+    void aRefreshDropsASelectionUnderAReloadedRowOnlyOnceTheLoadSaysItIsGone() {
+        Node remote = new Node("remote", List.of());
+        Node one = Node.leaf("one");
+        Node two = Node.leaf("two");
+        CountingModel model = new CountingModel(List.of(remote),
+                Map.of("remote", List.of(one, two)));
+        Tree<Node> tree = mount(model);
+        tree.expand(remote);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 3);
+        scene.layoutPass(220, 200);
+        tree.setSelected(one);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        model.reloads = Map.of("remote", List.of(two));
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertEquals(List.of(one), tree.selectedNodes(), "unknown until the load lands, so kept");
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 2);
+        scene.layoutPass(220, 200);
+        assertTrue(tree.selectedNodes().isEmpty(), "the reload did not bring it, so it is gone");
+        assertNull(tree.leadNode());
+        assertNull(tree.cursorNode(), "the cursor cannot stand on it either");
+        List<limn.scene.Change.Aspect> adjusted = changes.stream()
+                .filter(c -> c.origin() == limn.scene.Change.Origin.ADJUSTMENT)
+                .map(limn.scene.Change::aspect).toList();
+        assertTrue(adjusted.contains(limn.scene.Change.Aspect.SELECTION), adjusted.toString());
+        assertTrue(adjusted.contains(limn.scene.Change.Aspect.ACTIVE), adjusted.toString());
+    }
+
+    /**
+     * A tree taken out of its scene while a row loads drops that load and loads again when it
+     * comes back: before, the delivery was refused (the tree had no scene) but the row stayed in
+     * {@code loading}, so after the re-attach it spun for good and never asked again
+     * (TREE-NEW-3). The same for a tree opened onto a lazy row before it joined any scene, whose
+     * load lands before the attach.
+     */
+    @Test
+    void aTreeMovedWhileARowLoadsLoadsItAgainWhenItComesBack() throws Exception {
+        Node lazy = new Node("remote", List.of());
+        CountingModel model = new CountingModel(List.of(lazy),
+                Map.of("remote", List.of(Node.leaf("one"), Node.leaf("two"))));
+        Tree<Node> tree = new Tree<>(model);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(tree);
+        scene = new Scene(column);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        scene.renderFrame(new RecordingTestCanvas(220, 200));
+
+        tree.expand(lazy);
+        assertEquals(1, model.loadCalls);
+        column.remove(tree);
+        ui.pumpUntil(() -> model.loadCalls == 1); // whatever the worker does now goes nowhere
+        column.add(tree);
+        scene.layoutPass(220, 200);
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 3);
+        scene.layoutPass(220, 200);
+        assertEquals(2, model.loadCalls, "asked again on the way back in");
+        assertTrue(tree.isExpanded(lazy), "still open");
+        assertEquals(List.of("remote", "one", "two"), drawn(tree), "and showing what it has");
+
+        // Never attached: the load lands with nowhere to deliver, and the attach asks again.
+        CountingModel early = new CountingModel(List.of(lazy),
+                Map.of("remote", List.of(Node.leaf("one"))));
+        Tree<Node> opened = new Tree<>(early);
+        opened.expand(lazy);
+        assertEquals(1, early.loadCalls);
+        for (int i = 0; i < 50 && early.loadCalls == 1; i++) {
+            Thread.sleep(5); // let the worker finish and post the delivery the tree will refuse
+            runtime.drain();
+        }
+        scene = new Scene(opened);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        ui.pumpUntil(() -> opened.visibleRowCount() == 2);
+        assertEquals(2, early.loadCalls, "the dropped load was asked for again on attach");
+    }
+
+    /**
+     * A failed load closes its row through the seam that announces it, as the tree's own
+     * adjustment: a watcher hears {@code EXPANDED} for a row that went from open to closed, and
+     * nothing about children that never changed (TREE-NEW-9). Before, only {@code CHILDREN} was
+     * announced and the row closed silently.
+     */
+    @Test
+    void aFailedLoadSaysTheRowClosed() {
+        Node lazy = new Node("remote", List.of());
+        Tree.Model<Node> failing = new Tree.Model<>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(lazy);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return null;
+            }
+
+            @Override
+            public Work<List<Node>> load(Node node) {
+                return Ui.work(progress -> {
+                    throw new java.io.IOException("unreadable");
+                });
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name());
+            }
+        };
+        Tree<Node> tree = mount(failing);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        tree.expand(lazy);
+        assertTrue(tree.isExpanded(lazy));
+        ui.pumpUntil(() -> !tree.isExpanded(lazy));
+        scene.layoutPass(220, 200);
+
+        assertTrue(changes.stream().anyMatch(c -> c.aspect() == limn.scene.Change.Aspect.EXPANDED
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT),
+                "the row closing is announced as an adjustment: " + changes);
+        assertTrue(changes.stream().noneMatch(c -> c.aspect() == limn.scene.Change.Aspect.CHILDREN
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT),
+                "and nothing about children, which never changed: " + changes);
+        assertEquals(List.of("remote"), drawn(tree), "closed, with no line under it");
+    }
+
+    /**
+     * A node is unique within a tree, by {@code equals}: two equal nodes in two places would
+     * share one selection, one expansion and one accessible identity, all quietly wrong, so the
+     * tree refuses them the moment both are visible and names the node (decision 15 of
+     * 2026-09-14). Before, the second row was a silent shadow of the first (TREE-NEW-7).
+     */
+    @Test
+    void twoEqualNodesVisibleAtOnceAreRefusedByName() {
+        Node shared = Node.leaf("README.md");
+        Node a = Node.of("a", shared);
+        Node b = Node.of("b", shared);
+        CountingModel model = new CountingModel(List.of(a, b));
+        Tree<Node> tree = mount(model);
+
+        tree.expand(a);
+        scene.layoutPass(220, 200);
+        assertEquals(3, tree.visibleRowCount(), "one README.md is fine");
+
+        IllegalStateException refused = assertThrows(IllegalStateException.class,
+                () -> tree.expand(b), "the second README.md, equal to the first, is refused");
+        assertTrue(refused.getMessage().contains("README.md"),
+                "and the refusal names the node: " + refused.getMessage());
+        assertTrue(refused.getMessage().contains("path identity"),
+                "and says what to do about it: " + refused.getMessage());
     }
 
     @Test
@@ -293,7 +1235,8 @@ class TreeTest extends ComponentTestBase {
         assertEquals(1, tree.visibleRowCount());
         assertTrue(tree.selectedNodes().isEmpty(),
                 "a node the model no longer has is not a selection");
-        assertNull(tree.leadNode(), "and the cursor does not stand on it either");
+        assertNull(tree.leadNode(), "and nothing leads it");
+        assertNull(tree.cursorNode(), "and the cursor does not stand on it either");
     }
 
     /**
@@ -422,20 +1365,20 @@ class TreeTest extends ComponentTestBase {
         press(Keys.DOWN);  // onto remote
         press(Keys.RIGHT); // opens it, and its load starts
         assertTrue(tree.isExpanded(remote));
-        assertEquals(remote, tree.leadNode());
+        assertEquals(remote, tree.cursorNode());
 
         press(Keys.RIGHT);
-        assertEquals(remote, tree.leadNode(),
+        assertEquals(remote, tree.cursorNode(),
                 "Right into a row still loading has nothing to step onto, so it stays");
 
         press(Keys.DOWN);
-        assertEquals(below, tree.leadNode(), "Down goes past the line to the next node");
+        assertEquals(below, tree.cursorNode(), "Down goes past the line to the next node");
 
         press(Keys.UP);
-        assertEquals(remote, tree.leadNode(), "and Up comes back past it to the row it belongs to");
+        assertEquals(remote, tree.cursorNode(), "and Up comes back past it to the row it belongs to");
 
         press(Keys.END);
-        assertEquals(below, tree.leadNode());
+        assertEquals(below, tree.cursorNode());
 
         tree.setSelected(below);
         Widget line = null;
@@ -453,6 +1396,118 @@ class TreeTest extends ComponentTestBase {
         scene.inputBatchEnded();
         assertEquals(List.of(remote), tree.selectedNodes(),
                 "a click on the line selects the row it belongs to, the folder that is loading");
+    }
+
+    /**
+     * A row whose load finds nothing stays an open branch, and the line under it says "Empty"
+     * where its children would be, in the place and the voice of the "Loading…" line it replaces
+     * (decision 45 of 2026-09-14). Before, the loading line simply vanished and left an open
+     * triangle over nothing, which reads as a row that never loaded (TREE-NEW-13). The cached
+     * empty answer opens onto the same line without a second load.
+     */
+    @Test
+    void aLoadThatFindsNothingLeavesAnOpenBranchWithAnEmptyLineUnderIt() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node trash = new Node("trash", List.of());
+        CountingModel model = new CountingModel(List.of(trash, Node.leaf("b")),
+                Map.of("trash", List.of()));
+        Tree<Node> tree = mount(model);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+
+        tree.expand(trash);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("trash", "Loading…", "b"), drawn(tree));
+
+        ui.pumpUntil(() -> changes.stream().anyMatch(
+                c -> c.aspect() == limn.scene.Change.Aspect.CHILDREN
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT));
+        scene.layoutPass(220, 200);
+        assertTrue(tree.isExpanded(trash), "the row stays an open branch");
+        assertEquals(List.of("trash", "Empty", "b"), drawn(tree),
+                "and the line under it says it holds nothing");
+        assertEquals(2, tree.visibleRowCount(), "the line is not a node");
+
+        tree.collapse(trash);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("trash", "b"), drawn(tree), "closed, the line goes with the row");
+        tree.expand(trash);
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("trash", "Empty", "b"), drawn(tree),
+                "and reopened it says so at once, from what the load already found");
+        assertEquals(1, model.loadCalls, "without asking the model to load it again");
+        for (Widget cell : model.recycled) {
+            assertFalse(cell instanceof Label label
+                            && (label.text().equals("Empty") || label.text().equals("Loading…")),
+                    "neither line is the model's to pool");
+        }
+    }
+
+    /**
+     * Right on an open row with nothing in it stays on the row, whether the model calls an empty
+     * folder a branch or a load found it empty (TREE-MISS-1, decision 45): the arrow that steps
+     * into a row has no child to step onto. Before, it stepped onto whatever row came next — a
+     * sibling, or an ancestor's sibling — because the step-in only asked that a next row existed.
+     * The arrows still walk past the line in both directions.
+     */
+    @Test
+    void rightOnAnOpenBranchWithNothingInItStaysOnIt() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node folder = new Node("folder", List.of());
+        Node next = Node.leaf("next");
+        Tree<Node> tree = mount(new Tree.Model<>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(folder, next);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public boolean isLeaf(Node node) {
+                // A folder is a branch whatever it holds, which is TreeExample's shape.
+                return node != folder && node.children().isEmpty();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name());
+            }
+        });
+        scene.requestFocus(tree);
+
+        press(Keys.DOWN);  // onto the folder
+        press(Keys.RIGHT); // opens it
+        assertTrue(tree.isExpanded(folder));
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("folder", "Empty", "next"), drawn(tree),
+                "an eager branch with nothing in it opens onto the same line");
+        press(Keys.RIGHT);
+        assertEquals(folder, tree.cursorNode(), "Right into an empty branch stays on it");
+        press(Keys.DOWN);
+        assertEquals(next, tree.cursorNode(), "Down walks past the line");
+        press(Keys.UP);
+        assertEquals(folder, tree.cursorNode(), "and Up back past it to its row");
+
+        Node trash = new Node("trash", List.of());
+        CountingModel lazy = new CountingModel(List.of(trash, Node.leaf("after")),
+                Map.of("trash", List.of()));
+        Tree<Node> loaded = mount(lazy);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+        scene.requestFocus(loaded);
+        press(Keys.DOWN);  // onto trash
+        press(Keys.RIGHT); // opens it, and its load starts
+        ui.pumpUntil(() -> changes.stream().anyMatch(
+                c -> c.aspect() == limn.scene.Change.Aspect.CHILDREN
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT));
+        scene.layoutPass(220, 200);
+        press(Keys.RIGHT);
+        assertEquals(trash, loaded.cursorNode(),
+                "and so does Right on a row whose load found nothing");
     }
 
     /**
@@ -514,7 +1569,7 @@ class TreeTest extends ComponentTestBase {
         scene.requestFocus(tree);
 
         press(Keys.DOWN);
-        assertEquals(root, tree.leadNode(), "the first arrow has to land somewhere");
+        assertEquals(root, tree.cursorNode(), "the first arrow has to land somewhere");
 
         press(Keys.RIGHT);
         assertTrue(tree.isExpanded(root), "Right on a closed, expandable row opens it");
@@ -684,6 +1739,15 @@ class TreeTest extends ComponentTestBase {
 
     /** The chain, open to the bottom, in a scene 220 wide; the cells are collected by name. */
     private Tree<Node> openedChain(int levels, Map<String, Widget> cells) {
+        return openedChain(levels, cells, 0, limn.scene.LayoutDirection.LTR);
+    }
+
+    /**
+     * {@link #openedChain(int, Map)} over a model declaring {@code maxCellWidth} (zero: none),
+     * read in {@code direction}.
+     */
+    private Tree<Node> openedChain(int levels, Map<String, Widget> cells, float maxCellWidth,
+            limn.scene.LayoutDirection direction) {
         Node top = chain(levels);
         Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
             @Override
@@ -702,7 +1766,13 @@ class TreeTest extends ComponentTestBase {
                 cells.put(node.name(), cell);
                 return cell;
             }
+
+            @Override
+            public float maxCellWidth() {
+                return maxCellWidth;
+            }
         });
+        tree.setLayoutDirection(direction);
         scene = new Scene(tree);
         scene.setTextRuler(RULER);
         for (Node node = top; node != null;
@@ -765,11 +1835,592 @@ class TreeTest extends ComponentTestBase {
     }
 
     /**
-     * A triangle painted where the hit test does not look is a control that cannot be pressed,
-     * and a sideways offset is exactly the kind of change that separates the two. The band sits
-     * immediately before the cell, so the press is aimed from the cell's own position rather than
-     * by re-deriving the indent here.
+     * A model that knows its cells declares how wide the deepest one has to be, and the outline
+     * is exactly that much wider than the deepest row's indent and triangle: level fourteen gets
+     * the declared width and every shallower row one indent more per level, to the same far edge
+     * (decision 50 of 2026-09-14). Undeclared, the tree keeps its guess — the menu's minimum width
+     * capped by the viewport — which is what the chain below measures first. Before, there was no
+     * way to say it, and a deep row of a name and a badge ellipsized at 168 points (T4).
      */
+    @Test
+    void theDeepestCellIsAsWideAsTheModelDeclares() {
+        Map<String, Widget> guessed = new java.util.HashMap<>();
+        openedChain(14, guessed);
+        float indent = guessed.get("level-2").x() - guessed.get("level-1").x();
+        float guess = guessed.get("level-14").width();
+        assertEquals(Theme.current().tokensFor(guessed.get("level-14")).menuMinWidth(), guess, 0.01f,
+                "undeclared, the deepest cell is the menu's minimum width, as it always was");
+
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells, 190, limn.scene.LayoutDirection.LTR);
+        assertEquals(190, mounted(cells, "level-14").width(), 0.01f,
+                "the deepest cell is as wide as the model declares, wider than the guess");
+        assertEquals(190 + 13 * indent, mounted(cells, "level-1").width(), 0.01f,
+                "and a row thirteen levels up one indent wider per level, to the same far edge");
+
+        for (int i = 0; i < 80; i++) {
+            wheelSideways(tree, -1);
+        }
+        scene.layoutPass(220, 200);
+        Widget deepest = mounted(cells, "level-14");
+        assertEquals(220, deepest.x() + deepest.width(), 0.01f,
+                "scrolled to the end, the declared width ends exactly at the box's edge");
+
+        Map<String, Widget> shallow = new java.util.HashMap<>();
+        Tree<Node> shallowTree = openedChain(2, shallow, 100, limn.scene.LayoutDirection.LTR);
+        float before = shallow.get("level-1").x();
+        wheelSideways(shallowTree, -3);
+        scene.layoutPass(220, 200);
+        assertEquals(before, shallow.get("level-1").x(), 0.01f,
+                "a declared width the box already holds leaves a shallow tree exactly its box");
+        assertEquals(220 - before, shallow.get("level-1").width(), 0.01f);
+    }
+
+    /**
+     * The declared width is a cap and not a demand: no row is promised more cell than the box
+     * gives a row at the root, so the outline grows by the indent its depth charges and never by
+     * the declared width alone. A flat tree whose model declares more than its box stays exactly
+     * the box — no bar, nothing to wheel sideways — and a deep one gives its deepest cell what the
+     * root's has. The first cut took the declared width as the deepest cell's whatever the box,
+     * so one row under a model declaring 300 points in a 220-point box scrolled 102 points
+     * sideways, against this class's promise that a shallow tree is its box.
+     */
+    @Test
+    void aDeclaredWidthWiderThanTheBoxNeverScrollsAFlatTreeSideways() {
+        Map<String, Widget> flat = new java.util.HashMap<>();
+        Tree<Node> flatTree = openedChain(1, flat, 300, limn.scene.LayoutDirection.LTR);
+        Widget only = mounted(flat, "level-1");
+        float band = only.x();
+        wheelSideways(flatTree, -1);
+        scene.layoutPass(220, 200);
+        only = mounted(flat, "level-1");
+        assertEquals(band, only.x(), 0.01f,
+                "a one-row flat tree does not move sideways; width " + only.width());
+        assertEquals(220 - band, only.width(), 0.01f, "and its cell is what the box leaves it");
+
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        openedChain(14, cells, 300, limn.scene.LayoutDirection.LTR);
+        assertEquals(220 - band, mounted(cells, "level-14").width(), 0.01f,
+                "a deep row's cell is capped at the root row's, not stretched to the declared 300");
+    }
+
+    /**
+     * The keyboard brings a deep row's name into view: End onto level fourteen scrolls the
+     * outline sideways until the row's triangle band and the leading part of its cell are
+     * inside the box, and Home, from the far end, scrolls back to the root's (TREE-NEW-5). Before,
+     * the reveal passed a zero-width rectangle at x = 0 and never moved sideways, so End left the
+     * name 88 points past the box's edge. The walk is minimal: Down onto a row whose start is still
+     * inside moves nothing sideways, rather than the outline jumping on every arrow.
+     */
+    @Test
+    void theKeyboardBringsADeepRowsNameIntoView() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells);
+        scene.requestFocus(tree);
+
+        press(Keys.END);
+        Widget deepest = mounted(cells, "level-14");
+        assertEquals("level-14", tree.cursorNode().name());
+        assertTrue(deepest.x() >= 0 && deepest.x() + 40 <= tree.width(),
+                "the deepest row's name is in the box: its cell starts at " + deepest.x());
+
+        for (int i = 0; i < 80; i++) {
+            wheelSideways(tree, -1);
+        }
+        scene.layoutPass(220, 200);
+        assertTrue(mounted(cells, "level-1").x() < 0, "the wheel took the root's start out of view");
+        press(Keys.HOME);
+        Widget top = mounted(cells, "level-1");
+        assertEquals("level-1", tree.cursorNode().name());
+        assertTrue(top.x() > 0 && top.x() < 40,
+                "Home brings the root's triangle and name back into view: " + top.x());
+
+        // Minimal: level two's start is inside the box beside the root's, so Down onto it moves
+        // nothing sideways. Up from the far end cannot show this — there the offset is already at
+        // its clamp — which is why the walk is checked downward from the root.
+        float rootX = top.x();
+        press(Keys.DOWN);
+        assertEquals("level-2", tree.cursorNode().name());
+        assertEquals(rootX, mounted(cells, "level-1").x(), 0.01f,
+                "Down onto a row whose start is still in view moves nothing sideways");
+    }
+
+    /**
+     * The same walk read right to left, where the outline hangs off the box's trailing edge and
+     * the offset walks the cells the other way — and under reserved strips, where the viewport's
+     * left edge is the vertical bar's strip and not the box's, which the reveal measured from
+     * until 2026-09-14.
+     */
+    @Test
+    void rightToLeftTheKeyboardBringsADeepRowsNameIntoViewPastAReservedStrip() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells, 0, limn.scene.LayoutDirection.RTL);
+        scene.requestFocus(tree);
+
+        press(Keys.END);
+        Widget deepest = mounted(cells, "level-14");
+        float end = deepest.x() + deepest.width();
+        assertTrue(end <= tree.width() && end - 40 >= 0,
+                "the deepest row's name is in the box reading right to left: its cell ends at "
+                        + end);
+
+        press(Keys.HOME);
+        Widget top = mounted(cells, "level-1");
+        float topEnd = top.x() + top.width();
+        assertTrue(topEnd < tree.width() && topEnd > tree.width() - 40,
+                "and Home brings the root's back: " + topEnd);
+
+        Map<String, Widget> reserved = new java.util.HashMap<>();
+        List<Node> roots = new ArrayList<>();
+        Node chainTop = chain(14);
+        roots.add(chainTop);
+        for (int i = 1; i <= 30; i++) {
+            roots.add(Node.leaf("row " + i));
+        }
+        Tree<Node> strips = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return roots;
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                Label cell = new Label(node.name());
+                reserved.put(node.name(), cell);
+                return cell;
+            }
+        });
+        strips.setLayoutDirection(limn.scene.LayoutDirection.RTL);
+        strips.setBarLayout(ScrollGutters.Layout.RESERVED);
+        for (Node node = chainTop; node != null;
+                node = node.children().isEmpty() ? null : node.children().get(0)) {
+            strips.expand(node);
+        }
+        scene = new Scene(strips);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        scene.renderFrame(new RecordingTestCanvas(220, 200));
+        scene.requestFocus(strips);
+        press(Keys.DOWN); // onto the root
+        float strip = ScrollBar.thickness();
+        for (int i = 0; i < 13; i++) {
+            press(Keys.DOWN);
+        }
+        Widget leaf = mounted(reserved, "level-14");
+        assertEquals("level-14", strips.cursorNode().name());
+        float promised = Theme.current().tokensFor(strips).menuMinWidth();
+        assertTrue(leaf.x() + leaf.width() - promised >= strip - 0.01f,
+                "the leading " + promised + " points of the leaf's cell are right of the reserved "
+                        + "strip at " + strip + ", not under it: its cell ends at "
+                        + (leaf.x() + leaf.width()));
+    }
+
+    /**
+     * A press does not move the outline sideways: the pointer is on a part of the row the user
+     * can already see, and the outline sliding under it to show the row's start would move what
+     * was just clicked. Only the keyboard, a reader and a caller reveal a row's start.
+     */
+    @Test
+    void aPressOnADeepRowDoesNotMoveTheOutlineSideways() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells);
+        for (int i = 0; i < 80; i++) {
+            wheelSideways(tree, -1);
+        }
+        scene.layoutPass(220, 200);
+        Widget top = mounted(cells, "level-1");
+        float before = top.x();
+        assertTrue(before < 0, "the root's start is out of view: " + before);
+
+        float x = tree.localToSceneX() + 200;
+        float y = top.localToSceneY() + top.height() / 2;
+        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        assertEquals("level-1", tree.leadNode().name(), "the press selected the row");
+        assertEquals(before, mounted(cells, "level-1").x(), 0.01f,
+                "and left the outline where the user had scrolled it");
+
+        tree.setSelected(tree.selectedNodes().get(0).children().get(0));
+        scene.layoutPass(220, 200);
+        assertTrue(mounted(cells, "level-2").x() >= 0,
+                "a caller's selection does reveal the row's start: "
+                        + mounted(cells, "level-2").x());
+    }
+
+    private static limn.scene.Constraints unbounded() {
+        return new limn.scene.Constraints(0, limn.scene.Constraints.UNBOUNDED_LIMIT, 0,
+                limn.scene.Constraints.UNBOUNDED_LIMIT);
+    }
+
+    /**
+     * Under an unbounded height the tree is a count of seed rows tall, and stays so once its
+     * rows are measured (decision 44 of 2026-09-14). It shipped answering the mean of the rows
+     * it happened to have mounted, which is the seed before the first pass and the rows' own
+     * height after it, so its first contained layout inside a column moved its size and every
+     * later scroll that mounted rows of another height moved it again (T5).
+     */
+    @Test
+    void theUnboundedHeightIsTheSeedsAndDoesNotMoveOnceRowsAreMeasured() {
+        for (limn.scene.ControlSize step : limn.scene.ControlSize.values()) {
+            SizeTokens t = SizeTokens.of(step);
+            List<Node> many = new ArrayList<>();
+            for (int i = 1; i <= 100; i++) {
+                many.add(Node.leaf("row " + i));
+            }
+            Tree<Node> tree = mount(new CountingModel(many));
+            tree.setControlSize(step);
+            scene.layoutPass(220, 200);
+            assertFalse(tree.children().size() <= 2, "the fixture has to have measured rows");
+
+            assertEquals(8 * t.listRowSeed(), tree.measure(unbounded()).height(), 0.01f,
+                    step + ": rows of the ruler's height were measured and the preference did"
+                            + " not move");
+            wheel(tree, -10);
+            scene.layoutPass(220, 200);
+            assertEquals(8 * t.listRowSeed(), tree.measure(unbounded()).height(), 0.01f,
+                    step + ": nor after a scroll realized other rows");
+        }
+    }
+
+    @Test
+    void setVisibleRowsChangesTheUnboundedHeightAndRefusesLessThanOne() {
+        List<Node> many = new ArrayList<>();
+        for (int i = 1; i <= 100; i++) {
+            many.add(Node.leaf("row " + i));
+        }
+        Tree<Node> tree = mount(new CountingModel(many));
+        SizeTokens t = SizeTokens.of(limn.scene.ControlSize.MEDIUM);
+        assertEquals(8, tree.visibleRows(), "the default is the table's");
+
+        tree.setVisibleRows(3);
+
+        assertEquals(3 * t.listRowSeed(), tree.measure(unbounded()).height(), 0.01f,
+                "three seed rows: a count of the seed, never of the realized rows");
+        assertEquals(t.listWidth(), tree.measure(unbounded()).width(), 0.01f,
+                "the width is untouched");
+        assertThrows(IllegalArgumentException.class, () -> tree.setVisibleRows(0));
+        assertEquals(3, tree.visibleRows(), "a refused count changes nothing");
+        assertEquals(200, tree.measure(new limn.scene.Constraints(0, 300, 0, 200)).height(),
+                0.01f, "a bounded height from the parent wins over the preference");
+    }
+
+    /**
+     * The chain with enough leaves after it to overflow the box downward as well: the fixture
+     * that scrolls both ways, wrapped in a scroll pane that scrolls only where the tree cannot.
+     * The pane's content is the tree at its unbounded preference over a tall filler, so a detent
+     * the tree lets through has somewhere visible to go.
+     */
+    private Tree<Node> chainInAPane(Map<String, Widget> cells) {
+        Node top = chain(14);
+        List<Node> roots = new ArrayList<>();
+        roots.add(top);
+        for (int i = 1; i <= 40; i++) {
+            roots.add(Node.leaf("row " + i));
+        }
+        Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return roots;
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                Label cell = new Label(node.name());
+                cells.put(node.name(), cell);
+                return cell;
+            }
+        });
+        for (Node node = top; node != null;
+                node = node.children().isEmpty() ? null : node.children().get(0)) {
+            tree.expand(node);
+        }
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(tree);
+        column.add(new Widget() {
+            @Override
+            protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
+                return c.constrain(c.maxWidth(), 400);
+            }
+        });
+        scene = new Scene(new ScrollView(column));
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        canvas = new RecordingTestCanvas(220, 200);
+        scene.renderFrame(canvas);
+        return tree;
+    }
+
+    /**
+     * The cell drawing {@code name} right now: the map holds the newest one the model built,
+     * and a row that scrolled out and back comes back as a new cell, so a case reads it after
+     * every step rather than holding one.
+     */
+    private static Widget mounted(Map<String, Widget> cells, String name) {
+        Widget cell = cells.get(name);
+        assertTrue(cell != null && cell.parent() != null, name + " has to be a mounted row");
+        return cell;
+    }
+
+    /**
+     * A trackpad flick carries both axes in one event, and the tree scrolls both: the version
+     * that shipped read scrollX first and dropped the scrollY beside it, so a diagonal flick
+     * over a deep tree walked sideways and never down (the table's TABLE-NEW-12, in the same
+     * code). Shift still turns a one-wheel mouse's notch sideways. Read off the deepest row,
+     * which stays in view across the notches here; the rows above it scroll out and are
+     * recycled.
+     */
+    @Test
+    void aWheelCarryingBothAxesScrollsBoth() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = chainInAPane(cells);
+        Widget deepest = mounted(cells, "level-14");
+        float xBefore = deepest.x();
+        float yBefore = deepest.y();
+
+        float x = tree.localToSceneX() + 20;
+        float y = tree.localToSceneY() + 20;
+        scene.mouseMoved(x, y);
+        scene.scrolled(-1, -1, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+
+        deepest = mounted(cells, "level-14");
+        assertEquals(xBefore - Strokes.WHEEL_STEP, deepest.x(), 0.01f,
+                "the sideways half of the flick walked the outline");
+        assertEquals(yBefore - Strokes.WHEEL_STEP, deepest.y(), 0.01f,
+                "and the vertical half scrolled the rows in the same event");
+
+        scene.scrolled(0, -1, x, y);
+        scene.inputBatchEnded();
+        scene.keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
+        scene.scrolled(0, -1, x, y); // a plain vertical notch, Shift held
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        deepest = mounted(cells, "level-14");
+        assertEquals(xBefore - 2 * Strokes.WHEEL_STEP, deepest.x(), 0.01f,
+                "Shift turns a vertical notch sideways");
+        assertEquals(yBefore - 2 * Strokes.WHEEL_STEP, deepest.y(), 0.01f,
+                "and the plain notch before it scrolled down alone");
+    }
+
+    /**
+     * Shift is a swap only for an event with no sideways half. macOS delivers Shift and a wheel
+     * notch as the sideways event itself (scrollX set, scrollY zero), and a trackpad swipe with
+     * Shift held carries its own scrollX: both are sideways already, and a Shift that read the
+     * sideways axis from scrollY alone found nothing there, scrolled nothing and let the event
+     * through to the parent. The scroll pane and the table swap only a vertical notch the same way.
+     */
+    @Test
+    void aSidewaysFlickWithShiftHeldStillScrollsSideways() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = chainInAPane(cells);
+        ScrollView pane = (ScrollView) scene.root();
+        Widget deepest = mounted(cells, "level-14");
+        float xBefore = deepest.x();
+        float yBefore = deepest.y();
+
+        float x = tree.localToSceneX() + 20;
+        float y = tree.localToSceneY() + 20;
+        scene.mouseMoved(x, y);
+        scene.keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
+        scene.scrolled(-1, 0, x, y); // the shape macOS gives Shift and a notch
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+
+        deepest = mounted(cells, "level-14");
+        assertEquals(xBefore - Strokes.WHEEL_STEP, deepest.x(), 0.01f,
+                "a sideways event with Shift held walks the outline sideways");
+        assertEquals(yBefore, deepest.y(), 0.01f, "and moves no row up or down");
+        assertEquals(0, pane.offsetY(), 0.01f, "and never reaches the pane");
+    }
+
+    /**
+     * Decision 44's second half, the tree's copy: a detent that finds the tree at either end of
+     * its scroll is left for the scroller that holds it, so a tree inside a scroll pane is not a
+     * wall the wheel cannot get past. The tree consumed every detent while its content
+     * overflowed, whichever way the detent pointed; a short tree already let them through.
+     */
+    @Test
+    void aWheelAtEitherEndOfTheTreePassesToTheScrollerThatHoldsIt() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = chainInAPane(cells);
+        ScrollView pane = (ScrollView) scene.root();
+        float x = tree.localToSceneX() + 20;
+        float y = tree.localToSceneY() + 20;
+        scene.mouseMoved(x, y);
+
+        // Up at the top: the tree has nowhere to go, so the pane takes the detent — and it too is
+        // at its top, so nothing moves and nothing broke.
+        scene.scrolled(0, 1, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        assertEquals(0, mounted(cells, "level-1").y(), 0.01f, "the tree stayed at its first row");
+        assertEquals(0, pane.offsetY(), 0.01f, "and the pane had nowhere to go either");
+
+        // Down: the tree takes every detent until it rests on its last row, then the pane moves.
+        int notches = 0;
+        while (pane.offsetY() == 0 && notches < 100) {
+            scene.scrolled(0, -1, x, y);
+            scene.inputBatchEnded();
+            scene.layoutPass(220, 200);
+            notches++;
+        }
+        assertTrue(notches > 1 && notches < 100,
+                "the tree scrolled itself first and then let a detent through: " + notches);
+        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), 0.01f, "one notch of the pane");
+        Widget last = mounted(cells, "row 40");
+        assertTrue(last.y() + last.height() <= tree.height() + 0.01f,
+                "the tree is at its end when the pane starts moving");
+
+        // Up: the tree is at its end and not at its top, so it takes the detent back first.
+        scene.scrolled(0, 1, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), 0.01f,
+                "the tree could move up, so it did and the pane did not");
+
+        // Up to the top and past it: the pane takes what the tree cannot. Then sideways at the
+        // leading edge, which nothing can use, and toward the trailing edge, which the tree can.
+        for (int i = 0; i < 40; i++) {
+            scene.scrolled(0, 1, x, y);
+            scene.inputBatchEnded();
+        }
+        scene.layoutPass(220, 200);
+        assertEquals(0, pane.offsetY(), 0.01f, "the pane took the detents the tree could not");
+        float atStart = mounted(cells, "level-14").x();
+        scene.scrolled(1, 0, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        assertEquals(atStart, mounted(cells, "level-14").x(), 0.01f,
+                "a sideways notch at the leading edge moves nothing");
+        scene.scrolled(-1, 0, x, y);
+        scene.inputBatchEnded();
+        scene.layoutPass(220, 200);
+        assertEquals(atStart - Strokes.WHEEL_STEP, mounted(cells, "level-14").x(), 0.01f,
+                "and the other way is the tree's");
+    }
+
+    /**
+     * The chained wheel over rows of uneven height with the cursor row kept realized out of view:
+     * the detent past the tree's end still reaches the pane. The tree decides whether a detent is
+     * its own from its estimated offset and maximum, and the average row height behind both is
+     * taken over every mounted cell — the cursor row the tree keeps while it holds the keyboard
+     * included, wherever that row sits. A kept row taller than the rows at the end skewed the
+     * estimate below the maximum at the real end, where the layout pulls the rows back, so the
+     * tree took every detent there and moved nothing: the wall decision 44 removes. A shorter one
+     * skewed it past the maximum before the end, so the tree stopped short of its last row and
+     * the pane moved (tree-B review, finding 6; the average is now over the placed rows alone).
+     */
+    @Test
+    void aWheelPastTheEndOfUnevenRowsWithTheCursorKeptOutOfViewReachesThePane() {
+        // The kept row taller than the rows at the end, and shorter: the estimate errs both ways.
+        wheelToTheEndInAPane(90, 20, "a kept row taller than the rest");
+        wheelToTheEndInAPane(8, 40, "a kept row shorter than the rest");
+    }
+
+    /**
+     * Forty rows of {@code rest} points under a first row of {@code first}, the cursor on that
+     * first row with the keyboard in the tree, inside a scroll pane; wheels down until the pane
+     * moves, and checks that the tree was at its real end when it did and that the way back up
+     * reaches the first row before the pane's detents go to the tree again.
+     */
+    private void wheelToTheEndInAPane(float first, float rest, String what) {
+        List<Node> roots = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            roots.add(Node.leaf("row " + i));
+        }
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return roots;
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                float h = node.name().equals("row 0") ? first : rest;
+                Widget cell = new Widget() {
+                    @Override
+                    protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
+                        return c.constrain(c.maxWidth(), h);
+                    }
+                };
+                cells.put(node.name(), cell);
+                return cell;
+            }
+        });
+        tree.setVisibleRows(6);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(tree);
+        column.add(new Widget() {
+            @Override
+            protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
+                return c.constrain(c.maxWidth(), 400);
+            }
+        });
+        ScrollView pane = new ScrollView(column);
+        scene = new Scene(pane);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+        press(Keys.HOME);
+        scene.layoutPass(220, 200);
+        assertEquals("row 0", tree.cursorNode().name(), what);
+
+        float x = tree.localToSceneX() + 20;
+        float y = tree.localToSceneY() + 20;
+        scene.mouseMoved(x, y);
+        int notches = 0;
+        while (pane.offsetY() == 0 && notches < 200) {
+            scene.scrolled(0, -1, x, y);
+            scene.inputBatchEnded();
+            scene.layoutPass(220, 200);
+            notches++;
+        }
+        assertTrue(pane.offsetY() > 0,
+                what + ": a detent past the tree's end reached the pane; after " + notches
+                        + " notches it had not");
+        Widget last = mounted(cells, "row 39");
+        assertEquals(tree.height(), last.y() + last.height(), 0.01f,
+                what + ": the tree was at its real end when the pane took the detent");
+        Widget kept = cells.get("row 0");
+        assertTrue(kept.parent() != null && kept.y() + kept.height() <= 0,
+                what + ": the cursor row was kept, out of view, the whole way down");
+
+        float paneAtEnd = pane.offsetY();
+        notches = 0;
+        while (notches < 200) {
+            scene.scrolled(0, 1, x, y);
+            scene.inputBatchEnded();
+            scene.layoutPass(220, 200);
+            notches++;
+            Widget top = cells.get("row 0");
+            if (pane.offsetY() == 0 && top.parent() != null && top.y() == 0) {
+                break;
+            }
+        }
+        assertEquals(0, pane.offsetY(), 0.01f, what + ": the way back up reached the pane's top");
+        assertEquals(0, cells.get("row 0").y(), 0.01f,
+                what + ": and the tree's first row, from pane offset " + paneAtEnd);
+    }
+
     /** Where each stroked path was painted, which for these fixtures is only the triangles. */
     private static final class TwistyCanvas extends ComponentTestBase.FakeCanvas {
 
@@ -819,6 +2470,111 @@ class TreeTest extends ComponentTestBase {
             });
             twisties.add(new Painted(leading[0], leading[1], start[0], start[1], points[0]));
         }
+    }
+
+    /** Every stroked round rectangle, in the tree's own coordinates, with its paint. */
+    private static final class RingCanvas extends ComponentTestBase.FakeCanvas {
+
+        record Ring(limn.graphics.RoundRect rect, float strokeWidth, Paint paint) {
+        }
+
+        final List<Ring> rings = new ArrayList<>();
+
+        RingCanvas(float width, float height) {
+            super(width, height);
+        }
+
+        @Override
+        public void drawRoundRect(limn.graphics.RoundRect roundRect, float strokeWidth, Paint paint) {
+            rings.add(new Ring(roundRect, strokeWidth, paint));
+        }
+    }
+
+    /** The focus-coloured rings the next frame paints. */
+    private List<RingCanvas.Ring> focusRings() {
+        scene.layoutPass(220, 200);
+        RingCanvas painted = new RingCanvas(220, 200);
+        scene.requestRender(); // a settled frame damages nothing, and would record nothing
+        scene.renderFrame(painted);
+        List<RingCanvas.Ring> found = new ArrayList<>();
+        for (RingCanvas.Ring ring : painted.rings) {
+            if (ring.paint().equals(Theme.current().focusRing)) {
+                found.add(ring);
+            }
+        }
+        return found;
+    }
+
+    /**
+     * While the tree holds the keyboard its cursor row's cell wears a thin focus ring — the cell
+     * and not the row, so the indent and the triangle stay outside it (decision 52 of
+     * 2026-09-14; TREE-MISS-5) — and the ring follows the cursor wherever the selection is not:
+     * onto a row Space just toggled off in {@code MULTI}, and in {@code NONE}, where nothing is
+     * selected at all. It leaves with the keyboard. Before, the tree painted no mark of its
+     * own, so none of those cursors could be seen.
+     */
+    @Test
+    void theCursorRowsCellWearsAFocusRingWhileTheTreeHoldsTheKeyboard() {
+        Node root = forest();
+        Tree<Node> tree = mount(new CountingModel(List.of(root)));
+        tree.expand(root);
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        assertTrue(focusRings().isEmpty(), "no ring before the keyboard is in the tree");
+
+        scene.requestFocus(tree);
+        press(Keys.DOWN); // onto the root, selecting it
+        Widget rootCell = cellOf(tree, "root");
+        List<RingCanvas.Ring> rings = focusRings();
+        assertEquals(1, rings.size(), "one ring, on the cursor row: " + rings);
+        limn.graphics.RoundRect ring = rings.get(0).rect();
+        float inset = Strokes.FOCUS_RING_THIN;
+        assertEquals(rootCell.x() + inset, ring.x(), 0.01f,
+                "it starts at the cell, past the indent and the triangle, inset by its weight");
+        assertEquals(rootCell.y() + inset, ring.y(), 0.01f);
+        assertEquals(rootCell.height() - 2 * inset, ring.height(), 0.01f,
+                "and stays inside the row's band, which a cursor move damages");
+        assertEquals(Strokes.FOCUS_RING_THIN, rings.get(0).strokeWidth(), 0.001f);
+
+        press(Keys.SPACE); // toggles the root off; the cursor stays on it
+        assertTrue(tree.selectedNodes().isEmpty());
+        rings = focusRings();
+        assertEquals(1, rings.size(), "a cursor outside the selection still wears it: " + rings);
+        assertEquals(rootCell.y() + inset, rings.get(0).rect().y(), 0.01f);
+
+        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        press(Keys.DOWN); // onto docs
+        Widget docsCell = cellOf(tree, "docs");
+        rings = focusRings();
+        assertEquals(1, rings.size(), "in NONE the ring is the only mark the cursor has: " + rings);
+        assertEquals(docsCell.x() + inset, rings.get(0).rect().x(), 0.01f,
+                "and it moved with the cursor, one indent further in");
+        assertEquals(docsCell.y() + inset, rings.get(0).rect().y(), 0.01f);
+
+        scene.requestFocus(null);
+        assertTrue(focusRings().isEmpty(), "and it leaves with the keyboard");
+    }
+
+    /**
+     * Scrolled sideways past the start of a deep row, the ring closes on the part of the cell
+     * the viewport shows rather than running off the box with no edge on that side.
+     */
+    @Test
+    void aRingOnARowScrolledSidewaysClosesInsideTheViewport() {
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = openedChain(14, cells);
+        scene.requestFocus(tree);
+        press(Keys.DOWN); // onto level-1
+        for (int i = 0; i < 80; i++) {
+            wheelSideways(tree, -1);
+        }
+        Widget top = mounted(cells, "level-1");
+        List<RingCanvas.Ring> rings = focusRings();
+        assertTrue(top.x() < 0, "the root's cell starts left of the box: " + top.x());
+        assertEquals(1, rings.size(), rings.toString());
+        limn.graphics.RoundRect ring = rings.get(0).rect();
+        float inset = Strokes.FOCUS_RING_THIN;
+        assertEquals(inset, ring.x(), 0.01f, "it closes at the viewport's leading edge");
+        assertEquals(220 - inset, ring.x() + ring.width(), 0.01f, "and at its trailing edge");
     }
 
     /**
