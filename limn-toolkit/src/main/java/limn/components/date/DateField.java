@@ -209,6 +209,14 @@ public class DateField extends Widget {
     private int focusedSlot;
     /** How many digits have been typed into the focused segment since it was last entered. */
     private int typedDigits;
+    /**
+     * How many digits the year holds as typed, until the caret leaves it or something else
+     * writes it: what decides whether a year left behind was written with two digits (decision
+     * 57). Apart from {@link #typedDigits}, which a picker aiming at this field and the focus
+     * coming back both reset so the next digit starts the segment again: a year typed as "26"
+     * before an in-scene calendar opened stayed the year 26 when the field was left afterwards.
+     */
+    private int yearDigitsTyped;
 
     private LocalDate minDate;
     private LocalDate maxDate;
@@ -491,6 +499,7 @@ public class DateField extends Widget {
      */
     private void applyDate(LocalDate date) {
         valueRevision++;
+        yearDigitsTyped = 0; // a whole date written over what was typed
         if (!startsAtYear || date == null) {
             year = month = day = UNSET;
             dateValue = null;
@@ -1187,6 +1196,7 @@ public class DateField extends Widget {
             next = min + Math.floorMod(current - min + delta, span);
         }
         typedDigits = 0;
+        yearDigitsTyped = 0; // an arrow chose this year; nothing typed is left to resolve
         writeSegment(field, next, Change.Origin.USER);
     }
 
@@ -1285,6 +1295,9 @@ public class DateField extends Widget {
             typedDigits = 0;
         }
         typedDigits++;
+        if (field == DatePattern.Field.YEAR) {
+            yearDigitsTyped = typedDigits;
+        }
         int max = segmentMax(field);
         if (next > max) {
             next = max;
@@ -1321,7 +1334,10 @@ public class DateField extends Widget {
             return;
         }
         switch (part.field()) {
-            case YEAR -> year = UNSET;
+            case YEAR -> {
+                year = UNSET;
+                yearDigitsTyped = 0;
+            }
             case MONTH -> month = UNSET;
             case DAY -> day = UNSET;
             case HOUR12, HOUR24, DAY_PERIOD -> hour = UNSET;
@@ -1359,6 +1375,7 @@ public class DateField extends Widget {
         commitTypedYear();
         focusedSlot = next;
         typedDigits = 0;
+        yearDigitsTyped = 0;
         invalidate();
         if (!quiet) {
             notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
@@ -1424,6 +1441,21 @@ public class DateField extends Widget {
      */
     private boolean popupHoldsKeyboard() {
         return popupOpen != null && !keyboardActive && popupOpen.getAsBoolean();
+    }
+
+    /**
+     * Whether a verb on a segment can be performed right now: the field is enabled and is not
+     * beneath its picker's popup presented as an overlay of the scene, whose input gate refuses
+     * every verb on a widget under it (2026-09-15, semantics 5 and decision 30). The segments'
+     * {@code INCREMENT}, {@code DECREMENT} and {@code FOCUS}, and the {@code SET_VALUE} a
+     * writable value implies, are published only while this holds, because the platform is
+     * answered from the snapshot and a verb published where it is dropped reads as done. The
+     * overlay fact is the one {@code COLLAPSE} is gated on; a popup in a window of its own
+     * leaves the field operable.
+     */
+    private boolean segmentsOperable() {
+        return isEnabled() && !(popupOpen != null && popupOpen.getAsBoolean()
+                && !popupCloseReachable.getAsBoolean());
     }
 
     // ------------------------------------------------------------------ parsing a whole string
@@ -1617,6 +1649,7 @@ public class DateField extends Widget {
             }
         }
         valueRevision++;
+        yearDigitsTyped = 0; // a pasted year is resolved as it is read
         year = yearUnknown ? UNSET : y;
         month = m;
         day = d;
@@ -1768,12 +1801,25 @@ public class DateField extends Widget {
         }
         event.consume();
         requestFocus();
+        focusSegment(slotAt(sceneToLocalX(event.x())));
+    }
+
+    /**
+     * The caret into one segment, as a click on it puts it there: the field takes the focus
+     * unless a picker is already aiming here, a two-digit year the caret leaves resolves as it
+     * does for every other way out of the year (decision 57), and the move is announced. Used by
+     * the pointer and by a reader's {@code FOCUS} on the segment (decision 11, 2026-09-15).
+     */
+    private void focusSegment(int slot) {
+        if (!keyboardActive) {
+            requestFocus();
+        }
         typedRun.setLength(0);
-        int slot = slotAt(sceneToLocalX(event.x()));
         if (slot >= 0 && slot != focusedSlot) {
             commitTypedYear();
             focusedSlot = slot;
             typedDigits = 0;
+            yearDigitsTyped = 0;
             invalidate();
             notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
         }
@@ -1902,11 +1948,12 @@ public class DateField extends Widget {
      */
     private void commitTypedYear() {
         DatePattern.FieldPart part = focusedField();
-        if (part == null || part.field() != DatePattern.Field.YEAR || typedDigits == 0
-                || typedDigits > 2 || year == UNSET || year >= 100 || eraCalendar()) {
+        if (part == null || part.field() != DatePattern.Field.YEAR || yearDigitsTyped == 0
+                || yearDigitsTyped > 2 || year == UNSET || year >= 100 || eraCalendar()) {
             return;
         }
         int resolved = resolveTwoDigitYear(year);
+        yearDigitsTyped = 0;
         if (resolved == year) {
             return;
         }
@@ -2053,6 +2100,10 @@ public class DateField extends Widget {
         }
         float pad = t.fieldPadH();
         float x = isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
+        // Verbs only where they can be performed (2026-09-15, semantics 5 and decision 30): on a
+        // disabled field, or beneath an in-scene popup, a segment publishes its value read-only
+        // and no verb, as a refused calendar day does, since the scene would drop every one.
+        boolean operable = segmentsOperable();
         int slot = 0;
         for (DatePattern.Part part : parts) {
             float pieceWidth = pieceWidth(ruler, font, neutral, part);
@@ -2067,14 +2118,22 @@ public class DateField extends Widget {
                     // range stands, the number is absent, and the spoken text is a word rather
                     // than the dashes that are drawn -- "--" read aloud is nothing. It published
                     // its minimum as if typed until the facet could say empty.
-                    a.emptyValue(segmentMin(field.field()), segmentMax(field.field()), 1, false);
+                    a.emptyValue(segmentMin(field.field()), segmentMax(field.field()), 1,
+                            !operable);
                     a.valueText(DateStrings.SEGMENT_EMPTY.get(), valueRevision);
                 } else {
-                    a.value(value, segmentMin(field.field()), segmentMax(field.field()), 1);
+                    a.value(value, segmentMin(field.field()), segmentMax(field.field()), 1,
+                            !operable);
                     a.valueText(field.field() == DatePattern.Field.YEAR
                             ? yearSpoken(field) : segmentText(field), valueRevision);
                 }
-                a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+                // FOCUS puts the caret in this segment and changes no value (decision 11,
+                // 2026-09-15): the caret is the field's cursor, and which segment it is in is
+                // not a value, so a segment is an item whose cursor and value are apart.
+                if (operable) {
+                    a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT,
+                            Accessible.Action.FOCUS);
+                }
                 if (slot == focusedSlot && caretShown() && !popupHoldsKeyboard()) {
                     a.state(Accessible.State.ACTIVE);
                 }
@@ -2155,8 +2214,12 @@ public class DateField extends Widget {
     protected boolean onSyntheticAction(long key, Accessible.Action action,
                                         Accessible.Argument arg) {
         ensureParts();
-        if (key < 0 || key >= editable.length || !isEnabled()) {
+        if (key < 0 || key >= editable.length || !segmentsOperable()) {
             return false;
+        }
+        if (action == Accessible.Action.FOCUS) {
+            focusSegment((int) key);
+            return true;
         }
         int previous = focusedSlot;
         focusedSlot = (int) key;
@@ -2175,6 +2238,9 @@ public class DateField extends Widget {
                     }
                     int clamped = (int) Math.max(segmentMin(part.field()),
                             Math.min(segmentMax(part.field()), Math.rint(asked)));
+                    if (part.field() == DatePattern.Field.YEAR) {
+                        yearDigitsTyped = 0; // a number set, not digits typed
+                    }
                     writeSegment(part.field(), clamped, Change.Origin.USER);
                 }
                 default -> {

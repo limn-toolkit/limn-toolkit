@@ -229,7 +229,13 @@ a window around today by the widget's clock: 80 years back and 19 ahead by defau
 incomplete; a typed one stays what was typed — **corrected the same day:** a typed two-digit
 year left with the caret is blanked the same way, so a form that refuses to guess is never
 handed the year 26 as valid; the earlier reading applied the decision's "left blank" to pastes
-only). Four digits are what was meant, however small: a
+only; **corrected 2026-09-15:** "however the caret leaves it" did not yet hold — a year typed as
+two digits before an in-scene calendar was opened with Alt+Down lost its count of typed digits to
+the picker aiming at the field and to the focus coming back, so when the calendar closed and the
+field was left the year stayed 26 and valid, guess on or off; the field now counts the digits
+the year holds as typed apart from the segment's run, and resolves or blanks it on that leave
+too, pinned by `DatePickerTest.aTwoDigitYearTypedBeforeTheCalendarOpenedInTheSceneStillResolvesWhenTheFieldIsLeft`).
+Four digits are what was meant, however small: a
 year of 26 is held, and whether it is plausible is the application's bound (`setMinDate`). A
 digit run keeps its leading zero (`01022026`), a run longer than a date's or a month or day outside
 its range refuses the whole paste and leaves the value untouched, and no paste throws out of the
@@ -483,6 +489,40 @@ followed. Pinned by `DatePickerAccessibilityTest.theCaptionNamesTheFieldAndTheFi
 Cancel closes; and the overlay holds the focus with the cursor `ACTIVE` under it as the tree's
 effective focus, decision 1's in-scene half of item 10) and limn-demo's
 `DatePickerNativePopupTest` (the field takes `COLLAPSE` in a window of its own).
+
+**Amendment, 2026-09-15 (decision 11, its positive half): a cursor a reader can move.** In all
+three widgets the cursor and the value are two things — the calendar's cursor is not its
+selection, a chooser's cursor is not the month on show, and which segment holds a field's caret
+is not the date — so the items publish `FOCUS`, which moves the cursor and does nothing else. A
+**day** publishes it unless the bounds or the filter refuse it (a refused day carries no verb,
+decision 30), in every selection mode including `NONE`; performing it gives a standalone calendar
+the focus, moves the cursor onto the day as an arrow would (paging when the day belongs to the
+month before or after) and selects nothing, and inside an open picker it moves the grid's cursor
+and commits nothing into the field. A **chooser cell** that leads somewhere publishes it beside
+`SELECT` and moves the chooser's cursor without descending or, in the chooser a month or year
+picker picks in, picking. A **segment** publishes it beside `INCREMENT` and `DECREMENT`; performing
+it is a click on the segment: the field takes the focus, the caret moves there and no value moves
+(a two-digit year the caret leaves resolves, as it does for every other way out of the year,
+§3). Before this note no date item published the verb, and the platforms' SetFocus,
+`setAccessibilityFocused:` and GrabFocus on one had no candidate (semantics 5). Pinned by
+`CalendarViewAccessibilityTest.focusOnADayMovesTheCursorThereAndSelectsNothing` and
+`focusOnAChooserCellMovesItsCursorWithoutDescendingOrPicking`,
+`DateFieldAccessibilityTest.focusOnASegmentPutsTheCaretThereAndChangesNoValue` and
+`DatePickerAccessibilityTest.focusOnADayOfTheOpenCalendarMovesItsCursorAndCommitsNothing`.
+**Corrected the same day (semantics 5, decision 30's rule; phase-2 fix review):** a segment
+published its three verbs whatever the field's state, so on a disabled field, and on the field
+beneath its picker's calendar presented as an overlay of the scene, `INCREMENT`, `DECREMENT` and
+`FOCUS` were answered "accepted" from the snapshot and then dropped by the scene, which refuses
+every verb on a disabled widget and on one under the overlay (the fact `COLLAPSE` above is gated
+on). In both states a segment now publishes no verb and its value read-only, which withdraws the
+`SET_VALUE` a writable value implies; a popup in a window of its own leaves the segments operable.
+Two things this note does not settle: the field inside a disabled *container*, or beneath some
+other in-scene modal, still publishes them, as every widget there does (the rule is the model's
+and not this record's); and `FOCUS` out of a year typed as two digits resolves that year, or
+blanks it with the guess off (§3, decision 57), so it is the one case where the verb moves a value
+&mdash; the owner's to confirm against decision 11's "without committing". Pinned by
+`DateFieldAccessibilityTest.aDisabledFieldsSegmentsCarryNoVerbAndAReadOnlyValue` and
+`DatePickerAccessibilityTest.theFieldsSegmentsCarryNoVerbBeneathTheCalendarOverlay`.
 
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and

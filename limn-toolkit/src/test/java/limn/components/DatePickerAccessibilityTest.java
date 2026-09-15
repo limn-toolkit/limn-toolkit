@@ -6,12 +6,16 @@ import limn.components.date.DatePicker;
 import limn.i18n.I18n;
 import limn.scene.layout.Column;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.logging.Handler;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -54,9 +58,56 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         bind(root);
     }
 
+    /** Every record the walk logged while a test ran; see {@link #thePickerIsNeverNamedInTheLog}. */
+    private final List<LogRecord> logged = new ArrayList<>();
+
+    private final Handler capture = new Handler() {
+        @Override
+        public void publish(LogRecord record) {
+            logged.add(record);
+        }
+
+        @Override
+        public void flush() {
+        }
+
+        @Override
+        public void close() {
+        }
+    };
+
+    private Logger walkLogger;
+
+    @BeforeEach
+    void captureTheWalksLog() {
+        walkLogger = Logger.getLogger("limn.scene.AccessibleWalk");
+        walkLogger.addHandler(capture);
+    }
+
     @AfterEach
     void resetLocale() {
         I18n.setLocale(Locale.US);
+    }
+
+    /**
+     * A single picker is no node (decision 55) and paints its box, so the walk's
+     * paints-and-says-nothing guard named {@code DatePicker} in an application's log and advised
+     * a name, which would undo the decision. Checked after every case, as {@code TabbedPane}'s
+     * test does, because the walk names a class once per virtual machine: whichever case here
+     * binds a single picker first is the one that catches a lost {@code paintsDecoration}.
+     */
+    @AfterEach
+    void thePickerIsNeverNamedInTheLog() {
+        walkLogger.removeHandler(capture);
+        List<String> aboutThePicker = new ArrayList<>();
+        for (LogRecord record : logged) {
+            if (record.getParameters() != null && record.getParameters().length > 0
+                    && DatePicker.class.getName().equals(record.getParameters()[0])) {
+                aboutThePicker.add(record.getMessage());
+            }
+        }
+        assertTrue(aboutThePicker.isEmpty(),
+                "the toolkit's picker is named in an application's log: " + aboutThePicker);
     }
 
     private List<AccessibleNode> nodesOf(Accessible.Role role) {
@@ -157,5 +208,71 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
             assertTrue(end.has(Accessible.State.HAS_POPUP), end.name());
             assertTrue(offers(end, Accessible.Action.EXPAND), end.name());
         }
+    }
+
+    /**
+     * Decision 11's positive half inside an open picker: {@code FOCUS} on a day of the calendar
+     * moves its cursor and commits nothing -- the popup stays open, the field keeps its date and
+     * the cursor is the tree's effective focus under the overlay. {@code SELECT} is the pick.
+     */
+    @Test
+    void focusOnADayOfTheOpenCalendarMovesItsCursorAndCommitsNothing() throws InterruptedException {
+        bindCaptioned(new DatePicker(), "Data de entrega");
+        List<LocalDate> picked = new ArrayList<>();
+        picker.onSelect(picked::add);
+        picker.open();
+        frame();
+        AccessibleNode twelfth = nodesOf(Accessible.Role.CELL).stream()
+                .filter(cell -> cell.name().startsWith("12 de setembro")).findFirst()
+                .orElseThrow(() -> new AssertionError(describe(tree())));
+        assertTrue(offers(twelfth, Accessible.Action.FOCUS), describe(tree()));
+        assertTrue(perform(twelfth.id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        assertTrue(picker.isOpen(), "FOCUS commits nothing, so the calendar stays open");
+        assertEquals(LocalDate.of(2026, 9, 9), picker.date(), "and the field keeps its date");
+        assertTrue(picked.isEmpty());
+        frame();
+        long cursor = tree().effectiveFocus();
+        AccessibleNode at = tree().node(tree().indexOf(cursor));
+        assertTrue(at.name().startsWith("12 de setembro"),
+                "the cursor is the 12th, and it is the effective focus: " + describe(tree()));
+    }
+
+    /**
+     * Semantics 5 beneath the overlay (2026-09-15): while the calendar is an overlay of the
+     * scene, the scene refuses every verb on the field under it, which is why the field drops
+     * {@code COLLAPSE} there; its segments drop theirs for the same reason -- no step, no
+     * {@code FOCUS}, a read-only value -- and get them back when the calendar closes.
+     */
+    @Test
+    void theFieldsSegmentsCarryNoVerbBeneathTheCalendarOverlay() throws InterruptedException {
+        bindCaptioned(new DatePicker(), "Data de entrega");
+        AccessibleNode field = nodesOf(Accessible.Role.GROUP).get(0);
+        AccessibleNode month = childrenOf(field).get(1);
+        assertTrue(offers(month, Accessible.Action.FOCUS), "closed, the segment is operable "
+                + describe(tree()));
+        picker.open();
+        frame();
+        field = nodesOf(Accessible.Role.GROUP).stream()
+                .filter(group -> group.name().equals("Data de entrega")).findFirst().orElseThrow();
+        List<AccessibleNode> segments = childrenOf(field);
+        assertEquals(3, segments.size(), describe(tree()));
+        for (AccessibleNode segment : segments) {
+            for (Accessible.Action verb : List.of(Accessible.Action.INCREMENT,
+                    Accessible.Action.DECREMENT, Accessible.Action.FOCUS)) {
+                assertFalse(offers(segment, verb),
+                        "beneath the overlay a segment carries no " + verb + ": " + describe(tree()));
+            }
+            assertTrue(segment.value().readOnly(), "nor a writable value: " + describe(tree()));
+        }
+        int caret = picker.field().focusedSegment();
+        perform(segments.get(1).id(), Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        assertEquals(caret, picker.field().focusedSegment(), "which the scene would have dropped");
+
+        picker.close();
+        frame();
+        field = nodesOf(Accessible.Role.GROUP).get(0);
+        assertTrue(offers(childrenOf(field).get(1), Accessible.Action.FOCUS),
+                "closed again, the verbs are back " + describe(tree()));
+        assertFalse(childrenOf(field).get(1).value().readOnly());
     }
 }

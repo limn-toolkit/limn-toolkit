@@ -1213,6 +1213,22 @@ public class DatePicker extends Widget {
     // ------------------------------------------------------------------ accessibility
 
     /**
+     * The box, the focus ring and a period's dash are the chrome around the fields and the
+     * button, which say everything a reader needs. A single picker is no node since decision 55,
+     * so the walk's paints-and-says-nothing guard named this class in every application's log
+     * and recommended {@code setAccessibleName} &mdash; the one call that would make the group a
+     * node again and leave the field nameless &mdash; or {@code setAccessibleIgnored}, which
+     * would take the field and the button out with it. The {@code TabbedPane} and
+     * {@code BackdropPanel} case; a range picker keeps its group and is never asked.
+     *
+     * @return {@code true}; what this widget draws frames its children
+     */
+    @Override
+    protected boolean paintsDecoration() {
+        return true;
+    }
+
+    /**
      * What the composite says of itself (decisions 18 and 55, 2026-09-14): a single picker says
      * <b>nothing</b> and is no node &mdash; its field is the picker a reader meets, carries the
      * label bound to the picker, the popup state and the verbs that open and close it &mdash;

@@ -28,8 +28,10 @@ import java.util.Set;
  * its own with week numbers, bounds, a filter and marks.
  *
  * <p>Every date here is fixed rather than taken from the clock, so two runs and two captures show
- * the same month. The one exception is deliberate: nothing marks today, because a capture taken on
- * a different day would move the ring and the gallery would churn.
+ * the same month. Today is the one fact the widgets read from a clock, and the calendar rings it
+ * when it falls in the month on show: run by hand that is the machine's today, and a
+ * {@code --screenshot} capture pins it to the documentation day (2026-09-09, see
+ * {@link #pinForCapture}) so a render taken on another day rings the same cell.
  */
 final class DatesScene {
 
@@ -103,6 +105,45 @@ final class DatesScene {
         Scene scene = new Scene(new Padding(Insets.all(20), column));
         scene.setBackground(Theme.current().background);
         return new Built(scene, picker, null);
+    }
+
+    /**
+     * A capture's today is the documentation day (2026-09-09, {@link DocumentationDay}), so a
+     * render taken on another day, or in another time zone, draws the
+     * today ring on the same cell and a reviewer compares pixels and not calendars. Only for a
+     * capture: the demo run by hand keeps the machine's today.
+     */
+    static void pinForCapture(boolean screenshot, Scene scene) {
+        if (screenshot) {
+            DocumentationDay.pin(scene.root());
+        }
+    }
+
+    /**
+     * {@code --scene dates-era} (and {@code -light}): a year of an era drawn at its own width
+     * (settled era-year-width, 2026-09-14), "R8" and not "R0008", in the Japanese calendar as the
+     * Japanese language writes it and as an English form that chose the calendar writes it.
+     */
+    static Scene era(boolean light) {
+        Theme.setCurrent(light ? Theme.light() : Theme.dark());
+        Column column = new Column();
+        column.gap(14).crossAlignment(Flex.CrossAlignment.START);
+        DateField japanese = new DateField();
+        japanese.setLocale(java.util.Locale.forLanguageTag("ja-JP-u-ca-japanese"));
+        japanese.setDate(ANCHOR);
+        column.add(Labelled.above("ja-JP, Japanese calendar: 9 September 2026", japanese));
+        DateField chosen = new DateField();
+        chosen.setChronology(java.time.chrono.JapaneseChronology.INSTANCE);
+        chosen.setDate(ANCHOR);
+        column.add(Labelled.above("English, Japanese calendar chosen: 9 September 2026", chosen));
+        DatePicker picker = new DatePicker();
+        picker.setLocale(java.util.Locale.forLanguageTag("ja-JP-u-ca-japanese"));
+        picker.setDate(LocalDate.of(2019, 5, 1));
+        picker.setDisplayMode(DisplayMode.IN_SCENE);
+        column.add(Labelled.above("ja-JP picker: 1 May 2019, the first day of Reiwa", picker));
+        Scene scene = new Scene(new Padding(Insets.all(20), column));
+        scene.setBackground(Theme.current().background);
+        return scene;
     }
 
     /** The same, with the picker handed back for the popup capture. */
