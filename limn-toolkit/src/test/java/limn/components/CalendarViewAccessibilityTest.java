@@ -649,6 +649,10 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
      * coincided -- and a Windows element built for the month cell, which carries no selection
      * item, answered no SelectionItem for the day it later stood for. The chooser's rows and
      * cells now have keys of their own, and a view change destroys one set and mints the other.
+     *
+     * <p>The months and the years have keys apart from each other too: in a month picker the
+     * months are the terminal chooser and carry a selection item, the years a person climbs to
+     * carry none, and one shared chooser range made every month cell the year cell it replaced.
      */
     @Test
     void dayAndChooserCellsAreDifferentNodes() {
@@ -686,6 +690,37 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         }
         assertEquals(6 + 24, years.size());
         assertTrue(java.util.Collections.disjoint(days, years));
+        assertTrue(java.util.Collections.disjoint(months, years),
+                "a year cell is never the node a month cell was");
+
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        calendar.setView(CalendarView.View.YEARS);
+        frame();
+        java.util.Set<Long> climbed = chooserNodeIds(false);
+        calendar.setView(CalendarView.View.MONTHS);
+        frame();
+        java.util.Set<Long> picked = chooserNodeIds(true);
+        assertEquals(6 + 24, climbed.size());
+        assertEquals(3 + 12, picked.size());
+        assertTrue(java.util.Collections.disjoint(climbed, picked),
+                "in a month picker the months, which carry a selection item, are never the"
+                        + " year nodes, which carry none: " + describe(tree()));
+    }
+
+    /**
+     * The ids of the rows and cells on show, each cell checked for whether it carries a
+     * selection item: the interface set a Windows element is built with on first read.
+     */
+    private java.util.Set<Long> chooserNodeIds(boolean selectable) {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        for (AccessibleNode row : rowNodes()) {
+            ids.add(row.id());
+            for (AccessibleNode cell : childrenOf(row)) {
+                ids.add(cell.id());
+                assertEquals(selectable, cell.selectionItem() != null, cell.name());
+            }
+        }
+        return ids;
     }
 
     /**

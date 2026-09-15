@@ -423,6 +423,11 @@ chooser's rows and cells are keyed in a range of their own rather than the day g
 an identity, so a month cell keyed like a day cell *was* that node across a view change, and a
 Windows element built for it while it carried no selection item answered no `SelectionItem` for
 the day it later stood for; a view change now destroys one set of nodes and mints the other.
+(Corrected the same day, DT2's second half: the first cut gave the months and the years one
+chooser range between them, so in a month picker — whose months carry a selection item and whose
+years do not — the climb to the years and back kept the defect one level up; the month chooser
+and the year chooser now have ranges of their own, and the sentence before holds between all
+three views.)
 Pinned by `CalendarViewAccessibilityTest.theChooserNamesTheCellOnShowAndAMonthPickerSaysItWithASelectionInstead`,
 `thePagingButtonsSayWhatTheyPageInEveryView` and `dayAndChooserCellsAreDifferentNodes`.
 

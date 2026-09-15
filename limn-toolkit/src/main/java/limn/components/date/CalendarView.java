@@ -145,6 +145,11 @@ public class CalendarView extends Widget {
      * client first read it &mdash; a cell first read in the month chooser, where it carries no
      * selection item, answered no SelectionItem for the day it later stood for. Disjoint keys
      * make a view change destroy the one set of nodes and mint the other.
+     *
+     * <p>The months and the years are apart from each other as well, not only from the days
+     * (DT2's second half, 2026-09-14): in a month picker the months carry a selection item and
+     * the years a person climbs to do not, so a shared chooser range kept the same defect one
+     * level up.
      */
     private static final long KEY_PREVIOUS = -1;
     private static final long KEY_NEXT = -2;
@@ -157,10 +162,14 @@ public class CalendarView extends Widget {
     private static final long KEY_ROW_BASE = -100;
     /** One per week-number cell. */
     private static final long KEY_WEEK_BASE = -200;
-    /** One per chooser row: three of months, six of years. */
-    private static final long KEY_CHOOSER_ROW_BASE = -300;
-    /** One per chooser cell, twelve or twenty-four, decoded in {@link #onSyntheticAction}. */
-    private static final long KEY_CHOOSER_BASE = -1000;
+    /** One per row of the month chooser: three. */
+    private static final long KEY_MONTH_ROW_BASE = -300;
+    /** One per row of the year chooser: six. */
+    private static final long KEY_YEAR_ROW_BASE = -400;
+    /** One per month cell, twelve, decoded in {@link #onSyntheticAction}. */
+    private static final long KEY_MONTH_BASE = -1000;
+    /** One per year cell, twenty-four, decoded in {@link #onSyntheticAction}. */
+    private static final long KEY_YEAR_BASE = -2000;
 
     /**
      * Which part of the calendar the keyboard is on.
@@ -2662,9 +2671,11 @@ public class CalendarView extends Widget {
         int columns = columns();
         boolean terminal = terminalChooser() && selectionMode != SelectionMode.NONE;
         int count = Math.min(chooserText.length, cellCount());
+        long rowBase = view == View.MONTHS ? KEY_MONTH_ROW_BASE : KEY_YEAR_ROW_BASE;
+        long cellBase = chooserKeyBase();
         for (int row = 0; row < rows(); row++) {
             float top = gridY + row * cellH;
-            a.child(KEY_CHOOSER_ROW_BASE - row);
+            a.child(rowBase - row);
             a.bounds(0, top, width(), cellH);
             a.role(Accessible.Role.ROW);
             for (int column = 0; column < columns; column++) {
@@ -2672,7 +2683,7 @@ public class CalendarView extends Widget {
                 if (index >= chooserText.length) {
                     break;
                 }
-                a.child(KEY_CHOOSER_BASE - index);
+                a.child(cellBase - index);
                 a.bounds(cellLeft(column, rtl), top, cellW, cellH);
                 a.role(Accessible.Role.CELL);
                 a.name(chooserName[index], textEpoch, Accessible.NameFrom.CONTENT);
@@ -2695,6 +2706,11 @@ public class CalendarView extends Widget {
             }
             a.endChild();
         }
+    }
+
+    /** Where the cells of the chooser on show are keyed: the months' range or the years'. */
+    private long chooserKeyBase() {
+        return view == View.MONTHS ? KEY_MONTH_BASE : KEY_YEAR_BASE;
     }
 
     /**
@@ -2796,8 +2812,9 @@ public class CalendarView extends Widget {
             }
         }
         if (view != View.DAYS) {
-            long index = KEY_CHOOSER_BASE - key;
-            if (key > KEY_CHOOSER_BASE || index >= chooserText.length
+            long base = chooserKeyBase();
+            long index = base - key;
+            if (key > base || index >= chooserText.length
                     || action != Accessible.Action.SELECT) {
                 return false;
             }
