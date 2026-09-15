@@ -2344,6 +2344,17 @@ Whenever the reader or the writer stops without the connection having been close
 closes itself and tells its owner once (`DBus.Conn.onLost`); the application lets that join go and
 asks every window for a publish, which joins again under the back-off of §3.3's amendment.
 
+#### Amendment 2026-09-15 — the event rows of this table
+
+Two rows above said more than the code sent, and the events item of the Linux lane changed what they
+describe; §2.4's amendment of this date carries the shapes and their readings. **`Cache.AddAccessible`,
+`RemoveAccessible`** are sent from the tail's `STRUCTURE_CHANGED`, per child, after the parent's
+`ChildrenChanged` (`AddAccessible` for an arrival, `RemoveAccessible` for a child that left the tree);
+`NODE_DESTROYED` sends `StateChanged defunct` from the node's own path instead. **The `Event.Object`
+row's note is false**: `Event.Focus.Focus` is not emitted beside `StateChanged`, and Orca 50.2 does not
+listen for it (its `Script.get_listeners` registers no `focus:` event). `Announcement` is now sent;
+until this date it was not.
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |
@@ -4250,6 +4261,13 @@ that shipped, while a script anyone can re-run says everything.
 | macOS guest | `scripts/a11y/macos/`: `guest-build.sh` and `guest-probe.sh` bring the rendered probe up in the console session, `guest-steps.sh` drives a sequence of walks and mutations against one live provider, and `guest-voiceover.sh` photographs VoiceOver's caption panel on a timer and stacks the distinct phrases into one strip. The clients are `axtree` (walk, hit-test, follow relations), `axlife` (destroy an element under a client that holds it) and `dump-appkit-constants.swift` (§12.3). `vocap` exists because `screencapture` raises a consent dialog on every invocation and a dialog takes the foreground, which is what a reader announces — **the measurement destroying what it measures, which is the shape to watch for on every one of these guests** | the four scripts already pass against the spike's one-element provider; against the real bridge they must pass against a *tree*: find by name through `AXTitle` **or** `AXDescription`, `AXPress` arriving back in Java on the main thread, hit test through several nested levels, notifications to a real `AXObserver` (with focus observed only at application level), and the loop-mode sweep. Three assertions are new and are the ones this round's fixes created: **an overlay opening while a client is attached is visible to it**, which is the re-push of §2.2; a destroyed element is released and a stale message to it fails rather than crashing; and a scene rebound over the same window leaves no element alive. `unprivileged.sh` runs every one of them as an ordinary user, because root is accessibility-trusted and the lab's `sudo` would otherwise be doing the work. What only VoiceOver can settle is the attributes a purpose-built client never asks for |
 | Ubuntu GNOME, X11 and Wayland | `scripts/a11y/linux/walk-the-probe.py` through `libatspi`'s own typelib — so a tree it walks is a tree Orca sees — and a talking Orca read through `--debug-file`. `-Dlimn.a11y.linux.trace=true` logs every inbound call, which is what turned "the desktop will not list us" from a silence into a question | tree walk, find by name, `DoAction`, `Cache.GetItems` in one round trip, extents in both coordinate types, one application object with one child per window |
 | Fedora KDE, X11 and Wayland | the same | **run 2026-09-06, and it did not behave the same.** Its at-spi2-core 2.60 reads an application as it registers and refuses to list one that answers "no children", which found a registration-order defect this bridge had had since it was written (§13.15). With that fixed, a client walks the tree and Orca speaks names, roles and states. What is still open is the rendered probe on a **Wayland surface**, below |
+
+*(Amended 2026-09-15: the event shapes have a client of their own on both Linux guests.
+`scripts/a11y/linux/events-check.py` prints every event a named application sends as libatspi hands
+it over — detail1, detail2, source and `any_data` — and a source's cached children after a
+`children-changed`; `EventShapesProbe` (backend test sources) drives each shape through a real
+difference with no window. Run on Fedora KDE 44 and Ubuntu 24.04 the same day, identical on both, no
+signal refused. What it does not replace is a talking Orca, which is phase 5's.)*
 
 **One of these can plausibly move into CI, and it is worth trying.** The Linux bridge is pure Java and
 pure D-Bus, and the Ubuntu runner can install `at-spi2-core` and run the whole probe under
