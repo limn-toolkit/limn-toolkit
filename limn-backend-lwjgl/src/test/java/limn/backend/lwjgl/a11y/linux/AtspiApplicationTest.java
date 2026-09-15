@@ -37,9 +37,12 @@ class AtspiApplicationTest {
         boolean closed;
         final List<DBus.Msg> signals = new ArrayList<>();
 
+        Runnable lost;
+
         @Override
-        public AtspiApplication.Link join(AtspiTree objects) {
+        public AtspiApplication.Link join(AtspiTree objects, Runnable whenLost) {
             joins++;
+            lost = whenLost;
             objects.busName(BUS);
             return new AtspiApplication.Link() {
                 @Override public boolean signal(DBus.Msg signal) {
@@ -228,6 +231,37 @@ class AtspiApplicationTest {
         assertTrue(bus.closed, "the last window takes the connection with it, so the next window "
                 + "registers with a tree rather than into an application already read as empty");
         assertFalse(app.isJoined());
+    }
+
+    @Test
+    void aConnectionThatStopsOnItsOwnIsLetGoAndEveryWindowIsAskedToPublishAgain() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        AtspiBridge main = app.window();
+        AtspiBridge popup = app.window();
+        int[] republishes = {0};
+        AccessibilityBridge.Host host = new AccessibilityBridge.Host() {
+            @Override public void requestRepublish() { republishes[0]++; }
+            @Override public void requestRestamp() { }
+            @Override public AccessibleTree republishNow() { return AccessibleTree.EMPTY; }
+            @Override public boolean perform(long nodeId, Accessible.Action action,
+                                             Accessible.Argument arg) { return false; }
+        };
+        main.attach(host);
+        popup.attach(host);
+        main.publish(aWindow("Main", 0).tree(), false);
+        popup.publish(aWindow("Calendar", 0).tree(), false);
+        assertTrue(app.isJoined());
+
+        bus.lost.run();
+        assertFalse(app.isJoined(), "a connection whose reader has stopped is not a connection: "
+                + "believing it still embedded is the deaf application nobody can see");
+        assertTrue(bus.closed);
+        assertEquals(2, republishes[0], "each window buys the frame that joins again");
+
+        main.publish(aWindow("Main", 0).tree(), false);
+        assertEquals(2, bus.joins, "and the next publish joins again");
+        assertTrue(app.isJoined());
     }
 
     private static void assertFrameSignal(DBus.Msg signal, String detail, int index, long frame) {

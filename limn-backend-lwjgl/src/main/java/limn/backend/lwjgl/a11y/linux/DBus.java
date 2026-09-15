@@ -29,10 +29,12 @@ import limn.concurrent.Threads;
  * Java 17 API only: java.nio.channels.SocketChannel + java.net.UnixDomainSocketAddress
  * (both JDK 16+). No FFM/Panama, no AWT, no third-party jar, no native code at all.
  *
- * Deliberate limitations (this is a spike, not the shipped bridge):
+ * Deliberate limitations:
  *  - little-endian on the wire when writing (we read either endianness);
- *  - no UNIX fd passing (java.nio cannot do SCM_RIGHTS; we NEGOTIATE_UNIX_FD only to see the
- *    answer, and never send or accept an fd);
+ *  - no UNIX fd passing, and it is never negotiated: java.nio cannot do SCM_RIGHTS, and a connection
+ *    that agreed to NEGOTIATE_UNIX_FD is one a peer may send a descriptor-carrying message to,
+ *    which this reader could not even parse (ADR 039 §2.3). Unnegotiated, the bus refuses to route
+ *    such a message here; the type 'h' is neither read nor written;
  *  - no abstract-socket transport (java.net.UnixDomainSocketAddress is filesystem-path only);
  *  - method-call handlers run on the single reader thread, so a handler must not make a
  *    blocking call on the same connection.
@@ -122,7 +124,7 @@ final class DBus {
             case 'y': case 'g': case 'v': return 1;
             case 'n': case 'q': return 2;
             case 'b': case 'i': case 'u': case 's': case 'o': case 'a': return 4;
-            case 'x': case 't': case 'd': case '(': case '{': case 'r': case 'e': case 'h': return 8;
+            case 'x': case 't': case 'd': case '(': case '{': case 'r': case 'e': return 8;
             default: throw new IllegalArgumentException("bad type char '" + c + "'");
         }
     }
@@ -359,6 +361,9 @@ final class DBus {
             if (errorName != null)   fields.add(new Object[] { F_ERROR_NAME, v("s", errorName) });
             if (type == METHOD_RETURN || type == ERROR) fields.add(new Object[] { F_REPLY_SERIAL, v("u", replySerial) });
             if (destination != null) fields.add(new Object[] { F_DESTINATION, v("s", destination) });
+            // The bus writes SENDER on everything it routes and ignores one a client wrote; set only
+            // by a test standing in for the bus.
+            if (sender != null)      fields.add(new Object[] { F_SENDER, v("s", sender) });
             if (signature != null)   fields.add(new Object[] { F_SIGNATURE, v("g", signature) });
             write(w, "a(yv)", fields);     // starts at offset 12: 4-aligned, contents land on 16
 
@@ -371,8 +376,24 @@ final class DBus {
             return raw;
         }
 
-        @SuppressWarnings("unchecked")
         static Msg parse(byte[] full) {
+            Msg m = parseHeader(full);
+            ByteOrder order = full[0] == 'B' ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
+            m.body = readArgs(m.rawBody, order, m.signature);
+            m.rawBody = null;
+            return m;
+        }
+
+        /** The body's bytes between {@link #parseHeader} and the body's own parse. */
+        private byte[] rawBody;
+
+        /**
+         * The fixed header and the header fields, leaving the body unread: what is still knowable
+         * about a message whose body cannot be parsed — its type, flags, serial and sender, which is
+         * everything an error reply to it needs.
+         */
+        @SuppressWarnings("unchecked")
+        static Msg parseHeader(byte[] full) {
             ByteOrder order = full[0] == 'B' ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
             ByteBuffer b = ByteBuffer.wrap(full).order(order);
             Reader r = new Reader(b);
@@ -404,7 +425,7 @@ final class DBus {
             r.align(8);
             byte[] body = new byte[bodyLen];
             b.get(body);
-            m.body = readArgs(body, order, m.signature);
+            m.rawBody = body;
             return m;
         }
 
@@ -487,7 +508,6 @@ final class DBus {
         private final Map<Integer, ArrayBlockingQueue<Msg>> pending = new ConcurrentHashMap<>();
         private final Map<String, Handler> exports = new ConcurrentHashMap<>();
         public volatile String uniqueName;
-        public volatile boolean negotiatedUnixFd;
         public volatile String saslGuid;
         private volatile boolean running = true;
         private Thread readerThread;
@@ -572,46 +592,68 @@ final class DBus {
             }
         }
 
-        /** SASL: NUL, AUTH EXTERNAL <hex uid>, OK <guid>, NEGOTIATE_UNIX_FD, BEGIN. */
+        /**
+         * The SASL commands this client sends after its leading NUL, in order: one that expects an
+         * answer ({@code AUTH EXTERNAL}) and one that ends the handshake ({@code BEGIN}).
+         *
+         * <p>There is no {@code NEGOTIATE_UNIX_FD} and there must never be one. The spike sent it
+         * "only to see the answer"; both buses answer {@code AGREE_UNIX_FD}, and an agreed connection
+         * is one the bus will route a descriptor-carrying message to — a type this reader cannot
+         * parse, arriving as ancillary data {@code java.nio} cannot receive (LINUX-NEW-13).
+         *
+         * @param uid the numeric user id, as text
+         * @return the command lines, without their CRLF
+         */
+        static List<String> saslCommands(String uid) {
+            return List.of("AUTH EXTERNAL " + hex(uid.getBytes(StandardCharsets.US_ASCII)), "BEGIN");
+        }
+
+        /** SASL: NUL, AUTH EXTERNAL <hex uid>, OK <guid>, BEGIN. */
         private void auth() throws IOException {
             rawWrite(new byte[] { 0 });
-            String u = uid();
-            String hexUid = hex(u.getBytes(StandardCharsets.US_ASCII));
-            rawWrite(("AUTH EXTERNAL " + hexUid + "\r\n").getBytes(StandardCharsets.US_ASCII));
+            List<String> commands = saslCommands(uid());
+            rawWrite((commands.get(0) + "\r\n").getBytes(StandardCharsets.US_ASCII));
             String line = readLine();
             if (TRACE) System.err.println("[sasl] <- " + line);
             if (line.startsWith("REJECTED")) throw new IOException("SASL EXTERNAL rejected: " + line);
             if (!line.startsWith("OK ")) throw new IOException("unexpected SASL reply: " + line);
             saslGuid = line.substring(3).trim();
-
-            rawWrite("NEGOTIATE_UNIX_FD\r\n".getBytes(StandardCharsets.US_ASCII));
-            String fdLine = readLine();
-            if (TRACE) System.err.println("[sasl] <- " + fdLine);
-            negotiatedUnixFd = fdLine.startsWith("AGREE_UNIX_FD");
-
-            rawWrite("BEGIN\r\n".getBytes(StandardCharsets.US_ASCII));
+            rawWrite((commands.get(1) + "\r\n").getBytes(StandardCharsets.US_ASCII));
         }
 
         private void readFully(ByteBuffer bb) throws IOException {
             while (bb.hasRemaining()) if (ch.read(bb) < 0) throw new IOException("EOF on D-Bus socket");
         }
 
-        /** Read one whole message: 16 fixed bytes give body length and header-array length. */
-        private Msg receive() throws IOException {
+        /** The largest message the specification allows: 2^27 bytes. */
+        static final int MAX_MESSAGE = 1 << 27;
+
+        /**
+         * Read one whole message's bytes: 16 fixed bytes give the body length and the header-array
+         * length. Nothing here parses what the message says, so a message this client cannot
+         * understand still leaves the stream at the next one.
+         *
+         * @throws IOException at the end of the stream, or when the lengths cannot be a message, in
+         *                     which case nothing after it can be found either
+         */
+        private byte[] receiveFrame() throws IOException {
             ByteBuffer head = ByteBuffer.allocate(16);
             readFully(head);
             head.flip();
             head.order(head.get(0) == 'B' ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
-            int bodyLen = head.getInt(4);
-            int fieldsLen = head.getInt(12);
-            int padded = (fieldsLen + 7) & ~7;
-            byte[] full = new byte[16 + padded + bodyLen];
+            long bodyLen = head.getInt(4) & 0xffffffffL;
+            long fieldsLen = head.getInt(12) & 0xffffffffL;
+            long padded = (fieldsLen + 7) & ~7L;
+            long total = 16 + padded + bodyLen;
+            if (total > MAX_MESSAGE) {
+                throw new IOException("a " + total + "-byte message is not one D-Bus allows; the "
+                        + "stream cannot be followed past it");
+            }
+            byte[] full = new byte[(int) total];
             System.arraycopy(head.array(), 0, full, 0, 16);
             ByteBuffer rest = ByteBuffer.wrap(full, 16, full.length - 16);
             readFully(rest);
-            Msg m = Msg.parse(full);
-            if (TRACE) System.err.println("[<-] " + m);
-            return m;
+            return full;
         }
 
         /** Everything waiting to be written, and the policy that decides what may wait. */
@@ -663,10 +705,53 @@ final class DBus {
                     rawWrite(b);
                 } catch (IOException e) {
                     if (running) System.err.println("[conn] write failed: " + e);
+                    lost();
                     return;
                 } finally {
                     outbound.written();
                 }
+            }
+        }
+
+        private final Object lostLock = new Object();
+        private Runnable onLost;
+        private boolean lostUnheard;
+        private boolean lostOnce;
+
+        /**
+         * What to run, once, when this connection stops working without having been closed: its
+         * reader reached the end of the stream or stopped, or its writer could not write. A
+         * connection whose reader has stopped answers nobody, and one whose writer has stopped
+         * answers into nothing; the owner has to stop treating it as a connection.
+         *
+         * @param whenLost run on the thread that noticed; must not block
+         */
+        void onLost(Runnable whenLost) {
+            boolean already;
+            synchronized (lostLock) {
+                onLost = whenLost;
+                already = lostUnheard;
+                lostUnheard = false;
+            }
+            if (already) {
+                // Lost before anyone was listening for it.
+                whenLost.run();
+            }
+        }
+
+        private void lost() {
+            Runnable whenLost;
+            synchronized (lostLock) {
+                if (!running || lostOnce) {
+                    return;
+                }
+                lostOnce = true;
+                whenLost = onLost;
+                lostUnheard = whenLost == null;
+            }
+            close();
+            if (whenLost != null) {
+                whenLost.run();
             }
         }
 
@@ -730,21 +815,80 @@ final class DBus {
         /** The thread that performs every write. */
         Thread writerThread() { return writerThread; }
 
-        /** Pump messages until closed. Replies go to waiters; calls go to exported handlers. */
+        /**
+         * Pump messages until closed. Replies go to waiters; calls go to exported handlers.
+         *
+         * <p><b>Nothing a peer sends may end this loop except the end of the stream.</b> It used to
+         * guard only the read: a message whose body did not parse — a type this client does not
+         * speak, a header variant it did not expect — threw out of the loop, the reader thread died,
+         * and the connection stayed open and embedded with no one answering it, which is exactly
+         * what at-spi2-core 2.60 hides from the desktop (LINUX-NEW-13). An unparsable message is
+         * logged and, when it was a method call whose header could be read, refused with an error
+         * reply; the loop goes on to the next message.
+         */
         void loop() {
-            while (running) {
-                Msg m;
-                try {
-                    m = receive();
-                } catch (IOException e) {
-                    if (running) System.err.println("[conn] read failed: " + e);
-                    return;
+            try {
+                while (running) {
+                    byte[] frame;
+                    try {
+                        frame = receiveFrame();
+                    } catch (IOException e) {
+                        if (running) System.err.println("[conn] read failed: " + e);
+                        return;
+                    }
+                    Inbound in = Inbound.of(frame);
+                    if (in.message() == null) {
+                        System.err.println("[conn] unparsable message dropped: " + in.failure());
+                        if (in.refusal() != null) {
+                            try {
+                                send(in.refusal());
+                            } catch (IOException | RuntimeException e) {
+                                System.err.println("[conn] could not refuse it: " + e);
+                            }
+                        }
+                        continue;
+                    }
+                    if (TRACE) System.err.println("[<-] " + in.message());
+                    try {
+                        dispatch(in.message());
+                    } catch (Exception e) {
+                        System.err.println("[conn] dispatch failed for " + in.message() + ": " + e);
+                        e.printStackTrace();
+                    }
                 }
+            } catch (RuntimeException e) {
+                if (running) System.err.println("[conn] reader stopped: " + e);
+            } finally {
+                lost();
+            }
+        }
+
+        /**
+         * One message as it came off the wire: parsed, or not, with the error reply an unparsable
+         * method call is owed.
+         *
+         * @param message the message, or null when it could not be parsed
+         * @param refusal the error reply to send for an unparsable method call that expects one, or
+         *                null
+         * @param failure why it could not be parsed, or null
+         */
+        record Inbound(Msg message, Msg refusal, RuntimeException failure) {
+            static Inbound of(byte[] frame) {
                 try {
-                    dispatch(m);
-                } catch (Exception e) {
-                    System.err.println("[conn] dispatch failed for " + m + ": " + e);
-                    e.printStackTrace();
+                    return new Inbound(Msg.parse(frame), null, null);
+                } catch (RuntimeException failure) {
+                    Msg header;
+                    try {
+                        header = Msg.parseHeader(frame);
+                    } catch (RuntimeException unreadable) {
+                        return new Inbound(null, null, failure);
+                    }
+                    boolean owed = header.type == METHOD_CALL
+                            && (header.flags & NO_REPLY_EXPECTED) == 0 && header.sender != null;
+                    return new Inbound(null, owed ? Msg.err(header,
+                            "org.freedesktop.DBus.Error.InvalidArgs",
+                            "this application cannot read a message of signature '"
+                                    + header.signature + "': " + failure) : null, failure);
                 }
             }
         }

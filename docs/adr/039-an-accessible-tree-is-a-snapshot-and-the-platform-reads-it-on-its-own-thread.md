@@ -2321,6 +2321,26 @@ pre-marshalled against a publish counter; `Cache.AddAccessible`/`RemoveAccessibl
 `Event.Window` `Create`/`Destroy` are the events item of the Linux lane (LINUX-NEW-1, LINUX-NEW-2).
 When and on which thread the join happens is §3.3's amendment of the same date.
 
+#### Amendment 2026-09-15 — the descriptor rule is kept, and a message the reader cannot read no longer silences it
+
+**What was wrong (LINUX-NEW-13).** The rule above was written and not followed: `DBus.Conn.auth`
+sent `NEGOTIATE_UNIX_FD` "only to see the answer", and both buses agreed. Separately, the reader loop
+guarded only the socket read, so a message whose body did not parse — a `h` in its signature, the
+very type the agreement lets a peer send, or any header shape the parser did not expect — threw out
+of the loop and ended `limn-a11y-dbus-reader` for good, while the application stayed embedded and
+went on emitting signals nobody could answer a question about: the state at-spi2-core 2.60 hides
+from the desktop.
+
+**What the code does now.** The handshake is `AUTH EXTERNAL`, then `BEGIN`, and nothing between
+(`DBus.Conn.saslCommands`); `h` is neither read nor written. The reader frames a message by its
+lengths before parsing it, so an unparsable one leaves the stream at the next message: it is logged,
+a method call among them that expects a reply and whose header could be read is answered
+`org.freedesktop.DBus.Error.InvalidArgs`, and the loop goes on. Lengths that cannot be a message
+(past the specification's 2^27 bytes) end the connection, since nothing after them can be found.
+Whenever the reader or the writer stops without the connection having been closed, the connection
+closes itself and tells its owner once (`DBus.Conn.onLost`); the application lets that join go and
+asks every window for a publish, which joins again under the back-off of §3.3's amendment.
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |

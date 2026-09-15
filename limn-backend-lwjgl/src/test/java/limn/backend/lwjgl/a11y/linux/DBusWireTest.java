@@ -313,6 +313,68 @@ class DBusWireTest {
         done();
     }
 
+    /**
+     * The SASL exchange offers no descriptor passing (LINUX-NEW-13). ADR 039 §2.3: NEGOTIATE_UNIX_FD
+     * succeeds on both buses and must not be sent, because an agreed connection is one the bus may
+     * route an fd-carrying message to, which java.nio can neither receive nor this reader parse.
+     */
+    @Test
+    void theHandshakeNeverOffersToPassFileDescriptors() {
+        List<String> commands = DBus.Conn.saslCommands("1000");
+        org.junit.jupiter.api.Assertions.assertEquals(List.of("AUTH EXTERNAL 31303030", "BEGIN"),
+                commands, "authenticate, then begin; nothing in between");
+        for (String command : commands) {
+            org.junit.jupiter.api.Assertions.assertFalse(command.startsWith("NEGOTIATE_UNIX_FD"),
+                    "descriptor passing is never negotiated: " + commands);
+        }
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> DBus.alignOf('h'), "and the fd type is not one this client speaks");
+    }
+
+    /**
+     * A method call carrying a descriptor, {@code h}: what a peer could send if the connection had
+     * agreed to descriptors, and the plainest message whose body this client cannot read.
+     *
+     * @param flags the header flags to send it with
+     */
+    static byte[] aCallWhoseBodyIsADescriptor(byte flags) {
+        DBus.Msg call = DBus.Msg.call(":1.7", Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetChildAtIndex",
+                "i", 0);
+        call.sender = ":1.99";
+        call.flags = flags;
+        byte[] raw = call.marshal(5);
+        // The SIGNATURE header field is the variant 'g' holding "i": (08) 01 'g' 00 01 'i' 00.
+        byte[] field = {1, 'g', 0, 1, 'i', 0};
+        for (int at = 12; at + field.length <= raw.length; at++) {
+            if (java.util.Arrays.equals(raw, at, at + field.length, field, 0, field.length)) {
+                raw[at + 4] = 'h';
+                return raw;
+            }
+        }
+        throw new AssertionError("no signature field in the marshalled call");
+    }
+
+    @Test
+    void aMethodCallWhoseBodyCannotBeReadIsRefusedWithAnErrorRatherThanThrown() {
+        DBus.Conn.Inbound in = DBus.Conn.Inbound.of(aCallWhoseBodyIsADescriptor((byte) 0));
+        org.junit.jupiter.api.Assertions.assertNull(in.message(), "its body cannot be read");
+        org.junit.jupiter.api.Assertions.assertNotNull(in.failure());
+        DBus.Msg refusal = in.refusal();
+        org.junit.jupiter.api.Assertions.assertNotNull(refusal,
+                "a caller waiting on a reply is answered, not left to its timeout");
+        org.junit.jupiter.api.Assertions.assertEquals(DBus.ERROR, refusal.type);
+        org.junit.jupiter.api.Assertions.assertEquals(5, refusal.replySerial);
+        org.junit.jupiter.api.Assertions.assertEquals(":1.99", refusal.destination);
+        org.junit.jupiter.api.Assertions.assertEquals("org.freedesktop.DBus.Error.InvalidArgs",
+                refusal.errorName);
+        DBus.Msg.parse(refusal.marshal(9));  // and the refusal is itself a message
+
+        DBus.Conn.Inbound quiet = DBus.Conn.Inbound.of(
+                aCallWhoseBodyIsADescriptor(DBus.NO_REPLY_EXPECTED));
+        org.junit.jupiter.api.Assertions.assertNull(quiet.refusal(),
+                "a call that asked for no reply gets none");
+    }
+
     interface Assertions { void run(DBus.Msg m); }
 
     /**

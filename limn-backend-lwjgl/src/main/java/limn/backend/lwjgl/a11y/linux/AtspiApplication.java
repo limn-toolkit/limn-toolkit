@@ -73,11 +73,12 @@ final class AtspiApplication {
          *
          * @param objects what every inbound call is answered by; the connector names its bus name
          *                and desktop and exports its handler before the embed
+         * @param lost    to run, once, if the joined connection later stops working on its own
          * @return the joined link
          * @throws IOException when any step fails, having closed everything it opened; the
          *                     application then stays unjoined until the back-off has passed
          */
-        Link join(AtspiTree objects) throws IOException;
+        Link join(AtspiTree objects, Runnable lost) throws IOException;
     }
 
     /** How the joiner thread is started: a daemon thread, or the caller's own thread in a test. */
@@ -101,6 +102,9 @@ final class AtspiApplication {
         Object[] embed(Object[] root) throws IOException;
 
         Link link();
+
+        /** Runs {@code lost} once if this connection stops working without being closed. */
+        void onLost(Runnable lost);
 
         void close();
     }
@@ -364,9 +368,20 @@ final class AtspiApplication {
                 frames.put(window, tree.node(0).id());
             }
         }
+        // The connection may be lost before the joined state exists to be let go of; the flag keeps
+        // that loss for the moment it does.
+        AtomicBoolean lostEarly = new AtomicBoolean();
+        AtomicReference<Joined> self = new AtomicReference<>();
+        Runnable lost = () -> {
+            lostEarly.set(true);
+            Joined mine = self.get();
+            if (mine != null) {
+                connectionLost(mine);
+            }
+        };
         Link link;
         try {
-            link = connector.join(objects);
+            link = connector.join(objects, lost);
         } catch (IOException | RuntimeException e) {
             int failed = failures + 1;
             long wait = Math.min(LONGEST_RETRY_NANOS, FIRST_RETRY_NANOS << Math.min(failed - 1, 16));
@@ -377,12 +392,35 @@ final class AtspiApplication {
         }
         failures = 0;
         Joined now = new Joined(link, ++generations, Map.copyOf(frames));
+        self.set(now);
         joined.set(now);
         joining.set(false);
-        if (windows.isEmpty()) {
+        if (lostEarly.get()) {
+            connectionLost(now);
+        } else if (windows.isEmpty()) {
             // Every window left while the join ran: an application with no frame is what the next
             // window must not register into.
             leave(now);
+        }
+    }
+
+    /**
+     * The joined connection stopped on its own: its reader reached the end of the stream or could
+     * not go on, or its writer could not write. An application still believing itself embedded
+     * would go on sending signals into a connection nobody answers on — the "embedded but deaf"
+     * state LINUX-NEW-13 found — so the join is let go of and every window is asked for a publish,
+     * which joins again (within the back-off, if joins then fail).
+     */
+    private void connectionLost(Joined now) {
+        if (joined.get() != now) {
+            return;
+        }
+        leave(now);
+        for (AtspiBridge window : windows) {
+            limn.backend.AccessibilityBridge.Host host = window.host();
+            if (host != null) {
+                host.requestRepublish();
+            }
         }
     }
 
@@ -399,8 +437,8 @@ final class AtspiApplication {
      * {@code Hello}, and the handler is exported <em>before</em> {@code Embed}, because the registry
      * may call back the moment it has the plug and a path with no handler answers UnknownMethod.
      */
-    private static Link joinTheBus(AtspiTree objects) throws IOException {
-        return join(REAL_BUSES, objects);
+    private static Link joinTheBus(AtspiTree objects, Runnable lost) throws IOException {
+        return join(REAL_BUSES, objects, lost);
     }
 
     /**
@@ -411,9 +449,10 @@ final class AtspiApplication {
      * {@code Embed} that timed out or answered an error left a socket and its reader and writer
      * threads behind, once per attempt, and the attempt was repeated on every frame (LINUX-NEW-12).
      *
+     * @param lost run once if the connection later stops working on its own
      * @throws IOException when a step fails
      */
-    static Link join(Buses buses, AtspiTree objects) throws IOException {
+    static Link join(Buses buses, AtspiTree objects, Runnable lost) throws IOException {
         Bus a11y = buses.open(buses.a11yAddress());
         boolean done = false;
         try {
@@ -424,6 +463,7 @@ final class AtspiApplication {
                 objects.desktop(DBus.Ref.of(socket[0]));
             }
             Link link = a11y.link();
+            a11y.onLost(lost);
             done = true;
             return link;
         } catch (RuntimeException e) {
@@ -475,6 +515,10 @@ final class AtspiApplication {
 
                 @Override public Link link() {
                     return linkOver(connection);
+                }
+
+                @Override public void onLost(Runnable lost) {
+                    connection.onLost(lost);
                 }
 
                 @Override public void close() {

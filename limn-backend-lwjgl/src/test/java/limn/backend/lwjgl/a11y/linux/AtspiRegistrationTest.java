@@ -120,6 +120,8 @@ class AtspiRegistrationTest {
                     throw new AssertionError("a refused join hands out no link");
                 }
 
+                @Override public void onLost(Runnable lost) { }
+
                 @Override public void close() {
                     closed++;
                 }
@@ -132,7 +134,7 @@ class AtspiRegistrationTest {
         for (String step : List.of("Hello", "Embed")) {
             RefusingBuses buses = new RefusingBuses(step);
             AtspiTree objects = AtspiApplication.forThisMachine().objects();
-            assertThrows(IOException.class, () -> AtspiApplication.join(buses, objects),
+            assertThrows(IOException.class, () -> AtspiApplication.join(buses, objects, () -> { }),
                     "a refused " + step + " is a failed join");
             assertEquals(1, buses.opened);
             assertEquals(1, buses.closed, "a refused " + step + " closes the connection it opened: "
@@ -145,7 +147,7 @@ class AtspiRegistrationTest {
         long[] now = {1_000_000_000L};
         RefusingBuses buses = new RefusingBuses("Embed");
         AtspiApplication application = new AtspiApplication(
-                objects -> AtspiApplication.join(buses, objects),
+                (objects, lost) -> AtspiApplication.join(buses, objects, lost),
                 AtspiApplication.Starter.ON_THE_CALLER, () -> now[0]);
         AtspiBridge bridge = application.window();
 
@@ -173,7 +175,7 @@ class AtspiRegistrationTest {
     void aPublishNeverWaitsForTheJoin() throws InterruptedException {
         CountDownLatch registryAnswers = new CountDownLatch(1);
         CountDownLatch joinedLatch = new CountDownLatch(1);
-        AtspiApplication application = new AtspiApplication(objects -> {
+        AtspiApplication application = new AtspiApplication((objects, lost) -> {
             // A registry that takes its time over Embed, as a busy or hung one does: the join waits.
             try {
                 registryAnswers.await();
