@@ -2548,6 +2548,12 @@ the selection in the same frame (nothing) and `EXPANDED` on an outline row (`Row
 notifications, which AppKit posts for the window it vends). `NODE_DESTROYED`: release at the frame's end,
 nothing posted. `INVOKED`: nothing. `ANNOUNCEMENT`: `AnnouncementRequested` on the window with its text and
 priority. `INVALIDATED`: `LayoutChanged` on the window, the registry swept, the focus change posted again.
+Every post, an announcement's user info and a re-push's children array are made inside an autorelease
+pool the bridge pushes when a publish or a frame's end starts its platform work and pops before it
+returns: neither is an accessibility callback, so no pool of AppKit's is on the stack, and on the
+`-XstartOnFirstThread` main thread what they autoreleased was never freed — an announcement's objects
+were still alive 120 polled frames later, about five blocks a frame, and none with the pool (read on the
+macOS 26.6.2 guest, 25G83, 2026-09-15, `scripts/a11y/macos/AutoreleaseProbe.java`; the macos-C review).
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that

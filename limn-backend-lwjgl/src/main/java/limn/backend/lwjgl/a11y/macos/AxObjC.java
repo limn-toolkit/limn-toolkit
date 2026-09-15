@@ -38,6 +38,8 @@ final class AxObjC {
     private final SharedLibrary appKit;
     private final long postNotification;
     private final long postNotificationWithUserInfo;
+    private final long poolPush;
+    private final long poolPop;
     private final FFICIF rectSetterCif;
     private final FFICIF rectGetterCif;
     private final Map<String, Long> constants = new LinkedHashMap<>();
@@ -47,6 +49,12 @@ final class AxObjC {
         this.postNotification = appKit.getFunctionAddress("NSAccessibilityPostNotification");
         this.postNotificationWithUserInfo =
                 appKit.getFunctionAddress("NSAccessibilityPostNotificationWithUserInfo");
+        SharedLibrary runtime = ObjCRuntime.getLibrary();
+        this.poolPush = runtime.getFunctionAddress("objc_autoreleasePoolPush");
+        this.poolPop = runtime.getFunctionAddress("objc_autoreleasePoolPop");
+        if (poolPush == NULL || poolPop == NULL) {
+            throw new IllegalStateException("the Objective-C runtime exports no objc_autoreleasePoolPush/Pop");
+        }
         this.rectSetterCif = APIUtil.apiCreateCIF(
                 LibFFI.ffi_type_void, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, doubles(4));
         this.rectGetterCif = APIUtil.apiCreateCIF(
@@ -91,11 +99,38 @@ final class AxObjC {
     }
 
     /**
+     * Opens an autorelease pool on this thread: {@code void *objc_autoreleasePoolPush(void)}.
+     *
+     * <p>What this module sends outside an accessibility callback — at a publish and at a frame's end —
+     * has no pool of AppKit's to fall into. The {@code -XstartOnFirstThread} main thread has one on its
+     * stack that nothing drains while the application runs, and GLFW's poll drains only its own: an
+     * announcement's user info and a re-push's array built there were still alive 120 polled
+     * frames later, and 20 000 such frames grew the process by about 100 000 blocks, against a few
+     * hundred with a pool pushed and popped around each (read on the macOS 26.6.2 guest, 25G83,
+     * 2026-09-15, {@code scripts/a11y/macos/AutoreleaseProbe.java}).
+     *
+     * @return the token {@link #popPool} takes
+     */
+    long pushPool() {
+        return JNI.invokeP(poolPush);
+    }
+
+    /**
+     * Drains and closes the pool {@link #pushPool} opened: {@code void objc_autoreleasePoolPop(void *)}.
+     *
+     * @param token what that push answered
+     */
+    void popPool(long token) {
+        JNI.invokePV(token, poolPop);
+    }
+
+    /**
      * An <b>autoreleased</b> {@code NSString} from UTF-8.
      *
-     * <p>Autoreleased and not retained, because every one of these is returned straight out of an
+     * <p>Autoreleased and not retained, because most of these are returned straight out of an
      * accessibility callback, where the convention is that the caller does not own what a getter
-     * hands back and AppKit's own pool is on the stack. The bytes are explicitly UTF-8: the phase 7
+     * hands back and AppKit's own pool is on the stack; the ones this module makes at a publish or a
+     * frame's end are made inside a pool of its own ({@link #pushPool}). The bytes are explicitly UTF-8: the phase 7
      * probe run measured that {@code stringWithUTF8String:} answers <b>nil</b> for invalid UTF-8, so
      * a bridge that took the platform default encoding would produce nameless nodes rather than
      * mangled ones (§13.23).

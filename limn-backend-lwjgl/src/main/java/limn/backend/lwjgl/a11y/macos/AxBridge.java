@@ -248,9 +248,14 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         // node with no element has no box to set. The first run of this had them the other way
         // round and every element arrived as a zero-size rectangle at the origin -- which a walk
         // reads perfectly and a hit test cannot resolve at all, so it is exactly the defect §13.21
-        // says only a live client finds.
-        repushRootIfChanged();
-        refreshFrames();
+        // says only a live client finds. Inside a pool of this bridge's own (see poolDepth).
+        long pool = pushPool();
+        try {
+            repushRootIfChanged();
+            refreshFrames();
+        } finally {
+            popPool(pool);
+        }
     }
 
     /**
@@ -263,15 +268,69 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      */
     @Override
     public void frameEnded() {
-        if (obligationsDeferred) {
-            obligationsDeferred = false;
-            repushRootIfChanged();
-            refreshFrames();
-        }
         // A quiet frame costs one comparison and allocates nothing: AccessibleIdleCostTest's frame
-        // with a live bridge and a clean tree goes through here.
-        if (events.size() == 0 && !events.willCollapse() && recountedContainers.isEmpty()) return;
-        if (drain()) repushRootIfChanged();
+        // with a live bridge and a clean tree goes through here, and opens no pool.
+        if (!obligationsDeferred && quiet()) return;
+        long pool = pushPool();
+        try {
+            if (obligationsDeferred) {
+                obligationsDeferred = false;
+                repushRootIfChanged();
+                refreshFrames();
+            }
+            if (quiet()) return;
+            if (drain()) repushRootIfChanged();
+        } finally {
+            popPool(pool);
+        }
+    }
+
+    private boolean quiet() {
+        return events.size() == 0 && !events.willCollapse() && recountedContainers.isEmpty();
+    }
+
+    /**
+     * How deep this bridge's own autorelease pools are nested on the user-interface thread right now.
+     *
+     * <p>A publish and a frame's end are not accessibility callbacks, so no pool of AppKit's is on the
+     * stack when they post, build an announcement's user info or hand the content view a new array of
+     * children; what they autorelease falls into the pool the main thread already has on its stack,
+     * which nothing drains while the application runs, and stays for the life of the process, one set
+     * per announcement and per re-push (the macos-C review; measured on the macOS 26.6.2 guest, 25G83,
+     * 2026-09-15, {@code scripts/a11y/macos/AutoreleaseProbe.java}). So each opens a pool of its own and drains it
+     * before returning. A detach does not: it runs once per window, and its order against the
+     * closures it frees is the one a live run proved (see {@link #releasePlatformHalf}).
+     */
+    private int poolDepth;
+    /** How many autoreleasing platform calls this bridge made with no pool of its own open. For tests. */
+    private int autoreleasedOutsideAPool;
+    /** How many autoreleasing platform calls this bridge made at all. For tests: what keeps the count above honest. */
+    private int autoreleasingCalls;
+
+    private long pushPool() {
+        poolDepth++;
+        return objc == null ? 0 : objc.pushPool();
+    }
+
+    private void popPool(long token) {
+        if (objc != null) objc.popPool(token);
+        poolDepth--;
+    }
+
+    /** Notes a platform call that may autorelease: a post, an announcement's user info, a re-push's array. */
+    private void autoreleasing() {
+        autoreleasingCalls++;
+        if (poolDepth == 0) autoreleasedOutsideAPool++;
+    }
+
+    /** @return how many autoreleasing platform calls were made with no pool of this bridge's open */
+    int autoreleasedOutsideAPool() {
+        return autoreleasedOutsideAPool;
+    }
+
+    /** @return how many autoreleasing platform calls were made */
+    int autoreleasingCalls() {
+        return autoreleasingCalls;
     }
 
     @Override
@@ -911,6 +970,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         long window = windowElement();
         if (window == 0 || !(event.newValue() instanceof String text) || event.politeness() == null) return false;
         int priority = AxNotifications.priorityFor(event.politeness());
+        autoreleasing();
         Consumer<String> to = trace;
         if (to != null) {
             to.accept("posted NSAccessibilityAnnouncementRequestedNotification on the window '" + text
@@ -945,6 +1005,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             AxNotifications.of(AccessibleEvent.Type.FOCUS_CHANGED);
 
     private void post(long subject, AxNotifications.Posting posting) {
+        autoreleasing();
         Consumer<String> to = trace;
         if (to != null) {
             to.accept("posted " + posting.notificationSymbol()
@@ -1010,6 +1071,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         if (tree().nodeCount() == 0) return;
         long[] now = childElementsOf(tree().root());
         if (Arrays.equals(now, pushed)) return;
+        autoreleasing();
         if (objc != null) {
             long array = objc.mutableArray();
             for (long element : now) objc.addObject(array, element);

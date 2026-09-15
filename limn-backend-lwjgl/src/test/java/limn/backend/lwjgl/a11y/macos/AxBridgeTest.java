@@ -332,6 +332,43 @@ class AxBridgeTest {
     }
 
     @Test
+    void everyPostAnnouncementAndPushIsMadeInsideAPoolTheBridgeDrains() {
+        // The macos-C review: a publish and a frame's end are not accessibility callbacks, so no pool of
+        // AppKit's is on the stack there, and on the -XstartOnFirstThread main thread what they
+        // autoreleased stayed alive for the life of the process (read on the macOS 26.6.2 guest,
+        // 2026-09-15, AutoreleaseProbe.java: ~5 blocks a frame without a pool, none with one).
+        AxBridge bridge = PlatformFreeBridges.make();
+        AccessibleTree tree = aNestedWindow(1);
+        bridge.publish(tree, false);
+        int afterThePush = bridge.autoreleasingCalls();
+        assertTrue(afterThePush > 0, "the first publish pushes the root's children");
+
+        bridge.publish(aWindowWithTwoGroups(), true);
+        bridge.frameEnded();
+        int afterTheDeferredPush = bridge.autoreleasingCalls();
+        assertTrue(afterTheDeferredPush > afterThePush, "the frame's end pays the push a reentrant publish deferred");
+
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));
+        bridge.emit(AccessibleEvent.announcement("Saved", Accessible.Politeness.ASSERTIVE));
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+        bridge.frameEnded();
+        int afterTheDrain = bridge.autoreleasingCalls();
+        assertTrue(afterTheDrain >= afterTheDeferredPush + 3,
+                "the drain announces, posts on an element and on the window, and re-pushes after the sweep");
+
+        for (int i = 0; i <= AxEvents.CAPACITY; i++) {
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
+        }
+        bridge.frameEnded();
+        assertTrue(bridge.autoreleasingCalls() > afterTheDrain, "a collapsed queue's sweep re-pushes");
+
+        assertEquals(0, bridge.autoreleasedOutsideAPool(),
+                "every one of them inside a pool the bridge opened and drains before it returns");
+    }
+
+    @Test
     void aReentrantPublishPushesNothingAtAll() {
         AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(aNestedWindow(1), false);
