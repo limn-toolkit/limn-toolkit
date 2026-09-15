@@ -125,6 +125,65 @@ class UiaFragmentTest {
         return a.publish(0, 0, 0, 1f, true);
     }
 
+    /**
+     * A tree a virtualized Tree publishes while scrolled into a branch with its cursor row kept
+     * realized off screen (decision 22): the kept root row first, then viewport rows whose flat row
+     * indices jump past it, and a row whose index is unknown.
+     *
+     * <pre>
+     * 3000 TREE
+     *   3001 TREE_ITEM "R"    level 1, row 1   (the kept cursor row)
+     *   3002 TREE_ITEM "S49"  level 2, row 51  (its parent S, row 2, is scrolled away)
+     *   3003 TREE_ITEM "S49a" level 3, row 52
+     *   3004 TREE_ITEM "S50"  level 2, row 53
+     *   3005 TREE_ITEM "?"    level 3, row 0   (no index: nothing proves the row above is its parent)
+     * </pre>
+     */
+    private static AccessibleTree aScrolledTree() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int tree = a.begin(3000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TREE);
+        a.inherited(true, true, true, true, false);
+        long[] ids = {3001, 3002, 3003, 3004, 3005};
+        int[] levels = {1, 2, 3, 2, 3};
+        int[] rows = {1, 51, 52, 53, 0};
+        for (int i = 0; i < ids.length; i++) {
+            a.begin(ids[i], tree, Locale.ENGLISH, 0, 20 * i, 400, 20);
+            a.role(Accessible.Role.TREE_ITEM);
+            a.name(I18nString.literal("row " + ids[i]), Accessible.NameFrom.EXPLICIT);
+            a.hierarchy(levels[i], rows[i], 90);
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    /**
+     * The windows-B review of 2026-09-15: the parent search walks back only through rows whose
+     * flat row indices run unbroken down to the row's own. Before, it took the nearest earlier row
+     * of a lower level wherever it stood, so the kept cursor row R became the parent of S's
+     * children in the viewport. A row whose parent row is not published hangs under the tree, and
+     * so does a row with no index.
+     */
+    @Test
+    void aRowNestsOnlyUnderARowItsUnbrokenRowIndicesReach() {
+        AccessibleTree tree = aScrolledTree();
+
+        assertEquals(java.util.List.of(3001L, 3002L, 3004L, 3005L), childrenOf(tree, 3000),
+                "S49 and S50 hang under the tree, not under the kept R; the unindexed row too");
+        assertEquals(java.util.List.of(3003L), childrenOf(tree, 3002),
+                "S49a's index follows S49's, so it nests");
+        assertEquals(java.util.List.of(), childrenOf(tree, 3001), "R has no child published");
+        assertEquals(java.util.List.of(), childrenOf(tree, 3004),
+                "the unindexed level-3 row is not taken for S50's child");
+    }
+
     /** Every child navigation names, in order, by FirstChild then NextSibling. */
     private static java.util.List<Long> childrenOf(AccessibleTree tree, long id) {
         java.util.List<Long> children = new java.util.ArrayList<>();
@@ -182,7 +241,7 @@ class UiaFragmentTest {
      */
     @Test
     void navigationIsOneConsistentTreeReachingEveryNodeOnce() {
-        for (AccessibleTree tree : new AccessibleTree[] {aTree(), scene(0, 0, 1f, 0)}) {
+        for (AccessibleTree tree : new AccessibleTree[] {aTree(), aScrolledTree(), scene(0, 0, 1f, 0)}) {
             java.util.List<Long> met = new java.util.ArrayList<>();
             java.util.ArrayDeque<Integer> pending = new java.util.ArrayDeque<>();
             pending.add(0);

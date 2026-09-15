@@ -50,6 +50,16 @@ final class UiaFragment {
     // parent is the nearest earlier sibling row of a lower level, or the node the row hangs under when
     // there is none; a row's children are its own children, then the later sibling rows whose parent
     // that makes it. Every other node navigates by the stored links, and nothing here allocates.
+    //
+    // A virtualized tree publishes only the rows it has mounted, plus the cursor row it keeps
+    // realized off screen (decision 22), so the rows before a row among its siblings need not be the
+    // rows before it in the outline. The search therefore walks back only while each earlier row is
+    // the one right above in the hierarchy facet's flat row index; at a gap (a scrolled-away stretch,
+    // or the kept cursor row far from the viewport) or an unknown index it stops, and the row hangs
+    // under its stored parent. A row whose parent row is not published is then heard a level too
+    // high up by a reader counting TreeItem ancestors, which is the degradation ADR 039 §2.1
+    // records; nesting it under a published row that is not its parent would put it in the wrong
+    // place at a plausible level, which nothing downstream could notice.
 
     /** @return whether a node is a tree row that navigation nests by its level */
     static boolean isNestedRow(AccessibleNode node) {
@@ -61,7 +71,8 @@ final class UiaFragment {
      * @param tree  the published tree
      * @param index a node
      * @return its parent as navigation answers it: for a nested row, the nearest earlier sibling
-     *         row of a lower level, else the stored parent
+     *         row of a lower level reached through rows whose flat row indices run unbroken down
+     *         to this row's, else the stored parent
      */
     static int outlineParent(AccessibleTree tree, int index) {
         AccessibleNode node = tree.node(index);
@@ -69,12 +80,20 @@ final class UiaFragment {
             return node.parent();
         }
         int level = node.hierarchy().level();
-        for (int at = node.previousSibling(); at != AccessibleNode.NONE;
+        int above = node.hierarchy().row() - 1; // the flat row index the next earlier row must have
+        for (int at = node.previousSibling(); at != AccessibleNode.NONE && above > 0;
                 at = tree.node(at).previousSibling()) {
             AccessibleNode earlier = tree.node(at);
-            if (isNestedRow(earlier) && earlier.hierarchy().level() < level) {
+            if (!isNestedRow(earlier)) {
+                continue;
+            }
+            if (earlier.hierarchy().row() != above) {
+                break; // a gap: the row's parent is not among the rows published next to it
+            }
+            if (earlier.hierarchy().level() < level) {
                 return at;
             }
+            above--;
         }
         return node.parent();
     }

@@ -2221,6 +2221,28 @@ holds navigation to one consistent tree reaching every node once, and `UiaTreeRo
 the Win32 tree's items answered `ControlType` Tree and an empty `Name` in that reading, while the
 managed client read them as `TreeItem`s with their names; it bears on no number used here.
 
+**Amended 2026-09-15 (review of the Windows phase-3 work; decision 22): a row nests only through
+unbroken row indices, and a row whose parent row is not published is heard a level too high up.**
+The amendment above takes "the nearest earlier sibling row of a lower level" wherever it stands. A
+`Tree` publishes only its mounted rows and the cursor row it keeps realized off screen while focused
+(decision 22), so that row need not be the row's parent: with a root row kept as the cursor and the
+viewport inside another root's children, those children nested under the cursor row. Now the search
+walks back only while each earlier row carries the flat row index right above the one before it
+(`HierarchyFacet#row`); at a gap, or on a row whose index is unknown (0), it stops and the row hangs
+under its stored parent (`UiaFragmentTest.aRowNestsOnlyUnderARowItsUnbrokenRowIndicesReach`,
+`UiaTreeRowsTest.theKeptCursorRowIsNeverTheParentOfTheRowsInTheViewport`). **The consequence a
+reader hears:** once a `Tree` is scrolled so that a branch's own row is above the viewport, that
+branch's visible child rows have no published parent row and hang under the tree, so NVDA 2024.4.2,
+which counts `TreeItem` ancestors and overwrites `Level` with the count, says a lower level than the
+published one (a level-2 row read as level 1; measured headlessly for a tree scrolled 1000 px into an
+80-row branch, `UiaTreeRowsTest.aTreeScrolledIntoABranchNestsNoRowUnderARowThatIsNotItsParent`). The
+`Level` property still answers the true number, for a client that reads it. A wrong level was
+preferred to a wrong parent: the first is heard only for rows whose branch is scrolled away, the
+second put rows under another branch at a plausible level. What would close it is the widget keeping
+the ancestor rows of its first mounted row realized, as it keeps the cursor row; that is the `Tree`'s
+to decide (ADR 044 §4), and phase 5 hears the degradation on `--scene tree-reader` scrolled into a
+branch.
+
 **Amended 2026-09-15 (phase 3, Windows; decision 8, semantics 2 and 3; WINDOWS-NEW-8, TABLE-NEW-11):
 cells and headers are found by `CellFacet`.** The Grid/Table rows above say `GetItem` answers "a
 realized cell" and "column headers are the header group's children", and the column header item is

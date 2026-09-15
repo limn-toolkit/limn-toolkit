@@ -282,6 +282,15 @@ earlier row of a lower level. The level passes through unchanged: a native Win32
 `Level` 1 for its root items, read on the guest 2026-09-15 (ADR 039 §2.1, amended the same day,
 `UiaTreeRowsTest`).
 
+**Amended 2026-09-15 (review of the Windows phase-3 work): the nesting holds only while a row's
+ancestor rows are published.** Navigation nests a row under an earlier row only through unbroken
+flat row indices, so the cursor row kept realized off screen (decision 22) is never taken for the
+parent of the viewport's rows. A branch scrolled so that its own row is above the viewport leaves its
+visible child rows with no published parent row: they hang under the tree, and NVDA 2024.4.2, which
+counts `TreeItem` ancestors, says a lower level for them than the one this widget publishes. This
+widget could close it by keeping the ancestor rows of its first mounted row realized, as it keeps the
+cursor row; that is not decided here (ADR 039 §2.1, amended the same day).
+
 **Amendment, 2026-09-14: a tree item always has a name.** The L4 baseline on the Fedora guest read
 every row of the reader scene as `name=''`: the demo's cells are composites — an icon, a label and
 a count or a button in a `Row` — and the text sat in a `Label` child, so Orca's name generator
