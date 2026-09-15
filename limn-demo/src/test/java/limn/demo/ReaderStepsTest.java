@@ -30,7 +30,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -68,6 +70,24 @@ class ReaderStepsTest {
     /** The widgets H2 (with DT8, B9 and T7) found no reader run could be pointed at. */
     private static final List<Class<?>> WIDGETS_A_READER_MUST_HEAR = List.of(
             Table.class, Tree.class, CalendarView.class, DateField.class, DatePicker.class);
+
+    /**
+     * The roles whose widgets keep a cursor or a set of fields of their own inside one focusable
+     * node, which a reader hears only through a run that walks them (H2's rule).
+     */
+    private static final Set<Accessible.Role> ROLES_A_READER_MUST_WALK = Set.of(
+            Accessible.Role.TABLE, Accessible.Role.TREE, Accessible.Role.SPIN_BUTTON);
+
+    /**
+     * Gallery entries that publish one of {@link #ROLES_A_READER_MUST_WALK} and no reader script
+     * drives, each with why. A new entry publishing those roles needs a script or a line here.
+     */
+    private static final Map<String, String> NOT_WALKED_BY_A_READER = Map.of(
+            "Spinners", "a Spinner is one SPIN_BUTTON stepped by arrows, with no cursor inside it; "
+                    + "no finding asked a reader run of it",
+            "Colour picker", "its spin buttons are Spinners, one per colour channel and one for "
+                    + "the opacity; no finding asked a reader run of the colour picker",
+            "Colour picker button, open", "the same colour picker, opened from its button");
 
     /** How long a step may leave a row busy before the next is sent, in wall time. */
     private static final long BUSY_DEADLINE_MILLIS = 10_000;
@@ -119,6 +139,52 @@ class ReaderStepsTest {
             assertTrue(driven.contains(widget), widget.getSimpleName() + " is covered by no "
                     + "gallery entry a reader script drives");
         }
+    }
+
+    /**
+     * H2's rule and not only its list: every gallery entry whose trees publish a table, a tree or
+     * a spin button is driven by a reader script, or shares a widget class with an entry that is,
+     * or is named in {@link #NOT_WALKED_BY_A_READER} with its reason, so an entry that publishes
+     * those roles through another widget cannot arrive without a run or a stated exemption.
+     */
+    @Test
+    void everyEntryPublishingATableATreeOrASpinButtonIsWalkedByAReaderOrSaysWhyNot() {
+        Set<Class<?>> driven = new HashSet<>();
+        for (Entry entry : AccessibilityGallery.readerEntries()) {
+            driven.addAll(entry.covers());
+        }
+        List<String> unwalked = new ArrayList<>();
+        Set<String> exemptions = new HashSet<>();
+        for (Entry entry : AccessibilityGallery.entries()) {
+            Set<Accessible.Role> published = new TreeSet<>();
+            try (Harness harness = new Harness(Palette.LIGHT)) {
+                for (HeadlessWindow window : harness.show(entry)) {
+                    AccessibleTree tree = window.bridge().tree();
+                    for (int i = 0; i < tree.nodeCount(); i++) {
+                        if (ROLES_A_READER_MUST_WALK.contains(tree.node(i).role())) {
+                            published.add(tree.node(i).role());
+                        }
+                    }
+                }
+            }
+            if (published.isEmpty()) {
+                continue;
+            }
+            boolean walked = entry.reader() != null
+                    || entry.covers().stream().anyMatch(driven::contains);
+            if (NOT_WALKED_BY_A_READER.containsKey(entry.name())) {
+                exemptions.add(entry.name());
+                assertTrue(!walked, "\"" + entry.name() + "\" is walked by a reader script and "
+                        + "still named in NOT_WALKED_BY_A_READER; drop the line");
+            } else if (!walked) {
+                unwalked.add(entry.name() + " " + published);
+            }
+        }
+        assertTrue(unwalked.isEmpty(), "these gallery entries publish roles a reader must walk and "
+                + "no reader script drives them or their widgets; give one a script, or name it in "
+                + "NOT_WALKED_BY_A_READER with why: " + unwalked);
+        assertEquals(NOT_WALKED_BY_A_READER.keySet(), exemptions, "an exemption names an entry that "
+                + "is gone or publishes none of " + ROLES_A_READER_MUST_WALK);
     }
 
     @Test
