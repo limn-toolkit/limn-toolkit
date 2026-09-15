@@ -26,6 +26,15 @@ import limn.accessibility.AccessibleTree;
  * (MACOS-NEW-9). A cell asked for by column and row is answered only for a row the walk published,
  * which is the degradation ADR 039 §4.1 accepts.
  *
+ * <p><b>The three splits semantics 2 and 3 closed after phase 3</b> (2026-09-15), each of which this
+ * bridge had one side of: a row's index is read off a cell whose nearest table is the table the row
+ * is a row of, so a nested table's cells cannot number the row that holds them; the table-level
+ * header list is the union over <em>every</em> direct group child carrying a header cell, not the
+ * first such group alone; and a cell's own column header is answered for a data cell and for a footer
+ * cell, and never for a header cell, which would answer itself. None of the three shows a difference
+ * with today's Table, which publishes one header group and no nested tables; each is a shape another
+ * widget or another application's cells may take, and the three bridges now read it the same way.
+ *
  * <p><b>An outline and a list are tables of rows too</b> (M2; semantics 1 and 2): their rows are the
  * realized members of their selection — the children whose selection container is the outline or
  * the list, whatever role an application's cell kept — and a row's index is where it stands among
@@ -478,22 +487,30 @@ final class AxGrid {
 
     /**
      * @param node the node asked
-     * @return {@code accessibilityColumnHeaderUIElements}: for a table, its header cells in order;
-     *         for a cell in a data row, the one header cell of its column; otherwise, or when there is
-     *         no header to name, {@code null}
+     * @return {@code accessibilityColumnHeaderUIElements}: for a table, its header cells in order,
+     *         over every direct group child that holds one; for a data cell or a footer cell, the one
+     *         header cell of its column, and never for a header cell itself; otherwise, or when there
+     *         is no header to name, {@code null}
      */
     long[] columnHeaderElements(AccessibleNode node) {
         AccessibleTree tree = source.tree();
         if (node.table() != null) {
-            int group = headerGroupOf(node);
-            if (group == AccessibleNode.NONE) return null;
+            if (headerGroupOf(node) == AccessibleNode.NONE) return null;
+            // The union over EVERY direct group child that carries a header cell, not the first
+            // group alone (semantics 3, settled after phase 3; Windows' GetColumnHeaders is the
+            // union, and this read only the first). A table that splits its headers over two groups
+            // — frozen columns beside scrolling ones — named half of them.
             long[] found = new long[0];
-            for (int child = tree.node(group).firstChild(); child != AccessibleNode.NONE;
-                    child = tree.node(child).nextSibling()) {
-                AccessibleNode cell = tree.node(child);
-                if (cell.cell() == null || cell.cell().row() != HEADER_ROW) continue;
-                found = java.util.Arrays.copyOf(found, found.length + 1);
-                found[found.length - 1] = source.elementFor(cell.id());
+            for (int group = node.firstChild(); group != AccessibleNode.NONE;
+                    group = tree.node(group).nextSibling()) {
+                if (tree.node(group).role() != Accessible.Role.GROUP) continue;
+                for (int child = tree.node(group).firstChild(); child != AccessibleNode.NONE;
+                        child = tree.node(child).nextSibling()) {
+                    AccessibleNode cell = tree.node(child);
+                    if (cell.cell() == null || cell.cell().row() != HEADER_ROW) continue;
+                    found = java.util.Arrays.copyOf(found, found.length + 1);
+                    found[found.length - 1] = source.elementFor(cell.id());
+                }
             }
             return found;
         }
@@ -542,10 +559,20 @@ final class AxGrid {
     long index(AccessibleNode node) {
         if (node.role() == Accessible.Role.ROW) {
             AccessibleTree tree = source.tree();
+            int me = tree.indexOf(node.id());
+            // The table this row is a row OF: the nearest one above it, never the row itself, which
+            // would be a nested table of its own. A cell numbers this row only if that same table is
+            // the nearest one above the cell (semantics 2, settled after phase 3; Linux's rowIndexOf
+            // checked it and this did not), so a nested table's cells cannot number the row that
+            // holds them.
+            int owner = me == AccessibleNode.NONE ? AccessibleNode.NONE
+                    : tableAtOrAbove(tree, tree.node(me).parent());
             for (int child = node.firstChild(); child != AccessibleNode.NONE;
                     child = tree.node(child).nextSibling()) {
                 AccessibleNode cell = tree.node(child);
-                if (cell.cell() != null && cell.cell().row() >= 0) return cell.cell().row();
+                if (cell.cell() == null || cell.cell().row() < 0) continue;
+                if (tableAtOrAbove(tree, cell.parent()) != owner) continue;
+                return cell.cell().row();
             }
             return NOT_FOUND[0];
         }
@@ -645,7 +672,11 @@ final class AxGrid {
      * @return the index, or {@code NONE}
      */
     int headerCellOf(AccessibleNode cell) {
-        if (!isDataCell(cell)) return AccessibleNode.NONE;
+        // A data cell and a footer cell each have a column and a header above it; the header cell
+        // itself does not answer itself (semantics 3, settled after phase 3). Windows answered it
+        // for a header cell too, and this bridge answered it for data cells only, so a footer cell —
+        // the summary a table pins under its rows — was in no column as far as a reader could tell.
+        if (cell.cell() == null || cell.cell().row() == HEADER_ROW) return AccessibleNode.NONE;
         AccessibleTree tree = source.tree();
         int at = tableAtOrAbove(tree, cell.parent());
         if (at == AccessibleNode.NONE) return AccessibleNode.NONE;
