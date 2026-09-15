@@ -2430,7 +2430,9 @@ window node the difference names, arriving after the publish whose tree marks it
 (the ATK bridge's convention; GTK sends "0"). After `Activate` the focused node's `focused` 1 and
 the cursor's `ActiveDescendantChanged` are sent again from that tree, unless the same publish
 already sent them: Orca 50.2's `_on_window_activated` moves its locus to the frame, and its 0.1 s
-same-type filter would drop a second copy. A frame that arrives after the join sends `Create` from
+same-type filter would drop a second copy. *(Corrected 2026-09-15, the review of linux-B: the
+exception and its reason are wrong; see the correction at the end of the `INVALIDATED` paragraph
+below.)* A frame that arrives after the join sends `Create` from
 its path after the application's `ChildrenChanged add`; one that leaves sends `Destroy` from its path
 before the `remove`. The frames the registry read at the join send no `Create`. The model's
 `WINDOW_OPENED`/`WINDOW_CLOSED`, which nothing raises, map to the same members from the node they
@@ -2490,7 +2492,33 @@ again is offered to the connection as the tail kind, which `Outbound.SIGNAL_BOUN
 never refuses (`Outbound.TAIL_BOUND`, sixteen times it, bounds the tail alone so a writer that never
 writes is still not a leak). An ordinary signal the connection does refuse is followed, once per
 publish, by the focus and cursor said again as the tail kind: the bridge's own queue collapse is
-answered like the model's.
+answered like the model's. *(Corrected 2026-09-15, the review of linux-B, together with the
+`Activate` sentence of the window paragraph above. Three things were wrong. First, "said again
+from the tree at once" put the focus and cursor before the tail's structure signals and before
+`Activate`, against decision 28's order. When the frame's `state-changed:active` was collapsed
+too, `Activate` then moved Orca 50.2's locus to the frame, and nothing brought it back: LINUX-NEW-15
+again, on the collapse path. Second, the memory of what had been said was cleared on every publish,
+so every publish wider than the budget repeated the focus and cursor even when neither had moved.
+Third, a collapse never sent `focused` 0 for the node that lost the focus, and libatspi 2.60.6's
+`cache_process_state_changed` clears only the bit an event names. What the bridge does instead:
+each window remembers, across publishes, the focus and cursor it last announced (semantics 4).
+`INVALIDATED` and a refused signal only mark a reconcile as owed. The reconcile runs before the first
+tail event after the structure signals, or, when the publish carries none, before the window's next
+publish replaces its tree. It sends only what differs from the memory: `focused` 0 for the node last
+announced when that node still stands, `focused` 1 for the node now focused, and the cursor when it
+differs or the focus was just said. The window paragraph's exception, "unless the same publish
+already sent them … its 0.1 s same-type filter would drop a second copy", misread Orca. That filter
+is never reached by a `focused` 1 from a focused source (`_ignore_by_focus_state`, event_manager.py
+324-330). What decides the case is which event moves the locus to the frame. The frame's own
+`state-changed:active` 1 makes it the active window with the frame as locus (`_on_active_changed`,
+default.py 792-822, readings/fedora-orca-focus-manager.txt, Fedora KDE 44, Orca 50.2,
+2026-09-15), and an `Activate` for a window that is already active returns without touching the
+locus (default.py 1386-1390, readings/fedora-orca-event-consumers.txt). So after `Activate` the focus and cursor are said again only
+when they were not said after the frame's `active` 1 in the same publish, or when that `active` 1
+was not sent at all. Two identical copies waiting in Orca's queue together are handled once:
+`_is_obsoleted_by` drops the earlier for the later, matching same type and same source
+(readings/fedora-orca-event-queue.txt). Orca's queue is ordered by `_get_priority` before arrival;
+the numeric values of its constants were not read.)*
 
 **`STATE_CHANGED` for `EXPANDED` and `EXPANDABLE` (L3; decision 27; semantics 9).** Both reach the
 bus as `StateChanged` `expanded` / `expandable` (bits 10 and 9) from the difference, and whenever the

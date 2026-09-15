@@ -52,13 +52,34 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     /** The name this window was announced with, which its {@code Destroy} carries. UI thread. */
     String frameName = "";
     /**
-     * The node a {@code focused} state change was sent for since this window's last publish, or 0.
-     * UI thread; so focus said again after an activation is not said twice in one frame, which
-     * Orca 50.2's 0.1 s same-type filter would drop and restamp.
+     * The node a {@code focused} 1 was sent for in this publish since the reader's locus last
+     * moved to this frame, or 0. UI thread. Cleared by every publish, and by the frame's
+     * {@code active} 1 or its {@code Activate}, either of which moves Orca 50.2's locus to the
+     * frame; so a survivor's gain is not sent twice in one publish, and a focus said before the
+     * locus moved is said again after it.
      */
     long focusSaid;
-    /** The descendant an {@code ActiveDescendantChanged} named since the last publish, or 0. UI thread. */
+    /** The descendant an {@code ActiveDescendantChanged} named on the same terms, or 0. UI thread. */
     long cursorSaid;
+    /** Whether this publish sent the frame's own {@code StateChanged active} 1. UI thread. */
+    boolean frameActiveSaid;
+    /**
+     * The node this window last told clients was focused, or 0, across publishes (semantics 4: a
+     * bridge remembers the last effective focus it announced). UI thread. What a collapse or a
+     * refusal is reconciled against: said again only when the tree now says otherwise, with a
+     * {@code focused} 0 for this node when it still stands and lost the focus.
+     */
+    long announcedFocus;
+    /** The descendant this window last named in an {@code ActiveDescendantChanged}, across publishes. */
+    long announcedCursor;
+    /** The join {@link #announcedFocus} and {@link #announcedCursor} were told on. UI thread. */
+    int announcedGeneration;
+    /**
+     * Whether the model's {@code INVALIDATED} or a refused signal left the focus and cursor to be
+     * reconciled at the tail's place: before the first tail event after the structure signals, or,
+     * when the publish carried none, before this window's next publish replaces its tree. UI thread.
+     */
+    boolean reconcileOwed;
     /**
      * The tree this window published before its current one, which a bit this platform derives
      * (COLLAPSED) is diffed against when its events arrive. UI thread: written by the publish and
@@ -172,6 +193,9 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     @Override
     protected void releasePlatformHalf() {
         previousTree = AccessibleTree.EMPTY;
+        announcedFocus = 0;
+        announcedCursor = 0;
+        reconcileOwed = false;
         // The window leaves the application; the application lets the connection go when it was
         // the last one (AtspiApplication#detached).
         application.detached(this);
@@ -182,6 +206,10 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
         // One volatile write, and it is the whole of what the reader thread reads. Reentrancy
         // costs nothing here because nothing is released, re-pushed or drained on this path: the
         // tree published a moment ago is answered from until this one replaces it.
+        //
+        // A reconcile the last publish owed and never reached (its tail had no event after the
+        // structure signals) runs first, against the tree it was owed for.
+        application.publishing(this);
         previousTree = tree();
         super.publish(tree, reentrant);
         // Joined here rather than at construction, and only once there is something to show.

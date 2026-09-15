@@ -614,9 +614,38 @@ class AtspiApplicationTest {
         main.publish(true, 3002);
         sent = spoken(bus.signals);
         assertEquals(1, java.util.Collections.frequency(sent, "StateChanged focused 1 "
-                + path(3002)), "a focus change already sent in this publish is not sent twice, "
-                + "which Orca's 0.1 s filter would drop: " + sent);
+                + path(3002)), "a focus said after the frame's active 1 in the same publish is not "
+                + "said again after Activate: the active 1 already moved Orca's locus to the frame "
+                + "(default.py 792-822), so the Activate that follows finds the active window "
+                + "unchanged and leaves the locus where the focus put it: " + sent);
         assertTrue(sent.indexOf("Activate  0 " + path(3000)) >= 0, sent.toString());
+    }
+
+    /**
+     * A refusal after the last tail event of a publish leaves nothing in that publish to reconcile
+     * at, so the reconcile runs when the window next publishes, before its tree is replaced and
+     * before any signal of the new publish.
+     */
+    @Test
+    void aReconcileNoTailEventReachedRunsBeforeTheWindowsNextPublish() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        Frames main = new Frames(app.window());
+        main.publish(true, 3001);
+        bus.signals.clear();
+        bus.refusesOrdinarySignals = true;
+
+        main.publish(true, 0);  // the focus leaves for nowhere: one ordinary signal, and no tail
+        assertEquals(List.of(), spoken(bus.signals), "refused, and nothing after it to say it at");
+
+        bus.refusesOrdinarySignals = false;
+        main.publish(true, 0, 3001, 3002, 3003);
+        List<String> sent = spoken(bus.signals);
+        assertEquals("StateChanged focused 0 " + path(3001), sent.get(0),
+                "the loser's 0 the refusal lost, first: " + sent);
+        assertEquals(1, java.util.Collections.frequency(sent, sent.get(0)), sent.toString());
+        assertTrue(sent.contains("ChildrenChanged add 2 " + path(3000)),
+                "and then the new publish's own signals: " + sent);
     }
 
     /**
@@ -734,22 +763,107 @@ class AtspiApplicationTest {
         assertEquals(limn.accessibility.AccessibleEvent.Type.INVALIDATED, events.get(0).type(),
                 "the fixture must cross the budget: " + events.size() + " events");
 
-        List<String> sent = spoken(bus.signals);
-        assertEquals(1, java.util.Collections.frequency(sent, "StateChanged focused 1 "
-                + path(3002)), "the focus change the collapse swallowed, said once: " + sent);
-        assertFalse(sent.stream().anyMatch(line -> line.startsWith("StateChanged showing")),
-                "and nothing of what was collapsed: " + sent);
-        assertTrue(sent.contains("ChildrenChanged remove 299 " + path(3000)),
-                "while the structure the tail kept is told, so a client's cached children hold: "
-                        + sent);
+        assertEquals(List.of("ChildrenChanged remove 299 " + path(3000),
+                "RemoveAccessible " + Atspi.PATH_CACHE,
+                "StateChanged focused 0 " + path(3001),
+                "StateChanged focused 1 " + path(3002)), spoken(bus.signals),
+                "decision 28's order: the structure the tail kept, so a client's cached children "
+                        + "hold, then the focus the collapse swallowed, said once — the loser's 0 "
+                        + "included, or a long-lived cache holds FOCUSED on two nodes — and nothing "
+                        + "of what was collapsed");
         assertTrue(bus.tails.stream().allMatch(tail -> tail),
                 "every signal of a collapsed publish is the tail's, which no backlog refuses");
     }
 
     /**
+     * A collapsed publish that also activates the window (decision 28; LINUX-NEW-15 on the collapse
+     * path). The frame's {@code state-changed:active} was collapsed with the rest, so the
+     * {@code Activate} is what moves Orca 50.2's locus to the frame ({@code _on_window_activated},
+     * readings/fedora-orca-active-window.txt), and the focus has to be said after it. The review of
+     * linux-B found it said at {@code INVALIDATED}, before the structure and before
+     * {@code Activate}, and never after.
+     */
+    @Test
+    void aCollapsedPublishThatActivatesTheWindowSaysTheStructureThenActivateThenTheFocus() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        Frames main = new Frames(app.window());
+        long[] ids = buttons(300);
+        main.publish(false, 3002, id -> true, ids);
+        bus.signals.clear();
+        bus.tails.clear();
+
+        List<limn.accessibility.AccessibleEvent> events = main.publish(true, 3002,
+                id -> id == 3002, java.util.Arrays.copyOf(ids, 299));
+        assertEquals(limn.accessibility.AccessibleEvent.Type.INVALIDATED, events.get(0).type(),
+                "the fixture must cross the budget: " + events.size() + " events");
+
+        assertEquals(List.of("ChildrenChanged remove 299 " + path(3000),
+                "RemoveAccessible " + Atspi.PATH_CACHE,
+                "Activate  0 " + path(3000),
+                "StateChanged focused 1 " + path(3002)), spoken(bus.signals),
+                "the structure, then the window's activation, then the focus Orca's locus must "
+                        + "come back to from the frame");
+        assertTrue(bus.tails.stream().allMatch(tail -> tail));
+    }
+
+    /**
+     * The bridge remembers what it last announced (semantics 4): a collapse that moved neither the
+     * focus nor the cursor says neither again, however many publishes cross the budget — a fast
+     * scroll of a large list is one such publish per frame. Until the review of linux-B the memory
+     * was cleared on every publish, and every collapse repeated both.
+     */
+    @Test
+    void aCollapseThatMovesNeitherTheFocusNorTheCursorSaysNeitherAgain() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        AtspiBridge window = app.window();
+        Accessibility a = new Accessibility();
+        java.util.function.IntConsumer publish = shown -> {
+            a.beginWalk(400, 300, Locale.ENGLISH);
+            a.begin(4000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            a.role(Accessible.Role.WINDOW);
+            a.state(Accessible.State.ACTIVE);
+            a.inherited(true, true, true, false, false);
+            a.begin(4001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+            a.role(Accessible.Role.LIST);
+            a.inherited(true, true, true, true, true);
+            for (int i = 0; i < 300; i++) {
+                a.begin(4002 + i, 1, Locale.ENGLISH, 0, i * 20, 400, 20);
+                a.role(Accessible.Role.LIST_ITEM);
+                a.name(I18nString.literal("Row " + i), Accessible.NameFrom.CONTENT);
+                if (i == 7) {
+                    a.state(Accessible.State.ACTIVE);
+                }
+                a.inherited(true, true, i < shown, true, false);
+                a.end();
+            }
+            a.end();
+            a.end();
+            window.publish(a.publish(4001, 0, 0, 1f, true), false);
+            for (limn.accessibility.AccessibleEvent event : List.copyOf(a.events())) {
+                window.emit(event);
+            }
+        };
+        publish.accept(300);
+        List<String> first = spoken(bus.signals);
+        assertTrue(first.contains("StateChanged focused 1 " + path(4001))
+                && first.contains("ActiveDescendantChanged  7 " + path(4001)),
+                "the fixture announces the focus and the cursor once: " + first);
+        bus.signals.clear();
+
+        publish.accept(10);
+        publish.accept(300);
+        List<String> sent = spoken(bus.signals);
+        assertFalse(sent.stream().anyMatch(line -> line.startsWith("StateChanged focused")
+                        || line.startsWith("ActiveDescendantChanged")),
+                "two collapses in which the reader's position stood still: " + sent);
+    }
+
+    /**
      * A connection whose ordinary backlog is full refuses an event; the reader is told where the
-     * focus is anyway, as a tail signal, once (semantics 4: a bridge re-announces after its own
-     * queue collapse).
+     * focus is anyway, as tail signals, once, at the tail's place (semantics 4: a bridge
+     * re-announces after its own queue collapse).
      */
     @Test
     void aRefusedSignalIsFollowedByTheFocusSaidAgainAsATailSignal() {
@@ -763,9 +877,11 @@ class AtspiApplicationTest {
 
         main.publish(true, 3002);
 
-        assertEquals(List.of("StateChanged focused 1 " + path(3002)), spoken(bus.signals),
-                "the losing node's change was refused, and the focus was said again at once");
-        assertEquals(List.of(true), bus.tails);
+        assertEquals(List.of("StateChanged focused 0 " + path(3001),
+                        "StateChanged focused 1 " + path(3002)), spoken(bus.signals),
+                "both nodes' changes were refused; the loser's 0 and the gain are said again, "
+                        + "because the bridge still remembers announcing 3001");
+        assertEquals(List.of(true, true), bus.tails);
     }
 
     /**

@@ -331,6 +331,7 @@ final class AtspiApplication {
     void published(AtspiBridge window, AccessibleTree tree) {
         window.focusSaid = 0;
         window.cursorSaid = 0;
+        window.frameActiveSaid = false;
         if (!window.member) {
             windows.add(window);
             window.member = true;
@@ -411,10 +412,18 @@ final class AtspiApplication {
      * window activation outside its event budget and sends them after an {@code INVALIDATED}; here
      * their signals are sent as the tail kind, which the ordinary {@link Outbound#SIGNAL_BOUND}
      * does not refuse. {@code INVALIDATED} itself sends nothing of its own — this bridge holds no
-     * per-node state to sweep, and a client's cache is kept by the tail's structure signals — but
-     * the focus changes the collapse swallowed are said again from the tree at once. An ordinary
-     * signal the connection refuses does the same, once per publish: whatever else was lost, the
-     * reader hears where the focus and the cursor are.
+     * per-node state to sweep, and a client's cache is kept by the tail's structure signals — and
+     * neither does a refused signal at the moment it is refused: each leaves the focus and the
+     * cursor owed, and they are reconciled against what this window last announced at the tail's
+     * place, after the structure signals and before the first tail event that follows them
+     * ({@link #reconcile}). The tail's own {@code FOCUS_CHANGED} and cursor change arrive there, so a
+     * collapse sends decision 28's order: children-changed and the cache, then focus, cursor,
+     * selection and the window's activation.
+     *
+     * <p>Until the review of linux-B the focus was said the moment {@code INVALIDATED} arrived —
+     * before the structure, and before an {@code Activate} after which it was then not said again
+     * — and the memory of what was announced was cleared on every publish, so every collapse
+     * repeated both even when neither had moved.
      *
      * @param window the facade whose scene raised it, whose tree the event describes
      * @param event  what the difference between two published trees found
@@ -425,44 +434,95 @@ final class AtspiApplication {
             return;
         }
         Link link = now.link();
+        rememberFor(window, now);
         AtspiEvents.Context context = contextOf(window);
-        switch (event.type()) {
-            case INVALIDATED -> {
-                sayFocusAgain(window, link, context);
+        AccessibleEvent.Type type = event.type();
+        if (type == AccessibleEvent.Type.INVALIDATED) {
+            window.reconcileOwed = true;
+            return;
+        }
+        if (window.reconcileOwed && isInTheTail(type)
+                && type != AccessibleEvent.Type.STRUCTURE_CHANGED
+                && type != AccessibleEvent.Type.WINDOW_ACTIVATED) {
+            reconcile(window, link, context, false);  // Activate reconciles after itself instead
+        }
+        if (focusGained(event) && window.focusSaid == event.nodeId()) {
+            return;  // already said in this publish: the survivor's STATE_CHANGED, then this
+        }
+        if (type == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED) {
+            long cursor = cursorOf(event);
+            if (cursor != 0 && window.cursorSaid == cursor) {
                 return;
-            }
-            case STATE_CHANGED, FOCUS_CHANGED -> {
-                if (focusGained(event) && window.focusSaid == event.nodeId()) {
-                    return;  // already said in this publish: the survivor's STATE_CHANGED, then this
-                }
-            }
-            case ACTIVE_DESCENDANT_CHANGED -> {
-                long cursor = cursorOf(event);
-                if (cursor != 0 && window.cursorSaid == cursor) {
-                    return;
-                }
-            }
-            default -> {
             }
         }
         // Nothing on this platform may carry it, and then nothing is sent: better silent than
         // approximate. Otherwise each goes out from the node it is about, so a client that
         // subscribed by path hears it, and as a signal rather than a reply, so it is the one kind
         // the connection may refuse when a peer has stopped draining.
-        boolean tail = isInTheTail(event.type());
-        boolean refused = false;
-        for (AtspiEvents.Signal signal : AtspiEvents.of(event, context)) {
-            refused |= !send(link, signal, tail);
-        }
-        if (!refused) {
-            if (focusGained(event)) {
-                window.focusSaid = event.nodeId();
-            } else if (event.type() == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED) {
-                window.cursorSaid = cursorOf(event);
+        boolean refused = !sendAll(link, AtspiEvents.of(event, context), isInTheTail(type));
+        if (refused) {
+            window.reconcileOwed = true;
+        } else if (focusGained(event)) {
+            window.focusSaid = event.nodeId();
+            window.announcedFocus = event.nodeId();
+        } else if (focusLost(event)) {
+            if (window.announcedFocus == event.nodeId()) {
+                window.announcedFocus = 0;
             }
+        } else if (type == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED) {
+            window.cursorSaid = cursorOf(event);
+            window.announcedCursor = cursorOf(event);
+        } else if (isTheFramesActivation(window, event)) {
+            // Orca 50.2's _on_active_changed makes the frame the active window with the frame as
+            // its locus (readings/fedora-orca-focus-manager.txt, default.py 792-822): a focus said
+            // before this no longer stands, and one said after it does.
+            window.frameActiveSaid = true;
+            window.focusSaid = 0;
+            window.cursorSaid = 0;
         }
-        if (event.type() == AccessibleEvent.Type.WINDOW_ACTIVATED || refused) {
-            sayFocusAgain(window, link, context);
+        if (type == AccessibleEvent.Type.WINDOW_ACTIVATED) {
+            if (!window.frameActiveSaid) {
+                // Its active 1 was collapsed or refused, so this Activate is what moves the locus:
+                // _on_window_activated sets the locus to the frame (default.py 1378-1410). With the
+                // active 1 sent, Activate finds the frame already the active window and returns.
+                window.focusSaid = 0;
+                window.cursorSaid = 0;
+            }
+            reconcile(window, link, context, true);
+        }
+    }
+
+    /**
+     * A window is about to replace its tree. User-interface thread. A reconcile its last publish
+     * owed and never reached — a collapse whose tail held nothing after its structure signals, a
+     * refusal after the last tail event — runs now, against the tree it was owed for, which is
+     * still this window's tree; its signals then follow every signal of that publish.
+     *
+     * @param window the facade about to publish
+     */
+    void publishing(AtspiBridge window) {
+        if (!window.reconcileOwed) {
+            return;
+        }
+        Joined now = joined.get();
+        if (now == null) {
+            window.reconcileOwed = false;
+            return;
+        }
+        rememberFor(window, now);
+        reconcile(window, now.link(), contextOf(window), false);
+    }
+
+    /**
+     * Forgets what a window announced on an earlier join: clients of this connection were told
+     * nothing of it.
+     */
+    private static void rememberFor(AtspiBridge window, Joined now) {
+        if (window.announcedGeneration != now.generation()) {
+            window.announcedGeneration = now.generation();
+            window.announcedFocus = 0;
+            window.announcedCursor = 0;
+            window.reconcileOwed = false;
         }
     }
 
@@ -489,46 +549,105 @@ final class AtspiApplication {
                         && Boolean.TRUE.equals(event.newValue());
     }
 
+    private static boolean focusLost(AccessibleEvent event) {
+        return event.type() == AccessibleEvent.Type.STATE_CHANGED
+                && event.state() == limn.accessibility.Accessible.State.FOCUSED
+                && !Boolean.TRUE.equals(event.newValue());
+    }
+
+    /** Whether the event is the window's own node gaining ACTIVE, which a reader reads as its frame's. */
+    private static boolean isTheFramesActivation(AtspiBridge window, AccessibleEvent event) {
+        AccessibleTree tree = window.tree();
+        return event.type() == AccessibleEvent.Type.STATE_CHANGED
+                && event.state() == limn.accessibility.Accessible.State.ACTIVE
+                && Boolean.TRUE.equals(event.newValue())
+                && tree.nodeCount() > 0 && tree.node(0).id() == event.nodeId();
+    }
+
     private static long cursorOf(AccessibleEvent event) {
         return event.newValue() instanceof Number n ? n.longValue() : 0;
     }
 
     /**
-     * The focus and the cursor again, from the window's tree, as tail signals: after
-     * {@code Activate} (LINUX-NEW-15, LAB-NEW-2), after the model's {@code INVALIDATED} and after
-     * the connection refused an ordinary signal (semantics 4 and 7).
+     * The focus and the cursor as the window's tree has them, against what this window last
+     * announced, as tail signals (semantics 4 and 7; decision 28; LINUX-NEW-15, LAB-NEW-2).
      *
-     * <p>Orca 50.2's {@code _on_window_activated} puts its locus of focus on the frame itself
-     * (readings/fedora-orca-active-window.txt), so a {@code focused} change a client heard before
-     * the activation — the 2026-09-14 baseline's arrived 176 ms before the frame was active and was
-     * dropped for it, "[frame] lacks active state" — has to be told again after it. A collapsed
-     * publish carries no per-node state change at all, and a refused one may have lost exactly the
-     * focus. Not twice in one publish: a change already sent since this window's last publish
-     * stands, because the same type from the same application inside 0.1 s is dropped by
-     * {@code _ignore_by_spam_filter}, and one said here is not sent again when the publish's own
-     * event for it arrives.
+     * <p>Said only when they differ from what was announced: a collapse or a refusal that moved
+     * neither says nothing. When the focus moved, the node last announced focused first hears
+     * {@code focused} 0 if it still stands — libatspi 2.60.6's {@code cache_process_state_changed}
+     * sets or clears only the bit an event names, so a collapse that lost the loser's change left a
+     * long-lived cache holding FOCUSED on two nodes — and then the node now focused hears 1. A
+     * node no window holds any more is not addressed: its {@code RemoveAccessible} disposed it. The
+     * cursor follows whenever it differs or the focus was just said, because Orca 50.2's
+     * {@code _on_focused_changed} moves its locus to a focused container's selected child
+     * (readings/fedora-orca-event-consumers.txt, default.py 1090-1116), which only the cursor's own
+     * event brings back.
+     *
+     * <p>{@code afterTheLocusMoved} is the reconcile after {@code Activate}: Orca's locus went to
+     * the frame at the frame's {@code active} 1 or at the {@code Activate}, so a focus or cursor not
+     * said since then ({@code focusSaid}, {@code cursorSaid}, cleared where it moved) is said again
+     * even though it was announced before. Two identical copies waiting in Orca's queue together
+     * are handled once, the earlier obsoleted by the later ({@code _is_obsoleted_by}, same type
+     * and source; readings/fedora-orca-event-queue.txt), and a locus set to the object it already
+     * is returns without a word ({@code set_locus_of_focus}, focus_manager.py 278-281,
+     * readings/fedora-orca-focus-manager.txt). The previous text here said a copy in the same
+     * publish was dropped by Orca's 0.1 s same-type filter; that filter is not reached by a
+     * {@code focused} 1 from a focused source ({@code _ignore_by_focus_state} returns first,
+     * event_manager.py 324-330, readings/fedora-orca-event-guards.txt).
      */
-    private void sayFocusAgain(AtspiBridge window, Link link, AtspiEvents.Context context) {
+    private void reconcile(AtspiBridge window, Link link, AtspiEvents.Context context,
+                           boolean afterTheLocusMoved) {
+        window.reconcileOwed = false;
         AccessibleTree tree = window.tree();
         long focused = tree.focused();
-        if (focused == 0) {
+        boolean sayFocus = window.announcedFocus != focused
+                || afterTheLocusMoved && focused != 0 && window.focusSaid != focused;
+        if (sayFocus) {
+            long was = window.announcedFocus;
+            if (was != 0 && was != focused) {
+                if (tree.find(was) == null || sendAll(link, AtspiEvents.of(AccessibleEvent.state(
+                        was, limn.accessibility.Accessible.State.FOCUSED, false), context), true)) {
+                    window.announcedFocus = 0;
+                } else {
+                    window.reconcileOwed = true;
+                }
+            }
+            if (focused != 0) {
+                if (sendAll(link, AtspiEvents.of(AccessibleEvent.state(focused,
+                        limn.accessibility.Accessible.State.FOCUSED, true), context), true)) {
+                    window.focusSaid = focused;
+                    window.announcedFocus = focused;
+                } else {
+                    window.reconcileOwed = true;
+                }
+            }
+        }
+        long cursor = focused == 0 ? 0 : tree.activeDescendant();
+        if (cursor == 0) {
+            window.announcedCursor = 0;
             return;
         }
-        if (window.focusSaid != focused) {
-            for (AtspiEvents.Signal signal : AtspiEvents.of(AccessibleEvent.state(focused,
-                    limn.accessibility.Accessible.State.FOCUSED, true), context)) {
-                send(link, signal, true);
+        if (sayFocus && focused != 0 || window.announcedCursor != cursor
+                || afterTheLocusMoved && window.cursorSaid != cursor) {
+            if (sendAll(link, AtspiEvents.of(AccessibleEvent.property(
+                    AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED, focused, 0L, cursor), context),
+                    true)) {
+                window.cursorSaid = cursor;
+                window.announcedCursor = cursor;
+            } else {
+                window.reconcileOwed = true;
             }
-            window.focusSaid = focused;
         }
-        long cursor = tree.activeDescendant();
-        if (cursor != 0 && window.cursorSaid != cursor) {
-            for (AtspiEvents.Signal signal : AtspiEvents.of(AccessibleEvent.property(
-                    AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED, focused, 0L, cursor), context)) {
-                send(link, signal, true);
-            }
-            window.cursorSaid = cursor;
+    }
+
+    /** @return whether the link accepted every one of them */
+    private static boolean sendAll(Link link, java.util.List<AtspiEvents.Signal> signals,
+                                   boolean tail) {
+        boolean all = true;
+        for (AtspiEvents.Signal signal : signals) {
+            all &= send(link, signal, tail);
         }
+        return all;
     }
 
     /** What an event of {@code window}'s is mapped against: its tree and this bus's names. */
