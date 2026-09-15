@@ -8,15 +8,10 @@ import java.io.IOException;
 import java.net.StandardProtocolFamily;
 import java.net.UnixDomainSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -57,76 +52,8 @@ class DBusConnectionTest {
         Files.deleteIfExists(directory);
     }
 
-    /** The bus's end of one client connection. */
-    private static final class Peer {
-        final SocketChannel channel;
-        final List<String> handshake = new ArrayList<>();
-
-        Peer(SocketChannel channel) {
-            this.channel = channel;
-        }
-
-        /** Plays the SASL server: the NUL, then every line up to BEGIN, answering AUTH with OK. */
-        void authenticate() throws IOException {
-            ByteBuffer nul = ByteBuffer.allocate(1);
-            readFully(nul);
-            while (true) {
-                String line = readLine();
-                handshake.add(line);
-                if (line.startsWith("AUTH ")) {
-                    write(("OK 0123456789abcdef0123456789abcdef\r\n").getBytes(StandardCharsets.US_ASCII));
-                } else if (line.startsWith("NEGOTIATE_UNIX_FD")) {
-                    write("AGREE_UNIX_FD\r\n".getBytes(StandardCharsets.US_ASCII));
-                } else if (line.equals("BEGIN")) {
-                    return;
-                }
-            }
-        }
-
-        String readLine() throws IOException {
-            StringBuilder sb = new StringBuilder();
-            ByteBuffer one = ByteBuffer.allocate(1);
-            while (true) {
-                one.clear();
-                readFully(one);
-                char c = (char) (one.get(0) & 0xff);
-                if (c == '\n') {
-                    return sb.toString().replace("\r", "");
-                }
-                sb.append(c);
-            }
-        }
-
-        void write(byte[] bytes) throws IOException {
-            ByteBuffer buffer = ByteBuffer.wrap(bytes);
-            while (buffer.hasRemaining()) {
-                channel.write(buffer);
-            }
-        }
-
-        void readFully(ByteBuffer buffer) throws IOException {
-            while (buffer.hasRemaining()) {
-                if (channel.read(buffer) < 0) {
-                    throw new IOException("the client hung up");
-                }
-            }
-        }
-
-        DBus.Msg readMessage() throws IOException {
-            ByteBuffer head = ByteBuffer.allocate(16);
-            readFully(head);
-            head.flip().order(ByteOrder.LITTLE_ENDIAN);
-            int body = head.getInt(4);
-            int fields = (head.getInt(12) + 7) & ~7;
-            byte[] full = new byte[16 + fields + body];
-            System.arraycopy(head.array(), 0, full, 0, 16);
-            readFully(ByteBuffer.wrap(full, 16, full.length - 16));
-            return DBus.Msg.parse(full);
-        }
-    }
-
     /** Opens the client on another thread and accepts it here, handshake included. */
-    private Peer connect() throws Exception {
+    private PlayedBus.Peer connect() throws Exception {
         DBus.Conn[] opened = new DBus.Conn[1];
         Exception[] failed = new Exception[1];
         Thread client = new Thread(() -> {
@@ -137,7 +64,7 @@ class DBusConnectionTest {
             }
         });
         client.start();
-        Peer peer = new Peer(server.accept());
+        PlayedBus.Peer peer = new PlayedBus.Peer(server.accept());
         peer.authenticate();
         client.join(10_000);
         if (failed[0] != null) {
@@ -156,7 +83,7 @@ class DBusConnectionTest {
 
     @Test
     void theHandshakeAuthenticatesAndBeginsAndNegotiatesNothingElse() throws Exception {
-        Peer peer = connect();
+        PlayedBus.Peer peer = connect();
         assertEquals(2, peer.handshake.size(), "what the client said: " + peer.handshake);
         assertTrue(peer.handshake.get(0).startsWith("AUTH EXTERNAL "), peer.handshake.toString());
         assertEquals("BEGIN", peer.handshake.get(1),
@@ -165,7 +92,7 @@ class DBusConnectionTest {
 
     @Test
     void aMessageTheReaderCannotParseIsRefusedAndTheReaderGoesOn() throws Exception {
-        Peer peer = connect();
+        PlayedBus.Peer peer = connect();
         connection.exportFallback((conn, call) ->
                 "Ping".equals(call.member) ? DBus.Msg.ret(call, null) : null);
 
@@ -184,7 +111,7 @@ class DBusConnectionTest {
 
     @Test
     void aHandlerThatThrowsOrAnswersWhatCannotBeWrittenStillAnswersTheCaller() throws Exception {
-        Peer peer = connect();
+        PlayedBus.Peer peer = connect();
         connection.exportFallback((conn, call) -> switch (call.member) {
             case "GetRole" -> throw new IllegalStateException("no snapshot");
             case "GetName" -> DBus.Msg.ret(call, "u", "not a number");
@@ -210,7 +137,7 @@ class DBusConnectionTest {
 
     @Test
     void aConnectionThatEndsOnItsOwnSaysSoOnceAndOneClosedByItsOwnerDoesNot() throws Exception {
-        Peer peer = connect();
+        PlayedBus.Peer peer = connect();
         CountDownLatch lost = new CountDownLatch(1);
         int[] times = {0};
         connection.onLost(() -> {
@@ -222,7 +149,7 @@ class DBusConnectionTest {
         Thread.sleep(100);
         assertEquals(1, times[0], "told once");
 
-        Peer second = connect();
+        PlayedBus.Peer second = connect();
         CountDownLatch notLost = new CountDownLatch(1);
         connection.onLost(notLost::countDown);
         connection.close();

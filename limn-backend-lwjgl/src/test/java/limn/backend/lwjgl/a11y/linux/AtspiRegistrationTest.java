@@ -149,6 +149,7 @@ class AtspiRegistrationTest {
         AtspiApplication application = new AtspiApplication(
                 (objects, lost) -> AtspiApplication.join(buses, objects, lost),
                 AtspiApplication.Starter.ON_THE_CALLER, () -> now[0]);
+        application.enabled(true);
         AtspiBridge bridge = application.window();
 
         for (int frame = 0; frame < 10; frame++) {
@@ -188,6 +189,7 @@ class AtspiRegistrationTest {
                 @Override public void close() { }
             };
         }, AtspiApplication.Starter.DAEMON, System::nanoTime);
+        application.enabled(true);
         AtspiBridge bridge = application.window();
 
         assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {

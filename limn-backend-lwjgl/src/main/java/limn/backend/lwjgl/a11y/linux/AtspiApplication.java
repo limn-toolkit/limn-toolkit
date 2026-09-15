@@ -156,6 +156,9 @@ final class AtspiApplication {
     private final AtomicReference<Joined> joined = new AtomicReference<>();
     private final AtomicBoolean joining = new AtomicBoolean();
     private volatile String name = "";
+    /** The desktop's accessibility switch, as the watch last read it. Watch thread writes. */
+    private volatile boolean enabled;
+    private final AtomicBoolean watching = new AtomicBoolean();
     /** When the next join may start, meaningful only while {@code failures} is above zero. */
     private volatile long retryAt;
     private volatile int failures;
@@ -196,6 +199,69 @@ final class AtspiApplication {
     /** @return the handler every inbound call is answered by */
     AtspiTree objects() {
         return objects;
+    }
+
+    /** @return whether the desktop says assistive technology is running, as last read */
+    boolean isEnabled() {
+        return enabled;
+    }
+
+    /**
+     * Starts the process's one watch of the desktop's switch, once; later calls do nothing.
+     *
+     * @param sessionAddress the session bus to watch it on
+     */
+    void watchStatus(String sessionAddress) {
+        if (watching.compareAndSet(false, true)) {
+            AtspiStatusWatch watch = new AtspiStatusWatch(sessionAddress, this::enabled,
+                    AtspiStatusWatch.Sleeper.REAL);
+            Threads.daemon(AtspiStatusWatch.THREAD_NAME, watch);
+        }
+    }
+
+    /**
+     * The desktop's switch moved, or was read. Any thread; the watch thread in the process.
+     *
+     * <p>On: every attached window is asked for a publish, which buys the frame an idle window would
+     * otherwise never spend, and that publish joins. Off: the join is let go of, so the registry
+     * sees the application leave and no window keeps walking for a reader that has gone (decision
+     * 29).
+     *
+     * @param on the switch's value
+     */
+    void enabled(boolean on) {
+        boolean was = enabled;
+        enabled = on;
+        if (on == was) {
+            return;
+        }
+        if (on) {
+            for (AtspiBridge window : windows) {
+                limn.backend.AccessibilityBridge.Host host = window.host();
+                if (host != null) {
+                    host.requestRepublish();
+                }
+            }
+            return;
+        }
+        Joined now = joined.get();
+        if (now != null) {
+            leave(now);
+        }
+    }
+
+    /**
+     * A window's scene attached. User-interface thread. The window joins the table now rather than
+     * on its first publish, because a scene bound while the switch is off never publishes, and it is
+     * exactly that window the switch turning on must be able to wake.
+     *
+     * @param window the facade
+     */
+    void attached(AtspiBridge window) {
+        if (!window.member) {
+            windows.add(window);
+            window.member = true;
+        }
     }
 
     /** @return whether the application has joined the accessibility bus */
@@ -344,6 +410,9 @@ final class AtspiApplication {
      * thread: a compare-and-set and, at most once per join, a thread start.
      */
     private void requestJoin() {
+        if (!enabled) {
+            return;
+        }
         // failures before retryAt: the joiner writes them in the other order, so a failure seen
         // here always comes with its own wait.
         if (failures > 0 && clock.getAsLong() - retryAt < 0) {
@@ -391,6 +460,12 @@ final class AtspiApplication {
             return;
         }
         failures = 0;
+        if (!enabled) {
+            // The switch went off while the join ran: nothing is reading, so nothing stays joined.
+            link.close();
+            joining.set(false);
+            return;
+        }
         Joined now = new Joined(link, ++generations, Map.copyOf(frames));
         self.set(now);
         joined.set(now);

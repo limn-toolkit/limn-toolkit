@@ -5,8 +5,6 @@ import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 import limn.backend.lwjgl.a11y.PlatformBridge;
 
-import java.io.IOException;
-
 /**
  * Reads a Limn window to a screen reader on Linux, over AT-SPI2: one window's facade onto the
  * process's one AT-SPI application ({@link AtspiApplication}, ADR 039 §2.3).
@@ -20,27 +18,25 @@ import java.io.IOException;
  * it is a D-Bus protocol, and this module speaks it over {@code java.nio.channels.SocketChannel}
  * and {@code java.net.UnixDomainSocketAddress}. No JNI, no libffi, no LWJGL, no third-party jar.
  *
- * <p><b>The gate is the desktop's own switch, and it is read before anything is opened.</b>
+ * <p><b>The gate is the desktop's own switch, and it is watched, not read once.</b>
  * {@code org.a11y.Status.IsEnabled} on the session bus says whether assistive technology is running
- * at all. While it is false this bridge opens no connection to the accessibility bus and starts no
- * thread, so a machine with no screen reader pays one property read for the life of the window. It
- * is never "a client asked us something recently": Orca registers for a focus change and then calls
- * nothing until one fires, so a gate of that shape goes silent exactly when the interface is being
- * used.
+ * at all, and it moves while applications run: a screen reader started after this window, or one
+ * that quits. The process keeps one session connection and one parked thread following it
+ * ({@link AtspiStatusWatch}, decision 29). While it is false no connection to the accessibility bus
+ * is opened, no scene walks and no frame is spent; when it turns true every window is asked for a
+ * publish, and when it turns false the application leaves the bus. It is never "a client asked us
+ * something recently": Orca registers for a focus change and then calls nothing until one fires, so
+ * a gate of that shape goes silent exactly when the interface is being used.
  *
- * <p><b>Three threads, and which one may do what is the whole of the concurrency design.</b> The
- * user-interface thread publishes snapshots and enqueues events and blocks on nothing. The reader
- * thread answers every inbound call from every client, computing each answer from the tree()
- * snapshot, so it never touches a widget and never blocks. The writer thread performs every write.
- * A reply written from the reader thread would park the one thread serving every client the moment
- * a peer stopped draining, which a well-behaved client cannot even detect it is causing.
+ * <p><b>Which thread may do what is the whole of the concurrency design.</b> The user-interface
+ * thread publishes snapshots and enqueues events and blocks on nothing. The status thread follows
+ * the switch. A short-lived joiner thread joins the accessibility bus. On that bus the reader thread
+ * answers every inbound call from every client, computing each answer from the published snapshots,
+ * so it never touches a widget and never blocks, and the writer thread performs every write. A reply
+ * written from the reader thread would park the one thread serving every client the moment a peer
+ * stopped draining, which a well-behaved client cannot even detect it is causing.
  */
 public final class AtspiBridge extends PlatformBridge implements AtspiTree.Window {
-
-    /** The session-bus object that says whether assistive technology is running. */
-    private static final String STATUS_NAME = "org.a11y.Bus";
-    private static final String STATUS_PATH = "/org/a11y/bus";
-    private static final String STATUS_IFACE = "org.a11y.Status";
 
     private final AtspiApplication application;
 
@@ -56,27 +52,29 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     }
 
     /**
-     * Opens a bridge if the desktop says assistive technology is running, and otherwise nothing.
+     * Opens a window's bridge onto the process's application, or nothing on a machine where the
+     * switch cannot be watched.
      *
-     * <p>The gate is read here, once, before a socket to the accessibility bus is opened or a
-     * thread is started: a window on a machine with no screen reader is meant to cost a property
-     * read and never a connection. A session bus that cannot be reached at all — a headless
-     * process, a container with no D-Bus — is not an error and answers no.
+     * <p>Nothing is read and nothing is opened on the calling thread, which is the scene's bind on
+     * the user-interface thread: the process's status watch is started (once) and reads the switch
+     * on its own thread, and until it says yes this bridge is not listening. A process with no
+     * session bus it can reach — headless, a container, a CI runner — gets {@link
+     * AccessibilityBridge#NONE} and no thread at all.
      *
      * @param applicationName what the desktop calls this process (decision 56: the backend's
      *                        application name, by default its first window's title)
-     * @return a bridge, or {@link AccessibilityBridge#NONE} when accessibility is switched off or
-     *         the session bus cannot be asked
+     * @return a bridge, or {@link AccessibilityBridge#NONE} when there is no session bus to watch
      */
-    public static AccessibilityBridge openIfEnabled(String applicationName) {
-        Boolean on = readStatusFlag("IsEnabled");
-        if (on == null || !on) {
+    public static AccessibilityBridge open(String applicationName) {
+        String session = System.getenv("DBUS_SESSION_BUS_ADDRESS");
+        if (!AtspiStatusWatch.canWatch(session)) {
             return AccessibilityBridge.NONE;
         }
         // The bus is NOT joined here. See publish(): an application that registers before it has a
         // tree is an application some desktops refuse to list.
         AtspiApplication application = AtspiApplication.process();
         application.name(applicationName);
+        application.watchStatus(session);
         return application.window();
     }
 
@@ -88,33 +86,6 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
      */
     public static void nameApplication(String applicationName) {
         AtspiApplication.process().name(applicationName);
-    }
-
-    /**
-     * Reads one boolean property of {@code org.a11y.Status} off the session bus.
-     *
-     * @param name the property
-     * @return its value, or {@code null} when the bus or the property cannot be reached
-     */
-    private static Boolean readStatusFlag(String name) {
-        String address = System.getenv("DBUS_SESSION_BUS_ADDRESS");
-        if (address == null) {
-            return null;
-        }
-        try (DBus.Conn session = DBus.Conn.open(address)) {
-            // Hello first, always: the bus routes nothing for a connection that has not asked for
-            // its name, so every later call would sit unanswered until the timeout.
-            session.hello();
-            Object[] out = session.callArgs(STATUS_NAME, STATUS_PATH, DBus.I_PROPS_NAME, "Get",
-                    "ss", STATUS_IFACE, name);
-            Object value = out.length == 0 ? null : out[0];
-            if (value instanceof DBus.Variant variant) {
-                value = variant.value;
-            }
-            return value instanceof Boolean b ? b : null;
-        } catch (IOException | RuntimeException e) {
-            return null;
-        }
     }
 
     /**
@@ -130,6 +101,7 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     static AtspiBridge withoutTheGate() {
         AtspiApplication application = AtspiApplication.forThisMachine();
         application.name("a test");
+        application.enabled(true);
         return application.window();
     }
 
@@ -155,11 +127,18 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
 
     @Override
     public boolean isListening() {
-        // The desktop's own flag, and not "are we on the bus yet". This platform is the one that
-        // can be asked whether anything is reading, which is what §6 wants a gate to be — and
-        // making it depend on being embedded would be a cycle with no way in: the bus is joined on
-        // the first publish, and a scene publishes only when something is listening.
-        return true;
+        // The desktop's own flag as the watch last read it, and not "are we on the bus yet". This
+        // platform is the one that can be asked whether anything is reading, which is what §6 wants
+        // a gate to be — and making it depend on being embedded would be a cycle with no way in:
+        // the bus is joined on the first publish, and a scene publishes only when something is
+        // listening. One volatile read per frame.
+        return application.isEnabled();
+    }
+
+    @Override
+    public void attach(Host host) {
+        super.attach(host);
+        application.attached(this);
     }
 
     @Override

@@ -105,9 +105,84 @@ class AtspiApplicationTest {
         return new Published(a.publish(0, 0, 0, 1f, true), window, control);
     }
 
-    /** An application joining through {@code bus} on the calling thread, so a publish has joined. */
+    /**
+     * An application joining through {@code bus} on the calling thread, so a publish has joined, on
+     * a desktop whose switch says assistive technology is running.
+     */
     private static AtspiApplication anApplication(FakeBus bus) {
-        return new AtspiApplication(bus, AtspiApplication.Starter.ON_THE_CALLER, System::nanoTime);
+        AtspiApplication app = new AtspiApplication(bus, AtspiApplication.Starter.ON_THE_CALLER,
+                System::nanoTime);
+        app.enabled(true);
+        return app;
+    }
+
+    /** A host that counts the publishes it is asked for. */
+    private static AccessibilityBridge.Host hostCounting(int[] republishes) {
+        return new AccessibilityBridge.Host() {
+            @Override public void requestRepublish() { republishes[0]++; }
+            @Override public void requestRestamp() { }
+            @Override public AccessibleTree republishNow() { return AccessibleTree.EMPTY; }
+            @Override public boolean perform(long nodeId, Accessible.Action action,
+                                             Accessible.Argument arg) { return false; }
+        };
+    }
+
+    @Test
+    void theSwitchDecidesWhetherAWindowListensAndJoinsAndTurningItOnWakesEveryWindow() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = new AtspiApplication(bus, AtspiApplication.Starter.ON_THE_CALLER,
+                System::nanoTime);
+        AtspiBridge window = app.window();
+        int[] republishes = {0};
+        window.attach(hostCounting(republishes));
+        assertFalse(window.isListening(), "nothing is reading until the desktop says so");
+        window.publish(aWindow("Main", 0).tree(), false);
+        assertEquals(0, bus.joins, "a tree published while the switch is off joins nothing");
+
+        // A scene bound while the switch is off never publishes, so its window is known only by
+        // its attach.
+        AtspiBridge quiet = app.window();
+        int[] quietRepublishes = {0};
+        quiet.attach(hostCounting(quietRepublishes));
+
+        app.enabled(true);
+        assertTrue(window.isListening());
+        assertEquals(1, republishes[0]);
+        assertEquals(1, quietRepublishes[0], "the window whose scene never published is woken: "
+                + "an application started before the screen reader becomes readable");
+        app.enabled(true);
+        assertEquals(1, republishes[0], "a switch that did not move wakes nobody");
+        window.publish(aWindow("Main", 0).tree(), false);
+        assertEquals(1, bus.joins);
+        assertTrue(app.isJoined());
+
+        app.enabled(false);
+        assertFalse(window.isListening());
+        assertFalse(app.isJoined(), "the reader quit: the application leaves the bus");
+        assertTrue(bus.closed);
+
+        app.enabled(true);
+        assertEquals(2, republishes[0]);
+        assertEquals(2, quietRepublishes[0]);
+        window.publish(aWindow("Main", 0).tree(), false);
+        assertEquals(2, bus.joins, "and comes back when a reader does");
+    }
+
+    @Test
+    void aJoinThatCompletesAfterTheSwitchWentOffLeavesAtOnce() {
+        AtspiApplication[] app = new AtspiApplication[1];
+        boolean[] closed = {false};
+        app[0] = new AtspiApplication((objects, lost) -> {
+            app[0].enabled(false);  // the reader quits while the registry is embedding us
+            return new AtspiApplication.Link() {
+                @Override public boolean signal(DBus.Msg signal) { return true; }
+                @Override public void close() { closed[0] = true; }
+            };
+        }, AtspiApplication.Starter.ON_THE_CALLER, System::nanoTime);
+        app[0].enabled(true);
+        app[0].window().publish(aWindow("Main", 0).tree(), false);
+        assertFalse(app[0].isJoined(), "nothing stays joined for a switch that is off");
+        assertTrue(closed[0]);
     }
 
     private static String path(long id) {

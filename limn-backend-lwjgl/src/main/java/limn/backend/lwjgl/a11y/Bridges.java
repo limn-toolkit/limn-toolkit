@@ -16,9 +16,12 @@ import limn.backend.Platform;
  * artifact and never install it, with no symptom but silence. That failure mode is now
  * unreachable: the bridges ship with the backend, and the backend connects them.
  *
- * <p><b>Nothing here opens anything on a machine that is not listening.</b> Each factory reads its
- * own gate first, before a registry, a socket or a thread exists: UI Automation is asked whether it
- * is present, AT-SPI is asked whether the desktop has assistive technology switched on, and macOS —
+ * <p><b>Nothing here opens anything on a machine that is not listening, with one stated
+ * exception.</b> Each factory reads its own gate first, before a registry, a socket or a thread
+ * exists: UI Automation is asked whether it is present; AT-SPI's switch moves while an application
+ * runs, so the process keeps one session-bus connection and one parked thread watching it (decision
+ * 29, ADR 039 §6) and opens nothing more until it says yes, while a process with no session bus
+ * gets nothing at all; and macOS —
  * the one platform with no such question (§6) — checks only that AppKit is reachable and that the
  * window has a handle, then costs one tree walk on the scene's first frame and nothing after.
  *
@@ -104,7 +107,7 @@ public final class Bridges {
                 case MACOS -> AxBridge.openIfEnabled(nativeHandle);
                 // The one that needs no handle: it addresses nodes by object path over a socket and
                 // never touches the window.
-                case LINUX -> AtspiBridge.openIfEnabled(applicationName);
+                case LINUX -> AtspiBridge.open(applicationName);
                 default -> AccessibilityBridge.NONE;
             };
         } catch (Throwable refusedByThePlatform) {

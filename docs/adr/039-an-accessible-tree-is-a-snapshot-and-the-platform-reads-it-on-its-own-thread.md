@@ -2674,6 +2674,11 @@ a concurrent map written out of symmetry.
 **No bridge's registry is ever touched by a widget, and no widget is ever reachable from one**, for
 §1.2's reason: an element a client holds for minutes would otherwise pin a detached subtree.
 
+**Note 2026-09-15 (Linux rows).** The listening gate is a `volatile boolean` written by the status
+thread that watches `org.a11y.Status` (§6's amendment of this date), not by the reader thread on
+`Socket.Embed`. The joined state is one atomic reference written by the short-lived joiner thread and
+cleared by whichever thread lets the connection go (§3.3's amendment of this date).
+
 ### 3.5 What all three share
 
 - The tree is read from a snapshot, never from live widgets, on every platform.
@@ -3178,6 +3183,42 @@ GNOME session with accessibility off, a macOS process no client has queried. Per
 - **Linux:** `org.a11y.Status.IsEnabled` on the session bus, read once when the first window opens and
   refreshed on `PropertiesChanged`, **and** a completed `Socket.Embed`. When accessibility is off, no
   a11y bus connection is opened and no thread is started.
+
+#### Amendment 2026-09-15 — the Linux switch is watched, and that costs one parked thread per process
+
+**What was wrong (LINUX-NEW-7).** The bullet above said "refreshed on `PropertiesChanged`"; the code
+read `IsEnabled` once, when a window first asked for its bridge, on that thread, and answered `NONE`
+for good when it was false — so an application started before Orca stayed unreadable, and one whose
+reader quit kept its connection and its walks. "No thread is started" was true only because nothing
+watched.
+
+**The decision (29) and what it costs.** The switch is watched: **one session-bus connection and one
+parked daemon thread per process** (`limn-a11y-atspi-status`), from the first window's bridge on,
+**even when nothing is reading**. That thread is the whole idle cost on Linux beyond the per-frame
+`isListening()`, which is one `volatile` read; it allocates nothing per frame and wakes only for a
+message the bus routes to it, which is the switch's own announcement and nothing else. A process with
+no session bus it can open gets no bridge and no thread. No accessibility-bus connection is opened
+while the switch is off.
+
+**What was read before it was built.** On Fedora KDE 44 (at-spi2-core 2.60.6, dbus-broker 37) and
+Ubuntu 24.04 (at-spi2-core 2.52.0, dbus-daemon 1.14.10), 2026-09-15, with
+`scripts/a11y/linux/read-a11y-status-signal.sh --flip`: at-spi-bus-launcher broadcasts
+`org.freedesktop.DBus.Properties.PropertiesChanged` on `/org/a11y/bus` with
+`("org.a11y.Status", {"IsEnabled": <b>}, [])` once per change and nothing for a value set again, and a
+match on the well-known sender `org.a11y.Bus` receives it on both buses; the upstream function is
+byte-identical in both versions. Not read: what toggles the switch when Orca starts and quits on each
+desktop — the lab note of 2026-09-13 found it left on after a reader ran, so "tears down when Orca
+exits" happens only where the desktop turns the switch off; phase 5 measures it.
+
+**What the code does.** `AtspiStatusWatch` adds its match (`type='signal',sender='org.a11y.Bus',
+path='/org/a11y/bus',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',
+arg0='org.a11y.Status'`) **before** it reads the flag, so no change falls between the two; it follows
+the signal on a connection with no threads of its own (`DBus.Conn.openOnThisThread`), and reopens a
+lost connection after a back-off and reads the flag again. When the switch turns on, every attached
+window — a scene bound while it was off included — is asked for a publish, which buys the frame an
+idle window would never spend and joins; when it turns off, the application leaves the accessibility
+bus and every window stops listening. §3.4's "listening gate" row for Linux is therefore written by
+this status thread, not by the reader thread.
 
 **These are the gates, and the gate is never "a client asked us something recently."** A publish
 conditioned on a recent inbound call inverts the contract on all three platforms: the platform events

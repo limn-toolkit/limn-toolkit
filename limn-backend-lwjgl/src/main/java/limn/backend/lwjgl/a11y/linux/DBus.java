@@ -556,6 +556,89 @@ final class DBus {
             return c;
         }
 
+        /**
+         * A connection with no threads of its own: the thread that opens it writes and reads on it,
+         * through {@link #callHere}, {@link #writeHere} and {@link #readHere}, and nothing else may.
+         *
+         * <p>For a connection whose whole life is one thread waiting on the next message — the
+         * accessibility switch's watch, which is the one thread a process keeps when nothing is
+         * reading (ADR 039 §6). A reader and a writer thread for it would be two more.
+         *
+         * @param address the bus address
+         * @return the authenticated connection; {@code Hello} not yet sent
+         * @throws IOException when the socket or the handshake fails, with the socket closed
+         */
+        static Conn openOnThisThread(String address) throws IOException {
+            String path = unixPathOf(address);
+            SocketChannel ch = SocketChannel.open(StandardProtocolFamily.UNIX);
+            try {
+                ch.connect(UnixDomainSocketAddress.of(path));
+                Conn c = new Conn(address, ch);
+                c.auth();
+                return c;
+            } catch (IOException | RuntimeException e) {
+                try { ch.close(); } catch (IOException ignored) { }
+                throw e;
+            }
+        }
+
+        /**
+         * Writes one message now, on the calling thread. Only on a connection opened with
+         * {@link #openOnThisThread}.
+         *
+         * @return the serial it was sent with
+         */
+        int writeHere(Msg m) throws IOException {
+            synchronized (writeLock) {
+                int s = serial.getAndIncrement();
+                rawWrite(m.marshal(s));
+                if (TRACE) System.err.println("[->] " + m);
+                return s;
+            }
+        }
+
+        /**
+         * Reads the next message this thread can parse, answering an unparsable method call with its
+         * error on the way. Only on a connection opened with {@link #openOnThisThread}.
+         *
+         * @throws IOException at the end of the stream
+         */
+        Msg readHere() throws IOException {
+            while (true) {
+                Inbound in = Inbound.of(receiveFrame());
+                if (in.message() != null) {
+                    if (TRACE) System.err.println("[<-] " + in.message());
+                    return in.message();
+                }
+                System.err.println("[conn] unparsable message dropped: " + in.failure());
+                if (in.refusal() != null) {
+                    writeHere(in.refusal());
+                }
+            }
+        }
+
+        /**
+         * A method call made and waited for on the calling thread. Whatever else arrives before its
+         * reply — a signal, a call — is handed to {@code meanwhile} in order.
+         *
+         * @throws DBusError when the reply is an error
+         * @throws IOException at the end of the stream
+         */
+        Msg callHere(Msg call, java.util.function.Consumer<Msg> meanwhile) throws IOException {
+            int sent = writeHere(call);
+            while (true) {
+                Msg m = readHere();
+                if ((m.type == METHOD_RETURN || m.type == ERROR) && m.replySerial == sent) {
+                    if (m.type == ERROR) {
+                        throw new DBusError(m.errorName,
+                                m.body.length > 0 ? String.valueOf(m.body[0]) : "");
+                    }
+                    return m;
+                }
+                meanwhile.accept(m);
+            }
+        }
+
         /** Real uid, read from /proc/self/status; the SASL EXTERNAL identity on Linux. */
         static String uid() {
             try {
