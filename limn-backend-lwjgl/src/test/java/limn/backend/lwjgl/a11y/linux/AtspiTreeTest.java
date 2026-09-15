@@ -872,6 +872,56 @@ class AtspiTreeTest {
                         + "length of UTF-8 bytes still inserts the whole é; the emoji deleted whole");
     }
 
+    /**
+     * The trace names every inbound call with its arguments, and an EditableText call to a password
+     * field withholds the plaintext a client writes (LINUX-NEW-6; the review of sub-lane linux-C):
+     * the field publishes only its mask, and the trace printed "hunter2".
+     */
+    @Test
+    void theTraceWithholdsTheTextAClientWritesIntoAPasswordField() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        for (int i = 0; i < 2; i++) {
+            a.begin(9221 + i, 0, Locale.ENGLISH, 0, i * 30, 400, 30);
+            a.role(i == 0 ? Accessible.Role.TEXT_FIELD : Accessible.Role.PASSWORD_FIELD);
+            a.text(i == 0 ? "ab" : "••", 2, 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1,
+                    null, false);
+            a.state(Accessible.State.EDITABLE);
+            if (i == 1) {
+                a.state(Accessible.State.PASSWORD);
+            }
+            a.inherited(true, true, true, true, false);
+            a.end();
+        }
+        a.end();
+        tree.set(a.publish(0, 0, 0, 1f, true));
+
+        List<String> lines = new ArrayList<>();
+        java.util.function.Consumer<String> before = AtspiTrace.trace;
+        AtspiTrace.trace = lines::add;
+        try {
+            call(path(9222), Atspi.I_EDITABLE_TEXT, "SetTextContents", "s", "hunter2");
+            call(path(9222), Atspi.I_EDITABLE_TEXT, "InsertText", "isi", 0, "s\uD83D\uDE00cret", 9);
+            call(path(9299), Atspi.I_EDITABLE_TEXT, "SetTextContents", "s", "gone");
+            call(path(9221), Atspi.I_EDITABLE_TEXT, "SetTextContents", "s", "plain");
+        } finally {
+            AtspiTrace.trace = before;
+        }
+        String all = String.join("\n", lines);
+        assertTrue(!all.contains("hunter2") && !all.contains("cret") && !all.contains("gone"),
+                "no password plaintext in the trace: " + lines);
+        assertTrue(lines.contains("call " + path(9222) + "  " + Atspi.I_EDITABLE_TEXT
+                + ".SetTextContents(<7 characters withheld>)"), "" + lines);
+        assertTrue(lines.contains("call " + path(9222) + "  " + Atspi.I_EDITABLE_TEXT
+                + ".InsertText(0, <6 characters withheld>, 9)"), "the numbers stay: " + lines);
+        assertTrue(lines.contains("call " + path(9221) + "  " + Atspi.I_EDITABLE_TEXT
+                + ".SetTextContents(plain)"), "an ordinary field's text is traced as before: "
+                + lines);
+    }
+
     /** A window holding one editable, enabled field whose text is "ab". */
     private void publishAWindowWithAnEditableField() {
         Accessibility a = new Accessibility();

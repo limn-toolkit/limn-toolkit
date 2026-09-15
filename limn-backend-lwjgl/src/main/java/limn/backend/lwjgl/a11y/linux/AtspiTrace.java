@@ -22,7 +22,10 @@ import java.util.function.Consumer;
  * {@code -Dprobe.trace=true} ({@code DBus.TRACE}, standard error), which this does not replace.
  *
  * <p>A text-changed line carries the text that changed, which a password field publishes masked
- * ({@code TextFacet}); strings are cut to {@value #STRING_LIMIT} characters.
+ * ({@code TextFacet}); strings are cut to {@value #STRING_LIMIT} characters. An inbound
+ * {@code EditableText} call to a {@code PASSWORD} node, or to a path that names no node, has its
+ * string arguments withheld and replaced by their length in characters, since those are the
+ * plaintext a client writes ({@code AtspiTree#handle}).
  */
 final class AtspiTrace {
 

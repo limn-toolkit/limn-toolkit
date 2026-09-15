@@ -168,6 +168,15 @@ final class AtspiTree {
         return Math.max(0, frameIndexOf(frames(), window));
     }
 
+    /**
+     * Whether a path names a node that is not a {@code PASSWORD} field, so the text a client
+     * writes into it may be traced; a path that names nothing is not known to be one.
+     */
+    private boolean isUnmasked(String path) {
+        Located at = isRoot(path) ? null : nodeOf(path);
+        return at != null && !at.node().has(Accessible.State.PASSWORD);
+    }
+
     private static boolean isRoot(String path) {
         return Atspi.PATH_ROOT.equals(path);
     }
@@ -185,9 +194,17 @@ final class AtspiTree {
             // wanted rather than guessed at. Two of the three platforms have now produced a defect
             // whose only symptom was silence, and a trace is what turns that into a question.
             StringBuilder args = new StringBuilder();
+            boolean withheld = Atspi.I_EDITABLE_TEXT.equals(iface) && !isUnmasked(m.path);
             for (Object arg : m.body) {
                 if (args.length() > 0) args.append(", ");
-                args.append(arg);
+                if (withheld && arg instanceof String text) {
+                    // The plaintext a client writes into a password field is not repeated, as the
+                    // field itself publishes only its mask: the length says what was asked.
+                    args.append("<").append(text.codePointCount(0, text.length()))
+                            .append(" characters withheld>");
+                } else {
+                    args.append(arg);
+                }
             }
             trace.accept("call " + m.path + "  " + iface + "." + m.member + "(" + args + ")");
         }

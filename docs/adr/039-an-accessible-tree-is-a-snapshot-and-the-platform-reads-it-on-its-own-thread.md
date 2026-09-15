@@ -4557,6 +4557,13 @@ formatting nothing when null, as `UiaWindow.say` does on Windows, so a test inst
 trace `-Dprobe.trace=true` (`DBus.TRACE`, every message and SASL line on standard error) stays separate.
 A string value is cut to 40 characters; a masked field's text changes carry the mask.)*
 
+*(Amended 2026-09-15, review of the interfaces item: that last sentence covered the outbound lines only.
+Once `EditableText` was served, the inbound line printed the plaintext a client sends in
+`SetTextContents` or `InsertText` to a `PASSWORD` field. The inbound line now withholds the string
+arguments of an `EditableText` call to a `PASSWORD` node, or to a path that names no node, and prints
+their length in characters instead; the numbers and every other call are traced as before. Pinned by
+`AtspiTreeTest.theTraceWithholdsTheTextAClientWritesIntoAPasswordField`.)*
+
 *(Amended 2026-09-15, H3: the date widgets have a client on Linux. `scripts/a11y/linux/date-check.py`
 reads, through libatspi, a calendar grid by row and column with its `Selection`, headers, cell states and
 `posinset`/`setsize`; a date field's segments through `Value` and `Text`; and a picker's expand state and
