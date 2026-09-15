@@ -111,7 +111,10 @@ class UiaFragmentProviderTest {
         arrays.forEach(a -> MemoryUtil.nmemFree(a[0]));
     }
 
-    /** A window holding a group, a button inside it, and a second button beside the group. */
+    /**
+     * A window holding a group, a button inside it publishing FOCUS (the walk's free verb on a
+     * focusable widget), and a second button beside the group publishing none.
+     */
     private void publishAScene(long focusedId) {
         Accessibility a = new Accessibility();
         a.beginWalk(400, 300, Locale.ENGLISH);
@@ -124,6 +127,7 @@ class UiaFragmentProviderTest {
         a.begin(1002, 1, Locale.ENGLISH, 10, 20, 100, 40);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
+        a.action(Accessible.Action.FOCUS);
         a.inherited(true, true, true, true, focusedId == 1002);
         a.end();
         a.end();
@@ -301,13 +305,21 @@ class UiaFragmentProviderTest {
         }
     }
 
+    /**
+     * Semantics 5 (SetFocus [FOCUS]): the request reaches the toolkit where the node publishes
+     * FOCUS, and is refused synchronously where it does not. Until 2026-09-15 it was posted for any
+     * node (this case read "setFocusReachesTheToolkitAndSaysSoWhenTheNodeHasGone").
+     */
     @Test
-    void setFocusReachesTheToolkitAndSaysSoWhenTheNodeHasGone() {
+    void setFocusReachesTheToolkitOnlyWhereTheNodePublishesFocusAndSaysSoWhenTheNodeHasGone() {
         publishAScene(0);
         long button = fragmentFor(1002);
+        long other = fragmentFor(1003);
         int slot = slotOf(UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT, "SetFocus");
 
         assertEquals(UiaIds.S_OK, JNI.invokePI(button, UiaCom.slotOf(button, slot)));
+        assertEquals(UiaIds.E_INVALID_OPERATION, JNI.invokePI(other, UiaCom.slotOf(other, slot)),
+                "a node that publishes no FOCUS is refused, and nothing reaches the toolkit");
         assertEquals(List.of(1002L), focusRequests);
 
         published.set(AccessibleTree.EMPTY);

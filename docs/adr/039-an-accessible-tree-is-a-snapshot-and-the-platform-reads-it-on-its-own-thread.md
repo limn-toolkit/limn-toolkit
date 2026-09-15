@@ -2170,6 +2170,33 @@ were claimed and a client's `GetPatternProvider` got a null for each. As built:
   dialog still says `IsDialog`. `UiaPatternsTest.everyPatternANodeCanClaimIsOneThisBridgeServes` now
   fails for any claim with no interface behind it.
 
+**Amended 2026-09-15 (phase 3, Windows; decisions 2, 7, 20, semantics 5 as amended the same day;
+W6, TREE-MISS-8, WINDOWS-NEW-10, CRIT-7): every verb and setter goes through
+`AccessibleNode#accepts`.** The rows above say `SetFocus` "posted `FOCUS`" and `Invoke` "posted
+`PRESS`", and the pattern slots posted `TOGGLE`, `EXPAND`, `COLLAPSE` and `SET_TEXT` the same way,
+whatever the node published; fix round 2e's `refusedSetter` refused a setter on a node not `ENABLED`
+and nothing else. As built: `Invoke` [`PRESS`], `Toggle` [`TOGGLE`], `Expand` [`EXPAND`], `Collapse`
+[`COLLAPSE`], `SetFocus` [`FOCUS`], `ScrollIntoView` [`SCROLL_INTO_VIEW`] and the `SelectionItem` lists
+post the first verb the node publishes on the snapshot of the call. `Value.SetValue` posts `SET_TEXT`
+on a node with a text facet and `SET_VALUE` carrying the text on a value facet (a spinner's "07:30",
+a combo's item), and `RangeValue.SetValue` posts `SET_VALUE`, each only where `accepts` says the
+node takes it (a writable facet on an `ENABLED` node). A verb or setter the node does not accept is
+refused synchronously and nothing is posted: with `UIA_E_ELEMENTNOTENABLED` (0x80040200) when the
+node is not `ENABLED` — disabled, under a disabled ancestor, outside the layer that owns input — and
+`0x80131509` when it is enabled and does not offer it. The not-enabled code for the **verbs** as well
+as the setters (the addendum names the setters) is the platform's own order, read as IL on the guest
+2026-09-15 (readings/windows-dump-uia-provider-conventions.txt §1b): `ButtonAutomationPeer.Invoke`,
+`ToggleButtonAutomationPeer.Toggle`, `ExpanderAutomationPeer`'s and `TreeViewItemAutomationPeer`'s
+`Expand`/`Collapse`, `SelectorItemAutomationPeer`'s three verbs, `TextBoxAutomationPeer.SetValue` and
+`RangeBaseAutomationPeer.SetValue` all throw `ElementNotEnabledException` before anything else, and
+`InvalidOperationException` only after. Not followed from that reading: `TextBoxAutomationPeer`
+answers a read-only text box's `SetValue` with `ElementNotEnabledException` too; this bridge answers a
+read-only but enabled node `0x80131509`, as semantics 5 words it. `Value.get_IsReadOnly` is the
+`READ_ONLY` state, which the model derives from a value facet's `readOnly` (`Accessibility#value`), so
+it already answered the facet's writability. The Expand/Collapse, Toggle and Value patterns are still
+vended from their facets, because their state is what a reader reads; a verb delegated to a container
+(a tree row's `EXPAND`) is posted on the row's id and the scene routes it (decision 7).
+
 ### 2.2 macOS: NSAccessibility
 
 | Attribute / action / notification | Answered from | Note |

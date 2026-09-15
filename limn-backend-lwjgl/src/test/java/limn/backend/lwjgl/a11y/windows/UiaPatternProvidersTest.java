@@ -182,10 +182,14 @@ class UiaPatternProvidersTest {
      *
      * <pre>
      * 1000 WINDOW
-     *   1001 BUTTON [press]            1002 CHECK_BOX mixed
+     *   1001 BUTTON [press]            1002 CHECK_BOX mixed [toggle]
      *   1003 TEXT_FIELD "draft"        1004 TEXT_FIELD "fixed" read-only
      *   1005 SPIN_BUTTON 7 "07"        1006 PROGRESS_BAR 40 read-only
-     *   1007 COMBO_BOX expanded
+     *   1007 COMBO_BOX expanded [collapse]
+     *   1017 COMBO_BOX collapsed [expand]
+     *   1014 BUTTON disabled (no verb)  1015 TEXT_FIELD "off" disabled, still editable
+     *   1016 SPIN_BUTTON 9 "09" read-only value, enabled
+     *   1018 LIST_ITEM disabled, no verb
      *   1008 LIST multi
      *     1009 LIST_ITEM selected 1/2 [deselect]
      *     1010 GROUP (a widget, not synthetic)
@@ -220,6 +224,7 @@ class UiaPatternProvidersTest {
         a.end();
         node(a, 1002, window, Accessible.Role.CHECK_BOX);
         a.toggle(ToggleFacet.State.MIXED);
+        a.action(Accessible.Action.TOGGLE);
         a.end();
         node(a, 1003, window, Accessible.Role.TEXT_FIELD);
         a.state(Accessible.State.EDITABLE);
@@ -237,6 +242,27 @@ class UiaPatternProvidersTest {
         a.end();
         node(a, 1007, window, Accessible.Role.COMBO_BOX);
         a.expand(true);
+        a.action(Accessible.Action.COLLAPSE);
+        a.end();
+        node(a, 1017, window, Accessible.Role.COMBO_BOX);
+        a.expand(false);
+        a.action(Accessible.Action.EXPAND);
+        a.end();
+        node(a, 1014, window, Accessible.Role.BUTTON);
+        a.inherited(false, true, true, false, false);
+        a.end();
+        node(a, 1015, window, Accessible.Role.TEXT_FIELD);
+        a.state(Accessible.State.EDITABLE);
+        a.text("off", 4, 0, ShapedText.Affinity.DOWNSTREAM, 0, 0, 1, null, false);
+        a.inherited(false, true, true, false, false);
+        a.end();
+        node(a, 1016, window, Accessible.Role.SPIN_BUTTON);
+        a.value(9, 0, 10, 1, true);
+        a.valueText("09", 5);
+        a.end();
+        node(a, 1018, window, Accessible.Role.LIST_ITEM);
+        a.selectionItem(false, 1, 1);
+        a.inherited(false, true, true, false, false);
         a.end();
         int list = node(a, 1008, window, Accessible.Role.LIST);
         a.selection(true, false);
@@ -465,9 +491,19 @@ class UiaPatternProvidersTest {
 
     // ---- Invoke
 
+    /**
+     * Semantics 5: PRESS is posted where published; a node that does not publish it is refused,
+     * with UIA_E_ELEMENTNOTENABLED when it is not ENABLED (the platform's own ButtonAutomationPeer
+     * answers that first, read as IL 2026-09-15) and 0x80131509 otherwise. Until 2026-09-15 it was
+     * posted to any node a client held the pattern of.
+     */
     @Test
-    void invokePostsAPressAndAnswersNotAvailableWhenTheSceneRefuses() {
+    void invokePostsAPressOnlyWherePublishedAndAnswersNotAvailableWhenTheSceneRefuses() {
         assertEquals(UiaIds.S_OK, verb(UiaIds.INVOKE_PATTERN, 1001, "Invoke"));
+        assertEquals(UiaIds.E_ELEMENT_NOT_ENABLED, verb(UiaIds.INVOKE_PATTERN, 1014, "Invoke"),
+                "a disabled button, whose Invoke pattern a client may still hold");
+        assertEquals(UiaIds.E_INVALID_OPERATION, verb(UiaIds.INVOKE_PATTERN, 1002, "Invoke"),
+                "an enabled node that publishes no PRESS");
         assertEquals(List.of("1001 PRESS None[]"), posted);
 
         accepting = false;
@@ -480,6 +516,8 @@ class UiaPatternProvidersTest {
     @Test
     void toggleIsPostedAndTheStateIsTheThreePlatformNumbersInFourBytes() {
         assertEquals(UiaIds.S_OK, verb(UiaIds.TOGGLE_PATTERN, 1002, "Toggle"));
+        assertEquals(UiaIds.E_INVALID_OPERATION, verb(UiaIds.TOGGLE_PATTERN, 1001, "Toggle"),
+                "semantics 5: no TOGGLE published, nothing posted");
         assertEquals(List.of("1002 TOGGLE None[]"), posted);
 
         long out = buffer();
@@ -497,16 +535,30 @@ class UiaPatternProvidersTest {
 
     // ---- Value
 
+    private int setValue(long nodeId, String text) {
+        return ((UiaCom.PP) slot(UiaIds.VALUE_PATTERN, nodeId, "SetValue")).invoke(0, bstr(text));
+    }
+
+    /**
+     * Semantics 5 and the addendum's setter bullets (CRIT-7): a text facet's SetValue is SET_TEXT,
+     * a value facet's is SET_VALUE carrying the text; each is posted only where the node accepts it
+     * now (AccessibleNode#accepts), refused with UIA_E_ELEMENTNOTENABLED on a node that is not
+     * ENABLED and 0x80131509 on a read-only one. Until 2026-09-15 a value node's SetValue posted
+     * SET_TEXT, which its widget refuses, and a read-only but enabled node's setter was posted.
+     */
     @Test
-    void valueSetValuePostsTheWholeTextOnATextFieldAndOnAValueNode() {
-        assertEquals(UiaIds.S_OK,
-                ((UiaCom.PP) slot(UiaIds.VALUE_PATTERN, 1003, "SetValue")).invoke(0, bstr("final")));
-        // Pinned as of 048f7d0: a value node's SetValue posts SET_TEXT too, which its widget refuses
-        // (CRIT-7; item 6 of the Windows brief posts SET_VALUE by text there).
-        assertEquals(UiaIds.S_OK,
-                ((UiaCom.PP) slot(UiaIds.VALUE_PATTERN, 1005, "SetValue")).invoke(0, bstr("08")));
-        assertEquals(List.of("1003 SET_TEXT OfText[text=final]", "1005 SET_TEXT OfText[text=08]"),
+    void valueSetValuePostsTheTextSetterOrTheValueByTextWhereTheNodeAcceptsIt() {
+        assertEquals(UiaIds.S_OK, setValue(1003, "final"));
+        assertEquals(UiaIds.S_OK, setValue(1005, "08"));
+        assertEquals(List.of("1003 SET_TEXT OfText[text=final]", "1005 SET_VALUE OfText[text=08]"),
                 posted);
+
+        posted.clear();
+        assertEquals(UiaIds.E_INVALID_OPERATION, setValue(1004, "x"), "a read-only text");
+        assertEquals(UiaIds.E_INVALID_OPERATION, setValue(1016, "10"), "a read-only value");
+        assertEquals(UiaIds.E_ELEMENT_NOT_ENABLED, setValue(1015, "on"),
+                "a disabled field, which is not read-only");
+        assertEquals(List.of(), posted);
 
         goneFromTheTree();
         assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
@@ -537,6 +589,18 @@ class UiaPatternProvidersTest {
         // a VARIANT_BOOL, which read 0xAAAA0000 and 0xAAAAFFFF here.
         assertBool(false, editable);
         assertBool(true, fixed);
+        // A value facet's writability (item 6 of the Windows brief): answered through the READ_ONLY
+        // state, which the model derives from the facet's readOnly, so a read-only value reads true
+        // and a disabled field, which is not read-only, false (ADR 039 §1.2).
+        long writableValue = buffer();
+        long fixedValue = buffer();
+        long disabled = buffer();
+        assertEquals(UiaIds.S_OK, get(UiaIds.VALUE_PATTERN, 1005, "get_IsReadOnly", writableValue));
+        assertEquals(UiaIds.S_OK, get(UiaIds.VALUE_PATTERN, 1016, "get_IsReadOnly", fixedValue));
+        assertEquals(UiaIds.S_OK, get(UiaIds.VALUE_PATTERN, 1015, "get_IsReadOnly", disabled));
+        assertBool(false, writableValue);
+        assertBool(true, fixedValue);
+        assertBool(false, disabled);
 
         goneFromTheTree();
         assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
@@ -545,10 +609,14 @@ class UiaPatternProvidersTest {
 
     // ---- RangeValue
 
+    /** Semantics 5: SET_VALUE where the value is writable and the node ENABLED, else refused. */
     @Test
-    void rangeValueSetValuePostsTheNumber() {
+    void rangeValueSetValuePostsTheNumberWhereTheNodeAcceptsIt() {
         assertEquals(UiaIds.S_OK,
                 ((UiaCom.PD) slot(UiaIds.RANGE_VALUE_PATTERN, 1005, "SetValue")).invoke(0, 9));
+        assertEquals(UiaIds.E_INVALID_OPERATION,
+                ((UiaCom.PD) slot(UiaIds.RANGE_VALUE_PATTERN, 1006, "SetValue")).invoke(0, 9),
+                "a read-only progress bar, enabled; until 2026-09-15 this was posted");
         assertEquals(List.of("1005 SET_VALUE OfValue[value=9.0]"), posted);
 
         goneFromTheTree();
@@ -592,13 +660,22 @@ class UiaPatternProvidersTest {
 
     // ---- ExpandCollapse
 
+    /**
+     * WINDOWS-NEW-10, semantics 5: Expand posts EXPAND and Collapse COLLAPSE only where the node
+     * publishes that verb now, which a widget does by state; otherwise refused. Until 2026-09-15
+     * both were posted whatever the node published.
+     */
     @Test
-    void expandAndCollapseArePostedAndTheStateIsZeroOrOne() {
-        // Pinned as of 048f7d0: posted whether or not the node publishes the verb (WINDOWS-NEW-10;
-        // item 6 of the Windows brief refuses them there).
-        assertEquals(UiaIds.S_OK, verb(UiaIds.EXPAND_COLLAPSE_PATTERN, 1007, "Expand"));
+    void expandAndCollapsePostTheVerbTheNodePublishesAndTheStateIsZeroOrOne() {
         assertEquals(UiaIds.S_OK, verb(UiaIds.EXPAND_COLLAPSE_PATTERN, 1007, "Collapse"));
-        assertEquals(List.of("1007 EXPAND None[]", "1007 COLLAPSE None[]"), posted);
+        assertEquals(UiaIds.S_OK, verb(UiaIds.EXPAND_COLLAPSE_PATTERN, 1017, "Expand"));
+        assertEquals(UiaIds.E_INVALID_OPERATION,
+                verb(UiaIds.EXPAND_COLLAPSE_PATTERN, 1007, "Expand"), "already open: no EXPAND");
+        assertEquals(UiaIds.E_INVALID_OPERATION,
+                verb(UiaIds.EXPAND_COLLAPSE_PATTERN, 1017, "Collapse"), "closed: no COLLAPSE");
+        assertEquals(UiaIds.E_ELEMENT_NOT_ENABLED,
+                verb(UiaIds.EXPAND_COLLAPSE_PATTERN, 1014, "Expand"));
+        assertEquals(List.of("1007 COLLAPSE None[]", "1017 EXPAND None[]"), posted);
 
         long out = buffer();
         assertEquals(UiaIds.S_OK,
@@ -631,6 +708,9 @@ class UiaPatternProvidersTest {
                 "add is ADD_TO_SELECTION where offered and a click where the container has only that");
 
         posted.clear();
+        assertEquals(UiaIds.E_ELEMENT_NOT_ENABLED,
+                verb(UiaIds.SELECTION_ITEM_PATTERN, 1018, "Select"),
+                "a disabled item: not enabled is answered first (read as IL 2026-09-15)");
         assertEquals(UiaIds.E_INVALID_OPERATION,
                 verb(UiaIds.SELECTION_ITEM_PATTERN, 1013, "Select"));
         assertEquals(UiaIds.E_INVALID_OPERATION,

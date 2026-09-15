@@ -177,6 +177,38 @@ foreach ($f in [System.Windows.Automation.ScrollPatternIdentifiers].GetFields([S
 }
 Write-Output ''
 
+# ---- 1b. the verbs and setters of WPF's own common peers: what each refuses, and with what
+Write-Output '// ---- 1b. the verb and setter members of the platform peers of a button, a check box, an expander, a list item, a text box and a range, as IL'
+$verbInterfaces = @{
+    'System.Windows.Automation.Peers.ButtonAutomationPeer' = @([System.Windows.Automation.Provider.IInvokeProvider]);
+    'System.Windows.Automation.Peers.ToggleButtonAutomationPeer' = @([System.Windows.Automation.Provider.IToggleProvider]);
+    'System.Windows.Automation.Peers.ExpanderAutomationPeer' = @([System.Windows.Automation.Provider.IExpandCollapseProvider]);
+    'System.Windows.Automation.Peers.TreeViewItemAutomationPeer' = @([System.Windows.Automation.Provider.IExpandCollapseProvider]);
+    'System.Windows.Automation.Peers.SelectorItemAutomationPeer' = @([System.Windows.Automation.Provider.ISelectionItemProvider]);
+    'System.Windows.Automation.Peers.ListBoxItemWrapperAutomationPeer' = @([System.Windows.Automation.Provider.IScrollItemProvider]);
+    'System.Windows.Automation.Peers.TextBoxAutomationPeer' = @([System.Windows.Automation.Provider.IValueProvider]);
+    'System.Windows.Automation.Peers.RangeBaseAutomationPeer' = @([System.Windows.Automation.Provider.IRangeValueProvider])
+}
+$framework = $assemblies | Where-Object { $_.GetName().Name -eq 'PresentationFramework' }
+foreach ($typeName in ($verbInterfaces.Keys | Sort-Object)) {
+    $t = $framework.GetType($typeName, $false)
+    if (-not $t) { Write-Output "//   == $typeName : not found"; continue }
+    foreach ($iface in $verbInterfaces[$typeName]) {
+        Write-Output "//   == $typeName as $($iface.Name)"
+        $map = $null
+        try { $map = $t.GetInterfaceMap($iface) } catch { Write-Output "//     (no interface map: $($_.Exception.Message))"; continue }
+        for ($k = 0; $k -lt $map.InterfaceMethods.Length; $k++) {
+            $name = $map.InterfaceMethods[$k].Name
+            if ($name -like 'get_*') { continue }
+            Write-Method $map.TargetMethods[$k] "implements $($iface.Name).$name"
+        }
+    }
+}
+Write-Output '// ---- System.Windows.Automation.Peers.AutomationPeer::IsEnabled and the Owner check it rests on, as IL'
+$peer = ($assemblies | Where-Object { $_.GetName().Name -eq 'PresentationCore' }).GetType('System.Windows.Automation.Peers.AutomationPeer', $false)
+if ($peer) { foreach ($m in $peer.GetMethods($flags)) { if ($m.Name -eq 'IsEnabled') { Write-Method $m 'IsEnabled' } } }
+Write-Output ''
+
 # ---- 2. the exceptions those members throw, as the HRESULT a native caller receives
 Write-Output '// ---- 2. HResult of each exception a provider member may throw, constructed with no arguments'
 foreach ($typeName in @('System.ArgumentOutOfRangeException', 'System.ArgumentException',

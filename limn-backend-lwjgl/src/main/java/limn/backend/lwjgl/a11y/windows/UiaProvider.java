@@ -351,7 +351,21 @@ final class UiaProvider {
         return UiaIds.S_OK;
     }
 
+    /**
+     * <p>{@code FOCUS}, posted only where the node publishes it now (semantics 5: SetFocus
+     * [FOCUS]), and refused synchronously otherwise the way every pattern verb is
+     * ({@link UiaPatternProviders#refusal}). A focusable widget's FOCUS is the walk's free verb; an
+     * item publishes it where moving the cursor does not select (decision 11). Until 2026-09-15 it
+     * was posted for any node, the root and a disabled button included.
+     */
     private static int setFocus(long nodeId, Context context) {
+        AccessibleNode node = context.tree().find(nodeId);
+        if (node == null) {
+            return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+        }
+        if (!node.accepts(limn.accessibility.Accessible.Action.FOCUS)) {
+            return UiaPatternProviders.refusal(node);
+        }
         return context.requestFocus(nodeId) ? UiaIds.S_OK : UiaIds.E_ELEMENT_NOT_AVAILABLE;
     }
 

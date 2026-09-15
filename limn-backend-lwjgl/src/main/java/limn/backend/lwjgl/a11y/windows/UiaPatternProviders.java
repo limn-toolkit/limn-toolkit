@@ -65,14 +65,17 @@ final class UiaPatternProviders {
                                            UiaProvider.Context context) {
         Map<String, CallbackI> slots = new LinkedHashMap<>();
         switch (patternId) {
+            // Semantics 5: every verb below is posted only when the node publishes it now, read
+            // through AccessibleNode#accepts on the snapshot of the call, because the pointer a
+            // client holds outlives the snapshot that vended the pattern (a button disabled since,
+            // a row under an overlay). Until 2026-09-15 each was posted whatever the node published
+            // and the client was told S_OK for a verb the widget then refused (W6, WINDOWS-NEW-10).
             case UiaIds.INVOKE_PATTERN -> slots.put("Invoke",
-                    (UiaCom.P) self -> accepted(context.perform(nodeId, Accessible.Action.PRESS,
-                            Accessible.Argument.NONE)));
+                    (UiaCom.P) self -> postFirstAccepted(context, nodeId, Accessible.Action.PRESS));
 
             case UiaIds.TOGGLE_PATTERN -> {
-                slots.put("Toggle", (UiaCom.P) self -> accepted(
-                        context.perform(nodeId, Accessible.Action.TOGGLE,
-                                Accessible.Argument.NONE)));
+                slots.put("Toggle", (UiaCom.P) self -> postFirstAccepted(context, nodeId,
+                        Accessible.Action.TOGGLE));
                 slots.put("get_ToggleState", (UiaCom.PP) (self, out) -> {
                     AccessibleNode node = context.tree().find(nodeId);
                     if (node == null || node.toggle() == null) {
@@ -92,11 +95,15 @@ final class UiaPatternProviders {
 
             case UiaIds.VALUE_PATTERN -> {
                 slots.put("SetValue", (UiaCom.PP) (self, text) -> {
-                    // Fix round 2e's minimal refusal; phase 3 replaces it with the full gate.
-                    int refused = refusedSetter(context.tree().find(nodeId));
-                    return refused != UiaIds.S_OK ? refused : accepted(
-                            context.perform(nodeId, Accessible.Action.SET_TEXT,
-                                    new Accessible.Argument.OfText(bstrOf(text))));
+                    // Semantics 5 (CRIT-7): the whole text of a text facet is SET_TEXT; the
+                    // spoken form of a value facet -- a spinner's "07:30", a combo's item -- is
+                    // SET_VALUE by text, which the widget parses. Until 2026-09-15 both posted
+                    // SET_TEXT, which a value widget refuses.
+                    AccessibleNode node = context.tree().find(nodeId);
+                    Accessible.Action setter = node != null && node.text() != null
+                            ? Accessible.Action.SET_TEXT : Accessible.Action.SET_VALUE;
+                    return postSetter(context, nodeId, setter,
+                            new Accessible.Argument.OfText(bstrOf(text)));
                 });
                 slots.put("get_Value", (UiaCom.PP) (self, out) -> {
                     AccessibleNode node = context.tree().find(nodeId);
@@ -116,19 +123,17 @@ final class UiaPatternProviders {
                     if (node == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
+                    // The facet's writability, the fact the setter gate reads: the READ_ONLY state
+                    // is a text facet's own flag and, for a value facet, derived from its readOnly
+                    // (Accessibility#value sets the state with it), so one read answers both.
                     putBool(out, node.has(Accessible.State.READ_ONLY));
                     return UiaIds.S_OK;
                 });
             }
 
             case UiaIds.RANGE_VALUE_PATTERN -> {
-                slots.put("SetValue", (UiaCom.PD) (self, value) -> {
-                    // Fix round 2e's minimal refusal; phase 3 replaces it with the full gate.
-                    int refused = refusedSetter(context.tree().find(nodeId));
-                    return refused != UiaIds.S_OK ? refused : accepted(
-                            context.perform(nodeId, Accessible.Action.SET_VALUE,
-                                    new Accessible.Argument.OfValue(value)));
-                });
+                slots.put("SetValue", (UiaCom.PD) (self, value) -> postSetter(context, nodeId,
+                        Accessible.Action.SET_VALUE, new Accessible.Argument.OfValue(value)));
                 slots.put("get_Value", number(nodeId, context, node -> node.value().value()));
                 slots.put("get_Maximum", number(nodeId, context, node -> node.value().max()));
                 slots.put("get_Minimum", number(nodeId, context, node -> node.value().min()));
@@ -148,12 +153,13 @@ final class UiaPatternProviders {
             }
 
             case UiaIds.EXPAND_COLLAPSE_PATTERN -> {
-                slots.put("Expand", (UiaCom.P) self -> accepted(
-                        context.perform(nodeId, Accessible.Action.EXPAND,
-                                Accessible.Argument.NONE)));
-                slots.put("Collapse", (UiaCom.P) self -> accepted(
-                        context.perform(nodeId, Accessible.Action.COLLAPSE,
-                                Accessible.Argument.NONE)));
+                // The pattern stays vended from the facet, because its state is what a reader reads;
+                // the two verbs are the node's to publish by state (EXPAND on a closed node,
+                // COLLAPSE on an open one) and a verb it does not publish is refused.
+                slots.put("Expand", (UiaCom.P) self -> postFirstAccepted(context, nodeId,
+                        Accessible.Action.EXPAND));
+                slots.put("Collapse", (UiaCom.P) self -> postFirstAccepted(context, nodeId,
+                        Accessible.Action.COLLAPSE));
                 slots.put("get_ExpandCollapseState", (UiaCom.PP) (self, out) -> {
                     AccessibleNode node = context.tree().find(nodeId);
                     if (node == null || node.expand() == null) {
@@ -570,11 +576,7 @@ final class UiaPatternProviders {
         if (bar == null || step == null) {
             return UiaIds.E_INVALID_OPERATION;
         }
-        if (bar.accepts(step)) {
-            return UiaIds.S_OK;
-        }
-        return bar.has(Accessible.State.ENABLED) ? UiaIds.E_INVALID_OPERATION
-                : UiaIds.E_ELEMENT_NOT_ENABLED;
+        return bar.accepts(step) ? UiaIds.S_OK : refusal(bar);
     }
 
     /**
@@ -643,11 +645,7 @@ final class UiaPatternProviders {
         if (bar == null || bar.value() == null) {
             return UiaIds.E_INVALID_OPERATION;
         }
-        if (bar.accepts(Accessible.Action.SET_VALUE)) {
-            return UiaIds.S_OK;
-        }
-        return bar.has(Accessible.State.ENABLED) ? UiaIds.E_INVALID_OPERATION
-                : UiaIds.E_ELEMENT_NOT_ENABLED;
+        return bar.accepts(Accessible.Action.SET_VALUE) ? UiaIds.S_OK : refusal(bar);
     }
 
     /** @return the bar's value that percent of the way from its minimum to its maximum */
@@ -657,24 +655,55 @@ final class UiaPatternProviders {
     }
 
     /**
-     * The minimal setter refusal fix round 2e owes this bridge ahead of phase 3 (semantics 5,
-     * amended 2026-09-15): a node that is not {@code ENABLED} &mdash; disabled, under a disabled
-     * ancestor, or outside the layer that owns input &mdash; accepts no setter, and the snapshot
-     * says so with that bit alone, because its {@code IsReadOnly} stays the facet's truth (ADR 039
-     * §1.2: enabled and read-only are never conflated). Phase 3 replaces this with the full
-     * candidate gate ({@code AccessibleNode#accepts}: {@code Value.SetValue} posting
-     * {@code SET_VALUE} by text on a value facet and {@code SET_TEXT} on a text facet, each gated
-     * on the facet's writability as well); until then a writable-facet test is not added here, so
-     * nothing that works on an operable node today changes.
+     * Posts a setter the node accepts now, and refuses it synchronously otherwise (semantics 5 as
+     * amended 2026-09-15, through {@link AccessibleNode#accepts}): a writable value facet implies
+     * {@code SET_VALUE} and a text facet on a node that is not {@code READ_ONLY} implies
+     * {@code SET_TEXT}, each only on an {@code ENABLED} node. Replaces fix round 2e's
+     * {@code refusedSetter}, which refused on the enabled bit alone and posted a setter to a
+     * read-only facet.
      *
-     * @param node the node the pattern was vended for, as the snapshot has it now
-     * @return {@link UiaIds#S_OK} when the setter may be posted, otherwise the error to answer
+     * <p>A node that is not {@code ENABLED} is refused with {@code UIA_E_ELEMENTNOTENABLED}, before
+     * anything else, as the platform's own providers do ({@link #refusal}); its
+     * {@code IsReadOnly} stays the facet's truth (ADR 039 §1.2: enabled and read-only are never
+     * conflated).
+     *
+     * @param context what to read and post through
+     * @param nodeId  the node the pattern was vended for
+     * @param setter  {@code SET_VALUE} or {@code SET_TEXT}
+     * @param arg     what it carries
+     * @return {@code S_OK} when posted and accepted by the scene, otherwise the refusal
      */
-    private static int refusedSetter(AccessibleNode node) {
+    static int postSetter(UiaProvider.Context context, long nodeId, Accessible.Action setter,
+                          Accessible.Argument arg) {
+        AccessibleNode node = context.tree().find(nodeId);
         if (node == null) {
             return UiaIds.E_ELEMENT_NOT_AVAILABLE;
         }
-        return node.has(Accessible.State.ENABLED) ? UiaIds.S_OK : UiaIds.E_INVALID_OPERATION;
+        if (!node.accepts(setter)) {
+            return refusal(node);
+        }
+        return accepted(context.perform(nodeId, setter, arg));
+    }
+
+    /**
+     * What a verb or a setter the node does not accept is refused with: {@code
+     * UIA_E_ELEMENTNOTENABLED} (0x80040200) on a node that is not {@code ENABLED} -- disabled, under
+     * a disabled ancestor, or outside the layer that owns input -- and {@code 0x80131509} on one
+     * that is enabled and simply does not offer it.
+     *
+     * <p>The order is the platform's own providers', read as IL on the guest 2026-09-15
+     * (readings/windows-dump-uia-provider-conventions.txt §1b): {@code ButtonAutomationPeer.Invoke},
+     * {@code ToggleButtonAutomationPeer.Toggle}, {@code ExpanderAutomationPeer} and
+     * {@code TreeViewItemAutomationPeer}'s {@code Expand}/{@code Collapse},
+     * {@code SelectorItemAutomationPeer}'s {@code Select}/{@code AddToSelection}/
+     * {@code RemoveFromSelection}, {@code TextBoxAutomationPeer.SetValue} and
+     * {@code RangeBaseAutomationPeer.SetValue} all begin {@code call AutomationPeer::IsEnabled();
+     * brtrue; newobj ElementNotEnabledException; throw}, and only then throw
+     * {@code InvalidOperationException} for what they cannot do.
+     */
+    static int refusal(AccessibleNode node) {
+        return node.has(Accessible.State.ENABLED) ? UiaIds.E_INVALID_OPERATION
+                : UiaIds.E_ELEMENT_NOT_ENABLED;
     }
 
     /**
@@ -712,8 +741,9 @@ final class UiaPatternProviders {
      * @param candidates the verbs in the order the platform entry point maps them
      * @return {@code S_OK} when posted and accepted by the scene; {@code E_ELEMENT_NOT_AVAILABLE}
      *         for a node gone from the snapshot (or refused by the scene, which is what a refusal
-     *         there almost always is); {@code E_INVALID_OPERATION} for a node that publishes none
-     *         of the candidates
+     *         there almost always is); for a node that publishes none of the candidates,
+     *         {@link #refusal}'s answer: {@code E_ELEMENT_NOT_ENABLED} when it is not
+     *         {@code ENABLED}, {@code E_INVALID_OPERATION} otherwise
      */
     static int postFirstAccepted(UiaProvider.Context context, long nodeId,
                                  Accessible.Action... candidates) {
@@ -726,7 +756,7 @@ final class UiaPatternProviders {
                 return accepted(context.perform(nodeId, candidate, Accessible.Argument.NONE));
             }
         }
-        return UiaIds.E_INVALID_OPERATION;
+        return refusal(node);
     }
 
     /**
