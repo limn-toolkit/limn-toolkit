@@ -1836,15 +1836,30 @@ public class Tree<T> extends Widget implements Scrollable {
         }
     }
 
+    /**
+     * The mean height of the rows the pass laid out in the viewport's run, and of no other mounted
+     * cell. The cursor row the tree keeps while it holds the keyboard, and a cell kept because a
+     * control inside it has focus, are mounted wherever they sit; averaged in, a kept row of
+     * another height skewed the estimate the scroll clamps and the wheel's hand-off read, so at
+     * the real end the estimate sat short of its maximum (a kept row taller than the rest: every
+     * detent taken, nothing moved, the wheel walled in a scroll pane) or past it (shorter: the
+     * tree stopped short of its last row and the pane moved). Over the placed run alone the
+     * estimate's remaining distance is exact once the last row is placed — {@code (count −
+     * anchorIndex) × mean} is then the run's own height — and positive while any row is not.
+     */
     private void updateAverageHeight() {
-        if (mountedCount == 0) {
-            return;
-        }
         float total = 0;
+        int counted = 0;
         for (int i = 0; i < mountedCount; i++) {
-            total += mountedCells[i].height();
+            int row = mountedRows[i];
+            if (row >= placedFrom && row < placedTo) {
+                total += mountedCells[i].height();
+                counted++;
+            }
         }
-        measuredRowHeight = total / mountedCount;
+        if (counted > 0) {
+            measuredRowHeight = total / counted;
+        }
     }
 
     // --------------------------------------------------------------------------- scroll
@@ -1869,7 +1884,11 @@ public class Tree<T> extends Widget implements Scrollable {
         vBar.onScrolled();
     }
 
-    /** Whether a scroll of {@code dy} would move anything: not at the end it points to. */
+    /**
+     * Whether a scroll of {@code dy} would move anything: not at the end it points to. Read off
+     * the estimate, which agrees with the layout at either end, up to rounding, because
+     * {@link #updateAverageHeight} averages only the rows the pass placed.
+     */
     private boolean canScrollBy(float dy) {
         SizeTokens t = tokens();
         float offset = estimatedOffset(t);

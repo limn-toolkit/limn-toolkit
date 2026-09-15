@@ -2312,6 +2312,115 @@ class TreeTest extends ComponentTestBase {
                 "and the other way is the tree's");
     }
 
+    /**
+     * The chained wheel over rows of uneven height with the cursor row kept realized out of view:
+     * the detent past the tree's end still reaches the pane. The tree decides whether a detent is
+     * its own from its estimated offset and maximum, and the average row height behind both is
+     * taken over every mounted cell — the cursor row the tree keeps while it holds the keyboard
+     * included, wherever that row sits. A kept row taller than the rows at the end skewed the
+     * estimate below the maximum at the real end, where the layout pulls the rows back, so the
+     * tree took every detent there and moved nothing: the wall decision 44 removes. A shorter one
+     * skewed it past the maximum before the end, so the tree stopped short of its last row and
+     * the pane moved (tree-B review, finding 6; the average is now over the placed rows alone).
+     */
+    @Test
+    void aWheelPastTheEndOfUnevenRowsWithTheCursorKeptOutOfViewReachesThePane() {
+        // The kept row taller than the rows at the end, and shorter: the estimate errs both ways.
+        wheelToTheEndInAPane(90, 20, "a kept row taller than the rest");
+        wheelToTheEndInAPane(8, 40, "a kept row shorter than the rest");
+    }
+
+    /**
+     * Forty rows of {@code rest} points under a first row of {@code first}, the cursor on that
+     * first row with the keyboard in the tree, inside a scroll pane; wheels down until the pane
+     * moves, and checks that the tree was at its real end when it did and that the way back up
+     * reaches the first row before the pane's detents go to the tree again.
+     */
+    private void wheelToTheEndInAPane(float first, float rest, String what) {
+        List<Node> roots = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            roots.add(Node.leaf("row " + i));
+        }
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return roots;
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                float h = node.name().equals("row 0") ? first : rest;
+                Widget cell = new Widget() {
+                    @Override
+                    protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
+                        return c.constrain(c.maxWidth(), h);
+                    }
+                };
+                cells.put(node.name(), cell);
+                return cell;
+            }
+        });
+        tree.setVisibleRows(6);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(tree);
+        column.add(new Widget() {
+            @Override
+            protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
+                return c.constrain(c.maxWidth(), 400);
+            }
+        });
+        ScrollView pane = new ScrollView(column);
+        scene = new Scene(pane);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+        press(Keys.HOME);
+        scene.layoutPass(220, 200);
+        assertEquals("row 0", tree.cursorNode().name(), what);
+
+        float x = tree.localToSceneX() + 20;
+        float y = tree.localToSceneY() + 20;
+        scene.mouseMoved(x, y);
+        int notches = 0;
+        while (pane.offsetY() == 0 && notches < 200) {
+            scene.scrolled(0, -1, x, y);
+            scene.inputBatchEnded();
+            scene.layoutPass(220, 200);
+            notches++;
+        }
+        assertTrue(pane.offsetY() > 0,
+                what + ": a detent past the tree's end reached the pane; after " + notches
+                        + " notches it had not");
+        Widget last = mounted(cells, "row 39");
+        assertEquals(tree.height(), last.y() + last.height(), 0.01f,
+                what + ": the tree was at its real end when the pane took the detent");
+        Widget kept = cells.get("row 0");
+        assertTrue(kept.parent() != null && kept.y() + kept.height() <= 0,
+                what + ": the cursor row was kept, out of view, the whole way down");
+
+        float paneAtEnd = pane.offsetY();
+        notches = 0;
+        while (notches < 200) {
+            scene.scrolled(0, 1, x, y);
+            scene.inputBatchEnded();
+            scene.layoutPass(220, 200);
+            notches++;
+            Widget top = cells.get("row 0");
+            if (pane.offsetY() == 0 && top.parent() != null && top.y() == 0) {
+                break;
+            }
+        }
+        assertEquals(0, pane.offsetY(), 0.01f, what + ": the way back up reached the pane's top");
+        assertEquals(0, cells.get("row 0").y(), 0.01f,
+                what + ": and the tree's first row, from pane offset " + paneAtEnd);
+    }
+
     /** Where each stroked path was painted, which for these fixtures is only the triangles. */
     private static final class TwistyCanvas extends ComponentTestBase.FakeCanvas {
 

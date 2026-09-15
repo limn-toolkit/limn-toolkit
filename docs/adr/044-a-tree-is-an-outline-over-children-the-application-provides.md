@@ -208,8 +208,13 @@ vertical half dropped. Shift turns a notch sideways only when the event has no s
 of its own, as the scroll pane and the table do: macOS delivers Shift and a notch as scrollX
 already, and a first version of this rewrite that read the sideways axis from scrollY whenever
 Shift was held scrolled nothing for that event and passed it to the parent (found in review later
-the same day). Headless, `TreeTest` holds all of it over a tree inside a `ScrollView`;
-a trackpad's momentum events over the same fixture are phase 5's live check.
+the same day). Where the tree's own end is, the wheel reads off the scroll estimate, whose mean
+row height is now taken over the rows the pass placed and not every mounted cell: the cursor row
+kept realized out of view while the tree holds the keyboard (decision 22), averaged in at another
+height, put the estimate's end off the real one, so a taller kept row walled the wheel at the end
+and a shorter one stopped the tree short of its last row (also found in review). Headless,
+`TreeTest` holds all of it over a tree inside a `ScrollView`; a trackpad's momentum events over
+the same fixture are phase 5's live check.
 
 ## 4. Accessibility: two new roles, and what they cost
 
