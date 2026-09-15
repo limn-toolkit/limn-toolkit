@@ -1645,7 +1645,10 @@ Linux one needed anyway:
   three. **It runs on the thread that handles the collapse** — the drain thread on Windows, the UI
   thread on macOS — which is also the thread that owns removal there (§3.4). On Linux there is
   nothing to sweep, because nothing is retained per node: the collapse is one `Cache.AddAccessible`
-  for the root and the client re-reads.
+  for the root and the client re-reads. *(Amended 2026-09-15: not so. libatspi 2.60.6 reconciles
+  a cached child list only from `ChildrenChanged` and a cached state only from `StateChanged`, so
+  one root item re-reads nothing; the Linux bridge sends nothing for `INVALIDATED` and relies on
+  the reserved tail's structure signals and says the focus again — §2.4's amendment of this date.)*
 - **Windows and Linux drain on a thread of the bridge's own, and on Linux that is emphatically not
   the reader thread.** The Windows spike raised an event from an RPC thread and from inside `Invoke`
   and got `S_OK` both times, so a raise does not need the UI thread, and the Windows bridge starts
@@ -2506,6 +2509,303 @@ never make a blocking call on the same connection. And `NEGOTIATE_UNIX_FD` succe
 must **not** be sent: agreeing lets a peer send a message carrying a file descriptor, which
 `java.nio` cannot receive, and AT-SPI2 never needs one.
 
+#### Amendment 2026-09-15 — the one application is built, and it is named by the backend
+
+**What was wrong.** The two paragraphs above described a shape the code did not have (LINUX-NEW-8).
+Every native window opened its own a11y connection, did its own `Socket.Embed` and named its
+application after its own title, so a DatePicker's calendar or a ComboBox's list — a native popup
+window, titled "popup" by `WindowConfig.popup` — was a second application on the desktop called
+"popup", and the `POPUP_FOR` its root carries named a field that `AtspiTree.relationSetOf` skipped
+because another connection held it. Ids were already process-wide (§1.3, amended 2026-09-14).
+
+**What the code does now.** `AtspiApplication` is the process's one application: one connection,
+one application object at `…/root`, and one `frame` child per window **that has published a node
+zero**, in the order the windows joined. Each window's `AtspiBridge` is the facade: its publish
+stores its own `volatile` tree and tells the application; its detach removes it. The window table
+is copy-on-write, written by the UI thread and iterated by the reader thread, as §3.4 prescribed.
+Every path resolves through the window whose tree holds the id (`AccessibleTree#holds`, one tag
+comparison per window), so `GetChildren`, `GetIndexInParent`, `Parent`, `Cache.GetItems`, `DoAction`
+(performed by the host of the window that published the node) and a relation into another window
+all answer across windows. The bus is still joined only once some window has a tree (the 2.60 trap
+of §12.2); the frames present at the join are what the registry reads, and a frame that arrives or
+leaves afterwards is announced from the application object as `ChildrenChanged` `add`/`remove`
+with its index in `detail1` and its `(so)` as the value — the shape libatspi 2.60.6's
+`cache_process_children_changed` updates a cached child list from (readings, 2026-09-13). The
+connection is let go with the last window, so a later window registers with a tree again.
+
+**Named by the backend (decision 56).** `Backend#setApplicationName(String)` names the application;
+unset, `LwjglBackend` uses the title of the first window it created. Every window's bridge is opened
+with that name and not with its own title. Windows and macOS read nothing from it.
+
+**Not changed here, and whose it is.** `Cache.GetItems` is still built per request rather than
+pre-marshalled against a publish counter; `Cache.AddAccessible`/`RemoveAccessible` for a frame and
+`Event.Window` `Create`/`Destroy` are the events item of the Linux lane (LINUX-NEW-1, LINUX-NEW-2).
+When and on which thread the join happens is §3.3's amendment of the same date.
+
+#### Amendment 2026-09-15 — the descriptor rule is kept, and a message the reader cannot read no longer silences it
+
+**What was wrong (LINUX-NEW-13).** The rule above was written and not followed: `DBus.Conn.auth`
+sent `NEGOTIATE_UNIX_FD` "only to see the answer", and both buses agreed. Separately, the reader loop
+guarded only the socket read, so a message whose body did not parse — a `h` in its signature, the
+very type the agreement lets a peer send, or any header shape the parser did not expect — threw out
+of the loop and ended `limn-a11y-dbus-reader` for good, while the application stayed embedded and
+went on emitting signals nobody could answer a question about: the state at-spi2-core 2.60 hides
+from the desktop.
+
+**What the code does now.** The handshake is `AUTH EXTERNAL`, then `BEGIN`, and nothing between
+(`DBus.Conn.saslCommands`); `h` is neither read nor written. The reader frames a message by its
+lengths before parsing it, so an unparsable one leaves the stream at the next message: it is logged,
+a method call among them that expects a reply and whose header could be read is answered
+`org.freedesktop.DBus.Error.InvalidArgs`, and the loop goes on. Lengths that cannot be a message
+(past the specification's 2^27 bytes) end the connection, since nothing after them can be found.
+Whenever the reader or the writer stops without the connection having been closed, the connection
+closes itself and tells its owner once (`DBus.Conn.onLost`); the application lets that join go and
+asks every window for a publish, which joins again under the back-off of §3.3's amendment.
+
+#### Amendment 2026-09-15 — the event rows of this table
+
+Two rows above said more than the code sent, and the events item of the Linux lane changed what they
+describe; §2.4's amendment of this date carries the shapes and their readings. **`Cache.AddAccessible`,
+`RemoveAccessible`** are sent from the tail's `STRUCTURE_CHANGED`, per child, after the parent's
+`ChildrenChanged` (`AddAccessible` for an arrival, `RemoveAccessible` for a child that left the tree);
+`NODE_DESTROYED` sends `StateChanged defunct` from the node's own path instead. **The `Event.Object`
+row's note is false**: `Event.Focus.Focus` is not emitted beside `StateChanged`, and Orca 50.2 does not
+listen for it (its `Script.get_listeners` registers no `focus:` event). `Announcement` is now sent;
+until this date it was not.
+
+#### Amendment 2026-09-15 — `Table` and `TableCell` find a cell by its facet, and a header by its row
+
+**What was wrong (LINUX-NEW-10, LINUX-NEW-11).** The `Table` row's "`GetAccessibleAt` answers a
+realized cell" held only for a table whose rows carry a `SelectionItemFacet`: a row was matched by
+its position in set, which a calendar's week rows do not publish, so every cell of every calendar
+answered the null object. The `TableCell` row's "its header group's child at the cell's column" was
+the table's first group child's child at that index, so a table with its header hidden and a footer
+shown named the footer's totals as its column headers, and a partial footer the wrong column's.
+`AddRowSelection` posted `SELECT` alone and `RemoveRowSelection` refused everything.
+
+**What the bridge does now (semantics 2, 3 and 5 of the 2026-09-13 pass).** Cell (r, c) is the node
+whose `CellFacet` is (r, c) and whose nearest `TableFacet` ancestor is the table, searched under the
+table's `ROW` children (where a widget cell hangs under its synthetic row); a row's index is its cells'
+`CellFacet` row, and `IsSelected`/`GetRowColumnExtentsAtIndex` also count a selected cell. The header
+of column c is the child with `CellFacet(-1, c)` of one of the table's direct `GROUP` children; a
+footer cell (row −2) is never one, and none means none. `AddRowSelection` posts the first of
+[`ADD_TO_SELECTION`, `SELECT`] the row accepts and `RemoveRowSelection` [`DESELECT`], through
+`AccessibleNode#accepts`, and answer false otherwise. `GetRowColumnSpan` stays `iiii`: libatspi 2.60.6
+reads `=>iiii` although the ATK bridge's XML declares `biiii`
+(readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt, readings/fedora-dbus-TableCell.xml).
+
+#### Amendment 2026-09-15 — `Selection` is served, with the two indices its XML names
+
+**What was wrong (L2).** The `Selection` row promised an interface no code defined: no container
+listed it, `Properties.Get` refused `NSelectedChildren`, and every method answered `UnknownMethod`, so
+libatspi's `get_n_selected_children` read −1 in every snapshot of the 2026-09-13 tree reader.
+
+**What the bridge does now (semantics 1 and 5; settled atspi-selection-membership).** A node with a
+`SelectionFacet` lists `org.a11y.atspi.Selection` in `GetInterfaces` and in its cache item. The
+installed XML names two different indices (readings/fedora-dbus-Selection.xml), and each is kept:
+`NSelectedChildren` (a property, `i`), `GetSelectedChild` and `DeselectSelectedChild` count the
+container's **selected members** — the realized nodes the publish resolved to it
+(`AccessibleNode#selectionContainer`), in reading order, wherever they hang, so a calendar's selected
+day is found under its week row — while `SelectChild`, `IsChildSelected` and `DeselectChild` name the
+container's **literal child** at that index, which may be a tree's scroll bar or a grid's week row and
+is then selected by nothing. `SelectChild` posts the first of [`ADD_TO_SELECTION`, `SELECT`] the child
+accepts, `DeselectChild`/`DeselectSelectedChild` [`DESELECT`]; `SelectAll` and `ClearSelection` answer
+false, the model having no verb for either. A member scrolled away has no node and is not counted.
+Orca 50.2 calls `get_n_selected_children` and `get_selected_child` only
+(readings/fedora-orca-interface-calls.txt, Fedora KDE 44, 2026-09-15). The XML's `version` property is
+not answered.
+
+#### Amendment 2026-09-15 — `Value` is served, with its text, and a write is refused where the node refuses it
+
+**What was wrong (LINUX-NEW-4, DATES-NEW-5).** The `Value` row promised an interface no code served:
+a date segment, a spinner, a slider or a progress bar had a name and a role on Linux and no number.
+
+**What the bridge does now (settled linux-value-text; decision 16; semantics 5).** A node with a
+`ValueFacet` lists `org.a11y.atspi.Value`. `MinimumValue`, `MaximumValue`, `MinimumIncrement` and
+`CurrentValue` are doubles and `Text` is the facet's display form or the empty string, as libatspi
+2.60.6 reads them (readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt) and as the guest's
+XML declares them (readings/fedora-dbus-Value.xml) — the row's "numeric only" is superseded, since the
+installed interface carries a `Text` property and Orca 50.2 reads it with the number
+(`ax_value.py`, readings/fedora-orca-interface-calls.txt). An empty value answers its minimum as
+`CurrentValue`, the one place a number is mandatory, and its word through `Text`. `Properties.Set` of
+`CurrentValue` — how libatspi writes one — posts `SET_VALUE` with the number where
+`AccessibleNode#accepts` allows it (a writable facet on an `ENABLED` node) and is otherwise answered
+`org.freedesktop.DBus.Error.Failed`, which reaches the caller's `GError`; so is a write to any other
+`Value` property. A display form is also served through `Text` (its own amendment below).
+
+**Read 2026-09-15 (review of the interfaces item): what a toolkit answers a refused write.** Neither
+toolkit on the Fedora KDE 44 guest refuses a `CurrentValue` write with an error: GTK 3.24.52's ATK bridge
+answers success on an insensitive spin button and on a level bar and moves both, and GTK 4.22.4 answers
+success on both and leaves the level bar's number where it was
+(readings/fedora-gtk3-interface-replies.txt and fedora-gtk4-interface-replies.txt, section 5,
+`scripts/a11y/linux/read-gtk-interface-replies.py`). Answering `Failed` where `AccessibleNode#accepts` refuses stays this bridge's choice, made
+knowingly against both: a success a widget then ignores is what a caller cannot detect. A write to a
+read-only `Value` property is now answered `org.freedesktop.DBus.Error.PropertyReadOnly`, as the ATK
+bridge answers it (GTK 4 answers `InvalidArgs`), and a name `Value` does not have, or a `CurrentValue`
+that is not a number, `InvalidArgs`, as `Get` answers an unknown name; the error name `Failed` itself is
+from readings/fedora-dbus-bus-facts.txt.
+
+#### Amendment 2026-09-15 — `Text` is served, over a text and over a value's display form
+
+**What was wrong (LINUX-NEW-4).** The `Text` row promised an interface no code served, while the
+bridge already sent `TextChanged`, `TextCaretMoved` and `TextSelectionChanged` from nodes that
+answered none of the questions those events invite (§2.4's "an event is half a conversation").
+
+**What the bridge does now (settled linux-value-text).** `org.a11y.atspi.Text` is listed for a node with
+a `TextFacet` and for a node with a `ValueFacet` whose display form is not empty (a date segment's
+"15" or "empty", a spinner's "07:30"), which is read-only text with no caret and no selection; a
+value whose number is the whole of it serves none. Every offset is a character, converted from the
+model's UTF-16 units in `AtspiText` and nowhere else. Answered: `CharacterCount` and `CaretOffset`
+(properties, `i`), `GetText` (−1 as the end), `GetCharacterAtOffset`, `GetStringAtOffset`,
+`GetTextAtOffset`/`-BeforeOffset`/`-AfterOffset`, `GetNSelections`, `GetSelection`, attributes as
+none over the whole text (`GetAttributeRun` is `a{ss}ii`, the shape libatspi 2.60.6 checks), and the
+writes `SetCaretOffset` (`SET_CARET`), `AddSelection`/`SetSelection`/`RemoveSelection`
+(`SET_SELECTION`, the model holding one selection) through `AccessibleNode#accepts`, offsets back in
+units. **Boundaries:** words and sentences are `BreakIterator`'s under the node's locale; a line and a
+paragraph are what a line feed delimits, because no facet carries soft wraps, so a wrapped line of a
+text area reads as its paragraph; each boundary type has the shape its AT-SPI name gives
+(`WORD_START` from a word's start to the next word's, `LINE_START` through the line feed, the
+`_END` types from one end to the next), and a granularity is answered as libatspi 2.60.6's own
+fallback reads it (WORD as `WORD_START`, SENTENCE as `SENTENCE_START`, LINE as `LINE_START`;
+PARAGRAPH as `LINE_START` here) (readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt;
+the enumerators from readings/fedora-atspi-constants-all.txt, Fedora KDE 44, 2026-09-13). **Not
+answered, as §11 decided:** `GetCharacterExtents`, `GetRangeExtents`, `GetOffsetAtPoint` and
+`GetBoundedRanges` are declined and `ScrollSubstringTo(Point)` answers false; Orca 50.2 calls the
+first three for flat review and mouse review (readings/fedora-orca-interface-calls.txt), which stay
+degraded.
+
+**Read 2026-09-15 (review of the interfaces item): PARAGRAPH.** Answering PARAGRAPH as `LINE_START`
+was a choice: libatspi 2.60.6's fallback maps it to no boundary. On the Fedora KDE 44 guest, over a
+text view holding "one two. three four.\nfive six.\n\nseven", GTK 4.22.4 answers PARAGRAPH (and LINE
+and SENTENCE) with what a line feed delimits, the line feed left out ("five six.", 21, 30), and GTK
+3.24.52's ATK bridge answers PARAGRAPH `('', -1, -1)` at every offset while its LINE keeps the line feed
+("five six.\n", 21, 31) (readings/fedora-gtk4-interface-replies.txt and
+fedora-gtk3-interface-replies.txt, section 4, `scripts/a11y/linux/read-gtk-interface-replies.py`). The
+bridge keeps PARAGRAPH as what a line feed delimits — GTK 4's unit, and a range where Orca 50.2 asks for one (`ax_text.py` calls PARAGRAPH,
+readings/fedora-orca-interface-calls.txt) —
+in the `LINE_START` shape its LINE already has, the line feed included as the ATK bridge includes it.
+Pinned by `AtspiTreeTest.aTextIsReadInCharactersByOffsetGranularityAndBoundary`.
+
+**`EditableText` (the same date).** Listed for a text published `EDITABLE` — a field that is only
+disabled keeps both, as §1.2 requires. Every write is one `SET_TEXT` of the whole new string, built
+from the published text in characters, through `AccessibleNode#accepts`: `SetTextContents` replaces it,
+`InsertText` inserts the first `length` characters of what it is given (all of it when `length` is
+negative or not less than its length, so a client counting UTF-8 bytes still inserts the whole string),
+`DeleteText` removes a character range. On a `PASSWORD` node, whose facet holds the mask, only
+`SetTextContents` is taken. `CutText` and `PasteText` answer false and `CopyText` does nothing: the
+model has no clipboard verb. Orca 50.2 calls none of these (readings/fedora-orca-interface-calls.txt);
+the signatures are libatspi 2.60.6's (`s=>b`, `isi=>b`, `ii=>b`, `i=>b`, `CopyText` `ii` with no reply
+value).
+
+**Corrected 2026-09-15 (review of the interfaces item): `InsertText`'s length is bytes, as read.** The
+paragraph above took `length` as characters, a choice and not a reading, which misread a byte count that
+covers part of a multibyte string (a length of 2 for "é😀x" inserted "é😀"). Read on the Fedora KDE 44
+guest: GTK 3.24.52's ATK bridge counts UTF-8 bytes — `InsertText(1, "é😀x", n)` into "ab" leaves "ab"
+for 1, "aéb" for 2 and 3, "aé😀b" for 6, and all of it for 7, 100 and −1, a character the count would
+cut being left out (readings/fedora-gtk3-interface-replies.txt) — while GTK 4.22.4 ignores the length and
+inserts everything (readings/fedora-gtk4-interface-replies.txt;
+`scripts/a11y/linux/read-gtk-interface-replies.py`, 2026-09-15). The bridge now inserts the whole
+characters that fit in `length` bytes, all of them for a negative length (`AtspiTree.prefixInBytes`), the
+ATK bridge's unit, whose XML it serves.
+
+#### Amendment 2026-09-15 — `GetAttributes` carries a row's level and place in its set
+
+**What was wrong (L5).** The `GetAttributes` row answered `toolkit` alone, while Orca 50.2 reads a
+tree item's level from `level` and a member's "n of m" from `posinset` and `setsize` before any
+fallback (readings/fedora-orca-tree-level-position.txt), so no Limn tree item had a level on Linux
+and a virtualized list's rows were counted among the realized siblings.
+
+**What the bridge does now (decision 4, semantics 6, settled linux-level-carrier).** Beside `toolkit`,
+`level` is `HierarchyFacet.level` and `posinset`/`setsize` are `SelectionItemFacet`'s position and size,
+each as a decimal string, one-based as the model counts them and as Orca reads them; each is published
+only when non-zero, so no node says "0 of 0". GTK 4.22.4 publishes `posinset` and `setsize` on its list
+rows the same way (readings/fedora-gtk4-column-sort.txt, Fedora KDE 44, 2026-09-15). No event announces
+a change to them (decision 43): Orca 50.2's `object:attributes-changed` handler only clears its cache
+(readings/fedora-orca-interface-calls.txt). A header's sort direction is not an attribute yet; see the
+sort amendment below.
+
+#### Amendment 2026-09-15 — `GrabFocus`, `GetAccessibleAtPoint` and `Introspect` are answered
+
+**What was wrong (LINUX-NEW-5; settled linux-adr-overstatements).** Three rows promised what nothing
+handled: `Component.GrabFocus` and `GetAccessibleAtPoint` answered `UnknownMethod` — the latter is what
+Orca 50.2's mouse review asks (`ax_component.py:124`, `WINDOW` coordinates;
+readings/fedora-orca-interface-calls.txt) — and `Introspectable.Introspect` was handled on no path,
+while `Atspi.node` and the XML blocks it assembles were referenced nowhere.
+
+**What the bridge does now.** `GrabFocus` posts the first of [`FOCUS`] the node accepts (semantics 5:
+every focusable widget publishes it as the walk's free verb, an item where decision 11 allows) and
+answers false elsewhere. `GetAccessibleAtPoint` is the bounds walk the row names: the point is
+converted once to the window's coordinates from the type asked (`SCREEN`, `WINDOW`, or `PARENT` — 2,
+read 2026-09-13 off the Fedora typelib, readings/fedora-atspi-constants-all.txt — which
+`GetExtents` and `Contains` now also answer, relative to the parent's box), children are tried last
+first because a later sibling is drawn over an earlier one, only a `SHOWING` node is a hit, and the
+deepest hit below the asked node is the answer, the null object when none; asked of the application
+object, it answers the last-joined frame whose window holds the point. `Introspect` answers every path
+this application exports: each intermediate path names its child down to `/org/a11y/atspi`,
+`…/accessible` names the root and every node of every window, and a node's path lists exactly what
+`GetInterfaces` answers, each with the XML a real toolkit's bridge declares — the blocks read off Ubuntu
+24.04 for `Accessible`, `Application`, `Component`, `Action` and `Cache`, and those read off the Fedora
+KDE 44 guest's at-spi2-atk 2.60.6 for `Selection`, `Value`, `Text`, `EditableText`, `Table` and
+`TableCell` (readings/fedora-dbus-<Interface>.xml) — plus the three standard interfaces; a path that
+names nothing is declined.
+
+#### Amendment 2026-09-15 (review of the interfaces item) — `GetPosition` and `GetSize` are two out arguments
+
+**What was wrong.** The `Component.GetExtents`, `GetPosition`, `GetSize` row was answered with one
+shape for all three: `GetPosition` and `GetSize` replied a struct `(ii)`, on every node and on the
+application object, since the bridge's first cut. libatspi 2.60.6 reads them as `u=>ii` and `=>ii`
+(`atspi-component.c:196` and `:223`, readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt),
+the installed XML declares two separate out arguments (readings/fedora-dbus-Component.xml), and a
+struct where flat arguments are expected is refused, as `GetRowColumnSpan`'s was on the guest. The
+GrabFocus amendment above amended the same rows and did not catch it.
+
+**What the bridge does now.** Both answer `ii`, on a node and on the application object; `GetExtents`
+stays `(iiii)`. GTK 3.24.52's ATK bridge (at-spi2-atk 2.60.6) and GTK 4.22.4 answer exactly these
+signatures on the Fedora KDE 44 guest (readings/fedora-gtk3-interface-replies.txt and
+fedora-gtk4-interface-replies.txt, `scripts/a11y/linux/read-gtk-interface-replies.py`, 2026-09-15
+20:54–20:55 UTC). Both toolkits answer `UnknownMethod` for `Component` on their application object; this
+bridge keeps answering it there, as the first cut decided (a client that asks the root for its extents
+walks on).
+
+#### Amendment 2026-09-15 (review of the interfaces item) — the `version` the served XML declares is answered
+
+**What was wrong.** `Introspect` serves, for `Selection`, `Value`, `Text`, `EditableText`, `Table` and
+`TableCell`, the XML read off the Fedora guest's ATK bridge, and each block declares a read-only
+`version` property of type `u`; `Properties.Get` refused it as a property the object lacks
+(`InvalidArgs`), and the Selection amendment above recorded it as not answered for want of a reading.
+
+**What was read, and what the bridge does now.** GTK 3.24.52's ATK bridge (at-spi2-atk 2.60.6) answers
+`version` with `u` 1 on every interface it serves; GTK 4.22.4, which declares no such property, answers
+`InvalidArgs` (readings/fedora-gtk3-interface-replies.txt and fedora-gtk4-interface-replies.txt, section
+2, `scripts/a11y/linux/read-gtk-interface-replies.py`, Fedora KDE 44, 2026-09-15); at-spi2-core 2.60.6's
+`atspi-constants.h` defines every `ATSPI_*_VERSION` as 1. The bridge answers `u` 1
+(`Atspi.INTERFACE_VERSION`) in `Get` and `GetAll` for those six interfaces where the node serves them,
+the XML and the answer now coming from the same bridge. The blocks read off Ubuntu 24.04 (`Accessible`,
+`Application`, `Component`, `Action`) declare no `version` and none is answered there.
+
+#### Amendment 2026-09-15 — a header's sort direction: read on Fedora, and not carried yet
+
+**What decision 36 asked.** A sortable header cell publishes its direction, and how each platform
+carries one is read on the guest before any code.
+
+**What was read.** A GTK 4 `Gtk.ColumnView` sorted ascending, descending, by another column and by
+nothing on the Fedora KDE 44 guest (gtk4 4.22.4, at-spi2-core 2.60.6) carries **no** sort direction:
+each title is a `filler` whose name is the column's, with `{toolkit: GTK}` alone as attributes, the same
+states in every step, and no event naming the header (readings/fedora-gtk4-column-sort.txt,
+`scripts/a11y/linux/read-gtk4-column-sort.py`, 2026-09-15). Orca 50.2 reads a table header's direction
+from the object attribute **`sort`** — `ascending` → "sorted ascending", `descending` → "sorted
+descending", `none` or absent → nothing, any other value → "sorted" (`ax_utilities_table.py:259-275`,
+readings/fedora-orca-interface-calls.txt). So the carrier on this platform is that attribute, as ADR 041
+§7's amendment of 2026-09-14 anticipated; no native toolkit on the guest was found sending it.
+
+**Why nothing is mapped yet.** The model has no fact to map: `Table` carries the direction as the sorted
+header's localized description (`TableStrings.SORTED_ASCENDING`/`SORTED_DESCENDING`, ADR 041 §7), and a
+bridge cannot recover `ascending` from "Ordenado em ordem crescente". Carrying it needs a model
+carrier — a facet or a state on the header cell — that the three bridges read alike, which is not this
+bridge's to add alone while the Windows and macOS bridges are changed in parallel. Once it exists, this
+bridge answers `sort` = `ascending`/`descending` on that header cell in `GetAttributes` (§2.3's
+attributes amendment) and nothing when unsorted; until then a Linux reader hears the description.
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |
@@ -2672,6 +2972,171 @@ maps to its `UIA_itemStatus` event, which nothing in NVDAObjects handles, and it
 only as the description of an element whose class name is `UIColumnHeader` (readings/
 nvda-2024.4.2-uia.md, "`event_UIA_itemStatus`"), so a busy tree row is silent to it on Windows until
 a fallback is decided after phase 5's reader run (T7).
+
+#### Amendment 2026-09-15 — the Linux column, as the bridge sends it
+
+Read against what a real toolkit on the Fedora guest sends and what Orca 50.2 does with each field
+(readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-event-shapes.txt, fetched on the host for the
+guest's gtk4 4.22.4 and at-spi2-core 2.60.6; readings/fedora-orca-event-consumers.txt and
+ubuntu-orca-event-consumers.txt, `scripts/a11y/linux/read-orca-event-consumers.py` on both guests,
+2026-09-15). Each paragraph names the row it changes; the table above is left as written.
+
+**`ACTIVE_DESCENDANT_CHANGED` (L1).** `ActiveDescendantChanged` from the focused node's path, with
+the new descendant's `(so)` reference as the value and its index in its parent in `detail1` (the ATK
+bridge's `active_descendant_event_listener`; GTK 4.22.4 sends no such event). The value was an `i`
+0, which libatspi 2.60.6 turns into no `any_data`, and Orca drops the event without one. The
+reference and the index are the ones `GetChildAtIndex` and `GetIndexInParent` answer for the same
+node, in whichever window holds it (decision 5's popup option is an ordinary reference on the one
+connection); a cursor that went away names the null object with `detail1` −1.
+
+**`FOCUS_CHANGED`.** `StateChanged` `focused` 1 on the node gaining it and 0 on the node losing it,
+both from the `STATE_CHANGED` the difference raises; `FOCUS_CHANGED` itself sends nothing, and the
+deprecated `Event.Focus.Focus` the row names is not sent — Orca 50.2's `Script.get_listeners`
+registers no `focus:` event (readings/fedora-orca-event-handlers.txt). The row overstated it
+(settled linux-adr-overstatements). *(Corrected 2026-09-15, the review of linux-B: "both from the
+`STATE_CHANGED` the difference raises; `FOCUS_CHANGED` itself sends nothing" was false for a node
+that arrives already focused — a dialog's first field, a popup's list, a cell widget realized under
+the cursor. The difference raises no `STATE_CHANGED` for a new node and only the tail's
+`FOCUS_CHANGED` (semantics 7), so such a node was never said focused, while the node losing the focus
+was. `FOCUS_CHANGED` now sends `StateChanged` `focused` 1 from its node, after the tail's structure
+signals have put the node in a client's cache, and a surviving node's gain, already sent by its
+`STATE_CHANGED` in the same publish, is not sent a second time. Commit 26769b3's message repeats the
+false sentence.)*
+
+**`WINDOW_ACTIVATED` / `WINDOW_DEACTIVATED`, `WINDOW_OPENED` / `WINDOW_CLOSED` (LINUX-NEW-2,
+LINUX-NEW-15, LAB-NEW-2).** `Event.Window` `Activate`/`Deactivate` from the frame's own path (the
+window node the difference names, arriving after the publish whose tree marks it `ACTIVE`, so its
+`state-changed:active` precedes it as GTK 4.22.4's does), with the window's name as the string value
+(the ATK bridge's convention; GTK sends "0"). After `Activate` the focused node's `focused` 1 and
+the cursor's `ActiveDescendantChanged` are sent again from that tree, unless the same publish
+already sent them: Orca 50.2's `_on_window_activated` moves its locus to the frame, and its 0.1 s
+same-type filter would drop a second copy. *(Corrected 2026-09-15, the review of linux-B: the
+exception and its reason are wrong; see the correction at the end of the `INVALIDATED` paragraph
+below.)* A frame that arrives after the join sends `Create` from
+its path after the application's `ChildrenChanged add`; one that leaves sends `Destroy` from its path
+before the `remove`. The frames the registry read at the join send no `Create`. The model's
+`WINDOW_OPENED`/`WINDOW_CLOSED`, which nothing raises, map to the same members from the node they
+name. Node zero's events (`BOUNDS_CHANGED` for a wide scroll) are sent from the frame, never from
+the application object, and `BoundsChanged` carries the node's screen extents as `(iiii)`, the
+rectangle libatspi makes an `AtspiRect` of, instead of an `i` that arrived as nothing.
+
+**`ANNOUNCEMENT` (LINUX-NEW-3).** `Announcement` as the installed interface declares it,
+`(s, i politeness, i, v, a{sv})` (readings/fedora-dbus-Event.Object.xml): empty detail, `detail1` =
+`Atspi.Live` (`POLITE` 1, `ASSERTIVE` 2, read 2026-09-13 off the Fedora typelib), `detail2` 0, and
+the text as a string value, which is the only `any_data` Orca 50.2's `_on_announcement` presents —
+GTK 4.22.4's `gtk_at_spi_context_announce` fills it the same way. Sent from the frame of the window
+whose scene said it. It was mapped to nothing.
+
+**`TEXT_CHANGED`, `CARET_MOVED`, `TEXT_SELECTION_CHANGED` (LINUX-NEW-14).** A replacement is a
+`TextChanged` `delete` carrying the removed text, then an `insert` carrying the inserted text; each
+has `detail1` = the start and `detail2` = the length, both in characters, and the changed text
+itself as the value — GTK 4.22.4's `gtk_at_spi_context_update_text_contents` and the ATK bridge's
+text listeners send exactly that, and Orca 50.2 speaks `any_data` as the inserted string and drops
+an insertion longer than 1000. It was one `insert` of the longer length at the UTF-16 offset carrying
+the whole new text. The model's range, compared unit by unit, may start or end inside a surrogate
+pair; it is widened to whole characters before it is converted. `TextCaretMoved` carries the caret's
+offset in characters in `detail1`, read off the published `TextFacet` (it was always 0; Orca
+compares it with the last cursor position). `TextSelectionChanged` carries an empty string.
+
+**`STRUCTURE_CHANGED`, `NODE_DESTROYED` (LINUX-NEW-1, LAB-NEW-3; decision 28).** Per child of the
+event's surviving parent, `ChildrenChanged` from the parent's path with the child's `(so)` as the
+value and its index in `detail1` (its former index for a removal): removals first, highest index
+first, each followed by `Cache.RemoveAccessible` `(so)` when the child left the tree; then additions
+and reorders in ascending index, each addition followed by `Cache.AddAccessible` with the item
+`Cache.GetItems` lists for it (`((so)(so)(so)iiassusau)`). That order is libatspi 2.60.6's
+arithmetic: `remove` takes a child out by reference, `add` removes it and inserts it at `detail1`,
+`AddAccessible` overwrites the parent's slot at the item's index, and `RemoveAccessible` disposes the
+object (readings/upstream-at-spi2-core-2.60.6-libatspi.txt). A child that moved between parents is
+removed from one and added to the other and never removed from the cache. `NODE_DESTROYED` sends
+`StateChanged` `defunct` 1 from the node's own path, as GTK 4.22.4 does before unregistering a
+context, and a node path no window holds any more answers `GetState` with `DEFUNCT` (6, read
+2026-09-13 off the Fedora typelib) while declining everything else — Orca 50.2 ignores an event from
+a source that is `DEFUNCT` or whose name cannot be read (readings/fedora-orca-dead-object.txt). It
+was one `ChildrenChanged` with an empty detail and an `i` per new node, and a `remove` from the
+destroyed node's own dead path, whose `int` crashed Orca's `_ignore_children_changed`. A frame
+arriving or leaving after the join gets the same `AddAccessible`/`RemoveAccessible` after its
+`ChildrenChanged` from the application object, which closes what §2.3's amendment of this date left
+to this item. No container publishes `MANAGES_DESCENDANTS`: decision 28 keeps clients' child caches
+correct instead.
+
+**`INVALIDATED` and the reserved tail (L6; decision 28; semantics 4 and 7).** The table has no
+`INVALIDATED` row; on Linux it sends nothing of its own — the bridge holds no per-node state to sweep,
+and the one `Cache.AddAccessible` for the root that §2 once prescribed would reconcile no client's
+cached children or states (libatspi 2.60.6 updates a cached child list only from `ChildrenChanged`
+and a state only from `StateChanged`). What a client's cache needs arrives in the tail that follows:
+the structure signals above, then the cursor, the selection and the window's activation. The
+`focused` changes the collapse swallowed are said again from the tree at once: `StateChanged
+focused` 1 on the focused node and the cursor's `ActiveDescendantChanged`, unless the same publish
+already sent them. Every signal of a tail event, of a frame's arrival or departure, and of focus said
+again is offered to the connection as the tail kind, which `Outbound.SIGNAL_BOUND`'s ordinary backlog
+never refuses (`Outbound.TAIL_BOUND`, sixteen times it, bounds the tail alone so a writer that never
+writes is still not a leak). An ordinary signal the connection does refuse is followed, once per
+publish, by the focus and cursor said again as the tail kind: the bridge's own queue collapse is
+answered like the model's. *(Corrected 2026-09-15, the review of linux-B, together with the
+`Activate` sentence of the window paragraph above. Three things were wrong. First, "said again
+from the tree at once" put the focus and cursor before the tail's structure signals and before
+`Activate`, against decision 28's order. When the frame's `state-changed:active` was collapsed
+too, `Activate` then moved Orca 50.2's locus to the frame, and nothing brought it back: LINUX-NEW-15
+again, on the collapse path. Second, the memory of what had been said was cleared on every publish,
+so every publish wider than the budget repeated the focus and cursor even when neither had moved.
+Third, a collapse never sent `focused` 0 for the node that lost the focus, and libatspi 2.60.6's
+`cache_process_state_changed` clears only the bit an event names. What the bridge does instead:
+each window remembers, across publishes, the focus and cursor it last announced (semantics 4).
+`INVALIDATED` and a refused signal only mark a reconcile as owed. The reconcile runs before the first
+tail event after the structure signals, or, when the publish carries none, before the window's next
+publish replaces its tree. It sends only what differs from the memory: `focused` 0 for the node last
+announced when that node still stands, `focused` 1 for the node now focused, and the cursor when it
+differs or the focus was just said. The window paragraph's exception, "unless the same publish
+already sent them … its 0.1 s same-type filter would drop a second copy", misread Orca. That filter
+is never reached by a `focused` 1 from a focused source (`_ignore_by_focus_state`, event_manager.py
+324-330). What decides the case is which event moves the locus to the frame. The frame's own
+`state-changed:active` 1 makes it the active window with the frame as locus (`_on_active_changed`,
+default.py 792-822, readings/fedora-orca-focus-manager.txt, Fedora KDE 44, Orca 50.2,
+2026-09-15), and an `Activate` for a window that is already active returns without touching the
+locus (default.py 1386-1390, readings/fedora-orca-event-consumers.txt). So after `Activate` the focus and cursor are said again only
+when they were not said after the frame's `active` 1 in the same publish, or when that `active` 1
+was not sent at all. Two identical copies waiting in Orca's queue together are handled once:
+`_is_obsoleted_by` drops the earlier for the later, matching same type and same source
+(readings/fedora-orca-event-queue.txt). Orca's queue is ordered by `_get_priority` before arrival;
+the numeric values of its constants were not read.)*
+
+**`STATE_CHANGED` for `EXPANDED` and `EXPANDABLE` (L3; decision 27; semantics 9).** Both reach the
+bus as `StateChanged` `expanded` / `expandable` (bits 10 and 9) from the difference, and whenever the
+bit this platform derives from them — `COLLAPSED` (5), published as `EXPANDABLE` without `EXPANDED` —
+moved with the flip, a `StateChanged` `collapsed` follows it: libatspi 2.60.6 sets or clears only
+the bit an event names, so without it a client that cached a closed branch and heard `expanded` 1
+held both. Its former value is read off the node in the tree the window published before
+(`AtspiBridge.previousTree`), because a publish may flip both bits at once. GTK 4.22.4 sends
+`expandable` and `expanded` only (whether its state set carries `COLLAPSED` was not read).
+
+**`VALUE_CHANGED` (settled linux-value-text; added 2026-09-15 with the `Text` interface, §2.3's
+amendment of this date).** `PropertyChange` `accessible-value` with the new number as a `d`, as
+before; and when the number stood still while the display form moved — a date segment filled with its
+minimum goes from "empty" to "1" — and the node serves that form as its `Text` (a `ValueFacet` and no
+`TextFacet`), a `TextChanged` `delete` of the former form and an `insert` of the new one follow it,
+whole string for whole string, read off the node in the window's previous and current trees. A change
+that moved the number sends the property change alone, and a node with a text of its own raises its
+own `TEXT_CHANGED`.
+
+**A change that moves the interfaces a node serves re-sends its cache item (amended 2026-09-15, review
+of the interfaces item).** What a node serves is not fixed by its role: `Text` is served for a value
+only while its display form is not empty (§2.3's `Text` amendment), `Action` only while the node has a
+verb, which it loses with `ENABLED` — beneath an overlay too — and `EditableText` only while it is
+`EDITABLE`. A client keeps a node's interfaces from its cache item, and libatspi 2.60.6's
+`add_accessible_from_iter` overwrites them, with the name, role, description and states, from a later
+`Cache.AddAccessible` for a node it already holds (readings/upstream-at-spi2-core-2.60.6-libatspi.txt,
+atspi-misc.c 578-698); nothing sent one, so a client could lack `Text` on a segment that had just
+gained a word, or `Action` on a button enabled again. Now a `VALUE_CHANGED` or `STATE_CHANGED` whose node
+serves a different set of interfaces than in the window's previous tree (`AtspiTree.interfaceBitsOf`)
+also sends that node's `AddAccessible`: after the state change or the property change, and in a
+value's text echo between the `delete` (said while `Text` was still listed) and the `insert` (said once
+it is listed). A publish that moves several bits of one node sends the same item after each, and a
+modal that withdraws the verbs of every node beneath it sends an item per node whose `Action` went,
+beside the `enabled` 0 each already sends. Keeping the list stable per role or facet was the other way
+offered; it would have listed `Text` with an empty string on every slider and progress bar, which no
+toolkit on the guest does (GTK 4.22.4's level bar serves `Value` alone,
+readings/fedora-gtk4-interface-replies.txt). Not observed live: the gallery's date segments always
+carry a word. Pinned by `AtspiEventsTest.aChangeThatMovesTheInterfacesANodeServesSendsItsCacheItemAgain`.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
@@ -2885,6 +3350,73 @@ reader thread is ours, the snapshot is already published, and every read is answ
 queue. This is the one place Linux is strictly better off than the other two, and it falls straight out
 of owning the transport.
 
+#### Amendment 2026-09-15 — the join has a thread of its own, and a failed one costs nothing twice
+
+**What was wrong.** "The UI thread blocks on nothing" was not true of the join (LINUX-NEW-12). The
+first publish with a tree called the join inline: the session bus's `Hello` and `GetAddress`, the
+accessibility bus's `Hello` and the registry's `Embed`, each waiting up to 15 s for its reply, on the
+user-interface thread. A step that failed returned without closing the accessibility connection it
+had opened — a socket and its reader and writer threads — and the next publish, one frame later,
+did it all again.
+
+**What the code does now.** The first publish that has a tree starts one daemon thread,
+`limn-a11y-atspi-join`, which joins and ends; a publish while it runs starts nothing (a
+compare-and-set), and events emitted before it completes are dropped as before. Every step runs
+inside a `try` that closes the accessibility connection unless the join completed, and a socket
+whose handshake fails is closed before the error leaves `DBus.Conn.open`. A failed join is tried
+again only after a back-off — one second, doubling per consecutive failure, capped at sixty — and
+only when a later publish asks, so an idle window with a broken bus spends nothing. The joiner writes
+the joined state as one atomic reference together with the frames the registry read at the join, and
+the user-interface thread brings its per-window bookkeeping up to that state on its next publish
+(§2.3's amendment of this date). The registration rule is unchanged: nothing joins before some window
+has a tree.
+
+**Corrected 2026-09-15 (the linux-A review): the retry is asked for, not waited for.** "Only when a
+later publish asks" left an idle window off the desktop: a scene publishes only when its tree is dirty,
+so after one failed join a window nothing changes — the window decision 29 is about — never asked
+again, and a publish that fell inside the back-off was dropped with nothing to repeat it; and because
+a successful join reset the failure count, a connection lost right after its join was rejoined as fast
+as the scene published. Now the joiner thread that failed **waits out the back-off itself**, holding
+the join flag so no publish starts another meanwhile, and then asks every attached window for a
+publish (`Host#requestRepublish`), which tries again; the switch turning off, or the last window
+leaving, interrupts the wait and nobody is asked. A joined connection lost within sixty seconds of its
+join counts as a failure and is waited out the same way on a thread of its own; one that held longer
+is rejoined at once and resets the count. The numbers (one second doubling to sixty; sixty seconds to
+count as held) are policy, not platform constants. Pinned by
+`AtspiRegistrationTest.aFailedJoinWaitsOutItsBackOffAndThenAsksAnIdleWindowToPublishWithNoFrameOfItsOwn`
+and `AtspiApplicationTest.aConnectionLostSoonAfterItsJoinIsAFailureAndWaitsOutTheBackOffBeforeAnyoneIsAsked`
+and `theSwitchTurningOffEndsABackOffAndNobodyIsAsked`.
+
+#### Amendment 2026-09-15 — a call is answered even when its handler fails
+
+**What was wrong (LINUX-NEW-9).** "A client that made a method call is waiting for exactly one
+answer" was honoured only when the handler returned. A handler that threw — a member called with too
+few arguments or the wrong types indexes past the body or fails a cast — was logged by the reader
+loop and answered with nothing, and libatspi waits out a newly added application's call timeout (up
+to 15 s) before it pings and declares the process hung. A reply whose body did not match its own
+signature failed to marshal inside the send, with the same result.
+
+**What the code does now.** `DBus.Conn.replyFor` is the one step between a call and its reply, and it
+never throws and never answers nothing: the handler's reply; `UnknownMethod` when there is no handler
+or it declines; `org.freedesktop.DBus.Error.InvalidArgs` when the handler failed on the call's
+arguments (an index out of bounds, a failed cast); `org.freedesktop.DBus.Error.Failed` for any other
+exception, with its text. A reply that cannot be marshalled is replaced by a `Failed` error for the
+same call. `NO_REPLY_EXPECTED` still gets no reply.
+
+**Corrected 2026-09-15 (the linux-A review):** "any other exception" was literal — `Exception` alone —
+so a handler that overflowed the stack or failed an assertion ended the reader thread and the
+connection, and the application joined again for every such call. `StackOverflowError`,
+`AssertionError` and `LinkageError` are answered `Failed` like an exception; only the errors that say
+the virtual machine itself is failing still end the reader, and the join's back-off (the correction
+above) paces the rejoin. Pinned by
+`DBusConnectionTest.aHandlerThatOverflowsTheStackIsAnsweredAndNeitherTheReaderNorTheConnectionEnds`.
+The three error names are read, not remembered: each is a string in the installed libdbus on both
+guests, and each bus answers `InvalidArgs` to a call with arguments of the wrong type and
+`UnknownMethod` to a member it lacks (`readings/fedora-dbus-bus-facts.txt`, dbus-broker 37;
+`readings/ubuntu-dbus-bus-facts.txt`, dbus-daemon 1.14.10; 2026-09-15,
+`scripts/a11y/linux/read-dbus-bus-facts.py`), which also read the 2^27-byte message limit the reader
+refuses past on the session and accessibility buses of both.
+
 ### 3.4 The bridge's own mutable state, and which thread owns each piece
 
 The snapshot is immutable and needs no thread. Everything else a bridge keeps is mutable, is the
@@ -2961,6 +3493,11 @@ open bridges (its detach leaves the set before it empties)
 calls are not changed by this: they arrive through its own provider, whose root the empty
 disconnects first, and whatever race that leaves between an RPC thread and the empty is the one they
 already had, not a new one.
+
+**Note 2026-09-15 (Linux rows).** The listening gate is a `volatile boolean` written by the status
+thread that watches `org.a11y.Status` (§6's amendment of this date), not by the reader thread on
+`Socket.Embed`. The joined state is one atomic reference written by the short-lived joiner thread and
+cleared by whichever thread lets the connection go (§3.3's amendment of this date).
 
 ### 3.5 What all three share
 
@@ -3478,6 +4015,73 @@ GNOME session with accessibility off, a macOS process no client has queried. Per
 - **Linux:** `org.a11y.Status.IsEnabled` on the session bus, read once when the first window opens and
   refreshed on `PropertiesChanged`, **and** a completed `Socket.Embed`. When accessibility is off, no
   a11y bus connection is opened and no thread is started.
+
+#### Amendment 2026-09-15 — the Linux switch is watched, and that costs one parked thread per process
+
+**What was wrong (LINUX-NEW-7).** The bullet above said "refreshed on `PropertiesChanged`"; the code
+read `IsEnabled` once, when a window first asked for its bridge, on that thread, and answered `NONE`
+for good when it was false — so an application started before Orca stayed unreadable, and one whose
+reader quit kept its connection and its walks. "No thread is started" was true only because nothing
+watched.
+
+**The decision (29) and what it costs.** The switch is watched: **one session-bus connection and one
+parked daemon thread per process** (`limn-a11y-atspi-status`), from the first window's bridge on,
+**even when nothing is reading**. That thread is the whole idle cost on Linux beyond the per-frame
+`isListening()`, which is one `volatile` read; it allocates nothing per frame and wakes only for a
+message the bus routes to it, which is the switch's own announcement and nothing else. A process with
+no session bus it can open gets no bridge and no thread. No accessibility-bus connection is opened
+while the switch is off.
+
+**What was read before it was built.** On Fedora KDE 44 (at-spi2-core 2.60.6, dbus-broker 37) and
+Ubuntu 24.04 (at-spi2-core 2.52.0, dbus-daemon 1.14.10), 2026-09-15, with
+`scripts/a11y/linux/read-a11y-status-signal.sh --flip`: at-spi-bus-launcher broadcasts
+`org.freedesktop.DBus.Properties.PropertiesChanged` on `/org/a11y/bus` with
+`("org.a11y.Status", {"IsEnabled": <b>}, [])` once per change and nothing for a value set again, and a
+match on the well-known sender `org.a11y.Bus` receives it on both buses; the upstream function is
+byte-identical in both versions. Not read: what toggles the switch when Orca starts and quits on each
+desktop — the lab note of 2026-09-13 found it left on after a reader ran, so "tears down when Orca
+exits" happens only where the desktop turns the switch off; phase 5 measures it.
+
+**What the code does.** `AtspiStatusWatch` adds its match (`type='signal',sender='org.a11y.Bus',
+path='/org/a11y/bus',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',
+arg0='org.a11y.Status'`) **before** it reads the flag, so no change falls between the two; it follows
+the signal on a connection with no threads of its own (`DBus.Conn.openOnThisThread`), and reopens a
+lost connection after a back-off and reads the flag again. When the switch turns on, every attached
+window — a scene bound while it was off included — is asked for a publish, which buys the frame an
+idle window would never spend and joins; when it turns off, the application leaves the accessibility
+bus and every window stops listening. §3.4's "listening gate" row for Linux is therefore written by
+this status thread, not by the reader thread.
+
+**Corrected 2026-09-15 (the linux-A review): the launcher is followed by its name, and nothing
+polls.** Two sentences above were not true of the code. "Reopens a lost connection … so a restarted
+launcher is followed" — the session connection does not end when at-spi-bus-launcher does, so a new
+launcher's switch was never read. And "wakes only for a message the bus routes to it" — on a session
+with no launcher the read failed, the connection was closed, and the watch reconnected on its back-off,
+every sixty seconds for the life of the process. The watch now adds a second match **before** the
+read, the bus's own `NameOwnerChanged` for `org.a11y.Bus`
+(`type='signal',sender='org.freedesktop.DBus',path='/org/freedesktop/DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.a11y.Bus'`):
+a new owner has its switch read again on the same connection; no owner turns the switch off; a read
+answered with an error (no launcher) is off, and the thread parks on the connection until the name
+gets an owner. The thread wakes for three things: the switch's announcement, its owner's arrival or
+departure, and a stray call it answers. Only the session connection itself ending is retried after the
+back-off. The signal's shape (sent by `org.freedesktop.DBus` from `/org/freedesktop/DBus`, signature
+`sss`: name, old owner, new owner, empty for none) and its routing by `arg0` were read on both guests
+(`readings/fedora-dbus-bus-facts.txt`, dbus-broker 37; `readings/ubuntu-dbus-bus-facts.txt`,
+dbus-daemon 1.14.10; 2026-09-15, `scripts/a11y/linux/read-dbus-bus-facts.py`). Pinned by
+`AtspiStatusWatchTest.aSessionWithNoLauncherParksOnItsConnectionAndFollowsTheLauncherByItsName`.
+
+**Recorded 2026-09-15 (the linux-A review): "tears down with Orca" is not what this code can
+deliver on either desktop read so far.** The bridge follows `IsEnabled` and nothing else. What was
+read, without starting a reader (`scripts/a11y/linux/read-orca-switch-writes.sh`;
+`readings/fedora-orca-switch-writes.txt`, Orca 50.2; `readings/ubuntu-orca-switch-writes.txt`, Orca
+46.1): the only write either Orca makes to `org.a11y.Status` sets `IsEnabled` **true**, at start; no
+path sets it false, and neither shutdown touches it. at-spi-bus-launcher clears nothing when the
+screen reader is disabled (readings/upstream-at-spi-bus-launcher-2.52-2.60.txt). So once Orca has run,
+the switch stays on until something else turns it off — the desktop's accessibility setting, or the
+session ending — and the application stays joined and its scenes keep walking after Orca quits. The
+embed half of decision 29 holds; the teardown half holds only for a switch turned off by the desktop.
+Whether teardown should follow a different signal is the owner's question (logged in the Linux lane
+log); phase 5 measures what each desktop does to the switch when Orca quits.
 
 **These are the gates, and the gate is never "a client asked us something recently."** A publish
 conditioned on a recent inbound call inverts the contract on all three platforms: the platform events
@@ -4345,6 +4949,42 @@ that shipped, while a script anyone can re-run says everything.
 | macOS guest | `scripts/a11y/macos/`: `guest-build.sh` and `guest-probe.sh` bring the rendered probe up in the console session, `guest-steps.sh` drives a sequence of walks and mutations against one live provider, and `guest-voiceover.sh` photographs VoiceOver's caption panel on a timer and stacks the distinct phrases into one strip. The clients are `axtree` (walk, hit-test, follow relations), `axlife` (destroy an element under a client that holds it) and `dump-appkit-constants.swift` (§12.3). `vocap` exists because `screencapture` raises a consent dialog on every invocation and a dialog takes the foreground, which is what a reader announces — **the measurement destroying what it measures, which is the shape to watch for on every one of these guests** | the four scripts already pass against the spike's one-element provider; against the real bridge they must pass against a *tree*: find by name through `AXTitle` **or** `AXDescription`, `AXPress` arriving back in Java on the main thread, hit test through several nested levels, notifications to a real `AXObserver` (with focus observed only at application level), and the loop-mode sweep. Three assertions are new and are the ones this round's fixes created: **an overlay opening while a client is attached is visible to it**, which is the re-push of §2.2; a destroyed element is released and a stale message to it fails rather than crashing; and a scene rebound over the same window leaves no element alive. `unprivileged.sh` runs every one of them as an ordinary user, because root is accessibility-trusted and the lab's `sudo` would otherwise be doing the work. What only VoiceOver can settle is the attributes a purpose-built client never asks for |
 | Ubuntu GNOME, X11 and Wayland | `scripts/a11y/linux/walk-the-probe.py` through `libatspi`'s own typelib — so a tree it walks is a tree Orca sees — and a talking Orca read through `--debug-file`. `-Dlimn.a11y.linux.trace=true` logs every inbound call, which is what turned "the desktop will not list us" from a silence into a question | tree walk, find by name, `DoAction`, `Cache.GetItems` in one round trip, extents in both coordinate types, one application object with one child per window |
 | Fedora KDE, X11 and Wayland | the same | **run 2026-09-06, and it did not behave the same.** Its at-spi2-core 2.60 reads an application as it registers and refuses to list one that answers "no children", which found a registration-order defect this bridge had had since it was written (§13.15). With that fixed, a client walks the tree and Orca speaks names, roles and states. What is still open is the rendered probe on a **Wayland surface**, below |
+
+*(Amended 2026-09-15: the event shapes have a client of their own on both Linux guests.
+`scripts/a11y/linux/events-check.py` prints every event a named application sends as libatspi hands
+it over — detail1, detail2, source and `any_data` — and a source's cached children after a
+`children-changed`; `EventShapesProbe` (backend test sources) drives each shape through a real
+difference with no window. Run on Fedora KDE 44 and Ubuntu 24.04 the same day, identical on both, no
+signal refused. What it does not replace is a talking Orca, which is phase 5's.)*
+
+*(Amended 2026-09-15, LINUX-NEW-6: the Ubuntu row's "`-Dlimn.a11y.linux.trace=true` logs every inbound
+call" was half of what a silent reader needs. The same flag now also names every signal the application
+hands its connection — path, member, detail, both integers and the value — whether the connection
+accepted it and, when it did not, how many it has refused so far; every event that sent nothing and
+why (no mapping on this platform, already said in this publish, raised before the join); and what an
+`INVALIDATED` leaves owed. It goes through one consumer, `AtspiTrace.trace`, read once per site and
+formatting nothing when null, as `UiaWindow.say` does on Windows, so a test installs its own. The wire
+trace `-Dprobe.trace=true` (`DBus.TRACE`, every message and SASL line on standard error) stays separate.
+A string value is cut to 40 characters; a masked field's text changes carry the mask.)*
+
+*(Amended 2026-09-15, review of the interfaces item: that last sentence covered the outbound lines only.
+Once `EditableText` was served, the inbound line printed the plaintext a client sends in
+`SetTextContents` or `InsertText` to a `PASSWORD` field. The inbound line now withholds the string
+arguments of an `EditableText` call to a `PASSWORD` node, or to a path that names no node, and prints
+their length in characters instead; the numbers and every other call are traced as before. Pinned by
+`AtspiTreeTest.theTraceWithholdsTheTextAClientWritesIntoAPasswordField`.)*
+
+*(Amended 2026-09-15, H3: the date widgets have a client on Linux. `scripts/a11y/linux/date-check.py`
+reads, through libatspi, a calendar grid by row and column with its `Selection`, headers, cell states and
+`posinset`/`setsize`; a date field's segments through `Value` and `Text`; and a picker's expand state and
+popup relations, optionally performing an increment or opening the popup. Run on Fedora KDE 44 the same
+day over the gallery's "Calendar grid", "Date field, segmented" and "Date picker, closed" entries, it read
+every cell of the 6 × 8 grid by row and column, the selected day through `Selection`, "15 of 30" on a
+day, each segment's number and text, an increment read back, and the field's expand states — the first
+live reading of the `Selection`, `Value`, `Text` and attribute amendments of §2.3. The same run saw a
+`SelectChild` on the gallery's picker answer false while an in-scene date picker held the input layer,
+which is semantics 5 as the walk publishes it. What it does not replace is Orca speaking them, which is
+phase 5's.)*
 
 **One of these can plausibly move into CI, and it is worth trying.** The Linux bridge is pure Java and
 pure D-Bus, and the Ubuntu runner can install `at-spi2-core` and run the whole probe under

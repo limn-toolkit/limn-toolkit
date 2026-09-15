@@ -8,12 +8,18 @@ import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -24,6 +30,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * one it never adds to the desktop. The bridge used to join at construction, before any scene had
  * been built, so it registered with an empty tree every time; Ubuntu's 2.52 adds first and reads
  * later, which is why that was invisible for every run this bridge had had.
+ *
+ * <p>And on which thread, and how often (LINUX-NEW-12, 2026-09-15). The join used to run inside the
+ * publish, on the user-interface thread, as up to four round trips of up to fifteen seconds each;
+ * a failure left the accessibility connection and its two threads behind, and the next frame tried
+ * again. The join is now one short-lived thread per attempt, closes what it opened when it fails,
+ * and waits out a back-off before the next attempt.
  */
 class AtspiRegistrationTest {
 
@@ -70,19 +82,151 @@ class AtspiRegistrationTest {
         assertEquals(1, bridge.joinAttempts());
     }
 
-    @Test
-    void aBridgeAlreadyOnTheBusDoesNotJoinAgainOnEveryFrame() {
-        AtspiBridge bridge = AtspiBridge.withoutTheGate();
-        bridge.publish(aWindow(), false);
-        int after = bridge.joinAttempts();
-        for (int frame = 0; frame < 5; frame++) {
-            bridge.publish(aWindow(), false);
+    /** Buses whose accessibility connection opens and then refuses one step of the join. */
+    private static final class RefusingBuses implements AtspiApplication.Buses {
+        final String refusedStep;
+        int opened;
+        int closed;
+
+        RefusingBuses(String refusedStep) {
+            this.refusedStep = refusedStep;
         }
-        // On a machine with a bus the connection is held and no further attempt is made. On one
-        // without, connect() failed and retrying each frame is the honest behaviour rather than
-        // giving up for the life of the window -- so this asserts the shape, not a fixed number.
-        assertTrue(bridge.isOnTheBus() ? after == bridge.joinAttempts()
-                                       : bridge.joinAttempts() > after);
+
+        @Override public String a11yAddress() {
+            return "unix:path=/nowhere";
+        }
+
+        @Override public AtspiApplication.Bus open(String address) {
+            opened++;
+            return new AtspiApplication.Bus() {
+                @Override public String hello() throws IOException {
+                    if (refusedStep.equals("Hello")) {
+                        throw new IOException("timeout after 15000 ms waiting for reply to Hello");
+                    }
+                    return ":1.7";
+                }
+
+                @Override public void exportFallback(DBus.Handler handler) { }
+
+                @Override public Object[] embed(Object[] root) {
+                    if (refusedStep.equals("Embed")) {
+                        throw new DBus.DBusError("org.freedesktop.DBus.Error.ServiceUnknown",
+                                "The name org.a11y.atspi.Registry was not provided");
+                    }
+                    return new Object[0];
+                }
+
+                @Override public AtspiApplication.Link link() {
+                    throw new AssertionError("a refused join hands out no link");
+                }
+
+                @Override public void onLost(Runnable lost) { }
+
+                @Override public void close() {
+                    closed++;
+                }
+            };
+        }
+    }
+
+    @Test
+    void aJoinThatFailsClosesTheConnectionItOpened() {
+        for (String step : List.of("Hello", "Embed")) {
+            RefusingBuses buses = new RefusingBuses(step);
+            AtspiTree objects = AtspiApplication.forThisMachine().objects();
+            assertThrows(IOException.class, () -> AtspiApplication.join(buses, objects, () -> { }),
+                    "a refused " + step + " is a failed join");
+            assertEquals(1, buses.opened);
+            assertEquals(1, buses.closed, "a refused " + step + " closes the connection it opened: "
+                    + "left open, it was a socket and two threads per attempt");
+        }
+    }
+
+    @Test
+    void aFailedJoinWaitsOutItsBackOffAndThenAsksAnIdleWindowToPublishWithNoFrameOfItsOwn() {
+        // The window decision 29 is about: opened before the reader, then left alone, so its scene
+        // publishes once and never again. Its first join fails. Until the linux-A review the
+        // failure only noted when a join might start next and waited for a later publish that an
+        // idle scene never makes, so the window stayed off the desktop.
+        long[] now = {1_000_000_000L};
+        RefusingBuses buses = new RefusingBuses("Embed");
+        List<Runnable> threads = new ArrayList<>();
+        List<Long> waits = new ArrayList<>();
+        AtspiBridge[] bridge = new AtspiBridge[1];
+        AtspiApplication application = new AtspiApplication(
+                (objects, lost) -> AtspiApplication.join(buses, objects, lost),
+                (name, body) -> threads.add(body), () -> now[0], nanos -> {
+                    waits.add(nanos);
+                    for (int frame = 0; frame < 10; frame++) {
+                        bridge[0].publish(aWindow(), false);
+                    }
+                    now[0] += nanos;
+                });
+        application.enabled(true);
+        bridge[0] = application.window();
+        int[] republishes = {0};
+        bridge[0].attach(new AccessibilityBridge.Host() {
+            @Override public void requestRepublish() { republishes[0]++; }
+            @Override public void requestRestamp() { }
+            @Override public AccessibleTree republishNow() { return AccessibleTree.EMPTY; }
+            @Override public boolean perform(long nodeId, Accessible.Action action,
+                                             Accessible.Argument arg) { return false; }
+        });
+
+        bridge[0].publish(aWindow(), false);
+        assertEquals(1, threads.size(), "the join is a thread of its own");
+        threads.remove(0).run();
+        assertEquals(1, buses.closed);
+        assertEquals(List.of(AtspiApplication.FIRST_RETRY_NANOS), waits,
+                "the thread that failed waits out the back-off itself");
+        assertEquals(1, bridge[0].joinAttempts(),
+                "ten frames inside the back-off make one attempt, not ten");
+        assertEquals(1, republishes[0], "and when it ends the idle window is asked for the publish "
+                + "that tries again, with no frame of its own in between");
+
+        bridge[0].publish(aWindow(), false);  // the publish it was asked for
+        assertEquals(2, bridge[0].joinAttempts());
+        threads.remove(0).run();
+        assertEquals(List.of(AtspiApplication.FIRST_RETRY_NANOS,
+                2 * AtspiApplication.FIRST_RETRY_NANOS), waits, "the second failure waits twice as long");
+        assertEquals(2, republishes[0]);
+        assertFalse(bridge[0].isOnTheBus());
+    }
+
+    @Test
+    void aPublishNeverWaitsForTheJoin() throws InterruptedException {
+        CountDownLatch registryAnswers = new CountDownLatch(1);
+        CountDownLatch joinedLatch = new CountDownLatch(1);
+        AtspiApplication application = new AtspiApplication((objects, lost) -> {
+            // A registry that takes its time over Embed, as a busy or hung one does: the join waits.
+            try {
+                registryAnswers.await();
+            } catch (InterruptedException e) {
+                throw new IOException(e);
+            }
+            joinedLatch.countDown();
+            return new AtspiApplication.Link() {
+                @Override public boolean signal(DBus.Msg signal, boolean tail) { return true; }
+                @Override public void close() { }
+            };
+        }, AtspiApplication.Starter.DAEMON, System::nanoTime);
+        application.enabled(true);
+        AtspiBridge bridge = application.window();
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+            for (int frame = 0; frame < 3; frame++) {
+                bridge.publish(aWindow(), false);
+            }
+        }, "a frame must not wait on the registry: the join is not the user-interface thread's");
+        assertEquals(1, bridge.joinAttempts(), "a join in flight is not started again");
+        assertFalse(bridge.isOnTheBus());
+
+        registryAnswers.countDown();
+        assertTrue(joinedLatch.await(5, TimeUnit.SECONDS));
+        for (int i = 0; i < 500 && !bridge.isOnTheBus(); i++) {
+            Thread.sleep(10);
+        }
+        assertTrue(bridge.isOnTheBus(), "and the join completes on its own thread");
     }
     /** A window holding one button, published the way a scene publishes one. */
     private static AccessibleTree aWindowWithAButton() {

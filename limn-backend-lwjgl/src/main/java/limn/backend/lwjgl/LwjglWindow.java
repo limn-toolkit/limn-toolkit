@@ -495,7 +495,10 @@ final class LwjglWindow implements NativeWindow {
     @Override
     public limn.backend.AccessibilityBridge accessibility() {
         if (accessibility == null) {
-            accessibility = limn.backend.lwjgl.a11y.Bridges.openFor(nativeHandle(), title);
+            // The application's name and not this window's title: on Linux every window is a frame
+            // of one application object, which a popup titled "popup" must not rename (decision 56).
+            accessibility = limn.backend.lwjgl.a11y.Bridges.openFor(nativeHandle(),
+                    backend.applicationName());
         }
         return accessibility;
     }

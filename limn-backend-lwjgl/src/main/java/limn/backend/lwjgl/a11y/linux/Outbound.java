@@ -30,12 +30,38 @@ final class Outbound {
      */
     static final int SIGNAL_BOUND = 256;
 
+    /**
+     * How many signals of the reserved tail may stand in the queue at once, counted apart from
+     * {@link #SIGNAL_BOUND}.
+     *
+     * <p>The tail is what a reader is directed by — where the focus and the cursor went, what the
+     * structure and the selection did, whether the window is active — and the model keeps it
+     * outside its own event budget for that reason (ADR 039 §1.10, semantics 7). A backlog of
+     * ordinary signals must not cost it: that is exactly the moment the reader most needs to hear
+     * where the user is (decision 28, "Outbound carries a kind flag so it never drops the tail").
+     * It is still bounded, because a queue that grows for ever behind a writer that never writes is
+     * a leak, not a policy: sixteen times the ordinary bound is tails of many publishes, which a
+     * connection whose writer is moving at all never accumulates. Policy, not a platform constant.
+     */
+    static final int TAIL_BOUND = SIGNAL_BOUND * 16;
+
+    /** What an entry is, which decides the slot it holds while it waits. */
+    enum Kind {
+        /** Owed to a caller; never refused. */
+        REPLY,
+        /** An ordinary event; refused past {@link #SIGNAL_BOUND}. */
+        SIGNAL,
+        /** An event of the reserved tail; refused only past {@link #TAIL_BOUND}. */
+        TAIL
+    }
+
     private final BlockingQueue<Entry> queue = new LinkedBlockingQueue<>();
     private final AtomicInteger queuedSignals = new AtomicInteger();
+    private final AtomicInteger queuedTail = new AtomicInteger();
     private final AtomicInteger dropped = new AtomicInteger();
-    private volatile boolean lastWasSignal;
+    private volatile Kind lastKind = Kind.REPLY;
 
-    private record Entry(byte[] bytes, boolean signal) {
+    private record Entry(byte[] bytes, Kind kind) {
     }
 
     /**
@@ -44,7 +70,24 @@ final class Outbound {
      * @param bytes the marshalled message
      */
     void offerReply(byte[] bytes) {
-        queue.add(new Entry(bytes, false));
+        queue.add(new Entry(bytes, Kind.REPLY));
+    }
+
+    /**
+     * Queues a signal of the reserved tail unless {@link #TAIL_BOUND} of them already wait. The
+     * ordinary backlog does not count against it.
+     *
+     * @param bytes the marshalled message
+     * @return whether it was accepted; a refusal is counted and nothing else happens
+     */
+    boolean offerTailSignal(byte[] bytes) {
+        if (queuedTail.get() >= TAIL_BOUND) {
+            dropped.incrementAndGet();
+            return false;
+        }
+        queuedTail.incrementAndGet();
+        queue.add(new Entry(bytes, Kind.TAIL));
+        return true;
     }
 
     /**
@@ -59,7 +102,7 @@ final class Outbound {
             return false;
         }
         queuedSignals.incrementAndGet();
-        queue.add(new Entry(bytes, true));
+        queue.add(new Entry(bytes, Kind.SIGNAL));
         return true;
     }
 
@@ -71,16 +114,19 @@ final class Outbound {
      */
     byte[] take() throws InterruptedException {
         Entry e = queue.take();
-        lastWasSignal = e.signal();
+        lastKind = e.kind();
         return e.bytes();
     }
 
     /** Releases the slot the message from the last {@link #take()} held, written or not. */
     void written() {
-        if (lastWasSignal) {
-            queuedSignals.decrementAndGet();
-            lastWasSignal = false;
+        switch (lastKind) {
+            case SIGNAL -> queuedSignals.decrementAndGet();
+            case TAIL -> queuedTail.decrementAndGet();
+            case REPLY -> {
+            }
         }
+        lastKind = Kind.REPLY;
     }
 
     /** @return how many signals have been refused for want of room */

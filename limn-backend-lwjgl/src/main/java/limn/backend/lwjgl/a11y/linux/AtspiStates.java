@@ -38,6 +38,15 @@ final class AtspiStates {
     /** {@code Atspi.StateType.EXPANDABLE}, from the same 2026-09-13 reading as {@link #COLLAPSED}. */
     static final int EXPANDABLE = 9;
 
+    /**
+     * {@code Atspi.StateType.DEFUNCT}: an object that has left its application's tree. Read with
+     * {@link #COLLAPSED} off the Fedora KDE 44 guest (libatspi 2.60.6, typelib) on 2026-09-13 by
+     * {@code scripts/a11y/linux/dump-atspi-constants.py --all}
+     * (readings/fedora-atspi-constants-all.txt). Never a toolkit state: a node that has it is not
+     * in any published tree.
+     */
+    static final int DEFUNCT = 6;
+
     private static final Map<Accessible.State, Integer> BIT = new EnumMap<>(Accessible.State.class);
 
     static {
@@ -97,9 +106,9 @@ final class AtspiStates {
         }
         if (has.test(Accessible.State.EXPANDABLE) && !has.test(Accessible.State.EXPANDED)) {
             // Collapsed is what this platform calls a node that can open and has not: derived, so
-            // that Orca can say "collapsed" on a closed tree row rather than nothing (L3). The
-            // state-changed:collapsed event that should accompany an EXPANDED flip is the Linux
-            // lane's (phase 3); this is the set a client reads.
+            // that Orca can say "collapsed" on a closed tree row rather than nothing (L3). Its
+            // state-changed:collapsed travels with the EXPANDED or EXPANDABLE flip that moved it
+            // (AtspiEvents.expandChanged), so a client's cached set never holds both.
             out |= 1L << COLLAPSED;
         }
         return out;

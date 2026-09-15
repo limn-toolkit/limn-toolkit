@@ -165,8 +165,10 @@ was — and a frame with a live bridge and a clean tree to allocate nothing eith
 platform and each one is the most honest question that platform can answer — Linux can ask the
 desktop whether assistive technology is running at all; Windows and macOS can only know that
 something has asked, which is why both owe a **priming publish**: the gate cannot open before the
-platform has been handed something to ask about. A bridge that is not listening allocates nothing,
-walks nothing and starts no thread.
+platform has been handed something to ask about. A bridge that is not listening allocates nothing
+and walks nothing. It starts no thread either, with one deliberate exception: Linux's switch moves while
+an application runs, so the process keeps one session connection and one parked thread watching it
+(`AtspiStatusWatch`), and a window opened before the screen reader becomes readable when it starts.
 
 ## The three bridges
 
@@ -183,11 +185,17 @@ wiring anything. `setAccessibility` remains for an application installing its ow
 | --- | --- | --- | --- |
 | **Windows** / UI Automation | COM through LWJGL's JNI trampoline and libffi; a WndProc subclass answering `WM_GETOBJECT` | the platform's, several at once, while the UI thread sleeps; plus a drain thread of the bridge's own that raises, because a raise waits for the reader's handler | `UiaClientsAreListening()` for its negative; then this window's own: a subscription (`IRawElementProviderAdviseEvents` on the root) or an ask, owed one event |
 | **macOS** / NSAccessibility | the Objective-C runtime through LWJGL; a runtime `NSAccessibilityElement` subclass with libffi closures | every callback **is** the UI thread | something has asked; opened by the first-frame walk and the children push, which are the attach and the gate together |
-| **Linux** / AT-SPI2 | **no native code at all** — D-Bus over a unix socket, in pure Java | a reader thread that answers and never blocks, a writer thread that performs every write | `org.a11y.Status.IsEnabled` on the session bus |
+| **Linux** / AT-SPI2 | **no native code at all** — D-Bus over a unix socket, in pure Java | a reader thread that answers and never blocks, a writer thread that performs every write; a short-lived joiner; one parked status thread per process | `org.a11y.Status.IsEnabled` on the session bus, watched through `PropertiesChanged` |
 
 `PlatformBridge` holds the little they genuinely share: the published snapshot and the host. The
 event queue, the element registry and the listening gate stayed apart on purpose — each platform has
 a different right answer, and a shared one would make a bridge lie.
+
+**Linux is one application per process; the other two are per window.** AT-SPI2 has one application
+object per connection, so `AtspiApplication` owns the one connection and every window's
+`AtspiBridge` is a facade that registers its tree as a frame beneath it — a native popup included,
+which is how its `POPUP_FOR` reaches the field in the other window. The application is named by
+`Backend#setApplicationName`, or the first window's title; a window's own title never renames it.
 
 **Relations cross to every platform in that platform's own form.** A node's relations are the
 model's, resolved to published nodes before a bridge sees them (a target that was never

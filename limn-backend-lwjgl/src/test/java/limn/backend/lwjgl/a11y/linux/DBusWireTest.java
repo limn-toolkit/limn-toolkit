@@ -230,6 +230,72 @@ class DBusWireTest {
         check("GetItems reply signature", Atspi.CACHE_ITEMS, replyBack.signature);
         check("GetItems reply body", structs(item), replyBack.body[0]);
 
+        // The cache signals, whose signatures libatspi 2.60.6 compares as strings before it reads
+        // a byte (handle_add_accessible: cache_signal_type "((so)(so)(so)iiassusau)";
+        // handle_remove_accessible: "(so)"; readings/upstream-at-spi2-core-2.60.6-libatspi.txt).
+        // A signal's body of one struct is that struct's signature and nothing around it.
+        DBus.Msg added = DBus.Msg.signal(Atspi.PATH_CACHE, Atspi.I_CACHE, "AddAccessible",
+                Atspi.CACHE_ITEM, (Object) item);
+        DBus.Msg addedBack = DBus.Msg.parse(added.marshal(15));
+        check("AddAccessible signature is libatspi's cache_signal_type",
+              "((so)(so)(so)iiassusau)", addedBack.signature);
+        check("AddAccessible body is the one item", item, addedBack.body[0]);
+        check("AddAccessible path", "/org/a11y/atspi/cache", addedBack.path);
+        DBus.Msg gone = DBus.Msg.signal(Atspi.PATH_CACHE, Atspi.I_CACHE, "RemoveAccessible", "(so)",
+                (Object) new Object[] { ":1.9", "/org/a11y/atspi/accessible/1" });
+        DBus.Msg goneBack = DBus.Msg.parse(gone.marshal(17));
+        check("RemoveAccessible signature", "(so)", goneBack.signature);
+        check("RemoveAccessible body", new Object[] { ":1.9", "/org/a11y/atspi/accessible/1" },
+              goneBack.body[0]);
+        // ChildrenChanged: detail, index, 0, the child's reference in a variant, the application.
+        DBus.Msg children = DBus.Msg.signal("/org/a11y/atspi/accessible/10",
+                AtspiEvents.I_EVENT_OBJECT, "ChildrenChanged", AtspiEvents.SIGNATURE, "add", 2, 0,
+                DBus.v("(so)", new Object[] { ":1.9", "/org/a11y/atspi/accessible/11" }),
+                new Object[] { ":1.9", Atspi.PATH_ROOT });
+        DBus.Msg childrenBack = DBus.Msg.parse(children.marshal(19));
+        check("ChildrenChanged signature is one libatspi accepts", "siiv(so)",
+              childrenBack.signature);
+        check("ChildrenChanged body", new Object[] { "add", 2, 0,
+                DBus.v("(so)", new Object[] { ":1.9", "/org/a11y/atspi/accessible/11" }),
+                new Object[] { ":1.9", Atspi.PATH_ROOT } }, childrenBack.body);
+
+        // The interfaces served since 2026-09-15, in the shapes libatspi 2.60.6 demands of each
+        // reply (readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt).
+        // Text.GetStringAtOffset "iu=>sii": the string, then its start and end in characters; an
+        // astral character is four UTF-8 bytes on the wire and one character in the offsets.
+        DBus.Msg stringAt = DBus.Msg.ret(getItems, "sii", "\uD83D\uDE00 there", 3, 10);
+        stringAt.destination = ":1.2";
+        DBus.Msg stringAtBack = DBus.Msg.parse(stringAt.marshal(21));
+        check("GetStringAtOffset reply signature", "sii", stringAtBack.signature);
+        check("GetStringAtOffset reply body", new Object[] { "\uD83D\uDE00 there", 3, 10 },
+              stringAtBack.body);
+        // Text.GetAttributeRun: _ATSPI_DBUS_CHECK_SIG "a{ss}ii" before it reads a byte.
+        DBus.Msg run = DBus.Msg.ret(getItems, "a{ss}ii", new java.util.LinkedHashMap<>(), 0, 21);
+        run.destination = ":1.2";
+        DBus.Msg runBack = DBus.Msg.parse(run.marshal(23));
+        check("GetAttributeRun reply signature", "a{ss}ii", runBack.signature);
+        check("GetAttributeRun reply body", new Object[] { java.util.Map.of(), 0, 21 }, runBack.body);
+        // Accessible.GetAttributes with a row's level and place in its set (L5).
+        java.util.Map<Object, Object> attributes = Atspi.attrs("toolkit", "limn", "level", "2",
+                "posinset", "3", "setsize", "4");
+        DBus.Msg attrs = DBus.Msg.ret(getItems, "a{ss}", attributes);
+        attrs.destination = ":1.2";
+        DBus.Msg attrsBack = DBus.Msg.parse(attrs.marshal(25));
+        check("GetAttributes reply body", attributes, attrsBack.body[0]);
+        // Properties.Set(Value, CurrentValue, <d>): how atspi_value_set_current_value writes a
+        // value, which the bridge reads as a variant holding a Double.
+        DBus.Msg setValue = DBus.Msg.call(":1.42", "/org/a11y/atspi/accessible/9", Atspi.I_PROPS,
+                "Set", "ssv", Atspi.I_VALUE, "CurrentValue", DBus.v("d", 20.0));
+        DBus.Msg setValueBack = DBus.Msg.parse(setValue.marshal(27));
+        check("Set(CurrentValue) signature", "ssv", setValueBack.signature);
+        check("Set(CurrentValue) value arrives as a variant d holding a Double",
+              "d 20.0", ((DBus.Variant) setValueBack.body[2]).sig + " "
+                      + ((DBus.Variant) setValueBack.body[2]).value);
+        // Text.GetSelection "i=>ii": two out arguments, not a struct.
+        DBus.Msg selection = DBus.Msg.ret(getItems, "ii", 0, 2);
+        selection.destination = ":1.2";
+        check("GetSelection reply signature", "ii", DBus.Msg.parse(selection.marshal(29)).signature);
+
         DBus.Msg err = DBus.Msg.err(getItems, "org.freedesktop.DBus.Error.UnknownMethod", "nope");
         err.destination = ":1.2";
         DBus.Msg errBack = DBus.Msg.parse(err.marshal(11));
@@ -311,6 +377,108 @@ class DBusWireTest {
             check("golden DoAction index", 0, m.body[0]);
         });
         done();
+    }
+
+    /**
+     * The SASL exchange offers no descriptor passing (LINUX-NEW-13). ADR 039 §2.3: NEGOTIATE_UNIX_FD
+     * succeeds on both buses and must not be sent, because an agreed connection is one the bus may
+     * route an fd-carrying message to, which java.nio can neither receive nor this reader parse.
+     */
+    @Test
+    void theHandshakeNeverOffersToPassFileDescriptors() {
+        List<String> commands = DBus.Conn.saslCommands("1000");
+        org.junit.jupiter.api.Assertions.assertEquals(List.of("AUTH EXTERNAL 31303030", "BEGIN"),
+                commands, "authenticate, then begin; nothing in between");
+        for (String command : commands) {
+            org.junit.jupiter.api.Assertions.assertFalse(command.startsWith("NEGOTIATE_UNIX_FD"),
+                    "descriptor passing is never negotiated: " + commands);
+        }
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> DBus.alignOf('h'), "and the fd type is not one this client speaks");
+    }
+
+    /**
+     * A method call carrying a descriptor, {@code h}: what a peer could send if the connection had
+     * agreed to descriptors, and the plainest message whose body this client cannot read.
+     *
+     * @param flags the header flags to send it with
+     */
+    static byte[] aCallWhoseBodyIsADescriptor(byte flags) {
+        DBus.Msg call = DBus.Msg.call(":1.7", Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetChildAtIndex",
+                "i", 0);
+        call.sender = ":1.99";
+        call.flags = flags;
+        byte[] raw = call.marshal(5);
+        // The SIGNATURE header field is the variant 'g' holding "i": (08) 01 'g' 00 01 'i' 00.
+        byte[] field = {1, 'g', 0, 1, 'i', 0};
+        for (int at = 12; at + field.length <= raw.length; at++) {
+            if (java.util.Arrays.equals(raw, at, at + field.length, field, 0, field.length)) {
+                raw[at + 4] = 'h';
+                return raw;
+            }
+        }
+        throw new AssertionError("no signature field in the marshalled call");
+    }
+
+    @Test
+    void aMethodCallWhoseBodyCannotBeReadIsRefusedWithAnErrorRatherThanThrown() {
+        DBus.Conn.Inbound in = DBus.Conn.Inbound.of(aCallWhoseBodyIsADescriptor((byte) 0));
+        org.junit.jupiter.api.Assertions.assertNull(in.message(), "its body cannot be read");
+        org.junit.jupiter.api.Assertions.assertNotNull(in.failure());
+        DBus.Msg refusal = in.refusal();
+        org.junit.jupiter.api.Assertions.assertNotNull(refusal,
+                "a caller waiting on a reply is answered, not left to its timeout");
+        org.junit.jupiter.api.Assertions.assertEquals(DBus.ERROR, refusal.type);
+        org.junit.jupiter.api.Assertions.assertEquals(5, refusal.replySerial);
+        org.junit.jupiter.api.Assertions.assertEquals(":1.99", refusal.destination);
+        org.junit.jupiter.api.Assertions.assertEquals("org.freedesktop.DBus.Error.InvalidArgs",
+                refusal.errorName);
+        DBus.Msg.parse(refusal.marshal(9));  // and the refusal is itself a message
+
+        DBus.Conn.Inbound quiet = DBus.Conn.Inbound.of(
+                aCallWhoseBodyIsADescriptor(DBus.NO_REPLY_EXPECTED));
+        org.junit.jupiter.api.Assertions.assertNull(quiet.refusal(),
+                "a call that asked for no reply gets none");
+    }
+
+    @Test
+    void aHandlerThatThrowsIsAnsweredWithAnErrorForItsSerialAndOneThatDeclinesWithUnknownMethod() {
+        DBus.Msg call = DBus.Msg.call(":1.7", Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetRole", null);
+        call.serial = 12;
+        call.sender = ":1.99";
+
+        DBus.Msg failed = DBus.Conn.replyFor((conn, m) -> {
+            throw new IllegalStateException("the snapshot is gone");
+        }, null, call);
+        org.junit.jupiter.api.Assertions.assertEquals(DBus.ERROR, failed.type,
+                "a throwing handler still answers the caller");
+        org.junit.jupiter.api.Assertions.assertEquals(12, failed.replySerial);
+        org.junit.jupiter.api.Assertions.assertEquals(":1.99", failed.destination);
+        org.junit.jupiter.api.Assertions.assertEquals("org.freedesktop.DBus.Error.Failed",
+                failed.errorName);
+        org.junit.jupiter.api.Assertions.assertTrue(
+                String.valueOf(failed.body[0]).contains("the snapshot is gone"), "" + failed);
+
+        for (Throwable error : java.util.List.of(new StackOverflowError("a describe hook recursed"),
+                new AssertionError("a handler's own check"), new NoClassDefFoundError("a lazy class"))) {
+            DBus.Msg answered = DBus.Conn.replyFor((conn, m) -> {
+                if (error instanceof Error e) {
+                    throw e;
+                }
+                return null;
+            }, null, call);
+            org.junit.jupiter.api.Assertions.assertEquals("org.freedesktop.DBus.Error.Failed",
+                    answered.errorName, "an error a handler raises is answered like an exception: "
+                            + error);
+            org.junit.jupiter.api.Assertions.assertEquals(12, answered.replySerial);
+        }
+
+        DBus.Msg declined = DBus.Conn.replyFor((conn, m) -> null, null, call);
+        org.junit.jupiter.api.Assertions.assertEquals("org.freedesktop.DBus.Error.UnknownMethod",
+                declined.errorName);
+        DBus.Msg none = DBus.Conn.replyFor(null, null, call);
+        org.junit.jupiter.api.Assertions.assertEquals("org.freedesktop.DBus.Error.UnknownMethod",
+                none.errorName);
     }
 
     interface Assertions { void run(DBus.Msg m); }

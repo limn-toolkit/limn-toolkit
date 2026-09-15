@@ -20,6 +20,24 @@ public interface Backend extends AutoCloseable {
     /** @return the concurrency runtime owned by this backend */
     UiRuntime uiRuntime();
 
+    /**
+     * Names this application where the desktop's accessibility tree lists applications by name.
+     *
+     * <p>On Linux, AT-SPI2 shows one application object per process with every window beneath it,
+     * and a screen reader says that name when the user moves into the application; left unset, a
+     * backend uses the title of the first window it created, which is right for a one-window
+     * program and wrong for one whose first window is a splash or a login. Windows and macOS name an
+     * application from the process itself and read nothing here. Call it before the first window
+     * for the name to be there from the start; a later call renames the application for the next
+     * client that asks.
+     *
+     * @param name what the desktop should call this application; never {@code null}
+     * @throws NullPointerException if {@code name} is {@code null}
+     */
+    default void setApplicationName(String name) {
+        java.util.Objects.requireNonNull(name, "name");
+    }
+
     /** Creates (but does not necessarily show) a native window. UI thread only. */
     NativeWindow createWindow(WindowConfig config);
 
