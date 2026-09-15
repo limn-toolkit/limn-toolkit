@@ -167,9 +167,17 @@ final class AxRoles {
         return BY_ROLE.get(role);
     }
 
+    /**
+     * The role a table's column elements answer (M4): no toolkit role stands for a column, so it is not
+     * a row of the table above, and a native NSTableView's columns answer it (read on the macOS 26.6.2
+     * guest, 2026-09-15, {@code scripts/a11y/macos/table-probe.swift}).
+     */
+    static final String COLUMN_ROLE_SYMBOL = "NSAccessibilityColumnRole";
+
     /** Every symbol this table names, for the test that checks them against AppKit's own export list. */
     static java.util.Set<String> symbols() {
         java.util.Set<String> symbols = new java.util.LinkedHashSet<>();
+        symbols.add(COLUMN_ROLE_SYMBOL);
         for (Mapping mapping : BY_ROLE.values()) {
             symbols.add(mapping.roleSymbol());
             if (mapping.subroleSymbol() != null) symbols.add(mapping.subroleSymbol());

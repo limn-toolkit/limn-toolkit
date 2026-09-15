@@ -74,6 +74,14 @@ final class AxSelectors {
     /** Installed on the element class every node is vended as, in the order they are installed. */
     static final List<String> ON_ELEMENT;
 
+    /**
+     * Installed on the class a table's column elements are vended as (M4), each also listed on the
+     * element class with the same shape, so {@link #KINDS} holds both.
+     */
+    static final List<String> ON_COLUMN = List.of("accessibilityRole", "accessibilityIndex",
+            "accessibilityRows", "accessibilityVisibleRows", "accessibilityHeader", "accessibilityParent",
+            "isAccessibilitySelectorAllowed:");
+
     /** Installed on the one content-view subclass, where AppKit asks where the focus is (§13.22). */
     static final List<String> ON_VIEW = List.of("accessibilityFocusedUIElement");
 
@@ -103,7 +111,8 @@ final class AxSelectors {
         kinds.put(AxSetters.SELECTED_ROWS, Kind.VOID_OF_ID);
         for (String selector : List.of("accessibilityRows", "accessibilityVisibleRows",
                 "accessibilitySelectedRows", "accessibilitySelectedChildren",
-                "accessibilitySelectedCells", "accessibilityColumns", "accessibilityHeader",
+                "accessibilitySelectedCells", "accessibilityColumns", "accessibilityVisibleColumns",
+                "accessibilitySelectedColumns", "accessibilityHeader",
                 "accessibilityColumnHeaderUIElements")) {
             kinds.put(selector, Kind.ID);
         }

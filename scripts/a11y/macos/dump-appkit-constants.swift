@@ -207,6 +207,13 @@ let installedByTheBridge: [(String, String)] = [
     ("setAccessibilityValue:", "element"), ("setAccessibilitySelectedRows:", "element"),
     // The legacy action pair, for AXScrollToVisible (MACOS-NEW-11).
     ("accessibilityActionNames", "element"), ("accessibilityPerformAction:", "element"),
+    // A table's columns (M4): the two column lists on the table, and what a column element answers on
+    // the class it is vended as.
+    ("accessibilityVisibleColumns", "element"), ("accessibilitySelectedColumns", "element"),
+    ("accessibilityRole", "column class"), ("accessibilityIndex", "column class"),
+    ("accessibilityRows", "column class"), ("accessibilityVisibleRows", "column class"),
+    ("accessibilityHeader", "column class"), ("accessibilityParent", "column class"),
+    ("isAccessibilitySelectorAllowed:", "column class"),
 ]
 
 // Fragments searched for across the class chains and the protocols below, so a name is read rather

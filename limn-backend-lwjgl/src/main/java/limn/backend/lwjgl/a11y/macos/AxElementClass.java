@@ -72,6 +72,20 @@ final class AxElementClass {
         long parentElementOf(AccessibleNode node);
 
         /**
+         * @param table  a node carrying a table facet
+         * @param column one of its shown columns, from zero
+         * @return the element standing for that column (M4), minting it if it does not exist yet
+         */
+        long columnElementFor(AccessibleNode table, int column);
+
+        /**
+         * @param element an element
+         * @return {@code {tableId, column}} when it is a column element this source minted, or
+         *         {@code null}
+         */
+        long[] columnKeyOf(long element);
+
+        /**
          * @param node a node in the published tree
          * @return the elements at the other end of every relation the node declares, minting any
          *         that do not exist yet, and skipping a target that is the elided window root or
@@ -131,6 +145,8 @@ final class AxElementClass {
     private final AxObjC objc;
     private final Source source;
     private final long elementClass;
+    /** The runtime subclass a table's column elements are vended as (M4). */
+    private final long columnClass;
     /** {@code NSAccessibilityElement}: what a released element is pointed back at. */
     private final long superclass;
     private final List<Callback> callbacks = new ArrayList<>();
@@ -174,6 +190,14 @@ final class AxElementClass {
         this.elementClass = created;
         install();
         ObjCRuntime.objc_registerClassPair(created);
+        long columns = ObjCRuntime.objc_allocateClassPair(superclass, className + "_Column", 0);
+        if (columns == NULL) {
+            throw new IllegalStateException("objc_allocateClassPair(NSAccessibilityElement, "
+                    + className + "_Column) failed; the name is already taken in this process");
+        }
+        this.columnClass = columns;
+        installColumn();
+        ObjCRuntime.objc_registerClassPair(columns);
         String warning = selectors.warning();
         if (warning != null) LOG.log(System.Logger.Level.WARNING, warning);
         if (skippedForBusy) {
@@ -192,6 +216,11 @@ final class AxElementClass {
     /** @return a new, retained instance; the caller owns it until it releases it. */
     long newInstance() {
         return ObjC.msg(ObjC.msg(elementClass, "alloc"), "init");
+    }
+
+    /** @return a new, retained column element (M4); the caller owns it until it releases it. */
+    long newColumnInstance() {
+        return ObjC.msg(ObjC.msg(columnClass, "alloc"), "init");
     }
 
     /**
@@ -316,9 +345,13 @@ final class AxElementClass {
 
         addId("accessibilityChildren", get(node -> {
             long[] children = source.childElementsOf(node);
-            if (children.length == 0) return NULL;
+            // A table's columns follow its nodes among its children, as a native NSTableView lists
+            // its AXColumn elements among its own (read on the guest, 2026-09-15, table-probe.swift).
+            long[] columns = node.table() == null ? null : grid.columns(node);
+            if (children.length == 0 && (columns == null || columns.length == 0)) return NULL;
             long array = objc.mutableArray();
             for (long child : children) objc.addObject(array, child);
+            if (columns != null) for (long column : columns) objc.addObject(array, column);
             return array;
         }));
         addId("accessibilityParent", get(source::parentElementOf));
@@ -423,6 +456,8 @@ final class AxElementClass {
         addId("accessibilitySelectedChildren", get(node -> nsArray(grid.selectedMembers(node))));
         addId("accessibilitySelectedCells", get(node -> nsArray(grid.selectedMembers(node))));
         addId("accessibilityColumns", get(node -> nsArray(grid.columns(node))));
+        addId("accessibilityVisibleColumns", get(node -> nsArray(grid.visibleColumns(node))));
+        addId("accessibilitySelectedColumns", get(node -> nsArray(grid.selectedColumns(node))));
         addId("accessibilityHeader", get(grid::header));
         addId("accessibilityColumnHeaderUIElements",
                 get(node -> nsArray(grid.columnHeaderElements(node))));
@@ -456,6 +491,74 @@ final class AxElementClass {
         addId("accessibilityDisclosedByRow", get(grid::disclosedByRow));
         addId("accessibilityDisclosedRows", get(node -> nsArray(grid.disclosedRows(node))));
         addBool("isAccessibilityExpanded", is(node -> node.expand() != null && node.expand().expanded()));
+    }
+
+    /**
+     * What a table's column element answers (M4; decision 34), installed on {@link #columnClass}: the
+     * attributes a native NSTableView's {@code AXColumn} answered on the macOS 26.6.2 guest
+     * (2026-09-15, {@code scripts/a11y/macos/table-probe.swift}) — its role, its index, its header (the
+     * header button), its cells under {@code AXRows} and the showing ones under {@code AXVisibleRows},
+     * its parent the table — and no children, as the native one answers none. The frame is pushed, as
+     * every node's is. The role description is AppKit's own for the role: no toolkit role stands for a
+     * column, so none of the toolkit's phrases names one. The gate refuses every stored setter, as the
+     * element class's does, and a header where the column has none.
+     */
+    private void installColumn() {
+        IdGetter columnRole = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                return grid.tableOfColumn(self) == null ? NULL : objc.constant(AxRoles.COLUMN_ROLE_SYMBOL);
+            }
+        };
+        addMethod(columnClass, "accessibilityRole", columnRole);
+        LongGetter columnIndex = new LongGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                return grid.tableOfColumn(self) == null ? AxGrid.NOT_FOUND[0] : grid.columnOf(self);
+            }
+        };
+        addMethod(columnClass, "accessibilityIndex", columnIndex);
+        IdGetter columnCells = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                AccessibleNode table = grid.tableOfColumn(self);
+                return table == null ? NULL : nsArray(grid.columnCells(table, grid.columnOf(self), false));
+            }
+        };
+        addMethod(columnClass, "accessibilityRows", columnCells);
+        IdGetter columnVisibleCells = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                AccessibleNode table = grid.tableOfColumn(self);
+                return table == null ? NULL : nsArray(grid.columnCells(table, grid.columnOf(self), true));
+            }
+        };
+        addMethod(columnClass, "accessibilityVisibleRows", columnVisibleCells);
+        IdGetter columnHeader = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                AccessibleNode table = grid.tableOfColumn(self);
+                return table == null ? NULL : grid.columnHeader(table, grid.columnOf(self));
+            }
+        };
+        addMethod(columnClass, "accessibilityHeader", columnHeader);
+        IdGetter columnParent = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                AccessibleNode table = grid.tableOfColumn(self);
+                return table == null ? NULL : source.elementFor(table.id());
+            }
+        };
+        addMethod(columnClass, "accessibilityParent", columnParent);
+        SelectorGate columnGate = new SelectorGate() {
+            @Override public boolean invoke(long self, long cmd, long selector) {
+                source.entered();
+                AccessibleNode table = grid.tableOfColumn(self);
+                return table != null && AxGate.allowsOnColumn(grid, table, grid.columnOf(self),
+                        ObjCRuntime.sel_getName(selector));
+            }
+        };
+        addMethod(columnClass, "isAccessibilitySelectorAllowed:", columnGate);
     }
 
     /** An autoreleased {@code NSArray} of these elements, or nil for {@code null}. */

@@ -33,8 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the audit found wrong, and said so by name, so that each fix turned its case red on purpose and
  * restated it: M2's (an outline and a list had no rows), MACOS-NEW-9's (the header was the table's
  * first group child whatever it held), MACOS-NEW-4's (a row was found by its selection position) were
- * restated when those fixes landed, 2026-09-15. One still pins a wrong answer: a table has no columns
- * while its column count says otherwise (M4).
+ * restated when those fixes landed, 2026-09-15, and M4's (a table had no columns while its column count
+ * said otherwise) moved to {@code AxColumnsTest} when columns were vended the same day.
  */
 @ExtendWith(PlatformFreeBridges.class)
 class AxGridTest {
@@ -164,14 +164,13 @@ class AxGridTest {
     }
 
     @Test
-    void theCountsAreTheTableFacetsAndTheColumnsAreNoneToday() {
-        // M4 pinned: AXColumns is an empty array beside AXColumnCount 3. Decision 34 changes this
-        // after a native NSTableView is read on the guest.
+    void theCountsAreTheTableFacets() {
+        // The columns this case pinned as none beside a count of 3 (M4) are vended since 2026-09-15:
+        // AxColumnsTest.aTableVendsOneColumnPerShownColumnAnsweringItsIndexCellsAndHeader restates it.
         Fixture f = over(aTable());
         AccessibleNode table = f.node(1001);
         assertEquals(10, f.grid().rowCount(table), "the model's count, not the realized rows'");
         assertEquals(3, f.grid().columnCount(table));
-        assertArrayEquals(new long[0], f.grid().columns(table));
     }
 
     @Test

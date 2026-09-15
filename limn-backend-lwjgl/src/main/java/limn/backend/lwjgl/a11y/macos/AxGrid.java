@@ -37,9 +37,12 @@ import limn.accessibility.AccessibleTree;
  *
  * <p>This is the 2026-09-15 extraction of those answers out of the element class, and it changed
  * none of them; the outline and list rows came after it, and the cell, row and header lookups were
- * rewritten to the settled semantics after that, the same day. The columns the audit found missing
- * (M4) are still none here; {@code AxGridTest} pins that answer so that its fix turns a named case red
- * on purpose.
+ * rewritten to the settled semantics after that, the same day, and a table's columns (M4) after those.
+ *
+ * <p><b>A table's columns are elements that stand for no node</b> (decision 34): one per shown column,
+ * as a native NSTableView vends (read on the macOS 26.6.2 guest, 2026-09-15,
+ * {@code scripts/a11y/macos/table-probe.swift}), each answering its index, its header cell and its
+ * cells; {@link AxColumns} keeps them.
  */
 final class AxGrid {
 
@@ -328,12 +331,130 @@ final class AxGrid {
         return java.util.Arrays.copyOf(found, count);
     }
 
+    // ---- columns: elements that stand for no node (M4; decision 34) --------------------------------
+
     /**
      * @param node the node asked
-     * @return {@code accessibilityColumns}: empty for a table, {@code null} for anything else
+     * @return {@code accessibilityColumns}: a table's column elements, one per shown column in order,
+     *         minted on the ask; {@code null} for anything else
      */
     long[] columns(AccessibleNode node) {
+        if (node.table() == null) return null;
+        long[] columns = new long[Math.max(0, node.table().columnCount())];
+        for (int c = 0; c < columns.length; c++) columns[c] = source.columnElementFor(node, c);
+        return columns;
+    }
+
+    /**
+     * @param node the node asked
+     * @return {@code accessibilityVisibleColumns}: those columns whose header cell is showing, or, with
+     *         no header cell, one of whose realized data cells is; {@code null} for anything else
+     */
+    long[] visibleColumns(AccessibleNode node) {
+        if (node.table() == null) return null;
+        AccessibleTree tree = source.tree();
+        int count = Math.max(0, node.table().columnCount());
+        long[] found = new long[count];
+        int kept = 0;
+        for (int c = 0; c < count; c++) {
+            int header = headerCellInColumnOf(node, c);
+            boolean showing = header != AccessibleNode.NONE
+                    ? tree.node(header).has(Accessible.State.SHOWING)
+                    : columnCells(node, c, true).length > 0;
+            if (showing) found[kept++] = source.columnElementFor(node, c);
+        }
+        return java.util.Arrays.copyOf(found, kept);
+    }
+
+    /**
+     * @param node the node asked
+     * @return {@code accessibilitySelectedColumns}: none, for a table, whose selection is its rows — a
+     *         native table answers an empty array there; {@code null} for anything else
+     */
+    long[] selectedColumns(AccessibleNode node) {
         return node.table() == null ? null : new long[0];
+    }
+
+    /**
+     * @param element a column element
+     * @return the table it is a column of, in the tree being answered from, or {@code null} when that
+     *         table has left it or no longer shows the column — a column a client held across a change
+     */
+    AccessibleNode tableOfColumn(long element) {
+        long[] key = source.columnKeyOf(element);
+        if (key == null) return null;
+        AccessibleNode table = source.tree().find(key[0]);
+        return table == null || table.table() == null || key[1] >= table.table().columnCount() ? null : table;
+    }
+
+    /**
+     * @param element a column element
+     * @return its column's index, or {@code -1} for an element that is none
+     */
+    int columnOf(long element) {
+        long[] key = source.columnKeyOf(element);
+        return key == null ? -1 : (int) key[1];
+    }
+
+    /**
+     * A column's {@code AXRows}: the realized data cells in that column, in row order — what a native
+     * table's column answers under that attribute, which names cells and not rows.
+     *
+     * @param table       the table
+     * @param column      the shown column
+     * @param showingOnly whether to keep only the cells that are showing, for {@code AXVisibleRows}
+     * @return their elements
+     */
+    long[] columnCells(AccessibleNode table, int column, boolean showingOnly) {
+        AccessibleTree tree = source.tree();
+        int[] rows = new int[4];
+        long[] ids = new long[4];
+        int count = 0;
+        for (int child = table.firstChild(); child != AccessibleNode.NONE; child = tree.node(child).nextSibling()) {
+            if (tree.node(child).role() != Accessible.Role.ROW) continue;
+            for (int at = tree.node(child).firstChild(); at != AccessibleNode.NONE; at = tree.node(at).nextSibling()) {
+                AccessibleNode cell = tree.node(at);
+                if (!isDataCell(cell) || cell.cell().column() != column
+                        || (showingOnly && !cell.has(Accessible.State.SHOWING))) continue;
+                if (count == ids.length) {
+                    ids = java.util.Arrays.copyOf(ids, count * 2);
+                    rows = java.util.Arrays.copyOf(rows, count * 2);
+                }
+                int i = count++;
+                // In row order, whatever order the realized rows were published in.
+                while (i > 0 && rows[i - 1] > cell.cell().row()) {
+                    rows[i] = rows[i - 1];
+                    ids[i] = ids[i - 1];
+                    i--;
+                }
+                rows[i] = cell.cell().row();
+                ids[i] = cell.id();
+            }
+        }
+        long[] elements = new long[count];
+        for (int i = 0; i < count; i++) elements[i] = source.elementFor(ids[i]);
+        return elements;
+    }
+
+    /**
+     * @param table  the table
+     * @param column the shown column
+     * @return a column's {@code AXHeader}: the element of its header cell, or zero when it has none,
+     *         which a native headerless table's column answers as no value
+     */
+    long columnHeader(AccessibleNode table, int column) {
+        int header = headerCellInColumnOf(table, column);
+        return header == AccessibleNode.NONE ? 0 : source.elementFor(source.tree().node(header).id());
+    }
+
+    /**
+     * @return the index of the header cell of {@code column} in {@code table}, or {@code NONE};
+     *         allocates nothing, because the column's gate asks it
+     */
+    int headerCellInColumnOf(AccessibleNode table, int column) {
+        AccessibleTree tree = source.tree();
+        int at = tree.indexOf(table.id());
+        return at == AccessibleNode.NONE ? AccessibleNode.NONE : headerCellInColumn(tree, at, column);
     }
 
     /**

@@ -583,6 +583,9 @@ groups, so a headerless table answers no `accessibilityHeader`. The row's "heade
 still what the bridge vends as written: `COLUMN_HEADER` is `NSAccessibilityButtonRole` with the
 sort-button subrole, which is what a native `NSTableView` read on the guest vends for its header
 cells (2026-09-15, `scripts/a11y/macos/table-probe.swift`), not `NSAccessibilityCellRole`.
+The row's `accessibilityColumns` is now true (M4, decision 34, the same day): one `AXColumn` element per
+shown column, as the native table vends, answering its index, its header cell and its cells; ADR 039
+§2.2's note of the same date says how they are kept.
 
 ### 7.1 What the live clients found
 

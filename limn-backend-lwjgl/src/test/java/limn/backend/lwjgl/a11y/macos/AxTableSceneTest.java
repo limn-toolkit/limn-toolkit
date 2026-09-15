@@ -110,6 +110,17 @@ class AxTableSceneTest {
             rows++;
         }
         assertEquals(4, rows);
+
+        // M4 (decision 34): the columns a native NSTableView vends, over the real table.
+        long[] columns = grid.columns(table);
+        assertEquals(2, columns.length, "one column element per shown column");
+        long[] done = grid.columnCells(table, 1, false);
+        assertEquals(4, done.length, "the Done column's AXRows are its four controls");
+        for (int r = 0; r < 4; r++) {
+            assertEquals(r, bridge.nodeFor(done[r]).cell().row(), "in row order");
+        }
+        assertEquals("Done", bridge.nodeFor(grid.columnHeader(table, 1)).name());
+        assertEquals(table.id(), grid.tableOfColumn(columns[1]).id());
     }
 
     @Test
@@ -165,5 +176,7 @@ class AxTableSceneTest {
             weeks++;
         }
         assertEquals(6, weeks, "six weeks in the day view");
+        assertEquals(7, grid.columns(table).length, "a column element per weekday");
+        assertEquals(6, grid.columnCells(table, 3, false).length, "each holding its six days");
     }
 }

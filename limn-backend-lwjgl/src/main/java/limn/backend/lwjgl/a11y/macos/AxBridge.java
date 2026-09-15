@@ -98,6 +98,10 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     private final long contentView;
     private final AxElementClass elementClass;
     private final AxElements elements;
+    /** A table's column elements, which stand for no node (M4). */
+    private final AxColumns columns;
+    /** Off AppKit, the numbers that stand for elements and columns alike, so that none is reused. */
+    private long synthetic = 0x1000;
     /** element pointer to node id: the recovery every implementation starts with. */
     private final Map<Long, Long> nodeIdByElement = new HashMap<>();
 
@@ -144,8 +148,6 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                     "LimnAXContentView_" + Long.toHexString(contentView));
         }
         this.elements = new AxElements(Thread.currentThread(), new AxElements.Factory() {
-            private long synthetic = 0x1000;
-
             @Override public long newElement(long nodeId) {
                 // Off AppKit there is no object to make, and a distinct number stands in for one:
                 // everything above the platform calls -- the registry, the links, the push
@@ -170,6 +172,21 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                 // detach is about to free.
                 if (elementClass != null) elementClass.demote(element);
                 if (detaching) teardown.add("element demoted");
+                if (objc != null) ObjC.msg(element, "release");
+            }
+        });
+        this.columns = new AxColumns(new AxColumns.Factory() {
+            @Override public long newColumn(long tableId, int column) {
+                long element = elementClass == null ? (synthetic += 0x10) : elementClass.newColumnInstance();
+                applyColumnFrame(element, tableId, column);
+                return element;
+            }
+
+            @Override public void release(long element) {
+                columnFrames.remove(element);
+                // Demoted first, as a node's element is: a client may still hold it.
+                if (elementClass != null) elementClass.demote(element);
+                if (detaching) teardown.add("column demoted");
                 if (objc != null) ObjC.msg(element, "release");
             }
         });
@@ -272,6 +289,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         // released nothing on a rebind at all (§1.10, §5.3), and the pushed array would otherwise
         // name objects that no longer exist.
         elements.empty();
+        columns.empty();
         pushed = new long[0];
         obligationsDeferred = false;
     }
@@ -496,6 +514,16 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     }
 
     @Override
+    public long columnElementFor(AccessibleNode table, int column) {
+        return columns.elementFor(table.id(), column);
+    }
+
+    @Override
+    public long[] columnKeyOf(long element) {
+        return columns.keyOf(element);
+    }
+
+    @Override
     public long[] childElementsOf(AccessibleNode node) {
         List<AccessibleNode> children = tree().children(node);
         long[] answer = new long[children.size()];
@@ -552,6 +580,53 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             if (!elements.holds(node.id())) continue;
             applyFrame(node.id(), elements.elementFor(node.id()));
         }
+        if (columns.size() == 0) return;
+        for (long[] held : columns.held()) applyColumnFrame(held[0], held[1], (int) held[2]);
+    }
+
+    /**
+     * Gives a column element its box in its table's space (M4): its header cell's left edge and width,
+     * or with no header cell those of its first realized data cell, over the table's whole height — a
+     * native table's column spans its header and its rows. A column whose table has left the tree, or
+     * that has no cell to measure, keeps the box it had.
+     */
+    private void applyColumnFrame(long element, long tableId, int column) {
+        AccessibleTree tree = tree();
+        int table = tree.indexOf(tableId);
+        if (table <= 0 || tree.node(table).table() == null) return;
+        AccessibleNode tableNode = tree.node(table);
+        int measured = AxGrid.headerCellInColumn(tree, table, column);
+        if (measured == AccessibleNode.NONE) {
+            for (int row = tableNode.firstChild(); row != AccessibleNode.NONE && measured == AccessibleNode.NONE;
+                    row = tree.node(row).nextSibling()) {
+                if (tree.node(row).role() != Accessible.Role.ROW) continue;
+                for (int cell = tree.node(row).firstChild(); cell != AccessibleNode.NONE; cell = tree.node(cell).nextSibling()) {
+                    if (AxGrid.isDataCell(tree.node(cell)) && tree.node(cell).cell().column() == column) {
+                        measured = cell;
+                        break;
+                    }
+                }
+            }
+        }
+        if (measured == AccessibleNode.NONE) return;
+        Rect cell = tree.node(measured).bounds();
+        Rect box = tableNode.bounds();
+        double[] parentSpace = AxFrames.inParentSpace(new Rect(cell.x(), box.y(), cell.width(), box.height()), box);
+        if (objc != null) objc.msgRect(element, "setAccessibilityFrameInParentSpace:", parentSpace);
+        columnFrames.put(element, parentSpace);
+    }
+
+    /** The last parent-space box computed for each held column element. For tests. */
+    private final Map<Long, double[]> columnFrames = new HashMap<>();
+
+    /** @return the parent-space box last computed for a column element, or {@code null} */
+    double[] lastColumnFrameOf(long element) {
+        return columnFrames.get(element);
+    }
+
+    /** @return how many column elements are alive. */
+    int columnCount() {
+        return columns.size();
     }
 
     /**
@@ -647,6 +722,9 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         }
         recountedContainers.clear();
         toldSelections.clear();
+        // A column whose table left the tree or no longer shows it goes when the frame ends, never from
+        // a reentrant publish (§3.2), which drains nothing.
+        columns.reconcile(tree());
         if (swept) {
             elements.reconcile(liveNodeIds());
             // The pushed array may name elements that were just released, and comparing it against

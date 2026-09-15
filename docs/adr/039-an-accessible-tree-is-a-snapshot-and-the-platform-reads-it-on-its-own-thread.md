@@ -2226,6 +2226,24 @@ first group child". A native `NSTableView` read on the guest (2026-09-15,
 `scripts/a11y/macos/table-probe.swift`) answered no `AXHeader` without its header view and no
 `AXColumnIndexRange` on its header buttons, so both are refused there, and the two index ranges are
 answered on data cells only.
+*Columns (M4; decision 34, the same day):* the row above said "columns are synthesised, one per
+header cell", and the bridge answered an empty array beside a column count. The native `NSTableView`
+read on the guest answers `AXColumns` and `AXVisibleColumns` with one `AXColumn` element per column,
+lists them among the table's children after its rows, and each column answers `AXIndex`, `AXHeader`
+(its header button; none on a headerless table), `AXRows` and `AXVisibleRows` (that column's cells, in
+row order), `AXParent` (the table), `AXSelected` and a frame spanning the header and the rows, and no
+`AXChildren`; `AXSelectedColumns` is an empty array. So the bridge vends the same: one column element
+per shown column, an instance of a second runtime subclass of `NSAccessibilityElement` whose closures
+answer those attributes from the table's cells and its header cell in that column, kept in a registry
+of its own keyed by the table's identifier and the column — the toolkit gains no column role (§1.12)
+— listed after the table's nodes among its children, its box pushed like a node's (the header cell's
+span over the table's height). A column goes at a frame's end when its table has left the tree or no
+longer shows it, and all at once on a rebind or a detach, demoted before it is released like every
+element, never from a reentrant publish. Its role description is AppKit's own, `column`: no toolkit
+phrase names a column (left for a later pass to translate). The native table also answered no
+`AXRowCount`, `AXColumnCount` or `AXColumnHeaderUIElements`; the bridge keeps answering those three,
+which carry the model's counts and a cell's header that the realized rows cannot, until a reader run
+says otherwise.
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a

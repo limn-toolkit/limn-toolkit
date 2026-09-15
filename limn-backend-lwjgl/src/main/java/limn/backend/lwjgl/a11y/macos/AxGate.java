@@ -62,6 +62,9 @@ final class AxGate {
             case "accessibilityHeader" -> grid.hasHeader(node);
             case "accessibilityColumnHeaderUIElements" -> grid.hasColumnHeaders(node);
             case "accessibilityCellForColumn:row:" -> node.table() != null;
+            // A table's columns (M4): elements standing for no node, as a native NSTableView vends.
+            case "accessibilityColumns", "accessibilityVisibleColumns", "accessibilitySelectedColumns" ->
+                    node.table() != null;
             // A cell of a data row: the native table's header buttons answer neither range (read the
             // same day), and a footer cell is in no data row.
             case "accessibilityRowIndexRange", "accessibilityColumnIndexRange" -> AxGrid.isDataCell(node);
@@ -77,5 +80,24 @@ final class AxGate {
             // false for one of those would hide the node's name.
             default -> true;
         };
+    }
+
+    /**
+     * What a table's column element offers (M4): every stored setter refused, as on a node's element,
+     * and its header only where the column has a header cell, a native headerless table's column
+     * answering no header (read on the guest, 2026-09-15, table-probe.swift).
+     *
+     * @param grid     the lookups
+     * @param table    the table the column is one of
+     * @param column   the column's index
+     * @param selector the selector AppKit is about to send it
+     * @return whether the column element offers it
+     */
+    static boolean allowsOnColumn(AxGrid grid, AccessibleNode table, int column, String selector) {
+        if (selector.startsWith("setAccessibility")) return false;
+        if (selector.equals("accessibilityHeader")) {
+            return grid.headerCellInColumnOf(table, column) != AccessibleNode.NONE;
+        }
+        return true;
     }
 }

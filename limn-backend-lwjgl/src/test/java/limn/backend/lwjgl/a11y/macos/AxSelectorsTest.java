@@ -139,6 +139,24 @@ class AxSelectorsTest {
                 + "which refuses an unlisted selector and skips one AppKit lacks");
     }
 
+    /**
+     * A table's column elements are another class (M4), so the scan above, which reads selectors, cannot
+     * tell which class each went on: the installs whose target is the column class are exactly the
+     * column list, and every one of those is listed on the element class with the same shape.
+     */
+    @Test
+    void theColumnClassInstallsExactlyTheColumnList() throws IOException {
+        String source = Files.readString(RepositoryRoot.find().resolve(ELEMENT_CLASS), StandardCharsets.UTF_8);
+        Matcher install = Pattern.compile("addMethod\\(columnClass, \"([A-Za-z:]+)\"").matcher(source);
+        java.util.Set<String> onColumn = new java.util.LinkedHashSet<>();
+        while (install.find()) onColumn.add(install.group(1));
+        assertEquals(java.util.Set.copyOf(AxSelectors.ON_COLUMN), onColumn,
+                "AxSelectors.ON_COLUMN must list exactly what AxElementClass installs on the column class");
+        for (String selector : AxSelectors.ON_COLUMN) {
+            assertTrue(AxSelectors.ON_ELEMENT.contains(selector), selector + " is resolved with the element class's");
+        }
+    }
+
     private static final Path DUMP_SCRIPT = Path.of("scripts/a11y/macos/dump-appkit-constants.swift");
 
     /**
@@ -155,13 +173,20 @@ class AxSelectorsTest {
                 .matcher(script.substring(start, end));
         java.util.Set<String> onElement = new java.util.LinkedHashSet<>();
         java.util.Set<String> onView = new java.util.LinkedHashSet<>();
+        java.util.Set<String> onColumn = new java.util.LinkedHashSet<>();
         while (entry.find()) {
-            (entry.group(2).equals("element") ? onElement : onView).add(entry.group(1));
+            switch (entry.group(2)) {
+                case "element" -> onElement.add(entry.group(1));
+                case "column class" -> onColumn.add(entry.group(1));
+                default -> onView.add(entry.group(1));
+            }
         }
         assertEquals(java.util.Set.copyOf(AxSelectors.ON_ELEMENT), onElement,
                 "scripts/a11y/macos/dump-appkit-constants.swift's installedByTheBridge, element entries");
         assertEquals(java.util.Set.copyOf(AxSelectors.ON_VIEW), onView,
                 "and its content-view entries");
+        assertEquals(java.util.Set.copyOf(AxSelectors.ON_COLUMN), onColumn,
+                "and its column-class entries");
     }
 
     @Test
