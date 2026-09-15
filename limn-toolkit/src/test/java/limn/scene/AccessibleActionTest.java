@@ -445,6 +445,43 @@ class AccessibleActionTest extends AccessibleTestBase {
                 "a child hidden by its own flag is refused, whatever its container");
     }
 
+    /**
+     * The routing table is recorded on every walk, published or not (ADR 039 §1.5, amended
+     * 2026-09-14), and a walk under an overlay withdraws the verb from publication without
+     * forgetting who performs it. A reader that took SELECT off the snapshot from before the
+     * overlay opened, and sends it after the overlay closed but before the next walk, reaches
+     * the container and never the child; while the overlay is up the layer gate refuses it.
+     */
+    @Test
+    void aDelegatedVerbSentAfterAnOverlayClosedStillReachesTheContainer() throws Exception {
+        Group root = new Group();
+        Rows rows = new Rows();
+        Probe row = new Probe(Accessible.Role.BUTTON, "Row");
+        rows.add(row);
+        root.add(rows);
+        bind(root);
+        frame();
+        long id = node("Row").id();
+        assertTrue(node("Row").actions().has(Accessible.Action.SELECT), describe(tree()));
+
+        Group dialog = new Group();
+        dialog.add(new Probe(Accessible.Role.BUTTON, "Confirm"));
+        scene.pushOverlay(dialog);
+        frame();
+        assertNull(node("Row").actions(),
+                "beneath the overlay the row publishes nothing: " + describe(tree()));
+        performOffThread(id, Accessible.Action.SELECT, Accessible.Argument.NONE);
+        assertEquals(List.of(), rows.performed, "the layer gate refuses it while the overlay is up");
+        assertEquals(List.of(), row.performed);
+
+        scene.removeOverlay(dialog);
+        performOffThread(id, Accessible.Action.SELECT, Accessible.Argument.NONE); // no walk yet
+
+        assertEquals(List.of("row 0: SELECT"), rows.performed,
+                "the verb the container claimed is still routed to the container");
+        assertEquals(List.of(), row.performed, "and never dispatched to the child's own hook");
+    }
+
     /** The other half: a container clipped out of an ancestor performs nothing it claimed. */
     @Test
     void aDelegatedVerbOnAChildOfAContainerClippedAwayIsRefused() throws Exception {

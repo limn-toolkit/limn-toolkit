@@ -529,20 +529,23 @@ final class AccessibleWalk {
         }
 
         record(widget, id, slot, false);
+        // What the container claimed on this child, and the key it addresses the child by: the
+        // routing table the scene reads when a delegated verb arrives (ADR 039 §1.5, amended
+        // 2026-09-14). Recorded on every walk, published or not, like the owner itself -- and so
+        // read before the rule below withdraws the claims from publication: a verb a reader took
+        // off an older snapshot and sends once the overlay has closed, before the next walk, is
+        // the container's still, and a cleared table would hand it to the child (2026-09-15).
+        keys[slot] = childKey;
+        delegated[slot] = builder.delegatedVerbsAt(slot);
+        delegates[slot] = delegated[slot] == 0 ? null : parent;
         if (!reachable) {
             // Outside the layer that owns input the scene refuses every verb (§1.9), so nothing
             // there is published operable (§1.13, amended 2026-09-15; semantics 5): no verb the
             // widget or its container declared, and no setter a writable facet implies. After the
             // transparency test above, so a node that offered only verbs keeps its place in the
-            // tree while it is covered, and before the routing table below reads the claims.
+            // tree while it is covered; the layer gate refuses the routed verb while it is.
             builder.inoperableAt(slot);
         }
-        // What the container claimed on this child, and the key it addresses the child by: the
-        // routing table the scene reads when a delegated verb arrives (ADR 039 §1.5, amended
-        // 2026-09-14). Recorded on every walk, published or not, like the owner itself.
-        keys[slot] = childKey;
-        delegated[slot] = builder.delegatedVerbsAt(slot);
-        delegates[slot] = delegated[slot] == 0 ? null : parent;
         boolean showing = widget.isShowing();
         for (int i = slot + 1; i < builder.nodeCount(); i++) {
             record(widget, builder.idAt(i), i, builder.isSyntheticAt(i));

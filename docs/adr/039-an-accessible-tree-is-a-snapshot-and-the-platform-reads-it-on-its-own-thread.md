@@ -1860,6 +1860,15 @@ by `AccessibleModalTest.everythingOutsideTheOpenLayerPublishesNoVerbAndNoSetter`
 `MenuBarAccessibilityTest.anInSceneCascadeTakesEveryVerbOffTheBarAndPerformsTheOnesItPublishes`,
 `ComboBoxAccessibilityTest`, `DatePickerAccessibilityTest` and the ratchet above.
 
+**Amended 2026-09-15 (fix round 2d): withdrawn from publication, still routed.** The claims a
+container made on a widget child beneath the layer are withdrawn from the snapshot, not from the
+walk's routing table, which §1.5 records on every walk, published or not. The first cut cleared
+the claims before the table read them, so a reader that took a delegated `SELECT` off the snapshot
+from before an overlay opened, and sent it after the overlay closed but before the next walk, was
+dispatched to the child's own hook instead of the container's. The walk now records the routing
+first and withdraws publication after; while the overlay is up §1.9's layer gate refuses the verb.
+Pinned by `AccessibleActionTest.aDelegatedVerbSentAfterAnOverlayClosedStillReachesTheContainer`.
+
 ---
 
 ## 2. The three platforms, interface by interface
