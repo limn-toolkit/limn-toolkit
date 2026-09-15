@@ -929,7 +929,7 @@ public final class Scene implements WindowInput {
                 return publishedTree;
             }
             if (!accessibleNodesDirty) {
-                restampAccessibleTree();
+                restampAccessibleTree(true); // the platform's pump is on the stack: see the method
                 scheduleFrame();
                 return publishedTree;
             }
@@ -1152,7 +1152,7 @@ public final class Scene implements WindowInput {
             return;
         }
         if (!accessibleNodesDirty && !primingPublishOwed) {
-            restampAccessibleTree();
+            restampAccessibleTree(false); // a frame of the scene's own: nothing of the platform's
             return;
         }
         publishAccessibleTree(false);
@@ -1186,8 +1186,25 @@ public final class Scene implements WindowInput {
         announcements.clear();
     }
 
-    /** A window that moved changed no box in the tree; only where the tree is. */
-    private void restampAccessibleTree() {
+    /**
+     * A window that moved changed no box in the tree; only where the tree is.
+     *
+     * <p>The flag it hands {@link limn.backend.AccessibilityBridge#publish} is
+     * <b>{@code reentrant}</b>, never "something changed": a restamp that changed nothing has
+     * already returned above, and a bridge is told what it may touch, not what moved. The two
+     * callers answer it differently and that is the whole point of the parameter
+     * (2026-09-15, fix round 3, brief item 5). The frame's publish step is the scene's own
+     * thread with nothing of the platform's on the stack, so it is not reentrant and the bridge
+     * may sweep, re-push and drain. {@code Host#republishNow} is the other one, and its contract
+     * says in so many words that it "publishes reentrantly, so the bridge defers every registry
+     * obligation": it is called from inside the platform's own pump, standing on the elements a
+     * sweep would release. Passing {@code false} there — which this did until now, while the walk
+     * branch beside it passed {@code true} — invited a bridge to destroy, re-push and drain under
+     * the caller on the one path that costs four numbers and so looked harmless.
+     *
+     * @param reentrant whether the platform is on the stack, holding what this bridge vended
+     */
+    private void restampAccessibleTree(boolean reentrant) {
         accessibleHeaderDirty = false;
         limn.accessibility.AccessibleTree before = publishedTree;
         limn.accessibility.AccessibleTree after = before.restamp(
@@ -1199,7 +1216,7 @@ public final class Scene implements WindowInput {
             return;
         }
         publishedTree = after;
-        bridge.publish(after, false);
+        bridge.publish(after, reentrant);
         bridge.emit(limn.accessibility.AccessibleEvent.of(
                 limn.accessibility.AccessibleEvent.Type.BOUNDS_CHANGED, 0));
     }

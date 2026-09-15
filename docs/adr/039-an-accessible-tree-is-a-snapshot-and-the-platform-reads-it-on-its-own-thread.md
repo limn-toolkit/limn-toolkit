@@ -4140,6 +4140,21 @@ sweep, re-push or drain.
 node array with the new origin and factor, publishes that, and emits one window-level
 `BOUNDS_CHANGED`. No walk, no diff, and the node ids are the ones the client is holding.
 
+**Amended 2026-09-15 (phase 3 fix round, brief item 5): the re-stamp path carries the reentrant flag
+too.** The re-stamp is reached from both callers of the publishing half — step 4 of the frame's step,
+and `Host#republishNow`, which takes it whenever the header flag alone is set — and it published with
+`reentrant = false` on both. On the second that is wrong, and wrong in exactly the way this section
+spends a paragraph forbidding: `republishNow` is called from inside the platform's own pump, its
+contract above says in so many words that it "publishes reentrantly, so the bridge defers every
+registry obligation", and its walk branch beside the re-stamp does pass `true`. A bridge told
+`false` there may destroy elements the caller is standing on, re-push the top of its tree and drain
+its queue from inside a notification-delivering callback — the three things the reentrant rule exists
+to stop. The flag a re-stamp passes is now its caller's: `true` from `republishNow`, `false` from the
+frame. The parameter never meant "something changed": a re-stamp that changed nothing returns before
+the publish, and a bridge is told what it may touch rather than what moved.
+`AccessibleLifecycleTest.aReentrantRestampIsHandedOverAsReentrantAsAReentrantWalk` and
+`theFramesRestampIsNotReentrant` hold the two directions.
+
 **Amended 2026-09-15 (phase 3, Windows; the facts above that phase 3 moved for this bridge).** Three
 sentences of this section now read differently on Windows. *"After a collapse … the drain sweeps"*:
 the drain sweeps after its own queue's collapse **and** after the model's `INVALIDATED` (node `0`),
