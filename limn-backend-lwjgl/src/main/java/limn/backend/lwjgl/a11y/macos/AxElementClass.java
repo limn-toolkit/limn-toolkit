@@ -870,30 +870,14 @@ final class AxElementClass {
     }
 
     /**
-     * The value, and the hole §2.1 spends a paragraph on for the other platform.
-     *
-     * <p>Three facets share this one attribute, which is why they are three facets rather than one
-     * field. A text node whose value came only from {@code ValueFacet} is a field VoiceOver cannot
-     * read — so {@code TextFacet} answers here too.
+     * The value, and the hole §2.1 spends a paragraph on for the other platform: {@link AxValues}
+     * decides between a string, a number and nothing (an empty value answers its word, never its
+     * minimum), and this wraps the answer for AppKit.
      */
     private long valueOf(AccessibleNode node) {
-        if (node.toggle() != null) {
-            // A toggle's value is a number here, not a boolean and not a string: AppKit's own check
-            // boxes answer 0, 1 or 2, and the mixed state is why it is not a BOOL.
-            return objc.number(switch (node.toggle().state()) {
-                case OFF -> 0;
-                case ON -> 1;
-                case MIXED -> 2;
-            });
-        }
-        if (node.text() != null) return objc.string(node.text().text());
-        if (node.value() != null) {
-            // The displayed text when the node has one, and the number otherwise. A slider that
-            // shows "40%" must not be read as "0.4", and one that shows nothing has only the number.
-            String shown = node.value().text();
-            return shown != null ? objc.string(shown) : objc.number((long) node.value().value());
-        }
-        return NULL;
+        String text = AxValues.textOf(node);
+        if (text != null) return objc.string(text);
+        return AxValues.hasNumber(node) ? objc.number(AxValues.numberOf(node)) : NULL;
     }
 
     // ---- the two shapes of implementation, and the libffi closures under them -------------------

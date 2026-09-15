@@ -2250,6 +2250,13 @@ client ever pulled stayed retained, answering nil. The release now happens at th
 emitted the destruction, after that frame's posts, and only for a node still absent from the tree then:
 an identifier keyed by a row that is destroyed and published again within the frame is the same node,
 whose element a client may be using. It posts nothing, as the paragraph says.
+*A value with no number (decision 16; CRIT-4's macOS half, the same day):* `accessibilityValue` answers
+a value's displayed text when it has one and its number otherwise, and an empty `ValueFacet` — a date
+segment nobody has typed into, which publishes its minimum for the platforms that must have a number —
+answers its word, or nothing when it has no text, and never the minimum: `AXValue` is an object here and
+demands no number. A change of the text or of the emptiness alone is a `VALUE_CHANGED` in the model, and
+this bridge posts it as `ValueChanged` like any other; the row's "minValue / maxValue" are still not
+installed.
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a
