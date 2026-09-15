@@ -101,9 +101,19 @@ class AccessibleGalleryTest {
         }
     }
 
-    /** Matches a hook override: the annotation, then the declaration, nothing else between. */
-    private static final Pattern HOOK_OVERRIDE = Pattern.compile(
-            "@Override\\s+protected\\s+(?:void|boolean)\\s+onAccessibility(?:Child|Action)?\\s*\\(");
+    /**
+     * Matches a hook override: the annotation, then the declaration, nothing else between. Every
+     * hook {@code Widget} declares, the two a container answers for its children with included
+     * ({@code onAccessibilityChildIdentity}, {@code onAccessibilityChildAction}), which
+     * {@link #theHookPatternMatchesEveryHookWidgetDeclares} keeps true as hooks are added.
+     */
+    static final Pattern HOOK_OVERRIDE = Pattern.compile(
+            "@Override\\s+protected\\s+(?:void|boolean)\\s+onAccessibility"
+                    + "(?:Child|ChildIdentity|Action|ChildAction)?\\s*\\(");
+
+    /** A hook as {@code Widget} declares it: protected, named onAccessibility-something. */
+    private static final Pattern HOOK_DECLARATION = Pattern.compile(
+            "protected\\s+(?:void|boolean)\\s+(onAccessibility\\w*)\\s*\\(");
 
     // ------------------------------------------------------------------------ the invariants
 
@@ -284,6 +294,33 @@ class AccessibleGalleryTest {
         assertTrue(stale.isEmpty(), "these classes are listed as covered by a gallery entry and "
                 + "override no accessibility hook; a cover list names only what the scene's "
                 + "tree exercises: " + stale);
+    }
+
+    /**
+     * The completeness test above is only as wide as {@link #HOOK_OVERRIDE}: a class overriding
+     * a hook the pattern does not name needs no entry, silently. Until the phase-1 critic's
+     * reading it named three of the five hooks, and a container answering only for its children's
+     * identity or verbs was invisible to it. So every hook {@code Widget} declares is held to the
+     * pattern, read off {@code Widget.java} itself, and a sixth hook cannot be added past it.
+     */
+    @Test
+    void theHookPatternMatchesEveryHookWidgetDeclares() throws IOException {
+        Path widget = RepositoryRoot.find().resolve(
+                "limn-toolkit/src/main/java/limn/scene/Widget.java");
+        java.util.regex.Matcher declared = HOOK_DECLARATION.matcher(
+                Files.readString(widget, StandardCharsets.UTF_8));
+        Set<String> hooks = new TreeSet<>();
+        Set<String> unmatched = new TreeSet<>();
+        while (declared.find()) {
+            hooks.add(declared.group(1));
+            if (!HOOK_OVERRIDE.matcher("@Override\n    " + declared.group()).find()) {
+                unmatched.add(declared.group(1));
+            }
+        }
+        assertTrue(hooks.size() >= 5, "found almost no hooks in " + widget + ": " + hooks);
+        assertTrue(unmatched.isEmpty(), "Widget declares these accessibility hooks and a class "
+                + "overriding one would need no gallery entry, because HOOK_OVERRIDE does not "
+                + "name them: " + unmatched);
     }
 
     private static Set<String> coveredClasses() {
