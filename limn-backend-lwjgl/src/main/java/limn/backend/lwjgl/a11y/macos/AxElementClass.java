@@ -600,6 +600,8 @@ final class AxElementClass {
                 String text = isKindOf(written, "NSString") ? objc.javaString(written) : null;
                 Double number = null;
                 if (text == null && isKindOf(written, "NSNumber")) {
+                    // -stringValue, @16@0:8 as read (isKindOf says where); the decimal text
+                    // Double.valueOf reads back, which a fraction keeps and a boolean answers as "1".
                     try {
                         number = Double.valueOf(objc.javaString(ObjC.msg(written, "stringValue")));
                     } catch (NumberFormatException | NullPointerException unreadable) {
@@ -613,6 +615,15 @@ final class AxElementClass {
         addMethod(elementClass, "setAccessibilityValue:", valueSetter);
     }
 
+    /**
+     * {@code -[NSObject isKindOfClass:]}, sent through the plain {@code objc_msgSend} whose return is a
+     * whole register: {@code B24@0:8#16}, a {@code BOOL} that is one byte, hence the mask. The encoding,
+     * and that a client's string arrives as a kind of {@code NSString} and its integer, fraction and
+     * boolean as kinds of {@code NSNumber}, were read on the macOS 26.6.2 guest (25G83), 2026-09-15,
+     * {@code scripts/a11y/macos/foundation-messages-probe.swift}; so were the other Foundation messages
+     * the closures send: {@code -[NSNumber stringValue]} {@code @16@0:8} ("55", "55.5", and "1" for
+     * {@code kCFBooleanTrue}) and {@code -[NSString isEqualToString:]} {@code B24@0:8@16}.
+     */
     private static boolean isKindOf(long object, String className) {
         return (ObjC.msg(object, "isKindOfClass:", ObjC.cls(className)) & 0xFF) != 0;
     }
