@@ -130,6 +130,9 @@ final class AtspiEvents {
         if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED) {
             return structureChanged(event, context, path);
         }
+        if (event.type() == AccessibleEvent.Type.VALUE_CHANGED) {
+            return valueChanged(event, context, path);
+        }
         if (event.type() == AccessibleEvent.Type.STATE_CHANGED
                 && (event.state() == Accessible.State.EXPANDED
                         || event.state() == Accessible.State.EXPANDABLE)) {
@@ -152,8 +155,6 @@ final class AtspiEvents {
             case DESCRIPTION_CHANGED -> event(context, path, I_EVENT_OBJECT, "PropertyChange",
                     "accessible-description", 0, 0,
                     new DBus.Variant("s", string(event.newValue())));
-            case VALUE_CHANGED -> event(context, path, I_EVENT_OBJECT, "PropertyChange",
-                    "accessible-value", 0, 0, new DBus.Variant("d", number(event.newValue())));
             case BOUNDS_CHANGED -> boundsChanged(event, context, path);
             case NODE_DESTROYED -> event(context, path, I_EVENT_OBJECT, "StateChanged", "defunct",
                     1, 0, new DBus.Variant("i", 0));
@@ -220,6 +221,50 @@ final class AtspiEvents {
             String added = after.substring(start, insertedEnd);
             out.add(event(context, path, I_EVENT_OBJECT, "TextChanged", "insert", at,
                     added.codePointCount(0, added.length()), new DBus.Variant("s", added)));
+        }
+        return out;
+    }
+
+    /**
+     * A value moved: {@code PropertyChange accessible-value} with the new number, and — when only the
+     * display form moved and the node serves that form as its {@code Text} — the text's replacement
+     * as {@code TextChanged} {@code delete} and {@code insert} (settled linux-value-text).
+     *
+     * <p>The difference raises {@code VALUE_CHANGED} when the number, the text or the emptiness moved
+     * (CRIT-4), carrying the two numbers. A date segment filled with the digit that is its minimum
+     * moves only its text ("empty" to "1"): the number a client reads through {@code Value} did not
+     * change, so the property change alone says nothing new, while the {@code Text} the node serves
+     * ({@link AtspiText#of}) did. The texts are read off the node in the tree the event came with
+     * and in the tree its window published before, whole string for whole string, as a replacement
+     * of a field is sent. A node with a {@code TextFacet} raises its own {@code TEXT_CHANGED} and is
+     * not doubled here, and a change that moved the number is not given a text echo on top of the
+     * property change a reader already presents.
+     */
+    private static List<Signal> valueChanged(AccessibleEvent event, Context context, String path) {
+        List<Signal> out = new java.util.ArrayList<>(3);
+        out.add(event(context, path, I_EVENT_OBJECT, "PropertyChange", "accessible-value", 0, 0,
+                new DBus.Variant("d", number(event.newValue()))));
+        if (number(event.oldValue()) != number(event.newValue())) {
+            return out;
+        }
+        limn.accessibility.AccessibleNode now = context.tree().find(event.nodeId());
+        limn.accessibility.AccessibleNode was = context.previousTree().find(event.nodeId());
+        if (now == null || was == null || now.text() != null || now.value() == null
+                || was.value() == null) {
+            return out;
+        }
+        String before = was.value().text() == null ? "" : was.value().text();
+        String after = now.value().text() == null ? "" : now.value().text();
+        if (before.equals(after)) {
+            return out;
+        }
+        if (!before.isEmpty()) {
+            out.add(event(context, path, I_EVENT_OBJECT, "TextChanged", "delete", 0,
+                    before.codePointCount(0, before.length()), new DBus.Variant("s", before)));
+        }
+        if (!after.isEmpty()) {
+            out.add(event(context, path, I_EVENT_OBJECT, "TextChanged", "insert", 0,
+                    after.codePointCount(0, after.length()), new DBus.Variant("s", after)));
         }
         return out;
     }

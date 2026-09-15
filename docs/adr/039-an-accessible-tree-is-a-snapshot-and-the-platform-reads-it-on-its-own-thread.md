@@ -2618,6 +2618,15 @@ held both. Its former value is read off the node in the tree the window publishe
 (`AtspiBridge.previousTree`), because a publish may flip both bits at once. GTK 4.22.4 sends
 `expandable` and `expanded` only (whether its state set carries `COLLAPSED` was not read).
 
+**`VALUE_CHANGED` (settled linux-value-text; added 2026-09-15 with the `Text` interface, §2.3's
+amendment of this date).** `PropertyChange` `accessible-value` with the new number as a `d`, as
+before; and when the number stood still while the display form moved — a date segment filled with its
+minimum goes from "empty" to "1" — and the node serves that form as its `Text` (a `ValueFacet` and no
+`TextFacet`), a `TextChanged` `delete` of the former form and an `insert` of the new one follow it,
+whole string for whole string, read off the node in the window's previous and current trees. A change
+that moved the number sends the property change alone, and a node with a text of its own raises its
+own `TEXT_CHANGED`.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

@@ -266,15 +266,75 @@ class AtspiEventsTest {
         assertEquals("s", selection.value().sig, "an empty string, as GTK sends; an i is nothing");
     }
 
+    /** A window holding one date segment whose value is {@code value} and reads {@code text}. */
+    private static AccessibleTree aSegment(Double value, String text, boolean asTextField) {
+        limn.accessibility.Accessibility a = new limn.accessibility.Accessibility();
+        a.beginWalk(400, 300, java.util.Locale.ENGLISH);
+        a.begin(1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
+                300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, java.util.Locale.ENGLISH, 0, 0, 100, 20);
+        a.role(Accessible.Role.SPIN_BUTTON);
+        if (value == null) {
+            a.emptyValue(1, 12, 1, false);
+        } else {
+            a.value(value, 1, 12, 1);
+        }
+        a.valueText(text, text.hashCode());
+        if (asTextField) {
+            a.text(text, text.hashCode(), 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1,
+                    null, false);
+        }
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    /**
+     * A value whose number stood still while its display form moved sends the text's replacement
+     * after the property change (settled linux-value-text): a date segment filled with its minimum
+     * goes from "empty" to "1" with the number 1 both times, and a client reading the segment's Text
+     * was told nothing. A number that moved, or a node with a text of its own, sends the property
+     * change alone.
+     */
+    @Test
+    void aValueWhoseTextAloneMovedAlsoSaysTheTextsReplacement() {
+        AccessibleEvent filled = AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, 1001,
+                1.0, 1.0);
+        assertEquals(List.of(
+                        List.of("PropertyChange", "accessible-value", 0, 0, 1.0),
+                        List.of("TextChanged", "delete", 0, 5, "empty"),
+                        List.of("TextChanged", "insert", 0, 1, "1")),
+                AtspiEvents.of(filled, over(aSegment(1.0, "1", false), aSegment(null, "empty", false)))
+                        .stream().map(s -> List.of(s.member(), s.detail(), s.detail1(), s.detail2(),
+                                s.value().value)).toList(),
+                "the number stood at the minimum; the text a reader reads went from the word to 1");
+
+        AccessibleEvent stepped = AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, 1001,
+                1.0, 2.0);
+        assertEquals(1, AtspiEvents.of(stepped, over(aSegment(2.0, "2", false),
+                aSegment(1.0, "1", false))).size(), "a number that moved: the property change alone");
+        assertEquals(1, AtspiEvents.of(filled, over(aSegment(1.0, "1", true),
+                aSegment(null, "empty", true))).size(), "a node with a text of its own raises its own "
+                + "text change");
+    }
+
     /** The names of {@link #NAMES} over a tree of the test's own. */
     private static AtspiEvents.Context over(AccessibleTree tree) {
+        return over(tree, AccessibleTree.EMPTY);
+    }
+
+    /** The names of {@link #NAMES} over a tree and the tree its window published before it. */
+    private static AtspiEvents.Context over(AccessibleTree tree, AccessibleTree previous) {
         return new AtspiEvents.Context() {
             @Override public AccessibleTree tree() {
                 return tree;
             }
 
             @Override public AccessibleTree previousTree() {
-                return AccessibleTree.EMPTY;
+                return previous;
             }
 
             @Override public DBus.Ref application() {
