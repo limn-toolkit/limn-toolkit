@@ -38,7 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and costs nothing. It asks for the dead chevron to be published <em>disabled</em>, which no
  * widget could do until 2026-09-14 — the walk overwrote every synthetic node's enabled bit with
  * its owner's, so the honest form was an absent verb — and which {@code Accessibility#disabled()}
- * (decision 30) now lets it do, the verb kept as a disabled button keeps its press. It
+ * (decision 30) now lets it do, with no verb beside it, as a refused day has none (semantics 5,
+ * 2026-09-15). It
  * makes the scroll facet conditional, where the sibling strip already publishes one unconditionally
  * and reports nowhere-to-go. It says nothing about where a segment's rectangle comes from, which is
  * this widget's whole difficulty. And it never says which node is active, without which arrowing
@@ -408,12 +409,11 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
                         + "it: the box published is the box a click lands in" + describe(tree()));
         assertEquals(HEIGHT, back.height(), EPS, describe(tree()));
 
-        assertNotNull(back.actions(),
-                "the dead side carries its verb: until 2026-09-14 it carried none" + describe(tree()));
-        assertEquals(Set.of(Accessible.Action.PRESS), back.actions().actions(),
-                "the verb stays on both sides, as a disabled Button keeps its PRESS: a verb "
-                        + "that came and went with the scroll was a pattern one platform froze "
-                        + "on first read" + describe(tree()));
+        assertNull(back.actions(),
+                "a disabled synthetic item carries no verb (decision 30, semantics 5): from "
+                        + "2026-09-14 to 2026-09-15 the dead side kept PRESS beside the state, "
+                        + "for a pattern set one platform froze on first read, which phase 3 "
+                        + "rebuilds" + describe(tree()));
         assertFalse(back.has(Accessible.State.ENABLED),
                 "the strip is resting on its first segment, so there is nothing to scroll back "
                         + "to, and the dead side says so the way the tabbed pane's chevron does: "
@@ -573,9 +573,9 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
         perform(back, Accessible.Action.PRESS, Accessible.Argument.NONE);
         frame();
         assertEquals(0, group().scroll().horizontalPercent(), EPS,
-                "the strip is resting on its first segment: the arrow is published disabled and "
-                        + "the hook refuses the press, rather than reporting a scroll it clamped "
-                        + "away" + describe(tree()));
+                "the strip is resting on its first segment: the arrow is published disabled "
+                        + "with no verb, and a press sent anyway is refused by the hook rather "
+                        + "than reported as a scroll it clamped away" + describe(tree()));
         assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED),
                 "a refused press is not an invocation: " + bridge.events);
         assertEquals(List.of(), eventsFor(group().id()), bridge.events.toString());
@@ -595,8 +595,10 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node(back).has(Accessible.State.ENABLED),
                 "the back side came alive with the scroll, on the same identifier"
                         + describe(tree()));
+        assertNotNull(node(back).actions(),
+                "and its verb came with it, on the same identifier" + describe(tree()));
         assertEquals(Set.of(Accessible.Action.PRESS), node(back).actions().actions(),
-                "and its verb was there all along; only the state moved" + describe(tree()));
+                describe(tree()));
 
         perform(back, Accessible.Action.PRESS, Accessible.Argument.NONE);
         frame();
