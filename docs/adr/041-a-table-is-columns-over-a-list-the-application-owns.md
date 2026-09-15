@@ -206,6 +206,15 @@ selected — `rangeAnchor` — which is the lead only until a Shift extension mo
 range's end and leaves the anchor where it was; that is the platform's grammar, and the words are
 what changes.
 
+**Amended 2026-09-15 (fix round; the critic's Page Down finding).** "Placed as the last row in view
+by every reveal" reached Page Down: from the top of a long table the first press moved the cursor a
+page and scrolled by one row, leaving it at the foot; on a viewport showing part of the next row it
+scrolled by that part alone. Page Down and Page Up page now: the cursor moves a page of rows and,
+when it was on screen, the view moves by the same rows, so the cursor keeps its place in the view
+(clamped at either end); a cursor that was off screen is revealed as any move reveals it. The sort,
+End and code keep the least-scroll reveal. Pinned by
+`TableTest.pageDownAndPageUpMoveTheViewAPageWithTheCursor`, on whole rows and on a part row.
+
 **Amended 2026-09-14 (decision 23: a row is its record).** "Selection is a set of model indices"
 held across a `refresh()` by number, so the documented `onSortRequest` recipe — reorder the list,
 call `refresh()` — and any insert, remove or reorder before a `refresh()` moved the selection onto
@@ -234,6 +243,58 @@ the record at that index then. Pinned by `TableTest.aServerSortKeepsTheSelection
 across a sort" and §6's sentence are true again by this rule rather than by index; §4's
 "rebuilt ... on `setSort`, on `refresh` and on nothing else" was already loose — `setRows`
 resorts too.
+
+**Amended 2026-09-15 (fix round; decision 23, the node half).** "Reader verbs still name a row by
+the model index the snapshot published" above was half of decision 23 left undone: a `ROW` was
+keyed by its model index, so after an insert above, a published row's node named another record,
+and a verb sent from the snapshot before the `refresh()` acted on whatever record stood at that
+index when it arrived. A row is now keyed by its record's **row identity**: model row *m* is
+published as *base + m* unless an override names it, which keeps a row's node across a scroll away
+and back and across a sort (neither moves a model index). `refresh()` follows the rows the last
+publish described — the only rows a reader holds a node of — by the same key and occurrence the
+selection uses (keys taken at mount, the occurrence read the first time a row is described, one
+pass for all rows that need it, nothing on a quiet frame): if each is where it was, nothing
+changes; otherwise each found record keeps its identity as an override at its new row, every
+other row takes a fresh range past every identity issued (so a verb for a record that left the
+list is refused rather than landing on the row that took its place), and a record the list no
+longer holds takes its identity with it. `setRows` issues a fresh range. A cell's key carries the
+row identity (`CELL_KEY | identity << 20 | column`, identities below 2^40, the kind bits moved to
+60–62) and a widget cell hangs `under` it. Without a reader nothing is described, so nothing is
+followed and nothing is read. Pinned by
+`TableAccessibilityTest.aRowNodeFollowsItsRecordAndAVerbActsOnTheRecordItWasPublishedFor` and
+`equalRecordsKeepTheirNodesByOccurrence`.
+
+**Amended 2026-09-15 (review of the fix round).** The amendment above held for one `refresh()`
+per frame and for the rows of the last publish only. Two corrections. *Followed until replaced:* a
+refresh that moved a followed record keeps following it at its new row until the next describe
+publishes, so a second `refresh()` before the frame follows it again; until then the first refresh
+forgot it, and an insert, `refresh()`, insert, `refresh()` left "Person 3"'s node on "Person 2".
+*Never another record:* "the only rows a reader holds a node of" was wrong — a bridge may keep an
+element it built from an earlier publish, and a row a reader was shown before scrolling away kept
+an identity that a refresh leaving the rows in view in place did not follow, so after a reorder
+out of view it named whichever record took that row. The table now notes when a published row
+leaves the followed set (a scroll releases it, or a describe after a refresh leaves a followed row
+out), and the next refresh then retires every identity it does not follow: an identity once
+published names its record or nothing (semantics 8). A refresh with nothing left behind and every
+followed record in place still changes nothing. The high-water mark moves with the identities
+handed out rather than with the list's length, so retiring costs identities up to the deepest row
+shown and not a list's length of them. Pinned by
+`TableAccessibilityTest.aRowNodeFollowsItsRecordAcrossTwoRefreshesBeforeAFrame` and
+`anIdentityOncePublishedNeverNamesAnotherRecord`.
+
+**Amended 2026-09-15 (review of the fix round, the cost of an occurrence).** "The occurrence read
+the first time a row is described, one pass for all rows that need it" was a read of every row
+above the deepest newly described one, on every frame that described one, so a reader scrolling
+to the bottom of 5,000 rows without a `rowKey` read 1,676,647 keys. An occurrence is now read
+from an index kept for the list as it stands: each row's key hashed once and chained to the
+nearest row before it with the same hash, its occurrence one more than the nearest such row
+whose key is equal. The index grows as far down as a reader has been shown, is dropped by
+`setRows`, `refresh()` and `rowKey`, and costs three `int`s per row read plus a hash table of two
+to four more; the same walk reads 4,991 keys. With a `rowKey` nothing is read, as before; a quiet
+frame reads nothing either way. The selection's own occurrences (§3's decision-23 amendment,
+"selecting a row without a `rowKey` reads the rows before it once") are unchanged. Pinned by
+`TableAccessibilityTest.aReaderScrollingToTheBottomReadsEachRowOnceForItsOccurrence` and
+`equalRecordsAreToldApartFromUnequalOnesThatHashAlike`.
 
 ---
 
@@ -342,6 +403,18 @@ cell stays, a focused one included; `markNeedsLayout()` is the call that asks fo
 widget is bound to a record the list may no longer hold — so a widget cell holding the keyboard
 still hands it to the table there; `Column.visible` says both. Pinned by
 `TableTest.aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre`.
+**Amended 2026-09-15 (fix round; decision 22, the widget-cell half).** "`refresh()` still
+rebuilds every realized row ... a widget cell holding the keyboard still hands it to the table"
+is withdrawn: `ListView`'s reason does not reach a table, whose rows follow their records
+(decision 23, §3's amendments). A `refresh()` — with or without a change to the shown set — and a
+sort release every realized row except the one whose widget cell holds the keyboard; that row is
+found again by its record (key and occurrence when known, else the equal key nearest where it
+stood) and kept, re-bound to the row that shows the record now, its widgets children and the
+focus where it was. It is released, and the keyboard handed to the table, only when the list no
+longer holds its record or its own column is hidden. Its widgets are the ones built for the record;
+its value cells are re-read. Pinned by
+`TableTest.aRefreshOrASortKeepsTheWidgetCellThatHoldsTheKeyboardWhileItsRecordStays` and the tail
+of `aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre`.
 
 **The footer is a summary row**, pinned under the rows the way the header is pinned over them,
 and it exists as soon as one column has something for it: a fixed text, one of the aggregates a
@@ -463,17 +536,14 @@ found by the verb ratchet). Pinned by `TableAccessibilityTest.aRowOffersTheVerbs
 `focusOnACellOrARowMovesTheCursorAndSelectsNothing`, `aCellAndAColumnHeaderRefuseTheSelectOnlyARowPublishes`,
 `aPressOnTheTableOpensTheCursorRow` and `TableTest.enterAndADoubleClickActivateTheCursorRow`.
 
-**Amended 2026-09-14 (review of the same pass; decision 20 read against decision 10).**
-`ADD_TO_SELECTION` and `DESELECT` on a row move the focus cell and the range anchor to that row,
-because they go through the toggle seam the command-click goes through and a command-click
-moves the cursor in every desktop table. Decision 20 names `SELECT` and `FOCUS` as the verbs that
-move the cursor and says nothing of these two; decision 10 defines them as the command-click.
-This is a departure from the narrower reading of decision 20 and it is recorded as one: the
-owner's call whether the command-click reading holds for Table (and Tree and ListView copy
-it) or the two verbs should leave the cursor where it stands is open, and the alternative is a
-toggle variant that does not touch `focusRow`/`rangeAnchor`. Pinned by
-`aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem` so that whichever way it goes, the
-test moves with it.
+**Amended 2026-09-15 (fix round; decision 20 and semantics 5).** `ADD_TO_SELECTION` and
+`DESELECT` on a row change that row's membership and the lead, and leave the focus cell and the
+range anchor where they stand, scrolling nothing: only `SELECT` and `FOCUS` move a cursor. They
+share the toggle seam with the command-click and Space, which still move both to the row (a
+gesture is made where the cursor goes; a reader's verb is not). An amendment of 2026-09-14 that
+recorded the verbs moving the cursor as an open reading is withdrawn: decision 20 and semantics 5
+settle it. Pinned by `aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem` (the verbs) and
+`TableTest.multiSelectionFollowsThePlatformsGrammar` (the gesture).
 
 **Amended 2026-09-14 (decision 36; the header's stop, from the reader's side).** While the header
 holds the keyboard the table is still the focused node and its cursor is the header cell under
@@ -625,3 +695,12 @@ Still owed: a live screen-reader run over the table on each guest (B9, phase 5) 
 runs were client walks through the probe scripts, and no reader has yet spoken a Limn table;
 its recipe should include Shift+Tab into the header, Right, Space, Right into the switch column,
 and a wheel away from the cursor row.
+
+**Amended 2026-09-15 (fix round; decision 36's damage rows).** `DamageContractTest`'s Table row
+now also drives the header's stop: Shift+Tab into the header, Right and Left on it (each the header
+band, measured at 14% of the box in two identical runs; ceiling 20%) and Space sorting the column
+under its cursor (101%, the box plus the damage margin; ceiling 105%). Putting Space under the
+contract found every sort — a header click, Space, `setSort` — asking for a full layout and so
+repainting the whole window; a sort cannot change the table's size, and it asks for a contained
+layout now. `aMountedWidgetsBarsHaveFadedBeforeTheFirstGesture` holds the harness to measuring
+each row from rest, bars faded.

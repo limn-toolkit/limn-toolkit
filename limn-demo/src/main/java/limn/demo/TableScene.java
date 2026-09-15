@@ -109,7 +109,10 @@ final class TableScene {
      * keyboard state a capture cannot reach by itself: {@code focus} puts the keyboard in the
      * table on its lead row; {@code sorted} then sorts by customer, which moves that row far
      * down and lets the reveal show it (decision 40 of 2026-09-14); {@code header} moves the
-     * keyboard on to the header's column cursor (decision 36). Unset, the scene is as it was.
+     * keyboard on to the header's column cursor (decision 36); {@code strip} widens the
+     * customer column past the window, reserves the bars' strips and scrolls to the last column
+     * after the first layout, which is where the reserved vertical strip used to cover a strip's
+     * width of that column (a60a2b1). Unset, the scene is as it was.
      */
     private static void stateFor(Scene scene, Table<Order> table, Column<Order> customer) {
         String state = System.getenv("LIMN_TABLE_DEMO");
@@ -125,6 +128,13 @@ final class TableScene {
                 // Shift+Tab from the rows: the header is the stop before them (decision 36).
                 scene.keyEvent(limn.input.Keys.TAB, true, false, limn.input.Keys.MOD_SHIFT);
                 scene.inputBatchEnded();
+            }
+            case "strip" -> {
+                customer.width(420).weight(0);
+                table.setBarLayout(limn.components.ScrollGutters.Layout.RESERVED)
+                        .setScrollbarPolicy(limn.components.ScrollBar.Policy.ALWAYS);
+                // After the first layout, when the columns have widths to scroll across.
+                limn.concurrent.Ui.post(() -> table.scrollBy(10_000, 0));
             }
             default -> System.err.println("LIMN_TABLE_DEMO: unknown state " + state);
         }

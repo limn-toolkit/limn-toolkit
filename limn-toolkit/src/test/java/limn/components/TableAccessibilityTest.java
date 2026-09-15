@@ -259,6 +259,275 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(rowNodes().get(3).selectionItem().selected(), "the newcomer is not");
     }
 
+    /** The row node whose first cell reads {@code name}, or {@code null}. */
+    private AccessibleNode rowNamed(String name) {
+        for (AccessibleNode row : rowNodes()) {
+            if (name.equals(childrenOf(row).get(0).name())) {
+                return row;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Decision 23 of 2026-09-14, the node half (fix round of 2026-09-15): a row's node is its
+     * record's, not its index's. Until then a row was keyed by its model index, so after an
+     * insert above, "Person 3"'s node id named "Person 2", and a reader's verb sent from the
+     * snapshot before the insert acted on whichever record sat at that index when it arrived.
+     */
+    @Test
+    void aRowNodeFollowsItsRecordAndAVerbActsOnTheRecordItWasPublishedFor()
+            throws InterruptedException {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        List<Person> rows = new ArrayList<>(people(200));
+        table.setRows(rows);
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        bind(table);
+        AccessibleNode three = rowNamed("Person 3");
+        long threeId = three.id();
+        long threeCell = childrenOf(three).get(1).id();
+        long fiveId = rowNamed("Person 5").id();
+        long sixCell = childrenOf(rowNamed("Person 6")).get(1).id();
+        java.util.Set<Long> before = new java.util.HashSet<>();
+        rowNodes().forEach(row -> before.add(row.id()));
+
+        // The application inserts above and refreshes; the reader's verbs were sent from the
+        // snapshot it had, which still names the rows as they were.
+        rows.add(0, new Person("Newcomer", 1));
+        table.refresh();
+        assertTrue(perform(threeId, Accessible.Action.SELECT, null));
+        assertEquals(4, table.selectedRow(), "the record the node was published for: Person 3, fifth now");
+        assertTrue(perform(sixCell, Accessible.Action.FOCUS, null));
+        assertEquals(7, table.focusRow(), "a cell's verb names its record too: Person 6, eighth now");
+        assertEquals(1, table.focusColumn());
+
+        table.scrollBy(0, -4000); // the two reveals scrolled; back to the top, where all of them are
+        frame();
+        assertNotNull(rowNamed("Person 3"), describe(tree()));
+        assertEquals(threeId, rowNamed("Person 3").id(), "Person 3's row node kept its id");
+        assertEquals(threeCell, childrenOf(rowNamed("Person 3")).get(1).id(), "and so did its cells");
+        assertNotNull(rowNamed("Newcomer"));
+        assertFalse(before.contains(rowNamed("Newcomer").id()),
+                "the newcomer took no identity a published record had: " + describe(tree()));
+        assertEquals(rowNodes().size(), rowNodes().stream().map(AccessibleNode::id).distinct().count(),
+                "no two rows share a node");
+        assertEquals(new CellFacet(4, 0), childrenOf(rowNamed("Person 3")).get(0).cell(),
+                "the position is the index's; the identity is the record's");
+
+        // A record that leaves the list takes its identity with it: a verb still addressed to it
+        // is refused on the UI thread rather than landing on the row that took its place.
+        rows.remove(6); // Person 5
+        table.refresh();
+        perform(fiveId, Accessible.Action.SELECT, null);
+        assertEquals("[4]", java.util.Arrays.toString(table.selectedRows()),
+                "nothing else was selected in Person 5's name");
+
+        // And the identity survives a scroll away and back, as an index's did.
+        frame();
+        long again = rowNamed("Person 3").id();
+        assertEquals(threeId, again);
+        table.scrollBy(0, 4000);
+        frame();
+        assertEquals(null, rowNamed("Person 3"), "scrolled away");
+        table.scrollBy(0, -4000);
+        frame();
+        assertEquals(threeId, rowNamed("Person 3").id(), "Person 3's row is Person 3's row again");
+    }
+
+    /**
+     * Equal records are one identity per occurrence, as the selection tells them apart: the
+     * second "Lee" row keeps its node when an unequal row is inserted above both.
+     */
+    @Test
+    void equalRecordsKeepTheirNodesByOccurrence() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        List<Person> rows = new ArrayList<>(List.of(new Person("Lee", 1), new Person("Ann", 2),
+                new Person("Lee", 1)));
+        table.setRows(rows);
+        bind(table);
+        long first = rowNodes().get(0).id();
+        long second = rowNodes().get(2).id();
+        rows.add(1, new Person("Bo", 3));
+        table.refresh();
+        frame();
+        assertEquals(first, rowNodes().get(0).id(), "the first Lee is still first");
+        assertEquals(second, rowNodes().get(3).id(), "the second Lee, fourth now, kept its node");
+    }
+
+    /** A record whose every instance hashes alike, so equal and unequal ones share a chain. */
+    record Alike(String name) {
+        @Override
+        public int hashCode() {
+            return 7;
+        }
+    }
+
+    /**
+     * The same, when unequal records share a hash: an occurrence counts the equal records before
+     * a row, and a row between two equal ones that merely hashes like them is not one of them.
+     */
+    @Test
+    void equalRecordsAreToldApartFromUnequalOnesThatHashAlike() {
+        Table<Alike> table = new Table<>(List.of(Column.text("Name", Alike::name).width(160)));
+        List<Alike> rows = new ArrayList<>(List.of(new Alike("Lee"), new Alike("Ann"),
+                new Alike("Ann"), new Alike("Lee")));
+        table.setRows(rows);
+        bind(table);
+        long first = rowNodes().get(0).id();
+        long second = rowNodes().get(3).id();
+        rows.add(1, new Alike("Bo"));
+        table.refresh();
+        frame();
+        assertEquals(first, rowNodes().get(0).id(), "the first Lee is still first");
+        assertEquals(second, rowNodes().get(4).id(), "the second Lee, fifth now, kept its node");
+    }
+
+    /**
+     * The node half of decision 23 across two refreshes with no frame between them (review of
+     * the fix round, 2026-09-15): the first refresh followed the published rows and forgot them,
+     * so the second followed nothing and left "Person 3"'s identity on the row the first had
+     * moved it to, which after a second insert above was "Person 2"'s.
+     */
+    @Test
+    void aRowNodeFollowsItsRecordAcrossTwoRefreshesBeforeAFrame() throws InterruptedException {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        List<Person> rows = new ArrayList<>(people(200));
+        table.setRows(rows);
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        bind(table);
+        long threeId = rowNamed("Person 3").id();
+        long fiveId = rowNamed("Person 5").id();
+
+        rows.add(0, new Person("A", 1));
+        rows.remove(6); // Person 5
+        table.refresh();
+        rows.add(0, new Person("B", 2));
+        table.refresh();
+
+        perform(fiveId, Accessible.Action.SELECT, null);
+        assertEquals("[]", java.util.Arrays.toString(table.selectedRows()),
+                "Person 5 left the list, and nothing is selected in its name");
+        assertTrue(perform(threeId, Accessible.Action.SELECT, null));
+        assertEquals(5, table.selectedRow(), "Person 3 is sixth after two inserts");
+        frame();
+        assertEquals(threeId, rowNamed("Person 3").id(), "and its row node kept its id");
+    }
+
+    /**
+     * An identity once published names its record or nothing, never another record (review of
+     * the fix round, 2026-09-15; semantics 8): a refresh that left the rows in view where they
+     * were followed nothing else, so a record a reader had been shown before scrolling away,
+     * moved by that refresh, left its identity on the row that took its place. A bridge that
+     * caches an element by identity would have read one element as two records. Three ways to
+     * be shown a row and then lose sight of it: scrolled away from its first identity, scrolled
+     * away from one a refresh carried, and a carried one the next frame did not show at all.
+     */
+    @Test
+    void anIdentityOncePublishedNeverNamesAnotherRecord() throws InterruptedException {
+        for (String way : List.of("scrolled away", "carried, then scrolled away",
+                "carried, never shown again")) {
+            Table<Person> table = new Table<>(List.of(
+                    Column.text("Name", Person::name).width(120),
+                    Column.numeric("Age", Person::age).width(60)));
+            List<Person> rows = new ArrayList<>(people(200));
+            table.setRows(rows);
+            bind(table);
+            String name;
+            long id;
+            if (way.equals("carried, never shown again")) {
+                // The last row in view; an insert above pushes it out of the next frame's view.
+                List<AccessibleNode> shown = rowNodes();
+                name = childrenOf(shown.get(shown.size() - 1)).get(0).name();
+                id = shown.get(shown.size() - 1).id();
+                rows.add(0, new Person("Newcomer", 1));
+                table.refresh();
+                frame();
+                assertEquals(null, rowNamed(name), "pushed out of view");
+                int at = 0;
+                while (!rows.get(at).name().equals(name)) {
+                    at++;
+                }
+                java.util.Collections.swap(rows, at, 30); // out of view, it moves
+                table.refresh();
+                frame();
+                table.scrollBy(0, 96);
+                frame();
+            } else {
+                if (way.startsWith("carried")) {
+                    rows.add(0, new Person("Newcomer", 1));
+                    table.refresh();
+                    frame();
+                }
+                name = "Person 3";
+                id = rowNamed(name).id();
+                table.scrollBy(0, 100_000);
+                frame();
+                assertEquals(null, rowNamed(name), "scrolled away");
+                java.util.Collections.reverse(rows.subList(1, 9)); // out of view, it moves
+                table.refresh();
+                frame();
+                table.scrollBy(0, -100_000);
+                frame();
+            }
+
+            String context = way + ": " + describe(tree());
+            for (AccessibleNode row : rowNodes()) {
+                if (row.id() == id) {
+                    assertEquals(name, childrenOf(row).get(0).name(), context);
+                }
+            }
+            perform(id, Accessible.Action.SELECT, null);
+            int selected = table.selectedRow();
+            assertTrue(selected < 0 || rows.get(selected).name().equals(name),
+                    "a verb on " + name + "'s old node selected " + (selected < 0 ? "nothing"
+                            : rows.get(selected).name()) + "; " + context);
+        }
+    }
+
+    private static int keyHashes;
+
+    /** A record that counts how often its hash is read, which is what finding its occurrence costs. */
+    record Tally(String name) {
+        @Override
+        public int hashCode() {
+            keyHashes++;
+            return name.hashCode();
+        }
+    }
+
+    /**
+     * Placing a row among equal records without a {@code rowKey} reads the rows before it; a
+     * reader scrolling down read them all again for every frame that realized a row (review of
+     * the fix round, 2026-09-15), so a walk to the bottom of a long table cost the square of its
+     * length. The rows are read once per list now, as far down as the reader has been shown.
+     */
+    @Test
+    void aReaderScrollingToTheBottomReadsEachRowOnceForItsOccurrence() {
+        int count = 5000;
+        List<Tally> rows = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            rows.add(new Tally("Row " + i));
+        }
+        Table<Tally> table = new Table<>(List.of(Column.text("Name", Tally::name).width(160)));
+        table.setRows(rows);
+        bind(table);
+        keyHashes = 0;
+        int frames = 0;
+        while (rowNodes().stream().noneMatch(row -> row.selectionItem().positionInSet() == count)) {
+            table.scrollBy(0, 240);
+            frame();
+            assertTrue(++frames < 2000, "the walk reaches the bottom");
+        }
+        assertTrue(keyHashes <= count,
+                frames + " frames to the bottom read " + keyHashes + " keys for " + count + " rows");
+    }
+
     /**
      * MODEL-NEW-4 (ADR 039 §1.10, amended 2026-09-14): a sort keeps every row's identifier and
      * moves the rows, and a client holding the old order has to be told — one
@@ -345,17 +614,23 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(perform(rowNodes().get(4).id(), Accessible.Action.ADD_TO_SELECTION, null));
         assertEquals("[2, 4]", java.util.Arrays.toString(table.selectedRows()), "added, not replaced");
         assertEquals(4, table.selectedRow(), "the added row is the lead, as under a command-click");
-        // And the cursor moved to it, as it does under the command-click these verbs stand
-        // for (decision 10): decision 20 names SELECT and FOCUS as the verbs that move the
-        // cursor and is silent on these two, so this line pins the reading Table took (ADR 041
-        // §7's amendment of 2026-09-14) until the owner says which holds.
-        assertEquals(4, table.focusRow(), "the cursor went with the add, as under a command-click");
-        assertTrue(perform(rowNodes().get(2).id(), Accessible.Action.DESELECT, null));
-        assertEquals("[4]", java.util.Arrays.toString(table.selectedRows()));
-        assertEquals(2, table.focusRow(), "and with the deselect, as under a command-click");
+        // Only SELECT and FOCUS move a cursor (decision 20, semantics 5): the add leaves the
+        // focus cell and the range anchor on row 2, where the user put them.
+        assertEquals(2, table.focusRow(), "the add left the cursor where it stood");
+        assertTrue(perform(rowNodes().get(6).id(), Accessible.Action.ADD_TO_SELECTION, null));
+        assertTrue(perform(rowNodes().get(4).id(), Accessible.Action.DESELECT, null));
+        assertEquals("[2, 6]", java.util.Arrays.toString(table.selectedRows()));
+        assertEquals(2, table.focusRow(), "and so did the deselect");
+        scene.requestFocus(table);
+        scene.keyEvent(Keys.DOWN, true, false, Keys.MOD_SHIFT);
+        scene.inputBatchEnded();
+        assertEquals("[2, 3]", java.util.Arrays.toString(table.selectedRows()),
+                "a Shift range still extends from the anchor on row 2");
         assertTrue(perform(rowNodes().get(7).id(), Accessible.Action.SELECT, null));
         assertEquals("[7]", java.util.Arrays.toString(table.selectedRows()), "a select is the click");
-        assertEquals(List.of("[2, 4]", "[4]", "[7]"), selects, "each reached the handler as a user");
+        assertEquals(7, table.focusRow(), "and a select moves the cursor");
+        assertEquals(List.of("[2, 4]", "[2, 4, 6]", "[2, 6]", "[2, 3]", "[7]"), selects,
+                "each reached the handler as a user");
 
         table.setSelectionMode(Table.SelectionMode.SINGLE);
         frame();
@@ -454,6 +729,45 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                 "a press is offered whenever there is a cursor, selection or not");
         assertTrue(perform(tableNode().id(), Accessible.Action.PRESS, null));
         assertEquals(List.of(1, 6), opened);
+    }
+
+    /**
+     * One bound for the table's {@code PRESS}, published and performed (review of phase 2,
+     * 2026-09-15): a cursor row past the end of a list the application shortened and has not
+     * refreshed yet is no row to open, so the verb is neither offered nor performed, and
+     * {@code onActivate} never hears an index the list does not hold; the refresh brings the
+     * cursor back inside and the verb with it.
+     */
+    @Test
+    void aPressIsOfferedAndPerformedOnTheSameCursorRowBound() throws InterruptedException {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        List<Person> rows = new ArrayList<>(people(10));
+        table.setRows(rows);
+        bind(table);
+        List<Integer> opened = new ArrayList<>();
+        table.onActivate(opened::add);
+        table.setSelectedRow(8);
+        frame();
+        assertTrue(tableNode().actions().actions().contains(Accessible.Action.PRESS));
+
+        rows.subList(5, 10).clear(); // shortened, not yet refreshed
+        frame();
+        assertFalse(tableNode().actions() != null
+                        && tableNode().actions().actions().contains(Accessible.Action.PRESS),
+                "no row 8 to open in a list of five: " + describe(tree()));
+        // The host answers from membership alone (semantics 5 puts the published-list refusal in
+        // the bridges), so the call is taken; what matters is that the table performs nothing.
+        perform(tableNode().id(), Accessible.Action.PRESS, null);
+        assertEquals(List.of(), opened, "nothing opened past the end");
+
+        table.refresh();
+        frame();
+        assertEquals(4, table.focusRow(), "the refresh clamped the cursor");
+        assertTrue(tableNode().actions().actions().contains(Accessible.Action.PRESS));
+        assertTrue(perform(tableNode().id(), Accessible.Action.PRESS, null));
+        assertEquals(List.of(4), opened);
     }
 
     /**

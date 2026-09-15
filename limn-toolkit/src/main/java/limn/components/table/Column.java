@@ -367,7 +367,9 @@ public final class Column<T> {
      * and leaves every other cell's widget alone, a focused one included:
      * {@link limn.scene.Widget#markNeedsLayout() markNeedsLayout()} on the table asks for that
      * layout. {@link Table#refresh()} asks for one too, and as every refresh does rebuilds the
-     * realized rows, so a widget cell holding the keyboard hands it to the table. A focus cell,
+     * realized rows except the one whose widget cell holds the keyboard, which stays with its
+     * record while the list still holds it (and hands the keyboard to the table when its own
+     * column is the one hidden, or its record is gone). A focus cell,
      * or the header's cursor, on the hidden column moves to the nearest shown column.
      *
      * @param visible whether the column is shown

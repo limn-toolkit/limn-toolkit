@@ -278,8 +278,12 @@ class TableTest extends ComponentTestBase {
         assertArrayEquals(new int[] {1, 2, 3}, table.selectedRows(), "Shift selects the range");
         click(scene, 30, rowCenterY(table, 5), Accelerator.commandModifier());
         assertArrayEquals(new int[] {1, 2, 3, 5}, table.selectedRows(), "command toggles one on");
+        // The gesture moves the cursor to the row it toggled, which a reader's ADD_TO_SELECTION
+        // and DESELECT do not (decision 20; TableAccessibilityTest pins the verbs' half).
+        assertEquals(5, table.focusRow(), "the command-click moves the cursor");
         click(scene, 30, rowCenterY(table, 2), Accelerator.commandModifier());
         assertArrayEquals(new int[] {1, 3, 5}, table.selectedRows(), "and off");
+        assertEquals(2, table.focusRow(), "toggling off moves it too");
         click(scene, 30, rowCenterY(table, 0), 0);
         assertArrayEquals(new int[] {0}, table.selectedRows(), "a plain click selects one alone");
         table.setSelectionMode(Table.SelectionMode.NONE);
@@ -347,6 +351,55 @@ class TableTest extends ComponentTestBase {
     private static void key(Scene scene, int key) {
         scene.keyEvent(key, true, false, 0);
         scene.inputBatchEnded();
+    }
+
+    /**
+     * The critic's phase-2 finding (fix round of 2026-09-15): after decision 40's least-scroll
+     * reveal, the first Page Down from the top of a long table scrolled by one row and left the
+     * cursor at the foot of the view. Page Down and Page Up page: the cursor moves a page of rows
+     * and the view moves with it, so the cursor keeps its place on screen — on a viewport that
+     * holds a whole number of rows and on one that shows part of the next.
+     */
+    @Test
+    void pageDownAndPageUpMoveTheViewAPageWithTheCursor() {
+        for (int partial : new int[] {20, 0}) {
+            Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));
+            table.setRows(people(100));
+            float rowH = rowHeight(table);
+            float headerH = headerHeight(table);
+            int page = 6;
+            FakeCanvas canvas = new FakeCanvas(300, headerH + page * rowH + partial);
+            Scene scene = scene(table, canvas);
+            scene.requestFocus(table);
+            key(scene, Keys.DOWN);
+            scene.renderFrame(canvas);
+            assertEquals(0, table.focusRow());
+            String geometry = partial == 0 ? "whole rows" : "a part of the next row showing";
+
+            key(scene, Keys.PAGE_DOWN);
+            scene.renderFrame(canvas);
+            assertEquals(page, table.focusRow(), "the cursor a page away, " + geometry);
+            assertEquals(page, table.firstVisibleRow(),
+                    "the view a page down, the cursor still at its head, " + geometry);
+
+            key(scene, Keys.DOWN);
+            key(scene, Keys.PAGE_DOWN);
+            scene.renderFrame(canvas);
+            assertEquals(2 * page + 1, table.focusRow(), geometry);
+            assertEquals(2 * page, table.firstVisibleRow(),
+                    "the cursor kept its place, the second row in view, " + geometry);
+
+            key(scene, Keys.PAGE_UP);
+            scene.renderFrame(canvas);
+            assertEquals(page + 1, table.focusRow(), geometry);
+            assertEquals(page, table.firstVisibleRow(), "Page Up is the mirror, " + geometry);
+
+            key(scene, Keys.PAGE_UP);
+            key(scene, Keys.PAGE_UP);
+            scene.renderFrame(canvas);
+            assertEquals(0, table.focusRow(), "clamped at the top, " + geometry);
+            assertEquals(0, table.firstVisibleRow(), geometry);
+        }
     }
 
     /**
@@ -832,8 +885,8 @@ class TableTest extends ComponentTestBase {
      * so hiding a value column, with or without a refresh, rebuilt every widget cell and took
      * the keyboard off the switch a user was on. The layout now releases only a hidden widget
      * column's widgets and builds only a newly shown one's, in their places among the children;
-     * a refresh still rebuilds every row, as {@code ListView}'s does, and says so in
-     * {@code Column.visible}.
+     * a refresh rebuilds every other row and, since 2026-09-15, keeps the one whose widget cell
+     * holds the keyboard (decision 22), as {@code Column.visible} says.
      */
     @Test
     void aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre() {
@@ -887,10 +940,63 @@ class TableTest extends ComponentTestBase {
         assertEquals(2 + built, table.children().size(), "hidden again, its widgets are released");
         assertSame(target, scene.focusedWidget(), "and the Open the user is on stays");
 
+        // A refresh that also shows a widget column (the Column.visible recipe) rebuilds every
+        // other row, and keeps the row whose switch holds the keyboard (decision 22).
+        more.visible(true);
         table.refresh();
         scene.renderFrame(canvas);
-        assertTrue(opens.size() > built, "a refresh rebuilds every row, as documented");
-        assertSame(table, scene.focusedWidget(), "and the released widget hands the keyboard to the table");
+        assertTrue(opens.size() > built, "a refresh rebuilds every other row, as documented");
+        assertSame(target, scene.focusedWidget(), "and keeps the Open the user is on");
+        assertTrue(table.children().contains(target), "a child still");
+    }
+
+    /**
+     * Decision 22 of 2026-09-14, the widget-cell half (fix round of 2026-09-15): a refresh or a
+     * sort released the row whose widget cell held the keyboard and handed the keyboard to the
+     * table (ac431b4), {@code ListView}'s rule for a widget bound to data the list may no longer
+     * hold. A table follows its records (decision 23), so a record found again keeps its row and
+     * the widget the user is on; only a record the list lost releases it.
+     */
+    @Test
+    void aRefreshOrASortKeepsTheWidgetCellThatHoldsTheKeyboardWhileItsRecordStays() {
+        List<Widget> opens = new ArrayList<>();
+        Column<Person> open = Column.<Person>widget("Open", p -> {
+            Button b = new Button("Open " + p.name());
+            opens.add(b);
+            return b;
+        }).width(120);
+        Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn(), open));
+        List<Person> rows = new ArrayList<>(people(50));
+        table.setRows(rows);
+        FakeCanvas canvas = new FakeCanvas(400, 200);
+        Scene scene = scene(table, canvas);
+        Widget target = opens.get(2); // Person 2's
+        scene.requestFocus(target);
+        scene.renderFrame(canvas);
+        float wasY = target.y();
+        int builtBefore = opens.size();
+
+        rows.add(0, new Person("Newcomer", 99));
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertTrue(opens.size() > builtBefore + 2, "the other rows were rebuilt: " + opens.size());
+        float rowHeight = opens.get(builtBefore + 1).y() - opens.get(builtBefore).y();
+        assertTrue(rowHeight > 0, "Newcomer's button above Person 0's");
+        assertSame(target, scene.focusedWidget(), "the refresh left the keyboard on Person 2's button");
+        assertTrue(table.children().contains(target), "which is still the table's child");
+        assertEquals(wasY + rowHeight, target.y(), EPS, "one row further down, with its record");
+        assertEquals(1, table.children().stream().filter(w -> w == target).count());
+
+        table.setSort(table.columns().get(1), SortOrder.DESCENDING);
+        scene.renderFrame(canvas);
+        assertSame(target, scene.focusedWidget(), "a sort keeps it too");
+        assertTrue(table.children().contains(target));
+
+        rows.remove(new Person("Person 2", 2));
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertFalse(table.children().contains(target), "a record the list lost releases its row");
+        assertSame(table, scene.focusedWidget(), "and hands the keyboard to the table");
     }
 
     /**
