@@ -2170,6 +2170,17 @@ were claimed and a client's `GetPatternProvider` got a null for each. As built:
   dialog still says `IsDialog`. `UiaPatternsTest.everyPatternANodeCanClaimIsOneThisBridgeServes` now
   fails for any claim with no interface behind it.
 
+**Amended 2026-09-15 (review of the Windows phase-3 work): which items lose `ScrollItem`.** Vending
+`ScrollItem` only with `SCROLL_INTO_VIEW` takes it from every item whose widget does not publish that
+verb, and at this date that is most of them. `ListView` rows and `Tree` rows publish it (decision 20),
+and a focusable widget gets it free from the walk, but a `Table`'s synthetic `ROW` publishes `SELECT`,
+`ADD_TO_SELECTION`/`DESELECT` and `FOCUS` and its synthetic cells `FOCUS` only, and a `CalendarView`'s
+day cells `SELECT` and `FOCUS`: none of them vends `ScrollItem` on Windows, so a client asking a table
+row or cell, or a day, to scroll into view finds no pattern. Decision 20 says tree and list rows
+publish `SCROLL_INTO_VIEW` "like Table", which reads as though a table row did; it does not. Owed to
+the `Table` and dates widgets under decision 20 (ADR 041 §7, ADR 042), not to this bridge, which vends
+the pattern the moment the verb is published.
+
 **Amended 2026-09-15 (phase 3, Windows; decisions 2, 7, 20, semantics 5 as amended the same day;
 W6, TREE-MISS-8, WINDOWS-NEW-10, CRIT-7): every verb and setter goes through
 `AccessibleNode#accepts`.** The rows above say `SetFocus` "posted `FOCUS`" and `Invoke` "posted
