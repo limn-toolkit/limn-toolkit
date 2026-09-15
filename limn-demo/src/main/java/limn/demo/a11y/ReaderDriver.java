@@ -19,6 +19,7 @@ import limn.scene.layout.Padding;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 /**
  * The one reader driver (decision 24): opens a single accessibility-gallery entry in a window of
@@ -38,7 +39,8 @@ import java.util.Locale;
  * date picker is the native window (decision 5).
  *
  * <p>What it prints: a header line naming the script, the entry, the language, the day and the
- * presentation; {@code --- focus <widget>} once the keyboard is placed; and
+ * presentation; {@code --- focus <widget>} once the keyboard is placed, which is on the scene's
+ * first frame, the one that lays the entry out; and
  * {@code --- step N KEYS - label focus=<widget>} after each step is sent. A recipe waits for the
  * {@code --- step N } prefix, which is what {@code --scene tree-reader} printed.
  *
@@ -62,9 +64,6 @@ public final class ReaderDriver {
 
     /** How long the window stays after the last step when {@code --exit-after} is not given. */
     public static final long TAIL_MILLIS = 5000;
-
-    /** When the entry's own opening and the focus run, once the scene has been laid out. */
-    private static final long FOCUS_MILLIS = 500;
 
     /** The window's title, which a client matches and a reader speaks. */
     public static final String WINDOW_TITLE = "Limn accessibility gallery";
@@ -213,18 +212,12 @@ public final class ReaderDriver {
             Scene scene = new Scene(new Padding(Insets.all(16), built.root()));
             scene.setBackground(Theme.current().background);
             scene.bind(window);
+            placeKeyboardOnFirstFrame(window, scene, built, System.out::println);
             window.show();
             System.out.println("--- reader " + options.id() + " \"" + entry.name() + "\" steps="
                     + steps.size() + " locale=" + options.locale().toLanguageTag() + " today="
                     + DocumentationDay.CLOCK.instant() + " presentation="
                     + (options.presentation() == null ? "as built" : options.presentation()));
-            Ui.postDelayed(() -> {
-                built.afterFirstFrame().run();
-                if (built.focus() != null) {
-                    built.focus().requestFocus();
-                }
-                System.out.println("--- focus " + describe(scene.focusedWidget()));
-            }, FOCUS_MILLIS);
             for (int i = 0; i < steps.size(); i++) {
                 Step step = steps.get(i);
                 int number = i + 1;
@@ -242,6 +235,35 @@ public final class ReaderDriver {
             }, exitAfter);
             backend.runEventLoop();
         }
+    }
+
+    /**
+     * Runs the entry's own opening and puts the keyboard in the widget it names on the scene's
+     * first frame, right after that frame has laid the entry out, and prints the
+     * {@code --- focus} line: not on a timer, which a slow start on a guest can beat. Replaces the
+     * frame callback {@link Scene#bind} installed with one that still renders the scene.
+     *
+     * @param window the window the scene is bound to, not yet drawn
+     * @param scene  the scene
+     * @param built  the entry, built
+     * @param out    where the focus line goes
+     */
+    public static void placeKeyboardOnFirstFrame(NativeWindow window, Scene scene, Built built,
+                                                 Consumer<String> out) {
+        boolean[] placed = {false};
+        window.setFrameCallback((renderer, frame) -> {
+            scene.renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs());
+            if (placed[0]) {
+                return;
+            }
+            placed[0] = true;
+            built.afterFirstFrame().run();
+            if (built.focus() != null) {
+                built.focus().requestFocus();
+            }
+            out.accept("--- focus " + describe(scene.focusedWidget()));
+            window.requestFrame(); // what the opening and the focus changed is drawn next
+        });
     }
 
     private static String describe(Widget widget) {

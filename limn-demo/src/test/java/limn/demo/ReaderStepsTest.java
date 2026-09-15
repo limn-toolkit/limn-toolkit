@@ -132,6 +132,40 @@ class ReaderStepsTest {
         }
     }
 
+    /**
+     * The driver puts the keyboard in on the first frame, the one that lays the entry out, and
+     * not on a timer a slow guest start can beat: however long the UI thread runs before that
+     * frame, nothing is focused and no focus line is printed; the frame focuses the entry's widget
+     * with its box laid out, once.
+     */
+    @Test
+    void theDriverPutsTheKeyboardInOnTheFrameThatLaysTheEntryOut() {
+        for (Entry entry : AccessibilityGallery.readerEntries()) {
+            try (Harness harness = new Harness(Palette.LIGHT)) {
+                AccessibilityGallery.Built built = entry.build();
+                HeadlessWindow window = harness.open(entry.name());
+                Scene scene = new Scene(built.root());
+                scene.bind(window);
+                List<String> printed = new ArrayList<>();
+                ReaderDriver.placeKeyboardOnFirstFrame(window, scene, built, printed::add);
+                harness.idle(10_000);
+                assertTrue(scene.focusedWidget() == null && printed.isEmpty(), "\"" + entry.name()
+                        + "\": the keyboard was placed before any frame laid the entry out: "
+                        + printed + ", keyboard in " + describe(scene.focusedWidget()));
+                window.frame();
+                assertTrue(isWithin(scene.focusedWidget(), built.focus()), "\"" + entry.name()
+                        + "\": the first frame did not put the keyboard in "
+                        + built.focus().getClass().getSimpleName());
+                assertTrue(built.focus().width() > 0 && built.focus().height() > 0, "\""
+                        + entry.name() + "\": the widget focused is not laid out");
+                assertEquals(List.of("--- focus " + scene.focusedWidget().getClass().getSimpleName()),
+                        printed);
+                window.frame();
+                assertEquals(1, printed.size(), "the focus is placed once");
+            }
+        }
+    }
+
     @TestFactory
     Stream<DynamicTest> everyStepChangesWhatIsPublishedOrAnnouncesSomething() {
         List<DynamicTest> tests = new ArrayList<>();

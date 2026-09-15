@@ -451,6 +451,27 @@ class AccessibleGalleryTest {
             }
         }
 
+        /**
+         * Opens a window with nothing bound to it and nothing drawn, for a test that binds its
+         * own scene and decides when the first frame comes.
+         *
+         * @param title the window's title
+         * @return the window
+         */
+        HeadlessWindow open(String title) {
+            return backend.open(title, WIDTH, HEIGHT);
+        }
+
+        /**
+         * Lets scene time pass and runs what the UI thread has queued by then, drawing no frame.
+         *
+         * @param millis how much scene time passes
+         */
+        void idle(long millis) {
+            nanos += TimeUnit.MILLISECONDS.toNanos(millis);
+            runtime.drain();
+        }
+
         /** @return every window the backend holds now, the entry's own first */
         List<HeadlessWindow> windows() {
             return backend.windows();
