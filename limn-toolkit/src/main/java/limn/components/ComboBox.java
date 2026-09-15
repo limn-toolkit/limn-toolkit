@@ -577,6 +577,16 @@ public class ComboBox extends Widget {
         popupWindow.requestFrame();
     }
 
+    /**
+     * Whether an option of the open list can be chosen or walked onto right now: the list is open
+     * and not fading out, and the combo is enabled. The one condition the panel's describe hook
+     * publishes {@code SELECT}, {@code PRESS} and {@code FOCUS} on and its action hook performs
+     * them on (2026-09-15, semantics 5).
+     */
+    private boolean optionsOperable() {
+        return open && isEnabled();
+    }
+
     private void commit(int index) {
         if (!open) {
             return; // the popup is already closing (e.g. a click during its fade-out)
@@ -1608,6 +1618,10 @@ public class ComboBox extends Widget {
             // is the layer this panel is a child of; in a window of its own the modality is the
             // popup window's. Declaring it here would publish it twice in one tree.
 
+            // Read once, and read again by onSyntheticAction: the three verbs are published
+            // exactly while they are performed (semantics 5), and not through the fade-out or on
+            // a combo disabled under its open list, where the hook refuses all three.
+            boolean operable = optionsOperable();
             for (int i = 0; i < items.size(); i++) {
                 float top = rowTop(i, t);
                 a.child(i);
@@ -1638,13 +1652,17 @@ public class ComboBox extends Widget {
                 if (top + itemH < 0 || top > viewport) {
                     a.offScreen();
                 }
-                // The two-argument form; the variable-argument one allocates an array per call.
-                // Both verbs, because choosing an option in a combo is one gesture.
-                a.action(Accessible.Action.SELECT, Accessible.Action.PRESS);
-                // And FOCUS, which moves the highlight here without choosing (decision 11,
-                // 2026-09-15): the cursor and the selection are separate fields in this widget, so
-                // a reader can walk the options as the arrows do and commit with SELECT.
-                a.action(Accessible.Action.FOCUS);
+                if (operable) {
+                    // The two-argument form; the variable-argument one allocates an array per
+                    // call. SELECT and PRESS both, because choosing an option in a combo is one
+                    // gesture.
+                    a.action(Accessible.Action.SELECT, Accessible.Action.PRESS);
+                    // And FOCUS, which moves the highlight here without choosing (decision 11,
+                    // 2026-09-15): the cursor and the selection are separate fields in this
+                    // widget, so a reader can walk the options as the arrows do and commit with
+                    // SELECT.
+                    a.action(Accessible.Action.FOCUS);
+                }
                 a.endChild();
             }
         }
@@ -1653,15 +1671,19 @@ public class ComboBox extends Widget {
          * Chooses an option, through the same private path a click on it takes, or moves the
          * highlight onto it, through the path the arrow keys take.
          *
-         * <p>{@code commit} keeps its own guard against a click landing during the fade-out,
-         * clamps the index, closes the list and notifies the application only when the selection
-         * actually moved — so re-picking what is already selected says nothing here either, which
-         * is the rule the pointer already obeys. Nothing gains a public entry point for this.
+         * <p>All three verbs are refused, and none of them published, while
+         * {@code optionsOperable()} is false (2026-09-15, semantics 5): through the list's
+         * fade-out the three were published and {@code FOCUS} was refused here while
+         * {@code SELECT} and {@code PRESS} were answered {@code true} for a commit that its own
+         * guard dropped. {@code commit} keeps that guard for the pointer, clamps the index,
+         * closes the list and notifies the application only when the selection actually moved —
+         * so re-picking what is already selected says nothing here either, which is the rule the
+         * pointer already obeys. Nothing gains a public entry point for this.
          *
-         * <p>The enabled check is this hook's own and is load-bearing in a window of its own:
-         * the scene's gate walks the owner's ancestors, and there the panel's chain is the panel
-         * alone, with the combo in another scene entirely. A list opened through the public
-         * {@code open()} on a disabled combo would otherwise accept a commit.
+         * <p>The enabled half is load-bearing in a window of its own: the scene's gate walks the
+         * owner's ancestors, and there the panel's chain is the panel alone, with the combo in
+         * another scene entirely. A list opened through the public {@code open()} on a disabled
+         * combo would otherwise accept a commit.
          *
          * @param key    the option's index, which is its key
          * @param action what is being asked
@@ -1671,7 +1693,7 @@ public class ComboBox extends Widget {
         @Override
         protected boolean onSyntheticAction(long key, Accessible.Action action,
                                             Accessible.Argument arg) {
-            if (!ComboBox.this.isEnabled()) {
+            if (!optionsOperable()) {
                 return false;
             }
             int index = (int) key;
@@ -1684,9 +1706,6 @@ public class ComboBox extends Widget {
                     yield true;
                 }
                 case FOCUS -> {
-                    if (!open) {
-                        yield false; // the list is fading out; nothing is left to walk
-                    }
                     setHighlight(index); // the arrows' path: announced, damaged, revealed
                     yield true;
                 }

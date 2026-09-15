@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -554,6 +555,55 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
                         + "while it did not, the row advertised SELECT and PRESS on a control "
                         + "that refuses both, which is a node lying about what it will do"
                         + describe(tree()));
+        assertNull(options().get(2).actions(),
+                "nor does it offer any of the three verbs the hook refuses on a disabled combo "
+                        + "(2026-09-15, semantics 5)" + describe(tree()));
+    }
+
+    /**
+     * Publication and performance read one condition for all three option verbs (2026-09-15,
+     * semantics 5; the fix-round critic's gap): while the list fades out after closing, the
+     * options are still drawn and still published, and the hook refuses {@code SELECT},
+     * {@code PRESS} and {@code FOCUS} there. Until that day all three were published through the
+     * fade, {@code FOCUS} refused and the other two answered done for a commit {@code commit}'s
+     * own guard dropped. Time is held still in this harness once the list has faded in, so the
+     * fade out stays at its first frame for as long as the case runs.
+     */
+    @Test
+    void throughTheFadeOutNoOptionOffersAVerbAndNoneIsPerformed() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        bindCombo(4);
+        combo.setSelectedIndex(1);
+        combo.onSelect(index -> calls.incrementAndGet());
+        openList();
+        settleAnimations(null); // faded in, so the fade out has somewhere to start from
+        for (AccessibleNode option : options()) {
+            assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.PRESS,
+                    Accessible.Action.FOCUS), option.actions().actions(), describe(tree()));
+        }
+        int highlight = combo.highlightedIndex();
+
+        combo.close();
+        frame();
+        assertFalse(combo.isOpen());
+        List<AccessibleNode> fading = options();
+        assertEquals(4, fading.size(), "the fading list is still drawn and still published"
+                + describe(tree()));
+        for (AccessibleNode option : fading) {
+            assertNull(option.actions(),
+                    "a fading option offers no verb, because the hook performs none of them"
+                            + describe(tree()));
+        }
+        for (Accessible.Action verb : List.of(Accessible.Action.SELECT, Accessible.Action.PRESS,
+                Accessible.Action.FOCUS)) {
+            perform(fading.get(3).id(), verb, Accessible.Argument.NONE);
+            frame();
+            assertEquals(1, combo.selectedIndex(), verb + " chose nothing");
+            assertEquals(highlight, combo.highlightedIndex(), verb + " moved no highlight");
+            assertEquals(0, calls.get(), verb + " told the application nothing");
+            assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED),
+                    verb + " was not reported done: " + bridge.events);
+        }
     }
 
     @Test
