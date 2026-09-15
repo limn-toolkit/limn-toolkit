@@ -99,12 +99,166 @@ public final class AccessibilityGallery {
      *
      * @param root           the scene's root widget
      * @param afterFirstFrame what to do after the first frame; a no-op for a static entry
+     * @param focus          the widget a reader run puts the keyboard in once the entry is laid
+     *                       out, or {@code null} for an entry no run drives
      */
-    public record Built(Widget root, Runnable afterFirstFrame) {
+    public record Built(Widget root, Runnable afterFirstFrame, Widget focus) {
 
         /** A static entry: nothing to open. */
         public Built(Widget root) {
             this(root, () -> { });
+        }
+
+        /** An entry that opens something and names no widget for a reader run to focus. */
+        public Built(Widget root, Runnable afterFirstFrame) {
+            this(root, afterFirstFrame, null);
+        }
+
+        /**
+         * A static entry a reader run drives.
+         *
+         * @param root  the scene's root widget
+         * @param focus the widget the run puts the keyboard in after the first layout
+         * @return the entry built
+         */
+        public static Built focusing(Widget root, Widget focus) {
+            return new Built(root, () -> { }, java.util.Objects.requireNonNull(focus, "focus"));
+        }
+    }
+
+    /**
+     * One thing a person does at the keyboard during a reader run: a key with its modifiers, or a
+     * character typed. Sent through the scene's own input path — the path a person's keys take —
+     * so every platform hears the same sequence, and a Wayland session, which takes no injected
+     * input, hears it too.
+     *
+     * @param key       the key code from {@link limn.input.Keys}, or {@code -1} for a typed character
+     * @param modifiers {@code Keys.MOD_*} bits, where {@link #COMMAND} stands for the platform's
+     *                  command modifier and is resolved when the step is sent
+     * @param codepoint the character typed, or {@code -1} for a key
+     * @param label     what the step does to the widget, as the step line prints it and a guest
+     *                  recipe's snapshot label says it
+     */
+    public record Step(int key, int modifiers, int codepoint, String label) {
+
+        /**
+         * The command modifier, whichever the platform's is: {@code Accelerator.commandModifier()}
+         * when the step is sent, so a script declares Cmd/Ctrl once and a test on Linux CI and a
+         * run on the macOS guest each send their own.
+         */
+        public static final int COMMAND = 1 << 16;
+
+        /**
+         * @param key   the key code
+         * @param label what it does
+         * @return a key pressed and released with no modifier
+         */
+        public static Step press(int key, String label) {
+            return new Step(key, 0, -1, label);
+        }
+
+        /**
+         * @param key       the key code
+         * @param modifiers {@code Keys.MOD_*} bits, {@link #COMMAND} included
+         * @param label     what it does
+         * @return a chord pressed and released
+         */
+        public static Step chord(int key, int modifiers, String label) {
+            return new Step(key, modifiers, -1, label);
+        }
+
+        /**
+         * @param character what is typed
+         * @param label     what it does
+         * @return a character typed, as an input method commits one
+         */
+        public static Step type(char character, String label) {
+            return new Step(-1, 0, character, label);
+        }
+
+        /** @return the keys as a step line names them: {@code SHIFT+TAB}, {@code CMD+UP}, {@code '5'} */
+        public String keys() {
+            if (codepoint >= 0) {
+                return "'" + Character.toString(codepoint) + "'";
+            }
+            StringBuilder out = new StringBuilder();
+            if ((modifiers & COMMAND) != 0) {
+                out.append("CMD+");
+            }
+            if ((modifiers & limn.input.Keys.MOD_CONTROL) != 0) {
+                out.append("CTRL+");
+            }
+            if ((modifiers & limn.input.Keys.MOD_ALT) != 0) {
+                out.append("ALT+");
+            }
+            if ((modifiers & limn.input.Keys.MOD_SHIFT) != 0) {
+                out.append("SHIFT+");
+            }
+            return out.append(keyName(key)).toString();
+        }
+
+        /** @return the modifier bits sent, with {@link #COMMAND} resolved for this platform */
+        public int resolvedModifiers() {
+            int bits = modifiers & ~COMMAND;
+            return (modifiers & COMMAND) != 0
+                    ? bits | limn.components.Accelerator.commandModifier() : bits;
+        }
+
+        /**
+         * Sends this step to a scene: the press and the release with the input batch that
+         * dispatches them, or the character and its batch. UI thread.
+         *
+         * @param scene the scene the entry is bound to
+         */
+        public void sendTo(Scene scene) {
+            if (codepoint >= 0) {
+                scene.charTyped(codepoint);
+            } else {
+                scene.keyEvent(key, true, false, resolvedModifiers());
+                scene.keyEvent(key, false, false, resolvedModifiers());
+            }
+            scene.inputBatchEnded();
+        }
+
+        private static String keyName(int key) {
+            return switch (key) {
+                case limn.input.Keys.DOWN -> "DOWN";
+                case limn.input.Keys.UP -> "UP";
+                case limn.input.Keys.LEFT -> "LEFT";
+                case limn.input.Keys.RIGHT -> "RIGHT";
+                case limn.input.Keys.HOME -> "HOME";
+                case limn.input.Keys.END -> "END";
+                case limn.input.Keys.PAGE_UP -> "PAGE_UP";
+                case limn.input.Keys.PAGE_DOWN -> "PAGE_DOWN";
+                case limn.input.Keys.TAB -> "TAB";
+                case limn.input.Keys.ENTER -> "ENTER";
+                case limn.input.Keys.ESCAPE -> "ESCAPE";
+                case limn.input.Keys.SPACE -> "SPACE";
+                case limn.input.Keys.DELETE -> "DELETE";
+                case limn.input.Keys.BACKSPACE -> "BACKSPACE";
+                case limn.input.Keys.F4 -> "F4";
+                default -> key >= limn.input.Keys.A && key <= limn.input.Keys.Z
+                        ? Character.toString(key) : "KEY" + key;
+            };
+        }
+    }
+
+    /**
+     * What a reader run drives on an entry (decision 24): the short name the driver and the guest
+     * recipes use, and the steps in order. The widget the run focuses first is the entry's
+     * {@link Built#focus}.
+     *
+     * @param id    the name {@code --reader} takes, stable for the recipes written against it
+     * @param steps the steps, each changing what is published or announcing something
+     */
+    public record ReaderScript(String id, List<Step> steps) {
+
+        /** @throws IllegalArgumentException for an empty script or a blank id */
+        public ReaderScript {
+            if (id.isBlank() || steps.isEmpty()) {
+                throw new IllegalArgumentException("a reader script has an id and steps: " + id);
+            }
+            steps = List.copyOf(steps);
         }
     }
 
@@ -118,9 +272,16 @@ public final class AccessibilityGallery {
      *                  no {@code MENU} has shown nothing, and the invariants alone would pass it
      * @param factory   builds the scene afresh each time, so a palette or a locale set before
      *                  the call is what the scene is built under
+     * @param reader    what a reader run drives on it, or {@code null} for an entry no run drives
      */
     public record Entry(String name, List<Class<?>> covers, List<Accessible.Role> publishes,
-                        Supplier<Built> factory) {
+                        Supplier<Built> factory, ReaderScript reader) {
+
+        /** An entry no reader run drives. */
+        public Entry(String name, List<Class<?>> covers, List<Accessible.Role> publishes,
+                     Supplier<Built> factory) {
+            this(name, covers, publishes, factory, null);
+        }
 
         /** @return a fresh build of this entry */
         public Built build() {
@@ -210,19 +371,22 @@ public final class AccessibilityGallery {
                 new Entry("Table with a header and rows", List.of(Table.class),
                         List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL,
                                 Role.SWITCH),
-                        AccessibilityGallery::table),
+                        AccessibilityGallery::table, ReaderScripts.TABLE),
                 // TREE and TREE_ITEM since the AT-SPI numbers came off the Fedora guest on
-                // 2026-09-13 (ADR 044 §4). The live runs that day used `--scene tree-reader`,
-                // which drives the arrows itself; this entry has not had a reader pointed at it.
+                // 2026-09-13 (ADR 044 §4). The static outline; the entry after it is the one a
+                // reader run drives.
                 new Entry("Tree, one branch open", List.of(limn.components.tree.Tree.class),
                         List.of(Role.TREE, Role.TREE_ITEM),
                         AccessibilityGallery::tree),
+                new Entry("Tree with branches that load", List.of(limn.components.tree.Tree.class),
+                        List.of(Role.TREE, Role.TREE_ITEM, Role.BUTTON),
+                        AccessibilityGallery::treeThatLoads, ReaderScripts.TREE_LOADING),
                 new Entry("Calendar grid", List.of(CalendarView.class),
                         List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL, Role.BUTTON),
-                        AccessibilityGallery::calendar),
+                        AccessibilityGallery::calendar, ReaderScripts.CALENDAR),
                 new Entry("Date field, segmented", List.of(DateField.class),
                         List.of(Role.GROUP, Role.SPIN_BUTTON),
-                        AccessibilityGallery::dateField),
+                        AccessibilityGallery::dateField, ReaderScripts.DATE_FIELD),
                 new Entry("Date picker, open", List.of(DatePicker.class),
                         List.of(Role.GROUP, Role.SPIN_BUTTON, Role.BUTTON, Role.TABLE, Role.CELL),
                         AccessibilityGallery::datePicker),
@@ -233,7 +397,7 @@ public final class AccessibilityGallery {
                 // published focusable.
                 new Entry("Date picker, closed", List.of(DatePicker.class),
                         List.of(Role.GROUP, Role.SPIN_BUTTON, Role.BUTTON),
-                        AccessibilityGallery::datePickerClosed),
+                        AccessibilityGallery::datePickerClosed, ReaderScripts.DATE_PICKER),
                 new Entry("Tabbed pane", List.of(TabbedPane.class),
                         List.of(Role.TAB_LIST, Role.TAB, Role.TAB_PANEL),
                         AccessibilityGallery::tabbedPane),
@@ -287,6 +451,50 @@ public final class AccessibilityGallery {
                 new Entry("Charts", List.of(BarChart.class, LineChart.class, DonutChart.class),
                         List.of(Role.CHART, Role.CHART_SERIES),
                         AccessibilityGallery::charts));
+    }
+
+    /** @return every entry a reader run drives, in the order {@link #entries()} lists them */
+    public static List<Entry> readerEntries() {
+        return entries().stream().filter(entry -> entry.reader() != null).toList();
+    }
+
+    /**
+     * @param id a reader script's id, as {@code --reader} takes it
+     * @return the entry that script drives
+     * @throws IllegalArgumentException when no entry has a script of that id
+     */
+    public static Entry readerEntry(String id) {
+        for (Entry entry : readerEntries()) {
+            if (entry.reader().id().equals(id)) {
+                return entry;
+            }
+        }
+        throw new IllegalArgumentException("no reader script named \"" + id + "\"; the scripts are "
+                + readerEntries().stream().map(entry -> entry.reader().id()).toList());
+    }
+
+    /**
+     * Presents every surface under {@code root} that can float above the page — a combo's list,
+     * a date picker's calendar, a menu bar's cascade, a colour button's dialog — in {@code mode}:
+     * what a reader run's {@code --presentation} asks, and what the verb ratchet's second run
+     * does. Set before the scene is bound, so whatever opens later opens there.
+     *
+     * @param root the entry's root
+     * @param mode where those surfaces open
+     */
+    public static void present(Widget root, DisplayMode mode) {
+        if (root instanceof ComboBox combo) {
+            combo.setDisplayMode(mode);
+        } else if (root instanceof DatePicker picker) {
+            picker.setDisplayMode(mode);
+        } else if (root instanceof MenuBar bar) {
+            bar.setDisplayMode(mode);
+        } else if (root instanceof ColorPickerButton button) {
+            button.setPickerDisplayMode(mode);
+        }
+        for (Widget child : root.children()) {
+            present(child, mode);
+        }
     }
 
     /**
@@ -514,6 +722,92 @@ public final class AccessibilityGallery {
     }
 
     /**
+     * A folder tree the way a file browser holds one, for the reader run that replaced
+     * {@code --scene tree-reader}'s scene (decision 24): two folders open, a closed one with
+     * children, a folder whose children have to be fetched ("Remote"), one whose fetch finds nothing
+     * ("Trash", decision 45's "Empty" line) and one that is empty from the start ("Empty folder").
+     * The first rows are the ones that scene had, in its order, so the step numbers the 2026-09-13
+     * guest recipes wait on still land where their labels say. A row's cell is an application's
+     * composite — a label with an icon, a count against the trailing edge, and an "Open" button on
+     * a document — because a row that names itself from such a cell is what the Fedora baseline
+     * found silent (TREE-ROW-NAME). A fetch takes {@code limn.demo.treeLoadMillis} (600 ms unless
+     * set), long enough for the busy row to be announced before the next step.
+     */
+    private static Built treeThatLoads() {
+        Column page = page();
+        record File(String name, List<File> kids) {
+            static File leaf(String name) {
+                return new File(name, List.of());
+            }
+        }
+        File documents = new File("Documents", List.of(
+                new File("Reports", List.of(
+                        File.leaf("Q3 regional revenue and headcount, consolidated (final).pdf"),
+                        File.leaf("2026.pdf"))),
+                File.leaf("meeting notes from the Tuesday planning session.md")));
+        File media = new File("Media", List.of(File.leaf("clip.mp4"),
+                File.leaf("cover artwork, 4000 by 4000, before the crop.png")));
+        File remote = new File("Remote", List.of());
+        File trash = new File("Trash", List.of());
+        File empty = new File("Empty folder", List.of());
+        java.util.Map<File, List<File>> fetched = java.util.Map.of(
+                remote, List.of(File.leaf("index.json"), File.leaf("manifest.json"),
+                        new File("thumbnails", List.of(File.leaf("01.png"), File.leaf("02.png")))),
+                trash, List.of());
+        List<File> roots = List.of(documents, media, remote, trash, empty);
+        limn.components.tree.Tree<File> tree = new limn.components.tree.Tree<>(
+                new limn.components.tree.Tree.Model<File>() {
+                    @Override
+                    public List<File> roots() {
+                        return roots;
+                    }
+
+                    @Override
+                    public List<File> children(File file) {
+                        // A folder nobody has read answers null, which keeps its triangle.
+                        return fetched.containsKey(file) ? null : file.kids();
+                    }
+
+                    @Override
+                    public boolean isLeaf(File file) {
+                        return file != empty && limn.components.tree.Tree.Model.super.isLeaf(file);
+                    }
+
+                    @Override
+                    public limn.concurrent.Work<List<File>> load(File file) {
+                        List<File> found = fetched.getOrDefault(file, List.of());
+                        return Ui.work(progress -> {
+                            try {
+                                Thread.sleep(Long.getLong("limn.demo.treeLoadMillis", 600));
+                            } catch (InterruptedException interrupted) {
+                                Thread.currentThread().interrupt();
+                            }
+                            return found;
+                        });
+                    }
+
+                    @Override
+                    public Widget cellFor(File file) {
+                        Label text = new Label(file.name()).setIcon(BLANK_ICON);
+                        Row row = new Row();
+                        row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
+                        row.add(Expanded.of(text));
+                        if (!file.kids().isEmpty()) {
+                            row.add(new Label(String.valueOf(file.kids().size())).setMuted(true));
+                        } else if (file.name().endsWith(".pdf")) {
+                            row.add(new Button("Open").setSecondary(true));
+                        }
+                        return row;
+                    }
+                });
+        tree.setSelectionMode(limn.components.tree.Tree.SelectionMode.MULTI);
+        tree.expand(documents);
+        tree.expand(documents.kids().get(0));
+        page.add(Labelled.above("Files", tree, new SizedBox(SizedBox.UNSET, 320, tree)));
+        return Built.focusing(page, tree);
+    }
+
+    /**
      * A table as an application uses one: several rows selected in {@code MULTI}, a footer
      * summarising two columns, and a widget column whose switches are named — "Visited" is
      * what a reader hears for the control, and it says which column it stands in without the
@@ -548,7 +842,7 @@ public final class AccessibilityGallery {
         table.setSelectedRows(0, 2, 3); // the lead in view, so nothing scrolls before it is read
         page.add(Labelled.above("Mountain ranges", table,
                 new SizedBox(SizedBox.UNSET, 240, table)));
-        return new Built(page);
+        return Built.focusing(page, table);
     }
 
     /**
@@ -567,12 +861,13 @@ public final class AccessibilityGallery {
                 ? DayMark.of(Theme.current().danger, I18nString.literal("holiday"))
                 : null);
         page.add(Labelled.above("Delivery date", calendar));
-        return new Built(pinnedForReaders(page));
+        return Built.focusing(pinnedForReaders(page), calendar);
     }
 
     /**
-     * Two fields: one that is only a date and one that carries a clock as well, so a reader is
-     * checked against both the three-segment shape and the six-segment one.
+     * Three fields: one that is only a date, one that carries a clock as well, and one left empty,
+     * so a reader is checked against the date's segments, the clock's after them, and a segment
+     * that holds no number (decisions 16 and 53: its value is a word).
      */
     private static Built dateField() {
         Column page = page();
@@ -582,7 +877,8 @@ public final class AccessibilityGallery {
         DateField moment = new DateField().setGranularity(DateField.Granularity.MINUTE);
         moment.setDateTime(java.time.LocalDateTime.of(2026, 9, 9, 14, 30));
         page.add(Labelled.above("Appointment", moment));
-        return new Built(pinnedForReaders(page));
+        page.add(Labelled.above("Due date", new DateField()));
+        return Built.focusing(pinnedForReaders(page), date);
     }
 
     /** The picker with its calendar open, in the scene so the whole tree is in one window. */
@@ -611,7 +907,7 @@ public final class AccessibilityGallery {
         stay.setRange(new limn.components.date.DateRange(
                 java.time.LocalDate.of(2026, 9, 14), java.time.LocalDate.of(2026, 9, 25)));
         page.add(Labelled.above("Stay", stay));
-        return new Built(pinnedForReaders(page));
+        return Built.focusing(pinnedForReaders(page), picker.field());
     }
 
     /**

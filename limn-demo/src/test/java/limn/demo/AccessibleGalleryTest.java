@@ -375,6 +375,9 @@ class AccessibleGalleryTest {
         /** The scene each {@link #show} bound, in order: what a test observes changes on. */
         final List<Scene> scenes = new ArrayList<>();
 
+        /** What the last {@link #show(Entry)} built: its root, what it opened, what it focuses. */
+        Built built;
+
         Harness(Palette palette) {
             runtime = new UiRuntime(() -> nanos, () -> { }, workers);
             runtime.bindToCurrentThread();
@@ -394,7 +397,7 @@ class AccessibleGalleryTest {
          * @return every window the entry ended up with, the entry's own first
          */
         List<HeadlessWindow> show(Entry entry) {
-            Built built = entry.build();
+            built = entry.build();
             HeadlessWindow window = backend.open(entry.name(), WIDTH, HEIGHT);
             Scene scene = new Scene(built.root(), () -> nanos);
             scenes.add(scene);

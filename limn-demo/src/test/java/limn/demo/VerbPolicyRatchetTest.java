@@ -9,15 +9,10 @@ import limn.demo.a11y.AccessibilityGallery;
 import limn.demo.a11y.AccessibilityGallery.Entry;
 import limn.demo.a11y.HeadlessWindow;
 import limn.demo.a11y.Transcript;
-import limn.components.ColorPickerButton;
-import limn.components.ComboBox;
 import limn.components.DisplayMode;
-import limn.components.MenuBar;
-import limn.components.date.DatePicker;
 import limn.concurrent.Subscription;
 import limn.scene.Change;
 import limn.scene.Scene;
-import limn.scene.Widget;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
@@ -798,24 +793,9 @@ class VerbPolicyRatchetTest {
         private static Entry inTheScene(Entry entry) {
             return new Entry(entry.name(), entry.covers(), entry.publishes(), () -> {
                 AccessibilityGallery.Built built = entry.build();
-                presentInScene(built.root());
+                AccessibilityGallery.present(built.root(), DisplayMode.IN_SCENE);
                 return built;
-            });
-        }
-
-        private static void presentInScene(Widget widget) {
-            if (widget instanceof ComboBox combo) {
-                combo.setDisplayMode(DisplayMode.IN_SCENE);
-            } else if (widget instanceof DatePicker picker) {
-                picker.setDisplayMode(DisplayMode.IN_SCENE);
-            } else if (widget instanceof MenuBar bar) {
-                bar.setDisplayMode(DisplayMode.IN_SCENE);
-            } else if (widget instanceof ColorPickerButton button) {
-                button.setPickerDisplayMode(DisplayMode.IN_SCENE);
-            }
-            for (Widget child : widget.children()) {
-                presentInScene(child);
-            }
+            }, entry.reader());
         }
 
         /**
