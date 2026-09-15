@@ -40,7 +40,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * widget that publishes a verb it refuses is a promise every platform breaks. This test performs,
  * on every node of every gallery entry, every parameterless verb the node does <em>not</em>
  * publish, and asserts that nothing moved: the transcript of every window is the same afterwards,
- * and the entry's scene announced no change.
+ * no window opened or closed, and no scene bound to any of the entry's windows announced a change.
+ * A verb the host refuses from the snapshot is not "nothing moved" and not "accepted" either: it is
+ * reported on its own ({@link Outcome}).
  *
  * <p>The published verbs themselves are each widget's own test's business; this is the
  * complement, and it is what stops a synonym being accepted in silence.
@@ -215,17 +217,25 @@ class VerbPolicyRatchetTest {
                         if (node.actions() != null && node.actions().has(verb)) {
                             continue;
                         }
-                        String moved = run.perform(w, node.id(), verb);
-                        if (moved == null) {
+                        Outcome outcome = run.perform(w, node.id(), verb);
+                        if (outcome.refused()) {
+                            // Not a node accepting anything, and not nothing either: the node
+                            // was read off the tree this very run published.
+                            violations.add(describe(node) + " was refused " + verb + " by the "
+                                    + "host from the snapshot it was read from; the harness "
+                                    + "read a stale tree"
+                                    + (outcome.movedSomething() ? ", and " + outcome.moved() : ""));
+                        } else if (!outcome.movedSomething()) {
                             continue;
-                        }
-                        Exemption exemption = exemptionFor(entry.name(), node, verb);
-                        if (exemption != null) {
-                            used.add(exemption);
                         } else {
-                            violations.add(describe(node) + " accepted " + verb
-                                    + ", which it does not publish (" + published(node) + "): "
-                                    + moved);
+                            Exemption exemption = exemptionFor(entry.name(), node, verb);
+                            if (exemption != null) {
+                                used.add(exemption);
+                            } else {
+                                violations.add(describe(node) + " accepted " + verb
+                                        + ", which it does not publish (" + published(node)
+                                        + "): " + outcome.moved());
+                            }
                         }
                         // Whatever it did, it did: start the entry over so the next verb is
                         // asked of the tree the entry publishes at rest.
@@ -239,8 +249,9 @@ class VerbPolicyRatchetTest {
         }
         if (!violations.isEmpty()) {
             fail("gallery entry \"" + entry.name() + "\": " + violations.size()
-                    + " node(s) accepted a verb they do not publish (ADR 039 §1.5, amended "
-                    + "2026-09-14: a node accepts exactly the parameterless verbs it publishes):\n  "
+                    + " unpublished verb(s) accepted, or refused by the host from a snapshot the "
+                    + "node was read from (ADR 039 §1.5, amended 2026-09-14: a node accepts "
+                    + "exactly the parameterless verbs it publishes):\n  "
                     + String.join("\n  ", violations));
         }
         for (Exemption exemption : ALLOWLIST) {
@@ -353,7 +364,10 @@ class VerbPolicyRatchetTest {
                             || verb == Accessible.Action.SCROLL_INTO_VIEW) {
                         continue;
                     }
-                    if (run.perform(w, node.id(), verb) != null) {
+                    // A refusal from the snapshot moved nothing in the scene, whatever else it
+                    // is, so it cannot stand for an operable layer.
+                    Outcome outcome = run.perform(w, node.id(), verb);
+                    if (!outcome.refused() && outcome.movedSomething()) {
                         return;
                     }
                 }
@@ -499,29 +513,61 @@ class VerbPolicyRatchetTest {
 
     // -------------------------------------------------------------------------- one build
 
-    /** One build of an entry, settled, with the entry's scene watched for changes. */
+    /**
+     * What one verb sent through a bridge's host did, kept in two halves that mean different
+     * things (gallery brief item 5, 2026-09-15). A {@code refused} verb never reached the scene:
+     * the host answered no from the snapshot, which it does only for a node the snapshot no longer
+     * holds, and which is a harness that read a stale tree, not a node accepting anything. A
+     * {@code moved} description is a side effect: a change some scene announced, a window opened
+     * or closed, a transcript that differs.
+     *
+     * @param refused whether {@code Host#perform} refused the verb synchronously
+     * @param moved   what moved, or {@code null} when nothing did
+     */
+    record Outcome(boolean refused, String moved) {
+        boolean movedSomething() {
+            return moved != null;
+        }
+    }
+
+    /** One build of an entry, settled, with every window's scene watched while a verb runs. */
     private static final class Run implements AutoCloseable {
         final Harness harness = new Harness(Palette.LIGHT);
         final List<HeadlessWindow> windows;
         final List<String> changes = new ArrayList<>();
-        private final Subscription watching;
 
         Run(Entry entry, boolean inScene) {
             windows = new ArrayList<>(harness.show(inScene ? inTheScene(entry) : entry));
-            Scene scene = harness.scenes.get(0);
             if (inScene) {
                 openAMenuBar(windows.get(0));
             }
-            watching = scene.observeChanges((source, change) -> {
-                if (change.aspect() != Change.Aspect.LAYOUT) {
-                    changes.add(change.aspect() + "/" + change.origin() + " on "
-                            + source.getClass().getSimpleName());
-                }
-            });
             // Whatever the settle left in flight is not this test's: a verb is asked of a scene
             // that has gone quiet, and only what it does after that counts.
             harness.settle(FRAMES_AFTER_A_VERB);
-            changes.clear();
+        }
+
+        /**
+         * Watches every scene bound to a window the backend holds now: the entry's, and a native
+         * popup's, a dialog's or a menu's that the entry opened as a window of its own. Until the
+         * phase-1 critic's reading only the entry's first scene was watched, so a verb accepted
+         * inside a second window that announced a change and left the transcripts equal passed.
+         */
+        private List<Subscription> watchEveryScene() {
+            List<Subscription> watching = new ArrayList<>();
+            for (HeadlessWindow window : harness.windows()) {
+                Scene scene = window.scene();
+                if (scene == null) {
+                    continue;
+                }
+                String where = "window \"" + window.title() + "\"";
+                watching.add(scene.observeChanges((source, change) -> {
+                    if (change.aspect() != Change.Aspect.LAYOUT) {
+                        changes.add(change.aspect() + "/" + change.origin() + " on "
+                                + source.getClass().getSimpleName() + " in " + where);
+                    }
+                }));
+            }
+            return watching;
         }
 
         /**
@@ -600,21 +646,33 @@ class VerbPolicyRatchetTest {
         }
 
         /**
-         * Performs one verb on one node the way a bridge does, and reads what moved.
+         * Performs one verb on one node the way a bridge does, and reads what moved in every
+         * window.
          *
-         * @return {@code null} when nothing moved; otherwise what did, for the message
+         * @return whether the host refused it, and what moved
          */
-        String perform(int window, long nodeId, Accessible.Action verb) {
+        Outcome perform(int window, long nodeId, Accessible.Action verb) {
+            return perform(window, nodeId, verb, Accessible.Argument.NONE);
+        }
+
+        /** {@link #perform(int, long, Accessible.Action)} with an argument, for a setter. */
+        Outcome perform(int window, long nodeId, Accessible.Action verb,
+                        Accessible.Argument argument) {
             List<String> before = transcripts();
             int windowsBefore = harness.windows().size();
-            boolean accepted = windows.get(window).bridge().host.perform(
-                    nodeId, verb, Accessible.Argument.NONE);
-            harness.settle(FRAMES_AFTER_A_VERB);
+            changes.clear();
+            List<Subscription> watching = watchEveryScene();
+            boolean accepted;
+            try {
+                accepted = windows.get(window).bridge().host.perform(nodeId, verb, argument);
+                harness.settle(FRAMES_AFTER_A_VERB);
+            } finally {
+                for (Subscription subscription : watching) {
+                    subscription.cancel();
+                }
+            }
             List<String> after = transcripts();
             StringBuilder moved = new StringBuilder();
-            if (!accepted) {
-                moved.append("the host refused it from the snapshot; ");
-            }
             if (!changes.isEmpty()) {
                 moved.append("the scene announced ").append(changes).append("; ");
             }
@@ -628,7 +686,7 @@ class VerbPolicyRatchetTest {
                             .append(firstDifference(before.get(w), after.get(w))).append("; ");
                 }
             }
-            return moved.isEmpty() ? null : moved.toString();
+            return new Outcome(!accepted, moved.isEmpty() ? null : moved.toString());
         }
 
         private List<String> transcripts() {
@@ -666,7 +724,6 @@ class VerbPolicyRatchetTest {
                 return;
             }
             closed = true;
-            watching.cancel();
             harness.close();
         }
     }
