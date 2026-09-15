@@ -507,12 +507,18 @@ final class AxGrid {
     long[] columnHeaderElements(AccessibleNode node) {
         AccessibleTree tree = source.tree();
         if (node.table() != null) {
-            if (headerGroupOf(node) == AccessibleNode.NONE) return null;
             // The union over EVERY direct group child that carries a header cell, not the first
             // group alone (semantics 3, settled after phase 3; Windows' GetColumnHeaders is the
             // union, and this read only the first). A table that splits its headers over two groups
             // — frozen columns beside scrolling ones — named half of them.
-            long[] found = new long[0];
+            //
+            // No headerGroupOf guard above this walk: the guard passed exactly when this walk finds
+            // a cell, so an attribute AppKit asks per element walked the table's groups twice to
+            // learn what it was about to say. Finding none is the guard's answer, null. Collected as
+            // identifiers and minted at the end, like columnCells above, so the growth copies no
+            // element.
+            long[] ids = new long[4];
+            int count = 0;
             for (int group = node.firstChild(); group != AccessibleNode.NONE;
                     group = tree.node(group).nextSibling()) {
                 if (tree.node(group).role() != Accessible.Role.GROUP) continue;
@@ -520,10 +526,13 @@ final class AxGrid {
                         child = tree.node(child).nextSibling()) {
                     AccessibleNode cell = tree.node(child);
                     if (cell.cell() == null || cell.cell().row() != HEADER_ROW) continue;
-                    found = java.util.Arrays.copyOf(found, found.length + 1);
-                    found[found.length - 1] = source.elementFor(cell.id());
+                    if (count == ids.length) ids = java.util.Arrays.copyOf(ids, count * 2);
+                    ids[count++] = cell.id();
                 }
             }
+            if (count == 0) return null;
+            long[] found = new long[count];
+            for (int i = 0; i < count; i++) found[i] = source.elementFor(ids[i]);
             return found;
         }
         int header = headerCellOf(node);
@@ -684,11 +693,12 @@ final class AxGrid {
     }
 
     /**
-     * The index of a data cell's header cell (semantics 3): under its nearest table ancestor, the child
-     * with {@code CellFacet(−1, c)} of one of the table's direct group children, c being the cell's
-     * column. Matched by column, never by place, so a column with no header cell has none and a footer
-     * cell is never one. Allocates nothing.
+     * The index of a data cell's or a footer cell's header cell (semantics 3): under its nearest table
+     * ancestor, the child with {@code CellFacet(−1, c)} of one of the table's direct group children, c
+     * being the cell's column. Matched by column, never by place, so a column with no header cell has
+     * none, and a header cell answers none rather than itself. Allocates nothing.
      *
+     * @param cell the cell asked
      * @return the index, or {@code NONE}
      */
     int headerCellOf(AccessibleNode cell) {
