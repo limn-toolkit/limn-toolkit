@@ -1824,6 +1824,22 @@ pointing here: §9.2's answer to ADR 040's §6.1 ("an active descendant on its c
 surface's cursor" in both — a column has no cursor of its own since this amendment, and the one
 `ACTIVE_DESCENDANT_CHANGED` per arrow key that row promises is still one, on the surface.
 
+#### Amendment 2026-09-15 — macOS posts when the frame ends, not when the tree next changes
+
+**What was wrong (MACOS-NEW-8).** "It gets a per-frame budget" above was true of the budget and not
+of the moment. The macOS bridge drained its queue at the top of `publish`, and the scene publishes
+only when the walk found a difference (§5.3 step 6), so the events of one change were posted inside
+the publish of the *next* change, against a tree that had already moved on, and the last change
+before a pause was not posted until something else changed. Announcements, which the scene emits
+without publishing, waited the same way. `--scene tree-reader` steps three seconds apart were each
+told to VoiceOver at the following step; the phase 7 probe hid it by changing the tree every tick.
+Windows and Linux were never affected: their raises leave `emit` for a thread of their own.
+
+**The rule.** The seam gains `AccessibilityBridge#frameEnded()` (§5.3's amendment of this date), called
+at the end of every frame's accessibility step and never from a reentrant publish. The macOS bridge
+drains there, after the frame's own events, and pays there whatever a reentrant publish deferred.
+"Per frame" now means the frame that emitted the events.
+
 ### 1.11 A popup's contents are described where they actually live
 
 ADR 028's two mountings survive into the accessibility tree unchanged, because pretending otherwise
@@ -3041,6 +3057,48 @@ Hover deserves one sentence, because it is easy to miss: on a content frame with
 and no button down, hover is recomputed from the pointer position, so a hover-derived state can change
 with no pointer event at all. The publish step runs after that recomputation precisely so that it sees
 the settled answer.
+
+#### Amendment 2026-09-15 — every frame ends, and the end is where macOS posts
+
+**What was wrong (MACOS-NEW-8).** The step above gave a bridge two moments, `publish` and `emit`,
+and both happen only on a frame whose walk found a difference (step 6) or that re-stamped (step 4).
+A bridge that posts on the user-interface thread therefore had no moment after a frame's events at
+all: the macOS bridge drained at the top of the next publish, which is the next *change*. Two
+consequences followed. Every notification was one change late (§1.10's amendment of this date).
+And the reentrancy paragraph's "owed to the next ordinary frame" did not hold: `republishNow()`
+clears the node flag it walked for, so the frame it asks for finds nothing dirty, returns at step 3,
+and the deferred re-push, boxes and drain waited for an unrelated change.
+
+**The rule.** `AccessibilityBridge` gains an eleventh member (the §5.2 listing above predates it),
+with a no-op default:
+
+```java
+    /** The frame's accessibility step is over: everything this frame had to say was emitted. */
+    default void frameEnded() { }
+```
+
+and the step gains a last line, run however steps 0 to 7 returned — after a re-present, with nothing
+listening, with a clean tree, after a re-stamp, after a publish:
+
+8. `bridge.frameEnded()`. One virtual call; `NONE` and every bridge that raises on a thread of its
+   own inherit the no-op. Never from `republishNow()`.
+
+On macOS `frameEnded` first pays what a reentrant publish deferred (the re-push of the root's
+children and the boxes), then drains the queue: posts, the collapse's sweep, and — because the
+sweep forgets what was pushed — the root's re-push at once rather than at the next publish. A frame
+end with nothing queued and nothing deferred returns after one comparison and allocates nothing.
+`publish` keeps the re-push and the boxes, so an element a notification names exists when it goes
+out. Read "the next ordinary frame" in the reentrancy paragraph above, in §5.2's `publish` javadoc
+and in §12.1's `AccessibleReentrancyTest` row as "the end of the next frame, whether or not it
+publishes". `INVOKED`, emitted by a performed action outside any frame, is drained at the end of the
+next frame; macOS posts nothing for it (§2.4).
+
+Proven by `AxSceneTimingTest` (a real `Scene` over the platform's bridge with the platform left out:
+a focus move posted after the frame emitted it, an announcement on a still window drained in its own
+frame, and a reentrant publish's event posted by a frame that walked nothing), each red on the
+earlier code, and `AxBridgeTest.aFrameEndWithNothingToSayAllocatesNothing`. The live check — an
+`AXObserver` timestamping deliveries against a reader scene's step lines on the macOS guest — is
+phase 5's.
 
 ### 5.4 Popups and dialogs, per platform
 

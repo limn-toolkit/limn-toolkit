@@ -55,6 +55,25 @@ class AxBridgeTest {
         return a.publish(0, 0, 0, 1f, true);
     }
 
+    /** A window whose root has two children, where {@link #aNestedWindow} has one. */
+    private static AccessibleTree aWindowWithTwoGroups() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(480, 320, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        for (int i = 0; i < 2; i++) {
+            a.begin(1001 + 10L * i, 0, Locale.ENGLISH, 20, 60 + 100L * i, 200, 80);
+            a.role(Accessible.Role.GROUP);
+            a.name(I18nString.literal("Group " + i), Accessible.NameFrom.CONTENT);
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
     /** The same window, with one node holding the keyboard. */
     private static AccessibleTree aNestedWindowWithFocus(long focusedId) {
         Accessibility a = new Accessibility();
@@ -323,7 +342,11 @@ class AxBridgeTest {
     }
 
     @Test
-    void anEmittedEventWaitsForTheNextOrdinaryFrame() {
+    void anEmittedEventIsPostedWhenItsFrameEndsAndNeverByAPublish() {
+        // Restated by MACOS-NEW-8. This case used to be anEmittedEventWaitsForTheNextOrdinaryFrame
+        // and asserted that the next publish posted it; a scene publishes only when its tree
+        // changed, so "the next publish" was "the next change", and a still window never told the
+        // last thing that happened. The frame's end is where it goes out now.
         AxBridge bridge = AxBridge.withoutThePlatform();
         List<String> trace = traced(bridge);
         AccessibleTree tree = aNestedWindow(1);
@@ -333,8 +356,27 @@ class AxBridgeTest {
                 "every post is a cross-process call; emit is not the place to make one");
         assertTrue(posted(trace).isEmpty());
         bridge.publish(tree, false);
+        assertTrue(posted(trace).isEmpty(), "a publish posts nothing: its own events are not out yet");
+        bridge.frameEnded();
         assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"),
                 posted(trace));
+        assertEquals(0, bridge.queuedEvents());
+        bridge.frameEnded();
+        assertEquals(1, posted(trace).size(), "and a frame that said nothing posts nothing");
+    }
+
+    @Test
+    void aFrameEndWithNothingToSayAllocatesNothing() {
+        // It runs on every frame now, the quiet ones included, so it has to cost what
+        // AccessibleIdleCostTest asks of a frame with a live bridge and a clean tree: nothing.
+        org.junit.jupiter.api.Assumptions.assumeTrue(limn.testing.AllocationProbe.isSupported(),
+                "this virtual machine does not count per-thread allocation");
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        bridge.publish(aNestedWindow(2), false);
+        bridge.frameEnded();
+        Runnable quietFrameEnd = bridge::frameEnded;
+        assertEquals(0, limn.testing.AllocationProbe.leastAllocatedBy(quietFrameEnd, 60),
+                "a frame that emitted nothing costs no memory to end");
     }
 
     @Test
@@ -348,6 +390,24 @@ class AxBridgeTest {
         assertTrue(posted(trace).isEmpty(),
                 "a post from inside an AX callback re-enters the platform on our own objects (§3.2)");
         assertEquals(1, bridge.queuedEvents(), "and the event is kept for the frame that follows");
+        bridge.frameEnded();
+        assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
+                "which posts it when it ends, whether or not it published");
+        assertFalse(bridge.obligationsDeferred(), "and pays the re-push and the boxes there too");
+    }
+
+    @Test
+    void theFrameAfterAReentrantPublishPushesTheRootItDeferred() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        bridge.publish(aNestedWindow(1), false);
+        int before = bridge.pushes();
+        // The root's children changed inside an AX callback: a second group is a new root child.
+        bridge.publish(aWindowWithTwoGroups(), true);
+        assertEquals(before, bridge.pushes(), "never from inside the callback (§3.2)");
+        bridge.frameEnded();
+        assertEquals(before + 1, bridge.pushes(),
+                "the frame it asked for publishes nothing when the tree is clean, and pushes anyway");
+        assertEquals(2, bridge.pushedElements().length);
     }
 
     @Test
@@ -358,7 +418,8 @@ class AxBridgeTest {
         bridge.publish(tree, false);
         // 1002 is below the pushed level, so no element exists for it until something pulls.
         bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
-        bridge.publish(tree, false);
+        bridge.frameEnded();
+        assertEquals(0, bridge.queuedEvents(), "it was drained");
         assertTrue(posted(trace).isEmpty(),
                 "a notification about an object the platform has never seen reaches no registration");
     }
@@ -371,7 +432,8 @@ class AxBridgeTest {
         bridge.publish(tree, false);
         bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, 1001));
         bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_OPENED, 1000));
-        bridge.publish(tree, false);
+        bridge.frameEnded();
+        assertEquals(0, bridge.queuedEvents(), "both were drained");
         assertTrue(posted(trace).isEmpty(),
                 "AppKit is already saying both, and ours would be a second copy of each");
     }
@@ -391,10 +453,27 @@ class AxBridgeTest {
             bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
         }
         bridge.publish(AccessibleTree.EMPTY, false);
+        bridge.frameEnded();
         assertEquals(0, bridge.elementCount(),
                 "a collapse is exactly the burst whose per-node destructions were dropped");
         assertEquals(0, bridge.pushedElements().length,
                 "and the array AppKit holds names elements that were just released");
+    }
+
+    @Test
+    void aCollapseOverALiveTreePushesTheRootAgainWhenTheFrameEndsAndNotAtTheNextChange() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(2);
+        bridge.publish(tree, false);
+        int before = bridge.pushes();
+        for (int i = 0; i <= AxEvents.CAPACITY; i++) {
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
+        }
+        bridge.frameEnded();
+        assertEquals(1, bridge.collapses());
+        assertEquals(before + 1, bridge.pushes(),
+                "the sweep forgot what was pushed; on a still window the next publish may never come");
+        assertEquals(1, bridge.pushedElements().length);
     }
 
     @Test
@@ -476,6 +555,7 @@ class AxBridgeTest {
             bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1002));
             bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
             bridge.publish(tree, false);
+            bridge.frameEnded();
             bridge.focusedElement();
         }
         assertEquals(before, retainedSizes(bridge),
@@ -521,10 +601,10 @@ class AxBridgeTest {
         List<String> trace = traced(bridge);
         long focused = bridge.focusedElement();
         bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1002));
-        bridge.publish(tree, false);
+        bridge.frameEnded();
         bridge.trace(null);
         bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1002));
-        bridge.publish(tree, false);
+        bridge.frameEnded();
         bridge.focusedElement();
         assertEquals(List.of("focused 1002=BUTTON@" + Long.toHexString(focused),
                         "emitted FOCUS_CHANGED#1002",
@@ -543,6 +623,7 @@ class AxBridgeTest {
             bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
         }
         bridge.publish(AccessibleTree.EMPTY, false);
+        bridge.frameEnded();
         assertEquals(0, bridge.elementCount());
         assertTrue(bridge.teardown().isEmpty(), "a sweep in a live session is not a teardown");
         assertNull(bridge.lastFrameOf(1002), "and a released element's box goes with it");

@@ -44,10 +44,10 @@ import java.util.List;
  *
  * <p><b>{@code -Dprobe.timing=true} is the §13.19 run.</b> The platform's bridge is opened the way
  * an application would open it and installed behind a {@link TimingBridge} through
- * {@code NativeWindow#setAccessibility}, so that every publish is a sample: how many events the
- * scene emitted in that frame, what the publish cost, what its drain cost and how many
- * notifications reached AppKit. Every tick prints the samples since the last one and the run ends
- * with the summary; with {@code -Dprobe.cycle=scroll} or {@code drag} and a short
+ * {@code NativeWindow#setAccessibility}, so that every frame that published or emitted is a sample:
+ * how many events the scene emitted in that frame, what its publish cost, what its drain cost
+ * and how many notifications reached AppKit. Every tick prints the samples since the last one
+ * and the run ends with the summary; with {@code -Dprobe.cycle=scroll} or {@code drag} and a short
  * {@code -Dprobe.tickMs} that is the count the record asks for, taken with VoiceOver attached.
  * {@code -Dprobe.steps} is how many ticks to run, forty when unsaid.
  *
@@ -180,13 +180,14 @@ public final class LiveProbe {
                     traced.clear();
                 }
                 if (measured != null) {
-                    // One line per publish since the last tick: the frame's event count, what the
-                    // publish cost and what its drain cost. A tick faster than the software-GL
-                    // frame puts two ticks into one frame, and that shows here as one sample with
-                    // both ticks' events in it -- which is the honest per-frame figure.
+                    // One line per frame since the last tick: the frame's event count, what its
+                    // publish cost and what the drain at its end cost. A tick faster than the
+                    // software-GL frame puts two ticks into one frame, and that shows here as one
+                    // sample with both ticks' events in it -- which is the honest per-frame figure.
                     for (TimingBridge.Sample sample : measured.samplesSince(lastSample[0])) {
                         System.out.println("    sample #" + sample.number()
                                 + " events=" + sample.events()
+                                + " publishes=" + sample.publishes()
                                 + " publish=" + sample.publishNanos() / 1_000 + "us"
                                 + " drain=" + sample.drainNanos() / 1_000 + "us"
                                 + " posted=" + sample.posted()

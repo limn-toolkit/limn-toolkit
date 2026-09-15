@@ -40,7 +40,13 @@ import java.util.function.Consumer;
  * cannot wait for a frame, the scene rebuilds and publishes from inside that callback with AppKit
  * standing on objects this bridge vended. Such a publish <b>releases nothing, re-pushes nothing and
  * drains nothing</b> (§3.2): each would act on what the caller is holding. What it defers is owed to
- * the next ordinary frame, which the scene has already asked for.
+ * the end of the next frame, which the scene has already asked for and which pays it whether or not
+ * that frame publishes.
+ *
+ * <p><b>Notifications are posted when the frame ends</b> ({@link #frameEnded()}), after the scene has
+ * emitted everything that frame had to say. They were once posted at the top of the next publish,
+ * and a scene publishes only when its tree changed, so every notification waited for the next change
+ * and the last one before a pause was never told at all (MACOS-NEW-8).
  */
 public final class AxBridge extends PlatformBridge implements AxElementClass.Source {
 
@@ -175,9 +181,9 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             return;
         }
         obligationsDeferred = false;
-        // The drain before the push and the frames, so that what a client is told to re-read is
-        // already there when it asks.
-        drain();
+        // No drain here: the events of this tree have not been emitted yet, and the ones queued
+        // are the previous tree's, which the end of the previous frame already told. The drain is
+        // the frame's end (frameEnded), after this publish's own events.
         // The push before the frames, because the push is what mints the root's children and a
         // node with no element has no box to set. The first run of this had them the other way
         // round and every element arrived as a zero-size rectangle at the origin -- which a walk
@@ -185,6 +191,27 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         // says only a live client finds.
         repushRootIfChanged();
         refreshFrames();
+    }
+
+    /**
+     * Posts what this frame emitted, and pays whatever a reentrant publish deferred.
+     *
+     * <p>The re-push and the boxes before the drain, so that a notification naming a node the push
+     * has just minted goes out on an element that exists. After a collapse the drain forgets what
+     * was pushed, because the sweep may have released some of it; the root is pushed again at once
+     * rather than on the next publish, which on a still window may be a long time coming.
+     */
+    @Override
+    public void frameEnded() {
+        if (obligationsDeferred) {
+            obligationsDeferred = false;
+            repushRootIfChanged();
+            refreshFrames();
+        }
+        // A quiet frame costs one comparison and allocates nothing: AccessibleIdleCostTest's frame
+        // with a live bridge and a clean tree goes through here.
+        if (events.size() == 0 && !events.willCollapse()) return;
+        if (drain()) repushRootIfChanged();
     }
 
     @Override
@@ -359,16 +386,16 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     /**
      * Posts one frame's worth of events, and reconciles the registry when the queue collapsed.
      *
-     * <p>Never from a reentrant publish: a post from inside an AX callback re-enters the platform
-     * while it is standing on our objects (§3.2). The queue keeps them for the ordinary frame the
-     * scene has already asked for.
+     * <p>Only from the end of a frame: a post from inside an AX callback re-enters the platform
+     * while it is standing on our objects (§3.2). The queue keeps a reentrant publish's events for
+     * the end of the frame the scene has already asked for.
      *
      * <p>A collapse is why the sweep is here rather than only on {@code NODE_DESTROYED}: the burst
      * that overflowed the queue is exactly the one whose per-node destructions were dropped, so
      * after one there is no list of what died — only the tree, and whatever the registry still
      * holds (§13.9).
      */
-    private void drain() {
+    private boolean drain() {
         // Timed, because §13.19's macOS half is "what does one frame's drain cost with a reader
         // attached", and the drain is the only part of a publish that is a cross-process call.
         // Two nanoTime reads per frame is the whole price of being able to answer that from the
@@ -404,13 +431,14 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         lastDrainNanos = System.nanoTime() - started;
         lastDrainDrained = drained.size();
         lastDrainPosted = postedNow;
+        return collapsing;
     }
 
     private long lastDrainNanos;
     private int lastDrainDrained;
     private int lastDrainPosted;
 
-    /** @return how long the last ordinary publish spent draining, in nanoseconds; the §13.19 cost. */
+    /** @return how long the last frame end spent draining, in nanoseconds; the §13.19 cost. */
     long lastDrainNanos() {
         return lastDrainNanos;
     }
@@ -468,7 +496,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         pushes++;
     }
 
-    /** @return whether a reentrant publish left work for the next ordinary frame. */
+    /** @return whether a reentrant publish left work for the next frame to end. */
     boolean obligationsDeferred() {
         return obligationsDeferred;
     }
