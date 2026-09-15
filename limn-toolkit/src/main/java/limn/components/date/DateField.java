@@ -2072,11 +2072,12 @@ public class DateField extends Widget {
         float pad = t.fieldPadH();
         float x = isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
         // Verbs only where they can be performed (2026-09-15, semantics 5 and decision 30): on a
-        // disabled field a segment publishes its value read-only and no verb, as a refused
-        // calendar day does, since the scene would drop every one, and beneath an in-scene popup
-        // likewise. Both are the walk's, for every node that is not ENABLED (ADR 039 §1.5 and
-        // §1.13, amended the same day), so the segments declare their verbs and a writable value
-        // here and the walk withdraws them.
+        // disabled field a segment publishes no verb, as a refused calendar day does, since the
+        // scene would drop every one, and beneath an in-scene popup likewise. Both are the walk's,
+        // for every node that is not ENABLED (ADR 039 §1.5 and §1.13, amended the same day), so
+        // the segments declare their verbs and a writable value here and the walk withdraws the
+        // verbs; the value stays writable and the missing ENABLED is what refuses its SET_VALUE
+        // (fix round 2e).
         int slot = 0;
         for (DatePattern.Part part : parts) {
             float pieceWidth = pieceWidth(ruler, font, neutral, part);

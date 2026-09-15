@@ -476,6 +476,11 @@ final class AtspiTree {
         if (node.cell() != null) {
             out.add(Atspi.I_TABLE_CELL);
         }
+        // No setter is served yet: neither Value nor EditableText is named here, so nothing this
+        // bridge answers can post SET_VALUE or SET_TEXT. Phase 3 serves them (linux-value-text)
+        // and owes each setter the refusal fix round 2e settled: none posted to a node
+        // AccessibleNode#accepts refuses, a node without ENABLED included, while the facet alone
+        // answers whether the value or the text is settable (semantics 5, amended 2026-09-15).
         return out;
     }
 

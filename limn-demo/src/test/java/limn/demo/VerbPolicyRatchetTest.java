@@ -50,9 +50,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  * first menu opened (ADR 039 §1.13, amended 2026-09-15). In both, before any verb is sent, it holds
  * the central rule on the entry's window: a node outside the layer that owns input — outside the
  * in-scene overlay's subtree, or anywhere in a window a native modal blocks — publishes no verb and
- * no setter, because the scene refuses every one there. {@link #IN_SCENE_OVERLAYS} names the
- * entries whose second run has an overlay open, so the rule cannot pass by an overlay failing to
- * open. The rule is held on every window the entry ended up with, not only its own.
+ * accepts no setter ({@code AccessibleNode#accepts}: a writable facet implies one only on an
+ * {@code ENABLED} node, fix round 2e), because the scene refuses every one there.
+ * {@link #IN_SCENE_OVERLAYS} names the entries whose second run has an overlay open, so the rule
+ * cannot pass by an overlay failing to open. The rule is held on every window the entry ended up
+ * with, not only its own.
  *
  * <p>Two more checks keep the rule honest in both directions (fix round 2d, 2026-09-15). In the
  * run with its surfaces in the scene, a node inside the open layer still publishes a verb and
@@ -252,8 +254,11 @@ class VerbPolicyRatchetTest {
 
     /**
      * The central rule on every window of the entry at rest (ADR 039 §1.9 and §1.13, amended
-     * 2026-09-15; semantics 5): a node outside the layer that owns input publishes no verb, no
-     * writable value and no editable text. Outside is outside the subtree of the node published
+     * 2026-09-15; semantics 5): a node outside the layer that owns input publishes no verb and
+     * accepts no setter. A setter is read through {@link AccessibleNode#accepts}, not off the
+     * facet's writability: such a node keeps the writable value or the editable text it really
+     * has and is published without {@code ENABLED}, which is what withdraws the setter (fix round
+     * 2e, 2026-09-15). Outside is outside the subtree of the node published
      * {@code MODAL} (the top in-scene overlay of that window), or anywhere in a window whose own
      * node is not {@code ENABLED} (a native modal blocks it). With its surfaces in the scene, an
      * overlay is open in some window exactly when {@link #IN_SCENE_OVERLAYS} names the entry.
@@ -307,11 +312,11 @@ class VerbPolicyRatchetTest {
             if (node.actions() != null) {
                 violations.add(describe(node) + " " + published(node));
             }
-            if (node.value() != null && !node.value().readOnly()) {
-                violations.add(describe(node) + " publishes a writable value");
+            if (node.accepts(Accessible.Action.SET_VALUE)) {
+                violations.add(describe(node) + " accepts SET_VALUE");
             }
-            if (node.text() != null && !node.has(Accessible.State.READ_ONLY)) {
-                violations.add(describe(node) + " publishes editable text");
+            if (node.accepts(Accessible.Action.SET_TEXT)) {
+                violations.add(describe(node) + " accepts SET_TEXT");
             }
         }
         if (!violations.isEmpty()) {

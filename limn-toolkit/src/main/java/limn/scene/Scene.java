@@ -558,9 +558,10 @@ public final class Scene implements WindowInput {
      * {@code null} when the window's backend says a modal is open over it and no layer here owns
      * input at all. The one rule both halves of ADR 039 read (§1.9 and §1.13, amended
      * 2026-09-15): the walk publishes every node outside it without {@code ENABLED},
-     * {@code FOCUSABLE}, a verb or a setter, and {@link #performAccessibleAction} refuses every
-     * verb on a widget outside it, so the list a platform is answered from is the list the scene
-     * performs (semantics 5).
+     * {@code FOCUSABLE} or a verb &mdash; and so accepting no setter, which a facet implies only
+     * on an {@code ENABLED} node (fix round 2e) &mdash; and {@link #performAccessibleAction}
+     * refuses every verb on a widget outside it, so the list a platform is answered from is the
+     * list the scene performs (semantics 5).
      *
      * @return the top overlay, the root when no overlay is open, or {@code null} while a native
      *         modal blocks the window
@@ -1006,6 +1007,11 @@ public final class Scene implements WindowInput {
         if (refused) {
             return;
         }
+        // The setters included: SET_VALUE and SET_TEXT on a disabled widget or under a disabled
+        // ancestor stop here, and so do they outside the layer below. That is the pair of facts
+        // the snapshot carries as a missing ENABLED, which is all a bridge reads to refuse a
+        // setter synchronously (AccessibleNode#accepts; semantics 5, amended 2026-09-15 in fix
+        // round 2e): the node keeps its true writability, and this gate is its refusal.
         for (Widget at = owner; at != null; at = at.parent()) {
             if (!at.isEnabled()) {
                 return; // a control inside a disabled container is one the keyboard refuses too

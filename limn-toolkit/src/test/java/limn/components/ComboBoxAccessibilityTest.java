@@ -205,9 +205,11 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
                         + "COLLAPSE included (ADR 039 §1.13, amended 2026-09-15). In a window of "
                         + "its own the field keeps the input and publishes COLLAPSE, which is the "
                         + "lab's mounting" + describe(tree()));
-        assertTrue(field().value().readOnly(),
-                "and no SET_VALUE either: the value is published read-only while it cannot be "
-                        + "set" + describe(tree()));
+        assertFalse(field().accepts(Accessible.Action.SET_VALUE),
+                "and no SET_VALUE either: the field is not ENABLED beneath the layer"
+                        + describe(tree()));
+        assertFalse(field().value().readOnly(),
+                "while its value keeps the writability it has (fix round 2e)" + describe(tree()));
     }
 
     // ---------------------------------------------------------------------------------- the name

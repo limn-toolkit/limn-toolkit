@@ -182,7 +182,8 @@ final class AccessibleWalk {
         // layer that owns input at all, so nothing in it is reachable and nothing in it -- the
         // window node included, which is what a Win32 owner disabled by its dialog reports and
         // what a GTK modal grab does to a frame -- is published ENABLED or FOCUSABLE, or with a
-        // verb or a setter (2026-09-15). The in-scene rule below clears the same for what lies
+        // verb (2026-09-15), and so none of it accepts a setter: a facet implies one only on an
+        // ENABLED node (fix round 2e). The in-scene rule below clears the same for what lies
         // outside the top overlay; without this
         // one the owner of a native dialog offered a reader a whole interface of operable
         // controls and §1.9's gate refused every invocation with no way to say why. The nodes
@@ -550,12 +551,14 @@ final class AccessibleWalk {
         if (!ownEnabled) {
             // A node that is not ENABLED is one the scene refuses every verb on (§1.9), so nothing
             // there is published operable (semantics 5; §1.5 and §1.13, amended 2026-09-15): no
-            // verb the widget or its container declared, and no setter a writable facet implies.
-            // One flag for both of the reasons it is clear -- the widget or an ancestor is
-            // disabled, or it lies outside the layer that owns input -- because it is the flag the
-            // ENABLED bit is published from. After the transparency test above, so a node that
-            // offered only verbs keeps its place in the tree while it is refused; the gate
-            // refuses a routed verb while it is.
+            // verb the widget or its container declared. Its setters need no withdrawal and get
+            // none: a writable facet implies one only on an ENABLED node, so the value keeps its
+            // writability and the text its true READ_ONLY (§1.2, fix round 2e), and a bridge
+            // reads the missing bit. One flag for both of the reasons it is clear -- the widget or
+            // an ancestor is disabled, or it lies outside the layer that owns input -- because it
+            // is the flag the ENABLED bit is published from. After the transparency test above, so
+            // a node that offered only verbs keeps its place in the tree while it is refused; the
+            // gate refuses a routed verb while it is.
             builder.inoperableAt(slot);
         }
         boolean showing = widget.isShowing();

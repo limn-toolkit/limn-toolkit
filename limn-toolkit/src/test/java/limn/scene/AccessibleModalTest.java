@@ -62,9 +62,11 @@ class AccessibleModalTest extends AccessibleTestBase {
     /**
      * The same rule for what a node offers to do (ADR 039 §1.13, amended 2026-09-15; semantics 5):
      * the scene refuses every verb outside the layer that owns input, and a platform is answered
-     * from the snapshot, so a node there publishes no verb and none of the setters its facets
-     * would imply -- its value read-only, its text {@code READ_ONLY} -- beneath an in-scene
-     * layer and in a window a native modal blocks alike, and gets them back when the layer goes.
+     * from the snapshot, so a node there publishes no verb and accepts none of the setters its
+     * facets would imply, beneath an in-scene layer and in a window a native modal blocks alike,
+     * and gets them back when the layer goes. The setters go with {@code ENABLED}, not with a
+     * read-only flag the node does not have (fix round 2e): its value stays writable and its text
+     * never gains {@code READ_ONLY}, and the scene refuses a setter sent anyway.
      */
     @Test
     void everythingOutsideTheOpenLayerPublishesNoVerbAndNoSetter() {
@@ -93,30 +95,53 @@ class AccessibleModalTest extends AccessibleTestBase {
 
         assertNull(node("level").actions(),
                 "a verb the scene refuses beneath the layer is not published: " + describe(tree()));
-        assertTrue(node("level").value().readOnly(), "nor the SET_VALUE a writable value implies");
-        assertTrue(node("level").has(Accessible.State.READ_ONLY));
+        assertFalse(node("level").accepts(Accessible.Action.SET_VALUE),
+                "nor the SET_VALUE a writable value implies: " + describe(tree()));
+        assertFalse(node("level").value().readOnly(), "on a value that is still writable");
+        assertFalse(node("level").has(Accessible.State.READ_ONLY));
         assertEquals(40.0, node("level").value().value(), "what it holds is still said");
         assertNull(node("notes").actions(), "not even the free verbs");
-        assertTrue(node("notes").has(Accessible.State.READ_ONLY),
+        assertFalse(node("notes").accepts(Accessible.Action.SET_TEXT),
                 "nor the SET_TEXT an editable text implies: " + describe(tree()));
+        assertFalse(node("notes").has(Accessible.State.READ_ONLY),
+                "on a text that is not read-only: " + describe(tree()));
         assertTrue(node("confirm").actions().has(Accessible.Action.PRESS),
                 "the layer that owns input keeps every one");
-        assertFalse(node("confirm").value().readOnly());
+        assertTrue(node("confirm").accepts(Accessible.Action.SET_VALUE));
+        assertSettersRefused(slider, field);
 
         scene.removeOverlay(dialog);
         frame();
         assertTrue(node("level").actions().has(Accessible.Action.INCREMENT),
                 "closing the layer gives the operations back: " + describe(tree()));
-        assertFalse(node("level").value().readOnly());
-        assertFalse(node("notes").has(Accessible.State.READ_ONLY));
+        assertTrue(node("level").accepts(Accessible.Action.SET_VALUE));
+        assertTrue(node("notes").accepts(Accessible.Action.SET_TEXT));
 
         window.modalBlocked = true;
         scene.requestRender();
         frame();
         assertNull(node("level").actions(),
                 "a native modal blocks the whole window the same way: " + describe(tree()));
-        assertTrue(node("level").value().readOnly());
-        assertTrue(node("notes").has(Accessible.State.READ_ONLY));
+        assertFalse(node("level").accepts(Accessible.Action.SET_VALUE));
+        assertFalse(node("level").value().readOnly());
+        assertFalse(node("notes").accepts(Accessible.Action.SET_TEXT));
+        assertFalse(node("notes").has(Accessible.State.READ_ONLY));
+        assertSettersRefused(slider, field);
+    }
+
+    /**
+     * Sends {@code SET_VALUE} to {@code level} and {@code SET_TEXT} to {@code notes} as a platform
+     * would, and asserts the scene performed neither: the refusal the missing {@code ENABLED}
+     * stands for in the snapshot.
+     */
+    private void assertSettersRefused(Probe level, Probe notes) {
+        bridge.host.perform(node("level").id(), Accessible.Action.SET_VALUE,
+                new Accessible.Argument.OfValue(80));
+        bridge.host.perform(node("notes").id(), Accessible.Action.SET_TEXT,
+                new Accessible.Argument.OfText("sent"));
+        runtime.drain();
+        assertEquals(List.of(), level.performed, "the scene refused the SET_VALUE");
+        assertEquals(List.of(), notes.performed, "the scene refused the SET_TEXT");
     }
 
     /**
@@ -124,8 +149,9 @@ class AccessibleModalTest extends AccessibleTestBase {
      * refuses every verb on a disabled widget and under a disabled ancestor, so a node published
      * without {@code ENABLED} offers no verb, no verb its container claimed on it, no key binding
      * and no setter — by its own flag, by an ancestor's, and on a synthetic child its enabled
-     * owner narrowed, and one nested under that child. What it is and holds stays, and enabling
-     * it gives everything back.
+     * owner narrowed, and one nested under that child. What it is and holds stays, its
+     * writability included (§1.2: a disabled field is not a read-only one; fix round 2e), and
+     * enabling it gives everything back.
      */
     @Test
     void aDisabledNodePublishesNoVerbNoClaimNoKeyBindingAndNoSetter() {
@@ -165,10 +191,16 @@ class AccessibleModalTest extends AccessibleTestBase {
         frame();
 
         assertNull(node("level").actions(), "its own flag: no verb" + describe(tree()));
-        assertTrue(node("level").value().readOnly(), "and no SET_VALUE" + describe(tree()));
+        assertFalse(node("level").accepts(Accessible.Action.SET_VALUE),
+                "and no SET_VALUE" + describe(tree()));
+        assertFalse(node("level").value().readOnly(), "from a value still writable");
         assertEquals(40.0, node("level").value().value(), "what it holds is still said");
         assertNull(node("notes").actions(), describe(tree()));
-        assertTrue(node("notes").has(Accessible.State.READ_ONLY), "no SET_TEXT" + describe(tree()));
+        assertFalse(node("notes").accepts(Accessible.Action.SET_TEXT),
+                "no SET_TEXT" + describe(tree()));
+        assertFalse(node("notes").has(Accessible.State.READ_ONLY),
+                "and never READ_ONLY from disabled" + describe(tree()));
+        assertSettersRefused(slider, field);
         assertTrue(row.isEnabled(), "the fixture leaves the row's own flag alone");
         assertNull(node("row").actions(),
                 "an ancestor's flag: no verb, no claim, no key binding" + describe(tree()));
@@ -180,8 +212,8 @@ class AccessibleModalTest extends AccessibleTestBase {
         days.setEnabled(true);
         frame();
         assertTrue(node("level").actions().has(Accessible.Action.INCREMENT), describe(tree()));
-        assertFalse(node("level").value().readOnly());
-        assertFalse(node("notes").has(Accessible.State.READ_ONLY));
+        assertTrue(node("level").accepts(Accessible.Action.SET_VALUE));
+        assertTrue(node("notes").accepts(Accessible.Action.SET_TEXT));
         assertEquals(java.util.Set.of(Accessible.Action.PRESS, Accessible.Action.SELECT),
                 node("row").actions().actions(), describe(tree()));
         assertEquals("Ctrl+K", node("row").actions().keyBinding());

@@ -64,12 +64,14 @@ delegate either onto a focusable child for the same reason. And **no hook's answ
 platform**: a bridge accepts or refuses a verb synchronously from the published snapshot, then
 posts, and the `false` a hook answers later is bookkeeping nobody hears. So the only refusal a
 reader can see is the published one — a node accepts exactly the parameterless verbs it publishes
-plus the setters its writable facets imply, and a widget that accepts a synonym publishes it.
-On a node that is not enabled — a disabled widget, anything under a disabled ancestor, and
-everything outside the layer that owns input (beneath an overlay of the scene, or in a window a
-native modal blocks) — the scene refuses every verb, and the walk withdraws them for you: every
-verb, a read-only value and a `READ_ONLY` text on each such node, a synthetic child you declared
-`disabled()` included. Do not gate a verb on whether your widget is enabled or on where your popup
+plus the setters its writable facets imply while it is enabled (`AccessibleNode#accepts`), and a
+widget that accepts a synonym publishes it. On a node that is not enabled — a disabled widget,
+anything under a disabled ancestor, and everything outside the layer that owns input (beneath an
+overlay of the scene, or in a window a native modal blocks) — the scene refuses every verb, and the
+walk withdraws them for you: every verb on each such node, a synthetic child you declared
+`disabled()` included, while its setters go with the enabled bit and its value and text keep the
+writability they have. Never publish a disabled field read-only: disabled and read-only are
+different facts. Do not gate a verb on whether your widget is enabled or on where your popup
 is drawn; gate it on the rest of your own state. The one exception is a popup's contents: an overlay
 of the scene and a window of its own are walked on their own chain, enabled whatever the control
 that opened them, exactly as the keyboard reaches them, so a popup whose contents must go inert with

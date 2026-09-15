@@ -267,6 +267,36 @@ public final class AccessibleNode {
         return actions;
     }
 
+    /**
+     * Whether this node accepts a verb now, read off the snapshot alone: semantics 5 of the
+     * 2026-09-13 pass (ADR 039 §1.5, amended 2026-09-14 and 2026-09-15), in the one place a
+     * bridge and a test ask it.
+     *
+     * <p>A parameterless verb is accepted exactly when this node's {@link ActionFacet} publishes
+     * it. A setter is implied by a facet, and only on a node that is
+     * {@link Accessible.State#ENABLED} (fix round 2e): {@link Accessible.Action#SET_VALUE} by a
+     * {@link ValueFacet} that is not read-only, and {@link Accessible.Action#SET_TEXT},
+     * {@link Accessible.Action#SET_CARET} and {@link Accessible.Action#SET_SELECTION} by a
+     * {@link TextFacet} on a node without {@link Accessible.State#READ_ONLY}. {@code ENABLED} is
+     * the operable bit on both of the axes the scene refuses on: the walk clears it on a disabled
+     * widget and under a disabled ancestor, on a synthetic child its owner narrowed, and on every
+     * node outside the layer that owns input (§1.13). So a disabled text field keeps
+     * {@code EDITABLE} and never gains {@code READ_ONLY} (§1.2: the two are never conflated), and
+     * still accepts no {@code SET_TEXT}. Allocates nothing.
+     *
+     * @param action the verb
+     * @return whether a platform may post it to this node; a bridge refuses it synchronously
+     *         otherwise
+     */
+    public boolean accepts(Accessible.Action action) {
+        return switch (action) {
+            case SET_VALUE -> value != null && !value.readOnly() && has(Accessible.State.ENABLED);
+            case SET_TEXT, SET_CARET, SET_SELECTION -> text != null
+                    && !has(Accessible.State.READ_ONLY) && has(Accessible.State.ENABLED);
+            default -> actions != null && actions.has(action);
+        };
+    }
+
     /** @return the index of this node's parent, or {@link #NONE} at a root */
     public int parent() {
         return parent;

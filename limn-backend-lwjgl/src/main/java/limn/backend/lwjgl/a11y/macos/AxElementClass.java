@@ -229,6 +229,11 @@ final class AxElementClass {
         addId("accessibilityRoleDescription", get(node ->
                 objc.string(RoleNames.of(node.role(), node.locale()))));
 
+        // Read only: setAccessibilityValue: is not installed, so no setter reaches the toolkit from
+        // here yet. Phase 3, when it installs it, owes it the refusal fix round 2e settled: nothing
+        // posted to a node AccessibleNode#accepts refuses, a node without ENABLED included, while
+        // whether the value is settable stays the facet's own answer, never a read-only flag the
+        // node does not have (semantics 5, amended 2026-09-15).
         addId("accessibilityValue", get(this::valueOf));
         addId("accessibilityIdentifier", get(node -> objc.string(Long.toString(node.id()))));
 

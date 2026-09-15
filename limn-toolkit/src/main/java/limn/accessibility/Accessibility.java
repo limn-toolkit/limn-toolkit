@@ -1207,10 +1207,11 @@ public final class Accessibility {
      * when an enabled container does, and the previous tree stands (2026-09-15, the 2d review). A
      * widget that needs it owes the walk and the gate the same narrowing in the same change.
      *
-     * <p>A disabled child carries no verb: the publish step withdraws every verb and setter from a
-     * node that is not {@code ENABLED} ({@link #inoperableAt}, ADR 039 §1.5, amended 2026-09-15),
-     * so a refused day may declare its {@code SELECT} and still publishes none, and a bridge reads
-     * the absence.
+     * <p>A disabled child carries no verb: the publish step withdraws every verb from a node that
+     * is not {@code ENABLED} ({@link #inoperableAt}, ADR 039 §1.5, amended 2026-09-15), so a
+     * refused day may declare its {@code SELECT} and still publishes none, and a bridge reads the
+     * absence; a setter its facets would imply is implied only on an {@code ENABLED} node
+     * ({@link AccessibleNode#accepts}).
      *
      * @throws IllegalStateException if no synthetic child is open
      */
@@ -1627,16 +1628,22 @@ public final class Accessibility {
     }
 
     /**
-     * Takes every operation off a node the scene will not operate, because it is not
+     * Takes every verb off a node the scene will not operate, because it is not
      * {@code ENABLED}: it or an ancestor is disabled, or it lies outside the layer that owns
      * input &mdash; beneath an overlay of the scene, or in a window a native modal blocks
      * (ADR 039 §1.5 and §1.13, amended 2026-09-15) &mdash; or it is a synthetic child its owner
      * {@linkplain #disabled() narrowed}. The scene or the owner refuses every verb there, and the
      * platform is answered from the snapshot (semantics 5), so the node publishes no verb &mdash;
-     * neither one it declared nor one its container claimed on it &mdash; and none of the setters
-     * a facet implies: a value is published read-only and a text {@link Accessible.State#READ_ONLY}.
-     * What the node says it is and holds is untouched. The publish step calls this after both
-     * describe hooks ran and after the delegate routing was read; a widget never does.
+     * neither one it declared nor one its container claimed on it &mdash; and no key binding.
+     *
+     * <p><b>Its setters are not touched here, and need not be</b> (ADR 039 §1.2 and §1.5, amended
+     * 2026-09-15, fix round 2e). A writable {@link ValueFacet} or a {@link TextFacet} without
+     * {@link Accessible.State#READ_ONLY} implies its setter only on a node that is
+     * {@code ENABLED} ({@link AccessibleNode#accepts}), and this node is not, so its value keeps
+     * the writability it really has and its text keeps its true {@code READ_ONLY}: a disabled
+     * field is an editable field that is disabled, never a read-only one. What the node says it
+     * is and holds is untouched. The publish step calls this after both describe hooks ran and
+     * after the delegate routing was read; a widget never does.
      *
      * @param index the node's index in this walk
      * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
@@ -1647,12 +1654,6 @@ public final class Accessibility {
         s.verbs = 0;
         s.delegated = 0;
         s.keyBinding = null; // the action facet's, and there is none
-        if (s.hasValue) {
-            s.valueReadOnly = true;
-        }
-        if (s.hasValue || s.hasText) {
-            s.states |= 1L << Accessible.State.READ_ONLY.ordinal();
-        }
     }
 
     private static long set(long states, Accessible.State state, boolean on) {

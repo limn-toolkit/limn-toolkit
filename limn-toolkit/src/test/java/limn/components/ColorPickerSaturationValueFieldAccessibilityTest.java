@@ -676,13 +676,16 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
         assertFalse(saturationAxis().has(Accessible.State.ENABLED),
                 "the bit is inherited down the walk from the picker and copied onto both axes"
                         + describe(tree()));
-        assertEquals(readOnly(axis(40)), saturationAxis().value(),
-                "a disabled plane is heard as disabled rather than vanishing, and its value is "
-                        + "published read-only" + describe(tree()));
+        assertEquals(axis(40), saturationAxis().value(),
+                "a disabled plane is heard as disabled rather than vanishing, its value as "
+                        + "writable as it is (fix round 2e)" + describe(tree()));
+        assertFalse(saturationAxis().accepts(Accessible.Action.SET_VALUE),
+                "and it accepts no SET_VALUE, because it is not ENABLED" + describe(tree()));
         assertNull(saturationAxis().actions(),
                 "no verb the scene refuses is published" + describe(tree()));
         assertNull(valueAxis().actions(), describe(tree()));
-        assertTrue(valueAxis().value().readOnly(), describe(tree()));
+        assertFalse(valueAxis().value().readOnly(), describe(tree()));
+        assertFalse(valueAxis().accepts(Accessible.Action.SET_VALUE), describe(tree()));
         bridge.events.clear();
 
         perform(saturation, Accessible.Action.INCREMENT, Accessible.Argument.NONE);

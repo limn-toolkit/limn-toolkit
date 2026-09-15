@@ -268,7 +268,10 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
                 assertFalse(offers(segment, verb),
                         "beneath the overlay a segment carries no " + verb + ": " + describe(tree()));
             }
-            assertTrue(segment.value().readOnly(), "nor a writable value: " + describe(tree()));
+            assertFalse(segment.accepts(Accessible.Action.SET_VALUE),
+                    "nor SET_VALUE: " + describe(tree()));
+            assertFalse(segment.value().readOnly(),
+                    "on a value still writable: " + describe(tree()));
         }
         int caret = picker.field().focusedSegment();
         perform(segments.get(1).id(), Accessible.Action.FOCUS, Accessible.Argument.NONE);
@@ -282,7 +285,7 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(offers(field, Accessible.Action.EXPAND), describe(tree()));
         assertTrue(offers(node("Abrir calendário"), Accessible.Action.PRESS),
                 describe(tree()));
-        assertFalse(childrenOf(field).get(1).value().readOnly());
+        assertTrue(childrenOf(field).get(1).accepts(Accessible.Action.SET_VALUE));
     }
 
     /**

@@ -226,7 +226,10 @@ public final class Accessible {
      * writable facets imply</b> (ADR 039 §1.5, amended 2026-09-14): the published snapshot is the
      * only synchronous authority a bridge has, so a verb a widget accepts but does not publish is
      * one every platform refuses before it is posted. A widget that answers a synonym publishes
-     * the synonym.
+     * the synonym. <b>A facet implies its setter only on a node that is {@link State#ENABLED}</b>
+     * (amended 2026-09-15, fix round 2e): a disabled field keeps its true writability and accepts
+     * no text, rather than being published read-only. {@link AccessibleNode#accepts} is the rule
+     * in one call.
      *
      * <p>Every one of the seventeen is dispatched the same way, through the one inbound call a
      * bridge makes.

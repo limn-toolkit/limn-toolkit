@@ -277,9 +277,9 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
                         + "because nothing is focused" + describe(tree()));
     }
 
-    /** {@code TextFieldAccessibilityTest}'s case for the area (semantics 5, 2026-09-15). */
+    /** {@code TextFieldAccessibilityTest}'s case for the area (semantics 5, fix round 2e). */
     @Test
-    void aDisabledAreaIsStillEditableAndAcceptsNoTextWhileDisabled() {
+    void aDisabledAreaIsStillEditableNeverReadOnlyAndAcceptsNoText() {
         bindArea();
         area.setText("typed");
         area.setEnabled(false);
@@ -292,14 +292,15 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node.has(Accessible.State.EDITABLE),
                 "a disabled area is an editable control that is disabled, which is not the same "
                         + "fact as an area whose text can never be typed into" + describe(tree()));
-        assertTrue(node.has(Accessible.State.READ_ONLY),
-                "no SET_TEXT while the scene would refuse it" + describe(tree()));
+        assertFalse(node.has(Accessible.State.READ_ONLY), describe(tree()));
+        assertFalse(node.accepts(Accessible.Action.SET_TEXT),
+                "no SET_TEXT while it is not ENABLED" + describe(tree()));
         assertNull(node.actions(), "and no verb" + describe(tree()));
         assertEquals("typed", node.text().text(), describe(tree()));
 
         area.setEnabled(true);
         frame();
-        assertFalse(areaNode().has(Accessible.State.READ_ONLY), describe(tree()));
+        assertTrue(areaNode().accepts(Accessible.Action.SET_TEXT), describe(tree()));
     }
 
     @Test

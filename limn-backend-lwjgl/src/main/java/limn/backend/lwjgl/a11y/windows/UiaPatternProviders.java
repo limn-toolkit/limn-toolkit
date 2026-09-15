@@ -89,9 +89,13 @@ final class UiaPatternProviders {
             }
 
             case UiaIds.VALUE_PATTERN -> {
-                slots.put("SetValue", (UiaCom.PP) (self, text) -> accepted(
-                        context.perform(nodeId, Accessible.Action.SET_TEXT,
-                                new Accessible.Argument.OfText(bstrOf(text)))));
+                slots.put("SetValue", (UiaCom.PP) (self, text) -> {
+                    // Fix round 2e's minimal refusal; phase 3 replaces it with the full gate.
+                    int refused = refusedSetter(context.tree().find(nodeId));
+                    return refused != UiaIds.S_OK ? refused : accepted(
+                            context.perform(nodeId, Accessible.Action.SET_TEXT,
+                                    new Accessible.Argument.OfText(bstrOf(text))));
+                });
                 slots.put("get_Value", (UiaCom.PP) (self, out) -> {
                     AccessibleNode node = context.tree().find(nodeId);
                     if (node == null) {
@@ -118,9 +122,13 @@ final class UiaPatternProviders {
             }
 
             case UiaIds.RANGE_VALUE_PATTERN -> {
-                slots.put("SetValue", (UiaCom.PD) (self, value) -> accepted(
-                        context.perform(nodeId, Accessible.Action.SET_VALUE,
-                                new Accessible.Argument.OfValue(value))));
+                slots.put("SetValue", (UiaCom.PD) (self, value) -> {
+                    // Fix round 2e's minimal refusal; phase 3 replaces it with the full gate.
+                    int refused = refusedSetter(context.tree().find(nodeId));
+                    return refused != UiaIds.S_OK ? refused : accepted(
+                            context.perform(nodeId, Accessible.Action.SET_VALUE,
+                                    new Accessible.Argument.OfValue(value)));
+                });
                 slots.put("get_Value", number(nodeId, context, node -> node.value().value()));
                 slots.put("get_Maximum", number(nodeId, context, node -> node.value().max()));
                 slots.put("get_Minimum", number(nodeId, context, node -> node.value().min()));
@@ -385,6 +393,27 @@ final class UiaPatternProviders {
      * @return {@code S_OK}, or the code §1.3 gives a client holding an element for a node that has
      *         gone — which is what a refusal here almost always is
      */
+    /**
+     * The minimal setter refusal fix round 2e owes this bridge ahead of phase 3 (semantics 5,
+     * amended 2026-09-15): a node that is not {@code ENABLED} &mdash; disabled, under a disabled
+     * ancestor, or outside the layer that owns input &mdash; accepts no setter, and the snapshot
+     * says so with that bit alone, because its {@code IsReadOnly} stays the facet's truth (ADR 039
+     * §1.2: enabled and read-only are never conflated). Phase 3 replaces this with the full
+     * candidate gate ({@code AccessibleNode#accepts}: {@code Value.SetValue} posting
+     * {@code SET_VALUE} by text on a value facet and {@code SET_TEXT} on a text facet, each gated
+     * on the facet's writability as well); until then a writable-facet test is not added here, so
+     * nothing that works on an operable node today changes.
+     *
+     * @param node the node the pattern was vended for, as the snapshot has it now
+     * @return {@link UiaIds#S_OK} when the setter may be posted, otherwise the error to answer
+     */
+    private static int refusedSetter(AccessibleNode node) {
+        if (node == null) {
+            return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+        }
+        return node.has(Accessible.State.ENABLED) ? UiaIds.S_OK : UiaIds.E_INVALID_OPERATION;
+    }
+
     private static int accepted(boolean wasAccepted) {
         return wasAccepted ? UiaIds.S_OK : UiaIds.E_ELEMENT_NOT_AVAILABLE;
     }

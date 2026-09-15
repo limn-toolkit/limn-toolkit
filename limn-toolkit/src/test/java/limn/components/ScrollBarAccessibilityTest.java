@@ -519,9 +519,11 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode node = barNode();
         assertFalse(node.has(Accessible.State.ENABLED), describe(tree()));
-        assertEquals(readOnly(facet(0)), node.value(),
-                "a disabled bar is heard as disabled rather than vanishing, and its value is "
-                        + "published read-only" + describe(tree()));
+        assertEquals(facet(0), node.value(),
+                "a disabled bar is heard as disabled rather than vanishing, its value as "
+                        + "writable as it is (fix round 2e)" + describe(tree()));
+        assertFalse(node.accepts(Accessible.Action.SET_VALUE),
+                "and it accepts no SET_VALUE, because it is not ENABLED" + describe(tree()));
         assertNull(node.actions(), "no verb the scene refuses is published" + describe(tree()));
         bridge.events.clear();
 
@@ -542,7 +544,8 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(barNode().has(Accessible.State.ENABLED),
                 "the bit is inherited down the walk" + describe(tree()));
         assertNull(barNode().actions(), "and so is the withdrawal of its verbs" + describe(tree()));
-        assertTrue(barNode().value().readOnly(), describe(tree()));
+        assertFalse(barNode().value().readOnly(), describe(tree()));
+        assertFalse(barNode().accepts(Accessible.Action.SET_VALUE), describe(tree()));
         bridge.events.clear();
 
         perform(barNode().id(), Accessible.Action.INCREMENT, Accessible.Argument.NONE);

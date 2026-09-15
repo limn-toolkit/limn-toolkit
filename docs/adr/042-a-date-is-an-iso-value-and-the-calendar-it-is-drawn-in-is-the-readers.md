@@ -552,6 +552,14 @@ performs them (a day's `SELECT` one frame after the close picks the date, as a c
 it should is not settled here. Pinned by
 `DatePickerAccessibilityTest.throughTheFadeOutTheCalendarsLayerOffersNoCancel` and limn-demo's
 `VerbPolicyRatchetTest` (`FADE_OUT_DISMISSAL_ENTRIES`).
+**Amended 2026-09-15 (fix round 2e; ADR 039 §1.5's amendment of that date):** "its value read-only"
+and "a read-only value" in the notes above are withdrawn. A segment that is not `ENABLED` — on a
+disabled field, on a field in a disabled container, beneath the picker's in-scene overlay — keeps
+its writable value and accepts no `SET_VALUE`, because a writable value implies the setter only on
+an `ENABLED` node; the scene refuses one sent anyway. The field's case is renamed
+`DateFieldAccessibilityTest.aDisabledFieldsSegmentsCarryNoVerbAndAcceptNoValue`, and it and
+`DatePickerAccessibilityTest.theFieldsSegmentsCarryNoVerbBeneathTheCalendarOverlay` assert that the
+value stays writable and is not accepted.
 
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and

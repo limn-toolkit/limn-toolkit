@@ -345,16 +345,17 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * A disabled field is an editable control that is disabled, and it accepts no text now.
+     * A disabled field is an editable control that is disabled, never a read-only one, and it
+     * accepts no text now.
      *
-     * <p>§7's row warned "never {@code READ_ONLY} from disabled", from §1.2's separation of the two
-     * bits. On 2026-09-15 semantics 5 was extended to the disabled axis: a node that is not
-     * {@code ENABLED} publishes no setter, and {@code READ_ONLY} is the text facet's only way to
-     * withdraw {@code SET_TEXT} (ADR 039 §1.5 and §1.13, amended that day). {@code EDITABLE} stays,
-     * because it says what the control is; {@code READ_ONLY} goes back off with {@code ENABLED}.
+     * <p>§7's row: "never {@code READ_ONLY} from disabled", from §1.2's separation of the two bits.
+     * Fix round 2d reversed it for a moment (the walk published {@code READ_ONLY} to withdraw
+     * {@code SET_TEXT}); fix round 2e restored it (ADR 039 §1.2 and §1.5, amended 2026-09-15): a
+     * text facet implies its setter only on an {@code ENABLED} node, so the missing bit is what
+     * withdraws {@code SET_TEXT}, and the scene refuses one sent anyway.
      */
     @Test
-    void aDisabledFieldIsStillEditableAndAcceptsNoTextWhileDisabled() {
+    void aDisabledFieldIsStillEditableNeverReadOnlyAndAcceptsNoText() throws InterruptedException {
         bindField();
         field.setText("typed");
         field.setEnabled(false);
@@ -367,15 +368,61 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node.has(Accessible.State.EDITABLE),
                 "a disabled field is an editable control that is disabled, which is not the same "
                         + "fact as a field whose text can never be typed into" + describe(tree()));
-        assertTrue(node.has(Accessible.State.READ_ONLY),
-                "no SET_TEXT while the scene would refuse it (semantics 5)" + describe(tree()));
+        assertFalse(node.has(Accessible.State.READ_ONLY),
+                "the row's own warning: never READ_ONLY from disabled" + describe(tree()));
+        assertFalse(node.accepts(Accessible.Action.SET_TEXT),
+                "and no SET_TEXT, because the node is not ENABLED (semantics 5)"
+                        + describe(tree()));
         assertNull(node.actions(), "and no verb" + describe(tree()));
         assertEquals("typed", node.text().text(), describe(tree()));
 
+        perform(node.id(), Accessible.Action.SET_TEXT, new Accessible.Argument.OfText("sent"));
+        frame();
+        assertEquals("typed", field.text(),
+                "the scene refuses the SET_TEXT the node does not accept");
+
         field.setEnabled(true);
         frame();
-        assertFalse(fieldNode().has(Accessible.State.READ_ONLY),
-                "enabled again, the field is editable again" + describe(tree()));
+        assertTrue(fieldNode().accepts(Accessible.Action.SET_TEXT),
+                "enabled again, the field takes text again" + describe(tree()));
+        assertFalse(fieldNode().has(Accessible.State.READ_ONLY), describe(tree()));
+    }
+
+    /**
+     * The input-layer axis of the same rule: beneath an overlay of the scene the field is published
+     * without {@code ENABLED}, keeps {@code EDITABLE} and its true writability, accepts no
+     * {@code SET_TEXT}, and the scene refuses one sent anyway (ADR 039 §1.13, amended 2026-09-15,
+     * fix round 2e).
+     */
+    @Test
+    void aFieldBeneathAnInSceneOverlayIsNeverReadOnlyAndAcceptsNoText()
+            throws InterruptedException {
+        bindField();
+        field.setText("typed");
+        frame();
+        assertTrue(fieldNode().accepts(Accessible.Action.SET_TEXT), describe(tree()));
+
+        limn.scene.Widget layer = new Column();
+        scene.pushOverlay(layer);
+        frame();
+
+        AccessibleNode node = fieldNode();
+        assertFalse(node.has(Accessible.State.ENABLED),
+                "outside the layer that owns input" + describe(tree()));
+        assertTrue(node.has(Accessible.State.EDITABLE), describe(tree()));
+        assertFalse(node.has(Accessible.State.READ_ONLY),
+                "a field under a dialog is not a read-only field" + describe(tree()));
+        assertFalse(node.accepts(Accessible.Action.SET_TEXT), describe(tree()));
+        assertNull(node.actions(), describe(tree()));
+
+        perform(node.id(), Accessible.Action.SET_TEXT, new Accessible.Argument.OfText("sent"));
+        frame();
+        assertEquals("typed", field.text(), "the scene refuses it beneath the layer");
+
+        scene.removeOverlay(layer);
+        frame();
+        assertTrue(fieldNode().accepts(Accessible.Action.SET_TEXT),
+                "the layer gone, the field takes text again" + describe(tree()));
     }
 
     // -------------------------------------------------------------------------- the text facet

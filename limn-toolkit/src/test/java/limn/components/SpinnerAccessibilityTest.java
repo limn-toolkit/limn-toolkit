@@ -518,9 +518,11 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
         AccessibleNode node = spinnerNode();
         assertFalse(node.has(Accessible.State.ENABLED), describe(tree()));
-        assertEquals(new ValueFacet(7, 0, 99, 1, "7", true), node.value(),
-                "a disabled spinner is heard as disabled rather than vanishing, and its value is "
-                        + "published read-only" + describe(tree()));
+        assertEquals(new ValueFacet(7, 0, 99, 1, "7", false), node.value(),
+                "a disabled spinner is heard as disabled rather than vanishing, its value as "
+                        + "writable as it is (fix round 2e)" + describe(tree()));
+        assertFalse(node.accepts(Accessible.Action.SET_VALUE),
+                "and it accepts no SET_VALUE, because it is not ENABLED" + describe(tree()));
         assertNull(node.actions(), "no verb the scene refuses is published" + describe(tree()));
         for (AccessibleNode arrow : arrows()) {
             assertNull(arrow.actions(), "nor on its arrows" + describe(tree()));
