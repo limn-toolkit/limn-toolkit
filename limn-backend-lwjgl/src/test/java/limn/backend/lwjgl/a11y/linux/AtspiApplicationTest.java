@@ -578,9 +578,19 @@ class AtspiApplicationTest {
     private static final class Frames {
         final Accessibility a = new Accessibility();
         final AtspiBridge window;
+        /** This window's own node; its controls are numbered from it. */
+        final long root;
+        final String title;
 
         Frames(AtspiBridge window) {
+            this(window, 3000, "Main");
+        }
+
+        /** A second window of the same application, whose identifiers never meet the first's. */
+        Frames(AtspiBridge window, long root, String title) {
             this.window = window;
+            this.root = root;
+            this.title = title;
         }
 
         /**
@@ -589,7 +599,7 @@ class AtspiApplicationTest {
          * difference found, as a scene does.
          */
         List<limn.accessibility.AccessibleEvent> publish(boolean active, long focused) {
-            return publish(active, focused, 3001, 3002);
+            return publish(active, focused, root + 1, root + 2);
         }
 
         List<limn.accessibility.AccessibleEvent> publish(boolean active, long focused,
@@ -601,15 +611,15 @@ class AtspiApplicationTest {
                                                          java.util.function.LongPredicate showing,
                                                          long... buttons) {
             a.beginWalk(400, 300, Locale.ENGLISH);
-            a.begin(3000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            a.begin(root, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
-            a.name(I18nString.literal("Main"), Accessible.NameFrom.EXPLICIT);
+            a.name(I18nString.literal(title), Accessible.NameFrom.EXPLICIT);
             if (active) {
                 a.state(Accessible.State.ACTIVE);
             }
             a.inherited(true, true, true, false, false);
             for (long id : buttons) {
-                a.begin(id, 0, Locale.ENGLISH, 10, 20 + (id - 3001) * 50, 160, 40);
+                a.begin(id, 0, Locale.ENGLISH, 10, 20 + (id - root - 1) * 50, 160, 40);
                 a.role(Accessible.Role.BUTTON);
                 a.name(I18nString.literal("Button " + id), Accessible.NameFrom.CONTENT);
                 a.inherited(true, true, showing.test(id), true, focused == id);
@@ -772,9 +782,14 @@ class AtspiApplicationTest {
     }
 
     private static long[] buttons(int count) {
+        return buttons(count, 3000);
+    }
+
+    /** @param root the window node they hang under; they are numbered from it */
+    private static long[] buttons(int count, long root) {
         long[] ids = new long[count];
         for (int i = 0; i < count; i++) {
-            ids[i] = 3001 + i;
+            ids[i] = root + 1 + i;
         }
         return ids;
     }
@@ -948,6 +963,71 @@ class AtspiApplicationTest {
                 "ActiveDescendantChanged  7 " + path(4001)), sent.toString());
         assertFalse(sent.contains("StateChanged focused 0 " + path(4001)),
                 "and never a focused 0 for the node that still holds it: " + sent);
+    }
+
+    /**
+     * <b>A frame that is not the active one says nothing about its focus</b>, whatever collapses or
+     * is refused in it (semantics 4 as settled for the three bridges on 2026-09-15, and the review
+     * of this fix round). The platform focus is one and it belongs to the frame the desktop has
+     * active; a background window's tree still names the node the user would return to, and putting
+     * that on the bus after every collapse there tells a reader about a window nobody is in — which
+     * Orca 50.2 answers "[frame] lacks active state" to, and then "unable to find active window"
+     * (readings/fedora-l4-baseline/summary.md, LAB-NEW-2). The re-announcement this lane added was
+     * not gated on it and this is what pins the gate.
+     *
+     * <p>And what the active frame's reconcile is compared against is <b>one memory for the
+     * process</b> and not one per window: the last focus this application announced was the
+     * background frame's, so the active frame's own re-say clears it where it was set — from that
+     * window's own context, since libatspi's cache clears only the bit an event names, or a client
+     * holds FOCUSED on a node of each frame at once.
+     */
+    @Test
+    void aBackgroundFramesCollapseSaysNothingAndTheActiveOnesClearsTheOneFocusAnnounced() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        Frames main = new Frames(app.window());
+        Frames other = new Frames(app.window(), 6000, "Other");
+        long[] mains = buttons(300);
+        long[] others = buttons(300, 6000);
+        main.publish(true, 3001, id -> true, mains);
+        main.window.frameEnded();
+        other.publish(false, 6001, id -> true, others);
+        other.window.frameEnded();
+        assertTrue(spoken(bus.signals).contains("StateChanged focused 1 " + path(6001)),
+                "the fixture: the background frame's own focus was announced last, so the one "
+                        + "memory is its: " + spoken(bus.signals));
+        bus.signals.clear();
+
+        // The background frame collapses: three hundred boxes stop showing, one leaves, and the
+        // focus does not move. Its tail holds nothing after the structure, so the reconcile that
+        // would say the focus again lands at the frame's end.
+        other.publish(false, 6001, id -> id == 6001, java.util.Arrays.copyOf(others, 299));
+        other.window.frameEnded();
+        assertEquals(List.of("ChildrenChanged remove 299 " + path(6000),
+                "RemoveAccessible " + Atspi.PATH_CACHE), spoken(bus.signals),
+                "the structure the tail kept, and not a word about a focus this frame does not "
+                        + "hold: " + spoken(bus.signals));
+        bus.signals.clear();
+
+        // The active frame collapses in the same shape, and says where the reader stands.
+        main.publish(true, 3001, id -> id == 3001, java.util.Arrays.copyOf(mains, 299));
+        main.window.frameEnded();
+        assertEquals(List.of("ChildrenChanged remove 299 " + path(3000),
+                "RemoveAccessible " + Atspi.PATH_CACHE,
+                "StateChanged focused 0 " + path(6001),
+                "StateChanged focused 1 " + path(3001)), spoken(bus.signals),
+                "the structure first, then the one focus this process had announced cleared in the "
+                        + "frame that holds it, then where the reader stands: " + spoken(bus.signals));
+        bus.signals.clear();
+
+        main.publish(true, 3001, id -> true, mains);
+        main.window.frameEnded();
+        List<String> again = spoken(bus.signals);
+        assertTrue(again.contains("StateChanged focused 1 " + path(3001)),
+                "a second collapse in the active frame says it again: " + again);
+        assertFalse(again.contains("StateChanged focused 0 " + path(3001)),
+                "and the memory is this frame's now, so the node that still holds the focus is "
+                        + "never told it lost it: " + again);
     }
 
     /**

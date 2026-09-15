@@ -67,17 +67,12 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     /** Whether this publish sent the frame's own {@code StateChanged active} 1. UI thread. */
     boolean frameActiveSaid;
     /**
-     * The node this window last told clients was focused, or 0, across publishes (semantics 4: a
-     * bridge remembers the last effective focus it announced). UI thread. What a collapse or a
-     * refusal is reconciled against: a {@code focused} 0 goes to this node when it still stands and
-     * lost the focus, and the node focused now hears {@code focused} 1 — after a collapse or a
-     * refusal even when it is this same node (semantics 4, 2026-09-15).
+     * The join this window's {@link #reconcileOwed} belongs to, so an owe raised on a connection
+     * clients no longer hold is not paid on the next one. UI thread. What was <em>announced</em> is
+     * not remembered here: the last effective focus is one memory for the process and lives on
+     * {@link AtspiApplication} (semantics 4, settled 2026-09-15), because the platform focus is one.
      */
-    long announcedFocus;
-    /** The descendant this window last named in an {@code ActiveDescendantChanged}, across publishes. */
-    long announcedCursor;
-    /** The join {@link #announcedFocus} and {@link #announcedCursor} were told on. UI thread. */
-    int announcedGeneration;
+    int reconcileGeneration;
     /**
      * Whether the model's {@code INVALIDATED} or a refused signal left the focus and cursor to be
      * reconciled at the tail's place: before the first tail event after the structure signals, or,
@@ -198,8 +193,6 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     @Override
     protected void releasePlatformHalf() {
         previousTree = AccessibleTree.EMPTY;
-        announcedFocus = 0;
-        announcedCursor = 0;
         reconcileOwed = false;
         // The window leaves the application; the application lets the connection go when it was
         // the last one (AtspiApplication#detached).

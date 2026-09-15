@@ -3283,6 +3283,27 @@ the window's activation. Pinned by
 `AtspiApplicationTest.aCollapseWhoseTailIsStructureAloneSaysTheFocusAgainWhenTheFrameEnds` and
 `aCollapseSaysTheFocusAndTheCursorAgainAtTheFramesEndEvenWhenNeitherMoved`.)*
 
+*(Amended again 2026-09-15, the review of that change; semantics 4's other half. "Each window
+remembers, across publishes, the focus and cursor it last announced" was one memory per window,
+where the settlement asks for **one memory per process** — the platform focus is one — and the
+unconditional re-say the amendment above added was gated on nothing, so a collapse or a refusal in a
+**background** frame put a `focused` 1 on the bus for a window nobody is in, a case that had stayed
+silent while it only sent differences. Both halves close together. The memory is now
+`AtspiApplication`'s: the window that holds it, the node, and the cursor, cleared when that window
+detaches and on a new join (Windows keeps the same pair in `UiaBridge.ANNOUNCED`). And **only the
+frame the desktop has active reconciles at all**: the model publishes `ACTIVE` on the window node of
+the scene whose window has the keyboard (`AccessibleWalk`, `Scene#isWindowFocused`), a native popup
+that takes the focus included, and a frame without it holds the node the user would *return* to and
+not where the user is — which is what Orca 50.2 says of such an event in as many words, "[frame]
+lacks active state", then "unable to find active window" (readings/fedora-l4-baseline/summary.md,
+LAB-NEW-2). A window that is not active therefore says nothing here: it neither repeats nor
+contradicts what the active frame announced. One consequence is new and deliberate: when the active
+frame re-says the focus, the `focused` 0 for the node the process last announced goes out **from the
+window that holds that node**, which may be another frame — libatspi's `cache_process_state_changed`
+clears only the bit an event names, so a focus that crossed windows used to leave `FOCUSED` cached on
+a node of each. Pinned by
+`AtspiApplicationTest.aBackgroundFramesCollapseSaysNothingAndTheActiveOnesClearsTheOneFocusAnnounced`.)*
+
 **`STATE_CHANGED` for `EXPANDED` and `EXPANDABLE` (L3; decision 27; semantics 9).** Both reach the
 bus as `StateChanged` `expanded` / `expandable` (bits 10 and 9) from the difference, and whenever the
 bit this platform derives from them — `COLLAPSED` (5), published as `EXPANDABLE` without `EXPANDED` —

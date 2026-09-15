@@ -204,6 +204,27 @@ final class AtspiApplication {
     /** The join whose frames the windows' bookkeeping describes. User-interface thread. */
     private int caughtUpGeneration;
     private int joinAttempts;
+    /**
+     * The window whose tree holds what {@link #announcedFocus} and {@link #announcedCursor} name,
+     * or {@code null} when this process has announced no focus. Compared by identity. UI thread.
+     */
+    private AtspiBridge announcedIn;
+    /**
+     * The node this process last told clients was focused, or 0 — <b>one memory, for the process,
+     * because the platform focus is one</b> (semantics 4, settled for the three bridges on
+     * 2026-09-15; Windows keeps the same pair in {@code UiaBridge.ANNOUNCED}). It used to be a field
+     * per {@link AtspiBridge}, which is one memory per window and not per focus.
+     *
+     * <p>What a collapse or a refusal is reconciled against: a {@code focused} 0 goes to this node
+     * when it still stands and lost the focus — from its own window's context, which is not always
+     * the window reconciling — and the node focused now hears {@code focused} 1, after a collapse or
+     * a refusal even when it is this same node. UI thread.
+     */
+    private long announcedFocus;
+    /** The descendant this process last named in an {@code ActiveDescendantChanged}. UI thread. */
+    private long announcedCursor;
+    /** The join the two above were told on; a new connection has heard none of it. UI thread. */
+    private int announcedGeneration;
 
     AtspiApplication(Connector connector, Starter starter, LongSupplier clock) {
         this(connector, starter, clock, AtspiStatusWatch.Sleeper.REAL);
@@ -398,13 +419,21 @@ final class AtspiApplication {
         window.shownAsFrame = false;
         windows.remove(window);
         window.member = false;
+        if (announcedIn == window) {
+            forgetTheAnnouncedFocus();  // the window holding it has gone; nothing to say it to
+        }
         if (windows.isEmpty()) {
             Thread waiter = waiting;
             if (waiter != null) {
                 waiter.interrupt();  // a back-off for no window at all
             }
-            if (now != null) {
-                leave(now);
+            // Read again, and not through the local above: the window table was written between
+            // the two reads, so a join published while this detach ran is seen here — and a detach
+            // the joiner missed because it read the table first is seen there (joinNow). One of
+            // the two always sees the other, and an application with no window holds no connection.
+            Joined latest = joined.get();
+            if (latest != null) {
+                leave(latest);
             }
         }
     }
@@ -492,14 +521,14 @@ final class AtspiApplication {
             window.reconcileOwed = true;
         } else if (focusGained(event)) {
             window.focusSaid = event.nodeId();
-            window.announcedFocus = event.nodeId();
+            announceFocus(window, event.nodeId());
         } else if (focusLost(event)) {
-            if (window.announcedFocus == event.nodeId()) {
-                window.announcedFocus = 0;
+            if (announcedIn == window && announcedFocus == event.nodeId()) {
+                announcedFocus = 0;
             }
         } else if (type == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED) {
             window.cursorSaid = cursorOf(event);
-            window.announcedCursor = cursorOf(event);
+            announceCursor(window, cursorOf(event));
         } else if (isTheFramesActivation(window, event)) {
             // Orca 50.2's _on_active_changed makes the frame the active window with the frame as
             // its locus (readings/fedora-orca-focus-manager.txt, default.py 792-822): a focus said
@@ -564,16 +593,72 @@ final class AtspiApplication {
     }
 
     /**
-     * Forgets what a window announced on an earlier join: clients of this connection were told
-     * nothing of it.
+     * Forgets what was announced on an earlier join: clients of this connection were told nothing
+     * of it, and an owe raised against the old one is not paid on this.
+     *
+     * <p>Two stamps, because the memory is now the process's and the owe is still a window's: the
+     * first window to reach a new join clears the process's memory once, and each window clears its
+     * own owe as it arrives, so a window catching up later does not wipe a focus another window has
+     * announced on the new connection in the meantime.
      */
-    private static void rememberFor(AtspiBridge window, Joined now) {
-        if (window.announcedGeneration != now.generation()) {
-            window.announcedGeneration = now.generation();
-            window.announcedFocus = 0;
-            window.announcedCursor = 0;
+    private void rememberFor(AtspiBridge window, Joined now) {
+        if (announcedGeneration != now.generation()) {
+            announcedGeneration = now.generation();
+            forgetTheAnnouncedFocus();
+        }
+        if (window.reconcileGeneration != now.generation()) {
+            window.reconcileGeneration = now.generation();
             window.reconcileOwed = false;
         }
+    }
+
+    /** Nothing this process announced still stands: no window, no focus, no cursor. UI thread. */
+    private void forgetTheAnnouncedFocus() {
+        announcedIn = null;
+        announcedFocus = 0;
+        announcedCursor = 0;
+    }
+
+    /**
+     * Records the one focus this process has announced. A focus announced in another window takes
+     * the memory with it, cursor and all: the old window's cursor was a descendant of a focus that
+     * no longer stands.
+     */
+    private void announceFocus(AtspiBridge window, long node) {
+        if (announcedIn != window) {
+            announcedCursor = 0;
+        }
+        announcedIn = window;
+        announcedFocus = node;
+    }
+
+    /** The same, for the descendant the cursor is on inside that focus. */
+    private void announceCursor(AtspiBridge window, long node) {
+        if (announcedIn != window) {
+            announcedFocus = 0;
+        }
+        announcedIn = window;
+        announcedCursor = node;
+    }
+
+    /**
+     * Whether this window's frame is the one the desktop has active, which is the only window whose
+     * focus is the process's effective focus.
+     *
+     * <p>The model publishes {@code ACTIVE} on the window node of the scene whose window has the
+     * keyboard ({@code AccessibleWalk}, {@code Scene#isWindowFocused}), a native popup that takes
+     * the focus included. Every other frame's tree still names a focused node — the node the user
+     * would return to — and that node is not where the user is. Orca 50.2 says so to a focus event
+     * from such a frame: "[frame] lacks active state", and then "unable to find active window"
+     * (readings/fedora-l4-baseline/summary.md, LAB-NEW-2).
+     *
+     * @param window the facade
+     * @return whether its published tree carries the window's own {@code ACTIVE}
+     */
+    private static boolean holdsThePlatformFocus(AtspiBridge window) {
+        AccessibleTree tree = window.tree();
+        return tree.nodeCount() > 0
+                && tree.node(0).has(limn.accessibility.Accessible.State.ACTIVE);
     }
 
     /**
@@ -619,8 +704,16 @@ final class AtspiApplication {
     }
 
     /**
-     * The focus and the cursor as the window's tree has them, against what this window last
-     * announced, as tail signals (semantics 4 and 7; decision 28; LINUX-NEW-15, LAB-NEW-2).
+     * The focus and the cursor as the window's tree has them, against what this <em>process</em>
+     * last announced, as tail signals (semantics 4 and 7; decision 28; LINUX-NEW-15, LAB-NEW-2).
+     *
+     * <p><b>Only the active frame reconciles, and the memory it is compared against is one for the
+     * process</b> (semantics 4 as settled for the three bridges on 2026-09-15; the memory used to be
+     * a field per window, and the unconditional re-say below was not gated at all). The platform
+     * focus is one: the window the desktop has active holds it and every other frame holds a node
+     * the user would return to. So a window that is not active returns from here having said
+     * nothing — it neither repeats nor contradicts what the active frame announced — and the one
+     * memory is what the active frame's reconcile reads. See {@link #holdsThePlatformFocus}.
      *
      * <p><b>A reconcile that is owed says them again whether or not they moved</b> (semantics 4,
      * settled for all three bridges on 2026-09-15). A reconcile is owed by the model's
@@ -663,16 +756,33 @@ final class AtspiApplication {
         // says the focus and the cursor again even when neither moved.
         boolean owed = window.reconcileOwed;
         window.reconcileOwed = false;
+        if (!holdsThePlatformFocus(window)) {
+            // A frame that is not the active one holds no platform focus, so it has nothing to
+            // reconcile: the focus its tree names is where the user would return to and not where
+            // the user is, and the memory it would be compared against is the process's, which
+            // belongs to whichever frame is active. Saying it anyway would put a focus on the bus
+            // for a background window after every collapse and every refusal there — which the one
+            // client read answers "[frame] lacks active state" to, and which no reader can use.
+            // The active frame's own reconcile is what says where the reader stands.
+            return;
+        }
         AccessibleTree tree = window.tree();
         long focused = tree.focused();
-        boolean sayFocus = owed || window.announcedFocus != focused
+        long announcedHere = announcedIn == window ? announcedFocus : 0;
+        boolean sayFocus = owed || announcedHere != focused
                 || afterTheLocusMoved && focused != 0 && window.focusSaid != focused;
         if (sayFocus) {
-            long was = window.announcedFocus;
-            if (was != 0 && was != focused) {
-                if (tree.find(was) == null || sendAll(link, AtspiEvents.of(AccessibleEvent.state(
-                        was, limn.accessibility.Accessible.State.FOCUSED, false), context), true)) {
-                    window.announcedFocus = 0;
+            long was = announcedFocus;
+            AtspiBridge owner = announcedIn == null ? window : announcedIn;
+            if (was != 0 && !(owner == window && was == focused)) {
+                // From the window whose tree holds it, which is not this one when the focus has
+                // just crossed windows: the bit is cleared where it was set, or a client's cache
+                // holds FOCUSED on two nodes of two frames.
+                if (owner.tree().find(was) == null
+                        || sendAll(link, AtspiEvents.of(AccessibleEvent.state(was,
+                                limn.accessibility.Accessible.State.FOCUSED, false),
+                                contextOf(owner)), true)) {
+                    forgetTheAnnouncedFocus();
                 } else {
                     window.reconcileOwed = true;
                 }
@@ -681,7 +791,7 @@ final class AtspiApplication {
                 if (sendAll(link, AtspiEvents.of(AccessibleEvent.state(focused,
                         limn.accessibility.Accessible.State.FOCUSED, true), context), true)) {
                     window.focusSaid = focused;
-                    window.announcedFocus = focused;
+                    announceFocus(window, focused);
                 } else {
                     window.reconcileOwed = true;
                 }
@@ -689,16 +799,18 @@ final class AtspiApplication {
         }
         long cursor = focused == 0 ? 0 : tree.activeDescendant();
         if (cursor == 0) {
-            window.announcedCursor = 0;
+            if (announcedIn == window) {
+                announcedCursor = 0;
+            }
             return;
         }
-        if (sayFocus && focused != 0 || window.announcedCursor != cursor
+        if (sayFocus && focused != 0 || (announcedIn == window ? announcedCursor : 0) != cursor
                 || afterTheLocusMoved && window.cursorSaid != cursor) {
             if (sendAll(link, AtspiEvents.of(AccessibleEvent.property(
                     AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED, focused, 0L, cursor), context),
                     true)) {
                 window.cursorSaid = cursor;
-                window.announcedCursor = cursor;
+                announceCursor(window, cursor);
             } else {
                 window.reconcileOwed = true;
             }
