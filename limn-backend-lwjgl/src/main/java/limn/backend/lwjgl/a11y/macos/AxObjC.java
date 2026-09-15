@@ -57,16 +57,15 @@ final class AxObjC {
      * @return a runtime bound to the running AppKit, or {@code null} where there is none — which is
      *         every machine that is not a Mac, and is the answer that keeps this module's own tests
      *         runnable everywhere
+     * @throws RuntimeException or {@link Error} when there is an Objective-C runtime and AppKit
+     *         still cannot be bound: that is not "not a Mac" but a Mac this bridge failed on, and
+     *         {@code AxBridge.openIfEnabled} says so rather than answering as if nothing were there
      */
     static AxObjC openOrNull() {
         if (!ObjC.isAvailable()) return null;
-        try {
-            SharedLibrary appKit = APIUtil.apiCreateLibrary(
-                    "/System/Library/Frameworks/AppKit.framework/AppKit");
-            return new AxObjC(appKit);
-        } catch (Throwable notAMac) {
-            return null;
-        }
+        SharedLibrary appKit = APIUtil.apiCreateLibrary(
+                "/System/Library/Frameworks/AppKit.framework/AppKit");
+        return new AxObjC(appKit);
     }
 
     /** An FFI struct of n unsigned 64-bit integers: an {@code NSRange}, returned in x0 and x1. */

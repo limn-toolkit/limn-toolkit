@@ -59,17 +59,33 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      */
     public static AccessibilityBridge openIfEnabled(long nsWindow) {
         if (nsWindow == 0) return NONE;
-        AxObjC objc = AxObjC.openOrNull();
-        if (objc == null) return NONE;
-        long contentView = ObjC.msg(nsWindow, "contentView");
-        if (contentView == 0) return NONE;
-        try {
+        return openedOrSaid(() -> {
+            AxObjC objc = AxObjC.openOrNull();
+            if (objc == null) return NONE;
+            long contentView = ObjC.msg(nsWindow, "contentView");
+            if (contentView == 0) return NONE;
             return new AxBridge(objc, contentView);
-        } catch (RuntimeException refused) {
-            // Said here rather than left to Bridges.openFor, whose catch answers NONE for every
-            // platform in silence: a window whose accessibility could not be built must say why
-            // somewhere a developer looks (MACOS-NEW-6). A selector the running AppKit lacks no
-            // longer lands here at all; the element class skips it and warns.
+        });
+    }
+
+    /**
+     * Runs the whole of an open, and says why when it fails.
+     *
+     * <p>Everything that can fail is inside: loading AppKit, the {@code contentView} message and the
+     * constructor, and every {@link Throwable}, an {@link Error} included. {@code Bridges.openFor}
+     * catches whatever escapes and answers {@code NONE} for every platform in silence, so a failure
+     * that reached it — a linkage error out of libffi, a class that would not initialise — left a
+     * window with no accessibility and no word about it (MACOS-NEW-6). Answering {@code NONE} is
+     * still right, since a window that cannot be made accessible is still a window; the silence was
+     * not.
+     *
+     * @param open the open itself
+     * @return what it answered, or {@code NONE} after an ERROR naming what it threw
+     */
+    static AccessibilityBridge openedOrSaid(java.util.function.Supplier<AccessibilityBridge> open) {
+        try {
+            return open.get();
+        } catch (Throwable refused) {
             LOG.log(System.Logger.Level.ERROR, "macOS accessibility could not be opened for this "
                     + "window, which therefore has none", refused);
             return NONE;

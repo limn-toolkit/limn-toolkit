@@ -119,6 +119,52 @@ class AxBridgeTest {
                         + "backend answers zero on a platform it has not been taught");
     }
 
+    /**
+     * MACOS-NEW-6's "never silently": {@code Bridges.openFor} answers {@code NONE} for anything thrown
+     * at it and says nothing, so whatever an open throws — an {@link Error} from a native link as much
+     * as an exception from the constructor — is said here before it becomes {@code NONE}.
+     */
+    @Test
+    void anOpenThatThrowsAnythingSaysSoAndAnswersNone() {
+        List<java.util.logging.LogRecord> logged = new java.util.ArrayList<>();
+        java.util.logging.Handler capture = new java.util.logging.Handler() {
+            @Override public void publish(java.util.logging.LogRecord record) {
+                logged.add(record);
+            }
+
+            @Override public void flush() {
+            }
+
+            @Override public void close() {
+            }
+        };
+        java.util.logging.Logger logger = java.util.logging.Logger.getLogger(AxBridge.class.getName());
+        logger.addHandler(capture);
+        try {
+            UnsatisfiedLinkError link = new UnsatisfiedLinkError("no libffi closure for you");
+            assertSame(AccessibilityBridge.NONE, AxBridge.openedOrSaid(() -> {
+                throw link;
+            }), "an Error is still a window that opens without accessibility");
+            IllegalStateException refused = new IllegalStateException("objc_allocateClassPair failed");
+            assertSame(AccessibilityBridge.NONE, AxBridge.openedOrSaid(() -> {
+                throw refused;
+            }));
+            assertEquals(2, logged.size(), "and each is said, once");
+            assertEquals(java.util.logging.Level.SEVERE, logged.get(0).getLevel());
+            assertSame(link, logged.get(0).getThrown(), "naming what was thrown");
+            assertSame(refused, logged.get(1).getThrown());
+
+            logged.clear();
+            AxBridge opened = AxBridge.withoutThePlatform();
+            assertSame(opened, AxBridge.openedOrSaid(() -> opened));
+            assertSame(AccessibilityBridge.NONE, AxBridge.openedOrSaid(() -> AccessibilityBridge.NONE),
+                    "a machine with no AppKit answers NONE by design");
+            assertTrue(logged.isEmpty(), "and neither an open nor a deliberate NONE is an error");
+        } finally {
+            logger.removeHandler(capture);
+        }
+    }
+
     @Test
     void thisPlatformIsTheOneThatAsksForAPrimingPublish() {
         assertTrue(AxBridge.withoutThePlatform().needsPrimingPublish());
