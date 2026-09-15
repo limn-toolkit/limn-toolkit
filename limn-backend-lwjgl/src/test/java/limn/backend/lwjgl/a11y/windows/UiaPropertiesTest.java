@@ -104,7 +104,9 @@ class UiaPropertiesTest {
 
         assertEquals(Boolean.TRUE, UiaProperties.valueOf(on, UiaIds.IS_ENABLED));
         assertEquals(Boolean.TRUE, UiaProperties.valueOf(on, UiaIds.IS_KEYBOARD_FOCUSABLE));
-        assertEquals(Boolean.TRUE, UiaProperties.valueOf(on, UiaIds.HAS_KEYBOARD_FOCUS));
+        assertNull(UiaProperties.valueOf(on, UiaIds.HAS_KEYBOARD_FOCUS),
+                "not a node's own state since 2026-09-15: the provider answers it from the tree's "
+                        + "effective focus (UiaBridgeTest, UiaFragmentTest)");
 
         AccessibleNode off = control(publish(Accessible.Role.BUTTON, "Save", null));
 
@@ -112,7 +114,6 @@ class UiaPropertiesTest {
                 "a disabled control is still published, and a client is told it cannot be used "
                         + "rather than left to find out by being refused");
         assertEquals(Boolean.FALSE, UiaProperties.valueOf(off, UiaIds.IS_KEYBOARD_FOCUSABLE));
-        assertEquals(Boolean.FALSE, UiaProperties.valueOf(off, UiaIds.HAS_KEYBOARD_FOCUS));
     }
 
     /**

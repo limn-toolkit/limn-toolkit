@@ -2102,6 +2102,18 @@ pointer-sized and narrow arguments plus the return letter, and `SafeArrayCreateV
 must be zeroed whole — 24 bytes — before every write, because leaving `VT_EMPTY` over a stale payload
 is a latent crash in a caller that trusts the union.
 
+**Amended 2026-09-15 (phase 3, Windows; decision 1, semantics 4; W3, LAB-NEW-4): `GetFocus` and
+`HasKeyboardFocus` answer where the user is.** The row above says `GetFocus` answers "the focused
+node", and so did the code: the focused table, tree, list or calendar, never the row, cell, day or
+segment its cursor is on, and `HasKeyboardFocus` was the node's own `FOCUSED` bit. Both now answer
+the tree's effective focus (`AccessibleTree#effectiveFocus`, the active descendant or the focused
+node): a focused table's cursor cell has the keyboard and the table does not, because NVDA 2024.4.2
+takes a focus change only from a sender that answers `HasKeyboardFocus` true when it reads it, live,
+after the event (readings/nvda-2024.4.2-uia.md §1). Where the cursor resolved into a native popup's
+tree (decision 5), `GetFocus` hands over that window's fragment pointer from that window's own
+provider, and that element is the one answering `HasKeyboardFocus` true. `HasKeyboardFocus` is
+therefore answered by the provider from the tree, not by the per-node property table.
+
 ### 2.2 macOS: NSAccessibility
 
 | Attribute / action / notification | Answered from | Note |
@@ -2325,6 +2337,22 @@ container's multi flag: Windows raises `ElementSelected` for a single-select con
 sends `Activate`/`Deactivate` from the frame's path. `FOCUS_CHANGED` is also raised for a node
 that arrived holding the focus. After a collapse to `INVALIDATED` the structure, focus, cursor,
 selection and window-activation events of that publish still follow it.
+
+**Amended 2026-09-15 (phase 3, Windows; W3, WINDOWS-NEW-4, LAB-NEW-12, WINDOWS-NEW-2, CRIT-3): the
+focus rows as built.** `FOCUS_CHANGED` and `ACTIVE_DESCENDANT_CHANGED` both raise
+`AutomationFocusChanged`, and on the same element: the tree's effective focus as the snapshot has
+it when the drain raises, never the event's own node, so the raise and the `HasKeyboardFocus` a
+reader then reads always agree. The element is **minted if no client holds it** — a row the cursor
+has just reached, a dialog's first field — while every other event keeps being raised only for a
+held element (§13.28's cost argument). A cursor in a native popup's tree is raised on the popup
+window's element, by the popup's bridge, under a guard its whole-registry empty also takes. Nothing
+is suppressed as a repeat: NVDA drops a duplicate focus event itself, and a bridge-local memory would
+silence the return to an element after the focus had been in another window. The model's
+`INVALIDATED` (node `0`) is swept like the bridge's own queue collapse, and after either the bridge
+re-raises the focus on the effective focus; the root-targeted `INVALIDATED` the sweep raises is
+`LayoutInvalidated` and sweeps nothing. The `HasKeyboardFocus` property change the `FOCUS_CHANGED`
+row promises is **not** raised: NVDA 2024.4.2 subscribes to no `HasKeyboardFocus` change (the same
+reading, §3), and the mapping of the remaining unmapped events is a later item of the Windows lane.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
@@ -2599,7 +2627,11 @@ the reference count and every pointer already handed out stay what they were, so
 a withdrawn interface still reaches live closures (whose slots answer from the snapshot) until the
 whole-registry empty frees them. Retiring the element and minting a successor was the alternative;
 it would have put a second writer on the id map, two objects behind one runtime id, and an exemption
-for the root, which is why it was not taken (`UiaObjectTest`, `UiaBridgeTest`).
+for the root, which is why it was not taken (`UiaObjectTest`, `UiaBridgeTest`). **And a second
+amendment the same day (W3):** an element may be minted by **another window's drain thread**, when
+that window's focused field has its cursor in this window's tree (decision 5); minting was already
+any thread's, so the id map is unchanged, and the whole-registry empty now takes a per-bridge guard
+that such a raise also holds, so it never frees an element a raise from outside is standing on.
 
 ### 3.5 What all three share
 

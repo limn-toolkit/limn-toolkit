@@ -116,8 +116,11 @@ final class UiaProperties {
                 return node.has(Accessible.State.ENABLED);
             case UiaIds.IS_KEYBOARD_FOCUSABLE:
                 return node.has(Accessible.State.FOCUSABLE);
-            case UiaIds.HAS_KEYBOARD_FOCUS:
-                return node.has(Accessible.State.FOCUSED);
+            // HAS_KEYBOARD_FOCUS is not answered here: since 2026-09-15 it is where the user is,
+            // the tree's effective focus (semantics 4), which a node alone cannot say -- the
+            // focused table is FOCUSED and does not have it, its ACTIVE cell does. The provider
+            // answers it from the tree (UiaProvider.Context#hasKeyboardFocus), as it answers the
+            // element-valued properties below.
 
             // The inversion §1.2 warns about: a node scrolled out of a viewport is VISIBLE and not
             // SHOWING, and UI Automation's word for that state is IsOffscreen. Answering it from

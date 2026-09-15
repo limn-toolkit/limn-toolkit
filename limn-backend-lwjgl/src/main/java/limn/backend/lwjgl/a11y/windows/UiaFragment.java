@@ -82,12 +82,19 @@ final class UiaFragment {
     }
 
     /**
+     * What {@code GetFocus} answers: where the user is, which is the tree's
+     * {@linkplain AccessibleTree#effectiveFocus() effective focus} (decision 1; semantics 4) --
+     * the cursor row, cell, day or segment of a focused widget, and the focused node itself when it
+     * has no cursor. Until 2026-09-15 this answered {@link AccessibleTree#focused()}, the widget,
+     * so a reader asking after a cursor move found the table and never the cell (W3, LAB-NEW-4).
+     *
      * @param tree the published tree
-     * @return the index of the node holding the keyboard focus, or {@link AccessibleNode#NONE}
-     *         when nothing in this window does
+     * @return the index of that node, or {@link AccessibleNode#NONE} when nothing in this window
+     *         is focused or the cursor lives in another window's tree (decision 5), which the
+     *         provider answers through that window
      */
     static int focus(AccessibleTree tree) {
-        long focused = tree.focused();
+        long focused = tree.effectiveFocus();
         return focused == 0 ? AccessibleNode.NONE : tree.indexOf(focused);
     }
 

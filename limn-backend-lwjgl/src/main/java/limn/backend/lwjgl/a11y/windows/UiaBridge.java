@@ -73,6 +73,26 @@ public final class UiaBridge extends PlatformBridge {
     private volatile boolean closed;
 
     /**
+     * Every bridge holding a published tree in this process, so that a cursor resolved into a
+     * native popup's tree (decision 5: {@link AccessibleTree#activeDescendant()} may name a node
+     * another window minted) is answered and raised through the provider of the window that holds
+     * it. Added on a publish, removed on detach; read by drain and RPC threads.
+     */
+    private static final java.util.Set<UiaBridge> OPEN =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * Held by another window's drain thread while it raises a focus change on one of this bridge's
+     * elements, and by the whole-registry empty while it frees them, so the empty never frees an
+     * element a raise from outside is standing on. This bridge's own drain needs no such guard:
+     * the empty stops and joins it first.
+     */
+    private final Object vendGuard = new Object();
+
+    /** The node the last focus change was raised on, anywhere; for the trace. Drain thread. */
+    private volatile long announcedFocus;
+
+    /**
      * How many event subscriptions covering this window are standing: added minus removed. The
      * spike's reading for §13.5's second half; not yet a gate.
      */
@@ -267,6 +287,16 @@ public final class UiaBridge extends PlatformBridge {
     @Override
     public void publish(AccessibleTree tree, boolean reentrant) {
         super.publish(tree, reentrant);
+        if (!closed && tree.nodeCount() > 0) {
+            OPEN.add(this);
+        }
+    }
+
+    /** <p>And leaves the process's set of open bridges before the tree is dropped. */
+    @Override
+    public void detach() {
+        OPEN.remove(this);
+        super.detach();
     }
 
     /**
@@ -304,6 +334,15 @@ public final class UiaBridge extends PlatformBridge {
                 AccessibleEvent event = events.take();
                 if (event == UiaEvents.COLLAPSE) {
                     sweepAndInvalidate();
+                    raiseFocus("after this bridge's queue collapsed");
+                } else if (event.type() == AccessibleEvent.Type.INVALIDATED
+                        && event.nodeId() == 0) {
+                    // The model's own collapse (§1.10): a publish wider than its budget, whose
+                    // per-node events -- NODE_DESTROYED among them -- became this one event. The
+                    // same sweep as this queue's, and the same re-announcement; the root-targeted
+                    // INVALIDATED the sweep raises names the root and comes back through raise().
+                    sweepAndInvalidate();
+                    raiseFocus("after the model's INVALIDATED");
                 } else {
                     raise(event);
                 }
@@ -371,8 +410,12 @@ public final class UiaBridge extends PlatformBridge {
             }
             return;
         }
+        if (event.type() == AccessibleEvent.Type.FOCUS_CHANGED
+                || event.type() == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED) {
+            raiseFocus(event.type().name());
+            return;
+        }
         int eventId = switch (event.type()) {
-            case FOCUS_CHANGED -> UiaIds.AUTOMATION_FOCUS_CHANGED;
             case INVOKED -> UiaIds.INVOKE_INVOKED;
             case SELECTION_CHANGED -> UiaIds.SELECTION_ITEM_ELEMENT_SELECTED;
             case STRUCTURE_CHANGED -> UiaIds.STRUCTURE_CHANGED;
@@ -421,6 +464,132 @@ public final class UiaBridge extends PlatformBridge {
         UiaWindow.say("raised " + event.type() + " for node " + event.nodeId() + " in "
                     + (System.nanoTime() - started) / 1_000 + " us on "
                     + Thread.currentThread().getName());
+    }
+
+    /**
+     * Where the user is, raised: {@code AutomationFocusChanged} on the element of the tree's
+     * {@linkplain AccessibleTree#effectiveFocus() effective focus} as the snapshot has it now
+     * (decision 1; semantics 4; W3, WINDOWS-NEW-4, WINDOWS-NEW-2).
+     *
+     * <p><b>On the effective focus, not on the event's node</b>, and read off the current tree:
+     * NVDA 2024.4.2 queues the focus only if the sender answers {@code HasKeyboardFocus} true when
+     * it reads it, live, after the event (readings/nvda-2024.4.2-uia.md §1), and that property is
+     * answered from this same tree, so the raise and the answer always agree. A focused list, tree,
+     * table or calendar is the widget; the effective focus is its cursor item, which is the only
+     * thing NVDA 2024.4.2 speaks when a cursor moves (ElementSelected on an item is silent without
+     * ControllerFor, §2 of that reading).
+     *
+     * <p><b>Minted if nobody holds it.</b> Every other event stays raised only for an element a
+     * client asked for, because a client that never asked has nothing to be told about; a focus
+     * subscriber hears focus anywhere in the window, and the row a cursor has just reached is
+     * exactly the element no client has navigated to yet.
+     *
+     * <p><b>In the window that holds it.</b> A cursor resolved into a native popup's tree names a
+     * node this tree does not hold, and its element is that window's: the raise goes through the
+     * popup bridge's own element, under that bridge's guard.
+     *
+     * <p>Nothing is skipped as a repeat: a reader that already stands on the element drops the
+     * duplicate itself (the same reading, the duplicate filter), and a bridge-local memory would
+     * silence the return to an element after the focus spent a while in another window.
+     *
+     * @param cause what prompted it, for the trace: the event type, or the collapse it follows
+     */
+    private void raiseFocus(String cause) {
+        AccessibleTree tree = tree();
+        long target = tree.effectiveFocus();
+        if (target == 0) {
+            UiaWindow.say("no focus to raise for " + cause);
+            return;
+        }
+        long started = System.nanoTime();
+        String where;
+        if (tree.indexOf(target) >= 0) {
+            UiaElement element = elementOf(target);
+            if (element == null) {
+                UiaWindow.say("focus on node " + target + " has no element for " + cause);
+                return;
+            }
+            Uia.raiseAutomationEvent(element.pointer(), UiaIds.AUTOMATION_FOCUS_CHANGED);
+            where = "";
+        } else {
+            UiaBridge holder = openBridgeHolding(target);
+            if (holder == null || !holder.raiseFocusFromAnotherWindow(target)) {
+                UiaWindow.say("focus on node " + target + " is in no open window for " + cause);
+                return;
+            }
+            where = " in another window";
+        }
+        // A raise that reached the platform: the one change a client that asked was owed.
+        owedAnEvent = false;
+        announcedFocus = target;
+        UiaWindow.say("raised " + cause + " for node " + target + where + " in "
+                + (System.nanoTime() - started) / 1_000 + " us on "
+                + Thread.currentThread().getName());
+    }
+
+    /**
+     * Raises the focus change on this bridge's element for a node another window's effective
+     * focus names, on that window's drain thread.
+     *
+     * @param nodeId a node of this bridge's tree
+     * @return whether it was raised; {@code false} once this bridge is closed or the node has left
+     */
+    private boolean raiseFocusFromAnotherWindow(long nodeId) {
+        synchronized (vendGuard) {
+            if (closed) {
+                return false;
+            }
+            UiaElement element = elementOf(nodeId);
+            if (element == null) {
+                return false;
+            }
+            Uia.raiseAutomationEvent(element.pointer(), UiaIds.AUTOMATION_FOCUS_CHANGED);
+            owedAnEvent = false;
+            return true;
+        }
+    }
+
+    /**
+     * @param nodeId a node identifier
+     * @return another open bridge whose published tree holds it, or {@code null}
+     */
+    private UiaBridge openBridgeHolding(long nodeId) {
+        for (UiaBridge other : OPEN) {
+            if (other != this && other.tree().indexOf(nodeId) >= 0) {
+                return other;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whether a node of this tree is where the user is: this tree's effective focus, or the cursor
+     * another open window's focused node resolved into this tree (decision 5). What
+     * {@code HasKeyboardFocus} answers, so that it agrees with {@link #raiseFocus}.
+     *
+     * @param nodeId a node of this bridge's tree
+     * @return whether it has the keyboard, as UI Automation means it
+     */
+    private boolean hasKeyboardFocus(long nodeId) {
+        AccessibleTree tree = tree();
+        if (nodeId == 0 || tree.indexOf(nodeId) < 0) {
+            return false;
+        }
+        if (tree.effectiveFocus() == nodeId) {
+            return true;
+        }
+        for (UiaBridge other : OPEN) {
+            AccessibleTree theirs = other.tree();
+            if (other != this && theirs.effectiveFocus() == nodeId && theirs.indexOf(nodeId) < 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return the node the last focus change was raised on; for tests */
+    long announcedFocusForTests() {
+        return announcedFocus;
     }
 
     /**
@@ -602,14 +771,19 @@ public final class UiaBridge extends PlatformBridge {
         // The drain thread first, stopped and joined: it is the only other remover, and a raise
         // in flight holds an element this is about to free (§3.4).
         stopDrain();
-        // Then, while every closure the platform may call back through is still there.
-        disconnectRootProvider();
         java.util.Set<UiaObject> distinct =
                 java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-        distinct.addAll(objects.values());
-        objects.clear();
-        elements.empty();
-        distinct.forEach(UiaObject::free);
+        // And any other window's drain thread raising a focus change on one of these elements
+        // finishes first (raiseFocusFromAnotherWindow).
+        synchronized (vendGuard) {
+            // Then, while every closure the platform may call back through is still there.
+            disconnectRootProvider();
+            distinct.addAll(objects.values());
+            objects.clear();
+            elements.empty();
+            distinct.forEach(UiaObject::free);
+            announcedFocus = 0;
+        }
         UiaWindow.say("freed " + distinct.size() + " objects");
     }
 
@@ -740,6 +914,21 @@ public final class UiaBridge extends PlatformBridge {
         @Override
         public boolean requestFocus(long nodeId) {
             return perform(nodeId, Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        }
+
+        @Override
+        public boolean hasKeyboardFocus(long nodeId) {
+            return UiaBridge.this.hasKeyboardFocus(nodeId);
+        }
+
+        /**
+         * <p>The popup window's own fragment pointer, handed over by the bridge that holds it and
+         * referenced there, which is the element UI Automation raised the focus change on.
+         */
+        @Override
+        public long elementInAnotherWindowFor(long nodeId) {
+            UiaBridge holder = openBridgeHolding(nodeId);
+            return holder == null ? 0 : holder.context.elementFor(nodeId);
         }
 
         @Override

@@ -102,6 +102,34 @@ final class UiaProvider {
         boolean requestFocus(long nodeId);
 
         /**
+         * Whether a node has the keyboard as UI Automation means it: where the user is, which is
+         * the tree's {@linkplain AccessibleTree#effectiveFocus() effective focus} -- the cursor
+         * item of a focused list, tree, table or calendar, or the focused node itself when it has
+         * none (decision 1; semantics 4). A bridge holding several windows also answers true for
+         * the node another window's cursor resolved into this one (decision 5).
+         *
+         * @param nodeId a node of this tree
+         * @return what {@code HasKeyboardFocus} answers for it
+         */
+        default boolean hasKeyboardFocus(long nodeId) {
+            return nodeId != 0 && tree().indexOf(nodeId) >= 0
+                    && tree().effectiveFocus() == nodeId;
+        }
+
+        /**
+         * The element for a node another window's tree holds, which is where this window's
+         * effective focus may point once a focused field's cursor lives in its native popup
+         * (decision 5): that window's fragment pointer, from that window's own provider.
+         *
+         * @param nodeId a node this tree does not hold
+         * @return its fragment pointer, referenced for the caller, or {@code 0} when no window this
+         *         context knows holds it
+         */
+        default long elementInAnotherWindowFor(long nodeId) {
+            return 0;
+        }
+
+        /**
          * A client subscribed to, or unsubscribed from, an event that covers this window.
          *
          * <p>The one thing UI Automation tells a provider about its <em>clients</em>, and the only
@@ -347,6 +375,10 @@ final class UiaProvider {
         int focused = UiaFragment.focus(tree);
         if (focused != AccessibleNode.NONE) {
             MemoryUtil.memPutAddress(out, context.elementFor(tree.node(focused).id()));
+        } else if (tree.effectiveFocus() != 0) {
+            // The cursor lives in a native popup's tree (decision 5): the element is that
+            // window's, handed over by its own provider.
+            MemoryUtil.memPutAddress(out, context.elementInAnotherWindowFor(tree.effectiveFocus()));
         }
         return UiaIds.S_OK;
     }
@@ -445,6 +477,13 @@ final class UiaProvider {
                     UiaVariant.unknownArray(variant, 0, context.unknownArray(pointers));
                 }
             }
+            return UiaIds.S_OK;
+        }
+        if (propertyId == UiaIds.HAS_KEYBOARD_FOCUS) {
+            // A fact of the tree and not of the node (semantics 4): the cursor item of a focused
+            // container has the keyboard, the container does not, and NVDA 2024.4.2 reads this
+            // live when it hears a focus change (readings/nvda-2024.4.2-uia.md §1).
+            UiaVariant.bool(variant, 0, context.hasKeyboardFocus(nodeId));
             return UiaIds.S_OK;
         }
         Object value = UiaProperties.valueOf(node, propertyId);

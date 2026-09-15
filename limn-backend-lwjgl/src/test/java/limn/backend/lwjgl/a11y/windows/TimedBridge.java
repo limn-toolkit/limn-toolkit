@@ -62,7 +62,13 @@ final class TimedBridge implements AccessibilityBridge {
 
     @Override
     public void emit(AccessibleEvent event) {
-        boolean raised = real.holdsElementFor(event.nodeId());
+        // A focus change is raised on the tree's effective focus whether or not a client holds
+        // it, because the bridge mints the element (WINDOWS-NEW-4); anything else only for a
+        // held one. Decided here, before the drain runs, so it is the estimate it always was.
+        boolean focus = event.type() == AccessibleEvent.Type.FOCUS_CHANGED
+                || event.type() == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED;
+        boolean raised = focus ? real.tree().effectiveFocus() != 0
+                : real.holdsElementFor(event.nodeId());
         long start = System.nanoTime();
         real.emit(event);
         tally.emitted(System.nanoTime() - start, raised);

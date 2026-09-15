@@ -128,6 +128,57 @@ class UiaFragmentTest {
                 "a window nothing in is focused answers nothing, not its root");
     }
 
+    /**
+     * W3, LAB-NEW-4: GetFocus answers where the user is. A focused table whose cursor cell is
+     * ACTIVE answers the cell, and the Context's default HasKeyboardFocus agrees; before 2026-09-15
+     * both answered the table.
+     */
+    @Test
+    void theFocusIsTheActiveDescendantOfTheFocusedContainer() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TABLE);
+        a.selection(false, false);
+        a.inherited(true, true, true, true, true);
+        a.begin(1002, 1, Locale.ENGLISH, 0, 0, 400, 20);
+        a.role(Accessible.Role.ROW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1003, 2, Locale.ENGLISH, 0, 0, 400, 20);
+        a.role(Accessible.Role.CELL);
+        a.state(Accessible.State.ACTIVE, true);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.end();
+        a.end();
+        AccessibleTree tree = a.publish(1001, 0, 0, 1f, true);
+
+        assertEquals(tree.indexOf(1003), UiaFragment.focus(tree),
+                "the cursor cell, not the table that holds the keyboard");
+
+        UiaProvider.Context context = new UiaProvider.Context() {
+            @Override public AccessibleTree tree() { return tree; }
+            @Override public long patternProviderFor(long nodeId, int patternId) { return 0; }
+            @Override public long hostProvider() { return 0; }
+            @Override public UiaStrings.Allocator strings() { return text -> 0; }
+            @Override public long int32Array(int[] values) { return 0; }
+            @Override public long unknownArray(long[] pointers) { return 0; }
+            @Override public long elementFor(long nodeId) { return 0; }
+            @Override public long simpleElementFor(long nodeId) { return 0; }
+            @Override public long rootElement() { return 0; }
+            @Override public boolean requestFocus(long nodeId) { return false; }
+            @Override public boolean perform(long nodeId, Accessible.Action action,
+                                             Accessible.Argument arg) { return false; }
+        };
+        assertEquals(true, context.hasKeyboardFocus(1003));
+        assertEquals(false, context.hasKeyboardFocus(1001));
+        assertEquals(false, context.hasKeyboardFocus(9999), "a node this tree does not hold");
+    }
+
     @Test
     void theElementUnderAPointIsTheDeepestOneWhoseBoxHoldsIt() {
         AccessibleTree tree = scene(200, 100, 2f, 0);

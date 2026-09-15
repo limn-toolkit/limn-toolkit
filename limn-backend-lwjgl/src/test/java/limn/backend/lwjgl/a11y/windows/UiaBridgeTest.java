@@ -30,6 +30,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class UiaBridgeTest {
 
     private static AccessibleTree aWindowWith(Accessible.Role role, boolean pressable) {
+        return aWindowWith(role, pressable, false);
+    }
+
+    /** The same window, with the control (1001) holding the keyboard focus when asked. */
+    private static AccessibleTree aWindowWith(Accessible.Role role, boolean pressable,
+                                              boolean focused) {
         Accessibility a = new Accessibility();
         a.beginWalk(400, 300, Locale.ENGLISH);
         a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
@@ -42,10 +48,10 @@ class UiaBridgeTest {
         if (pressable) {
             a.action(Accessible.Action.PRESS);
         }
-        a.inherited(true, true, true, true, false);
+        a.inherited(true, true, true, true, focused);
         a.end();
         a.end();
-        return a.publish(0, 0, 0, 1f, true);
+        return a.publish(focused ? 1001 : 0, 0, 0, 1f, true);
     }
 
     @Test
@@ -399,7 +405,7 @@ class UiaBridgeTest {
         java.util.function.Consumer<String> before = UiaWindow.trace;
         UiaWindow.trace = trace::add;
         try {
-            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true, true), false);
             bridge.objectFor(1001);
             bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
             String raised = awaitTrace(trace, line -> line.startsWith("raised FOCUS_CHANGED"));
@@ -475,8 +481,11 @@ class UiaBridgeTest {
             // The button leaves: a tree with only the window. Its NODE_DESTROYED is among what
             // the overflow swallows.
             bridge.publish(aWindowWithout(), false);
+            // Name changes on the held root: each one a real raise, so each one slow. (A focus
+            // change raised nothing here since 2026-09-15: this window has no focus to raise.)
             for (int i = 0; i <= UiaEvents.CAPACITY + 8; i++) {
-                bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1000));
+                bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000,
+                        "A window", "A window " + i));
             }
             assertNotNull(awaitTrace(trace, l -> l.equals("collapse: swept 1 elements")),
                     "the registry was not swept: " + trace);
@@ -501,7 +510,7 @@ class UiaBridgeTest {
         java.util.function.Consumer<String> before = UiaWindow.trace;
         UiaWindow.trace = trace::add;
         try {
-            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true, true), false);
             bridge.objectFor(1001);
             bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
             assertNotNull(awaitTrace(trace, l -> l.startsWith("raised FOCUS_CHANGED")));
@@ -655,7 +664,7 @@ class UiaBridgeTest {
         java.util.function.Consumer<String> before = UiaWindow.trace;
         UiaWindow.trace = trace::add;
         try {
-            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true, true), false);
             bridge.noteAsked();
             nanos[0] += 60_000_000_000L;
             assertTrue(UiaBridge.listening(true, 0, bridge.lastAskedForTests(), nanos[0],
@@ -672,17 +681,61 @@ class UiaBridgeTest {
         }
     }
 
+    /**
+     * A property change on a node no client asked for pays nothing: nobody holds an element to be
+     * told, and a client that asks later reads what is current (ADR 039 §13.28's cost argument).
+     * Until 2026-09-15 this case was a focus change, which is no longer skipped (the next case).
+     */
     @Test
-    void anEventForANodeNobodyHoldsPaysNothing() {
+    void aPropertyChangeOnANodeNobodyHoldsPaysNothing() {
         UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
         try {
             bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
             bridge.noteAsked();
-            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
-            // Give the drain a moment; nothing to await, since nothing is traced for a skip.
-            try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-            assertTrue(bridge.owesAnEvent(), "a change nobody could hear is not the one owed");
+            bridge.objectFor(1000);
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1001,
+                    "Save", "Save as"));
+            // A marker behind it on the held root, so the skip is known to have been drained.
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000,
+                    "A window", "A window"));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised NAME_CHANGED for node 1000")));
+            assertFalse(bridge.holdsElementFor(1001), "nothing was minted for it");
+            synchronized (trace) {
+                assertTrue(trace.stream().noneMatch(l -> l.contains("for node 1001")),
+                        "and nothing was raised on it: " + trace);
+            }
         } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * WINDOWS-NEW-4, LAB-NEW-12: a focus change on a node no client has navigated to is raised, and
+     * its element minted for it. A focus subscriber hears focus anywhere in the window, and a
+     * control that has just taken the focus -- a dialog's first field, a row the cursor reached --
+     * is exactly the element nobody has asked for yet. Before 2026-09-15 it was skipped.
+     */
+    @Test
+    void aFocusChangeOnANodeNobodyHoldsIsRaisedAndMintsItsElement() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true, true), false);
+            bridge.noteAsked();
+            assertFalse(bridge.holdsElementFor(1001));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised FOCUS_CHANGED for node 1001")),
+                    "the focus change was raised: " + trace);
+            assertTrue(bridge.holdsElementFor(1001), "on an element minted for it");
+            assertFalse(bridge.owesAnEvent(), "and it is the change a client that asked was owed");
+        } finally {
+            UiaWindow.trace = before;
             bridge.detach();
         }
     }
@@ -750,6 +803,211 @@ class UiaBridgeTest {
             assertEquals(1, bridge.elementCount(), "the root handed over is the tree it had");
         } finally {
             bridge.detach();
+        }
+    }
+
+    // ---- where the user is (decision 1, semantics 4; W3, WINDOWS-NEW-2, CRIT-3)
+
+    /**
+     * A window with a focused TABLE (1001) whose ROW (1002) holds an ACTIVE CELL (1003) when
+     * {@code cursor} is true, and a second row (1004) with a cell (1005) holding it otherwise.
+     */
+    private static AccessibleTree aFocusedTable(boolean cursorOnFirstRow) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int table = a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TABLE);
+        a.table(2, 1);
+        a.selection(false, false);
+        a.inherited(true, true, true, true, true);
+        for (int r = 0; r < 2; r++) {
+            int row = a.begin(1002 + 2L * r, table, Locale.ENGLISH, 0, 20 * r, 400, 20);
+            a.role(Accessible.Role.ROW);
+            a.inherited(true, true, true, false, false);
+            a.begin(1003 + 2L * r, row, Locale.ENGLISH, 0, 20 * r, 400, 20);
+            a.role(Accessible.Role.CELL);
+            a.cell(r, 0);
+            a.state(Accessible.State.ACTIVE, (r == 0) == cursorOnFirstRow);
+            a.inherited(true, true, true, false, false);
+            a.end();
+            a.end();
+        }
+        a.end();
+        a.end();
+        return a.publish(1001, 0, 0, 1f, true);
+    }
+
+    /**
+     * W3: the element that has the keyboard is the cursor cell of the focused table, and the table
+     * does not have it -- NVDA 2024.4.2 takes a focus change only from a sender that says so.
+     */
+    @Test
+    void theCursorCellOfAFocusedTableHasTheKeyboardAndTheTableDoesNot() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        try {
+            bridge.publish(aFocusedTable(true), false);
+            UiaProvider.Context context = bridge.contextForTests();
+            assertTrue(context.hasKeyboardFocus(1003));
+            assertFalse(context.hasKeyboardFocus(1001), "the focused widget, whose cursor is below");
+            assertFalse(context.hasKeyboardFocus(1005));
+        } finally {
+            bridge.detach();
+        }
+    }
+
+    /**
+     * W3: a cursor move inside the focused table raises the focus change on the new cell, minting
+     * it, where before it raised nothing (ACTIVE_DESCENDANT_CHANGED had no mapping) and traced
+     * that it had.
+     */
+    @Test
+    void aCursorMoveRaisesTheFocusChangeOnTheNewCursorCell() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aFocusedTable(true), false);
+            bridge.noteAsked();
+            bridge.publish(aFocusedTable(false), false);
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+                    1001, 1003L, 1005L));
+            assertNotNull(awaitTrace(trace,
+                    l -> l.startsWith("raised ACTIVE_DESCENDANT_CHANGED for node 1005 in ")),
+                    "raised on the cell the cursor reached: " + trace);
+            assertTrue(bridge.holdsElementFor(1005), "minted for it");
+            assertEquals(1005, bridge.announcedFocusForTests());
+            assertFalse(bridge.owesAnEvent());
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * WINDOWS-NEW-2, CRIT-3: the model's own collapse to INVALIDATED is swept like this queue's,
+     * once per emit (the root-targeted INVALIDATED the sweep raises does not sweep again), and the
+     * focus is re-announced after it, where before the event was dropped at node 0.
+     */
+    @Test
+    void theModelsInvalidatedSweepsOncePerEmitAndReannouncesTheFocus() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aFocusedTable(true), false);
+            bridge.objectFor(1000);
+            bridge.objectFor(1005);
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true, true), false);
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            assertNotNull(awaitTrace(trace, l -> l.equals("collapse: swept 1 elements")),
+                    "the cell's element went with its node: " + trace);
+            java.util.function.Predicate<String> reannounced = l -> l.startsWith(
+                    "raised after the model's INVALIDATED for node 1001 in ");
+            assertNotNull(awaitTrace(trace, l -> reannounced.test(l)
+                    && trace.stream().filter(reannounced).count() == 2),
+                    "the focus re-announced after each: " + trace);
+            synchronized (trace) {
+                assertEquals(2, trace.stream().filter(l -> l.startsWith("collapse: swept")).count(),
+                        "one sweep per emit, and none from the root's own INVALIDATED: " + trace);
+                assertEquals(2, trace.stream()
+                        .filter(l -> l.startsWith("raised INVALIDATED for node 1000")).count(),
+                        "which is raised as the root's LayoutInvalidated: " + trace);
+            }
+            assertTrue(bridge.holdsElementFor(1000), "the root's element stays");
+            assertFalse(bridge.holdsElementFor(1005), "the gone cell's does not");
+            assertTrue(bridge.holdsElementFor(1001), "and the re-announced button's was minted");
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * Decision 5: a focused field's cursor resolved into its native popup's tree. The focus change
+     * is raised on the popup window's element, minted by the popup's bridge; that element says it
+     * has the keyboard and the field does not; and the host root's GetFocus answers the popup's
+     * fragment pointer. Two bridges, two trees, as two windows have.
+     */
+    @Test
+    void aCursorInAnotherWindowsTreeIsRaisedAndAnsweredThroughThatWindowsProvider() {
+        Accessibility popupWalk = new Accessibility();
+        long popupRoot = popupWalk.mint();
+        long day = popupWalk.mint();
+        popupWalk.beginWalk(200, 200, Locale.ENGLISH);
+        popupWalk.begin(popupRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
+        popupWalk.role(Accessible.Role.WINDOW);
+        popupWalk.inherited(true, true, true, false, false);
+        popupWalk.begin(day, 0, Locale.ENGLISH, 10, 10, 20, 20);
+        popupWalk.role(Accessible.Role.CELL);
+        popupWalk.state(Accessible.State.ACTIVE, true);
+        popupWalk.inherited(true, true, true, false, false);
+        popupWalk.end();
+        popupWalk.end();
+        AccessibleTree popupTree = popupWalk.publish(0, 0, 0, 1f, true);
+
+        Accessibility hostWalk = new Accessibility();
+        long hostRoot = hostWalk.mint();
+        long field = hostWalk.mint();
+        hostWalk.beginWalk(400, 300, Locale.ENGLISH);
+        hostWalk.begin(hostRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        hostWalk.role(Accessible.Role.WINDOW);
+        hostWalk.inherited(true, true, true, false, false);
+        hostWalk.begin(field, 0, Locale.ENGLISH, 10, 10, 200, 30);
+        hostWalk.role(Accessible.Role.TEXT_FIELD);
+        hostWalk.inherited(true, true, true, true, true);
+        hostWalk.end();
+        hostWalk.end();
+        hostWalk.foreignActiveDescendant(day);
+        AccessibleTree hostTree = hostWalk.publish(field, 0, 0, 1f, true);
+        assertEquals(day, hostTree.effectiveFocus(), "the fixture: the cursor is the popup's day");
+
+        UiaBridge host = UiaBridge.withoutTheGate(0x1234);
+        UiaBridge popup = UiaBridge.withoutTheGate(0x5678);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        java.util.List<UiaObject> made = new java.util.ArrayList<>();
+        long out = org.lwjgl.system.MemoryUtil.nmemAllocChecked(8);
+        try {
+            popup.publish(popupTree, false);
+            host.publish(hostTree, false);
+            host.noteAsked();
+
+            host.emit(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+                    field, 0L, day));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised ACTIVE_DESCENDANT_CHANGED for node "
+                    + day + " in another window in ")), "raised through the popup: " + trace);
+            assertTrue(popup.holdsElementFor(day), "on the popup bridge's element, minted there");
+            assertFalse(host.holdsElementFor(day), "and nothing of the popup's minted in the host");
+            assertFalse(host.owesAnEvent());
+
+            assertTrue(popup.contextForTests().hasKeyboardFocus(day),
+                    "the popup's day has the keyboard, as NVDA reads it live");
+            assertFalse(host.contextForTests().hasKeyboardFocus(field), "and the field does not");
+
+            UiaObject root = UiaObject.create(java.util.List.of(new UiaObject.Served(
+                    UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT_ROOT,
+                    UiaProvider.fragmentRootSlots(host.contextForTests()))), () -> { });
+            made.add(root);
+            int getFocus = 3 + UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT_ROOT.slots()
+                    .indexOf("GetFocus");
+            assertEquals(UiaIds.S_OK, org.lwjgl.system.JNI.invokePPI(root.pointer(), out,
+                    UiaCom.slotOf(root.pointer(), getFocus)));
+            assertEquals(popup.objectFor(day).pointerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT),
+                    org.lwjgl.system.MemoryUtil.memGetAddress(out),
+                    "the host's GetFocus answers the popup window's own fragment pointer");
+        } finally {
+            org.lwjgl.system.MemoryUtil.nmemFree(out);
+            UiaWindow.trace = before;
+            host.detach();
+            popup.detach();
+            made.forEach(UiaObject::free);
         }
     }
 }
