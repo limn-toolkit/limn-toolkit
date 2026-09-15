@@ -2225,18 +2225,34 @@ public class Table<T> extends Widget implements Scrollable {
         notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
     }
 
-    /** Toggles one row's membership, in MULTI: a gesture. */
+    /** Toggles one row's membership, in MULTI, and moves the cursor to it: a gesture. */
     private void toggle(int viewIndex) {
+        toggle(viewIndex, true);
+    }
+
+    /**
+     * Toggles one row's membership, in MULTI, as a user. The command-click and Space move the
+     * focus cell and the range anchor to the row ({@code moveCursor}); a reader's
+     * {@code ADD_TO_SELECTION} and {@code DESELECT} leave both where they stand and scroll
+     * nothing, because only {@code SELECT} and {@code FOCUS} move a cursor (decision 20 and
+     * semantics 5 of 2026-09-13/14): a reader that adds a row it reached by its own navigation
+     * has not asked the user's cursor to follow it.
+     */
+    private void toggle(int viewIndex, boolean moveCursor) {
         int wasFocusRow = focusRow;
         BitSet before = (BitSet) selected.clone();
         int model = modelOf(viewIndex);
         selected.flip(model);
         lead = selected.get(model) ? model : (selected.isEmpty() ? -1 : lead == model
                 ? selected.length() - 1 : lead);
-        focusRow = viewIndex;
-        rangeAnchor = viewIndex;
+        if (moveCursor) {
+            focusRow = viewIndex;
+            rangeAnchor = viewIndex;
+        }
         syncRecords();
-        ensureVisible(viewIndex);
+        if (moveCursor) {
+            ensureVisible(viewIndex);
+        }
         damageSelectionChange(before, wasFocusRow);
         announceFocusCell(wasFocusRow, Change.Origin.USER);
         notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
@@ -3252,7 +3268,8 @@ public class Table<T> extends Widget implements Scrollable {
      * row of that number). The verbs are the published ones and no other — a cell accepts
      * {@code FOCUS} alone — and each goes through the seam the matching gesture takes at
      * {@code USER}: {@code SELECT} is the click, {@code ADD_TO_SELECTION} and {@code DESELECT}
-     * the command-click, {@code FOCUS} a cursor move that selects nothing. A row is named by
+     * the command-click's toggle without its cursor move (only {@code SELECT} and {@code FOCUS}
+     * move the cursor, decision 20), {@code FOCUS} a cursor move that selects nothing. A row is named by
      * the model index the snapshot published and acted on as the record at that index now.
      */
     @Override
@@ -3300,14 +3317,14 @@ public class Table<T> extends Widget implements Scrollable {
                 if (selectionMode != SelectionMode.MULTI || selected.get(model)) {
                     return false;
                 }
-                toggle(view);
+                toggle(view, false);
                 return true;
             }
             case DESELECT -> {
                 if (selectionMode != SelectionMode.MULTI || !selected.get(model)) {
                     return false;
                 }
-                toggle(view);
+                toggle(view, false);
                 return true;
             }
             case FOCUS -> {

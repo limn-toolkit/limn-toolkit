@@ -278,8 +278,12 @@ class TableTest extends ComponentTestBase {
         assertArrayEquals(new int[] {1, 2, 3}, table.selectedRows(), "Shift selects the range");
         click(scene, 30, rowCenterY(table, 5), Accelerator.commandModifier());
         assertArrayEquals(new int[] {1, 2, 3, 5}, table.selectedRows(), "command toggles one on");
+        // The gesture moves the cursor to the row it toggled, which a reader's ADD_TO_SELECTION
+        // and DESELECT do not (decision 20; TableAccessibilityTest pins the verbs' half).
+        assertEquals(5, table.focusRow(), "the command-click moves the cursor");
         click(scene, 30, rowCenterY(table, 2), Accelerator.commandModifier());
         assertArrayEquals(new int[] {1, 3, 5}, table.selectedRows(), "and off");
+        assertEquals(2, table.focusRow(), "toggling off moves it too");
         click(scene, 30, rowCenterY(table, 0), 0);
         assertArrayEquals(new int[] {0}, table.selectedRows(), "a plain click selects one alone");
         table.setSelectionMode(Table.SelectionMode.NONE);
