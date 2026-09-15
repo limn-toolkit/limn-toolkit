@@ -279,11 +279,13 @@ public final class Gallery {
 
             Driver driver = new Driver(all, List.of(window, big), writer, backend.uiRuntime());
             driver.start();
-            backend.runEventLoop();
-            // Every capture is on disk before the warm-up is deleted or a manifest promises
-            // anything: the writes were queued, and a queued write that failed is a file the
-            // site would fail the build over, so it fails this task here instead.
-            writer.join();
+            Throwable ended = runAndDrain(backend::runEventLoop, writer);
+            if (ended != null) {
+                System.err.println("gallery: the event loop ended by throwing; the gallery is"
+                        + " incomplete and nothing is published");
+                ended.printStackTrace();
+                System.exit(1);
+            }
             Files.deleteIfExists(warmUp);
             if (driver.failed()) {
                 System.exit(1);
@@ -296,6 +298,51 @@ public final class Gallery {
         System.out.printf("gallery: %d entr%s × %d palette(s) → %s%n",
                 entries.size(), entries.size() == 1 ? "y" : "ies", PALETTES.size(),
                 outDir.toAbsolutePath());
+    }
+
+    /**
+     * Runs the capture's event loop and drains {@code writer} whichever way the loop ends.
+     *
+     * <p>The loop does not only return. {@code LwjglBackend.runEventLoop} catches a
+     * {@code Throwable} from a frame callback -- an {@code Error} included -- dispatches it
+     * under {@code CrashPhase.FRAME} (the default handler logs it and says continue) and hands
+     * the SAME window another frame; after {@code CRASH_STREAK_LIMIT} = 100 consecutive crashed
+     * iterations it gives up by throwing {@code IllegalStateException} out of the loop. A run
+     * whose every frame throws reaches that net in about a hundred iterations, far ahead of the
+     * driver's own ceiling of some twenty-eight thousand frames.
+     *
+     * <p>That throw used to unwind {@code main} straight past {@code writer.join()}, which was
+     * not in a finally. The writer's threads are deliberately NOT daemons, and {@code join} is
+     * what shuts their pool down, so nothing ended them: the main thread died, the JVM stayed up
+     * holding live non-daemon threads with no work, and the capture task hung forever -- the
+     * same symptom, from the far end, that the watchdog exists to remove. The drain runs on that
+     * path too now, and the caller exits non-zero with the loop's stack printed.
+     *
+     * @return what the loop ended by throwing, or {@code null} when it returned normally; a
+     *         drain that failed is attached to that throwable as a suppressed one, or returned
+     *         in its own right when the loop itself was clean
+     */
+    static Throwable runAndDrain(Runnable eventLoop, FrameWriter writer) {
+        Throwable loopFailure = null;
+        try {
+            eventLoop.run();
+        } catch (Throwable thrown) {
+            loopFailure = thrown;
+        }
+        try {
+            // Every capture is on disk before the warm-up is deleted or a manifest promises
+            // anything: the writes were queued, and a queued write that failed is a file the
+            // site would fail the build over, so it fails this task here instead.
+            writer.join();
+        } catch (IOException | RuntimeException drainFailure) {
+            if (loopFailure == null) {
+                return drainFailure;
+            }
+            // The loop's throw is the cause of the run; a drain that failed while the loop was
+            // already unwinding is a consequence, and neither may hide the other.
+            loopFailure.addSuppressed(drainFailure);
+        }
+        return loopFailure;
     }
 
     /**
@@ -908,9 +955,17 @@ public final class Gallery {
                     // Everything else the frame could throw: a capture sink, a scene builder,
                     // a transcript, a footer walk, the writer refusing work. The run ends
                     // here, named, rather than escaping to be logged and retried for as long
-                    // as the backend keeps offering frames. An Error is deliberately not
-                    // caught -- it is not this driver's to contain -- and does not spin
-                    // either: its frame was counted above, so the ceiling still arrives.
+                    // as the backend keeps offering frames.
+                    //
+                    // An Error is deliberately not caught -- it is not this driver's to
+                    // contain -- and the count above is what bounds it, but only against THIS
+                    // ceiling: under LwjglBackend an Error every frame fills the hundred-crash
+                    // net (CRASH_STREAK_LIMIT) in about a hundred iterations, long before a
+                    // budget of some twenty-eight thousand frames, and the loop throws instead.
+                    // That path is handled where it lands, in runAndDrain, not here. What the
+                    // count actually bounds is an Error too intermittent to fill that streak:
+                    // one clean iteration resets it, and before the count those frames were
+                    // free.
                     fail("the frame threw " + thrown);
                 }
             });

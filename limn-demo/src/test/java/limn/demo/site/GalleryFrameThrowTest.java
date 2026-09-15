@@ -167,9 +167,19 @@ class GalleryFrameThrowTest {
      * an Error from the canvas the render is handed, on every frame. Nothing names this one --
      * an Error is not the driver's to contain -- but the run still ends, which is the whole
      * point of counting the frame before the body rather than after it.
+     *
+     * <p>The ceiling this reaches is THIS driver's, and the loop below is this test's own. Under
+     * {@code LwjglBackend} an Error on every frame does not get that far: the loop catches it
+     * (catch Throwable), logs it through {@code Crashes}, hands the same window another frame,
+     * and gives up at {@code CRASH_STREAK_LIMIT} = 100 consecutive crashed iterations by
+     * throwing out of {@code runEventLoop} -- about a hundred iterations against a budget of
+     * some twenty-eight thousand frames. What happens on THAT path is
+     * {@code GalleryDrainTest}'s: the writer is drained and its pool shut down, so the task
+     * exits instead of hanging. What the count bounds under the real backend is an Error
+     * intermittent enough to keep resetting that streak, which no net catches.
      */
     @Test
-    void aFrameThatThrowsAnErrorEveryTimeStillReachesTheWatchdog() {
+    void aFrameThatThrowsAnErrorEveryTimeIsBoundedByTheCount() {
         Run run = run(new TestRenderer() {
             @Override
             public Canvas canvas() {
