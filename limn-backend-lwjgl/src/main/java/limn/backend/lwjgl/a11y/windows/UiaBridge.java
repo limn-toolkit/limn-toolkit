@@ -811,6 +811,19 @@ public final class UiaBridge extends PlatformBridge {
      * which is {@code All}: queued, none dropped for a later one. The enumerators were read on the
      * guest 2026-09-13 ({@link UiaIds#NOTIFICATION_KIND_OTHER}).
      *
+     * <p><b>The pairing itself is a choice and not a reading</b>, which the phase-3 critic listed
+     * among the constants this bridge added without one. What the guest settled is the five kinds
+     * and the six processings and their numbers; what no reading settles is which of them two
+     * model politenesses become, because the model's {@code Politeness} has no counterpart on the
+     * platform and no native control was found raising a notification to be copied. The reasoning
+     * is the one above, argued from the reader's own handler rather than from a provider: of the
+     * five kinds, four claim the announcement is about an item added, an item removed, an action
+     * completed or an action aborted, and the model asserts none of those, so {@code Other} is the
+     * only kind that is not a claim; and of the six processings, the two that cancel speech are
+     * where {@code ASSERTIVE}'s promise to interrupt can be kept, the important one because an
+     * interruption is by definition important. It is Windows open question 4, and phase 5 hears
+     * what NVDA does with each.
+     *
      * @param politeness the announcement's
      * @return the kind and the processing, in that order
      */
@@ -1133,6 +1146,18 @@ public final class UiaBridge extends PlatformBridge {
      * number, is not raised. The Value string is raised even when the number moved and the text
      * happened not to, because the event carries no text to compare: a Value vended from a value
      * facet is the number's spoken form, which moves with it.
+     *
+     * <p><b>That last half is a choice and not a reading</b> (Windows open question 8), listed by
+     * the phase-3 critic among this bridge's mappings that no guest settled. Nothing was read
+     * saying whether a provider whose number moved should also raise {@code Value.Value}; what was
+     * read is that NVDA 2024.4.2 reads a control's value from {@code Value} when it vends both
+     * patterns and maps both properties to its one {@code valueChange}
+     * (readings/nvda-2024.4.2-uia.md §3). The reasoning is that the event carries the two numbers
+     * and no text, so the alternative — raising {@code Value.Value} only when the text is known to
+     * have moved — cannot be computed from what the model sends, and the failure modes are not
+     * symmetric: a redundant raise costs one reader handler (§13.28), while a missing one leaves a
+     * spinner's "07:30" spoken as whatever it said before. Phase 5 hears whether a spinner step is
+     * spoken once or twice.
      *
      * @param event the {@code VALUE_CHANGED}
      * @param tree  the tree the node is read from

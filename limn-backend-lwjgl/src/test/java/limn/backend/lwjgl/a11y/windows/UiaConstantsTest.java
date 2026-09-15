@@ -187,6 +187,24 @@ class UiaConstantsTest {
         }
     }
 
+    /**
+     * The other two mappings the phase-3 critic listed as this bridge's own rather than a guest's —
+     * an announcement's kind and processing, and {@code Value.Value} raised when only the number
+     * moved — each marked a choice where it is made, with the reasoning beside it. The numbers they
+     * use are read (the five kinds, the six processings, the property ids); what is chosen is which
+     * of them a model fact becomes, and a reader of the mapping should be told which is which.
+     */
+    @Test
+    void theTwoMappingsThisBridgeChoseRatherThanReadSayThatTheyAreChoices() {
+        String source = sourceOf("UiaBridge.java");
+        assertEquals(2, source.split("choice and not a reading", -1).length - 1,
+                "the announcement's kind and processing (open question 4) and Value.Value raised "
+                        + "for a number-only move (open question 8) are both this bridge's "
+                        + "reasoning and not a guest's answer, and each must say so where it is "
+                        + "made: a mapping that reads like a reading is one nobody revisits when "
+                        + "a reader disagrees with it");
+    }
+
     /** WINDOWS-NEW-11, read 2026-09-13 (readings/windows-dump-uia-marshalling.txt). */
     @Test
     void aBoolOutParameterIsFourBytesOfOneOrZeroAndNotAVariantBool() {
