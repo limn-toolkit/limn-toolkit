@@ -200,6 +200,10 @@ public class Tree<T> extends Widget implements Scrollable {
          * 044 §1, amended). Where the box is wider than that, the outline is the box and
          * nothing scrolls sideways.
          *
+         * <p>A cap, not a demand: no cell is promised more than the box gives a root row past
+         * its triangle, so a width wider than the box never makes a flat tree scroll sideways,
+         * and a deep tree's outline grows by its indent alone.
+         *
          * <p>Declare it when the model knows its cells — a name and a badge, a name and a
          * button — because the tree cannot: a row holding an {@code Expanded} has no width of
          * its own to measure, and measuring the realized rows would move the content, the bar
@@ -1508,11 +1512,14 @@ public class Tree<T> extends Widget implements Scrollable {
      * scrolls over it.
      *
      * <p>The deepest row keeps {@link #deepestCellWidth} of cell: what the model declares
-     * through {@link Model#maxCellWidth}, or else {@code menuMinWidth} — the toolkit's existing
-     * floor for the narrowest strip a row of text may be read in, capped by the viewport so a
-     * narrow tree never asks for more content than one screenful. Where nothing is deep the
-     * maximum is the viewport and this returns exactly that — so a shallow tree has no horizontal
-     * bar, no offset, and the cell widths (and the ellipsis) it has always had.
+     * through {@link Model#maxCellWidth}, never more than a root row's cell in the box, or else
+     * {@code menuMinWidth} — the toolkit's existing floor for the narrowest strip a row of text
+     * may be read in, capped by the viewport so a narrow tree never asks for more content than
+     * one screenful. Where nothing is deep the maximum is the viewport and this returns exactly
+     * that — so a shallow tree has no horizontal bar, no offset, and the cell widths (and the
+     * ellipsis) it has always had. (Undeclared, a box narrower than the triangle band plus
+     * {@code menuMinWidth} is the exception: the guess, kept as it was, overhangs it by up to the
+     * band.)
      */
     private float estimatedContentWidth(SizeTokens t, float viewW) {
         float deepest = maxDepth * indent(t) + twistyBand(t) + deepestCellWidth(t, viewW);
@@ -1521,13 +1528,19 @@ public class Tree<T> extends Widget implements Scrollable {
 
     /**
      * The width the deepest row's cell is promised: the model's declared width when it gave a
-     * usable one (decision 50 of 2026-09-14), else the menu's minimum capped by the viewport,
-     * which is what the tree guessed before a model could say.
+     * usable one (decision 50 of 2026-09-14), capped at what the box leaves a root row past its
+     * triangle; else the menu's minimum capped by the viewport, which is what the tree guessed
+     * before a model could say, unchanged.
+     *
+     * <p>The cap is what keeps the declared width a cap. Taken whole, a width wider than the box
+     * made a flat tree — one with no depth to show — scroll sideways by the difference, and the
+     * outline grow by something other than the indent its depth charges.
      */
     private float deepestCellWidth(SizeTokens t, float viewW) {
         float declared = model.maxCellWidth();
         return declared > 0 && Float.isFinite(declared)
-                ? declared : Math.min(viewW, t.menuMinWidth());
+                ? Math.min(declared, Math.max(0, viewW - twistyBand(t)))
+                : Math.min(viewW, t.menuMinWidth());
     }
 
     @Override

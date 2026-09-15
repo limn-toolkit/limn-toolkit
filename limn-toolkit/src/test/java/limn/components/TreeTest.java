@@ -1852,10 +1852,10 @@ class TreeTest extends ComponentTestBase {
                 "undeclared, the deepest cell is the menu's minimum width, as it always was");
 
         Map<String, Widget> cells = new java.util.HashMap<>();
-        Tree<Node> tree = openedChain(14, cells, 300, limn.scene.LayoutDirection.LTR);
-        assertEquals(300, mounted(cells, "level-14").width(), 0.01f,
-                "the deepest cell is as wide as the model declares, wider than the box itself");
-        assertEquals(300 + 13 * indent, mounted(cells, "level-1").width(), 0.01f,
+        Tree<Node> tree = openedChain(14, cells, 190, limn.scene.LayoutDirection.LTR);
+        assertEquals(190, mounted(cells, "level-14").width(), 0.01f,
+                "the deepest cell is as wide as the model declares, wider than the guess");
+        assertEquals(190 + 13 * indent, mounted(cells, "level-1").width(), 0.01f,
                 "and a row thirteen levels up one indent wider per level, to the same far edge");
 
         for (int i = 0; i < 80; i++) {
@@ -1867,13 +1867,41 @@ class TreeTest extends ComponentTestBase {
                 "scrolled to the end, the declared width ends exactly at the box's edge");
 
         Map<String, Widget> shallow = new java.util.HashMap<>();
-        openedChain(2, shallow, 100, limn.scene.LayoutDirection.LTR);
+        Tree<Node> shallowTree = openedChain(2, shallow, 100, limn.scene.LayoutDirection.LTR);
         float before = shallow.get("level-1").x();
-        wheelSideways(tree, -3);
+        wheelSideways(shallowTree, -3);
         scene.layoutPass(220, 200);
         assertEquals(before, shallow.get("level-1").x(), 0.01f,
                 "a declared width the box already holds leaves a shallow tree exactly its box");
         assertEquals(220 - before, shallow.get("level-1").width(), 0.01f);
+    }
+
+    /**
+     * The declared width is a cap and not a demand: no row is promised more cell than the box
+     * gives a row at the root, so the outline grows by the indent its depth charges and never by
+     * the declared width alone. A flat tree whose model declares more than its box stays exactly
+     * the box — no bar, nothing to wheel sideways — and a deep one gives its deepest cell what the
+     * root's has. The first cut took the declared width as the deepest cell's whatever the box,
+     * so one row under a model declaring 300 points in a 220-point box scrolled 102 points
+     * sideways, against this class's promise that a shallow tree is its box.
+     */
+    @Test
+    void aDeclaredWidthWiderThanTheBoxNeverScrollsAFlatTreeSideways() {
+        Map<String, Widget> flat = new java.util.HashMap<>();
+        Tree<Node> flatTree = openedChain(1, flat, 300, limn.scene.LayoutDirection.LTR);
+        Widget only = mounted(flat, "level-1");
+        float band = only.x();
+        wheelSideways(flatTree, -1);
+        scene.layoutPass(220, 200);
+        only = mounted(flat, "level-1");
+        assertEquals(band, only.x(), 0.01f,
+                "a one-row flat tree does not move sideways; width " + only.width());
+        assertEquals(220 - band, only.width(), 0.01f, "and its cell is what the box leaves it");
+
+        Map<String, Widget> cells = new java.util.HashMap<>();
+        openedChain(14, cells, 300, limn.scene.LayoutDirection.LTR);
+        assertEquals(220 - band, mounted(cells, "level-14").width(), 0.01f,
+                "a deep row's cell is capped at the root row's, not stretched to the declared 300");
     }
 
     /**

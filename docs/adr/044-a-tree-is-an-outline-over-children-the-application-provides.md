@@ -60,7 +60,15 @@ token (168 points at the default size), and a model whose rows are a name and a 
 to say its cells need more (T4). Decision 50 (`tree-deep-cell-width`) adds a defaulted
 `Model.maxCellWidth()`: a positive, finite answer replaces the guess, so the content is
 `max(viewport, depth × indent + band + maxCellWidth)` and the deepest open row's cell is exactly
-that wide; zero, the default, keeps `min(viewport, menuMinWidth)` and today's behaviour. Cells are
+that wide; zero, the default, keeps `min(viewport, menuMinWidth)` and today's behaviour. The declared
+width is a cap and not a demand: it is taken as `min(maxCellWidth, viewport − band)`, what the box
+gives a root row past its triangle, so a flat tree whose model declares more than its box is still
+exactly the box and a deep tree's outline grows by its indent alone (a first cut took the declared
+width whole, and one row under a 300-point declaration in a 220-point box scrolled sideways; found
+in review later the same day, `TreeTest.aDeclaredWidthWiderThanTheBoxNeverScrollsAFlatTreeSideways`).
+The undeclared guess keeps its viewport cap unchanged, so in a box narrower than the band plus
+`menuMinWidth` (190 points at the default size) a flat tree still overhangs by up to the band, as it
+did before this date. Cells are
 still laid out to the content's far edge, so a shallower row is one indent wider per level — the
 renders of `--scene tree-deep` (`renders/tree/deep-after-*`) show what that costs a row ending in a
 button, and decision 50 lets him move to "cap and unstretched cells" on them. Separately, the
