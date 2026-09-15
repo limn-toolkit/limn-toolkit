@@ -437,6 +437,28 @@ three views.)
 Pinned by `CalendarViewAccessibilityTest.theChooserNamesTheCellOnShowAndAMonthPickerSaysItWithASelectionInstead`,
 `thePagingButtonsSayWhatTheyPageInEveryView` and `dayAndChooserCellsAreDifferentNodes`.
 
+**Amendment, 2026-09-15 (GALLERY-NEW-2): a chooser somebody has climbed into has a cursor from the
+first frame, and it is the cell on show.** The view change cleared the chooser's cursor and only
+the first arrow placed it, so after Ctrl (or Cmd) and Up the months were drawn with **no cursor
+ring at all** and **no cell published `ACTIVE`** — a reader following the active descendant was
+told the grid had moved and not where it now stood, and heard the first month only after an arrow
+that had already stepped past it; the two reader recipes had to say "the months are shown" where
+every other step names where the cursor is. The cursor is now answered rather than written: until
+an arrow (or a reader's `FOCUS`) has moved it, it is `currentChooserCell()`, the month of the month
+being drawn or the year of the year block. Answered and not written, because the field is the
+user's and the fallback is the calendar's: `setVisibleMonth` while a chooser stands moves what is
+on show and must move this with it, and paging with the cursor already placed must not. The climb
+announces the arrival as an `ACTIVE` change where the grid holds the keyboard, which is the same
+test the describe pass makes, so what is announced and what the tree says are one answer. Arriving
+is not moving: the first arrow steps one cell, as it always did. Pinned by
+`CalendarViewAccessibilityTest.aClimbToTheMonthsLandsTheCursorOnTheMonthOnShowAndAnnouncesIt`,
+`aClimbToTheYearsLandsTheCursorOnTheYearOnShow` and
+`theCursorFollowsWhatIsOnShowUntilAnArrowHasMovedIt`, and in both of the picker's presentations by
+`DatePickerAccessibilityTest.aClimbToTheMonthsInTheSceneLandsTheEffectiveFocusOnTheMonthOnShow`
+and limn-demo's
+`DatePickerNativePopupTest.aClimbToTheMonthsInAWindowOfItsOwnLandsTheEffectiveFocusOnTheMonthOnShow`.
+Step 12 of the `calendar` recipe and step 7 of `date-picker` now name the month the climb lands on.
+
 **The picker.** The field's subtree, the popup's, and one synthetic `BUTTON` for the calendar
 affordance with `EXPANDED` on the picker itself.
 

@@ -145,11 +145,50 @@ class DatePickerNativePopupTest {
         assertEquals(caret, tree.effectiveFocus());
     }
 
+    /**
+     * GALLERY-NEW-2, 2026-09-15, in the presentation the recipes run in: Ctrl (or Cmd) and Up
+     * climb out of the days and the month on show is the cursor at once, so the host tree's
+     * effective focus — read across the two windows, because the field keeps the focus and the
+     * calendar is a window of its own — lands on a month rather than on nothing. The other
+     * presentation's half is the toolkit's
+     * {@code DatePickerAccessibilityTest.aClimbToTheMonthsInTheSceneLandsTheEffectiveFocusOnTheMonthOnShow}.
+     */
+    @Test
+    void aClimbToTheMonthsInAWindowOfItsOwnLandsTheEffectiveFocusOnTheMonthOnShow() {
+        DatePicker picker = new DatePicker();
+        picker.setDate(LocalDate.of(2026, 9, 9));
+        HeadlessWindow host = show(picker);
+        picker.open();
+        HeadlessWindow popup = popupWindow();
+        settle(host, popup);
+
+        hostScene.keyEvent(limn.input.Keys.UP, true, false,
+                limn.components.Accelerator.commandModifier());
+        hostScene.keyEvent(limn.input.Keys.UP, false, false,
+                limn.components.Accelerator.commandModifier());
+        hostScene.inputBatchEnded();
+        settle(host, popup);
+
+        AccessibleTree popupTree = popup.bridge().tree();
+        long cursor = popupTree.firstActiveBelow(0);
+        assertTrue(cursor != 0, "a chooser cell is the cursor " + Transcript.of(popupTree));
+        AccessibleNode month = popupTree.node(popupTree.indexOf(cursor));
+        assertEquals(Accessible.Role.CELL, month.role(), Transcript.of(popupTree));
+        assertEquals("Sep, on show", month.name(),
+                "the month the calendar was showing, not cell zero and not nothing "
+                        + Transcript.of(popupTree));
+        assertEquals(cursor, host.bridge().tree().effectiveFocus(),
+                "and the host tree answers it, across the windows " + Transcript.of(popupTree));
+    }
+
+    private Scene hostScene;
+
     private HeadlessWindow show(limn.scene.Widget content) {
         Column root = new Column();
         root.add(content);
         HeadlessWindow window = backend.open("Limn date picker", 400, 300);
         Scene scene = new Scene(root);
+        hostScene = scene;
         scene.bind(window);
         window.frame();
         window.desktopFocus(true);

@@ -130,8 +130,9 @@ public final class ReaderScripts {
     /**
      * "Calendar grid": September 2026 with the 15th selected, days before the 2nd refused, Sundays
      * refused and the 21st marked (decision 30: the cursor stops on a refused day and says so).
-     * After the climb to the months no month is published as the cursor (GALLERY-NEW-2), so step
-     * 12's fact is only that the months are shown.
+     * The climb to the months lands the cursor on the month on show, so step 12 names it like
+     * every other step (GALLERY-NEW-2, fixed 2026-09-15; it used to say only that the months were
+     * shown, because no month was published as the cursor at all).
      */
     public static final ReaderScript CALENDAR = new ReaderScript("calendar", List.of(
             Step.press(Keys.RIGHT, "moves to the 16th")
@@ -157,7 +158,7 @@ public final class ReaderScripts {
             Step.chord(Keys.PAGE_UP, Keys.MOD_SHIFT, "pages a year back")
                     .expecting(cursor(CELL, "September 20, 2026")),
             Step.chord(Keys.UP, Step.COMMAND, "climbs to the months")
-                    .expecting(shown(CELL, "Nov")),
+                    .expecting(cursor(CELL, "Sep, on show")),
             Step.press(Keys.RIGHT, "moves to the next month")
                     .expecting(cursor(CELL, "Oct")),
             Step.press(Keys.ENTER, "descends into that month's days")
@@ -212,7 +213,8 @@ public final class ReaderScripts {
      * months and backs out one level at a time, then Tab leaves for the period. The keyboard stays
      * in the field natively and moves into the popup in the scene, so the facts name where the
      * reader stands and whether the field says it is open, which both presentations share; step
-     * 7's is only that the months are shown (GALLERY-NEW-2).
+     * 7 names the month the climb lands on, as every other step names where the cursor is
+     * (GALLERY-NEW-2, fixed 2026-09-15).
      */
     public static final ReaderScript DATE_PICKER = new ReaderScript("date-picker", List.of(
             Step.chord(Keys.DOWN, Keys.MOD_ALT, "opens the calendar")
@@ -231,7 +233,7 @@ public final class ReaderScripts {
                     .expecting(shown(GROUP, "Delivery date").with(EXPANDED),
                             cursor(CELL, "October 17, 2026").with(SELECTED)),
             Step.chord(Keys.UP, Step.COMMAND, "climbs to the months")
-                    .expecting(shown(CELL, "Nov")),
+                    .expecting(cursor(CELL, "Oct, on show")),
             Step.press(Keys.ESCAPE, "backs out to the days")
                     .expecting(cursor(CELL, "October 17, 2026").with(SELECTED)),
             Step.press(Keys.ESCAPE, "closes the calendar")
