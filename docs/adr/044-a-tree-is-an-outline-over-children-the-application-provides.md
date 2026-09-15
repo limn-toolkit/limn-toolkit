@@ -291,6 +291,17 @@ counts `TreeItem` ancestors, says a lower level for them than the one this widge
 widget could close it by keeping the ancestor rows of its first mounted row realized, as it keeps the
 cursor row; that is not decided here (ADR 039 §2.1, amended the same day).
 
+**Amendment, 2026-09-15: the macOS half is built, on the platform's own bases.** A native
+NSOutlineView was read through the AX API on the macOS 26.6.2 guest first
+(`scripts/a11y/macos/outline-probe.swift`): its rows answer `AXIndex` and `AXDisclosureLevel` from
+**zero**, `AXDisclosing` (settable only on a row that can open), `AXDisclosedByRow` and
+`AXDisclosedRows`, and no `AXExpanded`; the outline answers `AXRows` and no `AXRowCount`; opening a
+row posts `AXRowExpanded` on the row and `AXRowCountChanged` on the outline, and selecting one
+`AXSelectedRowsChanged` on the outline. The bridge now vends the same: the outline's rows are its
+realized items, a row's index is the hierarchy row less one and its disclosure level the level less
+one, and the cursor row is the focused element. So the 2026-09-13 run's "the outline answers no
+`AXRows`, and the rows answer no disclosure" is history; what VoiceOver speaks for it is phase 5's.
+
 **Amendment, 2026-09-14: a tree item always has a name.** The L4 baseline on the Fedora guest read
 every row of the reader scene as `name=''`: the demo's cells are composites — an icon, a label and
 a count or a button in a `Row` — and the text sat in a `Label` child, so Orca's name generator

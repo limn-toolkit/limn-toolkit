@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.lwjgl.system.MemoryUtil.NULL;
+import static org.lwjgl.system.MemoryUtil.memGetByte;
 import static org.lwjgl.system.MemoryUtil.memGetDouble;
 import static org.lwjgl.system.MemoryUtil.memPutLong;
 
@@ -58,11 +59,31 @@ final class AxElementClass {
         long[] childElementsOf(AccessibleNode node);
 
         /**
+         * @param nodeId a node in the published tree, not the elided window root
+         * @return its element, minting it if it does not exist yet
+         */
+        long elementFor(long nodeId);
+
+        /**
          * @param node a node in the published tree
          * @return the element for its parent — or the content view, for a child of the elided
          *         window root, because that is what AppKit was handed and what it expects back
          */
         long parentElementOf(AccessibleNode node);
+
+        /**
+         * @param table  a node carrying a table facet
+         * @param column one of its shown columns, from zero
+         * @return the element standing for that column (M4), minting it if it does not exist yet
+         */
+        long columnElementFor(AccessibleNode table, int column);
+
+        /**
+         * @param element an element
+         * @return {@code {tableId, column}} when it is a column element this source minted, or
+         *         {@code null}
+         */
+        long[] columnKeyOf(long element);
 
         /**
          * @param node a node in the published tree
@@ -73,9 +94,17 @@ final class AxElementClass {
         long[] linkedElementsOf(AccessibleNode node);
 
         /**
-         * @return the element for the node that has the keyboard, or zero when nothing does
+         * @return the element for where the user is — the tree's effective focus, which is the cursor
+         *         item under the focused widget when there is one, and may be a node of another
+         *         window's tree (decision 5) — or zero when nothing is
          */
         long focusedElement();
+
+        /**
+         * @param node a node in the published tree
+         * @return whether it is where the user is, agreeing with {@link #focusedElement()}
+         */
+        boolean isFocused(AccessibleNode node);
 
         /**
          * Performs one verb on one node, through the scene.
@@ -92,6 +121,20 @@ final class AxElementClass {
         boolean perform(long nodeId, limn.accessibility.Accessible.Action action);
 
         /**
+         * Performs one parameterised verb on one node, through the scene, as {@link #perform(long,
+         * Accessible.Action)} does: checked, posted, never waited for.
+         *
+         * @param nodeId   the node the message was sent to
+         * @param action   the verb
+         * @param argument what it carries
+         * @return whether the scene took it
+         */
+        boolean perform(long nodeId, Accessible.Action action, Accessible.Argument argument);
+
+        /** @return the published tree every answer is read from; never {@code null} */
+        limn.accessibility.AccessibleTree tree();
+
+        /**
          * Called on entry to every implementation below. §6's honest gate on this platform is
          * "someone has asked", and this is the ask: there is no {@code UiaClientsAreListening} here
          * and no registry to consult.
@@ -102,9 +145,20 @@ final class AxElementClass {
     private final AxObjC objc;
     private final Source source;
     private final long elementClass;
+    /** The runtime subclass a table's column elements are vended as (M4). */
+    private final long columnClass;
     /** {@code NSAccessibilityElement}: what a released element is pointed back at. */
     private final long superclass;
     private final List<Callback> callbacks = new ArrayList<>();
+    /** The table, row and cell lookups the closures below wrap. */
+    private final AxGrid grid;
+    /**
+     * Whether {@code NSAccessibilityElement} itself lacked a legacy entry point, so AXElementBusy was
+     * not installed; named in the constructor's warning.
+     */
+    private boolean skippedForBusy;
+    /** Every listed selector's encoding, read from the running AppKit before anything is installed. */
+    private final AxSelectors.Resolution selectors;
     /** The retained {@code NSString} {@link #BUSY_ATTRIBUTE}; zero until installed and after free. */
     private long busyAttribute;
 
@@ -122,6 +176,8 @@ final class AxElementClass {
     AxElementClass(AxObjC objc, Source source, String className) {
         this.objc = objc;
         this.source = source;
+        this.grid = new AxGrid(source);
+        this.selectors = AxSelectors.resolve(objc::encodingOrNull);
         this.superclass = ObjC.cls("NSAccessibilityElement");
         if (superclass == NULL) {
             throw new IllegalStateException("no NSAccessibilityElement: this is not AppKit");
@@ -134,11 +190,37 @@ final class AxElementClass {
         this.elementClass = created;
         install();
         ObjCRuntime.objc_registerClassPair(created);
+        long columns = ObjCRuntime.objc_allocateClassPair(superclass, className + "_Column", 0);
+        if (columns == NULL) {
+            throw new IllegalStateException("objc_allocateClassPair(NSAccessibilityElement, "
+                    + className + "_Column) failed; the name is already taken in this process");
+        }
+        this.columnClass = columns;
+        installColumn();
+        ObjCRuntime.objc_registerClassPair(columns);
+        String warning = selectors.warning();
+        if (warning != null) LOG.log(System.Logger.Level.WARNING, warning);
+        if (skippedForBusy) {
+            LOG.log(System.Logger.Level.WARNING, "NSAccessibilityElement answers no legacy attribute "
+                    + "entry point on this macOS, so AXElementBusy is not served (ADR 044 §2)");
+        }
+    }
+
+    private static final System.Logger LOG = System.getLogger(AxElementClass.class.getName());
+
+    /** @return the listed selectors the running AppKit declared nothing for, and that were skipped. */
+    List<String> missingSelectors() {
+        return selectors.missing();
     }
 
     /** @return a new, retained instance; the caller owns it until it releases it. */
     long newInstance() {
         return ObjC.msg(ObjC.msg(elementClass, "alloc"), "init");
+    }
+
+    /** @return a new, retained column element (M4); the caller owns it until it releases it. */
+    long newColumnInstance() {
+        return ObjC.msg(ObjC.msg(columnClass, "alloc"), "init");
     }
 
     /**
@@ -188,16 +270,42 @@ final class AxElementClass {
         }
     }
 
-    private void addId(String selector, IdGetter body) {
+    /**
+     * The one place a method is added to a class: every install goes through here, so that nothing
+     * reaches {@code class_addMethod} unlisted or with an encoding that was not read.
+     *
+     * <p>A selector {@link AxSelectors} does not list is a mistake in this file and refuses to build
+     * the class, and so does a closure whose shape is not the one listed for the selector
+     * ({@link AxSelectors.Kind}); {@code AxSelectorsTest} catches both off a Mac, where this cannot
+     * run. A listed
+     * selector the running AppKit declares nothing for is skipped and its closure freed, and so is
+     * one installed only together with a selector that was skipped (the actions with the gate); the
+     * constructor's warning names every one (MACOS-NEW-6).
+     *
+     * @return whether it was installed
+     */
+    private <C extends Callback & Shaped> boolean addMethod(long target, String selector, C body) {
+        String refusal = AxSelectors.refusal(selector, body.kind());
+        if (refusal != null) {
+            body.free();
+            throw new IllegalStateException(refusal);
+        }
+        String encoding = selectors.encodingOf(selector);
+        if (encoding == null) {
+            body.free();
+            return false;
+        }
         callbacks.add(body);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), body.address(),
-                objc.encodingOf(selector));
+        ObjCRuntime.class_addMethod(target, ObjC.sel(selector), body.address(), encoding);
+        return true;
+    }
+
+    private void addId(String selector, IdGetter body) {
+        addMethod(elementClass, selector, body);
     }
 
     private void addBool(String selector, BoolGetter body) {
-        callbacks.add(body);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), body.address(),
-                objc.encodingOf(selector));
+        addMethod(elementClass, selector, body);
     }
 
     private void install() {
@@ -229,19 +337,21 @@ final class AxElementClass {
         addId("accessibilityRoleDescription", get(node ->
                 objc.string(RoleNames.of(node.role(), node.locale()))));
 
-        // Read only: setAccessibilityValue: is not installed, so no setter reaches the toolkit from
-        // here yet. Phase 3, when it installs it, owes it the refusal fix round 2e settled: nothing
-        // posted to a node AccessibleNode#accepts refuses, a node without ENABLED included, while
-        // whether the value is settable stays the facet's own answer, never a read-only flag the
-        // node does not have (semantics 5, amended 2026-09-15).
+        // Written through setAccessibilityValue: (installSetters), which posts nothing to a node
+        // AccessibleNode#accepts refuses, a node without ENABLED included (semantics 5, amended
+        // 2026-09-15); the value itself is the facet's, never a read-only flag the node lacks.
         addId("accessibilityValue", get(this::valueOf));
         addId("accessibilityIdentifier", get(node -> objc.string(Long.toString(node.id()))));
 
         addId("accessibilityChildren", get(node -> {
             long[] children = source.childElementsOf(node);
-            if (children.length == 0) return NULL;
+            // A table's columns follow its nodes among its children, as a native NSTableView lists
+            // its AXColumn elements among its own (read on the guest, 2026-09-15, table-probe.swift).
+            long[] columns = node.table() == null ? null : grid.columns(node);
+            if (children.length == 0 && (columns == null || columns.length == 0)) return NULL;
             long array = objc.mutableArray();
             for (long child : children) objc.addObject(array, child);
+            if (columns != null) for (long column : columns) objc.addObject(array, column);
             return array;
         }));
         addId("accessibilityParent", get(source::parentElementOf));
@@ -263,11 +373,14 @@ final class AxElementClass {
         // element (§1.6). Answering false would make AppKit hoist a node's children over it.
         addBool("isAccessibilityElement", is(node -> true));
         addBool("isAccessibilityEnabled", is(node -> node.has(Accessible.State.ENABLED)));
-        addBool("isAccessibilityFocused", is(node -> node.has(Accessible.State.FOCUSED)));
+        // Where the user is, not which widget holds the keyboard around it (semantics 4): the cursor
+        // cell of a focused table answers true and the table does not, as the focused element does.
+        addBool("isAccessibilityFocused", is(source::isFocused));
 
         installHitTest();
         installFocusedElement();
         installActions();
+        installSetters();
         installTable();
         installBusy();
     }
@@ -283,16 +396,20 @@ final class AxElementClass {
      * name onto the protocol getters above. The inherited implementations are taken from the
      * superclass before these are added to our class, so a forward reaches AppKit's and can never
      * come back into this one. A superclass with no such method would make that forward
-     * {@code _objc_msgForward}, which is a crash rather than a missing attribute, so the class
-     * refuses to build instead.
+     * {@code _objc_msgForward}, which is a crash rather than a missing attribute, so neither is
+     * installed then and the constructor warns: the busy attribute goes unserved and the rest of the
+     * element is built (MACOS-NEW-6).
      */
     private void installBusy() {
         long valueSelector = ObjC.sel("accessibilityAttributeValue:");
         long namesSelector = ObjC.sel("accessibilityAttributeNames");
         if (ObjCRuntime.class_getInstanceMethod(superclass, valueSelector) == NULL
                 || ObjCRuntime.class_getInstanceMethod(superclass, namesSelector) == NULL) {
-            throw new IllegalStateException("NSAccessibilityElement answers no legacy attribute "
-                    + "entry point; AXElementBusy has nowhere to be served from");
+            // Refused, and not thrown: a forward to a method the superclass lacks would be
+            // _objc_msgForward, a crash rather than a missing attribute, but a thrown constructor
+            // would take every other attribute of the window with it (MACOS-NEW-6).
+            skippedForBusy = true;
+            return;
         }
         long inheritedValue = ObjCRuntime.class_getMethodImplementation(superclass, valueSelector);
         long inheritedNames = ObjCRuntime.class_getMethodImplementation(superclass, namesSelector);
@@ -310,9 +427,7 @@ final class AxElementClass {
                 return JNI.invokePPPP(self, cmd, attribute, inheritedValue);
             }
         };
-        callbacks.add(value);
-        ObjCRuntime.class_addMethod(elementClass, valueSelector, value.address(),
-                objc.encodingOf("accessibilityAttributeValue:"));
+        addMethod(elementClass, "accessibilityAttributeValue:", value);
 
         addId("accessibilityAttributeNames", new IdGetter() {
             @Override public long invoke(long self, long cmd) {
@@ -325,117 +440,142 @@ final class AxElementClass {
     }
 
     /**
-     * What NSAccessibilityTable, NSAccessibilityRow and NSAccessibilityCell ask, answered from the
-     * table and cell facets and from the tree's own shape; ADR 041 §7.
-     *
-     * <p>Rows are the table's {@code ROW} children and the header is its first group child, so the
-     * elements handed back are the ones AppKit already holds for those nodes. Columns are none:
-     * the toolkit has no column node, and a column index range on every cell is what VoiceOver
-     * reads "column 2 of 3" from. A cell asked for by column and row is answered only for a row
-     * the walk published, which is the degradation ADR 039 §4.1 accepts.
+     * What NSAccessibilityTable, NSAccessibilityRow and NSAccessibilityCell ask: {@link AxGrid}'s
+     * answers, wrapped for AppKit. Every lookup is there, where it can be tested without AppKit;
+     * what is here is only the conversion of an element list into an {@code NSArray} and of a
+     * number into the closure's return.
      */
     private void installTable() {
-        addId("accessibilityRows", get(node -> node.table() == null ? NULL
-                : arrayOf(node, child -> child.role() == Accessible.Role.ROW)));
-        addId("accessibilityVisibleRows", get(node -> node.table() == null ? NULL
-                : arrayOf(node, child -> child.role() == Accessible.Role.ROW
-                        && child.has(Accessible.State.SHOWING))));
-        addId("accessibilitySelectedRows", get(node -> node.table() == null ? NULL
-                : arrayOf(node, child -> child.role() == Accessible.Role.ROW
-                        && child.has(Accessible.State.SELECTED))));
-        addId("accessibilityColumns", get(node -> node.table() == null ? NULL : objc.mutableArray()));
-        addId("accessibilityHeader", get(node -> node.table() == null ? NULL : headerOf(node)));
-        addId("accessibilityColumnHeaderUIElements", get(node -> {
-            if (node.table() != null) {
-                long header = headerOf(node);
-                AccessibleNode group = header == NULL ? null : source.nodeFor(header);
-                return group == null ? NULL : arrayOf(group, child -> true);
-            }
-            if (node.cell() != null && node.cell().row() >= 0) {
-                long header = columnHeaderOf(node);
-                if (header == NULL) return NULL;
-                long array = objc.mutableArray();
-                objc.addObject(array, header);
-                return array;
-            }
-            return NULL;
-        }));
-        addLong("accessibilityRowCount", node -> node.table() == null ? 0 : node.table().rowCount());
-        addLong("accessibilityColumnCount",
-                node -> node.table() == null ? 0 : node.table().columnCount());
-        // NSAccessibilityRow's index: the row's place among the data rows, from the facet the
-        // walk numbered it with, so an unrealized row above it still counts.
-        addLong("accessibilityIndex", node -> node.role() == Accessible.Role.ROW
-                && node.selectionItem() != null ? node.selectionItem().positionInSet() - 1 : -1);
-        addRange("accessibilityRowIndexRange", node -> node.cell() == null || node.cell().row() < 0
-                ? NOT_FOUND : new long[] {node.cell().row(), 1});
-        addRange("accessibilityColumnIndexRange", node -> node.cell() == null
-                ? NOT_FOUND : new long[] {node.cell().column(), 1});
+        addId("accessibilityRows", get(node -> nsArray(grid.rows(node))));
+        addId("accessibilityVisibleRows", get(node -> nsArray(grid.visibleRows(node))));
+        addId("accessibilitySelectedRows", get(node -> nsArray(grid.selectedRows(node))));
+        // The selection of a container whose members are not rows (semantics 1; MACOS-NEW-2): its
+        // selected children, or a grid's selected cells. Each is offered only where it is the
+        // container's shape (AxGate), as a native outline offers AXSelectedRows and no
+        // AXSelectedChildren.
+        addId("accessibilitySelectedChildren", get(node -> nsArray(grid.selectedMembers(node))));
+        addId("accessibilitySelectedCells", get(node -> nsArray(grid.selectedMembers(node))));
+        addId("accessibilityColumns", get(node -> nsArray(grid.columns(node))));
+        addId("accessibilityVisibleColumns", get(node -> nsArray(grid.visibleColumns(node))));
+        addId("accessibilitySelectedColumns", get(node -> nsArray(grid.selectedColumns(node))));
+        addId("accessibilityHeader", get(grid::header));
+        addId("accessibilityColumnHeaderUIElements",
+                get(node -> nsArray(grid.columnHeaderElements(node))));
+        addLong("accessibilityRowCount", grid::rowCount);
+        addLong("accessibilityColumnCount", grid::columnCount);
+        addLong("accessibilityIndex", grid::index);
+        addRange("accessibilityRowIndexRange", grid::rowIndexRange);
+        addRange("accessibilityColumnIndexRange", grid::columnIndexRange);
         CellAt cellAt = new CellAt() {
             @Override public long invoke(long self, long cmd, long column, long row) {
                 source.entered();
                 AccessibleNode node = source.nodeFor(self);
-                if (node == null || node.table() == null) return NULL;
-                for (long rowElement : source.childElementsOf(node)) {
-                    AccessibleNode rowNode = source.nodeFor(rowElement);
-                    if (rowNode == null || rowNode.role() != Accessible.Role.ROW
-                            || rowNode.selectionItem() == null
-                            || rowNode.selectionItem().positionInSet() != row + 1) continue;
-                    for (long cell : source.childElementsOf(rowNode)) {
-                        AccessibleNode cellNode = source.nodeFor(cell);
-                        if (cellNode != null && cellNode.cell() != null
-                                && cellNode.cell().column() == column) return cell;
-                    }
-                    return NULL;
-                }
-                return NULL;
+                return node == null ? NULL : grid.cellAt(node, column, row);
             }
         };
-        callbacks.add(cellAt);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel("accessibilityCellForColumn:row:"),
-                cellAt.address(), objc.encodingOf("accessibilityCellForColumn:row:"));
+        addMethod(elementClass, "accessibilityCellForColumn:row:", cellAt);
         addBool("isAccessibilitySelected", is(node -> node.has(Accessible.State.SELECTED)));
+        installDisclosure();
     }
 
-    /** {@code NSNotFound} and a zero length: the range of a cell that is not in the grid. */
-    private static final long[] NOT_FOUND = {Long.MAX_VALUE, 0};
-
-    private interface NodeFilter {
-        boolean keep(AccessibleNode child);
+    /**
+     * An outline row's disclosure (M1), answered as a native NSOutlineView's rows answer it — read on
+     * the macOS 26.6.2 guest, 2026-09-15 — and whether anything else that opens is open. Every one of
+     * these is offered only where it has an answer ({@link AxGate}): a native row answers AXDisclosing
+     * and no AXExpanded, so an outline row answers the first and never the second, and everything else
+     * with an expand facet the second.
+     */
+    private void installDisclosure() {
+        addBool("isAccessibilityDisclosed", is(grid::disclosed));
+        addLong("accessibilityDisclosureLevel", grid::disclosureLevel);
+        addId("accessibilityDisclosedByRow", get(grid::disclosedByRow));
+        addId("accessibilityDisclosedRows", get(node -> nsArray(grid.disclosedRows(node))));
+        addBool("isAccessibilityExpanded", is(node -> node.expand() != null && node.expand().expanded()));
     }
 
-    /** An autoreleased array of the elements of {@code node}'s children that {@code filter} keeps. */
-    private long arrayOf(AccessibleNode node, NodeFilter filter) {
+    /**
+     * What a table's column element answers (M4; decision 34), installed on {@link #columnClass}: the
+     * attributes a native NSTableView's {@code AXColumn} answered on the macOS 26.6.2 guest
+     * (2026-09-15, {@code scripts/a11y/macos/table-probe.swift}) — its role, its index, its header (the
+     * header button), its cells under {@code AXRows} and the showing ones under {@code AXVisibleRows},
+     * its parent the table — and no children, as the native one answers none. The frame is pushed, as
+     * every node's is. The role description is AppKit's own for the role: no toolkit role stands for a
+     * column, so none of the toolkit's phrases names one. The gate refuses every stored setter, as the
+     * element class's does, and a header where the column has none.
+     */
+    private void installColumn() {
+        IdGetter columnRole = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                return grid.tableOfColumn(self) == null ? NULL : objc.constant(AxRoles.COLUMN_ROLE_SYMBOL);
+            }
+        };
+        addMethod(columnClass, "accessibilityRole", columnRole);
+        LongGetter columnIndex = new LongGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                return grid.tableOfColumn(self) == null ? AxGrid.NOT_FOUND[0] : grid.columnOf(self);
+            }
+        };
+        addMethod(columnClass, "accessibilityIndex", columnIndex);
+        IdGetter columnCells = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                AccessibleNode table = grid.tableOfColumn(self);
+                return table == null ? NULL : nsArray(grid.columnCells(table, grid.columnOf(self), false));
+            }
+        };
+        addMethod(columnClass, "accessibilityRows", columnCells);
+        IdGetter columnVisibleCells = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                AccessibleNode table = grid.tableOfColumn(self);
+                return table == null ? NULL : nsArray(grid.columnCells(table, grid.columnOf(self), true));
+            }
+        };
+        addMethod(columnClass, "accessibilityVisibleRows", columnVisibleCells);
+        IdGetter columnHeader = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                AccessibleNode table = grid.tableOfColumn(self);
+                return table == null ? NULL : grid.columnHeader(table, grid.columnOf(self));
+            }
+        };
+        addMethod(columnClass, "accessibilityHeader", columnHeader);
+        IdGetter columnParent = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                AccessibleNode table = grid.tableOfColumn(self);
+                return table == null ? NULL : source.elementFor(table.id());
+            }
+        };
+        addMethod(columnClass, "accessibilityParent", columnParent);
+        SelectorGate columnGate = new SelectorGate() {
+            @Override public boolean invoke(long self, long cmd, long selector) {
+                source.entered();
+                AccessibleNode table = grid.tableOfColumn(self);
+                return table != null && AxGate.allowsOnColumn(grid, table, grid.columnOf(self),
+                        ObjCRuntime.sel_getName(selector));
+            }
+        };
+        addMethod(columnClass, "isAccessibilitySelectorAllowed:", columnGate);
+        // No actions, as a native column lists none; without this a client's action list read
+        // kAXErrorFailure off an element with no action entry point (the guest smoke run, 2026-09-15).
+        IdGetter columnActions = new IdGetter() {
+            @Override public long invoke(long self, long cmd) {
+                source.entered();
+                return objc.mutableArray();
+            }
+        };
+        addMethod(columnClass, "accessibilityActionNames", columnActions);
+    }
+
+    /** An autoreleased {@code NSArray} of these elements, or nil for {@code null}. */
+    private long nsArray(long[] elements) {
+        if (elements == null) return NULL;
         long array = objc.mutableArray();
-        for (long child : source.childElementsOf(node)) {
-            AccessibleNode childNode = source.nodeFor(child);
-            if (childNode != null && filter.keep(childNode)) objc.addObject(array, child);
-        }
+        for (long element : elements) objc.addObject(array, element);
         return array;
-    }
-
-    /** The element of the table's header group: its first child with the group role, or nil. */
-    private long headerOf(AccessibleNode table) {
-        for (long child : source.childElementsOf(table)) {
-            AccessibleNode childNode = source.nodeFor(child);
-            if (childNode != null && childNode.role() == Accessible.Role.GROUP) return child;
-        }
-        return NULL;
-    }
-
-    /** The element of the header cell above {@code cell}, found by structure, or nil. */
-    private long columnHeaderOf(AccessibleNode cell) {
-        long parent = source.parentElementOf(cell);              // the row
-        AccessibleNode row = parent == NULL ? null : source.nodeFor(parent);
-        long tableElement = row == null ? NULL : source.parentElementOf(row);
-        AccessibleNode table = tableElement == NULL ? null : source.nodeFor(tableElement);
-        if (table == null || table.table() == null) return NULL;
-        long header = headerOf(table);
-        AccessibleNode group = header == NULL ? null : source.nodeFor(header);
-        if (group == null) return NULL;
-        long[] headers = source.childElementsOf(group);
-        int column = cell.cell().column();
-        return column >= 0 && column < headers.length ? headers[column] : NULL;
     }
 
     private void addLong(String selector, NodeToLong body) {
@@ -446,9 +586,7 @@ final class AxElementClass {
                 return node == null ? 0 : body.apply(node);
             }
         };
-        callbacks.add(getter);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), getter.address(),
-                objc.encodingOf(selector));
+        addMethod(elementClass, selector, getter);
     }
 
     private void addRange(String selector, NodeToRange body) {
@@ -456,12 +594,10 @@ final class AxElementClass {
             @Override public long[] invoke(long self, long cmd) {
                 source.entered();
                 AccessibleNode node = source.nodeFor(self);
-                return node == null ? NOT_FOUND : body.apply(node);
+                return node == null ? AxGrid.NOT_FOUND : body.apply(node);
             }
         };
-        callbacks.add(getter);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel(selector), getter.address(),
-                objc.encodingOf(selector));
+        addMethod(elementClass, selector, getter);
     }
 
     private interface NodeToLong {
@@ -479,7 +615,12 @@ final class AxElementClass {
      * responds to all of them, and AppKit builds the action list a client is shown out of what an
      * object responds to — a button would advertise "increment" and a slider "show menu". So
      * {@code isAccessibilitySelectorAllowed:} answers from the node's own {@code ActionFacet}, and
-     * the list becomes per node instead of per class.
+     * the list becomes per node instead of per class. The same gate refuses a row or table getter on
+     * a node that has no answer for it ({@link AxGate}), because AppKit honours a refused getter too.
+     *
+     * <p>Which is why the two are installed as one unit: an AppKit that declared no gate would leave
+     * every action here advertised on every element, so {@link AxSelectors#REQUIRES} withholds the
+     * actions with it and the constructor's warning names both.
      */
     private void installActions() {
         for (String selector : AxActions.selectors()) {
@@ -502,16 +643,123 @@ final class AxElementClass {
                 source.entered();
                 AccessibleNode node = source.nodeFor(self);
                 if (node == null) return false;
-                String name = ObjCRuntime.sel_getName(selector);
-                // Only the action selectors are gated. Everything else this class implements is an
-                // attribute, and answering false for one of those would hide the node's name.
-                if (!AxActions.isActionSelector(name)) return true;
-                return AxActions.verbFor(node, name) != null;
+                return AxGate.allows(grid, node, ObjCRuntime.sel_getName(selector));
             }
         };
-        callbacks.add(gate);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel("isAccessibilitySelectorAllowed:"),
-                gate.address(), objc.encodingOf("isAccessibilitySelectorAllowed:"));
+        addMethod(elementClass, "isAccessibilitySelectorAllowed:", gate);
+        installNamedActions();
+    }
+
+    /**
+     * The legacy action pair, for the one action with no selector: {@code AXScrollToVisible}
+     * ({@link AxActions#SCROLL_TO_VISIBLE_SYMBOL} says what the guest showed). Answering
+     * {@code accessibilityActionNames} replaces the list AppKit would derive, so it lists every action
+     * the node offers; {@code accessibilityPerformAction:} posts the verb a listed name means, where the
+     * node accepts it, and nothing otherwise. A name this AppKit exports no global for is neither listed
+     * nor performed.
+     */
+    private void installNamedActions() {
+        addId("accessibilityActionNames", get(node -> {
+            long array = objc.mutableArray();
+            for (String symbol : AxActions.actionSymbolsFor(node)) {
+                long name = objc.constantOrNull(symbol);
+                if (name != NULL) objc.addObject(array, name);
+            }
+            return array;
+        }));
+        IdSetter performNamed = new IdSetter() {
+            @Override public void invoke(long self, long cmd, long named) {
+                source.entered();
+                AccessibleNode node = source.nodeFor(self);
+                if (node == null || named == NULL) return;
+                for (String symbol : AxActions.actionSymbols()) {
+                    long name = objc.constantOrNull(symbol);
+                    if (name == NULL || (ObjC.msg(named, "isEqualToString:", name) & 0xFF) == 0) continue;
+                    Accessible.Action verb = AxActions.verbForActionSymbol(node, symbol);
+                    if (verb != null) source.perform(node.id(), verb);
+                    return;
+                }
+            }
+        };
+        addMethod(elementClass, "accessibilityPerformAction:", performNamed);
+    }
+
+    /**
+     * The setter half (MACOS-NEW-11): a reader's write to AXFocused, AXSelected, AXDisclosing,
+     * AXExpanded, AXValue or AXSelectedRows, posted as the verb it means where the node accepts that verb, and
+     * nothing anywhere else. Whether each is settable is the gate's answer for the setter selector,
+     * which is {@link AxSetters#offers}; the write checks again, because a client need not ask first.
+     * Each installed only with the gate ({@link AxSelectors#REQUIRES}), or every element would report
+     * every one of them settable.
+     */
+    private void installSetters() {
+        for (String selector : AxSetters.BOOL_SETTERS) {
+            addMethod(elementClass, selector, new BoolSetter() {
+                @Override public void invoke(long self, long cmd, boolean on) {
+                    source.entered();
+                    AccessibleNode node = source.nodeFor(self);
+                    if (node == null) return;
+                    AxSetters.Setting setting = AxSetters.forBool(grid, node, selector, on);
+                    if (setting != null) source.perform(node.id(), setting.action(), setting.argument());
+                }
+            });
+        }
+        IdSetter valueSetter = new IdSetter() {
+            @Override public void invoke(long self, long cmd, long written) {
+                source.entered();
+                AccessibleNode node = source.nodeFor(self);
+                if (node == null || written == NULL) return;
+                String text = isKindOf(written, "NSString") ? objc.javaString(written) : null;
+                Double number = null;
+                if (text == null && isKindOf(written, "NSNumber")) {
+                    // -stringValue, @16@0:8 as read (isKindOf says where); the decimal text
+                    // Double.valueOf reads back, which a fraction keeps and a boolean answers as "1".
+                    try {
+                        number = Double.valueOf(objc.javaString(ObjC.msg(written, "stringValue")));
+                    } catch (NumberFormatException | NullPointerException unreadable) {
+                        return;
+                    }
+                }
+                AxSetters.Setting setting = AxSetters.forValue(node, text, number);
+                if (setting != null) source.perform(node.id(), setting.action(), setting.argument());
+            }
+        };
+        addMethod(elementClass, "setAccessibilityValue:", valueSetter);
+
+        // A table's, an outline's or a list's selection written as an array of its row elements
+        // (MACOS-NEW-11): -count Q16@0:8 and -objectAtIndex: @24@0:8Q16, read with the other
+        // Foundation messages (isKindOf). An element that stands for no node of ours refuses the write.
+        IdSetter selectedRowsSetter = new IdSetter() {
+            @Override public void invoke(long self, long cmd, long written) {
+                source.entered();
+                AccessibleNode node = source.nodeFor(self);
+                if (node == null || written == NULL || !isKindOf(written, "NSArray")) return;
+                long count = ObjC.msg(written, "count");
+                List<AccessibleNode> rows = new ArrayList<>();
+                for (long i = 0; i < count; i++) {
+                    rows.add(source.nodeFor(ObjC.msg(written, "objectAtIndex:", i)));
+                }
+                List<AxSetters.RowSetting> settings = AxSetters.forSelectedRows(grid, node, rows);
+                if (settings == null) return;
+                for (AxSetters.RowSetting setting : settings) source.perform(setting.nodeId(), setting.action());
+            }
+        };
+        addMethod(elementClass, "setAccessibilitySelectedRows:", selectedRowsSetter);
+    }
+
+    /**
+     * {@code -[NSObject isKindOfClass:]}, sent through the plain {@code objc_msgSend} whose return is a
+     * whole register: {@code B24@0:8#16}, a {@code BOOL} that is one byte, hence the mask. The encoding,
+     * and that a client's string arrives as a kind of {@code NSString} and its integer, fraction and
+     * boolean as kinds of {@code NSNumber}, were read on the macOS 26.6.2 guest (25G83), 2026-09-15,
+     * {@code scripts/a11y/macos/foundation-messages-probe.swift}; so were the other Foundation messages
+     * the closures send: {@code -[NSNumber stringValue]} {@code @16@0:8} ("55", "55.5", and "1" for
+     * {@code kCFBooleanTrue}), {@code -[NSString isEqualToString:]} {@code B24@0:8@16}, and the two an
+     * array write needs, {@code -[NSArray count]} {@code Q16@0:8} and {@code -[NSArray objectAtIndex:]}
+     * {@code @24@0:8Q16}.
+     */
+    private static boolean isKindOf(long object, String className) {
+        return (ObjC.msg(object, "isKindOfClass:", ObjC.cls(className)) & 0xFF) != 0;
     }
 
     /**
@@ -586,9 +834,7 @@ final class AxElementClass {
                 return focused;
             }
         };
-        callbacks.add(body);
-        ObjCRuntime.class_addMethod(subclass, ObjC.sel("accessibilityFocusedUIElement"),
-                body.address(), objc.encodingOf("accessibilityFocusedUIElement"));
+        addMethod(subclass, "accessibilityFocusedUIElement", body);
         ObjCRuntime.objc_registerClassPair(subclass);
         this.swizzledView = contentView;
         this.viewClassBefore = viewClass;
@@ -617,9 +863,7 @@ final class AxElementClass {
                 return node == null ? self : descend(self, node, x, y);
             }
         };
-        callbacks.add(hitTest);
-        ObjCRuntime.class_addMethod(elementClass, ObjC.sel("accessibilityHitTest:"),
-                hitTest.address(), objc.encodingOf("accessibilityHitTest:"));
+        addMethod(elementClass, "accessibilityHitTest:", hitTest);
     }
 
     private long descend(long element, AccessibleNode node, double x, double y) {
@@ -635,33 +879,22 @@ final class AxElementClass {
     }
 
     /**
-     * The value, and the hole §2.1 spends a paragraph on for the other platform.
-     *
-     * <p>Three facets share this one attribute, which is why they are three facets rather than one
-     * field. A text node whose value came only from {@code ValueFacet} is a field VoiceOver cannot
-     * read — so {@code TextFacet} answers here too.
+     * The value, and the hole §2.1 spends a paragraph on for the other platform: {@link AxValues}
+     * decides between a string, a number and nothing (an empty value answers its word, never its
+     * minimum), and this wraps the answer for AppKit.
      */
     private long valueOf(AccessibleNode node) {
-        if (node.toggle() != null) {
-            // A toggle's value is a number here, not a boolean and not a string: AppKit's own check
-            // boxes answer 0, 1 or 2, and the mixed state is why it is not a BOOL.
-            return objc.number(switch (node.toggle().state()) {
-                case OFF -> 0;
-                case ON -> 1;
-                case MIXED -> 2;
-            });
-        }
-        if (node.text() != null) return objc.string(node.text().text());
-        if (node.value() != null) {
-            // The displayed text when the node has one, and the number otherwise. A slider that
-            // shows "40%" must not be read as "0.4", and one that shows nothing has only the number.
-            String shown = node.value().text();
-            return shown != null ? objc.string(shown) : objc.number((long) node.value().value());
-        }
-        return NULL;
+        String text = AxValues.textOf(node);
+        if (text != null) return objc.string(text);
+        return AxValues.hasNumber(node) ? objc.number(AxValues.numberOf(node)) : NULL;
     }
 
     // ---- the two shapes of implementation, and the libffi closures under them -------------------
+
+    /** A closure that says which {@link AxSelectors.Kind} it is, so that the install can check it. */
+    private interface Shaped {
+        AxSelectors.Kind kind();
+    }
 
     private interface NodeToId {
         long apply(AccessibleNode node);
@@ -705,8 +938,9 @@ final class AxElementClass {
         long invoke(long self, long cmd);
     }
 
-    private abstract static class IdGetter extends Callback implements IdGetterI {
+    private abstract static class IdGetter extends Callback implements IdGetterI, Shaped {
         protected IdGetter() { super(IdGetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.ID; }
     }
 
     /** {@code (id self, SEL _cmd, id) -> id}, encoding {@code @24@0:8@16}. */
@@ -723,8 +957,9 @@ final class AxElementClass {
         long invoke(long self, long cmd, long attribute);
     }
 
-    private abstract static class AttributeGetter extends Callback implements AttributeGetterI {
+    private abstract static class AttributeGetter extends Callback implements AttributeGetterI, Shaped {
         protected AttributeGetter() { super(AttributeGetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.ID_OF_ID; }
     }
 
     /** {@code (id self, SEL _cmd) -> BOOL}, encoding {@code B16@0:8}. */
@@ -741,8 +976,45 @@ final class AxElementClass {
         boolean invoke(long self, long cmd);
     }
 
-    private abstract static class BoolGetter extends Callback implements BoolGetterI {
+    private abstract static class BoolGetter extends Callback implements BoolGetterI, Shaped {
         protected BoolGetter() { super(BoolGetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.BOOL; }
+    }
+
+    /** {@code (id self, SEL _cmd, BOOL) -> void}, encoding {@code v20@0:8B16}. */
+    private interface BoolSetterI extends CallbackI {
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(BoolSetterI.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_void, LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_pointer, LibFFI.ffi_type_uint8));
+        @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
+        @Override default void callback(long ret, long args) {
+            // The BOOL is one byte in its slot; the rest of the slot is not the caller's to promise.
+            invoke(ClosureArgs.pointer(args, 0), ClosureArgs.pointer(args, 1),
+                    memGetByte(ClosureArgs.slot(args, 2)) != 0);
+        }
+        void invoke(long self, long cmd, boolean on);
+    }
+
+    private abstract static class BoolSetter extends Callback implements BoolSetterI, Shaped {
+        protected BoolSetter() { super(BoolSetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.VOID_OF_BOOL; }
+    }
+
+    /** {@code (id self, SEL _cmd, id) -> void}, encoding {@code v24@0:8@16}. */
+    private interface IdSetterI extends CallbackI {
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(IdSetterI.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_void, LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
+        @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
+        @Override default void callback(long ret, long args) {
+            invoke(ClosureArgs.pointer(args, 0), ClosureArgs.pointer(args, 1), ClosureArgs.pointer(args, 2));
+        }
+        void invoke(long self, long cmd, long written);
+    }
+
+    private abstract static class IdSetter extends Callback implements IdSetterI, Shaped {
+        protected IdSetter() { super(IdSetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.VOID_OF_ID; }
     }
 
     /** {@code (id self, SEL _cmd, SEL) -> BOOL}, encoding {@code B24@0:8:16}. */
@@ -759,8 +1031,9 @@ final class AxElementClass {
         boolean invoke(long self, long cmd, long selector);
     }
 
-    private abstract static class SelectorGate extends Callback implements SelectorGateI {
+    private abstract static class SelectorGate extends Callback implements SelectorGateI, Shaped {
         protected SelectorGate() { super(SelectorGateI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.BOOL_OF_SELECTOR; }
     }
 
     /** {@code (id self, SEL _cmd) -> NSInteger}, encoding {@code q16@0:8}. */
@@ -774,8 +1047,9 @@ final class AxElementClass {
         long invoke(long self, long cmd);
     }
 
-    private abstract static class LongGetter extends Callback implements LongGetterI {
+    private abstract static class LongGetter extends Callback implements LongGetterI, Shaped {
         protected LongGetter() { super(LongGetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.INTEGER; }
     }
 
     /**
@@ -794,8 +1068,9 @@ final class AxElementClass {
         long[] invoke(long self, long cmd);
     }
 
-    private abstract static class RangeGetter extends Callback implements RangeGetterI {
+    private abstract static class RangeGetter extends Callback implements RangeGetterI, Shaped {
         protected RangeGetter() { super(RangeGetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.RANGE; }
     }
 
     /** {@code (id self, SEL _cmd, NSInteger column, NSInteger row) -> id}, encoding {@code @32@0:8q16q24}. */
@@ -812,8 +1087,9 @@ final class AxElementClass {
         long invoke(long self, long cmd, long column, long row);
     }
 
-    private abstract static class CellAt extends Callback implements CellAtI {
+    private abstract static class CellAt extends Callback implements CellAtI, Shaped {
         protected CellAt() { super(CellAtI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.ID_OF_TWO_INTEGERS; }
     }
 
     /** {@code (id self, SEL _cmd, CGPoint) -> id}, encoding {@code @32@0:8{CGPoint=dd}16}. */
@@ -831,7 +1107,8 @@ final class AxElementClass {
         long invoke(long self, long cmd, double x, double y);
     }
 
-    private abstract static class HitTest extends Callback implements HitTestI {
+    private abstract static class HitTest extends Callback implements HitTestI, Shaped {
         protected HitTest() { super(HitTestI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.ID_OF_POINT; }
     }
 }

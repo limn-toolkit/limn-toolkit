@@ -7,7 +7,7 @@ import limn.accessibility.AccessibleTree;
 /**
  * What a backend gives a window so that a platform's assistive technology can read it.
  *
- * <p><b>The whole seam is ten members and one direction each.</b> Outbound, the scene tells a
+ * <p><b>The whole seam is eleven members and one direction each.</b> Outbound, the scene tells a
  * bridge things and asks it two questions, and nothing in the toolkit calls a bridge in any other
  * way. Inbound, everything a platform asks of the toolkit arrives through the four members of
  * {@link Host}. Nothing in a bridge ever touches a widget, a scene or a window: it is handed an
@@ -94,6 +94,26 @@ public interface AccessibilityBridge {
      * @param event what happened
      */
     default void emit(AccessibleEvent event) {
+    }
+
+    /**
+     * The frame's accessibility step is over: everything this frame had to say has been
+     * {@linkplain #emit emitted}. User-interface thread, once per frame, whether or not the frame
+     * published — a frame that only drained announcements, or one that follows a
+     * {@linkplain #publish reentrant publish} and finds nothing left to walk, ends too.
+     *
+     * <p><b>It is the one moment a bridge that posts on the user-interface thread can post.</b>
+     * A queue drained at the top of the next publish instead holds every event of a change until
+     * the tree changes again: on a still window the last thing that happened is never told at all,
+     * and everything else is told one change late, about a tree that has already moved on
+     * (MACOS-NEW-8). The obligations a reentrant publish deferred are owed here too, because the
+     * frame that reentrant publish asked for need not publish anything.
+     *
+     * <p>Never called from inside a reentrant publish, nor from anywhere the platform is on the
+     * stack: it runs at the end of the frame step, where the ordinary publish runs. A bridge that
+     * raises on a thread of its own has nothing to do here, which is the default.
+     */
+    default void frameEnded() {
     }
 
     /**

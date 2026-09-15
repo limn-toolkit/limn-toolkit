@@ -1127,6 +1127,16 @@ public final class Scene implements WindowInput {
      * so the frame is the flush point and no new scheduling is invented.
      */
     private void accessibilityStep(boolean rePresent) {
+        publishStep(rePresent);
+        // Every frame ends, whichever way the step above returned: announcements drained without
+        // a walk, a re-present, a clean tree after a reentrant publish already took the walk. A
+        // bridge that posts on this thread posts here, so what this frame said is told in this
+        // frame and not held until the tree next changes (MACOS-NEW-8, ADR 039 §5.3).
+        bridge.frameEnded();
+    }
+
+    /** The step's publishing half: announcements, then the walk or the re-stamp, if either is owed. */
+    private void publishStep(boolean rePresent) {
         boolean live = accessibilityLive();
         drainAnnouncements(live);
         if (rePresent) {

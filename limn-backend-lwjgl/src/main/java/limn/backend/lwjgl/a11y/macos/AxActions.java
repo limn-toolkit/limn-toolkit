@@ -37,20 +37,99 @@ final class AxActions {
     private static final Map<String, List<Accessible.Action>> BY_SELECTOR = new LinkedHashMap<>();
 
     static {
-        // Activation. What it does is the widget's to say, so all three candidates are offered and
-        // the node's own facet decides.
+        // Activation. What it does is the widget's to say, so every candidate is offered and the
+        // node's published verbs decide (semantics 5): a button is pressed, a check box toggled, a
+        // radio button selected, and a node whose only activation is opening or closing -- a combo
+        // box, a menu title, a date field, a tree row -- opens when closed and closes when open,
+        // which is exactly the one of EXPAND and COLLAPSE it publishes at that moment.
         List<Accessible.Action> activate = List.of(
-                Accessible.Action.PRESS, Accessible.Action.TOGGLE, Accessible.Action.SELECT);
+                Accessible.Action.PRESS, Accessible.Action.TOGGLE, Accessible.Action.SELECT,
+                Accessible.Action.EXPAND, Accessible.Action.COLLAPSE);
         BY_SELECTOR.put("accessibilityPerformPress", activate);
         // Confirm is Return on a control that has one, and on everything this toolkit publishes the
         // thing Return does is the activation. Two selectors reaching one verb is the same shape as
         // two roles sharing one control type: the platform draws a distinction the toolkit does not.
+        // Semantics 5 names the one list for both, so a confirm opens a closed combo box as a press
+        // does, on purpose (MACOS-NEW-5, correction 2).
         BY_SELECTOR.put("accessibilityPerformConfirm", activate);
 
         BY_SELECTOR.put("accessibilityPerformIncrement", List.of(Accessible.Action.INCREMENT));
         BY_SELECTOR.put("accessibilityPerformDecrement", List.of(Accessible.Action.DECREMENT));
         BY_SELECTOR.put("accessibilityPerformShowMenu", List.of(Accessible.Action.SHOW_MENU));
         BY_SELECTOR.put("accessibilityPerformCancel", List.of(Accessible.Action.CANCEL));
+    }
+
+    /**
+     * The AppKit global naming each selector's action, as a client lists and performs it. Resolved by
+     * {@code dlsym} at run time; the values were read on the macOS 26.6.2 guest on 2026-09-13
+     * (readings/macos-appkit-constants.txt, "action names").
+     */
+    private static final Map<String, String> ACTION_SYMBOL = new LinkedHashMap<>();
+
+    static {
+        ACTION_SYMBOL.put("accessibilityPerformPress", "NSAccessibilityPressAction");
+        ACTION_SYMBOL.put("accessibilityPerformConfirm", "NSAccessibilityConfirmAction");
+        ACTION_SYMBOL.put("accessibilityPerformIncrement", "NSAccessibilityIncrementAction");
+        ACTION_SYMBOL.put("accessibilityPerformDecrement", "NSAccessibilityDecrementAction");
+        ACTION_SYMBOL.put("accessibilityPerformShowMenu", "NSAccessibilityShowMenuAction");
+        ACTION_SYMBOL.put("accessibilityPerformCancel", "NSAccessibilityCancelAction");
+    }
+
+    /**
+     * {@code AXScrollToVisible}, new in macOS 26, and the one action with no selector of its own: no
+     * class or protocol declares one (read on the guest 2026-09-13). What reaches an
+     * {@code NSAccessibilityElement} is the legacy pair: with {@code accessibilityActionNames} listing it,
+     * a client's perform entered {@code accessibilityPerformAction:} with its name, while an
+     * {@code NSAccessibilityCustomAction} of that name was never run and a guessed
+     * {@code accessibilityPerformScrollToVisible} never entered (read on the macOS 26.6.2 guest,
+     * 2026-09-15, {@code scripts/a11y/macos/scroll-to-visible-probe.swift}).
+     */
+    static final String SCROLL_TO_VISIBLE_SYMBOL = "NSAccessibilityScrollToVisibleAction";
+
+    /**
+     * What {@code accessibilityActionNames} lists for a node. Once that selector is answered AppKit lists
+     * exactly what it answers and no longer derives the list from the selectors an element responds to
+     * (read 2026-09-15), so every action the node offers is listed here, in the selectors' order, and
+     * scroll-to-visible after them where the node accepts {@code SCROLL_INTO_VIEW}.
+     *
+     * @param node the node
+     * @return the symbols of the actions it offers, in order
+     */
+    static List<String> actionSymbolsFor(AccessibleNode node) {
+        List<String> symbols = new java.util.ArrayList<>();
+        for (Map.Entry<String, String> action : ACTION_SYMBOL.entrySet()) {
+            if (verbFor(node, action.getKey()) != null) symbols.add(action.getValue());
+        }
+        if (node.accepts(Accessible.Action.SCROLL_INTO_VIEW)) symbols.add(SCROLL_TO_VISIBLE_SYMBOL);
+        return symbols;
+    }
+
+    /**
+     * The verb {@code accessibilityPerformAction:} posts for an action named by its symbol: the same
+     * verb its own selector performs, and {@code SCROLL_INTO_VIEW} for scroll-to-visible, each only where
+     * the node accepts it. A named action with its own selector normally arrives through that selector
+     * (AXPress entered {@code accessibilityPerformPress} on the guest even with this pair installed); it
+     * is answered here too, so that a name the list offers is never one nothing performs.
+     *
+     * @param node   the node
+     * @param symbol one of {@link #actionSymbols()}
+     * @return the verb to post, or {@code null}
+     */
+    static Accessible.Action verbForActionSymbol(AccessibleNode node, String symbol) {
+        if (SCROLL_TO_VISIBLE_SYMBOL.equals(symbol)) {
+            return node.accepts(Accessible.Action.SCROLL_INTO_VIEW) ? Accessible.Action.SCROLL_INTO_VIEW : null;
+        }
+        for (Map.Entry<String, String> action : ACTION_SYMBOL.entrySet()) {
+            if (action.getValue().equals(symbol)) return verbFor(node, action.getKey());
+        }
+        return null;
+    }
+
+    /** @return every action-name symbol this bridge lists or performs, for the constants test */
+    static List<String> actionSymbols() {
+        List<String> symbols = new java.util.ArrayList<>(ACTION_SYMBOL.values());
+        symbols.add(SCROLL_TO_VISIBLE_SYMBOL);
+        return symbols;
     }
 
     /**
@@ -80,9 +159,11 @@ final class AxActions {
      */
     static Accessible.Action verbFor(AccessibleNode node, String selector) {
         List<Accessible.Action> candidates = BY_SELECTOR.get(selector);
-        if (candidates == null || node.actions() == null) return null;
-        for (Accessible.Action candidate : candidates) {
-            if (node.actions().has(candidate)) return candidate;
+        if (candidates == null) return null;
+        for (int i = 0; i < candidates.size(); i++) {   // indexed: an iterator is an allocation
+            Accessible.Action candidate = candidates.get(i);
+            // The toolkit's one reading of "does this node accept this verb now".
+            if (node.accepts(candidate)) return candidate;
         }
         return null;
     }

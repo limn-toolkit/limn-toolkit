@@ -1827,6 +1827,22 @@ pointing here: §9.2's answer to ADR 040's §6.1 ("an active descendant on its c
 surface's cursor" in both — a column has no cursor of its own since this amendment, and the one
 `ACTIVE_DESCENDANT_CHANGED` per arrow key that row promises is still one, on the surface.
 
+#### Amendment 2026-09-15 — macOS posts when the frame ends, not when the tree next changes
+
+**What was wrong (MACOS-NEW-8).** "It gets a per-frame budget" above was true of the budget and not
+of the moment. The macOS bridge drained its queue at the top of `publish`, and the scene publishes
+only when the walk found a difference (§5.3 step 6), so the events of one change were posted inside
+the publish of the *next* change, against a tree that had already moved on, and the last change
+before a pause was not posted until something else changed. Announcements, which the scene emits
+without publishing, waited the same way. `--scene tree-reader` steps three seconds apart were each
+told to VoiceOver at the following step; the phase 7 probe hid it by changing the tree every tick.
+Windows and Linux were never affected: their raises leave `emit` for a thread of their own.
+
+**The rule.** The seam gains `AccessibilityBridge#frameEnded()` (§5.3's amendment of this date), called
+at the end of every frame's accessibility step and never from a reentrant publish. The macOS bridge
+drains there, after the frame's own events, and pays there whatever a reentrant publish deferred.
+"Per frame" now means the frame that emitted the events.
+
 ### 1.11 A popup's contents are described where they actually live
 
 ADR 028's two mountings survive into the accessibility tree unchanged, because pretending otherwise
@@ -2347,6 +2363,154 @@ and 98, not forwarded). How §2.4 raises them is amended there.
 | `accessibilityFrameForRange:` | **not answered in the first cut** | §11: there is no geometry seam behind it |
 | `NSAccessibilityPostNotification` | the event flush | **proven delivered out of process** to a real `AXObserver`, carrying the updated value. `AXValueChanged` reaches an observer registered on the element *or* on the application element; `AXFocusedUIElementChanged` reaches **only** the application-element registration, so focus is posted at application level and never per element |
 | `…PostNotificationWithUserInfo` with `AnnouncementRequested` | `ANNOUNCEMENT` | politeness rides `NSAccessibilityPriorityKey` |
+
+**Amended 2026-09-15 (phase 3, the macOS bridge; the rows above stand as written and these
+sentences say what the bridge now does where they differ).** *Where the user is* (decision 1,
+semantics 4): `accessibilityFocusedUIElement` — answered on the content view since §13.22 — and
+`isAccessibilityFocused` both answer from the tree's `effectiveFocus()`, the cursor item under the
+focused widget when there is one, so the table under the keyboard answers false and its cursor cell
+true. A cursor resolved into a native popup's tree (decision 5) is answered with the element the
+popup window's own bridge mints, and the popup's view, with nothing of its own focused, answers the
+same element; the bridges of a process's open windows find each other through one process-wide set,
+entered on a publish and left on a detach. *Rows* (M2; semantics 1 and 2): an outline and a list
+holding a selection answer `accessibilityRows`, `accessibilityVisibleRows` and
+`accessibilitySelectedRows` from their realized members, whatever role a cell kept, and each member
+answers `accessibilityIndex` zero-based — the hierarchy facet's flat row less one for an outline row,
+its position in the set less one for a list row, `NSNotFound` when the number is unknown — because a
+native `NSOutlineView` answered AXIndex 0, 1, 2… down its visible rows and no `AXRowCount` (read on
+the macOS 26.6.2 guest, 2026-09-15, `scripts/a11y/macos/outline-probe.swift`). *The gate refuses
+getters too*: AppKit honours a refused getter (read 2026-09-13, §6 of that day's macOS readings), so
+the row selectors are refused on everything that is not a table, an outline or a list, the index on
+everything that is not a row, and the two counts on everything that is not a table, instead of
+answering nil, −1 or zero there. *Selection* (MACOS-NEW-2; semantics 1): a container's selection is
+read off the attribute of its shape — `accessibilitySelectedRows` for an outline, a list or a table
+of rows; `accessibilitySelectedCells` for a grid whose members are cells, a calendar's days;
+`accessibilitySelectedChildren` for anything else holding one, a tab strip — each answered from the
+selected members whose selection container it is, wherever they hang, and each refused where it is
+not the container's shape, as the native outline answers `AXSelectedRows` and no
+`AXSelectedChildren`. *Recorded the same day (the macos-B review):* the native outline also answered
+`AXSelectedCells` — the `AXCell` its selected row holds — and an outline or a list here deliberately
+does not: a Limn row holds no cell element, its children being the application's own widgets, so the
+answer would repeat the rows under a cell's attribute or name an arbitrary widget, and the native
+outline told its selection only as `AXSelectedRowsChanged`. Whether VoiceOver reads a native outline's
+selected cells at all is phase 5's to hear. *Disclosure* (M1): an outline row answers `isAccessibilityDisclosed` from its
+expand facet, `accessibilityDisclosureLevel` as the hierarchy facet's level less one, and
+`accessibilityDisclosedByRow` / `accessibilityDisclosedRows` by walking the outline's realized rows
+while their flat row numbers run without a gap — a gap answers nothing rather than a grandparent —
+because the native outline's rows answered AXDisclosureLevel 0 at the top, their parent row and the
+rows one level down, on leaves too, and **no `AXExpanded`**; so `isAccessibilityExpanded` is answered
+for every other node with an expand facet and refused on an outline row, and a level of zero refuses
+the level getter (semantics 6). *Press and confirm* (MACOS-NEW-5; semantics 5): both map to the
+candidates `PRESS`, `TOGGLE`, `SELECT`, `EXPAND`, `COLLAPSE` in that order, the first the node accepts
+(`AccessibleNode#accepts`) posted, so a combo box, a menu title or a date field that publishes only the
+one of `EXPAND`/`COLLAPSE` its state allows is pressed open or shut, and a node publishing no verb is
+offered no press whatever facet it carries; `…Pick` stays absent (AxActions says why). *The setter
+half* (MACOS-NEW-11; semantics 5): `setAccessibilityFocused:` YES posts `FOCUS`;
+`setAccessibilitySelected:` YES `SELECT`, NO `DESELECT`; `setAccessibilityDisclosed:` (an outline row)
+and `setAccessibilityExpanded:` (anything else that opens) YES `EXPAND`, NO `COLLAPSE`;
+`setAccessibilityValue:` a string as `SET_TEXT` to a text, a number as `SET_VALUE` and a string as
+`SET_VALUE` of text to a writable value — each posted only where `AccessibleNode#accepts` holds for
+that verb, never waited for. **Settable is the gate's answer for the setter** (read on the guest
+2026-09-13), so each of these is offered exactly where its write would post, AXDisclosing only on a
+row that can open as the native outline's is, and every other `setAccessibility…` selector —
+`NSAccessibilityElement`'s stored setters, which a client read as settable on every element, `AXRole`
+included — is refused on every node. The setters are installed only together with the gate. *Corrected
+the same day (the macos-B review; MACOS-NEW-11's last setter):* `setAccessibilitySelectedRows:` is
+installed too, settable where a container's selection is its rows and a realized row takes a selection
+verb. Read on the guest 2026-09-15 (`scripts/a11y/macos/selection-writes-probe.swift`), a native
+outline's selection becomes exactly the rows written in either mode — one row replaces, two rows in a
+multi-select outline become the selection, an empty array empties it, two rows in a single-select
+outline are refused (`kAXErrorIllegalArgument`) — and `AXSelected` YES on a second row of a
+multi-select outline **replaces** the selection too, so the `SELECT` it posts is right in both modes.
+So one row written posts `SELECT`; several, or none, post the difference — `DESELECT` on each selected
+row left out, `ADD_TO_SELECTION` on each written row not selected — and the write is refused whole
+unless every row accepts its verb, or when it names an element that is not a row of the container. A
+single-select row publishes no `DESELECT` (decision 20), so there an empty array, and `AXSelected` NO,
+are refused where the native outline, which allows an empty selection, clears it.
+*`AXScrollToVisible`* (new in macOS 26, and with no selector anywhere): read on the guest 2026-09-15
+(`scripts/a11y/macos/scroll-to-visible-probe.swift`), an `NSAccessibilityElement` subclass answering
+the legacy `accessibilityActionNames` has its perform of that name delivered to
+`accessibilityPerformAction:`, while a custom action of that name is never run and a guessed
+`accessibilityPerformScrollToVisible` never entered; and answering the names replaces AppKit's derived
+list. So the bridge answers `accessibilityActionNames` with every action the node offers plus
+scroll-to-visible where it accepts `SCROLL_INTO_VIEW`, and `accessibilityPerformAction:` posts the verb
+a listed name means; the pair is installed together, and only with the gate.
+*Table cells, rows and headers (MACOS-NEW-4, MACOS-NEW-9, MACOS-NEW-10; semantics 2 and 3; the
+same day):* `accessibilityCellForColumn:row:` answers the node whose `CellFacet` is (row, column)
+under one of the table's `ROW` children and whose nearest table ancestor is the table — a widget cell
+under its row included — and never reads a selection position; a table row's `accessibilityIndex` is
+its cells' row, so a calendar week, which carries no selection item, is found and numbered like any
+row; the header of column c is the child with `CellFacet(−1, c)` of one of the table's direct group
+children, matched by column, and a table with no such child — its header hidden, its footer shown —
+has no `accessibilityHeader` and no column headers at all, where the row above said "the table's
+first group child". A native `NSTableView` read on the guest (2026-09-15,
+`scripts/a11y/macos/table-probe.swift`) answered no `AXHeader` without its header view and no
+`AXColumnIndexRange` on its header buttons, so both are refused there, and the two index ranges are
+answered on data cells only.
+*Columns (M4; decision 34, the same day):* the row above said "columns are synthesised, one per
+header cell", and the bridge answered an empty array beside a column count. The native `NSTableView`
+read on the guest answers `AXColumns` and `AXVisibleColumns` with one `AXColumn` element per column,
+lists them among the table's children after its rows, and each column answers `AXIndex`, `AXHeader`
+(its header button; none on a headerless table), `AXRows` and `AXVisibleRows` (that column's cells, in
+row order), `AXParent` (the table), `AXSelected` and a frame spanning the header and the rows, and no
+`AXChildren`; `AXSelectedColumns` is an empty array. So the bridge vends the same: one column element
+per shown column, an instance of a second runtime subclass of `NSAccessibilityElement` whose closures
+answer those attributes from the table's cells and its header cell in that column, kept in a registry
+of its own keyed by the table's identifier and the column — the toolkit gains no column role (§1.12)
+— listed after the table's nodes among its children, its box pushed like a node's (the header cell's
+span over the table's height). A column goes at a frame's end when its table has left the tree or no
+longer shows it, and all at once on a rebind or a detach, demoted before it is released like every
+element, never from a reentrant publish. Its role description is AppKit's own, `column`: no toolkit
+phrase names a column (left for a later pass to translate). The native table also answered no
+`AXRowCount`, `AXColumnCount` or `AXColumnHeaderUIElements`; the bridge keeps answering those three,
+which carry the model's counts and a cell's header that the realized rows cannot, until a reader run
+says otherwise.
+*Release on `NODE_DESTROYED` (MACOS-NEW-1, the same day):* the paragraph below says the bridge releases
+on `NODE_DESTROYED`, and until this date nothing called the registry's release, so every element a
+client ever pulled stayed retained, answering nil. The release now happens at the end of the frame that
+emitted the destruction, after that frame's posts, and only for a node still absent from the tree then:
+an identifier keyed by a row that is destroyed and published again within the frame is the same node,
+whose element a client may be using. It posts nothing, as the paragraph says.
+*A value with no number (decision 16; CRIT-4's macOS half, the same day):* `accessibilityValue` answers
+a value's displayed text when it has one and its number otherwise, and an empty `ValueFacet` — a date
+segment nobody has typed into, which publishes its minimum for the platforms that must have a number —
+answers its word, or nothing when it has no text, and never the minimum: `AXValue` is an object here and
+demands no number. A change of the text or of the emptiness alone is a `VALUE_CHANGED` in the model, and
+this bridge posts it as `ValueChanged` like any other; the row's "minValue / maxValue" are still not
+installed.
+
+**The macOS rows as built (dated 2026-09-15; MACOS-NEW-7).** The table at the head of this section is
+kept as it was written, and the dated notes above say what changed item by item. This is the whole of
+what the bridge installs at the end of phase 3, row by row, so that nothing a reader of this section is
+told is a promise the code does not keep. Every selector named here is listed in `AxSelectors`, tied to
+the committed AppKit dump by `AxConstantsTest`, and answered only where `isAccessibilitySelectorAllowed:`
+(`AxGate`) allows it; everything else a row of the table above names is marked *not installed*.
+
+| Attribute / action / notification | As built |
+| --- | --- |
+| `accessibilityRole`, `accessibilitySubrole` | `AxRoles`, resolved by `dlsym`; unchanged |
+| `accessibilityRoleDescription` | **installed** (the row said "not yet implemented"): the toolkit's own phrase for the role under the node's locale (`RoleNames`); a column element keeps AppKit's own `column` |
+| `accessibilityTitle` / `accessibilityLabel`, `accessibilityHelp`, `accessibilityIdentifier` | as the rows say |
+| `accessibilityValue` | toggle 0/1/2, text, a value's displayed text else its number, an empty value its word (`AxValues`); **`accessibilityMinValue` / `accessibilityMaxValue` not installed** |
+| `setAccessibilityFrameInParentSpace:` | pushed for every held element and column element on each ordinary publish and on mint; **`accessibilityFrame` is not installed** (the row said it was): AppKit answers it from the pushed box |
+| `accessibilityParent`, `accessibilityChildren` | the snapshot links; a table's children end with its column elements; the root's children pushed, re-pushed when they change |
+| `accessibilityFocusedUIElement`, `isAccessibilityFocused` | **installed** (the row said "not claimed"), on the content view's own subclass and on the element class, from the tree's effective focus, across a native popup's window |
+| `setAccessibilityFocused:`, `setAccessibilitySelected:`, `setAccessibilityDisclosed:`, `setAccessibilityExpanded:`, `setAccessibilityValue:`, `setAccessibilitySelectedRows:` | installed with the gate, each posting the verb it means where `AccessibleNode#accepts` holds; every other stored setter refused |
+| `accessibilitySelectedChildren`, `accessibilitySelectedRows`, `accessibilitySelectedCells` | the one of the container's selection shape (children / rows / cells) |
+| `accessibilityRows`, `accessibilityVisibleRows`, `accessibilityIndex` | tables, outlines and lists; a table row's index is its data cells' row, already zero-based (`NSNotFound` with no data cell); an outline row's is the hierarchy facet's flat row less one; a list row's is its position in the set less one |
+| `accessibilityRowCount`, `accessibilityColumnCount` | tables only, the table facet's counts (a native table answers neither; kept, see the columns note) |
+| `accessibilityColumns`, `accessibilityVisibleColumns`, `accessibilitySelectedColumns` | **one column element per shown column** (the row said "synthesised, one per header cell"), answering role, index, header, rows, visible rows and parent; selected columns empty |
+| `accessibilityHeader`, `accessibilityColumnHeaderUIElements` | the group holding the header cells, matched by `CellFacet(−1, c)` (the row said "the first group child"); none on a headerless table |
+| `accessibilityRowIndexRange`, `accessibilityColumnIndexRange`, `accessibilityCellForColumn:row:` | data cells; the cell found by its own cell facet |
+| `isAccessibilityDisclosed`, `accessibilityDisclosureLevel`, `accessibilityDisclosedByRow`, `accessibilityDisclosedRows`, `isAccessibilityExpanded` | outline rows (zero-based level); expanded on everything else with an expand facet |
+| `accessibilityHitTest:` | as the row says |
+| `accessibilityPerformPress`, `…Confirm`, `…Increment`, `…Decrement`, `…ShowMenu`, `…Cancel` | installed with the gate; press and confirm map to `PRESS`, `TOGGLE`, `SELECT`, `EXPAND`, `COLLAPSE`; **`…Pick` is not installed** (the row listed it) |
+| `accessibilityActionNames`, `accessibilityPerformAction:` | installed, for `AXScrollToVisible` |
+| `accessibilityAttributeValue:`, `accessibilityAttributeNames` | installed, forwarding, for `AXElementBusy` (ADR 044 §2) |
+| `accessibilityNumberOfCharacters`, `accessibilitySelectedText`, `accessibilitySelectedTextRange`, `accessibilityStringForRange:`, `accessibilityRangeForLine:`, `accessibilityInsertionPointLineNumber` | **not installed** (the row said "`TextFacet`"): a text is read through `accessibilityValue` alone; owed |
+| `isAccessibilityModal` (a dialog's `AXModal`, the elided-root paragraph below) | **not installed**; owed |
+| `NSAccessibilityPostNotification` | at the end of the frame that emitted it (§1.10's amendment), not "the event flush"; `…WithUserInfo` for an announcement, on the window |
+| sort direction | not served: the model carries it only as the sorted header's localized description; the reading of `AXSortDirection` is in ADR 041 §7's note of this date |
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a
@@ -3137,6 +3301,71 @@ offered; it would have listed `Text` with an empty string on every slider and pr
 toolkit on the guest does (GTK 4.22.4's level bar serves `Value` alone,
 readings/fedora-gtk4-interface-replies.txt). Not observed live: the gallery's date segments always
 carry a word. Pinned by `AtspiEventsTest.aChangeThatMovesTheInterfacesANodeServesSendsItsCacheItemAgain`.
+
+**Amended 2026-09-15 (phase 3, the macOS column).** `ACTIVE_DESCENDANT_CHANGED` posts
+`FocusedUIElementChanged` **at application level**, as `FOCUS_CHANGED` does, and no longer
+`SelectedChildrenChanged`: the cursor is the focused element here, so a client told of it asks where
+the focus went. A frame posts at most one of the two, after everything else that frame posts. After
+a sweep of the element registry — the bridge's own queue collapse, or the model's `INVALIDATED`,
+which is now swept the same way (semantics 7) — the focus change is posted again whenever anything
+anywhere is focused, because the sweep may have released what a reader stood on.
+`SELECTION_CHANGED` is posted on its container as the notification of that container's selection
+attribute: `SelectedRowsChanged` for an outline, a list or a table of rows — which is what a native
+`NSOutlineView` posted on itself for a row selected through `AXSelected` and through
+`AXSelectedRows`, with no `SelectedChildrenChanged` beside it (read on the macOS 26.6.2 guest,
+2026-09-15, `scripts/a11y/macos/outline-probe.swift`) — `SelectedCellsChanged` for a grid of cells,
+and `SelectedChildrenChanged` for anything else. `STATE_CHANGED` of `EXPANDED` on an outline row is
+`RowExpanded` or `RowCollapsed` on the row, plus one `RowCountChanged` per outline per frame on the
+outline, as the native outline posted them when its row's `AXDisclosing` was set; on anything else it
+stays `ValueChanged`. *Corrected the same day (the macos-B review; M3 correction f):* a
+member's `STATE_CHANGED` of `SELECTED` is not posted when its container is posted the selection change
+in the same frame, and `STATE_CHANGED` of `ACTIVE` is posted nowhere — no attribute is read back off
+it, and where it matters the focused node's `ACTIVE_DESCENDANT_CHANGED` is the focus change — because
+one arrow in a focused `Tree` posted four `ValueChanged` on the rows beside `SelectedRowsChanged` and
+the focus change, where the native outline delivered only `AXSelectedRowsChanged` to an observer that
+also asked for `AXValueChanged`. One cursor move now posts exactly those two. *And the row count
+(M1 correction 2):* `RowCountChanged` is no longer derived from an outline row's `EXPANDED` flip
+alone. Every publish compares each held table's, outline's and list's row count — the table facet's
+count, the hierarchy facet's row count, the set size — with the snapshot before, and the frame's end
+posts one `RowCountChanged` on each container whose count moved and which is still in the tree, once
+per container however many publishes or openings moved it: a lazy load landing under a row already
+open, a refresh, and a list growing or shrinking are row-count changes too; a scroll, which changes
+which rows are realized and not how many there are, is none. Only the disclosure trigger was read on
+the native outline; the others follow from the same attribute.
+*And the window's own events (MACOS-NEW-3, the same day):* `ANNOUNCEMENT` names no node and
+`INVALIDATED` names none either, and a `STRUCTURE_CHANGED` of the root names the node this bridge elides,
+so all three were posted on an element no client held — which is to say never. An announcement is now
+`AnnouncementRequested` posted **on the window**, carrying `NSAccessibilityAnnouncementKey` (its text)
+and `NSAccessibilityPriorityKey` (10 polite, 90 assertive) as user info; `INVALIDATED` and a change of
+the root's children are one `LayoutChanged` on the window per frame. The window, because on the macOS
+26.6.2 guest (2026-09-15, `scripts/a11y/macos/announcement-probe.swift`) a notification posted on the
+window reached both an observer registered on the window and one registered on the application, one
+posted on `NSApp` only the application's, and one posted on the content view nobody's. Whether VoiceOver
+speaks an announcement posted there is phase 5's to hear. `NODE_DESTROYED` releases the element at the
+frame's end and still posts nothing (§2.2's note of the same date).
+
+**The macOS column as built (dated 2026-09-15; MACOS-NEW-7).** The table above is kept as written; this
+is what the bridge posts at the end of phase 3, where the macOS cells above say otherwise.
+`FOCUS_CHANGED` and `ACTIVE_DESCENDANT_CHANGED`: one `FocusedUIElementChanged` per frame at application
+level, last. `STRUCTURE_CHANGED`: `LayoutChanged` on the held parent — not `Created` or
+`UIElementDestroyed`, which AppKit posts itself — and on the window for the elided root's children.
+`NAME_CHANGED` `TitleChanged`; `DESCRIPTION_CHANGED` `LayoutChanged`; `STATE_CHANGED` `ValueChanged`,
+except `BUSY` (`AXElementBusyChanged`), `ACTIVE` (nothing), `SELECTED` on a member whose container is told
+the selection in the same frame (nothing) and `EXPANDED` on an outline row (`RowExpanded` /
+`RowCollapsed` and the outline's `RowCountChanged`); `VALUE_CHANGED` and `TEXT_CHANGED` `ValueChanged`;
+`SELECTION_CHANGED` the container's shape; `CARET_MOVED` and `TEXT_SELECTION_CHANGED`
+`SelectedTextChanged`; a row container whose count moved `RowCountChanged`. `BOUNDS_CHANGED`: **nothing**
+(the cell said `Moved`/`Resized` and a bulk `LayoutChanged`; the boxes are pushed instead).
+`WINDOW_OPENED`/`CLOSED`/`ACTIVATED`/`DEACTIVATED`: **nothing** (the cells named AppKit's own
+notifications, which AppKit posts for the window it vends). `NODE_DESTROYED`: release at the frame's end,
+nothing posted. `INVOKED`: nothing. `ANNOUNCEMENT`: `AnnouncementRequested` on the window with its text and
+priority. `INVALIDATED`: `LayoutChanged` on the window, the registry swept, the focus change posted again.
+Every post, an announcement's user info and a re-push's children array are made inside an autorelease
+pool the bridge pushes when a publish or a frame's end starts its platform work and pops before it
+returns: neither is an accessibility callback, so no pool of AppKit's is on the stack, and on the
+`-XstartOnFirstThread` main thread what they autoreleased was never freed — an announcement's objects
+were still alive 120 polled frames later, about five blocks a frame, and none with the pool (read on the
+macOS 26.6.2 guest, 25G83, 2026-09-15, `scripts/a11y/macos/AutoreleaseProbe.java`; the macos-C review).
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
@@ -3968,6 +4197,48 @@ Hover deserves one sentence, because it is easy to miss: on a content frame with
 and no button down, hover is recomputed from the pointer position, so a hover-derived state can change
 with no pointer event at all. The publish step runs after that recomputation precisely so that it sees
 the settled answer.
+
+#### Amendment 2026-09-15 — every frame ends, and the end is where macOS posts
+
+**What was wrong (MACOS-NEW-8).** The step above gave a bridge two moments, `publish` and `emit`,
+and both happen only on a frame whose walk found a difference (step 6) or that re-stamped (step 4).
+A bridge that posts on the user-interface thread therefore had no moment after a frame's events at
+all: the macOS bridge drained at the top of the next publish, which is the next *change*. Two
+consequences followed. Every notification was one change late (§1.10's amendment of this date).
+And the reentrancy paragraph's "owed to the next ordinary frame" did not hold: `republishNow()`
+clears the node flag it walked for, so the frame it asks for finds nothing dirty, returns at step 3,
+and the deferred re-push, boxes and drain waited for an unrelated change.
+
+**The rule.** `AccessibilityBridge` gains an eleventh member (the §5.2 listing above predates it),
+with a no-op default:
+
+```java
+    /** The frame's accessibility step is over: everything this frame had to say was emitted. */
+    default void frameEnded() { }
+```
+
+and the step gains a last line, run however steps 0 to 7 returned — after a re-present, with nothing
+listening, with a clean tree, after a re-stamp, after a publish:
+
+8. `bridge.frameEnded()`. One virtual call; `NONE` and every bridge that raises on a thread of its
+   own inherit the no-op. Never from `republishNow()`.
+
+On macOS `frameEnded` first pays what a reentrant publish deferred (the re-push of the root's
+children and the boxes), then drains the queue: posts, the collapse's sweep, and — because the
+sweep forgets what was pushed — the root's re-push at once rather than at the next publish. A frame
+end with nothing queued and nothing deferred returns after one comparison and allocates nothing.
+`publish` keeps the re-push and the boxes, so an element a notification names exists when it goes
+out. Read "the next ordinary frame" in the reentrancy paragraph above, in §5.2's `publish` javadoc
+and in §12.1's `AccessibleReentrancyTest` row as "the end of the next frame, whether or not it
+publishes". `INVOKED`, emitted by a performed action outside any frame, is drained at the end of the
+next frame; macOS posts nothing for it (§2.4).
+
+Proven by `AxSceneTimingTest` (a real `Scene` over the platform's bridge with the platform left out:
+a focus move posted after the frame emitted it, an announcement on a still window drained in its own
+frame, and a reentrant publish's event posted by a frame that walked nothing), each red on the
+earlier code, and `AxBridgeTest.aFrameEndWithNothingToSayAllocatesNothing`. The live check — an
+`AXObserver` timestamping deliveries against a reader scene's step lines on the macOS guest — is
+phase 5's.
 
 ### 5.4 Popups and dialogs, per platform
 
@@ -5019,6 +5290,50 @@ this is the one place in three platforms where the constants rule cannot be hono
 form of it is the narrow one: the three numbers are written down as literals, in one place, with
 this paragraph as the reason — and the dump script keeps listing them as unexported so that the
 exception stays visible rather than becoming a habit.
+
+#### Amendment 2026-09-15 — selectors are covered too, and a missing one no longer takes the window
+
+**What was wrong (MACOS-NEW-6).** "Type encodings from the running AppKit" was true at run time and
+checked nowhere before it. `AxConstantsTest` asserted the role and notification symbols against the
+committed dump and no selector at all; the selectors were literals across `AxElementClass` and
+`AxActions`, and the two f4bc544 added for `AXElementBusy` (`accessibilityAttributeValue:`,
+`accessibilityAttributeNames`) were never in the committed dump. At run time a selector no class
+declared made `AxObjC` throw inside the element class's constructor, and `Bridges.openFor` answered
+`NONE` for it: one misspelt or withdrawn selector removed the window's accessibility, silently.
+
+**The rule.** Every selector the bridge installs is listed once, in `AxSelectors`, and the element class
+installs through one method that refuses an unlisted selector. `AxConstantsTest` asserts every listed
+selector has an encoding in the dump's encodings section; `AxSelectorsTest` asserts, from the source,
+that the element class installs exactly the list. The two legacy selectors were read on the macOS
+26.6.2 guest on 2026-09-13 by this recipe (the readings' copy of the dump) and are carried in the test
+as owed to the committed dump's one regeneration at the end of the macOS lane, which a companion
+assertion forces to retire. At run time a listed selector the running AppKit declares nothing for is
+skipped — never given a guessed encoding — and the bridge logs a warning naming it; the rest of the
+window's accessibility is built. A failure to build the bridge for any other reason is logged at
+`ERROR` before `NONE` is answered.
+
+*Corrected the same day (the review of this amendment):* skipping each absent selector on its own could
+install the action selectors without `isAccessibilitySelectorAllowed:`, and without that gate every
+element offers every action (semantics 5) — confirmed through real AppKit on the development Mac, not
+the guest. Selectors that mean something only together are now skipped together (`AxSelectors.REQUIRES`:
+every action selector with the gate; the two legacy entry points with each other), and the warning names
+what was withheld with what. The `ERROR` covers every `Throwable` from the whole open, AppKit's loading
+and the content view included, not only the constructor's exceptions. Skipping rather than refusing to
+build the class is the implementer's choice, awaiting the owner's. And a name in the dump says only that
+a selector exists: each listed selector now also names the shape of the libffi closure it is installed
+with (`AxSelectors.Kind`), the element class refuses a closure of another shape, `AxConstantsTest` holds
+each shape against the encoding the dump read, and `AxSelectorsTest`'s source scan reads each install's
+shape and refuses an install whose selector it cannot read.
+
+*The regeneration, dated 2026-09-15 (the end of the phase-3 macOS lane):* the committed dump was
+regenerated once, from `scripts/a11y/macos/dump-appkit-constants.swift` run on the macOS 26.6.2 guest
+(25G83). Every line of the 2026-09-13 reading reappeared unchanged; the new dump adds the selectors the
+bridge came to install in phase 3 — the legacy pair, disclosure, expanded, the setters, the named-action
+perform, the column lists and the column class's installs, every one of the 64 install lines "in the
+encodings table" — and the sort direction's attribute and C enum values (unknown 0, ascending 1,
+descending 2, from the SDK the script was compiled against, without quotes). The selectors and symbols
+the test carried as owed to it are retired, so each is now held against the committed dump like any
+other.
 
 ---
 
