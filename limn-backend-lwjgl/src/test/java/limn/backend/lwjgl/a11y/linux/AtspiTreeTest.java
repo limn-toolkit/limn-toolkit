@@ -53,7 +53,11 @@ class AtspiTreeTest {
 
     @BeforeEach
     void setUp() {
-        atspi = new AtspiTree(tree::get, () -> host, "Limn");
+        AtspiTree.Window window = new AtspiTree.Window() {
+            @Override public AccessibleTree tree() { return tree.get(); }
+            @Override public AccessibilityBridge.Host host() { return host; }
+        };
+        atspi = new AtspiTree(() -> List.of(window), () -> "Limn");
         atspi.busName(BUS);
         atspi.desktop(new DBus.Ref("org.a11y.atspi.Registry", Atspi.PATH_ROOT));
     }

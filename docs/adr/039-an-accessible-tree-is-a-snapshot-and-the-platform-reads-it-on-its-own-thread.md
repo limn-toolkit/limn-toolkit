@@ -2288,6 +2288,39 @@ never make a blocking call on the same connection. And `NEGOTIATE_UNIX_FD` succe
 must **not** be sent: agreeing lets a peer send a message carrying a file descriptor, which
 `java.nio` cannot receive, and AT-SPI2 never needs one.
 
+#### Amendment 2026-09-15 — the one application is built, and it is named by the backend
+
+**What was wrong.** The two paragraphs above described a shape the code did not have (LINUX-NEW-8).
+Every native window opened its own a11y connection, did its own `Socket.Embed` and named its
+application after its own title, so a DatePicker's calendar or a ComboBox's list — a native popup
+window, titled "popup" by `WindowConfig.popup` — was a second application on the desktop called
+"popup", and the `POPUP_FOR` its root carries named a field that `AtspiTree.relationSetOf` skipped
+because another connection held it. Ids were already process-wide (§1.3, amended 2026-09-14).
+
+**What the code does now.** `AtspiApplication` is the process's one application: one connection,
+one application object at `…/root`, and one `frame` child per window **that has published a node
+zero**, in the order the windows joined. Each window's `AtspiBridge` is the facade: its publish
+stores its own `volatile` tree and tells the application; its detach removes it. The window table
+is copy-on-write, written by the UI thread and iterated by the reader thread, as §3.4 prescribed.
+Every path resolves through the window whose tree holds the id (`AccessibleTree#holds`, one tag
+comparison per window), so `GetChildren`, `GetIndexInParent`, `Parent`, `Cache.GetItems`, `DoAction`
+(performed by the host of the window that published the node) and a relation into another window
+all answer across windows. The bus is still joined only once some window has a tree (the 2.60 trap
+of §12.2); the frames present at the join are what the registry reads, and a frame that arrives or
+leaves afterwards is announced from the application object as `ChildrenChanged` `add`/`remove`
+with its index in `detail1` and its `(so)` as the value — the shape libatspi 2.60.6's
+`cache_process_children_changed` updates a cached child list from (readings, 2026-09-13). The
+connection is let go with the last window, so a later window registers with a tree again.
+
+**Named by the backend (decision 56).** `Backend#setApplicationName(String)` names the application;
+unset, `LwjglBackend` uses the title of the first window it created. Every window's bridge is opened
+with that name and not with its own title. Windows and macOS read nothing from it.
+
+**Not changed here, and whose it is.** `Cache.GetItems` is still built per request rather than
+pre-marshalled against a publish counter; `Cache.AddAccessible`/`RemoveAccessible` for a frame and
+`Event.Window` `Create`/`Destroy` are the events item of the Linux lane (LINUX-NEW-1, LINUX-NEW-2).
+When and on which thread the join happens is the next amendment's.
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |

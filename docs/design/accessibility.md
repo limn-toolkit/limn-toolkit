@@ -189,6 +189,12 @@ wiring anything. `setAccessibility` remains for an application installing its ow
 event queue, the element registry and the listening gate stayed apart on purpose — each platform has
 a different right answer, and a shared one would make a bridge lie.
 
+**Linux is one application per process; the other two are per window.** AT-SPI2 has one application
+object per connection, so `AtspiApplication` owns the one connection and every window's
+`AtspiBridge` is a facade that registers its tree as a frame beneath it — a native popup included,
+which is how its `POPUP_FOR` reaches the field in the other window. The application is named by
+`Backend#setApplicationName`, or the first window's title; a window's own title never renames it.
+
 **Relations cross to every platform in that platform's own form.** A node's relations are the
 model's, resolved to published nodes before a bridge sees them (a target that was never
 published is dropped there, not here). On Linux they are the relation set, one entry per type in

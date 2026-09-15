@@ -56,6 +56,26 @@ public final class Bridges {
     }
 
     /**
+     * Renames the application wherever a platform's accessibility tree names applications, for a
+     * name the backend was given after its first window opened. Only AT-SPI2 has such a name; the
+     * other two platforms name an application from the process and read nothing here.
+     *
+     * @param applicationName what the desktop should call this process
+     */
+    public static void nameApplication(String applicationName) {
+        if (refusedByApplication()) {
+            return;
+        }
+        try {
+            if (Platform.current().isLinux()) {
+                AtspiBridge.nameApplication(applicationName);
+            }
+        } catch (Throwable refusedByThePlatform) {
+            // A name is not worth a failure; the next window's bridge carries it anyway.
+        }
+    }
+
+    /**
      * <p><b>The handle must be a real one or zero, and there is no third case this can defend
      * against.</b> Two of these factories send a message to the object it names, and a message to a
      * pointer that is neither is undefined behaviour that no {@code catch} reaches — a test that
@@ -66,7 +86,9 @@ public final class Bridges {
      * @param nativeHandle    the window's own handle, or zero on a platform the backend has not
      *                        been taught
      * @param applicationName what the desktop should call this application, for the platforms that
-     *                        publish a name
+     *                        publish a name: the backend's application name, by default the title
+     *                        of its first window (decision 56). On Linux every window of the process
+     *                        is a frame of that one application
      * @return a bridge for this platform, or {@link AccessibilityBridge#NONE}
      */
     public static AccessibilityBridge openFor(long nativeHandle, String applicationName) {

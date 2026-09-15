@@ -13,20 +13,24 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Answers AT-SPI2's interfaces for one window, out of the snapshot the scene last published.
+ * Answers AT-SPI2's interfaces for every window of the process, out of the snapshots their scenes
+ * last published.
  *
- * <p><b>Every answer is computed from an immutable tree, on the reader thread, with no hop.</b>
+ * <p><b>Every answer is computed from immutable trees, on the reader thread, with no hop.</b>
  * That is what makes the two rules of that thread satisfiable at all: a handler must not block and
  * must never make a blocking call on the same connection, and reading a snapshot does neither. No
- * widget is touched here and no lock is taken; the only mutable thing in sight is the reference to
- * the current tree, which the user-interface thread replaces with one volatile write.
+ * widget is touched here and no lock is taken; the only mutable things in sight are the table of
+ * windows, which is copy-on-write, and each window's reference to its current tree, which the
+ * user-interface thread replaces with one volatile write.
  *
- * <p><b>The application object is ours and the window is the tree's.</b> AT-SPI expects an
- * application at the root of what an application exports, with its windows beneath it; the toolkit
- * publishes a window node and knows nothing of applications. So the root path answers for a
- * synthetic application whose one child is the tree's node zero, and every other path is a node id
- * — which is stable for the life of the widget, so the path a client is holding stays the path of
- * the thing it was holding.
+ * <p><b>The application object is ours and the windows are the trees'.</b> AT-SPI expects one
+ * application at the root of what a connection exports, with its windows beneath it as frames
+ * (ADR 039 §2.3); the toolkit publishes a window node per scene and knows nothing of applications.
+ * So the root path answers for a synthetic application whose children are the node zero of every
+ * window that has published one, in the order the windows joined, and every other path is a node
+ * id. Ids are process-wide (§1.3), so a path names one node in one window, a relation may name a
+ * node in another — a native popup's root names the field that opened it — and the path a client
+ * is holding stays the path of the thing it was holding.
  */
 final class AtspiTree {
 
@@ -36,16 +40,31 @@ final class AtspiTree {
     /** Where a node's object path begins; the id follows. */
     private static final String NODE_PREFIX = "/org/a11y/atspi/accessible/";
 
-    private final Supplier<AccessibleTree> current;
-    private final Supplier<AccessibilityBridge.Host> host;
-    private final String applicationName;
+    /** One window the application holds: the snapshot it last published and what acts on it. */
+    interface Window {
+        /** @return the snapshot every answer about this window is read from; never null */
+        AccessibleTree tree();
+
+        /** @return what performs a verb on this window's nodes, or null while detached */
+        AccessibilityBridge.Host host();
+    }
+
+    /** A node together with the snapshot that holds it and the window that published that. */
+    private record Located(AccessibleTree tree, Window window, AccessibleNode node) {
+    }
+
+    private final Supplier<? extends List<? extends Window>> windows;
+    private final Supplier<String> applicationName;
     private volatile String busName = "";
     private volatile DBus.Ref desktop;
 
-    AtspiTree(Supplier<AccessibleTree> current, Supplier<AccessibilityBridge.Host> host,
-              String applicationName) {
-        this.current = current;
-        this.host = host;
+    /**
+     * @param windows         every window the application holds, in the order they joined; read
+     *                        on the reader thread, so the list must be safe to iterate there
+     * @param applicationName what the application object is called, read on every ask
+     */
+    AtspiTree(Supplier<? extends List<? extends Window>> windows, Supplier<String> applicationName) {
+        this.windows = windows;
         this.applicationName = applicationName;
     }
 
@@ -63,7 +82,8 @@ final class AtspiTree {
         return new DBus.Ref(busName, Atspi.PATH_ROOT);
     }
 
-    private DBus.Ref refOf(long id) {
+    /** The reference a node's object has on this bus, whichever window holds it. */
+    DBus.Ref refOf(long id) {
         return new DBus.Ref(busName, NODE_PREFIX + id);
     }
 
@@ -72,16 +92,83 @@ final class AtspiTree {
     }
 
     /** The node a path names, or {@code null} for the application object and for anything else. */
-    private AccessibleNode nodeOf(String path) {
+    private Located nodeOf(String path) {
         if (path == null || !path.startsWith(NODE_PREFIX)) {
             return null;
         }
         String tail = path.substring(NODE_PREFIX.length());
         try {
-            return current.get().find(Long.parseLong(tail));
+            return locate(Long.parseLong(tail));
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * The window holding a node, and the node.
+     *
+     * <p>The identifier's scene tag says which window minted it ({@link AccessibleTree#holds}), so
+     * the ordinary lookup is one tag comparison per window and one find. A tree built by hand, whose
+     * identifiers carry no tag, is still found by asking each window in turn.
+     *
+     * @return the node and where it lives, or {@code null} when no window's snapshot has it
+     */
+    private Located locate(long id) {
+        List<? extends Window> all = windows.get();
+        for (Window window : all) {
+            AccessibleTree tree = window.tree();
+            if (tree.holds(id)) {
+                AccessibleNode node = tree.find(id);
+                return node == null ? null : new Located(tree, window, node);
+            }
+        }
+        for (Window window : all) {
+            AccessibleTree tree = window.tree();
+            AccessibleNode node = tree.find(id);
+            if (node != null) {
+                return new Located(tree, window, node);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The application object's children: every window's snapshot that has a node zero, in the order
+     * the windows joined. A window that has not published yet, or that published nothing, is not a
+     * frame a client can enter, and listing it would hand the client a path that answers nothing.
+     */
+    private List<Frame> frames() {
+        List<Frame> out = new ArrayList<>();
+        for (Window window : windows.get()) {
+            AccessibleTree tree = window.tree();
+            if (tree.nodeCount() > 0) {
+                out.add(new Frame(window, tree));
+            }
+        }
+        return out;
+    }
+
+    /** One of the application's children: a window, and the snapshot it was read at. */
+    private record Frame(Window window, AccessibleTree tree) {
+    }
+
+    /**
+     * Where a window sits among the application's frames, or -1 when it is none. By the window and
+     * not by its snapshot, because the user-interface thread may have published a newer one between
+     * the two reads.
+     */
+    private static int frameIndexOf(List<Frame> frames, Window window) {
+        for (int i = 0; i < frames.size(); i++) {
+            if (frames.get(i).window() == window) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Where a window's own node zero sits among the application's children, or 0 when unknown. */
+    private int frameIndexOf(Window window) {
+        return Math.max(0, frameIndexOf(frames(), window));
     }
 
     private static boolean isRoot(String path) {
@@ -129,30 +216,31 @@ final class AtspiTree {
             return cache(m, iface);
         }
         boolean root = isRoot(m.path);
-        AccessibleNode node = root ? null : nodeOf(m.path);
-        if (!root && node == null) {
+        Located at = root ? null : nodeOf(m.path);
+        if (!root && at == null) {
             return null;
         }
+        AccessibleNode node = at == null ? null : at.node();
         if (Atspi.I_PROPS.equals(iface)) {
-            return properties(m, root, node);
+            return properties(m, root, at);
         }
         if (Atspi.I_ACCESSIBLE.equals(iface)) {
-            return accessible(m, root, node);
+            return accessible(m, root, at);
         }
         if (Atspi.I_COMPONENT.equals(iface)) {
             // The application object answers Component too. A client asks the root for its extents
             // before it walks anything, and an error there stops the walk at the first step rather
             // than degrading: libatspi reports the failure and abandons the subtree.
-            return node == null ? applicationComponent(m) : component(m, node);
+            return at == null ? applicationComponent(m) : component(m, at);
         }
-        if (Atspi.I_ACTION.equals(iface) && node != null) {
-            return action(m, node);
+        if (Atspi.I_ACTION.equals(iface) && at != null) {
+            return action(m, at);
         }
-        if (Atspi.I_TABLE.equals(iface) && node != null && node.table() != null) {
-            return table(m, node);
+        if (Atspi.I_TABLE.equals(iface) && at != null && node.table() != null) {
+            return table(m, at);
         }
-        if (Atspi.I_TABLE_CELL.equals(iface) && node != null && node.cell() != null) {
-            return tableCell(m, node);
+        if (Atspi.I_TABLE_CELL.equals(iface) && at != null && node.cell() != null) {
+            return tableCell(m, at);
         }
         if (Atspi.I_APPLICATION.equals(iface) && root) {
             return application(m);
@@ -201,34 +289,43 @@ final class AtspiTree {
         if (!Atspi.I_CACHE.equals(iface) || !"GetItems".equals(m.member)) {
             return null;
         }
-        AccessibleTree tree = current.get();
+        List<Frame> frames = frames();
         List<Object> items = new ArrayList<>();
         items.add(new Object[] {
                 rootRef().toStruct(), rootRef().toStruct(), desktopOrNull().toStruct(),
-                -1, tree.nodeCount() == 0 ? 0 : 1,
+                -1, frames.size(),
                 new ArrayList<Object>(List.of(Atspi.I_ACCESSIBLE, Atspi.I_APPLICATION,
                         Atspi.I_COMPONENT)),
-                applicationName, Atspi.ROLE_APPLICATION, "",
+                applicationName.get(), Atspi.ROLE_APPLICATION, "",
                 Atspi.stateWords(AtspiStates.setOf(s -> s == Accessible.State.ENABLED)),
         });
-        for (int i = 0; i < tree.nodeCount(); i++) {
-            AccessibleNode node = tree.node(i);
-            items.add(new Object[] {
-                    refOf(node.id()).toStruct(), rootRef().toStruct(),
-                    parentRef(tree, node).toStruct(),
-                    indexInParent(tree, node), tree.children(node).size(),
-                    new ArrayList<>(interfacesOf(false, node)),
-                    node.name(), roleOf(node), node.description(),
-                    Atspi.stateWords(statesOf(node)),
-            });
+        for (int f = 0; f < frames.size(); f++) {
+            AccessibleTree tree = frames.get(f).tree();
+            for (int i = 0; i < tree.nodeCount(); i++) {
+                AccessibleNode node = tree.node(i);
+                items.add(new Object[] {
+                        refOf(node.id()).toStruct(), rootRef().toStruct(),
+                        parentRef(tree, node).toStruct(),
+                        node.parent() < 0 ? f : tree.indexInParent(node),
+                        tree.children(node).size(),
+                        new ArrayList<>(interfacesOf(false, node)),
+                        node.name(), roleOf(node), node.description(),
+                        Atspi.stateWords(statesOf(node)),
+                });
+            }
         }
         return DBus.Msg.ret(m, Atspi.CACHE_ITEMS, items);
     }
 
-    /** The application's own rectangle: the window it holds, or nothing before the first frame. */
+    /**
+     * The application's own rectangle: its first frame's, or nothing before any window has
+     * published. The application object has no geometry of its own; a client asks for it only to
+     * learn that the walk may go on, and the first window is what it walks into.
+     */
     private DBus.Msg applicationComponent(DBus.Msg m) {
-        AccessibleTree tree = current.get();
-        int[] box = tree.nodeCount() == 0
+        List<Frame> frames = frames();
+        AccessibleTree tree = frames.isEmpty() ? null : frames.get(0).tree();
+        int[] box = tree == null
                 ? new int[] {0, 0, 0, 0}
                 : extentsOf(tree, tree.node(0),
                         m.body.length > 0 ? coordOf(m.body[0]) : Atspi.COORD_SCREEN);
@@ -245,18 +342,19 @@ final class AtspiTree {
     }
 
     /**
-     * Where {@code node} sits among its siblings, which the cache item carries. The tree's own
-     * root answers {@code 0}: on this platform it is the application object's one child.
+     * Where a located node sits among its siblings. A window's own node zero answers its place
+     * among the application object's frames, which is where it is on this platform.
      */
-    private static int indexInParent(AccessibleTree tree, AccessibleNode node) {
-        return node.parent() < 0 ? 0 : tree.indexInParent(node);
+    private int indexInParent(Located at) {
+        return at.node().parent() < 0 ? frameIndexOf(at.window())
+                                      : at.tree().indexInParent(at.node());
     }
 
     // ------------------------------------------------------------------ org.freedesktop.DBus.Properties
 
-    private DBus.Msg properties(DBus.Msg m, boolean root, AccessibleNode node) {
+    private DBus.Msg properties(DBus.Msg m, boolean root, Located at) {
         String which = m.body.length > 0 ? String.valueOf(m.body[0]) : "";
-        Map<Object, Object> all = propertiesOf(which, root, node);
+        Map<Object, Object> all = propertiesOf(which, root, at);
         if ("GetAll".equals(m.member)) {
             return DBus.Msg.ret(m, "a{sv}", all);
         }
@@ -281,8 +379,9 @@ final class AtspiTree {
         return null;
     }
 
-    private Map<Object, Object> propertiesOf(String which, boolean root, AccessibleNode node) {
+    private Map<Object, Object> propertiesOf(String which, boolean root, Located at) {
         Map<Object, Object> out = new LinkedHashMap<>();
+        AccessibleNode node = at == null ? null : at.node();
         if (Atspi.I_ACTION.equals(which)) {
             // A property and not only the GetNActions method: libatspi reads the count through
             // org.freedesktop.DBus.Properties, so a bridge that answers the method alone reports
@@ -302,7 +401,7 @@ final class AtspiTree {
             return out;
         }
         if (Atspi.I_TABLE.equals(which) && node != null && node.table() != null) {
-            AccessibleTree tree = current.get();
+            AccessibleTree tree = at.tree();
             out.put("NRows", new DBus.Variant("i", node.table().rowCount()));
             out.put("NColumns", new DBus.Variant("i", node.table().columnCount()));
             out.put("Caption", new DBus.Variant("(so)", nullRef().toStruct()));
@@ -312,7 +411,7 @@ final class AtspiTree {
             return out;
         }
         if (Atspi.I_TABLE_CELL.equals(which) && node != null && node.cell() != null) {
-            AccessibleTree tree = current.get();
+            AccessibleTree tree = at.tree();
             AccessibleNode table = tableOf(tree, node);
             out.put("ColumnSpan", new DBus.Variant("i", 1));
             out.put("RowSpan", new DBus.Variant("i", 1));
@@ -325,17 +424,17 @@ final class AtspiTree {
         if (!Atspi.I_ACCESSIBLE.equals(which)) {
             return out;
         }
-        AccessibleTree tree = current.get();
         if (root) {
-            out.put("Name", new DBus.Variant("s", applicationName));
+            out.put("Name", new DBus.Variant("s", applicationName.get()));
             out.put("Description", new DBus.Variant("s", ""));
             out.put("Parent", new DBus.Variant("(so)", desktopOrNull().toStruct()));
-            out.put("ChildCount", new DBus.Variant("i", tree.nodeCount() == 0 ? 0 : 1));
+            out.put("ChildCount", new DBus.Variant("i", frames().size()));
             out.put("Locale", new DBus.Variant("s", ""));
             out.put("AccessibleId", new DBus.Variant("s", ""));
             out.put("HelpText", new DBus.Variant("s", ""));
             return out;
         }
+        AccessibleTree tree = at.tree();
         out.put("Name", new DBus.Variant("s", node.name()));
         out.put("Description", new DBus.Variant("s", node.description()));
         out.put("Parent", new DBus.Variant("(so)", parentRef(tree, node).toStruct()));
@@ -366,27 +465,19 @@ final class AtspiTree {
 
     // ------------------------------------------------------------------ org.a11y.atspi.Accessible
 
-    private DBus.Msg accessible(DBus.Msg m, boolean root, AccessibleNode node) {
-        AccessibleTree tree = current.get();
+    private DBus.Msg accessible(DBus.Msg m, boolean root, Located at) {
+        AccessibleNode node = at == null ? null : at.node();
         switch (m.member == null ? "" : m.member) {
             case "GetChildren": {
                 List<Object> kids = new ArrayList<>();
-                if (root) {
-                    if (tree.nodeCount() > 0) {
-                        kids.add(refOf(tree.node(0).id()).toStruct());
-                    }
-                } else {
-                    for (AccessibleNode k : tree.children(node)) {
-                        kids.add(refOf(k.id()).toStruct());
-                    }
+                for (AccessibleNode k : childrenOf(root, at)) {
+                    kids.add(refOf(k.id()).toStruct());
                 }
                 return DBus.Msg.ret(m, "a(so)", kids);
             }
             case "GetChildAtIndex": {
                 int i = ((Number) m.body[0]).intValue();
-                List<AccessibleNode> kids = root
-                        ? (tree.nodeCount() > 0 ? List.of(tree.node(0)) : List.<AccessibleNode>of())
-                        : tree.children(node);
+                List<AccessibleNode> kids = childrenOf(root, at);
                 DBus.Ref ref = i >= 0 && i < kids.size() ? refOf(kids.get(i).id()) : nullRef();
                 return DBus.Msg.ret(m, "(so)", (Object) ref.toStruct());
             }
@@ -394,7 +485,7 @@ final class AtspiTree {
                 if (root) {
                     return DBus.Msg.ret(m, "i", -1);
                 }
-                return DBus.Msg.ret(m, "i", indexInParent(tree, node));
+                return DBus.Msg.ret(m, "i", indexInParent(at));
             }
             case "GetRole":
                 return DBus.Msg.ret(m, "u", root ? Atspi.ROLE_APPLICATION : roleOf(node));
@@ -412,19 +503,39 @@ final class AtspiTree {
                 return DBus.Msg.ret(m, "as", interfacesOf(root, node));
             case "GetRelationSet":
                 return DBus.Msg.ret(m, "a(ua(so))",
-                        root ? new ArrayList<>() : relationSetOf(tree, node));
+                        root ? new ArrayList<>() : relationSetOf(node));
             default:
                 return null;
         }
     }
 
     /**
-     * The node's relations as {@code a(ua(so))}: one entry per relation type this platform has a
-     * number for, holding every target of that type. A target is a node the same publish resolved,
-     * so it is on the bus under its own id; one that has since left the tree is skipped rather
-     * than named, because a path that answers {@code UnknownObject} is worse than no relation.
+     * The children a path has: the application object's are every frame's node zero, a node's are
+     * its own snapshot's.
      */
-    private List<Object> relationSetOf(AccessibleTree tree, AccessibleNode node) {
+    private List<AccessibleNode> childrenOf(boolean root, Located at) {
+        if (!root) {
+            return at.tree().children(at.node());
+        }
+        List<AccessibleNode> out = new ArrayList<>();
+        for (Frame frame : frames()) {
+            out.add(frame.tree().node(0));
+        }
+        return out;
+    }
+
+    /**
+     * The node's relations as {@code a(ua(so))}: one entry per relation type this platform has a
+     * number for, holding every target of that type. A target is a node a publish resolved, so it
+     * is on the bus under its own id; one that no window holds any more is skipped rather than
+     * named, because a path that answers {@code UnknownObject} is worse than no relation.
+     *
+     * <p>A target may live in another window of this process: a native popup's root is
+     * {@code POPUP_FOR} the field that opened it, which its owner's scene published. Every window
+     * is a frame of the one application object here, so that target is an ordinary reference on
+     * this connection and is named as one (ADR 039 §1.11, §2.3).
+     */
+    private List<Object> relationSetOf(AccessibleNode node) {
         List<Object> out = new ArrayList<>();
         if (node.relations().isEmpty()) {
             return out;
@@ -432,7 +543,7 @@ final class AtspiTree {
         Map<Integer, List<Object>> byType = new LinkedHashMap<>();
         for (AccessibleRelation relation : node.relations()) {
             Integer type = AtspiRelations.of(relation.kind());
-            if (type == null || tree.find(relation.target()) == null) {
+            if (type == null || locate(relation.target()) == null) {
                 continue;
             }
             byType.computeIfAbsent(type, k -> new ArrayList<>())
@@ -486,8 +597,9 @@ final class AtspiTree {
 
     // ------------------------------------------------------------------ org.a11y.atspi.Component
 
-    private DBus.Msg component(DBus.Msg m, AccessibleNode node) {
-        AccessibleTree tree = current.get();
+    private DBus.Msg component(DBus.Msg m, Located at) {
+        AccessibleTree tree = at.tree();
+        AccessibleNode node = at.node();
         int[] box = extentsOf(tree, node, m.body.length > 0 ? coordOf(m.body[0]) : Atspi.COORD_SCREEN);
         switch (m.member == null ? "" : m.member) {
             case "GetExtents":
@@ -540,7 +652,8 @@ final class AtspiTree {
 
     // ------------------------------------------------------------------ org.a11y.atspi.Action
 
-    private DBus.Msg action(DBus.Msg m, AccessibleNode node) {
+    private DBus.Msg action(DBus.Msg m, Located at) {
+        AccessibleNode node = at.node();
         List<Accessible.Action> verbs = verbsOf(node);
         switch (m.member == null ? "" : m.member) {
             case "GetNActions":
@@ -568,7 +681,9 @@ final class AtspiTree {
                 if (i < 0 || i >= verbs.size()) {
                     return DBus.Msg.ret(m, "b", false);
                 }
-                AccessibilityBridge.Host h = host.get();
+                // The host of the window that published this node: every window's scene performs
+                // only on its own nodes, and a verb sent to another would find nothing to act on.
+                AccessibilityBridge.Host h = at.window().host();
                 boolean done = h != null
                         && h.perform(node.id(), verbs.get(i), Accessible.Argument.NONE);
                 return DBus.Msg.ret(m, "b", done);
@@ -588,8 +703,9 @@ final class AtspiTree {
      * degradation ADR 039 §4.1 already accepts for a client that walks a long list. Column headers
      * are the header group's children, and row headers are none.
      */
-    private DBus.Msg table(DBus.Msg m, AccessibleNode node) {
-        AccessibleTree tree = current.get();
+    private DBus.Msg table(DBus.Msg m, Located at) {
+        AccessibleTree tree = at.tree();
+        AccessibleNode node = at.node();
         int columns = node.table().columnCount();
         switch (m.member == null ? "" : m.member) {
             case "GetAccessibleAt": {
@@ -643,7 +759,7 @@ final class AtspiTree {
                 return DBus.Msg.ret(m, "b", false);
             case "AddRowSelection": {
                 AccessibleNode row = rowAt(tree, node, arg(m, 0));
-                AccessibilityBridge.Host h = host.get();
+                AccessibilityBridge.Host h = at.window().host();
                 boolean done = row != null && h != null && row.actions() != null
                         && row.actions().has(Accessible.Action.SELECT)
                         && h.perform(row.id(), Accessible.Action.SELECT, Accessible.Argument.NONE);
@@ -666,8 +782,9 @@ final class AtspiTree {
     }
 
     /** The table-cell interface over a node with a {@code CellFacet}; ADR 041 §7. */
-    private DBus.Msg tableCell(DBus.Msg m, AccessibleNode node) {
-        AccessibleTree tree = current.get();
+    private DBus.Msg tableCell(DBus.Msg m, Located at) {
+        AccessibleTree tree = at.tree();
+        AccessibleNode node = at.node();
         switch (m.member == null ? "" : m.member) {
             case "GetRowColumnSpan":
                 // Four out arguments and not a struct: measured on the Fedora guest, where a

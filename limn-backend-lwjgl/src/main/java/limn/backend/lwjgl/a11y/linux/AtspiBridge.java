@@ -8,11 +8,12 @@ import limn.backend.lwjgl.a11y.PlatformBridge;
 import java.io.IOException;
 
 /**
- * Reads a Limn window to a screen reader on Linux, over AT-SPI2.
+ * Reads a Limn window to a screen reader on Linux, over AT-SPI2: one window's facade onto the
+ * process's one AT-SPI application ({@link AtspiApplication}, ADR 039 §2.3).
  *
- * <p>Hand one to a window and its scene publishes into the desktop's accessibility tree; hand it
- * nothing and there is no cost at all, which is the arrangement the seam already has for a backend
- * with no accessibility. An application installs it by returning it from its window's
+ * <p>Hand one to a window and its scene publishes into the desktop's accessibility tree as a frame
+ * of the application; hand it nothing and there is no cost at all, which is the arrangement the
+ * seam already has for a backend with no accessibility. The backend installs it from the window's
  * {@code accessibility()}.
  *
  * <p><b>Nothing here is native.</b> The platform accessibility API on this system is not a C API:
@@ -34,24 +35,24 @@ import java.io.IOException;
  * A reply written from the reader thread would park the one thread serving every client the moment
  * a peer stopped draining, which a well-behaved client cannot even detect it is causing.
  */
-public final class AtspiBridge extends PlatformBridge {
+public final class AtspiBridge extends PlatformBridge implements AtspiTree.Window {
 
     /** The session-bus object that says whether assistive technology is running. */
     private static final String STATUS_NAME = "org.a11y.Bus";
     private static final String STATUS_PATH = "/org/a11y/bus";
     private static final String STATUS_IFACE = "org.a11y.Status";
 
-    private final boolean enabled;
-    private volatile boolean embedded;
-    private volatile DBus.Conn connection;
-    private final AtspiTree objects;
+    private final AtspiApplication application;
 
-    private AtspiBridge(boolean enabled, String applicationName) {
-        this.enabled = enabled;
-        // Both suppliers read the superclass's fields through its accessors. A field of the same
-        // name declared here would shadow the one attach() writes and never be assigned, which is
-        // what once made every DoAction on this platform answer false.
-        this.objects = new AtspiTree(this::tree, this::host, applicationName);
+    /** Whether the application's window table holds this facade. User-interface thread. */
+    boolean member;
+    /** Whether clients have been told this window is a frame of the application. UI thread. */
+    boolean shownAsFrame;
+    /** The node id this window was announced as, so its departure names the same object. UI thread. */
+    long frameId;
+
+    AtspiBridge(AtspiApplication application) {
+        this.application = application;
     }
 
     /**
@@ -62,6 +63,8 @@ public final class AtspiBridge extends PlatformBridge {
      * read and never a connection. A session bus that cannot be reached at all — a headless
      * process, a container with no D-Bus — is not an error and answers no.
      *
+     * @param applicationName what the desktop calls this process (decision 56: the backend's
+     *                        application name, by default its first window's title)
      * @return a bridge, or {@link AccessibilityBridge#NONE} when accessibility is switched off or
      *         the session bus cannot be asked
      */
@@ -72,50 +75,19 @@ public final class AtspiBridge extends PlatformBridge {
         }
         // The bus is NOT joined here. See publish(): an application that registers before it has a
         // tree is an application some desktops refuse to list.
-        return new AtspiBridge(true, applicationName);
+        AtspiApplication application = AtspiApplication.process();
+        application.name(applicationName);
+        return application.window();
     }
 
     /**
-     * Joins the accessibility bus and hands the registry this window's plug.
+     * Renames the process's application object, for a name the backend was given after its windows
+     * opened.
      *
-     * <p>The sequence the spike proved on the guest, and its order is not free: the address of the
-     * accessibility bus comes from the session bus, our own name on it comes from {@code Hello},
-     * and the handler has to be exported <em>before</em> {@code Embed}, because the registry may
-     * call back the moment it has the plug. A failure at any step leaves this window with no
-     * accessibility rather than a half-joined connection, which is why it answers a boolean and
-     * the caller falls back to {@link AccessibilityBridge#NONE}.
-     *
-     * @return whether this process is now an AT-SPI2 application
+     * @param applicationName the new name
      */
-    private boolean connect() {
-        String session = System.getenv("DBUS_SESSION_BUS_ADDRESS");
-        if (session == null) {
-            return false;
-        }
-        try (DBus.Conn bus = DBus.Conn.open(session)) {
-            bus.hello();
-            Object[] address = bus.callArgs("org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus",
-                    "GetAddress", null);
-            if (address.length == 0 || !(address[0] instanceof String where)) {
-                return false;
-            }
-            DBus.Conn a11y = DBus.Conn.open(where);
-            objects.busName(a11y.hello());
-            // Before Embed, and on every path rather than one: the registry and the reader walk
-            // from the root by introspection, and a path with no handler answers UnknownMethod,
-            // which a client reads as a broken application rather than as an absent node.
-            a11y.exportFallback(objects::handle);
-            Object[] socket = a11y.callArgs(Atspi.REGISTRY, Atspi.PATH_ROOT, Atspi.I_SOCKET,
-                    "Embed", "(so)", (Object) objects.rootRef().toStruct());
-            if (socket.length > 0) {
-                objects.desktop(DBus.Ref.of(socket[0]));
-            }
-            this.connection = a11y;
-            this.embedded = true;
-            return true;
-        } catch (IOException | RuntimeException e) {
-            return false;
-        }
+    public static void nameApplication(String applicationName) {
+        AtspiApplication.process().name(applicationName);
     }
 
     /**
@@ -149,23 +121,26 @@ public final class AtspiBridge extends PlatformBridge {
      * The same bridge without asking the desktop whether accessibility is on, so that the rules
      * above can be exercised on a machine that has no accessibility bus — which is most of them.
      *
-     * <p>Package-private and not a way to install a bridge anywhere: it joins no bus until it is
-     * published to, and on a machine with none that attempt fails and leaves it unconnected.
+     * <p>Package-private and not a way to install a bridge anywhere: it is a window of an
+     * application of its own, not the process's, and joins no bus until it is published to; on a
+     * machine with none that attempt fails and leaves it unconnected.
      *
      * @return a bridge that believes the desktop said yes
      */
     static AtspiBridge withoutTheGate() {
-        return new AtspiBridge(true, "a test");
+        AtspiApplication application = AtspiApplication.forThisMachine();
+        application.name("a test");
+        return application.window();
     }
 
     /** @return the object-path handler a client's calls are answered by. For tests. */
     AtspiTree objects() {
-        return objects;
+        return application.objects();
     }
 
-    /** @return whether this bridge has joined the accessibility bus yet. For tests. */
+    /** @return whether this bridge's application has joined the accessibility bus. For tests. */
     boolean isOnTheBus() {
-        return connection != null;
+        return application.isJoined();
     }
 
     /**
@@ -175,10 +150,8 @@ public final class AtspiBridge extends PlatformBridge {
      *         making it at a moment when there was a tree
      */
     int joinAttempts() {
-        return joinAttempts;
+        return application.joinAttempts();
     }
-
-    private int joinAttempts;
 
     @Override
     public boolean isListening() {
@@ -186,7 +159,7 @@ public final class AtspiBridge extends PlatformBridge {
         // can be asked whether anything is reading, which is what §6 wants a gate to be — and
         // making it depend on being embedded would be a cycle with no way in: the bus is joined on
         // the first publish, and a scene publishes only when something is listening.
-        return enabled;
+        return true;
     }
 
     @Override
@@ -200,18 +173,17 @@ public final class AtspiBridge extends PlatformBridge {
 
     @Override
     protected void releasePlatformHalf() {
-        DBus.Conn open = connection;
-        connection = null;
-        embedded = false;
-        if (open != null) {
-            // close() on this connection throws nothing: the window is going away, a socket that
-            // will not shut politely is not its problem, and both threads on it are daemons.
-            open.close();
-        }
+        // The window leaves the application; the application lets the connection go when it was
+        // the last one (AtspiApplication#detached).
+        application.detached(this);
     }
 
     @Override
     public void publish(AccessibleTree tree, boolean reentrant) {
+        // One volatile write, and it is the whole of what the reader thread reads. Reentrancy
+        // costs nothing here because nothing is released, re-pushed or drained on this path: the
+        // tree published a moment ago is answered from until this one replaces it.
+        super.publish(tree, reentrant);
         // Joined here rather than at construction, and only once there is something to show.
         //
         // Fedora 44 is what found this. Its at-spi2-core 2.60 registry reads an application AS IT
@@ -221,43 +193,11 @@ public final class AtspiBridge extends PlatformBridge {
         // first and reads later, so registering with an empty tree looked correct there for every
         // run this bridge has ever had. Registering before there is a tree was always wrong; only
         // one of the two desktops minded.
-        if (connection == null && tree.nodeCount() > 0) {
-            joinAttempts++;
-            connect();
-        }
-        // One volatile write, and it is the whole of what the reader thread reads. Reentrancy
-        // costs nothing here because nothing is released, re-pushed or drained on this path:
-        // the tree published a moment ago is answered from until this one replaces it.
-        super.publish(tree, reentrant);
+        application.published(this, tree);
     }
 
     @Override
     public void emit(AccessibleEvent event) {
-        DBus.Conn open = connection;
-        if (open == null || !embedded) {
-            return;
-        }
-        AtspiEvents.Signal signal = AtspiEvents.of(event);
-        if (signal == null) {
-            return;  // nothing on this platform carries it; better silent than approximate
-        }
-        try {
-            // From the node the event is about, so a client that subscribed by path hears it, and
-            // as a signal rather than a reply, so it is the one kind this connection may refuse
-            // when a peer has stopped draining.
-            open.sendSignal(DBus.Msg.signal(pathOf(event.nodeId()), signal.iface(),
-                    signal.member(), AtspiEvents.SIGNATURE,
-                    AtspiEvents.body(signal, objects.rootRef())));
-        } catch (IOException e) {
-            // The writer thread reports its own failures and the connection closes itself; an
-            // event lost to a dying socket is not worth a second report from the frame that
-            // raised it.
-        }
+        application.emit(event);
     }
-
-    /** The object path an event's node is tree() at; node zero's is the application's. */
-    private String pathOf(long nodeId) {
-        return nodeId == 0 ? Atspi.PATH_ROOT : "/org/a11y/atspi/accessible/" + nodeId;
-    }
-
 }
