@@ -2293,7 +2293,8 @@ every `CellFacet(-1, c)` child of the table's direct `GROUP` children, a footer'
 **Amended 2026-09-15 (phase 3, Windows; decision 36): how the platform's own headers carry a sort
 direction, read, and not yet carried.** UI Automation has no sort-direction property (none in
 UIAutomationCore.dll's type library, read 2026-09-13), so it was read off native headers on the
-Windows 11 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9457, .NET 4.8.9347; 2026-09-15,
+Windows 11 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9457, .NET Framework 4.8 (Release
+533509, 4.8.09221; UIA and WPF assemblies 4.8.9347, WinForms 4.8.9325); 2026-09-15,
 `scripts/a11y/windows/read-native-sort-direction.ps1`, readings/windows-read-native-sort-direction.txt):
 one column sorted each way and one not, every property id 30000-30200 read through the COM client. **File
 Explorer's details view carries it in `ItemStatus` (30026)** of the sorted column's header — a
@@ -2660,9 +2661,9 @@ form. The old string travels as an empty variant: a COM client's `HandleProperty
 receives only the new value (UIAutomationCore.dll's type library, read 2026-09-13). Until this
 amendment one property was raised, `RangeValue.Value` for any node with a number, so a spinner's
 "07:30" and a segment's "empty" were never raised as strings, though NVDA 2024.4.2 reads a control
-that vends both from `Value` and maps both properties to its `valueChange` (readings/
-nvda-2024.4.2-uia.md §3); whether it then speaks a change raised as both once or twice is phase 5's
-to hear. An event that moved nothing a vended pattern carries raises nothing and pays nothing an ask
+that vends both from `Value` (measured on the guest 2026-09-07, §13.19) and maps both properties
+to its `valueChange` (readings/nvda-2024.4.2-uia.md §3); whether it then speaks a change raised as
+both once or twice is phase 5's to hear. An event that moved nothing a vended pattern carries raises nothing and pays nothing an ask
 is owed (`UiaBridgeTest.aValueChangeRaisesThePropertyOfEachVendedPatternItMovedOn`,
 `aValueChangeIsRaisedOnTheHeldElementAsEachPropertyThatMoved`). **`STATE_CHANGED` for `BUSY`** stays
 an `ItemStatus` (30026) property change carrying the localized busy phrase and then an empty string,
