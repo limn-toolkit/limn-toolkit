@@ -7,13 +7,16 @@ import limn.accessibility.AccessibleTree;
 import limn.accessibility.ToggleFacet;
 import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 import org.lwjgl.system.CallbackI;
 import org.lwjgl.system.MemoryUtil;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -82,6 +85,14 @@ class UiaPatternProvidersTest {
                 "get_ColumnSpan", "get_ContainingGrid"));
         COVERED.put("ITableItemProvider", List.of("GetRowHeaderItems", "GetColumnHeaderItems"));
     }
+
+    /** Every {@code interface.slot} {@link #slot} handed a case during this class's run. */
+    private static final java.util.Set<String> CALLED =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** Every test method of this class that has started during this run. */
+    private static final java.util.Set<String> STARTED =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private AccessibleTree tree = AccessibleTree.EMPTY;
     private boolean accepting = true;
@@ -313,6 +324,7 @@ class UiaPatternProvidersTest {
         Map<String, CallbackI> slots = UiaPatternProviders.slotsFor(patternId, nodeId, context);
         CallbackI slot = slots.get(name);
         assertNotNull(slot, iface.name() + " has no slot " + name);
+        CALLED.add(iface.name() + "." + name);
         return slot;
     }
 
@@ -366,6 +378,32 @@ class UiaPatternProvidersTest {
     }
 
     // ---- the ratchet
+
+    @BeforeEach
+    void noteTheCaseStarted(TestInfo info) {
+        info.getTestMethod().ifPresent(method -> STARTED.add(method.getName()));
+    }
+
+    /**
+     * The other half of {@link #everySlotOfEveryServedInterfaceHasACase}: a slot declared in
+     * {@link #COVERED} must actually be handed to some case, or the declaration is a promise
+     * nothing keeps (review of windows-A). Checked once every test method of this class has run,
+     * so a run filtered to one method is not refused for the slots the others call.
+     */
+    @AfterAll
+    static void everyDeclaredSlotWasCalledByACase() {
+        List<String> all = java.util.Arrays.stream(UiaPatternProvidersTest.class.getDeclaredMethods())
+                .filter(method -> method.isAnnotationPresent(Test.class))
+                .map(Method::getName).toList();
+        if (!STARTED.containsAll(all)) {
+            return;
+        }
+        List<String> declared = COVERED.entrySet().stream()
+                .flatMap(entry -> entry.getValue().stream().map(slot -> entry.getKey() + "." + slot))
+                .sorted().toList();
+        assertEquals(declared, CALLED.stream().sorted().toList(),
+                "every slot declared covered is called by a case, and no other");
+    }
 
     @Test
     void everySlotOfEveryServedInterfaceHasACase() throws IllegalAccessException {
