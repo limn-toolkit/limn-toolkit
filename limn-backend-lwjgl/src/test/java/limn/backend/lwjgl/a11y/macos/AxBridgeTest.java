@@ -80,6 +80,19 @@ class AxBridgeTest {
         return a.publish(focusedId, 0, 0, 1f, true);
     }
 
+    /** Attaches a recording trace to a bridge, the way the live probe does, and hands back its lines. */
+    private static List<String> traced(AxBridge bridge) {
+        List<String> lines = new java.util.ArrayList<>();
+        bridge.trace(lines::add);
+        return lines;
+    }
+
+    /** The notification symbols a trace saw posted, in order. */
+    private static List<String> posted(List<String> trace) {
+        return trace.stream().filter(line -> line.startsWith("posted "))
+                .map(line -> line.substring("posted ".length())).toList();
+    }
+
     @Test
     void aMachineWithNoAppKitGetsNoBridgeAtAll() {
         assertSame(AccessibilityBridge.NONE, AxBridge.openIfEnabled(0),
@@ -312,25 +325,27 @@ class AxBridgeTest {
     @Test
     void anEmittedEventWaitsForTheNextOrdinaryFrame() {
         AxBridge bridge = AxBridge.withoutThePlatform();
+        List<String> trace = traced(bridge);
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
         bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
         assertEquals(1, bridge.queuedEvents(),
                 "every post is a cross-process call; emit is not the place to make one");
-        assertTrue(bridge.postedNotifications().isEmpty());
+        assertTrue(posted(trace).isEmpty());
         bridge.publish(tree, false);
         assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"),
-                bridge.postedNotifications());
+                posted(trace));
     }
 
     @Test
     void aReentrantPublishPostsNothingAndKeepsTheEvents() {
         AxBridge bridge = AxBridge.withoutThePlatform();
+        List<String> trace = traced(bridge);
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
         bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
         bridge.publish(tree, true);
-        assertTrue(bridge.postedNotifications().isEmpty(),
+        assertTrue(posted(trace).isEmpty(),
                 "a post from inside an AX callback re-enters the platform on our own objects (§3.2)");
         assertEquals(1, bridge.queuedEvents(), "and the event is kept for the frame that follows");
     }
@@ -338,24 +353,26 @@ class AxBridgeTest {
     @Test
     void anEventNamingANodeNoClientHasAskedAboutIsPostedOnNothing() {
         AxBridge bridge = AxBridge.withoutThePlatform();
+        List<String> trace = traced(bridge);
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
         // 1002 is below the pushed level, so no element exists for it until something pulls.
         bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
         bridge.publish(tree, false);
-        assertTrue(bridge.postedNotifications().isEmpty(),
+        assertTrue(posted(trace).isEmpty(),
                 "a notification about an object the platform has never seen reaches no registration");
     }
 
     @Test
     void theEventsThisPlatformIsNotToldAreNotPosted() {
         AxBridge bridge = AxBridge.withoutThePlatform();
+        List<String> trace = traced(bridge);
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
         bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, 1001));
         bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_OPENED, 1000));
         bridge.publish(tree, false);
-        assertTrue(bridge.postedNotifications().isEmpty(),
+        assertTrue(posted(trace).isEmpty(),
                 "AppKit is already saying both, and ours would be a second copy of each");
     }
 
@@ -435,6 +452,105 @@ class AxBridgeTest {
         assertTrue(bridge.perform(1002, Accessible.Action.PRESS));
         assertTrue(asked[0], "the bridge resolves nothing itself; the scene re-checks every "
                 + "precondition on its own thread (§1.9)");
+    }
+
+    /**
+     * CRIT-5: a long session with nobody tracing retains nothing per event, per post and per focus
+     * ask. VoiceOver asks for the focused element continuously, and the production bridge once kept
+     * a String for every one of those asks, every emitted event and every post, for the life of the
+     * process.
+     *
+     * <p>Read off the bridge's own object graph rather than off an accessor, so that a list added
+     * back under any name is caught: every collection and map reachable from the bridge through
+     * this package's own classes must be the size it was before the session.
+     */
+    @Test
+    void aLongSessionWithTheTraceOffRetainsNothingPerEventPostOrAsk() throws Exception {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindowWithFocus(1002);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));   // mint the button, so value changes are posted
+        bridge.focusedElement();
+        java.util.Map<String, Integer> before = retainedSizes(bridge);
+        for (int i = 0; i < 100_000; i++) {
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1002));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
+            bridge.publish(tree, false);
+            bridge.focusedElement();
+        }
+        assertEquals(before, retainedSizes(bridge),
+                "100 000 frames of two events, their posts and a focus ask each grew the bridge");
+    }
+
+    /** Every collection's and map's size reachable from {@code root} through this package's classes. */
+    private static java.util.Map<String, Integer> retainedSizes(Object root) throws Exception {
+        java.util.Map<String, Integer> sizes = new java.util.TreeMap<>();
+        collectSizes(root, root.getClass().getSimpleName(), sizes,
+                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()));
+        assertFalse(sizes.isEmpty(), "the walk found no collection at all, so it proves nothing");
+        return sizes;
+    }
+
+    private static void collectSizes(Object object, String path, java.util.Map<String, Integer> sizes,
+                                     java.util.Set<Object> seen) throws Exception {
+        if (object == null || !seen.add(object)) return;
+        for (Class<?> type = object.getClass(); type != null && type != Object.class;
+             type = type.getSuperclass()) {
+            for (java.lang.reflect.Field field : type.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) continue;
+                field.setAccessible(true);
+                Object value = field.get(object);
+                String at = path + "." + field.getName();
+                if (value instanceof java.util.Collection<?> collection) {
+                    sizes.put(at, collection.size());
+                } else if (value instanceof java.util.Map<?, ?> map) {
+                    sizes.put(at, map.size());
+                } else if (value != null
+                        && value.getClass().getPackageName().equals(AxBridge.class.getPackageName())) {
+                    collectSizes(value, at, sizes, seen);
+                }
+            }
+        }
+    }
+
+    @Test
+    void theTraceSaysWhatWasEmittedPostedAndAnsweredWhileOneIsAttached() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindowWithFocus(1002);
+        bridge.publish(tree, false);
+        List<String> trace = traced(bridge);
+        long focused = bridge.focusedElement();
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1002));
+        bridge.publish(tree, false);
+        bridge.trace(null);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1002));
+        bridge.publish(tree, false);
+        bridge.focusedElement();
+        assertEquals(List.of("focused 1002=BUTTON@" + Long.toHexString(focused),
+                        "emitted FOCUS_CHANGED#1002",
+                        "posted NSAccessibilityFocusedUIElementChangedNotification"), trace,
+                "the live probe's log is these lines, and nothing reaches it once it is detached");
+    }
+
+    @Test
+    void theTeardownRecordIsOnlyTheLastDetachs() {
+        AxBridge bridge = AxBridge.withoutThePlatform();
+        AccessibleTree tree = aNestedWindow(2);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));
+        // A collapse sweeps the registry during the session; that is not a teardown and is not kept.
+        for (int i = 0; i <= AxEvents.CAPACITY; i++) {
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
+        }
+        bridge.publish(AccessibleTree.EMPTY, false);
+        assertEquals(0, bridge.elementCount());
+        assertTrue(bridge.teardown().isEmpty(), "a sweep in a live session is not a teardown");
+        assertNull(bridge.lastFrameOf(1002), "and a released element's box goes with it");
+        bridge.publish(tree, false);
+        bridge.detach();
+        bridge.detach();
+        assertEquals(List.of("children taken back", "view restored", "closures freed"),
+                bridge.teardown(), "each detach starts the record again, so it never grows");
     }
 
     @Test

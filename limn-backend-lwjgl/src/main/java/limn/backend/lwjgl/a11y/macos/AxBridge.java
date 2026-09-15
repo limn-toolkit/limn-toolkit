@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * The NSAccessibility bridge: what a macOS window gives a Limn scene so that VoiceOver can read it.
@@ -74,14 +75,24 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     /** The last parent-space box computed for each held node. For tests. */
     private final Map<Long, double[]> lastFrames = new HashMap<>();
     private final AxEvents events = new AxEvents();
-    /** Every notification posted since this bridge opened. For tests and for the probe's log. */
-    private final List<String> posted = new ArrayList<>();
-    /** What each ask for the focused element was answered with. For the live run's log. */
-    private final List<String> focusedAnswers = new ArrayList<>();
-    /** Every event the scene handed this bridge. For the live run's log. */
-    private final List<String> emitted = new ArrayList<>();
-    /** What a detach did to the platform's objects, in order. For the test that guards the order. */
+    /**
+     * Where this bridge's diagnostic lines go, or {@code null} for nowhere, which is the default and
+     * the production state.
+     *
+     * <p>Gated rather than kept, like {@code UiaWindow.say} on the other platform, and gated before
+     * the line is built: VoiceOver asks for the focused element continuously, and a bridge that kept
+     * a string for every such ask, every emitted event and every post did so on the user-interface
+     * thread for the life of the process (CRIT-5). With nothing attached nothing is allocated and
+     * nothing is retained; the live probe attaches a consumer and prints what reached it.
+     */
+    private Consumer<String> trace;
+    /**
+     * What the last detach did to the platform's objects, in order. For the test that guards the
+     * order, and bounded by what one detach releases: it is emptied when a detach starts and
+     * written only while one runs, so a registry swept a thousand times in a session keeps nothing.
+     */
     private final List<String> teardown = new ArrayList<>();
+    private boolean detaching;
 
     private AxBridge(AxObjC objc, long contentView) {
         this.objc = objc;
@@ -111,13 +122,16 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             }
 
             @Override public void release(long element) {
-                nodeIdByElement.remove(element);
+                Long nodeId = nodeIdByElement.remove(element);
+                // The box goes with the element, or the record of boxes would keep one entry per
+                // node that ever held an element, for the life of the process.
+                if (nodeId != null) lastFrames.remove(nodeId);
                 // Demoted before it is released, because AppKit hands a vended element to a client
                 // by reference and our release is not the client's: whatever still holds it must
                 // land on NSAccessibilityElement's own answers, not on a closure of ours that the
                 // detach is about to free.
                 if (elementClass != null) elementClass.demote(element);
-                teardown.add("element demoted");
+                if (detaching) teardown.add("element demoted");
                 if (objc != null) ObjC.msg(element, "release");
             }
         });
@@ -177,7 +191,8 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     public void emit(AccessibleEvent event) {
         // Enqueue, never post: every post is a cross-process call, and a difference between two
         // frames can be hundreds of nodes wide.
-        emitted.add(event.type() + "#" + event.nodeId());
+        Consumer<String> to = trace;
+        if (to != null) to.accept("emitted " + event.type() + "#" + event.nodeId());
         events.add(event);
     }
 
@@ -189,6 +204,17 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         elements.empty();
         pushed = new long[0];
         obligationsDeferred = false;
+    }
+
+    @Override
+    public void detach() {
+        teardown.clear();
+        detaching = true;
+        try {
+            super.detach();
+        } finally {
+            detaching = false;
+        }
     }
 
     @Override
@@ -229,12 +255,15 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     public long focusedElement() {
         long focused = tree().focused();
         AccessibleNode node = focused == 0 ? null : tree().find(focused);
+        Consumer<String> to = trace;
         if (node == null) {
-            focusedAnswers.add("none");
+            if (to != null) to.accept("focused none");
             return 0;
         }
         long element = elements.elementFor(focused);
-        focusedAnswers.add(focused + "=" + node.role() + "@" + Long.toHexString(element));
+        if (to != null) {
+            to.accept("focused " + focused + "=" + node.role() + "@" + Long.toHexString(element));
+        }
         return element;
     }
 
@@ -357,7 +386,8 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                     ? applicationElement()
                     : elementForEvent(event);
             if (subject == 0) continue;
-            posted.add(posting.notificationSymbol());
+            Consumer<String> to = trace;
+            if (to != null) to.accept("posted " + posting.notificationSymbol());
             postedNow++;
             if (objc != null) {
                 objc.post(subject, posting.literal()
@@ -443,14 +473,18 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         return obligationsDeferred;
     }
 
-    /** @return every event the scene emitted, in order. */
-    List<String> emittedEvents() {
-        return List.copyOf(emitted);
-    }
-
-    /** @return what each ask for the focused element was answered with, in order. */
-    List<String> focusedAnswers() {
-        return List.copyOf(focusedAnswers);
+    /**
+     * Sends this bridge's diagnostic lines somewhere, or stops sending them.
+     *
+     * <p>Each line is one of {@code emitted TYPE#id} (an event the scene handed over),
+     * {@code posted SYMBOL} (a notification that reached AppKit), {@code focused id=ROLE@element} or
+     * {@code focused none} (an answer to "where is the focus"). User-interface thread, like every
+     * other call here; the consumer is called on it, inside whatever produced the line.
+     *
+     * @param to where the lines go, or {@code null} for nowhere
+     */
+    void trace(Consumer<String> to) {
+        this.trace = to;
     }
 
     /** @return how many times AppKit asked one of our elements where the focus is (§13.22). */
@@ -463,14 +497,9 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         return elementClass == null ? 0 : elementClass.focusedElementAsksOnView();
     }
 
-    /** @return what detaching did to the platform's objects, in the order it did it. */
+    /** @return what the last detach did to the platform's objects, in the order it did it. */
     List<String> teardown() {
         return List.copyOf(teardown);
-    }
-
-    /** @return the notification symbols posted so far, in order. */
-    List<String> postedNotifications() {
-        return List.copyOf(posted);
     }
 
     /** @return how many events are waiting for the next frame. */
