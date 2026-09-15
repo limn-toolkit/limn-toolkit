@@ -663,6 +663,55 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                 "SELECT made it the only selected row: " + describe(tree()));
     }
 
+    /**
+     * A verb that reveals the kept cursor row brings it back where it stands, however far the
+     * wheel carried the box from it: {@code SCROLL_INTO_VIEW}, {@code SELECT} and {@code FOCUS}
+     * through the scene, and Space, the gesture that toggles the cursor row, alike. The kept row is
+     * laid out at the viewport's edge and not at its place in the outline (decision 22), and the
+     * reveal read that edge as the row's top, so it scrolled one row's height towards it and left
+     * it out of the box.
+     */
+    @Test
+    void aRevealOfTheKeptCursorRowBringsItBackIntoTheBox() throws Exception {
+        Node second = Node.leaf("row 2");
+        bindTree(ROW_H, leaves(40));
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        scene.requestFocus(tree);
+        tree.setSelected(second);
+        frame();
+        long kept = node("row 2").id();
+
+        for (Accessible.Action verb : List.of(Accessible.Action.SCROLL_INTO_VIEW,
+                Accessible.Action.SELECT, Accessible.Action.FOCUS)) {
+            wheelToTheEnd();
+            assertOutOfTheBox("before " + verb);
+            assertTrue(perform(kept, verb, Accessible.Argument.NONE));
+            frame();
+            assertTrue(node("row 2").has(Accessible.State.SHOWING),
+                    verb + " brought the kept row back into the box: " + describe(tree()));
+            assertEquals(kept, tree().activeDescendant(), describe(tree()));
+        }
+
+        wheelToTheEnd();
+        assertOutOfTheBox("before Space");
+        scene.keyEvent(limn.input.Keys.SPACE, true, false, 0);
+        scene.keyEvent(limn.input.Keys.SPACE, false, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(List.of(), tree.selectedNodes(), "Space toggled the cursor row off");
+        assertTrue(node("row 2").has(Accessible.State.SHOWING),
+                "and revealed it, as the toggle it is: " + describe(tree()));
+    }
+
+    /** Twenty wheel notches over the tree: past the box, clamped to the end. */
+    private void wheelToTheEnd() {
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        scene.scrolled(0, -20, x, y);
+        scene.inputBatchEnded();
+        frame();
+    }
+
     /** Asserts the kept cursor row is published, the same node, and outside the box. */
     private void assertOutOfTheBox(String when) {
         AccessibleNode row = node("row 2");

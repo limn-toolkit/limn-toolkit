@@ -1994,6 +1994,13 @@ public class Tree<T> extends Widget implements Scrollable {
         SizeTokens t = tokens();
         float rowH = avgRowHeight(t);
         Widget cell = cellFor(index);
+        if (cell != null && (cell.y() + cell.height() <= 0 || cell.y() >= viewportHeight())) {
+            // A row kept mounted outside the viewport — the cursor row while the tree holds the
+            // keyboard (decision 22), or a cell holding the focus — is laid out at the viewport's
+            // edge and not where it stands in the outline, so its box is no measure of how far
+            // to scroll; the anchor's estimate is, as for any row not mounted.
+            cell = null;
+        }
         float top = cell != null ? cell.y() : (index - anchorIndex) * rowH + anchorTop;
         revealVertically(top, cell != null ? cell.height() : rowH);
         if (pointerPress) {

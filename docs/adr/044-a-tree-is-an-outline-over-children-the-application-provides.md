@@ -216,6 +216,14 @@ and a shorter one stopped the tree short of its last row (also found in review).
 `TreeTest` holds all of it over a tree inside a `ScrollView`; a trackpad's momentum events over
 the same fixture are phase 5's live check.
 
+**Amendment, 2026-09-15: a reveal of the kept cursor row scrolls to where it stands.** The kept
+row is laid out at the viewport's edge, not at its place in the outline, and the reveal took a
+mounted row's box as its position, so `SCROLL_INTO_VIEW`, `SELECT` or `FOCUS` on that row, or Space
+on it, scrolled one row's height and left it outside the box — reachable since the scene stopped
+refusing a delegated verb on a row that is not showing (ADR 039 §1.5's amendment of this date). A
+mounted row whose box does not overlap the viewport is now revealed from the anchor's estimate,
+as an unmounted row is. Pinned by `TreeAccessibilityTest.aRevealOfTheKeptCursorRowBringsItBackIntoTheBox`.
+
 ## 4. Accessibility: two new roles, and what they cost
 
 A tree publishes `TREE`, with one `TREE_ITEM` per realized row carrying `ExpandFacet`, its depth,
