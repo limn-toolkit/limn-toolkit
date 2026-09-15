@@ -2455,6 +2455,22 @@ model has no clipboard verb. Orca 50.2 calls none of these (readings/fedora-orca
 the signatures are libatspi 2.60.6's (`s=>b`, `isi=>b`, `ii=>b`, `i=>b`, `CopyText` `ii` with no reply
 value).
 
+#### Amendment 2026-09-15 — `GetAttributes` carries a row's level and place in its set
+
+**What was wrong (L5).** The `GetAttributes` row answered `toolkit` alone, while Orca 50.2 reads a
+tree item's level from `level` and a member's "n of m" from `posinset` and `setsize` before any
+fallback (readings/fedora-orca-tree-level-position.txt), so no Limn tree item had a level on Linux
+and a virtualized list's rows were counted among the realized siblings.
+
+**What the bridge does now (decision 4, semantics 6, settled linux-level-carrier).** Beside `toolkit`,
+`level` is `HierarchyFacet.level` and `posinset`/`setsize` are `SelectionItemFacet`'s position and size,
+each as a decimal string, one-based as the model counts them and as Orca reads them; each is published
+only when non-zero, so no node says "0 of 0". GTK 4.22.4 publishes `posinset` and `setsize` on its list
+rows the same way (readings/fedora-gtk4-column-sort.txt, Fedora KDE 44, 2026-09-15). No event announces
+a change to them (decision 43): Orca 50.2's `object:attributes-changed` handler only clears its cache
+(readings/fedora-orca-interface-calls.txt). A header's sort direction is not an attribute yet; see the
+sort amendment below.
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |

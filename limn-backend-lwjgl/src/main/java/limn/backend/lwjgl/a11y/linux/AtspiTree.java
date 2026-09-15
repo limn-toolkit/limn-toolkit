@@ -620,7 +620,8 @@ final class AtspiTree {
                 return DBus.Msg.ret(m, "au",
                         Atspi.stateWords(root ? Atspi.state(Atspi.STATE_ENABLED) : statesOf(node)));
             case "GetAttributes":
-                return DBus.Msg.ret(m, "a{ss}", Atspi.attrs("toolkit", "limn"));
+                return DBus.Msg.ret(m, "a{ss}", root ? Atspi.attrs("toolkit", "limn")
+                        : attributesOf(node));
             case "GetApplication":
                 return DBus.Msg.ret(m, "(so)", (Object) rootRef().toStruct());
             case "GetInterfaces":
@@ -631,6 +632,38 @@ final class AtspiTree {
             default:
                 return null;
         }
+    }
+
+    /**
+     * A node's object attributes: {@code toolkit}, and where the facets carry them a row's
+     * {@code level}, {@code posinset} and {@code setsize} (L5; decision 4, semantics 6, settled
+     * linux-level-carrier).
+     *
+     * <p>Orca 50.2 reads a tree item's level from the attribute {@code level} (one-based) before
+     * any relation, and a member's position and set size from {@code posinset} and {@code setsize}
+     * (readings/fedora-orca-tree-level-position.txt); GTK 4.22.4 publishes {@code posinset} and
+     * {@code setsize} on its list rows the same way (readings/fedora-gtk4-column-sort.txt). The
+     * numbers are the model's, passed through: the level is {@code HierarchyFacet}'s, one-based as
+     * the model counts it; the position and the size are {@code SelectionItemFacet}'s, the single
+     * source of the spoken "n of m" (siblings for a tree item, the month's days for a calendar day).
+     * A zero is "no number" and publishes nothing — never "0 of 0" (semantics 6). Nothing announces
+     * a change to them (decision 43): Orca 50.2's {@code object:attributes-changed} handler only
+     * clears its cache (readings/fedora-orca-interface-calls.txt).
+     */
+    private static Map<Object, Object> attributesOf(AccessibleNode node) {
+        Map<Object, Object> out = Atspi.attrs("toolkit", "limn");
+        if (node.hierarchy() != null && node.hierarchy().level() > 0) {
+            out.put("level", Integer.toString(node.hierarchy().level()));
+        }
+        if (node.selectionItem() != null) {
+            if (node.selectionItem().positionInSet() > 0) {
+                out.put("posinset", Integer.toString(node.selectionItem().positionInSet()));
+            }
+            if (node.selectionItem().sizeOfSet() > 0) {
+                out.put("setsize", Integer.toString(node.selectionItem().sizeOfSet()));
+            }
+        }
+        return out;
     }
 
     /**

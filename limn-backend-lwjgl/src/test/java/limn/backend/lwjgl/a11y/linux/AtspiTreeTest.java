@@ -822,6 +822,48 @@ class AtspiTreeTest {
     }
 
     /**
+     * A row's level, position and set size are object attributes (L5, semantics 6): Orca 50.2 reads
+     * {@code level}, {@code posinset} and {@code setsize} first, and the bridge answered
+     * {@code toolkit} alone, so no tree item had a level and no row an "n of m". A zero publishes
+     * nothing.
+     */
+    @Test
+    void aRowSaysItsLevelAndWhereItIsInItsSetAsObjectAttributesAndAZeroSaysNothing() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int outline = a.begin(9300, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TREE);
+        a.selection(false, false);
+        a.inherited(true, true, true, true, false);
+        int[][] rows = {{2, 3, 4}, {0, 0, 0}, {1, 0, 7}};
+        for (int i = 0; i < rows.length; i++) {
+            a.begin(9301 + i, outline, Locale.ENGLISH, 0, i * 20, 400, 20);
+            a.role(Accessible.Role.TREE_ITEM);
+            a.hierarchy(rows[i][0], i + 1, rows.length);
+            a.selectionItem(false, rows[i][1], rows[i][2]);
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        a.end();
+        tree.set(a.publish(0, 0, 0, 1f, true));
+
+        assertEquals(java.util.Map.of("toolkit", "limn", "level", "2", "posinset", "3",
+                "setsize", "4"), call(path(9301), Atspi.I_ACCESSIBLE, "GetAttributes", null).body[0],
+                "level 2, 3 of 4, one-based as the model counts and as Orca reads");
+        assertEquals(java.util.Map.of("toolkit", "limn"), call(path(9302), Atspi.I_ACCESSIBLE,
+                "GetAttributes", null).body[0], "zeros are no numbers, never 0 of 0");
+        assertEquals(java.util.Map.of("toolkit", "limn", "level", "1", "setsize", "7"),
+                call(path(9303), Atspi.I_ACCESSIBLE, "GetAttributes", null).body[0],
+                "each number stands on its own");
+        assertEquals(java.util.Map.of("toolkit", "limn"), call(Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE,
+                "GetAttributes", null).body[0]);
+    }
+
+    /**
      * The relation set, one entry per type with every target of that type, in the platform's own
      * numbering: what Orca reads a field's label and its description from when it lands on it.
      */
