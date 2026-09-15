@@ -2107,10 +2107,12 @@ public final class Scene implements WindowInput {
                 ? (backward ? order.size() - 1 : 0)
                 : Math.floorMod(index + (backward ? -1 : 1), order.size());
         focusByTraversal = true;
+        focusTraversalBackward = backward;
         try {
             setFocus(order.get(next), origin);
         } finally {
             focusByTraversal = false;
+            focusTraversalBackward = false;
         }
     }
 
@@ -2121,8 +2123,15 @@ public final class Scene implements WindowInput {
      */
     private boolean focusByTraversal;
 
+    /** And, when it did, whether it was Shift+Tab; see {@link Widget#focusArrivedBackward()}. */
+    private boolean focusTraversalBackward;
+
     boolean focusCameFromTraversal() {
         return focusByTraversal;
+    }
+
+    boolean focusTraversalWentBackward() {
+        return focusByTraversal && focusTraversalBackward;
     }
 
     private static void collectFocusable(Widget widget, List<Widget> out) {

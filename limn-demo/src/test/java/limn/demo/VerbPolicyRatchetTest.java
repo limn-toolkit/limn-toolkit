@@ -88,16 +88,7 @@ class VerbPolicyRatchetTest {
             new Exemption("CRIT-1 (other-widgets lane): a submenu row accepts EXPAND and PRESS "
                     + "as synonyms of SHOW_MENU without publishing them",
                     "Popup menu, open", Accessible.Role.MENU_ITEM, "Transform",
-                    Set.of(Accessible.Action.PRESS, Accessible.Action.EXPAND)),
-            new Exemption("TABLE-NEW-13 (Table lane): every cell accepts SELECT, which only the "
-                    + "row publishes, and the cell's key is read as a row index, so a reader's "
-                    + "select on cell (0, 1) selects row 1",
-                    "Table with a header and rows", Accessible.Role.CELL, null,
-                    Set.of(Accessible.Action.SELECT)),
-            new Exemption("TABLE-NEW-13 (Table lane): a column header's SELECT selects the row "
-                    + "whose index its key happens to equal",
-                    "Table with a header and rows", Accessible.Role.COLUMN_HEADER, null,
-                    Set.of(Accessible.Action.SELECT)));
+                    Set.of(Accessible.Action.PRESS, Accessible.Action.EXPAND)));
 
     // ------------------------------------------------------------------------- the ratchet
 

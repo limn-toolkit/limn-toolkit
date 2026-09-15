@@ -1,20 +1,27 @@
 package limn.components;
 
 import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.CellFacet;
+import limn.accessibility.ScrollFacet;
 import limn.accessibility.SelectionItemFacet;
 import limn.accessibility.TableFacet;
 import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
+import limn.i18n.I18n;
 import limn.input.Keys;
+import limn.scene.Change;
 import limn.testing.AllocationProbe;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -25,6 +32,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TableAccessibilityTest extends AccessibleComponentTestBase {
 
     record Person(String name, int age) {
+    }
+
+    private Locale before;
+
+    @BeforeEach
+    void pinTheLanguage() {
+        // The sorted header's description is shipped in twenty-one languages and the process
+        // language is whatever the machine running the build reports: on a pt-BR host this
+        // class alone read "Ordenado em ordem crescente" and passed the full check only because
+        // earlier classes had left English behind them. Pinned and given back, so neither this
+        // class nor the next depends on the order the suite happens to run in.
+        before = I18n.processLocale();
+        I18n.setLocale(Locale.ENGLISH);
+    }
+
+    @AfterEach
+    void releaseTheLanguage() {
+        I18n.setLocale(before);
     }
 
     private static List<Person> people(int count) {
@@ -179,6 +204,62 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * TABLE-NEW-2 (decision 23 of 2026-09-14): the cursor a reader stands on is the focus cell,
+     * and a sort that moved Carol's row while the focus cell stayed at view position 0 left the
+     * reader on Alice while Carol was selected. The cursor follows its record now.
+     */
+    @Test
+    void aSortKeepsTheCursorOnTheRecordItWasOn() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        table.setRows(List.of(new Person("Carol", 3), new Person("Alice", 1),
+                new Person("Bob", 2)));
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(0);
+        frame();
+        assertEquals("Carol", nodesWith(Accessible.State.ACTIVE).get(0).name());
+        long cursor = tree().activeDescendant();
+        table.setSort(table.columns().get(0), SortOrder.ASCENDING);
+        frame();
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), describe(tree()));
+        assertEquals("Carol", active.get(0).name(), "the cursor is still on Carol's cell");
+        assertEquals(new CellFacet(2, 0), active.get(0).cell(), "shown third now");
+        assertEquals(cursor, tree().activeDescendant(), "the same element, moved");
+        assertTrue(rowNodes().get(2).selectionItem().selected());
+    }
+
+    /**
+     * Decision 23 of 2026-09-14 seen from the reader's side: after the application inserts a row
+     * above and calls {@code refresh()}, the cursor is still on the record it was on, one row
+     * further down, and that row is the selected one.
+     */
+    @Test
+    void refreshKeepsTheCursorOnTheRecordItWasOn() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        List<Person> rows = new ArrayList<>(people(30));
+        table.setRows(rows);
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(3);
+        frame();
+        assertEquals("Person 3", nodesWith(Accessible.State.ACTIVE).get(0).name());
+        rows.add(0, new Person("Newcomer", 1));
+        table.refresh();
+        frame();
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), describe(tree()));
+        assertEquals("Person 3", active.get(0).name(), "the cursor followed its record");
+        assertEquals(new CellFacet(4, 0), active.get(0).cell(), "one row further down");
+        assertTrue(rowNodes().get(4).selectionItem().selected());
+        assertFalse(rowNodes().get(3).selectionItem().selected(), "the newcomer is not");
+    }
+
+    /**
      * MODEL-NEW-4 (ADR 039 §1.10, amended 2026-09-14): a sort keeps every row's identifier and
      * moves the rows, and a client holding the old order has to be told — one
      * {@code STRUCTURE_CHANGED} on the table, naming the rows that stand at another rank than
@@ -235,6 +316,228 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                 "a press is offered once a row is selected");
         assertTrue(perform(tableNode().id(), Accessible.Action.PRESS, null));
         assertEquals(4, activated[0]);
+    }
+
+    /**
+     * Decisions 10 and 20 of 2026-09-14: a row publishes the verbs its state allows and no
+     * other — {@code SELECT} wherever a row can be selected, {@code ADD_TO_SELECTION} on an
+     * unselected row and {@code DESELECT} on a selected one only in {@code MULTI} — and each
+     * goes through the seam the matching gesture takes, so the handler hears a user.
+     */
+    @Test
+    void aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem() throws InterruptedException {
+        Table<Person> table = bindTable(20);
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        List<String> selects = new ArrayList<>();
+        table.onSelect(() -> selects.add(java.util.Arrays.toString(table.selectedRows())));
+        table.setSelectedRow(2);
+        frame();
+        java.util.Set<Accessible.Action> chosen = rowNodes().get(2).actions().actions();
+        java.util.Set<Accessible.Action> other = rowNodes().get(4).actions().actions();
+        assertTrue(chosen.containsAll(java.util.Set.of(Accessible.Action.SELECT,
+                Accessible.Action.DESELECT, Accessible.Action.FOCUS)), chosen.toString());
+        assertFalse(chosen.contains(Accessible.Action.ADD_TO_SELECTION),
+                "a selected row is not added again: " + chosen);
+        assertTrue(other.containsAll(java.util.Set.of(Accessible.Action.SELECT,
+                Accessible.Action.ADD_TO_SELECTION, Accessible.Action.FOCUS)), other.toString());
+        assertFalse(other.contains(Accessible.Action.DESELECT), other.toString());
+
+        assertTrue(perform(rowNodes().get(4).id(), Accessible.Action.ADD_TO_SELECTION, null));
+        assertEquals("[2, 4]", java.util.Arrays.toString(table.selectedRows()), "added, not replaced");
+        assertEquals(4, table.selectedRow(), "the added row is the lead, as under a command-click");
+        // And the cursor moved to it, as it does under the command-click these verbs stand
+        // for (decision 10): decision 20 names SELECT and FOCUS as the verbs that move the
+        // cursor and is silent on these two, so this line pins the reading Table took (ADR 041
+        // §7's amendment of 2026-09-14) until the owner says which holds.
+        assertEquals(4, table.focusRow(), "the cursor went with the add, as under a command-click");
+        assertTrue(perform(rowNodes().get(2).id(), Accessible.Action.DESELECT, null));
+        assertEquals("[4]", java.util.Arrays.toString(table.selectedRows()));
+        assertEquals(2, table.focusRow(), "and with the deselect, as under a command-click");
+        assertTrue(perform(rowNodes().get(7).id(), Accessible.Action.SELECT, null));
+        assertEquals("[7]", java.util.Arrays.toString(table.selectedRows()), "a select is the click");
+        assertEquals(List.of("[2, 4]", "[4]", "[7]"), selects, "each reached the handler as a user");
+
+        table.setSelectionMode(Table.SelectionMode.SINGLE);
+        frame();
+        for (AccessibleNode row : rowNodes()) {
+            java.util.Set<Accessible.Action> verbs = row.actions().actions();
+            assertFalse(verbs.contains(Accessible.Action.ADD_TO_SELECTION)
+                    || verbs.contains(Accessible.Action.DESELECT),
+                    "one row at a time: nothing to add to or take from: " + verbs);
+            assertTrue(verbs.contains(Accessible.Action.SELECT));
+        }
+        table.setSelectionMode(Table.SelectionMode.NONE);
+        frame();
+        assertEquals(java.util.Set.of(Accessible.Action.FOCUS),
+                rowNodes().get(0).actions().actions(), "only the cursor moves in NONE");
+    }
+
+    /**
+     * Decision 11 of 2026-09-14: {@code FOCUS} on a cell or a row moves the cursor there and
+     * selects nothing, because in a table the cursor and the selection are separate things —
+     * the one verb that lets a reader walk the cells without changing what the user chose.
+     */
+    @Test
+    void focusOnACellOrARowMovesTheCursorAndSelectsNothing() throws InterruptedException {
+        Table<Person> table = bindTable(20);
+        scene.requestFocus(table);
+        table.setSelectedRow(1);
+        frame();
+        bridge.events.clear();
+        AccessibleNode cell = childrenOf(rowNodes().get(3)).get(1);
+        assertTrue(cell.actions().actions().contains(Accessible.Action.FOCUS));
+        assertTrue(perform(cell.id(), Accessible.Action.FOCUS, null));
+        frame();
+        assertEquals(3, table.focusRow());
+        assertEquals(1, table.focusColumn());
+        assertEquals(1, table.selectedRow(), "the selection stayed where the user put it");
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size());
+        assertEquals(new CellFacet(3, 1), active.get(0).cell(), "the cursor is the cell asked for");
+        assertEquals(1, bridge.countOf(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "one cursor move: " + bridge.events);
+        assertTrue(perform(rowNodes().get(5).id(), Accessible.Action.FOCUS, null));
+        frame();
+        assertEquals(5, table.focusRow(), "a row's FOCUS moves the cursor to that row");
+        assertEquals(1, table.focusColumn(), "in the column it was in");
+        assertEquals(1, table.selectedRow());
+    }
+
+    /**
+     * TABLE-NEW-13 (found by the verb ratchet on 2026-09-14): a cell was keyed by its column
+     * alone, and the table read any key below the row count as a row index, so a reader's
+     * select on cell (0, 1) selected row 1 and a header's selected row 0. A cell's key carries
+     * its row now, a header cell's says it is one, and neither accepts a verb it does not
+     * publish.
+     */
+    @Test
+    void aCellAndAColumnHeaderRefuseTheSelectOnlyARowPublishes() throws InterruptedException {
+        Table<Person> table = bindTable(20);
+        AccessibleNode cell = childrenOf(rowNodes().get(0)).get(1);
+        assertFalse(cell.actions() != null
+                && cell.actions().actions().contains(Accessible.Action.SELECT));
+        perform(cell.id(), Accessible.Action.SELECT, null);
+        assertEquals(-1, table.selectedRow(), "cell (0, 1) selected no row");
+        AccessibleNode header = childrenOf(headerGroup()).get(0);
+        perform(header.id(), Accessible.Action.SELECT, null);
+        assertEquals(-1, table.selectedRow(), "and neither did the first header");
+        perform(header.id(), Accessible.Action.FOCUS, null);
+        assertEquals(-1, table.focusRow(), "a header is no row for the cursor either");
+    }
+
+    /**
+     * Decision 32 of 2026-09-14: {@code PRESS} on the table opens the cursor row — the row the
+     * focus cell is in — exactly as Enter and a double click do, so a reader that moved the
+     * cursor with {@code FOCUS} opens what it is on and not the lead it left behind; in
+     * {@code NONE}, where nothing is ever selected, the cursor row is what there is to open.
+     */
+    @Test
+    void aPressOnTheTableOpensTheCursorRow() throws InterruptedException {
+        Table<Person> table = bindTable(20);
+        table.setSelectionMode(Table.SelectionMode.MULTI);
+        List<Integer> opened = new ArrayList<>();
+        table.onActivate(opened::add);
+        table.setSelectedRows(1, 3);
+        frame();
+        assertTrue(perform(rowNodes().get(1).id(), Accessible.Action.FOCUS, null));
+        frame();
+        assertEquals(3, table.selectedRow(), "the lead is still row 3");
+        assertTrue(perform(tableNode().id(), Accessible.Action.PRESS, null));
+        assertEquals(List.of(1), opened, "what opened is the cursor row");
+
+        table.setSelectionMode(Table.SelectionMode.NONE);
+        frame();
+        assertTrue(perform(rowNodes().get(6).id(), Accessible.Action.FOCUS, null));
+        frame();
+        assertTrue(tableNode().actions().actions().contains(Accessible.Action.PRESS),
+                "a press is offered whenever there is a cursor, selection or not");
+        assertTrue(perform(tableNode().id(), Accessible.Action.PRESS, null));
+        assertEquals(List.of(1, 6), opened);
+    }
+
+    /**
+     * Decision 36 of 2026-09-14 from the reader's side: while the header holds the keyboard the
+     * table is still the focused node and its cursor is a header cell, so a reader that follows
+     * the effective focus hears the column title; a sortable header publishes {@code PRESS},
+     * which sorts as a click does, and the sorted header describes the direction the rows run.
+     */
+    @Test
+    void theHeadersColumnCursorIsTheCursorWhileTheHeaderHoldsTheKeyboard()
+            throws InterruptedException {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60),
+                Column.<Person>text("Note", p -> "-").width(60).sortable(false)));
+        table.setRows(people(20));
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(2);
+        frame();
+        List<AccessibleNode> headers = childrenOf(headerGroup());
+        assertTrue(headers.get(0).actions().actions().contains(Accessible.Action.PRESS));
+        assertTrue(headers.get(2).actions() == null
+                || !headers.get(2).actions().actions().contains(Accessible.Action.PRESS),
+                "a column that cannot be sorted offers no press: " + describe(tree()));
+        bridge.events.clear();
+
+        scene.keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
+        scene.inputBatchEnded();
+        frame();
+        assertTrue(table.isHeaderFocused());
+        assertEquals(tableNode().id(), tree().focused(), "the table is still the focused node");
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one cursor, the header's: " + describe(tree()));
+        assertEquals(Accessible.Role.COLUMN_HEADER, active.get(0).role());
+        assertEquals(new CellFacet(-1, 0), active.get(0).cell());
+        assertEquals("Name", active.get(0).name());
+        assertEquals(active.get(0).id(), tree().activeDescendant());
+        assertEquals(1, bridge.countOf(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "the cursor left the focus cell for the header, once: " + bridge.events);
+
+        scene.keyEvent(Keys.RIGHT, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(new CellFacet(-1, 1), nodesWith(Accessible.State.ACTIVE).get(0).cell(),
+                "Right moves the header's cursor a column");
+
+        assertTrue(perform(childrenOf(headerGroup()).get(0).id(), Accessible.Action.PRESS, null));
+        frame();
+        assertEquals(SortOrder.ASCENDING, table.sortOrder(), "a press on a header sorts");
+        headers = childrenOf(headerGroup());
+        assertEquals("Sorted ascending", headers.get(0).description(),
+                "the sorted header says which way: " + describe(tree()));
+        assertTrue(headers.get(1).description() == null || headers.get(1).description().isEmpty(),
+                "the others say nothing: " + describe(tree()));
+        scene.keyEvent(Keys.LEFT, true, false, 0);
+        scene.inputBatchEnded();
+        scene.keyEvent(Keys.SPACE, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals("Sorted descending", childrenOf(headerGroup()).get(0).description());
+
+        scene.keyEvent(Keys.TAB, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertFalse(table.isHeaderFocused());
+        active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size());
+        assertEquals(Accessible.Role.CELL, active.get(0).role(), "the focus cell is the cursor again");
+        assertEquals("Person 2", active.get(0).name(), "on the record it was on, sorted away");
+
+        // A reader's press on a header while the rows hold the keyboard sorts and, as the
+        // pointer's click does, remembers the column: the next Shift+Tab into the header
+        // starts on the title that was pressed, not on the one the cursor last stood on.
+        assertTrue(perform(childrenOf(headerGroup()).get(1).id(), Accessible.Action.PRESS, null));
+        frame();
+        assertEquals("Age", table.sortColumn().title().english(), "the press sorted by the pressed column");
+        assertFalse(table.isHeaderFocused(), "and left the keyboard in the rows");
+        scene.keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(new CellFacet(-1, 1), nodesWith(Accessible.State.ACTIVE).get(0).cell(),
+                "the header's cursor remembers the pressed column: " + describe(tree()));
     }
 
     @Test
@@ -295,6 +598,39 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("63", cells.get(1).name(), "20 + 21 + 22, formatted as the column's cells");
         assertEquals(new CellFacet(-2, 1), cells.get(1).cell());
         assertTrue(last.y() > rowNodes().get(2).y(), "below the last row");
+    }
+
+    /**
+     * The shape the header-group rule rests on (settled as header-group-rule; ADR 041 §7's
+     * amendment of 2026-09-14, TABLE-NEW-11): a table with no header and a footer publishes
+     * exactly one {@code GROUP}, the footer, whose cells all carry row {@code -2}, and no
+     * {@code COLUMN_HEADER} anywhere; a headerless table has no header group rather than an
+     * empty one. The three bridges' header lookups move to that rule in phase 3 and read this.
+     */
+    @Test
+    void aHeaderlessTableWithAFooterPublishesOnlyTheFooterGroup() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120).footer("Total"),
+                Column.numeric("Age", Person::age).width(60).footerSum()));
+        table.setRows(people(3));
+        table.setShowHeader(false);
+        bind(table);
+        List<AccessibleNode> groups = new ArrayList<>();
+        for (AccessibleNode child : childrenOf(tableNode())) {
+            if (child.role() == Accessible.Role.GROUP) {
+                groups.add(child);
+            }
+        }
+        assertEquals(1, groups.size(), "one group, the footer: " + describe(tree()));
+        List<AccessibleNode> cells = childrenOf(groups.get(0));
+        assertEquals(2, cells.size(), "a cell per shown column");
+        for (int c = 0; c < cells.size(); c++) {
+            assertEquals(new CellFacet(-2, c), cells.get(c).cell(), "a footer cell: " + cells.get(c));
+        }
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            assertFalse(tree().node(i).role() == Accessible.Role.COLUMN_HEADER,
+                    "no column header anywhere: " + describe(tree()));
+        }
     }
 
     /**
@@ -364,6 +700,41 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * B1 (2026-09-14): the focus ring was drawn on a widget column's cell and the reader was
+     * told nothing, so every Right into the "Flagged" column emptied the active descendant. The
+     * control's own node is the cursor there, exactly as a value cell is; found by its facet,
+     * not its position, and with the same one-event announcement.
+     */
+    @Test
+    void aFocusCellInAWidgetColumnIsTheActiveDescendant() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.<Person>widget("Open", p -> new Button(p.name())).width(80)));
+        table.setRows(people(30));
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(3);
+        frame();
+        bridge.events.clear();
+        scene.keyEvent(Keys.RIGHT, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one cursor: " + describe(tree()));
+        assertEquals(Accessible.Role.BUTTON, active.get(0).role(), "the control is the cursor");
+        assertEquals(new CellFacet(3, 1), active.get(0).cell());
+        assertEquals(active.get(0).id(), tree().activeDescendant());
+        assertEquals(1, bridge.countOf(
+                limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "one cursor move, announced once: " + bridge.events);
+        scene.keyEvent(Keys.LEFT, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(new CellFacet(3, 0), nodesWith(Accessible.State.ACTIVE).get(0).cell(),
+                "and Left brings the cursor back to the value cell");
+    }
+
+    /**
      * A wide table publishes a cell for every shown column of every realized row, off-screen
      * columns included, so nine rows over five hundred columns is more interned pairs than the
      * table started out holding; a quiet frame must still publish nothing (MODEL-NEW-7).
@@ -403,5 +774,293 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(rowNodes().get(0).actions() == null
                 || !rowNodes().get(0).actions().actions().contains(Accessible.Action.SELECT),
                 "nothing to select in NONE");
+    }
+
+    /**
+     * B6 (2026-09-14): a hidden widget column's never-laid-out widget was published as a node
+     * with a {@code CellFacet} column equal to the table's column count, which on Windows reached
+     * the GridItem pattern as an out-of-range column. A hidden column, widget or value, is not
+     * published at all, and the table's column count is the shown count.
+     */
+    @Test
+    void aHiddenColumnPublishesNoCell() {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60).visible(false),
+                Column.<Person>widget("Open", p -> new Button(p.name())).width(80)
+                        .visible(false)));
+        table.setRows(people(30));
+        bind(table);
+        assertEquals(1, tableNode().table().columnCount(), "the shown count");
+        assertEquals(1, childrenOf(headerGroup()).size(), "one header cell");
+        int cells = 0;
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            AccessibleNode n = tree().node(i);
+            assertTrue(n.role() != Accessible.Role.BUTTON, "no widget, so no node: " + n);
+            if (n.cell() != null) {
+                cells++;
+                assertTrue(n.cell().column() < 1, "a cell of a hidden column: " + n);
+            }
+        }
+        assertTrue(cells > 3, "the shown column's cells are still there: " + cells);
+    }
+
+    /**
+     * TABLE-NEW-5 (2026-09-14): hiding the column the focus cell stood on left {@code
+     * focusColumn} pointing at a shown index no column matched, so no ring was drawn and no
+     * cell was {@code ACTIVE} until a Left or Right re-clamped it; hiding a column before it
+     * silently shifted the cursor onto the next column's cell. The focus cell now follows its
+     * column: hidden, it moves to the nearest shown column and says so; a column hidden before
+     * it shifts the index and the cell stays on its record and its column.
+     */
+    @Test
+    void hidingTheFocusColumnKeepsACursorOnTheNearestShownColumn() {
+        Column<Person> name = Column.text("Name", Person::name).width(120);
+        Column<Person> age = Column.numeric("Age", Person::age).width(60);
+        Column<Person> again = Column.text("Again", Person::name).width(100);
+        Table<Person> table = new Table<>(List.of(name, age, again));
+        table.setRows(people(30));
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(2);
+        frame();
+        for (int i = 0; i < 2; i++) {
+            scene.keyEvent(Keys.RIGHT, true, false, 0);
+            scene.inputBatchEnded();
+            frame();
+        }
+        assertEquals(2, table.focusColumn());
+        assertEquals(new CellFacet(2, 2), nodesWith(Accessible.State.ACTIVE).get(0).cell());
+        bridge.events.clear();
+        List<Change> heard = new ArrayList<>();
+        table.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.ACTIVE) {
+                heard.add(change);
+            }
+        });
+
+        again.visible(false);
+        table.refresh();
+        frame();
+        assertEquals(1, table.focusColumn(), "clamped to the nearest shown column");
+        assertEquals(1, heard.size(), "announced once to a watcher: " + heard);
+        assertEquals(Change.Origin.ADJUSTMENT, heard.get(0).origin(),
+                "as a consequence of the column going, not a gesture");
+        heard.clear();
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one cursor: " + describe(tree()));
+        assertEquals(new CellFacet(2, 1), active.get(0).cell());
+        assertEquals("22", active.get(0).name(), "Person 2's age, the column beside the hidden one");
+        assertEquals(active.get(0).id(), tree().activeDescendant());
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "the cursor moved once, and a reader was told: " + bridge.events);
+        long ageCell = active.get(0).id();
+        bridge.events.clear();
+
+        // A column before the cursor hidden: the index shifts, the cell does not move.
+        name.visible(false);
+        table.refresh();
+        frame();
+        assertEquals(0, table.focusColumn(), "the first shown column now");
+        active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "still one cursor: " + describe(tree()));
+        assertEquals(ageCell, active.get(0).id(), "the same cell, on the same record");
+        assertEquals(new CellFacet(2, 0), active.get(0).cell());
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "the cursor did not move, so nothing was announced: " + bridge.events);
+        assertEquals(List.of(), heard, "nor to a watcher");
+
+        // Shown again: the cursor stays on its column, which is the second shown one again.
+        name.visible(true);
+        table.refresh();
+        frame();
+        assertEquals(1, table.focusColumn());
+        assertEquals(ageCell, nodesWith(Accessible.State.ACTIVE).get(0).id());
+    }
+
+    /**
+     * The header's column cursor (decision 36) under the rule the focus cell follows when a
+     * column is hidden (review of table-B, 2026-09-14): it kept a plain index clamp, so hiding
+     * its column moved it onto whatever column the index now named, and hiding one before it
+     * slid it onto the next column, both unannounced. It follows its column now; and a layout
+     * that takes the header's stop away while it holds the cursor says so, the cursor back on
+     * the focus cell.
+     */
+    @Test
+    void hidingTheHeadersColumnKeepsItsCursorOnTheNearestShownColumn() {
+        Column<Person> name = Column.text("Name", Person::name).width(120);
+        Column<Person> age = Column.numeric("Age", Person::age).width(60);
+        Column<Person> again = Column.text("Again", Person::name).width(100);
+        Column<Person> note = Column.<Person>text("Note", p -> "-").width(60).sortable(false);
+        Table<Person> table = new Table<>(List.of(name, age, again, note));
+        table.setRows(people(30));
+        bind(table);
+        scene.requestFocus(table);
+        table.setSelectedRow(2);
+        frame();
+        scene.keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
+        scene.inputBatchEnded();
+        for (int i = 0; i < 2; i++) {
+            scene.keyEvent(Keys.RIGHT, true, false, 0);
+            scene.inputBatchEnded();
+        }
+        frame();
+        assertTrue(table.isHeaderFocused());
+        assertEquals(2, table.headerColumn());
+        assertEquals(new CellFacet(-1, 2), nodesWith(Accessible.State.ACTIVE).get(0).cell());
+        bridge.events.clear();
+        List<Change> heard = new ArrayList<>();
+        table.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.ACTIVE) {
+                heard.add(change);
+            }
+        });
+
+        again.visible(false);
+        table.refresh();
+        frame();
+        assertTrue(table.isHeaderFocused(), "the header is still a stop, and still holds the keyboard");
+        assertEquals(1, table.headerColumn(), "the nearest shown column, the one before on a tie");
+        assertEquals(1, heard.size(), "announced once to a watcher: " + heard);
+        assertEquals(Change.Origin.ADJUSTMENT, heard.get(0).origin());
+        heard.clear();
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one cursor: " + describe(tree()));
+        assertEquals(Accessible.Role.COLUMN_HEADER, active.get(0).role());
+        assertEquals(new CellFacet(-1, 1), active.get(0).cell());
+        assertEquals("Age", active.get(0).name());
+        assertEquals(active.get(0).id(), tree().activeDescendant());
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "the cursor moved once, and a reader was told: " + bridge.events);
+        long ageHeader = active.get(0).id();
+        bridge.events.clear();
+
+        // A column before the cursor hidden: the index shifts, the header cell does not move.
+        name.visible(false);
+        table.refresh();
+        frame();
+        assertEquals(0, table.headerColumn(), "the first shown column now");
+        active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "still one cursor: " + describe(tree()));
+        assertEquals(ageHeader, active.get(0).id(), "the same header cell");
+        assertEquals(new CellFacet(-1, 0), active.get(0).cell());
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                "the cursor did not move, so nothing was announced: " + bridge.events);
+        assertEquals(List.of(), heard, "nor to a watcher");
+
+        // Shown again: the cursor stays on Age, the second shown column again.
+        name.visible(true);
+        table.refresh();
+        frame();
+        assertEquals(1, table.headerColumn());
+        assertEquals(ageHeader, nodesWith(Accessible.State.ACTIVE).get(0).id());
+        bridge.events.clear();
+
+        // The header hidden under the cursor: no stop, the keyboard is in the rows. The same
+        // layout path takes the stop away when the last sortable column is hidden; hiding a
+        // column is not used here because the focus cell's own column moving would announce
+        // it anyway and hide a silent header.
+        table.setShowHeader(false);
+        frame();
+        assertFalse(table.isHeaderFocused(), "a header that is not shown is not a stop");
+        assertEquals(1, heard.size(), "the cursor went back to the rows, announced once: " + heard);
+        active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(), "one cursor: " + describe(tree()));
+        assertEquals(Accessible.Role.CELL, active.get(0).role(), "the focus cell, on the one shown column");
+        assertEquals(active.get(0).id(), tree().activeDescendant());
+    }
+
+    private static List<Column<Person>> fiveColumns() {
+        List<Column<Person>> columns = new ArrayList<>();
+        for (int c = 0; c < 5; c++) {
+            final int n = c;
+            columns.add(Column.<Person>text("C" + c, p -> "P" + p.age() + "c" + n).width(120));
+        }
+        return columns;
+    }
+
+    /**
+     * B3 (2026-09-14): every shown column of a realized row is published, in view or not, and
+     * the ones outside the horizontal viewport are published without {@code SHOWING} — header
+     * cells, cells and footer cells alike — with the horizontal scroll on the table node.
+     */
+    @Test
+    void aColumnScrolledAwayIsPublishedOffScreen() {
+        List<Column<Person>> columns = fiveColumns();
+        columns.get(4).footerCount();
+        Table<Person> table = new Table<>(columns);
+        table.setRows(people(30));
+        bind(table); // 400 points wide: three columns in view, the fourth cut, the fifth out
+        ScrollFacet scroll = tableNode().scroll();
+        assertTrue(scroll.horizontallyScrollable());
+        assertEquals(0, scroll.horizontalPercent(), 1e-4);
+        assertEquals(400.0 / 600, scroll.horizontalViewSize(), 1e-4);
+        List<AccessibleNode> headers = childrenOf(headerGroup());
+        assertEquals(5, headers.size(), "every shown column, in view or not");
+        assertTrue(headers.get(3).has(Accessible.State.SHOWING), "the cut column is on screen");
+        assertFalse(headers.get(4).has(Accessible.State.SHOWING), "the one past the edge is not");
+        List<AccessibleNode> cells = childrenOf(rowNodes().get(0));
+        assertEquals(5, cells.size());
+        assertTrue(cells.get(0).has(Accessible.State.SHOWING));
+        assertFalse(cells.get(4).has(Accessible.State.SHOWING), "a cell off the edge: " + cells.get(4));
+        long lastCell = cells.get(4).id();
+        List<AccessibleNode> footer = childrenOf(footerGroup());
+        assertEquals(1, footer.size(), "the one column with a footer");
+        assertEquals(new CellFacet(-2, 4), footer.get(0).cell());
+        assertFalse(footer.get(0).has(Accessible.State.SHOWING), "the footer cell is off the edge too");
+
+        table.scrollBy(200, 0);
+        frame();
+        assertEquals(1, tableNode().scroll().horizontalPercent(), 1e-4, "200 of a maximum of 200");
+        headers = childrenOf(headerGroup());
+        assertFalse(headers.get(0).has(Accessible.State.SHOWING), "scrolled out on the left");
+        assertTrue(headers.get(4).has(Accessible.State.SHOWING));
+        cells = childrenOf(rowNodes().get(0));
+        assertFalse(cells.get(0).has(Accessible.State.SHOWING));
+        assertTrue(cells.get(4).has(Accessible.State.SHOWING));
+        assertEquals(lastCell, cells.get(4).id(), "the same cell, in view now");
+        assertTrue(childrenOf(footerGroup()).get(0).has(Accessible.State.SHOWING));
+    }
+
+    /** The last {@code GROUP} child of the table: the footer's, after the rows (the bars follow). */
+    private AccessibleNode footerGroup() {
+        List<AccessibleNode> children = childrenOf(tableNode());
+        for (int i = children.size() - 1; i >= 0; i--) {
+            if (children.get(i).role() == Accessible.Role.GROUP) {
+                assertTrue(i > 0, "the footer group comes after the header group");
+                return children.get(i);
+            }
+        }
+        throw new AssertionError("no footer group among " + children);
+    }
+
+    /**
+     * The percent is published unflipped, the rule the scroll pane, the tab strip and the tree
+     * settled (ADR 039): the offset is a distance from the edge reading starts from, and the
+     * mirroring is in where the columns sit. A flipped percent would tell a reader that a table
+     * resting on its first column is scrolled to the end.
+     */
+    @Test
+    void theHorizontalPercentIsNotFlippedRightToLeft() {
+        Table<Person> table = new Table<>(fiveColumns());
+        table.setRows(people(30));
+        table.setLayoutDirection(limn.scene.LayoutDirection.RTL);
+        bind(table);
+        assertTrue(table.isRightToLeft(), "the fixture really did mirror the table");
+        List<AccessibleNode> headers = childrenOf(headerGroup());
+        assertEquals(400, headers.get(0).x() + headers.get(0).width(), 1e-3,
+                "the first column ends at the right edge: " + describe(tree()));
+        assertEquals(0, tableNode().scroll().horizontalPercent(), 1e-4,
+                "zero is the leading edge, which is the right edge here");
+        assertFalse(headers.get(4).has(Accessible.State.SHOWING), "the last column hangs off the left");
+
+        table.scrollBy(200, 0);
+        frame();
+        assertEquals(1, tableNode().scroll().horizontalPercent(), 1e-4,
+                "the end is one, whichever side it is on");
+        headers = childrenOf(headerGroup());
+        assertFalse(headers.get(0).has(Accessible.State.SHOWING), "the first column went off the right");
+        assertTrue(headers.get(4).has(Accessible.State.SHOWING), "and the last came in from the left");
+        assertEquals(0, headers.get(4).x(), 1e-3);
     }
 }

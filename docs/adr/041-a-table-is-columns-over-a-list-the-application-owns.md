@@ -39,6 +39,13 @@ widget shares, and `Scrollable.revealRect` is how a focused thing asks to be bro
 ADR 040 is still a proposal. Nothing here anticipates it: the table registers listeners the way
 every widget does today, and the conversion to observers is that record's, all widgets at once.
 
+**Amended 2026-09-14 (B7 of the 2026-09-13 pass).** ADR 040 was accepted on 2026-09-03 and
+implemented on 2026-09-09, and the table moved onto it: `onSelect`, `onActivate` and
+`onSortRequest` are single handler slots under `Checks.handlerSlot`, reached through
+`handleUserChange` for the user's gestures alone, and `observeChanges` hears every change with
+its origin (§8's amendment of this date; ADR 040 §7.2 records the table's seams). The sentence
+above stands as the record of what was true when it was written.
+
 ---
 
 ## 1. The model is typed, and the application owns the rows
@@ -61,7 +68,9 @@ Qt, Swing's `TableModel` — puts the column, not the row, at the centre, and a 
 formatting had to be re-implemented per application would be a list with lines drawn on it.
 
 **Why the rows are a `List<T>` held by reference.** Copying would make the model the table's, and
-then every edit would need a change event the toolkit has not designed yet (ADR 040). Holding the
+then every edit would need a change event the toolkit has not designed yet (ADR 040; **amended
+2026-09-14:** designed since — the origin-labelled `Change` and `observeChanges` — and the list
+is still held by reference for the second reason, which stands on its own). Holding the
 application's list and being told `refresh()` is the `ListView` contract, and it keeps a table over
 a million rows free: `rowCount` is `rows.size()`, and nothing is read until it is on screen.
 
@@ -90,7 +99,14 @@ preferred width, minimum and weight (§5), so the x of every column is a prefix 
 is rarely longer than thirty. The band of columns that intersect the viewport is what is shaped and
 painted; a column scrolled out of view costs nothing, and a row realized while it was out of view
 shapes its text the first time it enters. The header is pinned: it scrolls with the columns and not
-with the rows.
+with the rows. (**Corrected 2026-09-14, B3:** "costs nothing" is loose — `mount` reads and holds
+the *text* of every column of a realized row, hidden and out-of-view ones included, and a `CELL`
+node is published for every shown column of every realized row, off screen when out of view; what
+a column out of view saves is the shaping and the painting, which is what the sentence meant.
+Pinned by `TableTest.aWideTableScrollsSidewaysAndShapesAndPaintsOnlyTheColumnsInView`,
+`theFocusCellBringsItsColumnIntoView` and
+`TableAccessibilityTest.aColumnScrolledAwayIsPublishedOffScreen`; the mirrored half by
+`TableMirroringTest`, the class §10 promised and B2 found missing.)
 
 **Both scroll bars are the shared `ScrollBar`**, resolved through `ScrollGutters` exactly as
 `ScrollView` resolves them, so a table and a scroll view reserve, overlay and fade their bars the
@@ -102,6 +118,45 @@ children of its widget columns. The rules `ListView` learnt the hard way carry o
 mounted run is contiguous by construction, `children()` is the bars and then the widget cells in
 data order, and the row holding the keyboard focus is kept realized outside the viewport for as
 long as it holds it (ADR 039 §13.29).
+
+**Amended 2026-09-14 (decision 22 of the 2026-09-13 pass; TABLE-NEW-9, TABLE-NEW-10).** Two rows
+are kept outside the viewport, not one: the row whose widget cell holds the keyboard focus, as
+above, and — while the table itself holds the keyboard — the focus cell's row, which a wheel or
+a bar drag used to recycle, emptying a reader's cursor until the next arrow key (B8). The cursor
+row is realized by every layout while the table is focused, so a `refresh()` or a sort that
+unmounted everything realizes it again wherever its record went; the first pass after the focus
+leaves releases it. A kept row is published where the layout put it, outside the rows' viewport,
+so the `ROW` and a widget cell inside it agree on a box, and its cells are published off screen
+with it (TABLE-NEW-9: the bit is per node, and nothing is inherited from a synthetic parent, so
+a kept row's cells were `SHOWING` over the header band). And the table now declares the per-child
+clip `Widget#clipX` and its three siblings ask for (TABLE-NEW-10): its widget cells are clipped to
+the rows' viewport and its bars to the box, which is what `paintChildren` clips to, so a switch
+scrolled under the header or the footer, or lying in a reserved gutter, is neither `isShowing()`
+nor published `SHOWING`, a reader cannot toggle it, and a point on the header does not resolve to
+it; the accessors allocate nothing. Pinned by `TableFocusedRowTest` (six cases, the widget-column
+quiet-frame ratchet among them). The rule exists in three copies (ADR 044 §3); `ListView` and
+`Tree` take theirs in their own lanes.
+
+**Amended 2026-09-14 (TABLE-NEW-12 and decision 44 of the 2026-09-13 pass; T5's Table copy).**
+The wheel took one axis: any non-zero `scrollX` made the event sideways and dropped its
+`scrollY`, so a trackpad swipe that was not perfectly vertical scrolled nothing on a table whose
+columns fit and only sideways on one that did not (TABLE-NEW-12). The axes are taken
+independently now, as `ScrollView` takes them, each clamped on its own; Shift still turns a
+*plain* vertical wheel into a horizontal one for a mouse with one wheel, and only when the event
+carries no `scrollX`, so a tilt wheel and Shift cannot drive one axis twice. And a detent is
+consumed only when an offset moved (decision 44): at either end of an axis, or on a table that
+fits, it is left for the scroller that holds the table, where before the wheel was consumed
+whenever the rows overflowed and a table inside a scroll pane was a wall once it had scrolled to
+its end. Under an unbounded height the table prefers its header, its footer and
+`setVisibleRows` (default 8) rows of the step's **seed** height, the token, never the realized
+average: the average moves as rows of another height scroll in, and a measured size that moves
+under a contained layout re-lays out the parent, so a table in a scroll pane jittered. A bounded
+height from the parent still wins. Pinned by
+`TableTest.aWheelTakesBothAxesAndShiftTurnsAPlainWheelSideways`,
+`aWheelAtEitherEndOfTheTablePassesToTheScrollerThatHoldsIt` and
+`theUnboundedHeightIsTheSeedsAndSetVisibleRowsChangesIt`. What a headless test cannot show: a
+trackpad's momentum events arriving after the table hits its end chain into the pane by the
+same rule, and whether that feels right is the live check decision 44 names.
 
 ---
 
@@ -124,6 +179,61 @@ table does, and does nothing to the selection in `NONE`.
 Enter, and a double click on a row, fire `onActivate` with the lead row, the "open this" gesture
 `ListView` has. Cell selection — a rectangle of cells, as a spreadsheet has — is not in this
 record; §10.
+
+**Amended 2026-09-14 (decision 32 of the 2026-09-13 pass).** Enter and a double click open the
+**cursor row** — the focus cell's row — and so does a reader's `PRESS` on the table; `onActivate`
+receives that row, which is the lead in `SINGLE` and may differ from it in `MULTI` after a toggle
+or a Shift range. The sentence above stands as the record of what was decided; §7's amendment of
+the same date carries the change and its tests.
+
+**Amended 2026-09-14 (decisions 23 and 40 of the 2026-09-13 pass).** The focus cell and the
+range anchor are view positions, and until this date a sort left both where they stood: the
+permutation moved the records and the cursor stayed on view row *n*, so "the focus cell's row is
+the lead row" was false after every sort, Down selected whatever record the sort had put under
+the cursor, and a Shift range extended from a row the user never touched (TABLE-NEW-2). Both now
+go with their records through the permutation, in `applySort`, and the move is announced as
+`ACTIVE`/`ADJUSTMENT` before the `CHILDREN` announcement, as a consequence of the sort. After a
+sort the focus row is revealed with the least scroll that shows it — at the foot of the viewport
+when it moved down, at the top when it moved up, not at all when it stayed in view — as every
+other write that moves the focus cell does (decision 40); a row below the realized run is now
+placed as the last row in view by every reveal, where before it was placed first. Pinned by
+`TableTest.aSortCarriesTheFocusCellAndTheRangeAnchorWithTheirRecords`,
+`TableTest.aSortRevealsTheFocusRowWithTheLeastScroll` and
+`TableAccessibilityTest.aSortKeepsTheCursorOnTheRecordItWasOn`. The renders the owner reviews
+this against are `renders/table/sort-before.png` and `sort-after.png` of the pass. The range
+sentence above is also imprecise: the range extends from the row last clicked, toggled or
+selected — `rangeAnchor` — which is the lead only until a Shift extension moves the lead to the
+range's end and leaves the anchor where it was; that is the platform's grammar, and the words are
+what changes.
+
+**Amended 2026-09-14 (decision 23: a row is its record).** "Selection is a set of model indices"
+held across a `refresh()` by number, so the documented `onSortRequest` recipe — reorder the list,
+call `refresh()` — and any insert, remove or reorder before a `refresh()` moved the selection onto
+whatever records now stood at those numbers (TABLE-NEW-3), and §6's "the selection is by model
+row and stays where it was" held only for in-place edits. The selection, the lead, the focus
+cell and the range anchor are now **followed by record**: model indices between two refreshes,
+records across one. A record is the row itself, by `equals`, unless `Table.rowKey(Function)`
+names its identity (`rowKey(Order::id)`); keys are taken when a row enters one of the four,
+because the list is the application's and has already changed when `refresh()` runs, and records
+with equal keys are told apart by occurrence — the third equal record stays the third, and an
+insert of an equal record above it makes it the fourth, which is what "occurrence" can say. A
+selected record the list no longer holds leaves the selection with one
+`SELECTION`/`ADJUSTMENT`; a vanished lead hands the lead to the last selected row; a vanished
+focus row or anchor keeps its position, clamped. A focus row that moved is announced as
+`ACTIVE`/`ADJUSTMENT`; a `refresh()` that answers a sort request also reveals it with the least
+scroll, as the table's own sort does, and any other `refresh()` keeps the scroll position it
+promises. Costs, written down: `refresh()` with
+something to follow reads the rows once, stopping at the last record found (nothing to follow,
+nothing read); selecting a row without a `rowKey` reads the rows before it once, to place it
+among equal records; `selectAll()` reads every row once for its key. Reader verbs still name a
+row by the model index the snapshot published, performed on the UI thread after that frame on
+the record at that index then. Pinned by `TableTest.aServerSortKeepsTheSelectionOnItsRecords`,
+`refreshFollowsTheRecordsThroughAnInsertARemoveAndAReorder`,
+`equalRecordsAreToldApartByOccurrenceAndARowKeyNamesIdentity` and
+`TableAccessibilityTest.refreshKeepsTheCursorOnTheRecordItWasOn`. §4's "keeps selection stable
+across a sort" and §6's sentence are true again by this rule rather than by index; §4's
+"rebuilt ... on `setSort`, on `refresh` and on nothing else" was already loose — `setRows`
+resorts too.
 
 ---
 
@@ -150,6 +260,38 @@ Filtering is the application's: a filtered `List<T>` is one line of stream code,
 in the toolkit would have to choose between predicate, text and column semantics for a case each
 application answers differently.
 
+**Amended 2026-09-14 (TABLE-NEW-4 of the 2026-09-13 pass; settled as table-sort-request-slot).**
+`onSortRequest` assigned its field directly — the one component registrar outside `Work` that
+skipped `Checks.handlerSlot`, while ADR 040 §7 counted it among the thirty slots — and the slot
+changing hands sorted nothing: a handler set over a toolkit sort left the permutation in place
+until the next `refresh()`, and clearing it left the rows in whatever order the application had
+put them, under a header still showing a sort. It is one slot now (`null` clears, a second
+handler throws), and the change of hands re-runs the sort seam when the header shows an order:
+setting a handler drops the permutation at once, so the rows show in the application's order,
+and clearing it re-applies the table's own sort on the column the header shows — the focus cell
+and the anchor go with their records as they do through any sort, and both are announced
+`CHILDREN`/`CODE`, a caller's write that reaches no handler. Pinned by
+`TableTest.theSortRequestSlotIsOneSlotAndChangingHandsReSortsAtOnce`.
+
+**Amended 2026-09-14 (decision 36 of the 2026-09-13 pass, TABLE-SORT-KEYS).** Sorting was the
+pointer's alone: "a click on a sortable header" was the only way to it. With a shown column that
+can be sorted, the header is now a **focus stop of its own**, before the rows: Tab into the table
+enters at the header, Tab again at the rows, Shift+Tab walks the reverse (`Widget#focusArrivedBackward`
+was added for that mirror), and the table stays the one focusable widget — the stop is a state of
+it, so the tree's focused node is the table in both stops. On the header, Left and Right move a
+**column cursor** (swapped under RTL, as the focus cell's are), Home and End go to the ends, Space
+sorts the column under it cycling ascending, descending and the model's order exactly as a click
+does (and reaches `onSortRequest` the same way), Down hands the keyboard to the rows, and the
+other row keys do nothing rather than move rows under a cursor that is not in them. A header
+click sorts and leaves the keyboard in the rows, remembering the column for the next Tab into the
+header; a click on a row takes the keyboard back from the header. Without a sortable shown column
+there is no stop. The cursor is drawn as the same thin ring the focus cell wears, inset in the
+header cell, and the focus cell's ring is not drawn while the header holds the keyboard; the
+owner reviews it from `renders/table/header-focus-{dark,light,rtl}.png` of the pass, and the
+mark may change. `Table.isHeaderFocused()` and `headerColumn()` answer the state. Pinned by
+`TableTest.theHeaderIsAFocusStopOfItsOwnAndTheKeyboardSortsFromIt`; what a reader is told is in
+§7's amendment of the same date.
+
 ---
 
 ## 5. Columns have widths and weights, and the header resizes them
@@ -165,6 +307,41 @@ Dragging the divider at a header's trailing edge resizes that column; the cursor
 is. A resized column's width is held on the column object, so it survives a `refresh` and is what
 `Column.width()` answers. Columns may be hidden and shown. Reordering columns by drag is not in
 this record: it wants the internal drag-and-drop the toolkit does not have, and §10 records it.
+
+**Amended 2026-09-14 (B6 and TABLE-NEW-5 of the 2026-09-13 pass; settled as
+table-hidden-columns).** "Hidden and shown" was true of the band and false of a widget column:
+`mount` built a widget for every widget column, hidden or not, and the never-laid-out widget was
+a child — a Tab stop nobody could see, and a published node whose `CellFacet` column was the
+table's column count, which the Windows GridItem pattern handed out as an out-of-range column
+(B6). A hidden widget column now builds nothing. A column's visibility is read by the next
+layout, which compares the shown set with the previous layout's and re-mounts the realized rows
+when it differs, releasing a hidden column's widgets and building a shown one's; `refresh()` is
+the call that asks for that layout, and a widget that held the keyboard hands it back to the
+table as a recycled row's always has. And the focus cell, which was a shown index alone, follows
+its **column** (TABLE-NEW-5): hiding the column it stands on moves it to the nearest shown
+column — the one before on a tie — announced as `ACTIVE`/`ADJUSTMENT`, where before it kept an
+index no column matched, drew no ring and made no cell `ACTIVE` until a Left or Right re-clamped
+it; hiding a column before it shifts the index and moves nothing a reader stands on, so nothing
+is announced. Pinned by `TableTest.aHiddenWidgetColumnBuildsNothingAndIsNoTabStop`,
+`TableAccessibilityTest.aHiddenColumnPublishesNoCell` and
+`TableAccessibilityTest.hidingTheFocusColumnKeepsACursorOnTheNearestShownColumn`.
+**Amended again 2026-09-14 (review of the same pass).** The header's column cursor (§4's
+decision 36 amendment) was left on a plain index clamp, so hiding its column put it on
+whichever column the index named next — an unsortable one included — and hiding a column
+before it slid it a column along, neither announced. It follows its column by the rule above;
+while the header holds the cursor, that cursor's move is the one announced, and a layout that
+takes the header's stop away under it (the header hidden, or the last sortable column) hands the
+cursor to the focus cell and announces `ACTIVE`/`ADJUSTMENT` once. Pinned by
+`TableAccessibilityTest.hidingTheHeadersColumnKeepsItsCursorOnTheNearestShownColumn`.
+And "re-mounts the realized rows" above was more than the rule needed: every widget cell was
+rebuilt on any change to the shown set, hiding a value column included, and a switch holding the
+keyboard handed it to the table. The layout now releases only a hidden widget column's widgets
+and builds only a newly shown one's, each in its place among the children, and every other widget
+cell stays, a focused one included; `markNeedsLayout()` is the call that asks for that layout.
+`refresh()` still rebuilds every realized row, as `ListView`'s does and for its reason — a mounted
+widget is bound to a record the list may no longer hold — so a widget cell holding the keyboard
+still hands it to the table there; `Column.visible` says both. Pinned by
+`TableTest.aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre`.
 
 **The footer is a summary row**, pinned under the rows the way the header is pinned over them,
 and it exists as soon as one column has something for it: a fixed text, one of the aggregates a
@@ -201,7 +378,10 @@ Save.
 **What to do instead**, and each is already in the toolkit:
 
 - **A dialog or a panel for the record.** Activate a row (Enter, a double click, or a
-  `Column.widget` button) and open a `Dialog`, or a form beside or below the table, that shows the
+  `Column.widget` button — **corrected 2026-09-14, TABLE-NEW-8:** a button in a widget cell
+  consumes its own press, so the table's `onActivate` does not fire and the row is not selected;
+  the button opens the record through its own action, capturing the row from the factory that
+  built it) and open a `Dialog`, or a form beside or below the table, that shows the
   whole record as a form — every field labelled, validated as forms are (`TextField.Validation`),
   saved on an explicit action. On save, change the application's list and call `refresh()`; the
   selection is by model row and stays where it was.
@@ -237,7 +417,13 @@ tree's, for the same reason `SelectionItemFacet` carries the model's size of set
 column)` on each cell and header cell: the row as shown (the view position, since that is what a
 user counting rows sees; `-1` for a header cell) and the shown column's index. The column's header
 — what a reader speaks before a cell's value — is **found by structure, not carried**: it is the
-child at the cell's column of the table's header group, which is the table's first `GROUP` child.
+child at the cell's column of the table's header group, which is the table's first `GROUP` child
+(**amended 2026-09-14, TABLE-NEW-11; settled as header-group-rule:** *first* held only while the
+header is shown — with `setShowHeader(false)` and a footer, the footer group is the first `GROUP`
+child, and every bridge handed out footer cells as column headers. The rule is: the header cell
+of column *c* is the child with `CellFacet(-1, c)` of one of the table's direct `GROUP` children,
+and a footer cell, row `-2`, never; a headerless table has no header group rather than an empty
+one. The three bridges' lookups move to that rule in phase 3; the model already publishes it).
 Carrying its identifier would make a facet a bridge reads on its own thread depend on a resolution
 that happens after the walk, which is what relations are for and cells are too many to be. A `ROW`
 carries `SelectionItemFacet` exactly as a list row does, with the view position as position in set
@@ -250,10 +436,58 @@ title `I18nString`. A row has no name of its own: all three platforms compose a 
 when the cells are named, and a name here would be spoken twice.
 
 **Publishing.** Only realized rows are published, as `ListView`'s are (ADR 039 §11), and the row
-that holds the keyboard focus stays published wherever a scroll has taken the viewport. The focus
+that holds the keyboard focus stays published wherever a scroll has taken the viewport
+(**amended 2026-09-14:** read literally this held only for a row whose *widget cell* held the
+focus; since decision 22 the focus cell's row is also kept and published, off screen, while the
+table holds the keyboard — §2's amendment of the same date). The focus
 cell is the node published `ACTIVE`, so the table's active descendant is a cell and not a row — a
-reader that follows the active descendant lands on the value under the cursor. A `PRESS` on the
+reader that follows the active descendant lands on the value under the cursor (**amended
+2026-09-14:** true of a widget column's cell too since B1 — the control's own node, hung under
+its row by decision 3, is `ACTIVE` when the focus cell is on it; until then the ring was drawn
+there and the active descendant fell to nothing). A `PRESS` on the
 table activates the lead row; `SELECT` on a row selects it.
+
+**Amended 2026-09-14 (decisions 10, 11 and 32 of the 2026-09-13 pass; TABLE-NEW-13).** The
+verbs are the published ones and no other (ADR 039 §1.5's refusal contract of the same date). A
+`ROW` publishes `SELECT` wherever a row can be selected (the click), `ADD_TO_SELECTION` on an
+unselected row and `DESELECT` on a selected one only in `MULTI` (the command-click, through the
+same toggle seam), and `FOCUS`, which moves the focus cell to that row and selects nothing; a
+`CELL` publishes `FOCUS` alone, which puts the focus cell on it. `PRESS` on the table is published
+whenever there is a focus cell, in every mode, and opens the **cursor row** — the focus cell's row,
+which is the lead in `SINGLE`, may differ from it in `MULTI` after a toggle or a Shift range, and
+is the only row there is in `NONE` — exactly as Enter and a double click do; `onActivate` receives
+that row. A cell's synthetic key carries its row as well as its column, and a header cell's says
+it is one: until this date a cell was keyed by its column alone, the table read any key below
+the row count as a row index, and a reader's select on cell (0, 1) selected row 1 (TABLE-NEW-13,
+found by the verb ratchet). Pinned by `TableAccessibilityTest.aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem`,
+`focusOnACellOrARowMovesTheCursorAndSelectsNothing`, `aCellAndAColumnHeaderRefuseTheSelectOnlyARowPublishes`,
+`aPressOnTheTableOpensTheCursorRow` and `TableTest.enterAndADoubleClickActivateTheCursorRow`.
+
+**Amended 2026-09-14 (review of the same pass; decision 20 read against decision 10).**
+`ADD_TO_SELECTION` and `DESELECT` on a row move the focus cell and the range anchor to that row,
+because they go through the toggle seam the command-click goes through and a command-click
+moves the cursor in every desktop table. Decision 20 names `SELECT` and `FOCUS` as the verbs that
+move the cursor and says nothing of these two; decision 10 defines them as the command-click.
+This is a departure from the narrower reading of decision 20 and it is recorded as one: the
+owner's call whether the command-click reading holds for Table (and Tree and ListView copy
+it) or the two verbs should leave the cursor where it stands is open, and the alternative is a
+toggle variant that does not touch `focusRow`/`rangeAnchor`. Pinned by
+`aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem` so that whichever way it goes, the
+test moves with it.
+
+**Amended 2026-09-14 (decision 36; the header's stop, from the reader's side).** While the header
+holds the keyboard the table is still the focused node and its cursor is the header cell under
+the column cursor — that `COLUMN_HEADER` is `ACTIVE`, and no `CELL` is — so the effective focus of
+ADR 039 §1.10's amendment lands on the column title and one `ACTIVE_DESCENDANT_CHANGED` says so;
+Tab back to the rows returns it to the focus cell. A header cell of a sortable column publishes
+`PRESS`, which sorts as a click does; the header of the column the rows are ordered on carries
+the direction as its **description** (`TableStrings.SORTED_ASCENDING` / `SORTED_DESCENDING`, the
+`table` string domain, 21 locales), and the others describe nothing. **Left for phase 3:** a
+sort-direction facet or state once the three platforms' carriers of one have been read on the
+guests (UIA has none native to a header item beyond a property a provider may expose; AT-SPI an
+object attribute; AX `AXSortDirection` on a column) — until then the description is the carrier,
+and a bridge maps nothing special. Pinned by
+`TableAccessibilityTest.theHeadersColumnCursorIsTheCursorWhileTheHeaderHoldsTheKeyboard`.
 
 **Per platform**, what the facets become:
 
@@ -262,6 +496,14 @@ table activates the lead row; `SELECT` on a row selects it.
 | Windows | `DataGrid` control type; `IGridProvider` (`RowCount`, `ColumnCount`, `GetItem`) and `ITableProvider` (`GetColumnHeaders`, `RowOrColumnMajor`) alongside the existing `ISelectionProvider` and `IScrollProvider` | `DataItem`; `IGridItemProvider` (`Row`, `Column`, spans of 1, `ContainingGrid`) and `ITableItemProvider` (`GetColumnHeaderItems`) | `HeaderItem` |
 | macOS | `NSAccessibilityTableRole`; `accessibilityRows`, `accessibilityColumns`, `accessibilityHeader`, `accessibilitySelectedRows`, `accessibilityRowCount`, `accessibilityColumnCount` | `NSAccessibilityCellRole`; `accessibilityRowIndexRange`, `accessibilityColumnIndexRange` | the header group's children, each `NSAccessibilityCellRole` under `accessibilityHeader` |
 | Linux | `ROLE_TABLE`; `org.a11y.atspi.Table` (`NRows`, `NColumns`, `GetAccessibleAt`, `GetColumnHeader`, `GetSelectedRows`) alongside `Selection` | `ROLE_TABLE_CELL`; `org.a11y.atspi.TableCell` (`Position`, `RowColumnSpan`, `Table`, `ColumnHeaderCells`) | `ROLE_TABLE_COLUMN_HEADER` |
+
+**Amended 2026-09-14 (B7).** The Windows row's "alongside the existing `ISelectionProvider` and
+`IScrollProvider`" overstates what is served: `UiaPatternProviders.interfaceFor` has no entry for
+the Selection or the Scroll pattern, so no container — the table included — vends either, while
+`UiaPatterns.supports` still answers true for both and `patternProvider` returns `S_OK` with a
+null provider. A Windows client reads the table's selection through the rows' SelectionItem
+pattern and its scroll not at all. A shared bridge defect the bridges lanes own, not this
+record's promise fulfilled; the row stands as the intent.
 
 ### 7.1 What the live clients found
 
@@ -296,6 +538,12 @@ setters returning the table, as every other widget's are. ADR 040 will convert t
 this record adds no observer of its own, because one widget with a different registration style is
 the inconsistency that record exists to remove.
 
+**Amended 2026-09-14.** ADR 040 landed on 2026-09-09 and the table moved onto it: the three are
+single handler slots under `Checks.handlerSlot`'s one-null policy (`onSortRequest`'s since
+TABLE-NEW-4, §4's amendment of this date), reached through `handleUserChange` for the user's
+gestures alone, and `observeChanges` hears every change with its origin; ADR 040 §7.2 records
+the table's seams. The sentence above stands as the record of what was decided.
+
 ---
 
 ## 9. Not a tree, and not shaped for one
@@ -307,6 +555,11 @@ record, and the table is not given a `depth` hook it does not use: a widget shap
 sibling that does not exist yet is the chart hierarchy the coverage test refused (the chart hooks
 hoisted to `CartesianChart` and reverted, 2026-09-08). When the tree arrives, what the two share
 moves into a package-private engine, and that is the day to decide its shape.
+
+**Superseded 2026-09-14 by ADR 044 §3.** The tree arrived and walks its own rows; the shared
+engine is owed until a `TreeTable` asks for it, and the row rules — the kept cursor row, the
+seed height, the wheel handed on at the ends — exist in three copies (`ListView`, `Table`,
+`Tree`) that ADR 044 §3 names and each widget's lane changes in step.
 
 ---
 
@@ -327,6 +580,16 @@ that allocate nothing, mirroring, recycling identity.
 sort; row drag; export. Each is a request the toolkit has not had, and
 each would be guessed at rather than designed.
 
+**Amended 2026-09-14 (B7).** Phase 2's "a `Tree` that shares the engine" did not happen that way:
+§9's supersession. Of the first phase's promised tests, "mirroring" arrived only on this date as
+`TableMirroringTest` (B2), and "an accessibility gallery entry with its transcript" was completed
+the same day (B5: the entry gained `MULTI`, a footer and a named switch column, and its
+transcript is the committed golden `limn-demo/src/test/resources/limn/demo/a11y/table.txt`).
+Landed since by the 2026-09-13 pass, none of them a phase: a row is its record (§3), the header's
+focus stop (§4), the kept cursor row and the per-child clip (§2), hidden columns (§5), the
+two-axis wheel handed on at the ends and the seed height (§2), the sort-request slot (§4), and
+the verbs by state (§7).
+
 ---
 
 ## 11. Verification
@@ -344,3 +607,21 @@ each would be guessed at rather than designed.
 - The three bridges' constants tests, extended by the guests' readings; the accessibility
   gallery's transcript, read aloud before it is committed; and a live run on each guest through
   the probe scripts already in `scripts/a11y/`.
+
+**Amended 2026-09-14 (B7).** The list above is the first phase's. Since then: `TableTest` also
+holds the record-following `refresh()`, the sort carrying the cursor, the header stop, the
+sort-request slot, the two-axis wheel and the hand-off to the scroller at either end, the seed
+height, hidden widget columns, and horizontal scrolling with column virtualization;
+`TableAccessibilityTest` the verbs by state, the header's cursor, the `ACTIVE` widget cell,
+hidden columns, columns published off screen and the unflipped horizontal percent;
+`TableFocusedRowTest` (six cases) the two kept rows and the clip; `TableMirroringTest` (eight
+cases) the right-to-left placement; and `DamageContractTest`'s Table row the wheel on both axes
+and a horizontal focus move, under ceilings measured on 2026-09-14. The gallery's transcript is
+committed as `limn-demo/src/test/resources/limn/demo/a11y/table.txt` on 2026-09-14, read line by
+line and explained in its commit, but **not read aloud**: the read-aloud this section asks for
+before a transcript is committed is the owner's, and is owed before phase 5's live run (this
+amendment first said it had been done; it had not, and the sentence was corrected the same day).
+Still owed: a live screen-reader run over the table on each guest (B9, phase 5) — the 2026-09-09
+runs were client walks through the probe scripts, and no reader has yet spoken a Limn table;
+its recipe should include Shift+Tab into the header, Right, Space, Right into the switch column,
+and a wheel away from the cursor row.

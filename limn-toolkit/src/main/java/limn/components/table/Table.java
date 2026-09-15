@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 
 /**
@@ -50,8 +51,11 @@ import java.util.function.IntConsumer;
  * <p><b>Selection</b> is by row and by <b>model</b> index, in one of three
  * {@linkplain SelectionMode modes}, and it survives a sort because a sort is a
  * {@linkplain #setSort permutation} over the application's list and never a reordering of it.
+ * A row is its record: across a {@link #refresh()} the selection follows the records it named,
+ * wherever the list holds them now, by {@code equals} or by a {@linkplain #rowKey key}.
  * Separately, the arrow keys move a <b>focus cell</b>, which is what a screen reader's cursor
- * stands on. Enter and a double click {@linkplain #onActivate activate} the lead row.
+ * stands on. Enter and a double click {@linkplain #onActivate activate} the cursor row — the
+ * focus cell's row, which is the lead in {@code SINGLE} and may differ from it in {@code MULTI}.
  *
  * <p><b>Cells are not edited in place, and will not be.</b> In-place editing is a spreadsheet's
  * interaction and reads as one everywhere else: a field that appears where a value was, a save
@@ -72,6 +76,12 @@ import java.util.function.IntConsumer;
  * {@link Column#footerSum()} and the other aggregates). It is computed on {@link #setRows} and
  * {@link #refresh()} and never per frame.
  *
+ * <p><b>Inside a scroller</b> the table scrolls itself first and hands the wheel on at either
+ * end: a detent that moves neither offset — the rows already at the top or the bottom, the
+ * columns at either edge, or a table that fits — is left unconsumed and reaches the scroll
+ * pane that holds it. Under an unbounded height the table prefers {@link #setVisibleRows} rows
+ * of the step's seed height, plus its header and footer.
+ *
  * <p>ADR 041 is the record.
  *
  * @param <T> the row type
@@ -88,8 +98,20 @@ public class Table<T> extends Widget implements Scrollable {
         MULTI
     }
 
-    /** Rows of intrinsic height when the height axis is unbounded; a count, not a length. */
+    /**
+     * Rows of intrinsic height when the height axis is unbounded, until {@link #setVisibleRows}
+     * says otherwise; a count, not a length: it multiplies the step's seed row height.
+     */
     private static final int VISIBLE_ROWS_HINT = 8;
+
+    /**
+     * How many seed rows tall the rows' viewport prefers to be under an unbounded height
+     * (decision 44 of 2026-09-14). Multiplied by the token's seed and never by the realized
+     * average: the average moves as rows of other heights scroll in, and a preference that
+     * moved with it re-laid out the parent on every such scroll and made a table inside a
+     * scroll pane jitter.
+     */
+    private int visibleRows = VISIBLE_ROWS_HINT;
     /** How far either side of a header divider a press starts a resize, in points. */
     private static final float RESIZE_BAND = 4;
     /** Two presses on one row closer than this are a double click. */
@@ -98,6 +120,19 @@ public class Table<T> extends Widget implements Scrollable {
     private static final long HEADER_KEY = -1;
     /** The synthetic key of the footer row's group node. */
     private static final long FOOTER_KEY = -2;
+    /**
+     * The synthetic keys a reader's verb arrives with, told apart by a bit each: a data row is
+     * its model index; a cell is {@code CELL_KEY | model << COLUMN_BITS | column}, so a verb on
+     * a cell names its row as well as its column; a header cell is {@code HEADER_CELL_KEY |
+     * column}, a footer cell {@code FOOTER_CELL_KEY | column}. Until 2026-09-14 a cell and a
+     * header cell were keyed by their column alone, which a verb could not tell from a row's
+     * index: a select on cell (0, 1) selected row 1 (TABLE-NEW-13).
+     */
+    private static final int COLUMN_BITS = 20;
+    private static final long COLUMN_MASK = (1L << COLUMN_BITS) - 1;
+    private static final long CELL_KEY = 1L << 52;
+    private static final long HEADER_CELL_KEY = 1L << 53;
+    private static final long FOOTER_CELL_KEY = 1L << 54;
 
     private final List<Column<T>> columns;
     private List<T> rows = List.of();
@@ -119,18 +154,45 @@ public class Table<T> extends Widget implements Scrollable {
     private int rangeAnchor = -1;   // view index a Shift range extends from
     private Runnable onSelect;
     private IntConsumer onActivate;
+    // A row is its record (decision 23 of 2026-09-14): the selection, the lead, the focus row and
+    // the anchor are addressed by model index between two refreshes and followed by record
+    // across one. The records are held as keys, taken when a row enters one of the four, because
+    // the list is the application's and has already changed when refresh() is called.
+    private Function<? super T, ?> rowKey;
+    private final Records records = new Records();
     // The header the last click asked to sort by, and the order it asked for: what onSortRequest
     // is told, read back here because a request for the model's order leaves sortColumn null.
     private Column<T> sortRequestColumn;
     private SortOrder sortRequestOrder = SortOrder.NONE;
+    // While the handler runs: a refresh() it calls is a sort, and reveals the focus row as one.
+    private boolean answeringSortRequest;
 
     // The focus cell: a view row and a shown column, or -1 before anything was focused.
     private int focusRow = -1;
     private int focusColumn;
+    // The column the focus cell is on, by identity (its index among columns(), hidden ones
+    // included), or -1 before a layout resolved one: a shown index alone went stale when a
+    // column was hidden and the cursor sat on no shown column at all (TABLE-NEW-5,
+    // 2026-09-14). resolveColumns brings the two back in line.
+    private int focusColumnOf = -1;
+    // The header's own focus stop (decision 36 of 2026-09-14): while the table holds the keyboard
+    // it is either in the rows or in the header, whose column cursor is a shown column. The
+    // header is a stop only while it is shown and a shown column can be sorted.
+    private boolean headerFocused;
+    private int headerColumn;
+    // The column the header's cursor is on, by identity, as focusColumnOf is for the focus
+    // cell: a shown index alone slid onto the next column when one before it was hidden, and
+    // onto some other column, unannounced, when its own was (review of table-B, 2026-09-14).
+    private int headerColumnOf = -1;
 
-    // Columns as shown: which, and where, resolved per layout.
+    // Columns as shown: which, and where, resolved per layout; and the set the previous
+    // layout resolved, so a column hidden or shown between two layouts is noticed by the next
+    // one (B6, 2026-09-14): a hidden widget column's widgets are released and a shown one's
+    // built by re-mounting the rows.
     private int shownCount;
     private int[] shownIndex = new int[0];
+    private int[] shownBefore = new int[0];
+    private int shownBeforeCount = -1;
     private float[] colX = new float[0];
     private float[] colW = new float[0];
     private float contentWidth;
@@ -182,6 +244,8 @@ public class Table<T> extends Widget implements Scrollable {
     private static final class Slot {
         int row;
         float height;
+        /** The top the last layout placed it at, in this widget's coordinates; NaN before one. */
+        float top = Float.NaN;
         final String[] texts;
         final ShapedText[] shaped;
         final ShapedText[] fitted;
@@ -199,6 +263,232 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     /**
+     * The records the table follows across {@link #refresh()}: one entry per model row that is
+     * selected, the lead, the focus row or the anchor, in model order. Each holds the row's key
+     * and its <b>ordinal</b> among the rows before it with an equal key, which is what tells
+     * two equal records apart when the list comes back reordered: the third "Lee" stays the
+     * third "Lee". Parallel arrays and a spare set to merge into, so a keyboard walk that moves
+     * the selection one row at a time allocates nothing once they are sized.
+     */
+    private static final class Records {
+        int[] models = new int[8];
+        Object[] keys = new Object[8];
+        int[] ordinals = new int[8];
+        int size;
+        int[] spareModels = new int[8];
+        Object[] spareKeys = new Object[8];
+        int[] spareOrdinals = new int[8];
+        int[] added = new int[8];
+        int addedCount;
+        final int[] extras = new int[3];
+
+        void clear() {
+            Arrays.fill(keys, 0, size, null);
+            size = 0;
+        }
+
+        void ensureSpare(int n) {
+            if (spareModels.length < n) {
+                int grown = Math.max(n, spareModels.length * 2);
+                spareModels = new int[grown];
+                spareKeys = new Object[grown];
+                spareOrdinals = new int[grown];
+            }
+        }
+
+        void swapInSpare(int n) {
+            int[] m = models;
+            Object[] k = keys;
+            int[] o = ordinals;
+            models = spareModels;
+            keys = spareKeys;
+            ordinals = spareOrdinals;
+            spareModels = m;
+            spareKeys = k;
+            spareOrdinals = o;
+            Arrays.fill(spareKeys, 0, size, null);
+            size = n;
+        }
+
+        void noteAdded(int model) {
+            if (addedCount == added.length) {
+                added = Arrays.copyOf(added, added.length * 2);
+            }
+            added[addedCount++] = model;
+        }
+    }
+
+    /** @return the key {@code row} is followed by: the record itself unless {@link #rowKey} says */
+    private Object keyOf(T row) {
+        return rowKey == null ? row : rowKey.apply(row);
+    }
+
+    /** A model row the four tracked positions name, or {@code -1}; view positions are converted. */
+    private int trackedModel(int viewIndex) {
+        return viewIndex >= 0 && viewIndex < rows.size() ? modelOf(viewIndex) : -1;
+    }
+
+    /**
+     * Brings the tracked records in line with the selection, the lead, the focus row and the
+     * anchor after a seam moved one of them: rows that left are forgotten, rows that arrived are
+     * read once for their key and their ordinal. The four sources are walked in model order
+     * against the entries held, so the merge is one pass and allocates nothing once the arrays
+     * fit.
+     */
+    private void syncRecords() {
+        int count = rows.size();
+        int a = trackedModel(focusRow);
+        int b = trackedModel(rangeAnchor);
+        int c = lead >= 0 && lead < count ? lead : -1;
+        // The three extras, sorted and deduplicated, merged with the selection's set bits.
+        int e0 = Math.min(a, Math.min(b, c));
+        int e2 = Math.max(a, Math.max(b, c));
+        int e1 = a + b + c - e0 - e2;
+        int wanted = 0;
+        int selectedBit = selected.nextSetBit(0);
+        int extra = 0;
+        int[] extras = records.extras;
+        extras[0] = e0;
+        extras[1] = e1;
+        extras[2] = e2;
+        int t = 0;
+        records.addedCount = 0;
+        records.ensureSpare(selected.cardinality() + 3);
+        while (true) {
+            while (extra < 3 && (extras[extra] < 0 || (wanted > 0
+                    && extras[extra] == records.spareModels[wanted - 1]))) {
+                extra++;
+            }
+            int next;
+            if (selectedBit >= 0 && selectedBit < count
+                    && (extra >= 3 || selectedBit <= extras[extra])) {
+                next = selectedBit;
+                if (extra < 3 && extras[extra] == selectedBit) {
+                    extra++;
+                }
+                selectedBit = selected.nextSetBit(selectedBit + 1);
+            } else if (extra < 3) {
+                next = extras[extra++];
+            } else {
+                break;
+            }
+            while (t < records.size && records.models[t] < next) {
+                t++; // left the four: forgotten
+            }
+            if (t < records.size && records.models[t] == next) {
+                records.spareModels[wanted] = next;
+                records.spareKeys[wanted] = records.keys[t];
+                records.spareOrdinals[wanted] = records.ordinals[t];
+                t++;
+            } else {
+                records.spareModels[wanted] = next;
+                records.spareKeys[wanted] = keyOf(rows.get(next));
+                records.spareOrdinals[wanted] = 0;
+                records.noteAdded(wanted);
+            }
+            wanted++;
+        }
+        records.swapInSpare(wanted);
+        if (rowKey == null && records.addedCount > 0) {
+            ordinalsOfAdded();
+        }
+    }
+
+    /**
+     * The ordinal of every entry that just arrived: how many rows before it carry an equal key.
+     * A read of the rows before each, which is the price of telling equal records apart when no
+     * {@link #rowKey} promises they differ; a handful of arrivals scan for themselves, and many
+     * (a range, a select-all) share one pass over the rows with a map of their keys.
+     */
+    private void ordinalsOfAdded() {
+        int n = records.addedCount;
+        if (n <= 16) {
+            for (int i = 0; i < n; i++) {
+                int at = records.added[i];
+                Object key = records.keys[at];
+                int model = records.models[at];
+                int ordinal = 0;
+                for (int m = 0; m < model; m++) {
+                    if (Objects.equals(keyOf(rows.get(m)), key)) {
+                        ordinal++;
+                    }
+                }
+                records.ordinals[at] = ordinal;
+            }
+            return;
+        }
+        java.util.HashMap<Object, int[]> seen = new java.util.HashMap<>(n * 2);
+        for (int i = 0; i < n; i++) {
+            seen.putIfAbsent(records.keys[records.added[i]], new int[1]);
+        }
+        int last = records.models[records.added[n - 1]];
+        int nextAdded = 0;
+        for (int m = 0; m <= last; m++) {
+            Object key = keyOf(rows.get(m));
+            int[] counter = seen.get(key);
+            if (counter == null) {
+                continue;
+            }
+            if (records.models[records.added[nextAdded]] == m) {
+                records.ordinals[records.added[nextAdded]] = counter[0];
+                nextAdded++;
+            }
+            counter[0]++;
+        }
+    }
+
+    /**
+     * Finds every tracked record in the list as it is now: one pass over the rows, matching
+     * each key's entries in ordinal order, so equal records are told apart by occurrence and a
+     * record the list no longer holds is reported as gone. The pass stops once the last entry
+     * has been found.
+     *
+     * @return the model row each entry stands at now, or {@code -1} for one that vanished, by
+     *         entry
+     */
+    private int[] rediscover() {
+        int size = records.size;
+        int[] now = new int[size];
+        Arrays.fill(now, -1);
+        if (size == 0) {
+            return now;
+        }
+        // Each key's entries chained in model order, which is ordinal order: {first, last, seen}.
+        java.util.HashMap<Object, int[]> groups = new java.util.HashMap<>(size * 2);
+        int[] next = new int[size];
+        Arrays.fill(next, -1);
+        for (int t = 0; t < size; t++) {
+            int[] group = groups.get(records.keys[t]);
+            if (group == null) {
+                groups.put(records.keys[t], new int[] {t, t, 0});
+            } else {
+                next[group[1]] = t;
+                group[1] = t;
+            }
+        }
+        int count = rows.size();
+        int found = 0;
+        for (int m = 0; m < count && found < size; m++) {
+            int[] group = groups.get(keyOf(rows.get(m)));
+            if (group == null) {
+                continue;
+            }
+            int occurrence = group[2]++;
+            int cursor = group[0];
+            while (cursor >= 0 && records.ordinals[cursor] < occurrence) {
+                cursor = next[cursor]; // an equal record before this one is gone
+            }
+            if (cursor >= 0 && records.ordinals[cursor] == occurrence) {
+                now[cursor] = m;
+                found++;
+                cursor = next[cursor];
+            }
+            group[0] = cursor;
+        }
+        return now;
+    }
+
+    /**
      * A table over {@code columns}, with no rows until {@link #setRows}.
      *
      * @param columns the columns, in reading order; at least one
@@ -208,6 +498,9 @@ public class Table<T> extends Widget implements Scrollable {
         Objects.requireNonNull(columns, "columns");
         if (columns.isEmpty()) {
             throw new IllegalArgumentException("a table needs at least one column");
+        }
+        if (columns.size() > COLUMN_MASK) {
+            throw new IllegalArgumentException("a table takes at most " + COLUMN_MASK + " columns");
         }
         this.columns = List.copyOf(columns);
         setFocusable(true);
@@ -287,6 +580,7 @@ public class Table<T> extends Widget implements Scrollable {
         lead = -1;
         rangeAnchor = -1;
         focusRow = -1;
+        records.clear();
         anchorIndex = 0;
         anchorTop = 0;
         resort();
@@ -343,39 +637,113 @@ public class Table<T> extends Widget implements Scrollable {
 
     /**
      * Re-reads the rows and re-lays out: call after the list's contents change, or after a
-     * column's width, visibility or alignment does. The sort is re-applied, a selected row the
-     * list no longer has is dropped, and the scroll position is kept, clamped. Announces
-     * {@code CHILDREN}/{@code CODE}, after a {@code SELECTION}/{@code ADJUSTMENT} when the
-     * selection collapsed; neither reaches a handler. UI thread only.
+     * column's width, visibility or alignment does. The sort is re-applied and the scroll
+     * position is kept, clamped.
+     *
+     * <p><b>A row is its record</b> (decision 23 of 2026-09-14; ADR 041 §3 amended): the
+     * selection, the lead, the focus cell and the range anchor follow their records to wherever
+     * the list holds them now, after an insert, a remove, a reorder or the application's own
+     * sort ({@link #onSortRequest}). A record is found again by its {@linkplain #rowKey key} —
+     * the record itself, by {@code equals}, unless one is set — and records with equal keys are
+     * told apart by occurrence: the third equal record stays the third. Finding them is one
+     * read of the rows, stopping at the last one found; a table with nothing selected and no
+     * focus cell reads nothing. A selected record the list no longer holds leaves the selection,
+     * announced as {@code SELECTION}/{@code ADJUSTMENT}; a vanished lead makes the last selected
+     * row the lead; a vanished focus row or anchor keeps its position, clamped. A focus row that
+     * moved is announced as {@code ACTIVE}/{@code ADJUSTMENT}; when the refresh answers a
+     * {@linkplain #onSortRequest sort request} it is also revealed with the least scroll, as the
+     * table's own sort does, and otherwise the scroll position is kept. Then {@code CHILDREN}/
+     * {@code CODE}; nothing reaches a handler. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
         int count = rows.size();
         boolean moved = false;
-        int dropped = selected.nextSetBit(count);
-        if (dropped >= 0) {
-            selected.clear(count, Integer.MAX_VALUE);
-            moved = true;
+        int wasFocusRow = focusRow;
+        if (records.size > 0) {
+            int focusModel = trackedModel(focusRow);
+            int anchorModel = trackedModel(rangeAnchor);
+            int[] now = rediscover();
+            int newLead = -1;
+            int newFocus = -1;
+            int newAnchor = -1;
+            boolean leadVanished = false;
+            BitSet was = (BitSet) selected.clone();
+            selected.clear();
+            for (int t = 0; t < records.size; t++) {
+                int old = records.models[t];
+                int at = now[t];
+                if (was.get(old)) {
+                    if (at >= 0) {
+                        selected.set(at);
+                    } else {
+                        moved = true;
+                    }
+                }
+                if (old == lead) {
+                    newLead = at;
+                    leadVanished = at < 0;
+                }
+                if (old == focusModel) {
+                    newFocus = at;
+                }
+                if (old == anchorModel) {
+                    newAnchor = at;
+                }
+            }
+            if (leadVanished) {
+                moved = true;
+            }
+            lead = newLead >= 0 ? newLead : (selected.isEmpty() ? -1 : selected.length() - 1);
+            resort();
+            focusRow = newFocus >= 0 ? viewOf(newFocus) : Math.min(focusRow, count - 1);
+            rangeAnchor = newAnchor >= 0 ? viewOf(newAnchor) : Math.min(rangeAnchor, count - 1);
+            records.clear();
+            syncRecords();
+        } else {
+            if (focusRow >= count) {
+                focusRow = count - 1;
+            }
+            rangeAnchor = Math.min(rangeAnchor, count - 1);
+            resort();
         }
-        if (lead >= count) {
-            lead = selected.isEmpty() ? -1 : selected.length() - 1;
-            moved = true;
-        }
-        if (focusRow >= count) {
-            focusRow = count - 1;
-        }
-        rangeAnchor = Math.min(rangeAnchor, count - 1);
-        resort();
         anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, count - 1)));
         unmountAll();
         textEpoch++;
         recomputeFooter();
         markNeedsLayout();
         invalidate();
+        if (answeringSortRequest && focusRow >= 0 && focusRow != wasFocusRow) {
+            // A refresh that answers a sort request is the application's sort, and reveals the
+            // focus row as the table's own does (decision 40); any other refresh keeps the
+            // scroll position it promised to keep.
+            pendingEnsureVisible = focusRow;
+        }
         if (moved) {
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         }
+        announceFocusCell(wasFocusRow, Change.Origin.ADJUSTMENT);
         notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+    }
+
+    /**
+     * Names what makes a row the record it is, for {@link #refresh()} to follow the selection,
+     * the lead, the focus cell and the anchor across a change to the list: {@code Order::id} for
+     * rows that are records with an identity, or nothing, in which case the record itself is the
+     * key and equal records are told apart by occurrence. A key is taken when a row enters one
+     * of the four and compared by {@code equals}; keys are expected to be unique, and when two
+     * rows share one the first found wins. Setting it re-reads the keys of every row the table
+     * is following. UI thread only.
+     *
+     * @param key the function from a row to its key, or {@code null} for the record itself
+     * @return this table
+     */
+    public Table<T> rowKey(Function<? super T, ?> key) {
+        Ui.checkUiThread();
+        this.rowKey = key;
+        records.clear();
+        syncRecords();
+        return this;
     }
 
     // ------------------------------------------------------------------------ selection
@@ -399,6 +767,9 @@ public class Table<T> extends Widget implements Scrollable {
             selected.clear();
             selected.set(lead);
             moved = true;
+        }
+        if (moved) {
+            syncRecords();
         }
         invalidate();
         if (moved) {
@@ -473,6 +844,7 @@ public class Table<T> extends Widget implements Scrollable {
         lead = last;
         focusRow = viewOf(last);
         rangeAnchor = focusRow;
+        syncRecords();
         ensureVisible(focusRow);
         invalidate();
         announceFocusCell(wasFocusRow, Change.Origin.CODE);
@@ -495,6 +867,7 @@ public class Table<T> extends Widget implements Scrollable {
         }
         selected.clear();
         lead = -1;
+        syncRecords();
         invalidate();
         notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.CODE));
         return this;
@@ -524,6 +897,9 @@ public class Table<T> extends Widget implements Scrollable {
         if (lead < 0) {
             lead = modelOf(0);
         }
+        // Every row is followed now, so every row is read once for its key: the price of a
+        // selection that survives the list changing under it (decision 23 of 2026-09-14).
+        syncRecords();
         invalidate();
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
@@ -564,8 +940,9 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     /**
-     * The application's response to the user opening the lead row: Enter, a double click, an
-     * assistive technology's press. Never for {@link #activate()}, which is a caller's verb.
+     * The application's response to the user opening the cursor row (the focus cell's row):
+     * Enter, a double click, an assistive technology's press. Never for {@link #activate()},
+     * which is a caller's verb.
      *
      * @param handler the handler, or {@code null} to clear the slot
      * @return this table
@@ -587,7 +964,7 @@ public class Table<T> extends Widget implements Scrollable {
             }
             case INVOKED -> {
                 if (onActivate != null) {
-                    onActivate.accept(lead);
+                    onActivate.accept(activated);
                 }
             }
             case CHILDREN -> {
@@ -597,7 +974,12 @@ public class Table<T> extends Widget implements Scrollable {
                     Column<T> column = sortRequestColumn;
                     SortOrder order = sortRequestOrder;
                     sortRequestColumn = null;
-                    onSortRequest.accept(column, order);
+                    answeringSortRequest = true;
+                    try {
+                        onSortRequest.accept(column, order);
+                    } finally {
+                        answeringSortRequest = false;
+                    }
                 }
             }
             default -> super.handleUserChange(aspect);
@@ -605,18 +987,27 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     /**
-     * Announces that the lead row was opened, as {@code INVOKED}/{@code CODE}: a caller's verb,
-     * which reaches a watcher and <b>not</b> {@link #onActivate}, the way Enter does. Nothing
-     * without a lead row. UI thread only.
+     * Announces that the cursor row — the focus cell's row — was opened, as {@code INVOKED}/
+     * {@code CODE}: a caller's verb, which reaches a watcher and <b>not</b> {@link #onActivate},
+     * the way Enter does. Nothing before the keyboard has been in the table. UI thread only.
      */
     public void activate() {
         Ui.checkUiThread();
         activate(Change.Origin.CODE);
     }
 
-    /** The seam Enter, a double click and an assistive technology's press enter at {@code USER}. */
+    /** The model row the last activation opened, read by {@link #handleUserChange}. */
+    private int activated = -1;
+
+    /**
+     * The seam Enter, a double click and an assistive technology's press enter at {@code USER}.
+     * What opens is the <b>cursor row</b> (decision 32 of 2026-09-14): the row the focus cell is
+     * in, which in {@code SINGLE} is the lead, in {@code MULTI} may differ from it after a toggle
+     * or a Shift range, and in {@code NONE} is the only row there is.
+     */
     private void activate(Change.Origin origin) {
-        if (lead >= 0) {
+        if (focusRow >= 0 && focusRow < rows.size()) {
+            activated = modelOf(focusRow);
             notifyChange(Change.of(Change.Aspect.INVOKED, origin));
         }
     }
@@ -633,9 +1024,27 @@ public class Table<T> extends Widget implements Scrollable {
         return focusRow;
     }
 
-    /** @return the focus cell's column, as an index among the shown columns */
+    /**
+     * @return the focus cell's column, as an index among the shown columns; when the column it
+     *         stood on is hidden the cell moves to the nearest shown column, and when a column
+     *         before it is hidden the index shifts and the cell stays on its column
+     */
     public int focusColumn() {
         return focusColumn;
+    }
+
+    /**
+     * @return whether the keyboard, while in this table, is on the header rather than in the
+     *         rows: Tab enters at the header when a shown column can be sorted, Left and Right
+     *         move its column cursor and Space sorts the column under it
+     */
+    public boolean isHeaderFocused() {
+        return headerFocused;
+    }
+
+    /** @return the header's column cursor, as an index among the shown columns */
+    public int headerColumn() {
+        return headerColumn;
     }
 
     // ------------------------------------------------------------------------------ sort
@@ -672,6 +1081,14 @@ public class Table<T> extends Widget implements Scrollable {
      * {@code USER}. A sort reorders the rows the table shows, so it is announced as
      * {@code CHILDREN} -- the enum has no aspect for an order, and the accessible tree publishes
      * none, so what a watcher re-reads is the rows.
+     *
+     * <p>The focus cell and the range anchor go with their records (decision 23 of 2026-09-14;
+     * ADR 041 §3 amended): both are view positions, and a permutation that left them where they
+     * stood put the cursor and the next Shift range on whatever record the sort moved there. The
+     * focus row is then revealed with the least scroll that shows it (decision 40), as every
+     * other write that moves the focus cell does, and its move is announced as {@code ACTIVE}/
+     * {@code ADJUSTMENT} before the rows are: a consequence of the sort, not a gesture of its
+     * own, and one the cursor's reader hears first.
      */
     private void applySort(Column<T> column, SortOrder order, Change.Origin origin) {
         if (order == SortOrder.NONE) {
@@ -681,10 +1098,38 @@ public class Table<T> extends Widget implements Scrollable {
             sortColumn = column;
             sortOrder = order;
         }
+        permute(origin);
+    }
+
+    /**
+     * Rebuilds the permutation from the sort the header shows — or drops it, while a sort
+     * request handler is set — and carries the focus cell and the range anchor to their
+     * records, reveals the focus row and announces the move and then the rows, as
+     * {@link #applySort} does. The seam a change to {@link #onSortRequest} re-runs as well
+     * (TABLE-NEW-4, 2026-09-14): setting the handler drops the table's permutation at once,
+     * clearing it re-applies the table's own sort on the column the header shows.
+     */
+    private void permute(Change.Origin origin) {
+        int count = rows.size();
+        int focusModel = focusRow >= 0 && focusRow < count ? modelOf(focusRow) : -1;
+        int anchorModel = rangeAnchor >= 0 && rangeAnchor < count ? modelOf(rangeAnchor) : -1;
         resort();
+        int wasFocusRow = focusRow;
+        if (focusModel >= 0) {
+            focusRow = viewOf(focusModel);
+        }
+        if (anchorModel >= 0) {
+            rangeAnchor = viewOf(anchorModel);
+        }
         unmountAll();
         markNeedsLayout();
         invalidate();
+        if (focusRow >= 0) {
+            // Deferred to the layout that re-places the rows: nothing is realized now, so the
+            // reveal could only put the row at the top, and the least scroll needs the run.
+            pendingEnsureVisible = focusRow;
+        }
+        announceFocusCell(wasFocusRow, Change.Origin.ADJUSTMENT);
         notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
     }
 
@@ -700,16 +1145,30 @@ public class Table<T> extends Widget implements Scrollable {
 
     /**
      * Hands header clicks to the application instead of sorting: the handler is told the column
-     * and the order the click asks for, orders the list itself and calls {@link #refresh()}. The
-     * header shows the order the click asked for from the click itself. {@code null} restores the
-     * table's own sort. A handler, so it answers the user's click and never {@link #setSort}.
+     * and the order the click asks for, orders the list itself and calls {@link #refresh()},
+     * which carries the selection and the focus cell to where their records are now. The
+     * header shows the order the click asked for from the click itself. A handler, so it
+     * answers the user's click and never {@link #setSort}; one slot, as every {@code onX} is
+     * (ADR 040 §1): {@code null} clears it, a second handler over the first throws.
      *
-     * @param handler what to tell, or {@code null}
+     * <p>The slot changing hands re-sorts at once when the header shows an order: setting a
+     * handler drops the table's permutation, so the rows show in the application's order
+     * (the application is expected to have ordered them, or to order them and
+     * {@link #refresh()}); clearing it restores the table's own sort on the column the header
+     * shows. Both carry the focus cell with its record and are announced as a sort is,
+     * {@code CHILDREN}/{@code CODE}, reaching no handler. UI thread only.
+     *
+     * @param handler what to tell, or {@code null} to clear the slot
      * @return this table
+     * @throws IllegalStateException if a handler is already registered
      */
     public Table<T> onSortRequest(BiConsumer<Column<T>, SortOrder> handler) {
         Ui.checkUiThread();
-        this.onSortRequest = handler;
+        boolean had = onSortRequest != null;
+        this.onSortRequest = Checks.handlerSlot(onSortRequest, handler, "Table.onSortRequest");
+        if (had != (handler != null) && sortColumn != null && sortOrder != SortOrder.NONE) {
+            permute(Change.Origin.CODE);
+        }
         return this;
     }
 
@@ -796,6 +1255,37 @@ public class Table<T> extends Widget implements Scrollable {
         return gutters.layout();
     }
 
+    /**
+     * Sets how many rows tall the rows' viewport prefers to be when the parent gives the table
+     * no height — a table inside a {@link limn.components.ScrollView} or an unconstrained
+     * column — as a count of the step's seed rows (default 8); the header and the footer add
+     * their own strips. A bounded height from the parent always wins; this is the free-axis
+     * fallback only. The preference is the seed's and not the realized rows' on purpose
+     * (decision 44 of 2026-09-14): a preference that followed the measured average moved every
+     * time a row of another height scrolled in, and re-laid out the parent with it. UI thread
+     * only.
+     *
+     * @param rows a row count of at least one
+     * @return this table
+     * @throws IllegalArgumentException if {@code rows} is below one
+     */
+    public Table<T> setVisibleRows(int rows) {
+        Ui.checkUiThread();
+        if (rows < 1) {
+            throw new IllegalArgumentException("visible rows must be at least 1, not " + rows);
+        }
+        if (rows != visibleRows) {
+            visibleRows = rows;
+            markNeedsLayout();
+        }
+        return this;
+    }
+
+    /** How many seed rows tall the rows' viewport prefers to be under an unbounded height. */
+    public int visibleRows() {
+        return visibleRows;
+    }
+
     // ------------------------------------------------------------------------- scrolling
 
     /**
@@ -814,9 +1304,11 @@ public class Table<T> extends Widget implements Scrollable {
      * The one seam the offsets move through, announced as {@code VALUE} with {@code origin}
      * when either moved: the public method and a reveal pass {@code CODE}, the wheel and the
      * bars pass {@code USER}, and a column brought into view for the focus cell passes
-     * {@code ADJUSTMENT}.
+     * {@code ADJUSTMENT}. Each axis is clamped on its own.
+     *
+     * @return whether either offset moved
      */
-    private void scrollBy(float dx, float dy, Change.Origin origin) {
+    private boolean scrollBy(float dx, float dy, Change.Origin origin) {
         boolean moved = false;
         if (dy != 0) {
             SizeTokens t = tokens();
@@ -861,6 +1353,7 @@ public class Table<T> extends Widget implements Scrollable {
             invalidate();
             notifyChange(Change.of(Change.Aspect.VALUE, origin));
         }
+        return moved;
     }
 
     /** The horizontal bar's model writing the offset: the user dragging or paging the bar. */
@@ -1000,8 +1493,13 @@ public class Table<T> extends Widget implements Scrollable {
             }
         }
         float w = constraints.hasBoundedWidth() ? constraints.maxWidth() : preferred;
+        // The free-axis height is the SEED's and not avgRowHeight's (decision 44, 2026-09-14):
+        // the measured mean moves as rows of other heights scroll in, and a measured size that
+        // moved under a contained layout re-laid out the parent on every such scroll
+        // (Widget.markNeedsContainedLayout's contract), so a table in a scroll pane jittered.
+        // The seed is a token and stands still.
         float h = constraints.hasBoundedHeight() ? constraints.maxHeight()
-                : headerHeight(t) + footerHeight(t) + VISIBLE_ROWS_HINT * avgRowHeight(t);
+                : headerHeight(t) + footerHeight(t) + visibleRows * t.listRowSeed();
         return constraints.constrain(w, h);
     }
 
@@ -1056,7 +1554,139 @@ public class Table<T> extends Widget implements Scrollable {
             x += colW[s];
         }
         contentWidth = total;
-        offsetX = Math.max(0, Math.min(offsetX, Math.max(0, contentWidth - viewW)));
+        boolean cursorMoved = false;
+        if (headerFocused && !headerStopAvailable()) {
+            headerFocused = false; // the header stopped being a stop: the rows have the keyboard
+            cursorMoved = isFocused();
+            invalidate();
+        }
+        cursorMoved |= shownSetResolved(n);
+        if (cursorMoved) {
+            // One announcement for the layout, however many of the cursors it moved.
+            notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.ADJUSTMENT));
+        }
+    }
+
+    /**
+     * The shown set was just resolved: when it differs from the previous layout's, the rows are
+     * re-mounted so that a hidden widget column's widgets are released and a newly shown one's
+     * are built (B6: until 2026-09-14 a hidden widget column built a widget per row that was a
+     * Tab stop and a published node with a column past the table's), and the focus column is
+     * resolved again from the column it stands on: the same column if it is still shown, else
+     * the nearest shown one, announced as {@code ACTIVE}/{@code ADJUSTMENT} when the cell moved
+     * (TABLE-NEW-5: until this date the cursor kept a shown index no column matched, so no ring
+     * was drawn and no cell was {@code ACTIVE} until a Left or Right re-clamped it). The header's
+     * column cursor follows its column by the same rule (decision 36's cursor; review of
+     * table-B, 2026-09-14: it kept a plain index clamp, so it slid onto another column).
+     *
+     * @return whether a cursor a reader stands on moved to another column, for the caller to
+     *         announce as {@code ACTIVE}/{@code ADJUSTMENT}
+     */
+    private boolean shownSetResolved(int n) {
+        boolean changed = n != shownBeforeCount;
+        for (int s = 0; !changed && s < n; s++) {
+            changed = shownIndex[s] != shownBefore[s];
+        }
+        if (!changed) {
+            return false;
+        }
+        boolean first = shownBeforeCount < 0;
+        if (shownBefore.length < n) {
+            shownBefore = new int[n];
+        }
+        System.arraycopy(shownIndex, 0, shownBefore, 0, n);
+        shownBeforeCount = n;
+        if (!first) {
+            remountWidgetColumns();
+            invalidate(); // the columns moved, whatever the cursor did
+        }
+        if (n == 0) {
+            focusColumn = 0;
+            headerColumn = 0;
+            return false;
+        }
+        int wasOf = focusColumnOf;
+        focusColumn = focusColumnOf < 0 ? Math.min(Math.max(0, focusColumn), n - 1)
+                : nearestShown(focusColumnOf);
+        focusColumnOf = shownIndex[focusColumn];
+        int wasHeaderOf = headerColumnOf;
+        headerColumn = headerColumnOf < 0 ? Math.min(Math.max(0, headerColumn), n - 1)
+                : nearestShown(headerColumnOf);
+        headerColumnOf = shownIndex[headerColumn];
+        // Announced only when the cell a reader stands on changed, which is when its column
+        // did: a column hidden before the cursor shifts its shown index and moves nothing, and
+        // while the header holds the cursor the focus cell is not where the reader is.
+        boolean header = headerHoldsCursor();
+        return !first && (header ? headerColumnOf != wasHeaderOf
+                : focusRow >= 0 && focusColumnOf != wasOf);
+    }
+
+    /** Puts the header's column cursor on shown column {@code s}, clamped, and remembers its column. */
+    private void setHeaderColumn(int s) {
+        headerColumn = Math.min(Math.max(0, s), Math.max(0, shownCount - 1));
+        if (shownCount > 0) {
+            headerColumnOf = shownIndex[headerColumn];
+        }
+    }
+
+    /**
+     * Brings the realized rows' widget cells in line with the shown set: a hidden widget
+     * column's widgets are released and a newly shown one's built, and every other widget cell
+     * stays where it is, the one holding the keyboard included (review of table-B, 2026-09-14:
+     * this re-mounted every row, so hiding a value column took the keyboard off the switch a
+     * user was on and rebuilt every widget cell). A released widget that held the keyboard hands
+     * it to the table, as a recycled row's does.
+     */
+    private void remountWidgetColumns() {
+        boolean handBack = false;
+        int childAt = 2; // the two bars come first
+        int count = rows.size();
+        for (int i = 0; i < mountedCount; i++) {
+            Slot slot = mountedSlots[i];
+            for (int c = 0; c < columns.size(); c++) {
+                Column<T> column = columns.get(c);
+                Widget widget = slot.widgets[c];
+                if (!column.isWidgetColumn()) {
+                    continue;
+                }
+                if (column.isVisible() && widget == null && slot.row < count
+                        && (view == null || slot.row < view.length)) {
+                    widget = column.widgetFor(rows.get(modelOf(slot.row)));
+                    slot.widgets[c] = widget;
+                    add(childAt, widget);
+                    slot.widgetCount++;
+                    childAt++;
+                } else if (!column.isVisible() && widget != null) {
+                    handBack |= holdsFocus(widget);
+                    remove(widget);
+                    slot.widgets[c] = null;
+                    slot.widgetCount--;
+                } else if (widget != null) {
+                    childAt++;
+                }
+            }
+        }
+        if (handBack) {
+            requestFocus();
+        }
+    }
+
+    /**
+     * @return the shown index of column {@code c}, or of the shown column nearest to it by
+     *         position when it is hidden — the one before it on a tie; {@code shownCount} is
+     *         at least one
+     */
+    private int nearestShown(int c) {
+        int best = 0;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int s = 0; s < shownCount; s++) {
+            int distance = Math.abs(shownIndex[s] - c);
+            if (distance < bestDistance) {
+                best = s;
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
 
     /** The left edge of shown column {@code s} in this widget's coordinates, for this pass. */
@@ -1090,6 +1720,12 @@ public class Table<T> extends Widget implements Scrollable {
         float w = gutters.viewportWidth(box);
         float viewH = Math.max(0, gutters.viewportHeight(boxH) - headerH - footerH);
         resolveColumns(w);
+        // Clamped against the viewport the strips leave, and only here: the gutters measure
+        // the content first against the whole box, and a clamp in resolveColumns took that
+        // probe's width for the viewport, so a table scrolled to its last column lost a
+        // vertical strip's width of it for good (under RESERVED, the last column's left edge
+        // sat under the strip right to left, and its right edge under it left to right).
+        offsetX = Math.max(0, Math.min(offsetX, Math.max(0, contentWidth - w)));
         float barT = ScrollBar.thickness();
         vBar.measure(Constraints.tight(barT, viewH));
         vBar.layoutBox(rtl ? 0 : box - barT, headerH, barT, viewH);
@@ -1117,6 +1753,12 @@ public class Table<T> extends Widget implements Scrollable {
             bottom = placeDown(count, rowX, w, viewH, headerH, rtl, t);
         }
         recycleExcept(placedFrom, placedTo, count);
+        if (isFocused() && focusRow >= 0 && focusRow < count && slotFor(focusRow) == null) {
+            // The focus cell's row is realized wherever the viewport is while the table holds the
+            // keyboard (decision 22 of 2026-09-14): a refresh or a sort unmounted everything, and
+            // a reader's cursor stands on that cell whether or not it is in view.
+            mount(focusRow);
+        }
         placeKeptOutside(rowX, w, headerH, bottom, rtl, t);
         updateAverageHeight();
         vBar.refresh();
@@ -1169,6 +1811,7 @@ public class Table<T> extends Widget implements Scrollable {
     private void placeRow(Slot slot, float rowY, float rowH, float rowX, float w, boolean rtl,
                           SizeTokens t) {
         slot.height = rowH;
+        slot.top = rowY;
         for (int s = 0; s < shownCount; s++) {
             int c = shownIndex[s];
             Widget widget = slot.widgets[c];
@@ -1255,10 +1898,15 @@ public class Table<T> extends Widget implements Scrollable {
         for (int c = 0; c < columns.size(); c++) {
             Column<T> column = columns.get(c);
             if (column.isWidgetColumn()) {
-                Widget widget = column.widgetFor(row);
-                slot.widgets[c] = widget;
-                add(insertAt + slot.widgetCount, widget);
-                slot.widgetCount++;
+                // A hidden widget column builds nothing (B6, 2026-09-14): its widget was never
+                // laid out, but it was a child, and so a Tab stop and a published node. The
+                // next layout to show the column re-mounts the rows and builds it then.
+                if (column.isVisible()) {
+                    Widget widget = column.widgetFor(row);
+                    slot.widgets[c] = widget;
+                    add(insertAt + slot.widgetCount, widget);
+                    slot.widgetCount++;
+                }
             } else {
                 slot.texts[c] = column.text(row, locale);
             }
@@ -1285,18 +1933,23 @@ public class Table<T> extends Widget implements Scrollable {
     }
 
     /**
-     * Releases every mounted row outside {@code [from, toExclusive)} except the one holding the
-     * keyboard focus, which stays mounted while its index is still below {@code count}; the
-     * reason is {@code ListView}'s (ADR 039 §13.29).
+     * Releases every mounted row outside {@code [from, toExclusive)} except two: the one holding
+     * the keyboard focus in a widget cell, which stays mounted while its index is still below
+     * {@code count} — the reason is {@code ListView}'s (ADR 039 §13.29) — and, while the table
+     * itself holds the keyboard, the focus cell's row (decision 22 of 2026-09-14): a reader's
+     * cursor stands on that cell, and a wheel that recycled it left the reader on nothing until
+     * the next arrow key. Released by the first pass after the focus leaves.
      */
     private void recycleExcept(int from, int toExclusive, int count) {
         int kept = 0;
+        boolean cursorKept = isFocused();
         for (int i = 0; i < mountedCount; i++) {
             int row = mountedRows[i];
             Slot slot = mountedSlots[i];
             boolean inRun = row >= from && row < toExclusive;
             boolean hasFocus = !inRun && containsFocus(slot);
-            if (inRun || (hasFocus && row < count)) {
+            boolean isCursor = !inRun && cursorKept && row == focusRow;
+            if (inRun || ((hasFocus || isCursor) && row < count)) {
                 mountedRows[kept] = row;
                 mountedSlots[kept] = slot;
                 kept++;
@@ -1369,6 +2022,17 @@ public class Table<T> extends Widget implements Scrollable {
         return false;
     }
 
+    /** @return whether the keyboard focus is on {@code cell} or inside it */
+    private boolean holdsFocus(Widget cell) {
+        Widget focused = scene() != null ? scene().focusedWidget() : null;
+        for (Widget w = focused; w != null; w = w.parent()) {
+            if (w == cell) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The top of row {@code index}'s box in this widget's coordinates, or NaN when unrealized. */
     private float rowTop(int index) {
         float y = anchorTop + rowsTop();
@@ -1402,6 +2066,12 @@ public class Table<T> extends Widget implements Scrollable {
             } else {
                 return;
             }
+        } else if (placedTo > placedFrom && index >= placedTo) {
+            // Below the run: the least scroll that shows it puts it last, so the anchor is the
+            // row itself, set to end at the viewport's foot; the layout walks the rows above it
+            // up from there (decision 40 of 2026-09-14).
+            anchorIndex = index;
+            anchorTop = rowsViewportHeight() - measuredHeight(index, tokens());
         } else {
             anchorIndex = index;
             anchorTop = 0;
@@ -1517,11 +2187,13 @@ public class Table<T> extends Widget implements Scrollable {
             ensureVisible(viewIndex);
         }
         if (selectionMode == SelectionMode.NONE) {
+            syncRecords();
             damageSelectionChange(before, wasFocusRow);
             announceFocusCell(wasFocusRow, origin);
             return;
         }
         if (lead == modelIndex && selected.cardinality() == 1 && selected.get(modelIndex)) {
+            syncRecords();
             damageSelectionChange(before, wasFocusRow);
             announceFocusCell(wasFocusRow, origin);
             return;
@@ -1529,6 +2201,7 @@ public class Table<T> extends Widget implements Scrollable {
         selected.clear();
         selected.set(modelIndex);
         lead = modelIndex;
+        syncRecords();
         damageSelectionChange(before, wasFocusRow);
         announceFocusCell(wasFocusRow, origin);
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
@@ -1545,6 +2218,7 @@ public class Table<T> extends Widget implements Scrollable {
         }
         lead = modelOf(viewIndex);
         focusRow = viewIndex;
+        syncRecords();
         ensureVisible(viewIndex);
         damageSelectionChange(before, wasFocusRow);
         announceFocusCell(wasFocusRow, Change.Origin.USER);
@@ -1561,6 +2235,7 @@ public class Table<T> extends Widget implements Scrollable {
                 ? selected.length() - 1 : lead);
         focusRow = viewIndex;
         rangeAnchor = viewIndex;
+        syncRecords();
         ensureVisible(viewIndex);
         damageSelectionChange(before, wasFocusRow);
         announceFocusCell(wasFocusRow, Change.Origin.USER);
@@ -1787,8 +2462,8 @@ public class Table<T> extends Widget implements Scrollable {
                         }
                         continue;
                     }
-                    if (slot.texts[c].isEmpty()) {
-                        continue;
+                    if (slot.texts[c] == null || slot.texts[c].isEmpty()) {
+                        continue; // a widget column has no text; its widget was painted above
                     }
                     ShapedText shaped = shapedCell(slot, c, ruler, body);
                     float available = Math.max(0, colW[s] - 2 * padH);
@@ -1799,7 +2474,8 @@ public class Table<T> extends Widget implements Scrollable {
                             + line.metrics().ascent();
                     canvas.drawText(line, x, baseline, theme.text);
                 }
-                if (row == focusRow && isFocused() && focusColumn < shownCount) {
+                if (row == focusRow && isFocused() && !headerFocused
+                        && focusColumn < shownCount) {
                     float left = columnLeft(focusColumn, rowX, w, rtl);
                     float inset = Strokes.FOCUS_RING_THIN;
                     canvas.drawRoundRect(left + inset, top + inset,
@@ -1889,6 +2565,16 @@ public class Table<T> extends Widget implements Scrollable {
                 }
                 canvas.drawLine(rowX, headerH - Strokes.HALF_PIXEL_INSET, rowX + w,
                         headerH - Strokes.HALF_PIXEL_INSET, Strokes.HAIRLINE, theme.outline);
+                if (headerHoldsCursor() && headerColumn < shownCount) {
+                    // The header's column cursor: the same thin ring the focus cell wears,
+                    // inset in the header cell, so one mark means "the keyboard is here" in
+                    // both stops (decision 36 of 2026-09-14; renders reviewed by the owner).
+                    float left = columnLeft(headerColumn, rowX, w, rtl);
+                    float inset = Strokes.FOCUS_RING_THIN;
+                    canvas.drawRoundRect(left + inset, inset, colW[headerColumn] - 2 * inset,
+                            headerH - 2 * inset, t.radiusSmall(), Strokes.FOCUS_RING_THIN,
+                            theme.focusRing);
+                }
             } finally {
                 canvas.restore();
             }
@@ -1997,15 +2683,26 @@ public class Table<T> extends Widget implements Scrollable {
         float y = sceneToLocalY(event.y());
         switch (event.type()) {
             case WHEEL -> {
-                boolean sideways = event.scrollX() != 0
-                        || (event.modifiers() & Keys.MOD_SHIFT) != 0;
-                float dx = sideways ? -(event.scrollX() != 0 ? event.scrollX() : event.scrollY())
-                        * Strokes.WHEEL_STEP : 0;
-                float dy = sideways ? 0 : -event.scrollY() * Strokes.WHEEL_STEP;
-                boolean canY = estimatedContentHeight(tokens()) > rowsViewportHeight();
-                boolean canX = contentWidth > gutters.viewportWidth(width());
-                if ((dy != 0 && canY) || (dx != 0 && canX)) {
-                    scrollBy(canX ? dx : 0, canY ? dy : 0, Change.Origin.USER);
+                // A detent is a device unit: the same flick travels the same distance in a
+                // dense table and a roomy one, so the step is locked, not tabled. The two axes
+                // are taken independently, as ScrollView takes them (TABLE-NEW-12, 2026-09-14):
+                // until then any scrollX made the event sideways and dropped scrollY, so a
+                // trackpad swipe that was not perfectly vertical scrolled nothing on a table
+                // whose columns fit. Shift turns a plain vertical wheel into a horizontal one
+                // for a mouse with one wheel; taken only when the event carries no scrollX, so
+                // a tilt wheel and Shift cannot drive the same axis in one event.
+                float sx = event.scrollX();
+                float sy = event.scrollY();
+                if (sx == 0 && (event.modifiers() & Keys.MOD_SHIFT) != 0) {
+                    sx = sy;
+                    sy = 0;
+                }
+                // Consumed only when an offset moved (decision 44, 2026-09-14): a detent that
+                // finds the table at either end of an axis, or a table that fits, is left for
+                // the scroller that holds it. Until then the table was a wall inside a scroll
+                // pane once it overflowed.
+                if (scrollBy(-sx * Strokes.WHEEL_STEP, -sy * Strokes.WHEEL_STEP,
+                        Change.Origin.USER)) {
                     event.consume();
                 }
             }
@@ -2046,12 +2743,17 @@ public class Table<T> extends Widget implements Scrollable {
                     } else {
                         int s = columnAt(x);
                         if (s >= 0) {
+                            // The pointer sorts and the keyboard stays where it was, in the
+                            // rows; the header's cursor remembers the column, so a Tab into the
+                            // header continues from where the pointer was.
+                            setHeaderColumn(s);
                             headerClicked(s);
                         }
                     }
                     event.consume();
                     return;
                 }
+                leaveHeader(Change.Origin.USER);
                 int row = rowAt(y);
                 if (row < 0) {
                     event.consume();
@@ -2060,6 +2762,7 @@ public class Table<T> extends Widget implements Scrollable {
                 int s = columnAt(x);
                 if (s >= 0) {
                     focusColumn = s;
+                    focusColumnOf = shownIndex[s];
                 }
                 int mods = event.modifiers();
                 boolean command = (mods & Accelerator.commandModifier()) != 0;
@@ -2099,6 +2802,22 @@ public class Table<T> extends Widget implements Scrollable {
         }
         int mods = event.modifiers();
         boolean rtl = isRightToLeft();
+        if (event.key() == Keys.TAB && isFocused()) {
+            // The header is a focus stop of its own, before the rows (decision 36 of
+            // 2026-09-14): Tab walks header, rows, then out; Shift+Tab the reverse. A Tab the
+            // table does not consume traverses on, as it always did.
+            boolean backward = (mods & Keys.MOD_SHIFT) != 0;
+            if (!backward && headerFocused) {
+                consumeAnd(event, () -> leaveHeader(Change.Origin.USER));
+            } else if (backward && !headerFocused && headerStopAvailable()) {
+                consumeAnd(event, () -> enterHeader(headerColumn, Change.Origin.USER));
+            }
+            return;
+        }
+        if (headerFocused && isFocused()) {
+            onHeaderKeyEvent(event, mods, rtl);
+            return;
+        }
         switch (event.key()) {
             case Keys.DOWN -> consumeAnd(event, () -> moveFocusRow(
                     focusRow < 0 ? anchorIndex : focusRow + 1, mods));
@@ -2124,7 +2843,7 @@ public class Table<T> extends Widget implements Scrollable {
                 }
             }
             case Keys.ENTER -> {
-                if (lead >= 0) {
+                if (focusRow >= 0) {
                     consumeAnd(event, () -> activate(Change.Origin.USER));
                 }
             }
@@ -2147,10 +2866,102 @@ public class Table<T> extends Widget implements Scrollable {
             return;
         }
         focusColumn = next;
+        focusColumnOf = shownIndex[next];
         // Before the damage: a horizontal scroll invalidates the table itself, and a single row
         // band would then be short of it.
         ensureColumnVisible(next);
         damageRow(focusRow);
+        notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+    }
+
+    // ------------------------------------------------------------------ the header's stop
+
+    /** @return whether the header is a focus stop: shown, with a shown column that can be sorted */
+    private boolean headerStopAvailable() {
+        if (!showHeader) {
+            return false;
+        }
+        // Read off the columns and not the last layout's shown set, so a Tab that arrives
+        // before the first layout (a scene focused as it is built) finds the stop too.
+        for (int c = 0; c < columns.size(); c++) {
+            Column<T> column = columns.get(c);
+            if (column.isVisible() && column.isSortable()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return whether the header's column cursor is the cursor a reader stands on right now */
+    private boolean headerHoldsCursor() {
+        return headerFocused && isFocused();
+    }
+
+    /** Damages the header band, which is where the header's cursor is drawn. */
+    private void damageHeader() {
+        if (showHeader) {
+            invalidate(rowsLeft(), 0, gutters.viewportWidth(width()), headerHeight(tokens()));
+        }
+    }
+
+    /**
+     * Puts the keyboard on the header, its column cursor on shown column {@code s}: the cursor a
+     * reader stands on moves from the focus cell to a header cell, announced as {@code ACTIVE}.
+     */
+    private void enterHeader(int s, Change.Origin origin) {
+        if (!headerStopAvailable()) {
+            return;
+        }
+        headerFocused = true;
+        setHeaderColumn(s);
+        ensureColumnVisible(headerColumn);
+        damageHeader();
+        damageRow(focusRow);
+        notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
+    }
+
+    /** Hands the keyboard back to the rows; the cursor is the focus cell again. */
+    private void leaveHeader(Change.Origin origin) {
+        if (!headerFocused) {
+            return;
+        }
+        headerFocused = false;
+        damageHeader();
+        damageRow(focusRow);
+        notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
+    }
+
+    /**
+     * The keys while the header holds the keyboard (decision 36 of 2026-09-14): Left and Right
+     * move the column cursor, Space sorts the column under it, cycling ascending, descending and
+     * the model's order as a click does; Down hands the keyboard to the rows. The other row keys
+     * are consumed and do nothing, so the rows do not move under a cursor that is not in them.
+     */
+    private void onHeaderKeyEvent(KeyEvent event, int mods, boolean rtl) {
+        switch (event.key()) {
+            case Keys.LEFT -> consumeAnd(event, () -> moveHeaderColumn(rtl ? 1 : -1));
+            case Keys.RIGHT -> consumeAnd(event, () -> moveHeaderColumn(rtl ? -1 : 1));
+            case Keys.HOME -> consumeAnd(event, () -> moveHeaderColumn(-shownCount));
+            case Keys.END -> consumeAnd(event, () -> moveHeaderColumn(shownCount));
+            case Keys.SPACE -> consumeAnd(event, () -> headerClicked(headerColumn));
+            case Keys.DOWN -> consumeAnd(event, () -> leaveHeader(Change.Origin.USER));
+            case Keys.UP, Keys.PAGE_UP, Keys.PAGE_DOWN, Keys.ENTER -> event.consume();
+            default -> {
+            }
+        }
+    }
+
+    private void moveHeaderColumn(int delta) {
+        if (shownCount == 0) {
+            return;
+        }
+        int next = Math.min(Math.max(0, headerColumn + delta), shownCount - 1);
+        if (next == headerColumn) {
+            return;
+        }
+        setHeaderColumn(next);
+        ensureColumnVisible(next);
+        damageHeader();
         notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
     }
 
@@ -2159,12 +2970,51 @@ public class Table<T> extends Widget implements Scrollable {
         // The focus cell is not placed until a key asks for one: the first Down then lands on
         // the top row the way it does in ListView, rather than on the row below it. So what
         // appears is one ring in one row, and that is all this damages.
+        // Tab enters at the header, the first stop; Shift+Tab, a click and code at the rows.
+        headerFocused = focusArrivedByTraversal() && !focusArrivedBackward()
+                && headerStopAvailable();
+        setHeaderColumn(headerColumn);
+        damageHeader();
         damageRow(focusRow);
+        if (focusRow >= 0 && slotFor(focusRow) == null) {
+            markNeedsContainedLayout(); // the cursor row is realized while the keyboard is here
+        }
     }
 
     @Override
     protected void onFocusLost() {
+        damageHeader();
         damageRow(focusRow);
+        if (focusRow >= 0 && !isPlaced(focusRow)) {
+            markNeedsContainedLayout(); // and released by the first pass after it leaves
+        }
+    }
+
+    // The rows' viewport is what the rows and their widget cells are clipped to, and the bars
+    // are clipped to the box (TABLE-NEW-10, 2026-09-14): until this the default answered the
+    // whole box for every child, so a switch scrolled under the header or the footer, or lying
+    // in a reserved gutter, was isShowing() and published SHOWING in a rectangle this table
+    // never paints it in, a reader could toggle it, and a point on the header resolved to it.
+    // The four run for every node of every accessible walk and allocate nothing.
+
+    @Override
+    protected float clipX(Widget child) {
+        return child == vBar || child == hBar ? 0 : rowsLeft();
+    }
+
+    @Override
+    protected float clipY(Widget child) {
+        return child == vBar || child == hBar ? 0 : rowsTop();
+    }
+
+    @Override
+    protected float clipWidth(Widget child) {
+        return child == vBar || child == hBar ? width() : gutters.viewportWidth(width());
+    }
+
+    @Override
+    protected float clipHeight(Widget child) {
+        return child == vBar || child == hBar ? height() : rowsViewportHeight();
     }
 
     // ---------------------------------------------------------------------- accessibility
@@ -2196,7 +3046,9 @@ public class Table<T> extends Widget implements Scrollable {
         a.selection(selectionMode == SelectionMode.MULTI, false);
         a.scrollFrom(offsetX, Math.max(0, contentWidth - w), w, contentWidth,
                 estimatedOffset(t), Math.max(0, contentH - viewH), viewH, contentH);
-        if (lead >= 0) {
+        if (focusRow >= 0 && focusRow < describedRowCount) {
+            // Whenever there is a cursor, in every mode: a press opens the cursor row, as Enter
+            // and a double click do (decision 32 of 2026-09-14).
             a.action(Accessible.Action.PRESS);
         }
 
@@ -2207,12 +3059,26 @@ public class Table<T> extends Widget implements Scrollable {
             for (int s = 0; s < shownCount; s++) {
                 int c = shownIndex[s];
                 float left = columnLeft(s, rowX, w, rtl);
-                a.child(c);
+                Column<T> column = columns.get(c);
+                a.child(HEADER_CELL_KEY | c);
                 // In this widget's coordinates, as every synthetic box is, nested or not.
                 a.bounds(left, 0, colW[s], headerH);
                 a.role(Accessible.Role.COLUMN_HEADER);
-                a.name(columns.get(c).title(), Accessible.NameFrom.CONTENT);
+                a.name(column.title(), Accessible.NameFrom.CONTENT);
                 a.cell(-1, s);
+                if (column.isSortable()) {
+                    // A press sorts, as a click does (decision 36 of 2026-09-14). The direction
+                    // the rows run is the sorted header's description until the platforms'
+                    // carriers of a sort direction have been read (phase 3).
+                    a.action(Accessible.Action.PRESS);
+                    if (column == sortColumn && sortOrder != SortOrder.NONE) {
+                        a.description(sortOrder == SortOrder.ASCENDING
+                                ? TableStrings.SORTED_ASCENDING : TableStrings.SORTED_DESCENDING);
+                    }
+                }
+                if (headerHoldsCursor() && s == headerColumn) {
+                    a.state(Accessible.State.ACTIVE); // the header's column cursor
+                }
                 if (left + colW[s] <= rowX || left >= rowX + w) {
                     a.offScreen();
                 }
@@ -2228,37 +3094,59 @@ public class Table<T> extends Widget implements Scrollable {
             float top = rowTop(row);
             boolean shown = !Float.isNaN(top);
             if (!shown) {
-                // The focused row a scroll spared: published where the estimate puts it.
-                top = row < placedFrom ? headerH - slot.height : headerH + viewH;
+                // The kept row a scroll spared: published where the layout put it, outside the
+                // rows' viewport, so the ROW and a widget cell inside it agree on a box
+                // (TABLE-NEW-9, 2026-09-14); before a layout has placed it, where the estimate
+                // would.
+                top = Float.isNaN(slot.top)
+                        ? (row < placedFrom ? headerH - slot.height : headerH + viewH)
+                        : slot.top;
             }
+            boolean rowOffScreen = !shown || top + slot.height <= headerH
+                    || top >= headerH + viewH;
             a.child(model);
             a.bounds(rowX, top, w, slot.height);
             a.role(Accessible.Role.ROW);
-            a.selectionItem(selected.get(model), row + 1, describedRowCount);
+            boolean isSelected = selected.get(model);
+            a.selectionItem(isSelected, row + 1, describedRowCount);
+            // The verbs a row accepts, by its state (decisions 10, 11 and 20 of 2026-09-14):
+            // SELECT is the click; ADD_TO_SELECTION on an unselected row and DESELECT on a
+            // selected one only where the mode allows more than one; FOCUS moves the cursor
+            // here without selecting, and is published because the cursor and the selection are
+            // separate things in a table.
             if (selectionMode != SelectionMode.NONE) {
                 a.action(Accessible.Action.SELECT);
+                if (selectionMode == SelectionMode.MULTI) {
+                    a.action(isSelected ? Accessible.Action.DESELECT
+                            : Accessible.Action.ADD_TO_SELECTION);
+                }
             }
-            if (!shown || top + slot.height <= headerH || top >= headerH + viewH) {
+            a.action(Accessible.Action.FOCUS);
+            if (rowOffScreen) {
                 a.offScreen();
             }
             for (int s = 0; s < shownCount; s++) {
                 int c = shownIndex[s];
-                if (slot.widgets[c] != null) {
+                if (slot.widgets[c] != null || slot.texts[c] == null) {
                     continue; // a real child, described in onAccessibilityChild
                 }
                 float left = columnLeft(s, rowX, w, rtl);
-                a.child(c);
+                a.child(CELL_KEY | ((long) model << COLUMN_BITS) | c);
                 a.bounds(left, top, colW[s], slot.height);
                 a.role(Accessible.Role.CELL);
                 a.name(slot.texts[c], textEpoch, Accessible.NameFrom.CONTENT);
                 a.cell(row, s);
-                if (row == focusRow && s == focusColumn && isFocused()) {
+                a.action(Accessible.Action.FOCUS);
+                if (row == focusRow && s == focusColumn && isFocused() && !headerFocused) {
                     // Only while the table holds the keyboard (ADR 039 §1.10, amended
-                    // 2026-09-14): the cursor is the focused node's, and the kept focus row
-                    // above already gates on the same fact.
+                    // 2026-09-14) in its rows: the cursor is the focused node's, one at a time,
+                    // and while the header holds it the cursor is a header cell.
                     a.state(Accessible.State.ACTIVE);
                 }
-                if (left + colW[s] <= rowX || left >= rowX + w) {
+                // Off screen with its row as well as with its column: the bit is per node, and
+                // nothing is inherited from a synthetic parent, so a kept row's cells were
+                // published SHOWING over the header band (TABLE-NEW-9, 2026-09-14).
+                if (rowOffScreen || left + colW[s] <= rowX || left >= rowX + w) {
                     a.offScreen();
                 }
                 a.endChild();
@@ -2278,7 +3166,7 @@ public class Table<T> extends Widget implements Scrollable {
                     continue;
                 }
                 float left = columnLeft(s, rowX, w, rtl);
-                a.child(c);
+                a.child(FOOTER_CELL_KEY | c);
                 a.bounds(left, top, colW[s], footerH);
                 a.role(Accessible.Role.CELL);
                 a.name(footerTexts[c], textEpoch, Accessible.NameFrom.CONTENT);
@@ -2336,26 +3224,136 @@ public class Table<T> extends Widget implements Scrollable {
         while (s < shownCount && shownIndex[s] != c) {
             s++;
         }
+        if (s == shownCount) {
+            return; // the column was hidden since the last layout; the next one releases it
+        }
         a.cell(slot.row, s);
+        if (slot.row == focusRow && s == focusColumn && isFocused() && !headerFocused) {
+            // The focus cell in a widget column is the cursor exactly as a value cell is (B1,
+            // 2026-09-14): the ring was drawn on it and the reader was told nothing, so the
+            // active descendant fell to nothing on every Right into a switch column.
+            a.state(Accessible.State.ACTIVE);
+        }
     }
 
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        if (action == Accessible.Action.PRESS && lead >= 0) {
+        if (action == Accessible.Action.PRESS && focusRow >= 0 && focusRow < rows.size()) {
             activate(Change.Origin.USER);
             return true;
         }
         return false;
     }
 
+    /**
+     * A reader's verb on a row or a cell, decoded from the key the node was published with:
+     * a row's key is its model index, a cell's carries its row and its column (TABLE-NEW-13:
+     * until 2026-09-14 a cell was keyed by its column alone and a select on it selected the
+     * row of that number). The verbs are the published ones and no other — a cell accepts
+     * {@code FOCUS} alone — and each goes through the seam the matching gesture takes at
+     * {@code USER}: {@code SELECT} is the click, {@code ADD_TO_SELECTION} and {@code DESELECT}
+     * the command-click, {@code FOCUS} a cursor move that selects nothing. A row is named by
+     * the model index the snapshot published and acted on as the record at that index now.
+     */
     @Override
     protected boolean onSyntheticAction(long key, Accessible.Action action,
                                         Accessible.Argument arg) {
-        if (action == Accessible.Action.SELECT && selectionMode != SelectionMode.NONE
-                && key >= 0 && key < rows.size()) {
-            selectOnly((int) key, viewOf((int) key), true, Change.Origin.USER);
-            return true;
+        int count = rows.size();
+        if ((key & CELL_KEY) != 0) {
+            int model = (int) ((key & ~CELL_KEY) >>> COLUMN_BITS);
+            int c = (int) (key & COLUMN_MASK);
+            int s = shownIndexOf(c);
+            if (action == Accessible.Action.FOCUS && model < count && s >= 0) {
+                focusCell(viewOf(model), s, Change.Origin.USER);
+                return true;
+            }
+            return false;
         }
-        return false;
+        if ((key & HEADER_CELL_KEY) != 0) {
+            int s = shownIndexOf((int) (key & COLUMN_MASK));
+            if (action == Accessible.Action.PRESS && s >= 0
+                    && columns.get(shownIndex[s]).isSortable()) {
+                // Sorts as a click does, and as the click does remembers the column for the
+                // header's cursor, so a Shift+Tab into the header after a reader's press on
+                // the Age title starts on Age; while the header holds the keyboard the cursor
+                // moves with the press, which the sort's own publish announces.
+                setHeaderColumn(s);
+                headerClicked(s);
+                return true;
+            }
+            return false;
+        }
+        if ((key & FOOTER_CELL_KEY) != 0 || key < 0 || key >= count) {
+            return false;
+        }
+        int model = (int) key;
+        int view = viewOf(model);
+        switch (action) {
+            case SELECT -> {
+                if (selectionMode == SelectionMode.NONE) {
+                    return false;
+                }
+                selectOnly(model, view, true, Change.Origin.USER);
+                return true;
+            }
+            case ADD_TO_SELECTION -> {
+                if (selectionMode != SelectionMode.MULTI || selected.get(model)) {
+                    return false;
+                }
+                toggle(view);
+                return true;
+            }
+            case DESELECT -> {
+                if (selectionMode != SelectionMode.MULTI || !selected.get(model)) {
+                    return false;
+                }
+                toggle(view);
+                return true;
+            }
+            case FOCUS -> {
+                focusCell(view, focusColumn, Change.Origin.USER);
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    /** The shown index of column {@code c}, or {@code -1} while it is hidden. */
+    private int shownIndexOf(int c) {
+        for (int s = 0; s < shownCount; s++) {
+            if (shownIndex[s] == c) {
+                return s;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Moves the focus cell without touching the selection: what a reader's {@code FOCUS} on a
+     * row or a cell asks for (decision 11 of 2026-09-14). The range anchor moves with it, as it
+     * does under a toggle, so the next Shift range extends from where the cursor is; the row is
+     * revealed and the move announced as {@code ACTIVE}.
+     */
+    private void focusCell(int viewIndex, int shownColumn, Change.Origin origin) {
+        int count = rows.size();
+        if (count == 0 || shownCount == 0) {
+            return;
+        }
+        int wasFocusRow = focusRow;
+        int wasColumn = focusColumn;
+        focusRow = Math.min(Math.max(0, viewIndex), count - 1);
+        focusColumn = Math.min(Math.max(0, shownColumn), shownCount - 1);
+        focusColumnOf = shownIndex[focusColumn];
+        rangeAnchor = focusRow;
+        syncRecords();
+        ensureVisible(focusRow);
+        ensureColumnVisible(focusColumn);
+        damageRow(wasFocusRow);
+        damageRow(focusRow);
+        if (focusRow != wasFocusRow || focusColumn != wasColumn) {
+            notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
+        }
     }
 }

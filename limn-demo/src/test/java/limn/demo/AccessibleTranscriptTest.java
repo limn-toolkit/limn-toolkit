@@ -3,6 +3,9 @@ package limn.demo;
 import limn.components.Dialog;
 import limn.components.Theme;
 import limn.concurrent.UiRuntime;
+import limn.demo.a11y.AccessibilityGallery;
+import limn.demo.a11y.AccessibilityGallery.Built;
+import limn.demo.a11y.AccessibilityGallery.Entry;
 import limn.demo.a11y.Goldens;
 import limn.demo.a11y.HeadlessBackend;
 import limn.demo.a11y.HeadlessWindow;
@@ -126,11 +129,45 @@ class AccessibleTranscriptTest {
         Goldens.check("kitchen-dialog", transcript(host) + transcript(modal));
     }
 
+    /**
+     * The accessibility gallery's table (B5 of the 2026-09-13 pass; settled as
+     * table-golden-scene): rows selected in {@code MULTI}, a footer summarising two columns,
+     * and a widget column of named switches — the fourth transcript, and the first with a
+     * table in it. The gallery's entry rather than the demo's {@code TableScene}, whose
+     * nameless switches the owner left as they are; here every control is named.
+     */
+    @Test
+    void theTableSoundsLikeItsTranscript() {
+        Entry entry = null;
+        for (Entry candidate : AccessibilityGallery.entries()) {
+            if (candidate.name().equals("Table with a header and rows")) {
+                entry = candidate;
+            }
+        }
+        assertNotNull(entry, "the gallery's table entry, by the name the picker lists");
+        HeadlessWindow window = show(entry);
+        Goldens.check("table", transcript(window));
+    }
+
     private HeadlessWindow show(String title, Scene scene) {
         HeadlessWindow window = backend.open(title, WIDTH, HEIGHT);
         scene.bind(window);
         window.frame();
         window.desktopFocus(true);
+        settle(window);
+        return window;
+    }
+
+    /** A gallery entry, shown the way {@code AccessibleGalleryTest}'s harness shows one. */
+    private HeadlessWindow show(Entry entry) {
+        Built built = entry.build();
+        HeadlessWindow window = backend.open(entry.name(), WIDTH, HEIGHT);
+        Scene scene = new Scene(built.root(), () -> nanos);
+        scene.bind(window);
+        window.frame();
+        window.desktopFocus(true);
+        settle(window);
+        built.afterFirstFrame().run();
         settle(window);
         return window;
     }

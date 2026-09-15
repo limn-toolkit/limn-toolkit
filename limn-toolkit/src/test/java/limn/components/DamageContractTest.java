@@ -335,13 +335,26 @@ class DamageContractTest extends ComponentTestBase {
             new Row("limn.components.date.DatePicker",
                     () -> new DatePicker().setDate(java.time.LocalDate.of(2026, 9, 9)),
                     0, 0, pointer(), null),
-            new Row("limn.components.table.Table", () -> {
-                Table<String> table = new Table<>(List.of(
-                        Column.<String>text("Name", s -> s).width(100)));
-                table.setRows(List.of("a", "b", "c", "d", "e", "f", "g", "h"));
-                return table;
-            }, 360, 240, List.of(focus().ceiling(0.2f), key("DOWN", Keys.DOWN).ceiling(0.2f),
-                    click().ceiling(0.5f)), null),
+            // A table that overflows both axes, so the wheel and a horizontal focus move have
+            // something to do (TABLE-NEW-6: the row used to hold one column over eight rows,
+            // and neither gesture was under the contract). The click at the centre puts the
+            // focus cell on the second column; RIGHT then brings the third in from past the
+            // edge, which scrolls the columns and repaints the table, and LEFT walks back to
+            // a column in view, a row band. The wheels scroll every row or every column.
+            // Ceilings measured, two identical runs each, on 2026-09-14.
+            new Row("limn.components.table.Table", DamageContractTest::tableFixture, 360, 240,
+                    List.of(focus().ceiling(0.2f), key("DOWN", Keys.DOWN).ceiling(0.2f),
+                            click().ceiling(0.5f),
+                            // Measured at 101% of the box, the whole of it plus the antialiasing
+                            // margin the damage carries: scrolling the columns moves every cell.
+                            key("RIGHT, scrolling a column in", Keys.RIGHT).ceiling(1.05f),
+                            // Measured at 14%: one row band, the ring moving within it.
+                            key("LEFT, to a column in view", Keys.LEFT).ceiling(0.2f),
+                            // Both measured at 101%, the wheel moving every row or every column;
+                            // the vertical one is the gesture whose absence let a tree ship with
+                            // no wheel handler at all (the Tree row below).
+                            wheel().ceiling(1.05f),
+                            tableSidewaysWheel().ceiling(1.05f)), null),
             // Right is the gesture only a tree has, and it is the expensive one by construction:
             // opening a row asks for a contained layout, and a contained layout damages the
             // widget's bounds (ADR 043), wherever the row sits. Measured at 101% of the box —
@@ -432,6 +445,32 @@ class DamageContractTest extends ComponentTestBase {
         return new Gesture("wheel sideways", (s, w) -> {
             move(s, centreX(w), centreY(w));
             s.scrolled(-3, 0, centreX(w), centreY(w));
+            s.inputBatchEnded();
+        }, 0, ANY, null);
+    }
+
+    /** Three 150-point columns over twenty rows: wider and taller than the 360 by 240 box. */
+    private static Widget tableFixture() {
+        List<String> rows = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            rows.add("row " + i);
+        }
+        Table<String> table = new Table<>(List.of(
+                Column.<String>text("Name", s -> s).width(150),
+                Column.<String>text("Again", s -> s).width(150),
+                Column.<String>text("Once more", s -> s).width(150)));
+        table.setRows(rows);
+        return table;
+    }
+
+    /**
+     * A trackpad's sideways swipe over the table, back toward the first column: three detents
+     * of scrollX and no scrollY, after RIGHT has scrolled the columns the other way.
+     */
+    private static Gesture tableSidewaysWheel() {
+        return new Gesture("sideways wheel", (s, w) -> {
+            move(s, centreX(w), centreY(w));
+            s.scrolled(3, 0, centreX(w), centreY(w));
             s.inputBatchEnded();
         }, 0, ANY, null);
     }

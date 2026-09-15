@@ -100,6 +100,33 @@ final class TableScene {
         Widget root = new Padding(Insets.all(16), page);
         Scene scene = new Scene(root);
         scene.setBackground(Theme.current().background);
+        stateFor(scene, table, customer);
         return scene;
+    }
+
+    /**
+     * The state a render asks for through {@code LIMN_TABLE_DEMO}, so the owner can review a
+     * keyboard state a capture cannot reach by itself: {@code focus} puts the keyboard in the
+     * table on its lead row; {@code sorted} then sorts by customer, which moves that row far
+     * down and lets the reveal show it (decision 40 of 2026-09-14); {@code header} moves the
+     * keyboard on to the header's column cursor (decision 36). Unset, the scene is as it was.
+     */
+    private static void stateFor(Scene scene, Table<Order> table, Column<Order> customer) {
+        String state = System.getenv("LIMN_TABLE_DEMO");
+        if (state == null || state.isEmpty()) {
+            return;
+        }
+        scene.requestFocus(table);
+        switch (state) {
+            case "focus" -> {
+            }
+            case "sorted" -> table.setSort(customer, SortOrder.ASCENDING);
+            case "header" -> {
+                // Shift+Tab from the rows: the header is the stop before them (decision 36).
+                scene.keyEvent(limn.input.Keys.TAB, true, false, limn.input.Keys.MOD_SHIFT);
+                scene.inputBatchEnded();
+            }
+            default -> System.err.println("LIMN_TABLE_DEMO: unknown state " + state);
+        }
     }
 }
