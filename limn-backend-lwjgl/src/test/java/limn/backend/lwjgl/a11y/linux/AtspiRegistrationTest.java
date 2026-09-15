@@ -143,33 +143,54 @@ class AtspiRegistrationTest {
     }
 
     @Test
-    void aFailedJoinIsTriedAgainAfterItsBackOffAndNotOnEveryFrame() {
+    void aFailedJoinWaitsOutItsBackOffAndThenAsksAnIdleWindowToPublishWithNoFrameOfItsOwn() {
+        // The window decision 29 is about: opened before the reader, then left alone, so its scene
+        // publishes once and never again. Its first join fails. Until the linux-A review the
+        // failure only noted when a join might start next and waited for a later publish that an
+        // idle scene never makes, so the window stayed off the desktop.
         long[] now = {1_000_000_000L};
         RefusingBuses buses = new RefusingBuses("Embed");
+        List<Runnable> threads = new ArrayList<>();
+        List<Long> waits = new ArrayList<>();
+        AtspiBridge[] bridge = new AtspiBridge[1];
         AtspiApplication application = new AtspiApplication(
                 (objects, lost) -> AtspiApplication.join(buses, objects, lost),
-                AtspiApplication.Starter.ON_THE_CALLER, () -> now[0]);
+                (name, body) -> threads.add(body), () -> now[0], nanos -> {
+                    waits.add(nanos);
+                    for (int frame = 0; frame < 10; frame++) {
+                        bridge[0].publish(aWindow(), false);
+                    }
+                    now[0] += nanos;
+                });
         application.enabled(true);
-        AtspiBridge bridge = application.window();
+        bridge[0] = application.window();
+        int[] republishes = {0};
+        bridge[0].attach(new AccessibilityBridge.Host() {
+            @Override public void requestRepublish() { republishes[0]++; }
+            @Override public void requestRestamp() { }
+            @Override public AccessibleTree republishNow() { return AccessibleTree.EMPTY; }
+            @Override public boolean perform(long nodeId, Accessible.Action action,
+                                             Accessible.Argument arg) { return false; }
+        });
 
-        for (int frame = 0; frame < 10; frame++) {
-            bridge.publish(aWindow(), false);
-        }
-        assertEquals(1, bridge.joinAttempts(),
-                "ten frames inside the back-off make one attempt, not ten");
+        bridge[0].publish(aWindow(), false);
+        assertEquals(1, threads.size(), "the join is a thread of its own");
+        threads.remove(0).run();
         assertEquals(1, buses.closed);
+        assertEquals(List.of(AtspiApplication.FIRST_RETRY_NANOS), waits,
+                "the thread that failed waits out the back-off itself");
+        assertEquals(1, bridge[0].joinAttempts(),
+                "ten frames inside the back-off make one attempt, not ten");
+        assertEquals(1, republishes[0], "and when it ends the idle window is asked for the publish "
+                + "that tries again, with no frame of its own in between");
 
-        now[0] += AtspiApplication.FIRST_RETRY_NANOS;
-        bridge.publish(aWindow(), false);
-        assertEquals(2, bridge.joinAttempts(), "past the back-off the next frame tries again");
-
-        now[0] += AtspiApplication.FIRST_RETRY_NANOS;
-        bridge.publish(aWindow(), false);
-        assertEquals(2, bridge.joinAttempts(), "and the second failure waits twice as long");
-        now[0] += AtspiApplication.FIRST_RETRY_NANOS;
-        bridge.publish(aWindow(), false);
-        assertEquals(3, bridge.joinAttempts());
-        assertFalse(bridge.isOnTheBus());
+        bridge[0].publish(aWindow(), false);  // the publish it was asked for
+        assertEquals(2, bridge[0].joinAttempts());
+        threads.remove(0).run();
+        assertEquals(List.of(AtspiApplication.FIRST_RETRY_NANOS,
+                2 * AtspiApplication.FIRST_RETRY_NANOS), waits, "the second failure waits twice as long");
+        assertEquals(2, republishes[0]);
+        assertFalse(bridge[0].isOnTheBus());
     }
 
     @Test

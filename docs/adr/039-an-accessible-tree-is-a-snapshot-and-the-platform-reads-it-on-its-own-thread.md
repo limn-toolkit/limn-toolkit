@@ -2612,6 +2612,22 @@ the user-interface thread brings its per-window bookkeeping up to that state on 
 (§2.3's amendment of this date). The registration rule is unchanged: nothing joins before some window
 has a tree.
 
+**Corrected 2026-09-15 (the linux-A review): the retry is asked for, not waited for.** "Only when a
+later publish asks" left an idle window off the desktop: a scene publishes only when its tree is dirty,
+so after one failed join a window nothing changes — the window decision 29 is about — never asked
+again, and a publish that fell inside the back-off was dropped with nothing to repeat it; and because
+a successful join reset the failure count, a connection lost right after its join was rejoined as fast
+as the scene published. Now the joiner thread that failed **waits out the back-off itself**, holding
+the join flag so no publish starts another meanwhile, and then asks every attached window for a
+publish (`Host#requestRepublish`), which tries again; the switch turning off, or the last window
+leaving, interrupts the wait and nobody is asked. A joined connection lost within sixty seconds of its
+join counts as a failure and is waited out the same way on a thread of its own; one that held longer
+is rejoined at once and resets the count. The numbers (one second doubling to sixty; sixty seconds to
+count as held) are policy, not platform constants. Pinned by
+`AtspiRegistrationTest.aFailedJoinWaitsOutItsBackOffAndThenAsksAnIdleWindowToPublishWithNoFrameOfItsOwn`
+and `AtspiApplicationTest.aConnectionLostSoonAfterItsJoinIsAFailureAndWaitsOutTheBackOffBeforeAnyoneIsAsked`
+and `theSwitchTurningOffEndsABackOffAndNobodyIsAsked`.
+
 #### Amendment 2026-09-15 — a call is answered even when its handler fails
 
 **What was wrong (LINUX-NEW-9).** "A client that made a method call is waiting for exactly one

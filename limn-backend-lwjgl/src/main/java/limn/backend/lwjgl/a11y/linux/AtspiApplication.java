@@ -30,8 +30,11 @@ import java.util.function.LongSupplier;
  * accessibility bus's {@code Hello}, the registry's {@code Embed} — and a frame that waited on them
  * would freeze the window it is trying to make readable. So the first publish that has a tree starts
  * one short-lived daemon thread that joins and ends; a publish while it runs does nothing; a join
- * that fails closes everything it opened and is not tried again until a back-off has passed, rather
- * than on every frame. Events emitted before the join completes are dropped, as they always were.
+ * that fails closes everything it opened, and its thread waits out a back-off and then asks every
+ * window for a publish, which tries again — so a failed join is retried on a growing interval and
+ * never on every frame, and an idle window whose tree nothing will dirty is not left off the
+ * desktop. A joined connection that is lost soon after its join counts as a failure too. Events
+ * emitted before the join completes are dropped, as they always were.
  *
  * <p><b>Who touches what.</b> The table of windows is copy-on-write: the user-interface thread adds a
  * window on its first publish and removes it on its detach, and the reader thread iterates it on
@@ -123,8 +126,20 @@ final class AtspiApplication {
     /** The longest wait between two joins, however many have failed. */
     static final long LONGEST_RETRY_NANOS = TimeUnit.SECONDS.toNanos(60);
 
-    /** The joined state: the link, which join it was, and the frames the registry read at it. */
-    private record Joined(Link link, int generation, Map<AtspiBridge, Long> framesAtJoin) {
+    /**
+     * How long a joined connection must have lasted for its loss to be news rather than a failure:
+     * one lost sooner is counted against the back-off, so a connection that joins and dies at once
+     * (a bus still restarting, a reader killed by an error) is not rejoined as fast as frames come.
+     * Policy, like the two above, not a platform constant.
+     */
+    static final long STEADY_NANOS = TimeUnit.SECONDS.toNanos(60);
+
+    /**
+     * The joined state: the link, which join it was, the frames the registry read at it, and when
+     * it was joined, on the application's clock.
+     */
+    private record Joined(Link link, int generation, Map<AtspiBridge, Long> framesAtJoin,
+                          long joinedAt) {
     }
 
     private static final Object PROCESS_LOCK = new Object();
@@ -135,7 +150,8 @@ final class AtspiApplication {
      *         its own, for a test that must not share the process's
      */
     static AtspiApplication forThisMachine() {
-        return new AtspiApplication(AtspiApplication::joinTheBus, Starter.DAEMON, System::nanoTime);
+        return new AtspiApplication(AtspiApplication::joinTheBus, Starter.DAEMON, System::nanoTime,
+                AtspiStatusWatch.Sleeper.REAL);
     }
 
     /** @return the process's application, made on the first ask; it opens nothing until a join */
@@ -151,26 +167,44 @@ final class AtspiApplication {
     private final Connector connector;
     private final Starter starter;
     private final LongSupplier clock;
+    private final AtspiStatusWatch.Sleeper sleeper;
     private final CopyOnWriteArrayList<AtspiBridge> windows = new CopyOnWriteArrayList<>();
     private final AtspiTree objects;
     private final AtomicReference<Joined> joined = new AtomicReference<>();
+    /**
+     * Held from the moment a join is started until its thread ends: through the join, and through
+     * the back-off wait that follows a failed one. Nothing starts a join while it is held.
+     */
     private final AtomicBoolean joining = new AtomicBoolean();
     private volatile String name = "";
     /** The desktop's accessibility switch, as the watch last read it. Watch thread writes. */
     private volatile boolean enabled;
     private final AtomicBoolean watching = new AtomicBoolean();
-    /** When the next join may start, meaningful only while {@code failures} is above zero. */
-    private volatile long retryAt;
+    /**
+     * Joins that failed, or connections lost before {@link #STEADY_NANOS}, since the last one that
+     * held. Written only by a thread holding {@code joining}.
+     */
     private volatile int failures;
+    /** The thread waiting out a back-off, so the switch turning off can end the wait. */
+    private volatile Thread waiting;
     private volatile int generations;
     /** The join whose frames the windows' bookkeeping describes. User-interface thread. */
     private int caughtUpGeneration;
     private int joinAttempts;
 
     AtspiApplication(Connector connector, Starter starter, LongSupplier clock) {
+        this(connector, starter, clock, AtspiStatusWatch.Sleeper.REAL);
+    }
+
+    /**
+     * @param sleeper how a thread holding the join waits out a back-off; a test's advances its clock
+     */
+    AtspiApplication(Connector connector, Starter starter, LongSupplier clock,
+                     AtspiStatusWatch.Sleeper sleeper) {
         this.connector = connector;
         this.starter = starter;
         this.clock = clock;
+        this.sleeper = sleeper;
         this.objects = new AtspiTree(() -> windows, () -> name);
     }
 
@@ -236,17 +270,29 @@ final class AtspiApplication {
             return;
         }
         if (on) {
-            for (AtspiBridge window : windows) {
-                limn.backend.AccessibilityBridge.Host host = window.host();
-                if (host != null) {
-                    host.requestRepublish();
-                }
-            }
+            askEveryWindowToPublish();
             return;
+        }
+        // A back-off being waited out is for a reader that has gone: end it now rather than keep a
+        // thread for up to a minute. Written before this read, as the waiter reads the switch after
+        // it names itself, so neither misses the other.
+        Thread waiter = waiting;
+        if (waiter != null) {
+            waiter.interrupt();
         }
         Joined now = joined.get();
         if (now != null) {
             leave(now);
+        }
+    }
+
+    /** Asks every attached window for a publish, which is what starts a join. Any thread. */
+    private void askEveryWindowToPublish() {
+        for (AtspiBridge window : windows) {
+            limn.backend.AccessibilityBridge.Host host = window.host();
+            if (host != null) {
+                host.requestRepublish();
+            }
         }
     }
 
@@ -327,8 +373,14 @@ final class AtspiApplication {
         window.shownAsFrame = false;
         windows.remove(window);
         window.member = false;
-        if (windows.isEmpty() && now != null) {
-            leave(now);
+        if (windows.isEmpty()) {
+            Thread waiter = waiting;
+            if (waiter != null) {
+                waiter.interrupt();  // a back-off for no window at all
+            }
+            if (now != null) {
+                leave(now);
+            }
         }
     }
 
@@ -406,16 +458,12 @@ final class AtspiApplication {
     }
 
     /**
-     * Starts a join unless one is running or the last one failed too recently. User-interface
-     * thread: a compare-and-set and, at most once per join, a thread start.
+     * Starts a join unless one is running or a failed one's back-off is still being waited out —
+     * the same flag holds both. User-interface thread: a compare-and-set and, at most once per join,
+     * a thread start.
      */
     private void requestJoin() {
         if (!enabled) {
-            return;
-        }
-        // failures before retryAt: the joiner writes them in the other order, so a failure seen
-        // here always comes with its own wait.
-        if (failures > 0 && clock.getAsLong() - retryAt < 0) {
             return;
         }
         if (!joining.compareAndSet(false, true)) {
@@ -452,24 +500,22 @@ final class AtspiApplication {
         try {
             link = connector.join(objects, lost);
         } catch (IOException | RuntimeException e) {
-            int failed = failures + 1;
-            long wait = Math.min(LONGEST_RETRY_NANOS, FIRST_RETRY_NANOS << Math.min(failed - 1, 16));
-            retryAt = clock.getAsLong() + wait;
-            failures = failed;
-            joining.set(false);
+            failures++;
+            waitOutTheBackOffAndAskAgain();
             return;
         }
-        failures = 0;
         if (!enabled) {
             // The switch went off while the join ran: nothing is reading, so nothing stays joined.
             link.close();
             joining.set(false);
             return;
         }
-        Joined now = new Joined(link, ++generations, Map.copyOf(frames));
-        self.set(now);
+        Joined now = new Joined(link, ++generations, Map.copyOf(frames), clock.getAsLong());
         joined.set(now);
+        // The join is let go of before the loss handler can see this state, so a loss it handles
+        // finds the flag free to start its back-off; a loss that saw no state yet is seen below.
         joining.set(false);
+        self.set(now);
         if (lostEarly.get()) {
             connectionLost(now);
         } else if (windows.isEmpty()) {
@@ -484,26 +530,77 @@ final class AtspiApplication {
      * not go on, or its writer could not write. An application still believing itself embedded
      * would go on sending signals into a connection nobody answers on — the "embedded but deaf"
      * state LINUX-NEW-13 found — so the join is let go of and every window is asked for a publish,
-     * which joins again (within the back-off, if joins then fail).
+     * which joins again.
+     *
+     * <p>At once only when the connection had held for {@link #STEADY_NANOS}. One lost sooner is a
+     * failure: until 2026-09-15 a successful join reset the count, so a connection that joined and
+     * died at once — a bus still restarting, a handler error that ends the reader — was rejoined as
+     * fast as the scene published, a socket and two threads each time. Such a loss waits out the
+     * back-off on a thread of its own and then asks.
      */
     private void connectionLost(Joined now) {
-        if (joined.get() != now) {
+        if (!leave(now)) {
+            return;  // already let go of, by this handler or on purpose
+        }
+        boolean steady = clock.getAsLong() - now.joinedAt() >= STEADY_NANOS;
+        if (!joining.compareAndSet(false, true)) {
+            return;  // a join already started will ask, or wait, for itself
+        }
+        if (steady) {
+            failures = 0;
+            joining.set(false);
+            askEveryWindowToPublish();
             return;
         }
-        leave(now);
-        for (AtspiBridge window : windows) {
-            limn.backend.AccessibilityBridge.Host host = window.host();
-            if (host != null) {
-                host.requestRepublish();
+        failures++;
+        starter.start("limn-a11y-atspi-join", this::waitOutTheBackOffAndAskAgain);
+    }
+
+    /**
+     * On a thread holding {@code joining}, after a failure: waits the back-off for the failures
+     * counted so far, lets the join go, and asks every window for the publish that tries again —
+     * unless the switch went off or the application joined meanwhile.
+     *
+     * <p>It used to only record when the next join might start and leave the asking to whatever
+     * published next (LINUX-NEW-12, the linux-A review). A scene publishes only when its tree is
+     * dirty, so an idle window — the window decision 29 is about, opened before the reader and then
+     * left alone — stayed off the desktop after one failed join until something else changed on
+     * screen, and a publish that fell inside the back-off was dropped with nothing to repeat it.
+     */
+    private void waitOutTheBackOffAndAskAgain() {
+        long wait = Math.min(LONGEST_RETRY_NANOS, FIRST_RETRY_NANOS << Math.min(failures - 1, 16));
+        waiting = Thread.currentThread();
+        boolean waited = false;
+        try {
+            // Read after naming this thread, as enabled(false) writes the switch before it reads
+            // the name: one of the two always sees the other.
+            if (enabled && !windows.isEmpty()) {
+                sleeper.sleep(wait);
+                waited = true;
             }
+        } catch (InterruptedException e) {
+            // The switch went off, or the last window left: nobody to ask.
+        } finally {
+            waiting = null;
+            Thread.interrupted();  // an interrupt that came after the wait was for this wait alone
+            joining.set(false);
+        }
+        if (waited && enabled && joined.get() == null) {
+            askEveryWindowToPublish();
         }
     }
 
-    /** Lets a join go, once, whichever thread gets here first. */
-    private void leave(Joined now) {
+    /**
+     * Lets a join go, once, whichever thread gets here first.
+     *
+     * @return whether this call was the one that let it go
+     */
+    private boolean leave(Joined now) {
         if (joined.compareAndSet(now, null)) {
             now.link().close();
+            return true;
         }
+        return false;
     }
 
     /**

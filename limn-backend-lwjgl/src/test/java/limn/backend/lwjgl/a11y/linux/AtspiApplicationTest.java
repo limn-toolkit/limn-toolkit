@@ -311,23 +311,21 @@ class AtspiApplicationTest {
     @Test
     void aConnectionThatStopsOnItsOwnIsLetGoAndEveryWindowIsAskedToPublishAgain() {
         FakeBus bus = new FakeBus();
-        AtspiApplication app = anApplication(bus);
+        long[] now = {1_000_000_000L};
+        AtspiApplication app = new AtspiApplication(bus, AtspiApplication.Starter.ON_THE_CALLER,
+                () -> now[0]);
+        app.enabled(true);
         AtspiBridge main = app.window();
         AtspiBridge popup = app.window();
         int[] republishes = {0};
-        AccessibilityBridge.Host host = new AccessibilityBridge.Host() {
-            @Override public void requestRepublish() { republishes[0]++; }
-            @Override public void requestRestamp() { }
-            @Override public AccessibleTree republishNow() { return AccessibleTree.EMPTY; }
-            @Override public boolean perform(long nodeId, Accessible.Action action,
-                                             Accessible.Argument arg) { return false; }
-        };
+        AccessibilityBridge.Host host = hostCounting(republishes);
         main.attach(host);
         popup.attach(host);
         main.publish(aWindow("Main", 0).tree(), false);
         popup.publish(aWindow("Calendar", 0).tree(), false);
         assertTrue(app.isJoined());
 
+        now[0] += AtspiApplication.STEADY_NANOS;  // a connection that held, then was lost
         bus.lost.run();
         assertFalse(app.isJoined(), "a connection whose reader has stopped is not a connection: "
                 + "believing it still embedded is the deaf application nobody can see");
@@ -337,6 +335,94 @@ class AtspiApplicationTest {
         main.publish(aWindow("Main", 0).tree(), false);
         assertEquals(2, bus.joins, "and the next publish joins again");
         assertTrue(app.isJoined());
+    }
+
+    @Test
+    void aConnectionLostSoonAfterItsJoinIsAFailureAndWaitsOutTheBackOffBeforeAnyoneIsAsked() {
+        // A handler error that ends the reader, or a bus still restarting, loses the connection
+        // right after the join. A successful join used to reset the failure count, so each such
+        // loss was rejoined as fast as the scene published: a socket and two threads a time.
+        FakeBus bus = new FakeBus();
+        long[] now = {1_000_000_000L};
+        List<Runnable> threads = new ArrayList<>();
+        List<Long> waits = new ArrayList<>();
+        AtspiApplication app = new AtspiApplication(bus, (name, body) -> threads.add(body),
+                () -> now[0], nanos -> {
+                    waits.add(nanos);
+                    now[0] += nanos;
+                });
+        app.enabled(true);
+        AtspiBridge main = app.window();
+        int[] republishes = {0};
+        main.attach(hostCounting(republishes));
+
+        main.publish(aWindow("Main", 0).tree(), false);
+        threads.remove(0).run();
+        assertTrue(app.isJoined());
+        now[0] += AtspiApplication.FIRST_RETRY_NANOS;
+        bus.lost.run();
+        assertFalse(app.isJoined());
+        assertEquals(0, republishes[0], "a loss one second after the join is not rejoined at once");
+        main.publish(aWindow("Main", 0).tree(), false);
+        assertEquals(1, bus.joins, "nor by the next frame");
+        assertEquals(1, threads.size(), "a thread of its own waits the back-off");
+        threads.remove(0).run();
+        assertEquals(List.of(AtspiApplication.FIRST_RETRY_NANOS), waits);
+        assertEquals(1, republishes[0], "and then asks");
+
+        main.publish(aWindow("Main", 0).tree(), false);
+        threads.remove(0).run();
+        assertEquals(2, bus.joins);
+        bus.lost.run();
+        threads.remove(0).run();
+        assertEquals(List.of(AtspiApplication.FIRST_RETRY_NANOS,
+                        2 * AtspiApplication.FIRST_RETRY_NANOS), waits,
+                "the join between the two losses did not wipe the count: the second waits longer");
+
+        main.publish(aWindow("Main", 0).tree(), false);
+        threads.remove(0).run();
+        now[0] += AtspiApplication.STEADY_NANOS;
+        bus.lost.run();
+        assertEquals(3, republishes[0], "a connection that held is asked for again at once");
+        assertTrue(threads.isEmpty());
+        main.publish(aWindow("Main", 0).tree(), false);
+        threads.remove(0).run();
+        bus.lost.run();
+        threads.remove(0).run();
+        assertEquals(AtspiApplication.FIRST_RETRY_NANOS, waits.get(waits.size() - 1),
+                "and the count starts again after it");
+    }
+
+    @Test
+    void theSwitchTurningOffEndsABackOffAndNobodyIsAsked() {
+        List<Runnable> threads = new ArrayList<>();
+        AtspiApplication[] app = new AtspiApplication[1];
+        boolean[] interrupted = {false};
+        app[0] = new AtspiApplication((objects, lost) -> {
+            throw new java.io.IOException("the registry is not there");
+        }, (name, body) -> threads.add(body), System::nanoTime, nanos -> {
+            app[0].enabled(false);  // the reader quits during the wait
+            if (Thread.interrupted()) {
+                interrupted[0] = true;
+                throw new InterruptedException();
+            }
+        });
+        AtspiBridge main = app[0].window();
+        int[] republishes = {0};
+        main.attach(hostCounting(republishes));
+        app[0].enabled(true);
+        assertEquals(1, republishes[0]);
+        main.publish(aWindow("Main", 0).tree(), false);
+        threads.remove(0).run();
+        assertTrue(interrupted[0], "the wait is ended rather than kept for up to a minute for a "
+                + "reader that has gone");
+        assertEquals(1, republishes[0], "and nobody is asked to publish for it");
+
+        app[0].enabled(true);
+        assertEquals(2, republishes[0]);
+        main.publish(aWindow("Main", 0).tree(), false);
+        assertEquals(1, threads.size(), "a reader that comes back is joined for at once: the ended "
+                + "wait holds nothing");
     }
 
     private static void assertFrameSignal(DBus.Msg signal, String detail, int index, long frame) {
