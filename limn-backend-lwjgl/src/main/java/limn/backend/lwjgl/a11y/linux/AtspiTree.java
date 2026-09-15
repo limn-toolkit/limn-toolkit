@@ -242,6 +242,9 @@ final class AtspiTree {
         if (Atspi.I_TABLE_CELL.equals(iface) && at != null && node.cell() != null) {
             return tableCell(m, at);
         }
+        if (Atspi.I_SELECTION.equals(iface) && at != null && node.selection() != null) {
+            return selection(m, at);
+        }
         if (Atspi.I_APPLICATION.equals(iface) && root) {
             return application(m);
         }
@@ -468,6 +471,13 @@ final class AtspiTree {
             out.put("NSelectedColumns", new DBus.Variant("i", 0));
             return out;
         }
+        if (Atspi.I_SELECTION.equals(which) && node != null && node.selection() != null) {
+            // A property, not a method: libatspi 2.60.6 reads it through Properties.Get, "i"
+            // (atspi-selection.c, readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt).
+            out.put("NSelectedChildren",
+                    new DBus.Variant("i", selectedMembersOf(at.tree(), node).size()));
+            return out;
+        }
         if (Atspi.I_TABLE_CELL.equals(which) && node != null && node.cell() != null) {
             AccessibleTree tree = at.tree();
             AccessibleNode table = tableOf(tree, node);
@@ -645,6 +655,9 @@ final class AtspiTree {
         if (node.cell() != null) {
             out.add(Atspi.I_TABLE_CELL);
         }
+        if (node.selection() != null) {
+            out.add(Atspi.I_SELECTION);
+        }
         // No setter is served yet: neither Value nor EditableText is named here, so nothing this
         // bridge answers can post SET_VALUE or SET_TEXT. Phase 3 serves them (linux-value-text)
         // and owes each setter the refusal fix round 2e settled: none posted to a node
@@ -749,6 +762,95 @@ final class AtspiTree {
             default:
                 return null;
         }
+    }
+
+    // ------------------------------------------------------------------ org.a11y.atspi.Selection
+
+    /**
+     * The selection interface over a node with a {@code SelectionFacet} (L2; semantics 1 of the
+     * 2026-09-13 pass, and the settled atspi-selection-membership).
+     *
+     * <p><b>Two indices, as the installed XML names them.</b> A method whose argument is
+     * {@code selectedChildIndex} ({@code GetSelectedChild}, {@code DeselectSelectedChild}) counts
+     * the container's selected <em>members</em> — the realized nodes whose selection container is
+     * this node, wherever they hang (a calendar's days under its week rows), in reading order — and
+     * {@code NSelectedChildren} counts the same set. A method whose argument is {@code childIndex}
+     * ({@code SelectChild}, {@code IsChildSelected}, {@code DeselectChild}) names the container's
+     * literal child at that index, whatever it is: a tree's scroll bar, a grid's week row, which
+     * are no members and are selected by nothing (readings/fedora-dbus-Selection.xml). Orca 50.2
+     * calls only the first two (readings/fedora-orca-interface-calls.txt). A member scrolled away
+     * has no node and is not counted: the same degradation {@code GetAccessibleAt} accepts.
+     *
+     * <p>Writes post the first verb of their candidate list the node accepts (semantics 5):
+     * {@code SelectChild} [ADD_TO_SELECTION, SELECT], {@code DeselectChild} and
+     * {@code DeselectSelectedChild} [DESELECT]. {@code SelectAll} and {@code ClearSelection} answer
+     * false: the model has no verb for either.
+     */
+    private DBus.Msg selection(DBus.Msg m, Located at) {
+        AccessibleTree tree = at.tree();
+        AccessibleNode node = at.node();
+        switch (m.member == null ? "" : m.member) {
+            case "GetSelectedChild": {
+                List<AccessibleNode> selected = selectedMembersOf(tree, node);
+                int i = arg(m, 0);
+                DBus.Ref ref = i >= 0 && i < selected.size() ? refOf(selected.get(i).id()) : nullRef();
+                return DBus.Msg.ret(m, "(so)", (Object) ref.toStruct());
+            }
+            case "IsChildSelected": {
+                AccessibleNode child = childAt(tree, node, arg(m, 0));
+                return DBus.Msg.ret(m, "b", child != null && isSelectedMemberOf(tree, child, node));
+            }
+            case "SelectChild":
+                return DBus.Msg.ret(m, "b", performFirst(at, childAt(tree, node, arg(m, 0)),
+                        Accessible.Action.ADD_TO_SELECTION, Accessible.Action.SELECT));
+            case "DeselectChild":
+                return DBus.Msg.ret(m, "b", performFirst(at, childAt(tree, node, arg(m, 0)),
+                        Accessible.Action.DESELECT));
+            case "DeselectSelectedChild": {
+                List<AccessibleNode> selected = selectedMembersOf(tree, node);
+                int i = arg(m, 0);
+                return DBus.Msg.ret(m, "b", i >= 0 && i < selected.size()
+                        && performFirst(at, selected.get(i), Accessible.Action.DESELECT));
+            }
+            case "SelectAll":
+            case "ClearSelection":
+                return DBus.Msg.ret(m, "b", false);
+            default:
+                return null;
+        }
+    }
+
+    /** The container's literal child at {@code index}, or {@code null} when there is none. */
+    private static AccessibleNode childAt(AccessibleTree tree, AccessibleNode node, int index) {
+        List<AccessibleNode> kids = tree.children(node);
+        return index >= 0 && index < kids.size() ? kids.get(index) : null;
+    }
+
+    /** Whether {@code member} is a selected member of {@code container} (semantics 1). */
+    private static boolean isSelectedMemberOf(AccessibleTree tree, AccessibleNode member,
+                                              AccessibleNode container) {
+        int index = member.selectionContainer();
+        return member.selectionItem() != null && member.selectionItem().selected()
+                && index >= 0 && index < tree.nodeCount() && tree.node(index) == container;
+    }
+
+    /**
+     * The realized selected members of a container, in reading order: every node the publish
+     * resolved to this container ({@link AccessibleNode#selectionContainer}) whose selection item
+     * is selected. Members follow their container in a snapshot, so the scan starts there.
+     */
+    private static List<AccessibleNode> selectedMembersOf(AccessibleTree tree,
+                                                          AccessibleNode container) {
+        List<AccessibleNode> out = new ArrayList<>();
+        int from = tree.indexOf(container.id());
+        for (int i = Math.max(0, from + 1); i < tree.nodeCount(); i++) {
+            AccessibleNode candidate = tree.node(i);
+            if (candidate.selectionContainer() == from && candidate.selectionItem() != null
+                    && candidate.selectionItem().selected()) {
+                out.add(candidate);
+            }
+        }
+        return out;
     }
 
     // ------------------------------------------------------------------ org.a11y.atspi.Table

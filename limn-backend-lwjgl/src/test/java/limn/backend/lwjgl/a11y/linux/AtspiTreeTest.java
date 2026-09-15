@@ -376,6 +376,152 @@ class AtspiTreeTest {
     }
 
     /**
+     * A list whose first child is its scroll bar, holding four rows of which two are selected and one
+     * offers nothing: the shape of a Tree or a ListView, where a child index and a selected-member
+     * index are not the same number.
+     */
+    private void publishAWindowWithAMultiSelectList() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int list = a.begin(7000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.LIST);
+        a.selection(true, false);
+        a.inherited(true, true, true, true, true);
+        a.begin(7001, list, Locale.ENGLISH, 390, 0, 10, 300);
+        a.role(Accessible.Role.SCROLL_BAR);
+        a.value(0, 0, 100, 10);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        for (int r = 0; r < 4; r++) {
+            a.begin(7010 + r, list, Locale.ENGLISH, 0, r * 30, 390, 30);
+            a.role(Accessible.Role.LIST_ITEM);
+            a.name(I18nString.literal("Row " + r), Accessible.NameFrom.CONTENT);
+            boolean selected = r == 1 || r == 3;
+            a.selectionItem(selected, r + 1, 4);
+            if (r == 2) {
+                a.action(Accessible.Action.SELECT, Accessible.Action.ADD_TO_SELECTION);
+            } else if (r == 0) {
+                a.action(Accessible.Action.SELECT);
+            } else if (r == 1) {
+                a.action(Accessible.Action.SELECT, Accessible.Action.DESELECT);
+            }
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        a.end();
+        tree.set(a.publish(7000, 0, 0, 1f, true));
+    }
+
+    /**
+     * org.a11y.atspi.Selection on a container (L2, semantics 1 and 5): nine containers published a
+     * SelectionFacet and none was served, so libatspi's get_n_selected_children answered -1 in every
+     * snapshot of the tree reader and Orca found no selection to present.
+     */
+    @Test
+    void aSelectionContainerCountsItsSelectedMembersAndAddressesItsChildrenByTheirIndex() {
+        publishAWindowWithAMultiSelectList();
+
+        assertTrue(((List<?>) call(path(7000), Atspi.I_ACCESSIBLE, "GetInterfaces", null).body[0])
+                .contains(Atspi.I_SELECTION), "a node with a selection facet implements Selection");
+        assertTrue(!((List<?>) call(path(7010), Atspi.I_ACCESSIBLE, "GetInterfaces", null).body[0])
+                .contains(Atspi.I_SELECTION), "a member does not");
+        DBus.Msg count = call(path(7000), Atspi.I_PROPS, "Get", "ss", Atspi.I_SELECTION,
+                "NSelectedChildren");
+        assertNull(count.errorName, "answered, not refused as a property this object lacks");
+        assertEquals(2, ((DBus.Variant) count.body[0]).value,
+                "a property, read through Properties as libatspi reads it: two rows are selected");
+        assertEquals("i", ((DBus.Variant) count.body[0]).sig);
+
+        assertEquals(path(7011), ((Object[]) call(path(7000), Atspi.I_SELECTION,
+                "GetSelectedChild", "i", 0).body[0])[1], "the first selected member");
+        assertEquals(path(7013), ((Object[]) call(path(7000), Atspi.I_SELECTION,
+                "GetSelectedChild", "i", 1).body[0])[1], "and the second, in reading order");
+        assertEquals(Atspi.PATH_NULL, ((Object[]) call(path(7000), Atspi.I_SELECTION,
+                "GetSelectedChild", "i", 2).body[0])[1], "past the last is the null object");
+
+        List<Object> selected = new ArrayList<>();
+        for (int child = 0; child < 6; child++) {
+            selected.add(call(path(7000), Atspi.I_SELECTION, "IsChildSelected", "i", child).body[0]);
+        }
+        assertEquals(List.of(false, false, true, false, true, false), selected,
+                "a child index is the literal child: 0 is the scroll bar, 2 and 4 are rows 1 and 3");
+
+        List<Object> answers = new ArrayList<>();
+        answers.add(call(path(7000), Atspi.I_SELECTION, "SelectChild", "i", 0).body[0]);
+        answers.add(call(path(7000), Atspi.I_SELECTION, "SelectChild", "i", 1).body[0]);
+        answers.add(call(path(7000), Atspi.I_SELECTION, "SelectChild", "i", 3).body[0]);
+        answers.add(call(path(7000), Atspi.I_SELECTION, "SelectChild", "i", 4).body[0]);
+        answers.add(call(path(7000), Atspi.I_SELECTION, "DeselectChild", "i", 2).body[0]);
+        answers.add(call(path(7000), Atspi.I_SELECTION, "DeselectChild", "i", 4).body[0]);
+        answers.add(call(path(7000), Atspi.I_SELECTION, "DeselectSelectedChild", "i", 0).body[0]);
+        answers.add(call(path(7000), Atspi.I_SELECTION, "DeselectSelectedChild", "i", 5).body[0]);
+        answers.add(call(path(7000), Atspi.I_SELECTION, "SelectAll", null).body[0]);
+        answers.add(call(path(7000), Atspi.I_SELECTION, "ClearSelection", null).body[0]);
+        assertEquals(List.of(false, true, true, false, true, false, true, false, false, false),
+                answers, "each write is taken only where the child offers one of its candidates");
+        assertEquals(List.of("7010:SELECT", "7012:ADD_TO_SELECTION", "7011:DESELECT",
+                "7011:DESELECT"), performed, "the scroll bar is selected by nothing, row 2's add is "
+                + "ADD_TO_SELECTION, and a selected index names the member, not the child");
+    }
+
+    /**
+     * A calendar's days are members of the grid although they hang under week rows (semantics 1):
+     * the selected-member count and GetSelectedChild reach through the rows, and a row, which is
+     * the grid's literal child, is never selected.
+     */
+    @Test
+    void aGridsSelectedMembersAreFoundUnderItsRowsAndTheRowsAreNeverSelected() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int grid = a.begin(8000, 0, Locale.ENGLISH, 0, 0, 350, 100);
+        a.role(Accessible.Role.TABLE);
+        a.table(2, 2);
+        a.selection(false, true);
+        for (int w = 0; w < 2; w++) {
+            a.child(100 + w);
+            a.bounds(0, w * 50, 100, 50);
+            a.role(Accessible.Role.ROW);
+            for (int c = 0; c < 2; c++) {
+                a.child(200 + w * 10 + c);
+                a.bounds(c * 50, w * 50, 50, 50);
+                a.role(Accessible.Role.CELL);
+                a.name(I18nString.literal("Day " + (w * 2 + c + 1)), Accessible.NameFrom.CONTENT);
+                a.cell(w, c);
+                a.selectionItem(w == 1 && c == 0, w * 2 + c + 1, 30);
+                a.endChild();
+            }
+            a.endChild();
+        }
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        AccessibleTree published = a.publish(0, 0, 0, 1f, true);
+        tree.set(published);
+        String gridPath = path(published.node(grid).id());
+        AccessibleNode day3 = null;
+        for (int i = 0; i < published.nodeCount(); i++) {
+            if ("Day 3".equals(published.node(i).name())) {
+                day3 = published.node(i);
+            }
+        }
+        assertNotNull(day3);
+
+        assertEquals(1, ((DBus.Variant) call(gridPath, Atspi.I_PROPS, "Get", "ss",
+                Atspi.I_SELECTION, "NSelectedChildren").body[0]).value);
+        assertEquals(path(day3.id()), ((Object[]) call(gridPath, Atspi.I_SELECTION,
+                "GetSelectedChild", "i", 0).body[0])[1], "the selected day, under its week row");
+        assertEquals(false, call(gridPath, Atspi.I_SELECTION, "IsChildSelected", "i", 1).body[0],
+                "child 1 is the week row holding it, which is no member");
+    }
+
+    /**
      * The relation set, one entry per type with every target of that type, in the platform's own
      * numbering: what Orca reads a field's label and its description from when it lands on it.
      */

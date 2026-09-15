@@ -2376,6 +2376,27 @@ footer cell (row −2) is never one, and none means none. `AddRowSelection` post
 reads `=>iiii` although the ATK bridge's XML declares `biiii`
 (readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt, readings/fedora-dbus-TableCell.xml).
 
+#### Amendment 2026-09-15 — `Selection` is served, with the two indices its XML names
+
+**What was wrong (L2).** The `Selection` row promised an interface no code defined: no container
+listed it, `Properties.Get` refused `NSelectedChildren`, and every method answered `UnknownMethod`, so
+libatspi's `get_n_selected_children` read −1 in every snapshot of the 2026-09-13 tree reader.
+
+**What the bridge does now (semantics 1 and 5; settled atspi-selection-membership).** A node with a
+`SelectionFacet` lists `org.a11y.atspi.Selection` in `GetInterfaces` and in its cache item. The
+installed XML names two different indices (readings/fedora-dbus-Selection.xml), and each is kept:
+`NSelectedChildren` (a property, `i`), `GetSelectedChild` and `DeselectSelectedChild` count the
+container's **selected members** — the realized nodes the publish resolved to it
+(`AccessibleNode#selectionContainer`), in reading order, wherever they hang, so a calendar's selected
+day is found under its week row — while `SelectChild`, `IsChildSelected` and `DeselectChild` name the
+container's **literal child** at that index, which may be a tree's scroll bar or a grid's week row and
+is then selected by nothing. `SelectChild` posts the first of [`ADD_TO_SELECTION`, `SELECT`] the child
+accepts, `DeselectChild`/`DeselectSelectedChild` [`DESELECT`]; `SelectAll` and `ClearSelection` answer
+false, the model having no verb for either. A member scrolled away has no node and is not counted.
+Orca 50.2 calls `get_n_selected_children` and `get_selected_child` only
+(readings/fedora-orca-interface-calls.txt, Fedora KDE 44, 2026-09-15). The XML's `version` property is
+not answered.
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |

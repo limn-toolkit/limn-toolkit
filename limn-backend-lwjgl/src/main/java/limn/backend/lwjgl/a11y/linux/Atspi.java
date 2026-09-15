@@ -34,6 +34,11 @@ final class Atspi {
     static final String I_ACTION      = "org.a11y.atspi.Action";
     static final String I_TABLE       = "org.a11y.atspi.Table";
     static final String I_TABLE_CELL  = "org.a11y.atspi.TableCell";
+    // Named as the interface XML the Fedora KDE 44 guest's ATK bridge compiles in declares it
+    // (at-spi2-atk 2.60.6-1.fc44, readings/fedora-dbus-<Interface>.xml, extracted by
+    // scripts/a11y/linux/extract-atspi-introspection.sh on 2026-09-13, the guest's clock then
+    // reading 2026-09-10).
+    static final String I_SELECTION   = "org.a11y.atspi.Selection";
     static final String I_CACHE       = "org.a11y.atspi.Cache";
     static final String I_SOCKET      = "org.a11y.atspi.Socket";
     static final String I_PROPS       = "org.freedesktop.DBus.Properties";
