@@ -245,6 +245,9 @@ final class AtspiTree {
         if (Atspi.I_SELECTION.equals(iface) && at != null && node.selection() != null) {
             return selection(m, at);
         }
+        if (Atspi.I_EDITABLE_TEXT.equals(iface) && at != null && isEditableText(node)) {
+            return editableText(m, at);
+        }
         if (Atspi.I_TEXT.equals(iface) && at != null) {
             AtspiText.Source source = AtspiText.of(node);
             return source == null ? null : text(m, at, source);
@@ -717,6 +720,9 @@ final class AtspiTree {
         if (AtspiText.of(node) != null) {
             out.add(Atspi.I_TEXT);
         }
+        if (isEditableText(node)) {
+            out.add(Atspi.I_EDITABLE_TEXT);
+        }
         // An interface is named from the facet alone, never from whether its setter is accepted
         // now: a disabled field is still a field with a value. Every setter these serve posts
         // only what AccessibleNode#accepts allows (performFirst), a node without ENABLED
@@ -928,6 +934,77 @@ final class AtspiTree {
         int end = AtspiText.unitsOf(text, Math.max(from, to));
         return performFirst(at, at.node(), new Accessible.Argument.OfRange(start, end),
                 Accessible.Action.SET_SELECTION);
+    }
+
+    // ------------------------------------------------------------------ org.a11y.atspi.EditableText
+
+    /**
+     * Whether a node serves {@code EditableText}: a text the widget publishes {@code EDITABLE}
+     * (settled linux-value-text). A field that is only disabled keeps {@code EDITABLE} and so keeps
+     * the interface, as it keeps its role; it is the writes that {@link AccessibleNode#accepts}
+     * refuses there (ADR 039 §1.2: enabled and read-only are never conflated).
+     */
+    private static boolean isEditableText(AccessibleNode node) {
+        return node.text() != null && node.has(Accessible.State.EDITABLE);
+    }
+
+    /**
+     * The editable-text interface: every write is one {@code SET_TEXT} carrying the whole new
+     * string, built here from the published text, which is the only text verb the model has
+     * (LINUX-NEW-4).
+     *
+     * <p>{@code SetTextContents} replaces it; {@code InsertText} inserts at a character offset the
+     * first {@code length} characters of what it is given, or all of it when {@code length} is
+     * negative or at least its length — so a client that counts the length in UTF-8 bytes, which is
+     * never fewer than the characters, still inserts the whole string; {@code DeleteText} removes a
+     * character range. A masked field publishes its mask and not its text ({@code TextFacet}), so an
+     * insertion or deletion built on it would write the mask back: both are refused on a
+     * {@code PASSWORD} node, where only a whole replacement means what the client asked. The
+     * clipboard is not the bridge's: {@code CutText} and {@code PasteText} answer false and
+     * {@code CopyText}, which has no reply value, does nothing. Every write goes through
+     * {@link AccessibleNode#accepts}, so a read-only or disabled field answers false.
+     */
+    private DBus.Msg editableText(DBus.Msg m, Located at) {
+        AccessibleNode node = at.node();
+        String text = node.text().text();
+        boolean masked = node.has(Accessible.State.PASSWORD);
+        switch (m.member == null ? "" : m.member) {
+            case "SetTextContents":
+                return DBus.Msg.ret(m, "b", performFirst(at, node,
+                        new Accessible.Argument.OfText(String.valueOf(m.body[0])),
+                        Accessible.Action.SET_TEXT));
+            case "InsertText": {
+                if (masked) {
+                    return DBus.Msg.ret(m, "b", false);
+                }
+                int at0 = AtspiText.unitsOf(text, arg(m, 0));
+                String given = String.valueOf(m.body[1]);
+                int length = arg(m, 2);
+                int count = given.codePointCount(0, given.length());
+                String inserted = length < 0 || length >= count ? given
+                        : given.substring(0, given.offsetByCodePoints(0, length));
+                return DBus.Msg.ret(m, "b", performFirst(at, node, new Accessible.Argument.OfText(
+                        text.substring(0, at0) + inserted + text.substring(at0)),
+                        Accessible.Action.SET_TEXT));
+            }
+            case "DeleteText": {
+                if (masked) {
+                    return DBus.Msg.ret(m, "b", false);
+                }
+                int start = AtspiText.unitsOf(text, Math.min(arg(m, 0), arg(m, 1)));
+                int end = AtspiText.unitsOf(text, Math.max(arg(m, 0), arg(m, 1)));
+                return DBus.Msg.ret(m, "b", end > start && performFirst(at, node,
+                        new Accessible.Argument.OfText(text.substring(0, start) + text.substring(end)),
+                        Accessible.Action.SET_TEXT));
+            }
+            case "CopyText":
+                return DBus.Msg.ret(m, null);
+            case "CutText":
+            case "PasteText":
+                return DBus.Msg.ret(m, "b", false);
+            default:
+                return null;
+        }
     }
 
     // ------------------------------------------------------------------ org.a11y.atspi.Selection

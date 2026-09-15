@@ -2444,6 +2444,17 @@ answered, as §11 decided:** `GetCharacterExtents`, `GetRangeExtents`, `GetOffse
 first three for flat review and mouse review (readings/fedora-orca-interface-calls.txt), which stay
 degraded.
 
+**`EditableText` (the same date).** Listed for a text published `EDITABLE` — a field that is only
+disabled keeps both, as §1.2 requires. Every write is one `SET_TEXT` of the whole new string, built
+from the published text in characters, through `AccessibleNode#accepts`: `SetTextContents` replaces it,
+`InsertText` inserts the first `length` characters of what it is given (all of it when `length` is
+negative or not less than its length, so a client counting UTF-8 bytes still inserts the whole string),
+`DeleteText` removes a character range. On a `PASSWORD` node, whose facet holds the mask, only
+`SetTextContents` is taken. `CutText` and `PasteText` answer false and `CopyText` does nothing: the
+model has no clipboard verb. Orca 50.2 calls none of these (readings/fedora-orca-interface-calls.txt);
+the signatures are libatspi 2.60.6's (`s=>b`, `isi=>b`, `ii=>b`, `i=>b`, `CopyText` `ii` with no reply
+value).
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |

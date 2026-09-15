@@ -756,6 +756,72 @@ class AtspiTreeTest {
     }
 
     /**
+     * org.a11y.atspi.EditableText on an editable text (LINUX-NEW-4): every write is one SET_TEXT of
+     * the whole new string, built from the published text in characters, and taken only where the
+     * field accepts SET_TEXT (semantics 5); a masked field takes only a whole replacement, and the
+     * clipboard is not the bridge's.
+     */
+    @Test
+    void anEditableTextWritesTheWholeNewStringThroughSetTextWhereTheFieldAcceptsIt() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        String[] texts = {"a\uD83D\uDE00b", "off", "••••", "fixed"};
+        for (int i = 0; i < texts.length; i++) {
+            a.begin(9201 + i, 0, Locale.ENGLISH, 0, i * 30, 400, 30);
+            a.role(i == 2 ? Accessible.Role.PASSWORD_FIELD : Accessible.Role.TEXT_FIELD);
+            a.text(texts[i], i + 1, 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1, null,
+                    i == 3);
+            if (i != 3) {
+                a.state(Accessible.State.EDITABLE);
+            }
+            if (i == 2) {
+                a.state(Accessible.State.PASSWORD);
+            }
+            a.inherited(i != 1, true, true, true, false);
+            a.end();
+        }
+        a.end();
+        tree.set(a.publish(0, 0, 0, 1f, true));
+
+        List<?> ifaces = (List<?>) call(path(9201), Atspi.I_ACCESSIBLE, "GetInterfaces", null).body[0];
+        assertTrue(ifaces.contains(Atspi.I_EDITABLE_TEXT) && ifaces.contains(Atspi.I_TEXT),
+                "an editable field implements both");
+        assertTrue(((List<?>) call(path(9202), Atspi.I_ACCESSIBLE, "GetInterfaces", null).body[0])
+                .contains(Atspi.I_EDITABLE_TEXT), "a disabled field is still an editable field");
+        assertTrue(!((List<?>) call(path(9204), Atspi.I_ACCESSIBLE, "GetInterfaces", null).body[0])
+                .contains(Atspi.I_EDITABLE_TEXT), "read-only text is not");
+
+        List<Object> answers = new ArrayList<>();
+        answers.add(call(path(9201), Atspi.I_EDITABLE_TEXT, "InsertText", "isi", 2, "xyz", 2).body[0]);
+        answers.add(call(path(9201), Atspi.I_EDITABLE_TEXT, "InsertText", "isi", 1, "\u00e9", 2)
+                .body[0]);
+        answers.add(call(path(9201), Atspi.I_EDITABLE_TEXT, "DeleteText", "ii", 1, 2).body[0]);
+        answers.add(call(path(9201), Atspi.I_EDITABLE_TEXT, "SetTextContents", "s", "new").body[0]);
+        answers.add(call(path(9202), Atspi.I_EDITABLE_TEXT, "SetTextContents", "s", "no").body[0]);
+        answers.add(call(path(9203), Atspi.I_EDITABLE_TEXT, "InsertText", "isi", 0, "x", 1).body[0]);
+        answers.add(call(path(9203), Atspi.I_EDITABLE_TEXT, "SetTextContents", "s", "hunter2")
+                .body[0]);
+        answers.add(call(path(9201), Atspi.I_EDITABLE_TEXT, "CutText", "ii", 0, 1).body[0]);
+        answers.add(call(path(9201), Atspi.I_EDITABLE_TEXT, "PasteText", "i", 0).body[0]);
+        assertEquals(List.of(true, true, true, true, false, false, true, false, false), answers);
+        assertEquals(0, call(path(9201), Atspi.I_EDITABLE_TEXT, "CopyText", "ii", 0, 1).body.length,
+                "CopyText has no reply value");
+        assertEquals(List.of("9201:SET_TEXT", "9201:SET_TEXT", "9201:SET_TEXT", "9201:SET_TEXT",
+                "9203:SET_TEXT"), performed, "the disabled field and the mask's insertion take "
+                + "nothing");
+        assertEquals(List.of(new Accessible.Argument.OfText("a\uD83D\uDE00xyb"),
+                        new Accessible.Argument.OfText("a\u00e9\uD83D\uDE00b"),
+                        new Accessible.Argument.OfText("ab"),
+                        new Accessible.Argument.OfText("new"),
+                        new Accessible.Argument.OfText("hunter2")), arguments,
+                "offsets in characters: after the emoji is character 2; two characters of xyz; a "
+                        + "length of UTF-8 bytes still inserts the whole é; the emoji deleted whole");
+    }
+
+    /**
      * The relation set, one entry per type with every target of that type, in the platform's own
      * numbering: what Orca reads a field's label and its description from when it lands on it.
      */

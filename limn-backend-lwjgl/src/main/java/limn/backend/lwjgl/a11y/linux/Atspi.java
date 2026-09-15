@@ -41,6 +41,7 @@ final class Atspi {
     static final String I_SELECTION   = "org.a11y.atspi.Selection";
     static final String I_VALUE       = "org.a11y.atspi.Value";
     static final String I_TEXT        = "org.a11y.atspi.Text";
+    static final String I_EDITABLE_TEXT = "org.a11y.atspi.EditableText";
     static final String I_CACHE       = "org.a11y.atspi.Cache";
     static final String I_SOCKET      = "org.a11y.atspi.Socket";
     static final String I_PROPS       = "org.freedesktop.DBus.Properties";
