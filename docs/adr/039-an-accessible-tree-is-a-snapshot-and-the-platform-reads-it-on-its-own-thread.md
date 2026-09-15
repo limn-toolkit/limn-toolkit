@@ -2167,7 +2167,14 @@ of rows; `accessibilitySelectedCells` for a grid whose members are cells, a cale
 `accessibilitySelectedChildren` for anything else holding one, a tab strip — each answered from the
 selected members whose selection container it is, wherever they hang, and each refused where it is
 not the container's shape, as the native outline answers `AXSelectedRows` and no
-`AXSelectedChildren`.
+`AXSelectedChildren`. *Disclosure* (M1): an outline row answers `isAccessibilityDisclosed` from its
+expand facet, `accessibilityDisclosureLevel` as the hierarchy facet's level less one, and
+`accessibilityDisclosedByRow` / `accessibilityDisclosedRows` by walking the outline's realized rows
+while their flat row numbers run without a gap — a gap answers nothing rather than a grandparent —
+because the native outline's rows answered AXDisclosureLevel 0 at the top, their parent row and the
+rows one level down, on leaves too, and **no `AXExpanded`**; so `isAccessibilityExpanded` is answered
+for every other node with an expand facet and refused on an outline row, and a level of zero refuses
+the level getter (semantics 6).
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a
@@ -2380,7 +2387,10 @@ attribute: `SelectedRowsChanged` for an outline, a list or a table of rows — w
 `NSOutlineView` posted on itself for a row selected through `AXSelected` and through
 `AXSelectedRows`, with no `SelectedChildrenChanged` beside it (read on the macOS 26.6.2 guest,
 2026-09-15, `scripts/a11y/macos/outline-probe.swift`) — `SelectedCellsChanged` for a grid of cells,
-and `SelectedChildrenChanged` for anything else.
+and `SelectedChildrenChanged` for anything else. `STATE_CHANGED` of `EXPANDED` on an outline row is
+`RowExpanded` or `RowCollapsed` on the row, plus one `RowCountChanged` per outline per frame on the
+outline, as the native outline posted them when its row's `AXDisclosing` was set; on anything else it
+stays `ValueChanged`.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that

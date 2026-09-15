@@ -106,6 +106,11 @@ final class AxSelectors {
         kinds.put("accessibilityColumnIndexRange", Kind.RANGE);
         kinds.put("accessibilityCellForColumn:row:", Kind.ID_OF_TWO_INTEGERS);
         kinds.put("isAccessibilitySelected", Kind.BOOL);
+        kinds.put("isAccessibilityDisclosed", Kind.BOOL);
+        kinds.put("accessibilityDisclosureLevel", Kind.INTEGER);
+        kinds.put("accessibilityDisclosedByRow", Kind.ID);
+        kinds.put("accessibilityDisclosedRows", Kind.ID);
+        kinds.put("isAccessibilityExpanded", Kind.BOOL);
         kinds.put("accessibilityAttributeValue:", Kind.ID_OF_ID);
         kinds.put("accessibilityAttributeNames", Kind.ID);
         ON_ELEMENT = List.copyOf(kinds.keySet());

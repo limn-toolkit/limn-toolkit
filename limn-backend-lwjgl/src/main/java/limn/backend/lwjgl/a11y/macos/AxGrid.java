@@ -132,6 +132,105 @@ final class AxGrid {
         return childrenOf(node, child -> row.keep(child) && child.has(Accessible.State.SELECTED));
     }
 
+    // ---- disclosure: an outline's rows open and close (M1) ----------------------------------------
+
+    /**
+     * @param node the node asked
+     * @return whether it is a row of an outline carrying the hierarchy facet, which is what every
+     *         disclosure attribute is answered from
+     */
+    boolean isOutlineRow(AccessibleNode node) {
+        if (node.hierarchy() == null) return false;
+        AccessibleNode container = containerOf(node);
+        return container != null && container.role() == Accessible.Role.TREE
+                && container.selection() != null;
+    }
+
+    /**
+     * @param node the node asked
+     * @return {@code isAccessibilityDisclosed}: an outline row that is open
+     */
+    boolean disclosed(AccessibleNode node) {
+        return isOutlineRow(node) && node.expand() != null && node.expand().expanded();
+    }
+
+    /**
+     * {@code accessibilityDisclosureLevel}: zero at a root. The model's level is one-based (semantics
+     * 6) and a native NSOutlineView's rows answer AXDisclosureLevel 0 at the top, 1 below, 2 below that
+     * (read on the macOS 26.6.2 guest, 2026-09-15, {@code scripts/a11y/macos/outline-probe.swift}).
+     *
+     * @param node the node asked
+     * @return the level less one, or {@code 0} for a node with no level, which the gate refuses
+     */
+    long disclosureLevel(AccessibleNode node) {
+        return node.hierarchy() == null || node.hierarchy().level() <= 0 ? 0
+                : node.hierarchy().level() - 1;
+    }
+
+    /**
+     * {@code accessibilityDisclosedByRow}: the row that opened this one, found by walking up the
+     * outline's rows from this row over realized rows whose flat row numbers run without a gap, to
+     * the first one level shallower. A gap means the rows between were never realized and the parent
+     * is not in the snapshot, which answers nothing rather than a grandparent (ADR 039 §4.1).
+     *
+     * @param node the node asked
+     * @return its element, or zero at a root, at a gap and for anything that is not an outline row
+     */
+    long disclosedByRow(AccessibleNode node) {
+        if (!isOutlineRow(node)) return 0;
+        int level = node.hierarchy().level();
+        if (level <= 1) return 0;
+        AccessibleNode outline = containerOf(node);
+        long[] rows = rows(outline);
+        int at = indexAmong(rows, node);
+        int expected = node.hierarchy().row() - 1;
+        for (int i = at - 1; i >= 0; i--, expected--) {
+            AccessibleNode above = source.nodeFor(rows[i]);
+            if (above == null || above.hierarchy() == null || above.hierarchy().row() != expected) return 0;
+            if (above.hierarchy().level() < level) {
+                return above.hierarchy().level() == level - 1 ? rows[i] : 0;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * {@code accessibilityDisclosedRows}: the rows this one opened, one level deeper, found by walking
+     * down the outline's rows from this row over realized rows whose flat row numbers run without a
+     * gap, until a row at this row's level or shallower. A native outline answers them for an open
+     * row and an empty array for a leaf or a closed row.
+     *
+     * @param node the node asked
+     * @return their elements, empty when there are none; {@code null} for anything that is not an
+     *         outline row
+     */
+    long[] disclosedRows(AccessibleNode node) {
+        if (!isOutlineRow(node)) return null;
+        int level = node.hierarchy().level();
+        long[] rows = rows(containerOf(node));
+        int at = indexAmong(rows, node);
+        long[] found = new long[0];
+        int expected = node.hierarchy().row() + 1;
+        for (int i = at + 1; at >= 0 && i < rows.length; i++, expected++) {
+            AccessibleNode below = source.nodeFor(rows[i]);
+            if (below == null || below.hierarchy() == null || below.hierarchy().row() != expected
+                    || below.hierarchy().level() <= level) break;
+            if (below.hierarchy().level() == level + 1) {
+                found = java.util.Arrays.copyOf(found, found.length + 1);
+                found[found.length - 1] = rows[i];
+            }
+        }
+        return found;
+    }
+
+    private int indexAmong(long[] elements, AccessibleNode node) {
+        for (int i = 0; i < elements.length; i++) {
+            AccessibleNode at = source.nodeFor(elements[i]);
+            if (at != null && at.id() == node.id()) return i;
+        }
+        return -1;
+    }
+
     /**
      * What a selection container's members are, which decides the attribute AppKit reads its selection
      * from and the notification a change of it is posted as.

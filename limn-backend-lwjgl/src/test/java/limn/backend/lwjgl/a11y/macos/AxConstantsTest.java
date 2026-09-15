@@ -104,8 +104,38 @@ class AxConstantsTest {
      * {@code NSAccessibilityElement}); the committed resource is regenerated once, at the end of the
      * macOS lane, and that regeneration empties this set — the test below fails until it does.
      */
-    private static final Set<String> OWED_TO_THE_REGENERATION =
-            Set.of("accessibilityAttributeValue:", "accessibilityAttributeNames");
+    private static final Set<String> OWED_TO_THE_REGENERATION = Set.of(
+            "accessibilityAttributeValue:", "accessibilityAttributeNames",
+            // M1 and MACOS-NEW-5, read the same day by the same script (its encodings table):
+            // -isAccessibilityDisclosed B16@0:8, -accessibilityDisclosedByRow @16@0:8,
+            // -accessibilityDisclosedRows @16@0:8, -isAccessibilityExpanded B16@0:8, each from
+            // NSAccessibilityElement. OWED_SHAPES below holds each against its closure.
+            "isAccessibilityDisclosed", "accessibilityDisclosedByRow", "accessibilityDisclosedRows",
+            "isAccessibilityExpanded");
+
+    /**
+     * The encoding the 2026-09-13 guest reading gave each owed selector, copied from
+     * readings/macos-appkit-constants.txt, so that a closure installed under an owed selector is held
+     * against its shape before the regeneration puts the line in the committed dump.
+     */
+    private static final Map<String, String> OWED_SHAPES = Map.of(
+            "accessibilityAttributeValue:", "@24@0:8@16",
+            "accessibilityAttributeNames", "@16@0:8",
+            "isAccessibilityDisclosed", "B16@0:8",
+            "accessibilityDisclosedByRow", "@16@0:8",
+            "accessibilityDisclosedRows", "@16@0:8",
+            "isAccessibilityExpanded", "B16@0:8");
+
+    @Test
+    void everyOwedSelectorIsReadAndItsReadEncodingIsTheShapeOfItsClosure() {
+        assertEquals(OWED_TO_THE_REGENERATION, OWED_SHAPES.keySet(),
+                "an owed selector with no encoding copied from the reading is held against nothing");
+        for (Map.Entry<String, String> owed : OWED_SHAPES.entrySet()) {
+            AxSelectors.Kind kind = AxSelectors.kindOf(owed.getKey());
+            assertEquals(SHAPES.get(kind), owed.getValue(),
+                    "-" + owed.getKey() + " is listed as a " + kind + " closure, and the guest read " + owed.getValue());
+        }
+    }
 
     /**
      * MACOS-NEW-6: every selector the bridge installs has an encoding in the dump. An encoding is read
@@ -168,8 +198,11 @@ class AxConstantsTest {
                 + misshapen);
         Set<AxSelectors.Kind> unheld = java.util.EnumSet.allOf(AxSelectors.Kind.class);
         unheld.removeAll(held);
-        // ID_OF_ID is only the owed accessibilityAttributeValue: until the regeneration reads it.
-        unheld.remove(AxSelectors.Kind.ID_OF_ID);
+        // A shape only owed selectors have (ID_OF_ID: the owed accessibilityAttributeValue:) is held by
+        // everyOwedSelectorIsReadAndItsReadEncodingIsTheShapeOfItsClosure until the regeneration.
+        unheld.removeIf(kind -> AxSelectors.all().stream()
+                .filter(selector -> AxSelectors.kindOf(selector) == kind)
+                .allMatch(OWED_TO_THE_REGENERATION::contains));
         assertTrue(unheld.isEmpty(), "shapes no installed selector in the dump exercised: " + unheld);
     }
 
@@ -202,7 +235,9 @@ class AxConstantsTest {
      * macOS lane empties this map, and the companion test fails until it does.
      */
     private static final Map<String, String> SYMBOLS_OWED_TO_THE_REGENERATION = Map.of(
-            "NSAccessibilitySelectedCellsChangedNotification", "AXSelectedCellsChanged");
+            "NSAccessibilitySelectedCellsChangedNotification", "AXSelectedCellsChanged",
+            "NSAccessibilityRowExpandedNotification", "AXRowExpanded",
+            "NSAccessibilityRowCollapsedNotification", "AXRowCollapsed");
 
     @Test
     void everySymbolTheTablesNameIsExportedByAppKit() {

@@ -175,6 +175,24 @@ final class AxNotifications {
         };
     }
 
+    /**
+     * What an outline row opening or closing is posted as: {@code AXRowExpanded} or
+     * {@code AXRowCollapsed} on the row, and a row-count change on the outline, which is what a native
+     * NSOutlineView posted when its row's AXDisclosing was set (read on the macOS 26.6.2 guest,
+     * 2026-09-15, outline-probe.swift: RowCountChanged on the outline, RowExpanded on the row).
+     *
+     * @param open whether the row opened
+     * @return the posting on the row
+     */
+    static Posting disclosure(boolean open) {
+        return open ? ROW_EXPANDED : ROW_COLLAPSED;
+    }
+
+    static final Posting ROW_EXPANDED = new Posting("NSAccessibilityRowExpandedNotification", Subject.NODE);
+    static final Posting ROW_COLLAPSED = new Posting("NSAccessibilityRowCollapsedNotification", Subject.NODE);
+    static final Posting ROW_COUNT_CHANGED =
+            new Posting("NSAccessibilityRowCountChangedNotification", Subject.NODE);
+
     private static final Posting SELECTED_ROWS =
             new Posting("NSAccessibilitySelectedRowsChangedNotification", Subject.NODE);
     private static final Posting SELECTED_CELLS =
@@ -213,6 +231,9 @@ final class AxNotifications {
         for (Posting posting : BY_TYPE.values()) {
             if (posting != null && !posting.literal()) symbols.add(posting.notificationSymbol());
         }
+        symbols.add(ROW_EXPANDED.notificationSymbol());
+        symbols.add(ROW_COLLAPSED.notificationSymbol());
+        symbols.add(ROW_COUNT_CHANGED.notificationSymbol());
         symbols.add(SELECTED_ROWS.notificationSymbol());
         symbols.add(SELECTED_CELLS.notificationSymbol());
         symbols.add(PRIORITY_KEY_SYMBOL);

@@ -564,6 +564,14 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             // names the window root this bridge elides.
             if (posting == null) continue;
             if (event.type() == AccessibleEvent.Type.SELECTION_CHANGED) posting = selectionPosting(event);
+            AccessibleNode opened = openedOutlineRow(event);
+            if (opened != null) {
+                posting = AxNotifications.disclosure(Boolean.TRUE.equals(event.newValue()));
+                AccessibleNode outline = tree().node(opened.selectionContainer());
+                if (elements.holds(outline.id()) && !recountedOutlines.contains(outline.id())) {
+                    recountedOutlines.add(outline.id());
+                }
+            }
             if (posting.subject() == AxNotifications.Subject.APPLICATION) {
                 focusOwed = true;
                 continue;
@@ -573,6 +581,11 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             post(subject, posting);
             postedNow++;
         }
+        for (int i = 0; i < recountedOutlines.size(); i++) {
+            post(elements.elementFor(recountedOutlines.get(i)), AxNotifications.ROW_COUNT_CHANGED);
+            postedNow++;
+        }
+        recountedOutlines.clear();
         if (swept) {
             elements.reconcile(liveNodeIds());
             // The pushed array may name elements that were just released, and comparing it against
@@ -590,6 +603,21 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         lastDrainDrained = drained.size();
         lastDrainPosted = postedNow;
         return swept;
+    }
+
+    /** The outlines a drain owes a row-count change, once each; emptied by the drain that fills it. */
+    private final List<Long> recountedOutlines = new ArrayList<>();
+
+    /**
+     * @return the outline row an event says opened or closed, or {@code null}: a row of an outline
+     *         whose expanded state flipped, which is told as a row expanded or collapsed on the row and
+     *         a row-count change on the outline rather than as a value change
+     */
+    private AccessibleNode openedOutlineRow(AccessibleEvent event) {
+        if (event.type() != AccessibleEvent.Type.STATE_CHANGED
+                || event.state() != Accessible.State.EXPANDED) return null;
+        AccessibleNode row = tree().find(event.nodeId());
+        return row != null && grid.isOutlineRow(row) ? row : null;
     }
 
     /**

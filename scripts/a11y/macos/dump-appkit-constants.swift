@@ -172,7 +172,7 @@ let selectors = [
 // AxElementClass.java (install, installBusy, installTable, installActions, installFocusedElement,
 // installFocusedElementOnView, installHitTest) and AxActions.java's selector table at f4bc544.
 // This is a copy, and a copy is what goes stale: its use is to show, on the guest, what
-// AxObjC.encodingOf would answer for each one, until the bridge's own list is what gets compared.
+// AxObjC.encodingOf would answer for each one. AxSelectorsTest fails when it and AxSelectors differ.
 let installedByTheBridge: [(String, String)] = [
     ("accessibilityRole", "element"), ("accessibilitySubrole", "element"),
     ("accessibilityTitle", "element"), ("accessibilityLabel", "element"),
@@ -195,6 +195,12 @@ let installedByTheBridge: [(String, String)] = [
     ("accessibilityColumnIndexRange", "element"), ("accessibilityCellForColumn:row:", "element"),
     ("isAccessibilitySelected", "element"),
     ("accessibilityAttributeValue:", "element"), ("accessibilityAttributeNames", "element"),
+    // Added by the phase-3 macOS lane (2026-09-15): selection (MACOS-NEW-2), disclosure (M1),
+    // expanded (MACOS-NEW-5). AxSelectorsTest holds this list to AxSelectors'.
+    ("accessibilitySelectedChildren", "element"), ("accessibilitySelectedCells", "element"),
+    ("isAccessibilityDisclosed", "element"), ("accessibilityDisclosureLevel", "element"),
+    ("accessibilityDisclosedByRow", "element"), ("accessibilityDisclosedRows", "element"),
+    ("isAccessibilityExpanded", "element"),
 ]
 
 // Fragments searched for across the class chains and the protocols below, so a name is read rather

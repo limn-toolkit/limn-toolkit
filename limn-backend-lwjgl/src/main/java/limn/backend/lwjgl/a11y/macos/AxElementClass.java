@@ -429,6 +429,22 @@ final class AxElementClass {
         };
         addMethod(elementClass, "accessibilityCellForColumn:row:", cellAt);
         addBool("isAccessibilitySelected", is(node -> node.has(Accessible.State.SELECTED)));
+        installDisclosure();
+    }
+
+    /**
+     * An outline row's disclosure (M1), answered as a native NSOutlineView's rows answer it — read on
+     * the macOS 26.6.2 guest, 2026-09-15 — and whether anything else that opens is open. Every one of
+     * these is offered only where it has an answer ({@link AxGate}): a native row answers AXDisclosing
+     * and no AXExpanded, so an outline row answers the first and never the second, and everything else
+     * with an expand facet the second.
+     */
+    private void installDisclosure() {
+        addBool("isAccessibilityDisclosed", is(grid::disclosed));
+        addLong("accessibilityDisclosureLevel", grid::disclosureLevel);
+        addId("accessibilityDisclosedByRow", get(grid::disclosedByRow));
+        addId("accessibilityDisclosedRows", get(node -> nsArray(grid.disclosedRows(node))));
+        addBool("isAccessibilityExpanded", is(node -> node.expand() != null && node.expand().expanded()));
     }
 
     /** An autoreleased {@code NSArray} of these elements, or nil for {@code null}. */

@@ -45,6 +45,14 @@ final class AxGate {
             case "accessibilitySelectedCells" -> node.selection() != null
                     && grid.selectionShape(node) == AxGrid.SelectionShape.CELLS;
             case "accessibilityIndex" -> grid.isRow(node);
+            // An outline row's disclosure, and nobody else's: a native outline row lists all four,
+            // leaves included, and no AXExpanded (read on the guest 2026-09-15). A level of zero
+            // publishes nothing (semantics 6), which here is the getter refused.
+            case "isAccessibilityDisclosed", "accessibilityDisclosedByRow",
+                 "accessibilityDisclosedRows" -> grid.isOutlineRow(node);
+            case "accessibilityDisclosureLevel" -> grid.isOutlineRow(node)
+                    && node.hierarchy().level() > 0;
+            case "isAccessibilityExpanded" -> node.expand() != null && !grid.isOutlineRow(node);
             // Everything else this class implements is an attribute every node answers, and answering
             // false for one of those would hide the node's name.
             default -> true;

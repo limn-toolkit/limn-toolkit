@@ -149,8 +149,8 @@ final class AxRoles {
         map(Accessible.Role.CELL, "NSAccessibilityCellRole");
         // ADR 044 §4. An outline, and a row with the outline-row subrole, which is what
         // NSOutlineView vends; both constants are in the AppKit dump taken for the table's pass.
-        // What this does not give VoiceOver yet is the disclosure: AXDisclosing and
-        // AXDisclosureLevel have no consumer here, and that is the half of step 1b still owed.
+        // The disclosure a native outline row answers beside them (AXDisclosing, AXDisclosureLevel,
+        // AXDisclosedByRow, AXDisclosedRows) is AxGrid's since 2026-09-15.
         map(Accessible.Role.TREE, "NSAccessibilityOutlineRole");
         map(Accessible.Role.TREE_ITEM, "NSAccessibilityRowRole", "NSAccessibilityOutlineRowSubrole");
         map(Accessible.Role.UNKNOWN, "NSAccessibilityUnknownRole");

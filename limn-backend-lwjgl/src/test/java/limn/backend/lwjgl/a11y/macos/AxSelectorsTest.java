@@ -127,6 +127,31 @@ class AxSelectorsTest {
                 + "which refuses an unlisted selector and skips one AppKit lacks");
     }
 
+    private static final Path DUMP_SCRIPT = Path.of("scripts/a11y/macos/dump-appkit-constants.swift");
+
+    /**
+     * The dump script's copy of what the bridge installs is what the guest prints an encoding line for,
+     * so a selector installed and missing from it is one the regeneration would not show.
+     */
+    @Test
+    void theDumpScriptsCopyOfTheInstalledSelectorsIsTheList() throws IOException {
+        String script = Files.readString(RepositoryRoot.find().resolve(DUMP_SCRIPT), StandardCharsets.UTF_8);
+        int start = script.indexOf("let installedByTheBridge");
+        int end = script.indexOf("\n]", start);
+        assertTrue(start >= 0 && end > start, "the script's installedByTheBridge list was not found");
+        Matcher entry = Pattern.compile("\\(\"([A-Za-z:]+)\", \"([a-z ]+)\"\\)")
+                .matcher(script.substring(start, end));
+        java.util.Set<String> onElement = new java.util.LinkedHashSet<>();
+        java.util.Set<String> onView = new java.util.LinkedHashSet<>();
+        while (entry.find()) {
+            (entry.group(2).equals("element") ? onElement : onView).add(entry.group(1));
+        }
+        assertEquals(java.util.Set.copyOf(AxSelectors.ON_ELEMENT), onElement,
+                "scripts/a11y/macos/dump-appkit-constants.swift's installedByTheBridge, element entries");
+        assertEquals(java.util.Set.copyOf(AxSelectors.ON_VIEW), onView,
+                "and its content-view entries");
+    }
+
     @Test
     void theScanReadsTheLoopAndRefusesASelectorItCannotRead() {
         String loopOnly = """

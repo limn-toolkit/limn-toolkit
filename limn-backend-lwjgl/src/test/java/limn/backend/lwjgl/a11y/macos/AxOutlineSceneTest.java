@@ -160,6 +160,41 @@ class AxOutlineSceneTest {
     }
 
     @Test
+    void aRealOutlinesRowsDiscloseAsTheNativeOutlinesDidAndOpeningOneIsToldOnTheRow() {
+        Tree<Node> tree = bindTree();
+        AxGrid grid = new AxGrid(bridge);
+        long[] rows = grid.rows(only(Accessible.Role.TREE));
+        long[] levels = new long[rows.length];
+        boolean[] open = new boolean[rows.length];
+        for (int i = 0; i < rows.length; i++) {
+            levels[i] = grid.disclosureLevel(bridge.nodeFor(rows[i]));
+            open[i] = grid.disclosed(bridge.nodeFor(rows[i]));
+        }
+        assertEquals(List.of(0L, 1L, 2L, 1L, 0L, 0L), java.util.Arrays.stream(levels).boxed().toList(),
+                "AXDisclosureLevel as the native outline answered it for the same rows");
+        assertEquals(List.of(true, true, false, false, false, false),
+                List.of(open[0], open[1], open[2], open[3], open[4], open[5]), "AXDisclosing likewise");
+        assertEquals(List.of("Reports", "Notes"), names(grid.disclosedRows(bridge.nodeFor(rows[0]))));
+        assertEquals("Reports", bridge.nodeFor(grid.disclosedByRow(bridge.nodeFor(rows[2]))).name());
+
+        trace.clear();
+        tree.expand(pictures);
+        frame();
+        List<String> posted = trace.stream().filter(line -> line.startsWith("posted "))
+                .map(line -> line.substring("posted ".length())).toList();
+        assertTrue(posted.contains("NSAccessibilityRowExpandedNotification"), String.valueOf(trace));
+        assertTrue(posted.contains("NSAccessibilityRowCountChangedNotification"), String.valueOf(trace));
+        assertTrue(!posted.contains("NSAccessibilityValueChangedNotification"),
+                "an outline row's opening is not a value change: " + trace);
+        long[] after = grid.rows(only(Accessible.Role.TREE));
+        assertEquals(List.of("Documents", "Reports", "Q1", "Notes", "Pictures", "Trip", "Readme"), names(after));
+        assertEquals(List.of("Trip"), names(grid.disclosedRows(bridge.nodeFor(after[4]))));
+        assertEquals(1, grid.disclosureLevel(bridge.nodeFor(after[5])),
+                "Trip at level 1, as the native outline answered once Pictures opened");
+        assertEquals(6, grid.index(bridge.nodeFor(after[6])), "and Readme moved down to 6");
+    }
+
+    @Test
     void theFocusedElementIsTheCursorRowAndACursorMoveIsToldAsAFocusChange() {
         Tree<Node> tree = bindTree();
         scene.requestFocus(tree);
