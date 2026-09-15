@@ -2473,6 +2473,15 @@ writes is still not a leak). An ordinary signal the connection does refuse is fo
 publish, by the focus and cursor said again as the tail kind: the bridge's own queue collapse is
 answered like the model's.
 
+**`STATE_CHANGED` for `EXPANDED` and `EXPANDABLE` (L3; decision 27; semantics 9).** Both reach the
+bus as `StateChanged` `expanded` / `expandable` (bits 10 and 9) from the difference, and whenever the
+bit this platform derives from them — `COLLAPSED` (5), published as `EXPANDABLE` without `EXPANDED` —
+moved with the flip, a `StateChanged` `collapsed` follows it: libatspi 2.60.6 sets or clears only
+the bit an event names, so without it a client that cached a closed branch and heard `expanded` 1
+held both. Its former value is read off the node in the tree the window published before
+(`AtspiBridge.previousTree`), because a publish may flip both bits at once. GTK 4.22.4 sends
+`expandable` and `expanded` only (whether its state set carries `COLLAPSED` was not read).
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

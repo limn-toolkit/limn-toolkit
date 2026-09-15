@@ -45,6 +45,12 @@ final class AtspiEvents {
         /** @return the tree published by the window that raised the event, just before it */
         AccessibleTree tree();
 
+        /**
+         * @return the tree that window published before that one, which a derived bit's former
+         *         value is read from; {@link AccessibleTree#EMPTY} when there was none
+         */
+        AccessibleTree previousTree();
+
         /** @return the application object's reference, which every event body carries */
         DBus.Ref application();
 
@@ -123,6 +129,11 @@ final class AtspiEvents {
         }
         if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED) {
             return structureChanged(event, context, path);
+        }
+        if (event.type() == AccessibleEvent.Type.STATE_CHANGED
+                && (event.state() == Accessible.State.EXPANDED
+                        || event.state() == Accessible.State.EXPANDABLE)) {
+            return expandChanged(event, context, path);
         }
         Signal one = switch (event.type()) {
             // Nothing. Focus is a state change on this platform -- the dedicated Focus signal is
@@ -382,6 +393,54 @@ final class AtspiEvents {
         int index = descendant == 0 ? -1 : context.indexInParent(descendant);
         return event(context, path, I_EVENT_OBJECT, "ActiveDescendantChanged", "", index, 0,
                 new DBus.Variant("(so)", ref.toStruct()));
+    }
+
+    /**
+     * {@code EXPANDED} or {@code EXPANDABLE} flipped: its own {@code StateChanged}, then
+     * {@code collapsed} when the bit this platform derives from the two moved with it (L3, decision
+     * 27, semantics 9).
+     *
+     * <p>{@code COLLAPSED} is published in every state set as {@code EXPANDABLE} without
+     * {@code EXPANDED} ({@link AtspiStates#setOf}), and nothing raised a change for it. libatspi
+     * 2.60.6's {@code cache_process_state_changed} sets or clears only the bit an event names, so
+     * a long-lived client that cached a closed branch and then heard {@code expanded} 1 held
+     * {@code expanded} and {@code collapsed} at once. GTK 4.22.4 sends {@code expandable} and
+     * {@code expanded} only (whether its state set carries {@code COLLAPSED} was not read)
+     * (readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-event-shapes.txt). After is read off the node
+     * as published with the event; before, off the same node in the tree published before it, and
+     * only when that tree does not hold it, off the node now with the event's own bit put back —
+     * which is wrong for a publish that flipped both bits, and why the previous tree is kept. A node
+     * the tree no longer holds says nothing more.
+     */
+    private static List<Signal> expandChanged(AccessibleEvent event, Context context,
+                                              String path) {
+        Signal own = stateChanged(event, context, path);
+        List<Signal> out = new java.util.ArrayList<>(2);
+        out.add(own);
+        limn.accessibility.AccessibleNode node = context.tree().find(event.nodeId());
+        if (node == null) {
+            return out;
+        }
+        boolean on = Boolean.TRUE.equals(event.newValue());
+        boolean expandable = node.has(Accessible.State.EXPANDABLE);
+        boolean expanded = node.has(Accessible.State.EXPANDED);
+        boolean collapsedNow = expandable && !expanded;
+        limn.accessibility.AccessibleNode was = context.previousTree().find(event.nodeId());
+        boolean collapsedBefore;
+        if (was != null) {
+            collapsedBefore = was.has(Accessible.State.EXPANDABLE)
+                    && !was.has(Accessible.State.EXPANDED);
+        } else {
+            boolean expandableBefore = event.state() == Accessible.State.EXPANDABLE ? !on
+                    : expandable;
+            boolean expandedBefore = event.state() == Accessible.State.EXPANDED ? !on : expanded;
+            collapsedBefore = expandableBefore && !expandedBefore;
+        }
+        if (collapsedNow != collapsedBefore) {
+            out.add(event(context, path, I_EVENT_OBJECT, "StateChanged", "collapsed",
+                    collapsedNow ? 1 : 0, 0, new DBus.Variant("i", 0)));
+        }
+        return out;
     }
 
     /**

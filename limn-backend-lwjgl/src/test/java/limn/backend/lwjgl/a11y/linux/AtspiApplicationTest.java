@@ -735,6 +735,61 @@ class AtspiApplicationTest {
         assertEquals(List.of(true), bus.tails);
     }
 
+    /**
+     * EXPANDABLE is a model state derived from the expand facet, and COLLAPSED this platform's bit
+     * derived from the two (decision 27, semantics 9): both reach the bus as state changes, from a
+     * real difference, so a client's cached state set follows a branch as it gains a triangle, opens
+     * and loses it (L3).
+     */
+    @Test
+    void expandableAndTheDerivedCollapsedReachTheBusAsTheBranchGainsOpensAndLosesItsTriangle() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        AtspiBridge window = app.window();
+        Accessibility a = new Accessibility();
+        java.util.function.Consumer<Boolean> publish = expanded -> {
+            a.beginWalk(400, 300, Locale.ENGLISH);
+            a.begin(5000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            a.role(Accessible.Role.WINDOW);
+            a.inherited(true, true, true, false, false);
+            a.begin(5001, 0, Locale.ENGLISH, 0, 0, 100, 20);
+            a.role(Accessible.Role.TREE_ITEM);
+            a.name(I18nString.literal("Media"), Accessible.NameFrom.EXPLICIT);
+            if (expanded != null) {
+                a.expand(expanded);
+            }
+            a.inherited(true, true, true, true, false);
+            a.end();
+            a.end();
+            window.publish(a.publish(0, 0, 0, 1f, true), false);
+            for (limn.accessibility.AccessibleEvent event : List.copyOf(a.events())) {
+                window.emit(event);
+            }
+        };
+        publish.accept(null);
+        bus.signals.clear();
+
+        publish.accept(false);
+        assertEquals(List.of("StateChanged expandable 1 " + path(5001),
+                "StateChanged collapsed 1 " + path(5001)), spoken(bus.signals),
+                "a leaf became a closed branch");
+        assertEquals(List.of(AtspiStates.COLLAPSED, 8, AtspiStates.EXPANDABLE, 11,
+                        AtspiStates.SENSITIVE, 25, 30),
+                statesAt(app, path(5001)), "and the set a client would read says the same");
+        bus.signals.clear();
+
+        publish.accept(true);
+        assertEquals(List.of("StateChanged expanded 1 " + path(5001),
+                "StateChanged collapsed 0 " + path(5001)), spoken(bus.signals),
+                "opening it clears the derived bit, or a cached set holds expanded and collapsed");
+        bus.signals.clear();
+
+        publish.accept(null);
+        assertEquals(List.of("StateChanged expanded 0 " + path(5001),
+                "StateChanged expandable 0 " + path(5001)), spoken(bus.signals),
+                "an open branch that lost its facet was never collapsed, so nothing more");
+    }
+
     @Test
     void anAnnouncementIsSentFromTheFrameOfTheWindowWhoseSceneSaidIt() {
         FakeBus bus = new FakeBus();

@@ -533,6 +533,10 @@ final class AtspiApplication {
                 return window.tree();
             }
 
+            @Override public AccessibleTree previousTree() {
+                return window.previousTree;
+            }
+
             @Override public DBus.Ref application() {
                 return objects.rootRef();
             }

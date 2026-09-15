@@ -28,6 +28,10 @@ class AtspiEventsTest {
             return AccessibleTree.EMPTY;
         }
 
+        @Override public AccessibleTree previousTree() {
+            return AccessibleTree.EMPTY;
+        }
+
         @Override public DBus.Ref application() {
             return new DBus.Ref(BUS, Atspi.PATH_ROOT);
         }
@@ -261,6 +265,10 @@ class AtspiEventsTest {
                 return tree;
             }
 
+            @Override public AccessibleTree previousTree() {
+                return AccessibleTree.EMPTY;
+            }
+
             @Override public DBus.Ref application() {
                 return NAMES.application();
             }
@@ -285,6 +293,52 @@ class AtspiEventsTest {
 
     private static List<Object> shape(AtspiEvents.Signal signal) {
         return List.of(signal.detail(), signal.detail1(), signal.detail2(), signal.value().value);
+    }
+
+    /**
+     * The derived COLLAPSED bit travels with the flip that moved it, and only then: before and after
+     * are read off the published node with the event's own bit put back.
+     */
+    @Test
+    void anExpandFlipCarriesTheDerivedCollapsedChangeWhenItMovedAndOnlyThen() {
+        limn.accessibility.Accessibility a = new limn.accessibility.Accessibility();
+        a.beginWalk(400, 300, java.util.Locale.ENGLISH);
+        a.begin(1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
+                300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        long[] ids = {1001, 1002, 1003};
+        Boolean[] facets = {true, false, null};
+        for (int i = 0; i < ids.length; i++) {
+            a.begin(ids[i], 0, java.util.Locale.ENGLISH, 0, 20 * i, 100, 20);
+            a.role(Accessible.Role.TREE_ITEM);
+            if (facets[i] != null) {
+                a.expand(facets[i]);
+            }
+            a.inherited(true, true, true, true, false);
+            a.end();
+        }
+        a.end();
+        AccessibleTree tree = a.publish(0, 0, 0, 1f, true);
+
+        assertEquals(List.of(List.of("expanded", 1, 0, 0), List.of("collapsed", 0, 0, 0)),
+                AtspiEvents.of(AccessibleEvent.state(1001, Accessible.State.EXPANDED, true),
+                        over(tree)).stream().map(AtspiEventsTest::shape).toList(), "opened");
+        assertEquals(List.of(List.of("expanded", 0, 0, 0), List.of("collapsed", 1, 0, 0)),
+                AtspiEvents.of(AccessibleEvent.state(1002, Accessible.State.EXPANDED, false),
+                        over(tree)).stream().map(AtspiEventsTest::shape).toList(), "closed");
+        assertEquals(List.of(List.of("expandable", 1, 0, 0), List.of("collapsed", 1, 0, 0)),
+                AtspiEvents.of(AccessibleEvent.state(1002, Accessible.State.EXPANDABLE, true),
+                        over(tree)).stream().map(AtspiEventsTest::shape).toList(),
+                "became a closed branch");
+        assertEquals(List.of(List.of("expandable", 0, 0, 0), List.of("collapsed", 0, 0, 0)),
+                AtspiEvents.of(AccessibleEvent.state(1003, Accessible.State.EXPANDABLE, false),
+                        over(tree)).stream().map(AtspiEventsTest::shape).toList(),
+                "a closed branch that became a leaf");
+        assertEquals(List.of(List.of("expandable", 1, 0, 0)),
+                AtspiEvents.of(AccessibleEvent.state(1001, Accessible.State.EXPANDABLE, true),
+                        over(tree)).stream().map(AtspiEventsTest::shape).toList(),
+                "an open branch was never collapsed: nothing more");
     }
 
     /**

@@ -59,6 +59,12 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     long focusSaid;
     /** The descendant an {@code ActiveDescendantChanged} named since the last publish, or 0. UI thread. */
     long cursorSaid;
+    /**
+     * The tree this window published before its current one, which a bit this platform derives
+     * (COLLAPSED) is diffed against when its events arrive. UI thread: written by the publish and
+     * read by the emits that follow it; the reader thread never reads it.
+     */
+    AccessibleTree previousTree = AccessibleTree.EMPTY;
 
     AtspiBridge(AtspiApplication application) {
         this.application = application;
@@ -165,6 +171,7 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
 
     @Override
     protected void releasePlatformHalf() {
+        previousTree = AccessibleTree.EMPTY;
         // The window leaves the application; the application lets the connection go when it was
         // the last one (AtspiApplication#detached).
         application.detached(this);
@@ -175,6 +182,7 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
         // One volatile write, and it is the whole of what the reader thread reads. Reentrancy
         // costs nothing here because nothing is released, re-pushed or drained on this path: the
         // tree published a moment ago is answered from until this one replaces it.
+        previousTree = tree();
         super.publish(tree, reentrant);
         // Joined here rather than at construction, and only once there is something to show.
         //

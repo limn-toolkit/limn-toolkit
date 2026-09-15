@@ -106,9 +106,9 @@ final class AtspiStates {
         }
         if (has.test(Accessible.State.EXPANDABLE) && !has.test(Accessible.State.EXPANDED)) {
             // Collapsed is what this platform calls a node that can open and has not: derived, so
-            // that Orca can say "collapsed" on a closed tree row rather than nothing (L3). The
-            // state-changed:collapsed event that should accompany an EXPANDED flip is the Linux
-            // lane's (phase 3); this is the set a client reads.
+            // that Orca can say "collapsed" on a closed tree row rather than nothing (L3). Its
+            // state-changed:collapsed travels with the EXPANDED or EXPANDABLE flip that moved it
+            // (AtspiEvents.expandChanged), so a client's cached set never holds both.
             out |= 1L << COLLAPSED;
         }
         return out;
