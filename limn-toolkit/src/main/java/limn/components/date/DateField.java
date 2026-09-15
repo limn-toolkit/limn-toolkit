@@ -209,6 +209,14 @@ public class DateField extends Widget {
     private int focusedSlot;
     /** How many digits have been typed into the focused segment since it was last entered. */
     private int typedDigits;
+    /**
+     * How many digits the year holds as typed, until the caret leaves it or something else
+     * writes it: what decides whether a year left behind was written with two digits (decision
+     * 57). Apart from {@link #typedDigits}, which a picker aiming at this field and the focus
+     * coming back both reset so the next digit starts the segment again: a year typed as "26"
+     * before an in-scene calendar opened stayed the year 26 when the field was left afterwards.
+     */
+    private int yearDigitsTyped;
 
     private LocalDate minDate;
     private LocalDate maxDate;
@@ -491,6 +499,7 @@ public class DateField extends Widget {
      */
     private void applyDate(LocalDate date) {
         valueRevision++;
+        yearDigitsTyped = 0; // a whole date written over what was typed
         if (!startsAtYear || date == null) {
             year = month = day = UNSET;
             dateValue = null;
@@ -1187,6 +1196,7 @@ public class DateField extends Widget {
             next = min + Math.floorMod(current - min + delta, span);
         }
         typedDigits = 0;
+        yearDigitsTyped = 0; // an arrow chose this year; nothing typed is left to resolve
         writeSegment(field, next, Change.Origin.USER);
     }
 
@@ -1285,6 +1295,9 @@ public class DateField extends Widget {
             typedDigits = 0;
         }
         typedDigits++;
+        if (field == DatePattern.Field.YEAR) {
+            yearDigitsTyped = typedDigits;
+        }
         int max = segmentMax(field);
         if (next > max) {
             next = max;
@@ -1321,7 +1334,10 @@ public class DateField extends Widget {
             return;
         }
         switch (part.field()) {
-            case YEAR -> year = UNSET;
+            case YEAR -> {
+                year = UNSET;
+                yearDigitsTyped = 0;
+            }
             case MONTH -> month = UNSET;
             case DAY -> day = UNSET;
             case HOUR12, HOUR24, DAY_PERIOD -> hour = UNSET;
@@ -1359,6 +1375,7 @@ public class DateField extends Widget {
         commitTypedYear();
         focusedSlot = next;
         typedDigits = 0;
+        yearDigitsTyped = 0;
         invalidate();
         if (!quiet) {
             notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
@@ -1617,6 +1634,7 @@ public class DateField extends Widget {
             }
         }
         valueRevision++;
+        yearDigitsTyped = 0; // a pasted year is resolved as it is read
         year = yearUnknown ? UNSET : y;
         month = m;
         day = d;
@@ -1786,6 +1804,7 @@ public class DateField extends Widget {
             commitTypedYear();
             focusedSlot = slot;
             typedDigits = 0;
+            yearDigitsTyped = 0;
             invalidate();
             notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
         }
@@ -1914,11 +1933,12 @@ public class DateField extends Widget {
      */
     private void commitTypedYear() {
         DatePattern.FieldPart part = focusedField();
-        if (part == null || part.field() != DatePattern.Field.YEAR || typedDigits == 0
-                || typedDigits > 2 || year == UNSET || year >= 100 || eraCalendar()) {
+        if (part == null || part.field() != DatePattern.Field.YEAR || yearDigitsTyped == 0
+                || yearDigitsTyped > 2 || year == UNSET || year >= 100 || eraCalendar()) {
             return;
         }
         int resolved = resolveTwoDigitYear(year);
+        yearDigitsTyped = 0;
         if (resolved == year) {
             return;
         }
@@ -2195,6 +2215,9 @@ public class DateField extends Widget {
                     }
                     int clamped = (int) Math.max(segmentMin(part.field()),
                             Math.min(segmentMax(part.field()), Math.rint(asked)));
+                    if (part.field() == DatePattern.Field.YEAR) {
+                        yearDigitsTyped = 0; // a number set, not digits typed
+                    }
                     writeSegment(part.field(), clamped, Change.Origin.USER);
                 }
                 default -> {

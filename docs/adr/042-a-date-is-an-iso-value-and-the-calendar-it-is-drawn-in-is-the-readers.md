@@ -229,7 +229,13 @@ a window around today by the widget's clock: 80 years back and 19 ahead by defau
 incomplete; a typed one stays what was typed — **corrected the same day:** a typed two-digit
 year left with the caret is blanked the same way, so a form that refuses to guess is never
 handed the year 26 as valid; the earlier reading applied the decision's "left blank" to pastes
-only). Four digits are what was meant, however small: a
+only; **corrected 2026-09-15:** "however the caret leaves it" did not yet hold — a year typed as
+two digits before an in-scene calendar was opened with Alt+Down lost its count of typed digits to
+the picker aiming at the field and to the focus coming back, so when the calendar closed and the
+field was left the year stayed 26 and valid, guess on or off; the field now counts the digits
+the year holds as typed apart from the segment's run, and resolves or blanks it on that leave
+too, pinned by `DatePickerTest.aTwoDigitYearTypedBeforeTheCalendarOpenedInTheSceneStillResolvesWhenTheFieldIsLeft`).
+Four digits are what was meant, however small: a
 year of 26 is held, and whether it is plausible is the application's bound (`setMinDate`). A
 digit run keeps its leading zero (`01022026`), a run longer than a date's or a month or day outside
 its range refuses the whole paste and leaves the value untouched, and no paste throws out of the

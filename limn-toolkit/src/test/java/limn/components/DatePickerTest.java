@@ -690,4 +690,41 @@ class DatePickerTest extends ComponentTestBase {
         key(Keys.UP, 0);
         assertEquals(1, heard.size());
     }
+
+    /**
+     * Decision 57's typed half, on the one way out of the year that did not resolve it: a year
+     * typed as two digits and left resolves through the window, or is left blank with the
+     * guess off, however the caret leaves it. Opening the calendar in the scene is not a leave
+     * (the digits still land in the field), but it reset the count of digits typed, so when the
+     * calendar closed and the focus moved on the year stayed the year 26 -- valid, with the guess
+     * on or off.
+     */
+    @Test
+    void aTwoDigitYearTypedBeforeTheCalendarOpenedInTheSceneStillResolvesWhenTheFieldIsLeft() {
+        java.time.Clock in2026 = java.time.Clock.fixed(java.time.Instant.parse("2026-09-09T12:00:00Z"),
+                java.time.ZoneOffset.UTC);
+        build(new DatePicker());
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        picker.setClock(in2026);
+        picker.field().setTwoDigitYearWindow(DateField.REFUSE_TWO_DIGIT_YEARS);
+        type("311226");
+        assertEquals(LocalDate.of(26, 12, 31), picker.date(), "while the caret is still in the year");
+        key(Keys.DOWN, Keys.MOD_ALT);
+        assertTrue(picker.isOpen());
+        key(Keys.ESCAPE, 0);
+        assertFalse(picker.isOpen());
+        scene.requestFocus(null);
+        assertNull(picker.date(), "with the guess off the typed two-digit year is left blank");
+        assertFalse(picker.field().isValid(), "and the field is incomplete (decision 57)");
+
+        build(new DatePicker());
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        picker.setClock(in2026);
+        type("311226");
+        key(Keys.DOWN, Keys.MOD_ALT);
+        key(Keys.ESCAPE, 0);
+        scene.requestFocus(null);
+        assertEquals(LocalDate.of(2026, 12, 31), picker.date(),
+                "and with the guess on it resolves into the window, as any other leave does");
+    }
 }
