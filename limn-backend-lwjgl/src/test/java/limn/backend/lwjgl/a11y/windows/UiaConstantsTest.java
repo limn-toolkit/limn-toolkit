@@ -203,6 +203,55 @@ class UiaConstantsTest {
     }
 
     /**
+     * The property, event and pattern ids phase 3's mappings raise and serve, each as
+     * UIAutomationCore.dll's type library numbers it (read on the Windows 11 guest 2026-09-13,
+     * readings/windows-dump-uia-typelib-all-members.txt: {@code UIA_PropertyIds},
+     * {@code UIA_EventIds}, {@code UIA_PatternIds}). ItemStatus is also the property File Explorer's
+     * sorted column header answers its direction in (readings/windows-read-native-sort-direction.txt,
+     * 2026-09-15). Pinned so that a value change raised as the wrong property, or a pattern served
+     * under another's id, is a deliberate edit here and not a silence on the guest.
+     */
+    @Test
+    void theIdsPhaseThreeRaisesAndServesAreTheTypeLibrarysOwn() {
+        // Properties a change is raised as (ADR 039 §2.4 as amended 2026-09-15).
+        assertEquals(30008, UiaIds.HAS_KEYBOARD_FOCUS, "UIA_HasKeyboardFocusPropertyId");
+        assertEquals(30010, UiaIds.IS_ENABLED, "UIA_IsEnabledPropertyId");
+        assertEquals(30013, UiaIds.HELP_TEXT, "UIA_HelpTextPropertyId");
+        assertEquals(30026, UiaIds.ITEM_STATUS, "UIA_ItemStatusPropertyId");
+        assertEquals(30045, UiaIds.VALUE_VALUE, "UIA_ValueValuePropertyId");
+        assertEquals(30046, UiaIds.VALUE_IS_READ_ONLY, "UIA_ValueIsReadOnlyPropertyId");
+        assertEquals(30047, UiaIds.RANGE_VALUE_VALUE, "UIA_RangeValueValuePropertyId");
+        assertEquals(30070, UiaIds.EXPAND_COLLAPSE_EXPAND_COLLAPSE_STATE,
+                "UIA_ExpandCollapseExpandCollapseStatePropertyId");
+        assertEquals(30079, UiaIds.SELECTION_ITEM_IS_SELECTED, "UIA_SelectionItemIsSelectedPropertyId");
+        assertEquals(30086, UiaIds.TOGGLE_STATE, "UIA_ToggleToggleStatePropertyId");
+        // Events raised on items and the root.
+        assertEquals(20005, UiaIds.AUTOMATION_FOCUS_CHANGED, "UIA_AutomationFocusChangedEventId");
+        assertEquals(20008, UiaIds.LAYOUT_INVALIDATED, "UIA_LayoutInvalidatedEventId");
+        assertEquals(20010, UiaIds.SELECTION_ITEM_ELEMENT_ADDED_TO_SELECTION,
+                "UIA_SelectionItem_ElementAddedToSelectionEventId");
+        assertEquals(20011, UiaIds.SELECTION_ITEM_ELEMENT_REMOVED_FROM_SELECTION,
+                "UIA_SelectionItem_ElementRemovedFromSelectionEventId");
+        assertEquals(20012, UiaIds.SELECTION_ITEM_ELEMENT_SELECTED,
+                "UIA_SelectionItem_ElementSelectedEventId");
+        assertEquals(20013, UiaIds.SELECTION_INVALIDATED, "UIA_Selection_InvalidatedEventId");
+        assertEquals(20014, UiaIds.TEXT_SELECTION_CHANGED, "UIA_Text_TextSelectionChangedEventId");
+        // Patterns served from facets and verbs (ADR 039 §2.1 as amended 2026-09-15).
+        assertEquals(10001, UiaIds.SELECTION_PATTERN, "UIA_SelectionPatternId");
+        assertEquals(10002, UiaIds.VALUE_PATTERN, "UIA_ValuePatternId");
+        assertEquals(10003, UiaIds.RANGE_VALUE_PATTERN, "UIA_RangeValuePatternId");
+        assertEquals(10004, UiaIds.SCROLL_PATTERN, "UIA_ScrollPatternId");
+        assertEquals(10005, UiaIds.EXPAND_COLLAPSE_PATTERN, "UIA_ExpandCollapsePatternId");
+        assertEquals(10006, UiaIds.GRID_PATTERN, "UIA_GridPatternId");
+        assertEquals(10007, UiaIds.GRID_ITEM_PATTERN, "UIA_GridItemPatternId");
+        assertEquals(10010, UiaIds.SELECTION_ITEM_PATTERN, "UIA_SelectionItemPatternId");
+        assertEquals(10012, UiaIds.TABLE_PATTERN, "UIA_TablePatternId");
+        assertEquals(10013, UiaIds.TABLE_ITEM_PATTERN, "UIA_TableItemPatternId");
+        assertEquals(10015, UiaIds.TOGGLE_PATTERN, "UIA_TogglePatternId");
+        assertEquals(10017, UiaIds.SCROLL_ITEM_PATTERN, "UIA_ScrollItemPatternId");
+    }
+
+    /**
      * A handful of readings spot-checked against what §2.1 says the bridge answers with, so that a
      * re-run of the dump script that renamed or renumbered something fails here rather than in a
      * guest three commits later.

@@ -3373,6 +3373,18 @@ sweep, re-push or drain.
 node array with the new origin and factor, publishes that, and emits one window-level
 `BOUNDS_CHANGED`. No walk, no diff, and the node ids are the ones the client is holding.
 
+**Amended 2026-09-15 (phase 3, Windows; the facts above that phase 3 moved for this bridge).** Three
+sentences of this section now read differently on Windows. *"After a collapse … the drain sweeps"*:
+the drain sweeps after its own queue's collapse **and** after the model's `INVALIDATED` (node `0`),
+which is the same loss of per-node events, and after either it re-raises the focus on the tree's
+effective focus (§2.4's amendments of the same day). *"Empty on replacement … the drain thread is
+stopped and joined first"*: still so, and the empty also holds the bridge's vend guard, which another
+window's bridge takes to raise on, or hand over, one of this bridge's elements (a cursor followed into
+a native popup, decision 5; §3.4 as amended). *"A window move … emits one window-level
+`BOUNDS_CHANGED`"*: the scene still emits it, and the Windows bridge raises nothing for it, per node
+or in bulk, and says so in its trace (§2.4's `BOUNDS_CHANGED` amendment: NVDA 2024.4.2 subscribes to
+no bounds change, and every raise waits for the reader).
+
 The **node** flag is set by:
 
 - **`Scene#damageWidget`, `#damageWidgetRegion`, `#damage(Rect)`, `#requestRender()` and
