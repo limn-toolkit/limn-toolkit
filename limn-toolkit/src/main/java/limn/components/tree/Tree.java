@@ -2002,6 +2002,25 @@ public class Tree<T> extends Widget implements Scrollable {
         }
     }
 
+    /**
+     * The mounted cell drawing {@code node}, or null: a scan of the mounted slots and not of every
+     * visible row, because the paint path asks it on every frame the tree holds the keyboard,
+     * spinner ticks and bar fades included, and the rows can number thousands where the mounted
+     * slots are a screenful.
+     */
+    private Widget mountedCellOf(T node) {
+        for (int i = 0; i < mountedCount; i++) {
+            int index = mountedRows[i];
+            if (index < rows.size()) {
+                Row<T> row = rows.get(index);
+                if (!row.placeholder && row.node.equals(node)) {
+                    return mountedCells[i];
+                }
+            }
+        }
+        return null;
+    }
+
     private int indexOf(T node) {
         for (int i = 0; i < rows.size(); i++) {
             if (!rows.get(i).placeholder && rows.get(i).node.equals(node)) {
@@ -2407,8 +2426,7 @@ public class Tree<T> extends Widget implements Scrollable {
         if (cursor == null || !isFocused()) {
             return;
         }
-        int index = indexOf(cursor);
-        Widget cell = index < 0 ? null : cellFor(index);
+        Widget cell = mountedCellOf(cursor);
         if (cell == null || cell.y() >= viewH || cell.y() + cell.height() <= 0) {
             return; // not a row, or the cursor row the tree keeps realized outside the box
         }
