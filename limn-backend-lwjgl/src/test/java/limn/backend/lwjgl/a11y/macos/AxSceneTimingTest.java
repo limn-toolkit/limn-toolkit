@@ -10,6 +10,7 @@ import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * three seconds was told each step at the next one. So these drive a real {@link Scene} over the
  * platform's bridge with the platform left out, and read what reached the post.
  */
+@ExtendWith(PlatformFreeBridges.class)
 class AxSceneTimingTest {
 
     private HeadlessUi ui;
@@ -49,7 +51,7 @@ class AxSceneTimingTest {
         root.add(second);
         scene = new Scene(root, nanos::get);
         ProbeWindow window = new ProbeWindow();
-        bridge = AxBridge.withoutThePlatform();
+        bridge = PlatformFreeBridges.make();
         bridge.trace(trace::add);
         window.accessibility = bridge;
         scene.bind(window);

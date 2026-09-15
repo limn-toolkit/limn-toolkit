@@ -7,6 +7,7 @@ import limn.accessibility.AccessibleTree;
 import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and each attribute is settable exactly where that holds — the gate's answer for the setter, which is
  * what AppKit reads as settable (read on the guest, 2026-09-13).
  */
+@ExtendWith(PlatformFreeBridges.class)
 class AxSettersTest {
 
     private record One(AxGrid grid, AccessibleNode node) {
@@ -41,7 +43,7 @@ class AxSettersTest {
         a.end();
         a.end();
         AccessibleTree tree = a.publish(0, 0, 0, 1f, true);
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(tree, false);
         return new One(new AxGrid(bridge), tree.find(1001));
     }

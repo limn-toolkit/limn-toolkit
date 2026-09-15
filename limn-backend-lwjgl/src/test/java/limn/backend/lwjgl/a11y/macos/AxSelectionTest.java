@@ -7,6 +7,7 @@ import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 9): answered from the members whose selection container it is, off the attribute of its shape, and
  * a change of it posted on the container as that attribute's notification.
  */
+@ExtendWith(PlatformFreeBridges.class)
 class AxSelectionTest {
 
     /**
@@ -116,7 +118,7 @@ class AxSelectionTest {
     @Test
     void aContainersSelectionIsItsSelectedMembersWhereverTheyHang() {
         AccessibleTree tree = aWindow();
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(tree, false);
         AxGrid grid = new AxGrid(bridge);
         assertArrayEquals(new long[] {bridge.elementFor(1003)}, grid.selectedMembers(tree.find(1001)),
@@ -132,7 +134,7 @@ class AxSelectionTest {
     @Test
     void eachContainerOffersTheSelectionAttributeOfItsShapeAndNoOther() {
         AccessibleTree tree = aWindow();
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(tree, false);
         AxGrid grid = new AxGrid(bridge);
         assertEquals(AxGrid.SelectionShape.CHILDREN, grid.selectionShape(tree.find(1001)));
@@ -157,7 +159,7 @@ class AxSelectionTest {
     @Test
     void aSelectionChangeIsPostedOnItsContainerAsItsShapesNotification() {
         AccessibleTree tree = aWindow();
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = new ArrayList<>();
         bridge.trace(trace::add);
         bridge.publish(tree, false);   // the root's children, every container here, are pushed and held
@@ -179,7 +181,7 @@ class AxSelectionTest {
     @Test
     void aMembersSelectedFlipIsToldOnlyByItsContainersChangeAndACursorFlipByNothing() {
         AccessibleTree tree = aWindow();
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = new ArrayList<>();
         bridge.trace(trace::add);
         bridge.publish(tree, false);

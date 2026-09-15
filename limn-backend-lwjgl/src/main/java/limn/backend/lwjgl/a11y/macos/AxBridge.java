@@ -129,6 +129,8 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      */
     private final List<String> teardown = new ArrayList<>();
     private boolean detaching;
+    /** Whether a detach has released the platform half, after which nothing is published here again. */
+    private boolean released;
 
     private AxBridge(AxObjC objc, long contentView) {
         this.objc = objc;
@@ -202,6 +204,11 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
 
     @Override
     public void publish(AccessibleTree published, boolean reentrant) {
+        // A bridge whose platform half was released takes nothing more: its element class and its
+        // closures are freed, so a push would hand the content view elements of a freed class, and a
+        // tree stored here would re-enter the open windows, where another window's focus ask would
+        // mint through a freed registry (macos-B review). A window gets a new bridge; this one is done.
+        if (released) return;
         super.publish(published, reentrant);
         openWindowsEpoch++;
         if (published.nodeCount() > 0) open(this);
@@ -293,6 +300,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         teardown.add("view restored");
         if (elementClass != null) elementClass.free();
         teardown.add("closures freed");
+        released = true;
     }
 
     // ---- what an implementation asks ------------------------------------------------------------
@@ -406,10 +414,16 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         }
     }
 
+    /** @return how many bridges the process's set of open windows holds. For tests. */
+    static int openBridgeCount() {
+        return openBridges.length;
+    }
+
     /**
      * @return whether this bridge is in the process's set of open windows: from its first publish of
      *         a tree until its detach, which drops it so that a closed window is never held for the
-     *         life of the process by the set that answers other windows' cursors
+     *         life of the process by the set that answers other windows' cursors; a detached bridge
+     *         never re-enters it
      */
     boolean isOpen() {
         for (AxBridge open : openBridges) {

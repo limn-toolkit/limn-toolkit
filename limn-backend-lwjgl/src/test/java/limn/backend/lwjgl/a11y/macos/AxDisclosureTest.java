@@ -7,6 +7,7 @@ import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * AXDisclosureLevel 0, 1, 2, 1, 0, 0; AXDisclosedByRow none, Documents, Reports, Documents, none,
  * none; AXDisclosedRows [Reports, Notes], [Q1], [], [], [], [].
  */
+@ExtendWith(PlatformFreeBridges.class)
 class AxDisclosureTest {
 
     private static final String[] NAMES = {"Documents", "Reports", "Q1", "Notes", "Pictures", "Readme"};
@@ -78,7 +80,7 @@ class AxDisclosureTest {
     }
 
     private static Fixture over(AccessibleTree tree) {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(tree, false);
         return new Fixture(bridge, tree, new AxGrid(bridge));
     }

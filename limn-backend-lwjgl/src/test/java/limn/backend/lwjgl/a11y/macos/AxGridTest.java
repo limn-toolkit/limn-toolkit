@@ -12,6 +12,7 @@ import limn.scene.Scene;
 import limn.testing.HeadlessUi;
 import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * restate it; everything else here is meant to stay green. M2's (an outline and a list had no rows)
  * was restated when outline and list rows landed, 2026-09-15.
  */
+@ExtendWith(PlatformFreeBridges.class)
 class AxGridTest {
 
     /** The platform-free bridge over one tree, and the grid reading through it. */
@@ -61,7 +63,7 @@ class AxGridTest {
     }
 
     private static Fixture over(AccessibleTree tree) {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(tree, false);
         return new Fixture(bridge, tree, new AxGrid(bridge));
     }
@@ -378,7 +380,7 @@ class AxGridTest {
             table.setRows(people);
             Scene scene = new Scene(table, nanos::get);
             ProbeWindow window = new ProbeWindow();
-            AxBridge bridge = AxBridge.withoutThePlatform();
+            AxBridge bridge = PlatformFreeBridges.make();
             window.accessibility = bridge;
             scene.bind(window);
             scene.renderFrame(new NoopCanvas(400, 300));

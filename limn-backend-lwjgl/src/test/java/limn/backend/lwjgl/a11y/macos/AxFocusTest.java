@@ -7,6 +7,7 @@ import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * a focus move posted at application level, and a cursor resolved into a native popup's tree is
  * answered with that window's element (decision 5).
  */
+@ExtendWith(PlatformFreeBridges.class)
 class AxFocusTest {
 
     /** A window whose list holds the keyboard, with its second item the cursor. */
@@ -60,7 +62,7 @@ class AxFocusTest {
 
     @Test
     void theFocusedElementIsTheCursorItemAndNotTheWidgetAroundIt() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aFocusedListWithACursor(1003);
         bridge.publish(tree, false);
         long[] items = bridge.childElementsOf(tree.find(1001));
@@ -75,7 +77,7 @@ class AxFocusTest {
 
     @Test
     void aFocusedWidgetWithNoCursorIsItselfTheFocusedElement() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aFocusedListWithACursor(0);
         bridge.publish(tree, false);
         long list = bridge.childElementsOf(tree.root())[0];
@@ -85,7 +87,7 @@ class AxFocusTest {
 
     @Test
     void aCursorMoveIsToldAsAFocusChangeAtApplicationLevel() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = new ArrayList<>();
         bridge.trace(trace::add);
         AccessibleTree tree = aFocusedListWithACursor(1003);
@@ -102,7 +104,7 @@ class AxFocusTest {
 
     @Test
     void aFocusMoveAndACursorMoveInOneFrameAreOneFocusChange() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = new ArrayList<>();
         bridge.trace(trace::add);
         AccessibleTree tree = aFocusedListWithACursor(1003);
@@ -120,7 +122,7 @@ class AxFocusTest {
 
     @Test
     void theModelsInvalidatedSweepsTheRegistryAndTellsWhereTheUserIsAgain() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = new ArrayList<>();
         bridge.trace(trace::add);
         bridge.publish(aFocusedListWithACursor(1003), false);
@@ -142,7 +144,7 @@ class AxFocusTest {
 
     @Test
     void aCollapsedQueueTellsWhereTheUserIsAgainAndNothingFocusedTellsNothing() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = new ArrayList<>();
         bridge.trace(trace::add);
         AccessibleTree tree = aFocusedListWithACursor(1003);
@@ -154,7 +156,7 @@ class AxFocusTest {
         assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
                 "the focus change the collapse dropped is said again (semantics 4)");
 
-        AxBridge unfocused = AxBridge.withoutThePlatform();
+        AxBridge unfocused = PlatformFreeBridges.make();
         List<String> quiet = new ArrayList<>();
         unfocused.trace(quiet::add);
         unfocused.publish(AccessibleTree.EMPTY, false);
@@ -239,8 +241,8 @@ class AxFocusTest {
     @Test
     void aCursorInAnotherWindowsTreeIsAnsweredWithThatWindowsElement() {
         TwoWindows windows = TwoWindows.aFieldWithItsCursorInAPopup();
-        AxBridge host = AxBridge.withoutThePlatform();
-        AxBridge popup = AxBridge.withoutThePlatform();
+        AxBridge host = PlatformFreeBridges.make();
+        AxBridge popup = PlatformFreeBridges.make();
         try {
             popup.publish(windows.popup(), false);
             host.publish(windows.host(), false);
@@ -276,8 +278,8 @@ class AxFocusTest {
     @Test
     void aCursorThatLeavesAnotherWindowIsNoLongerAnsweredThereOnceThatWindowPublishes() {
         TwoWindows windows = TwoWindows.aFieldWithItsCursorInAPopup();
-        AxBridge host = AxBridge.withoutThePlatform();
-        AxBridge popup = AxBridge.withoutThePlatform();
+        AxBridge host = PlatformFreeBridges.make();
+        AxBridge popup = PlatformFreeBridges.make();
         try {
             popup.publish(windows.popup(), false);
             host.publish(windows.host(), false);
@@ -310,9 +312,9 @@ class AxFocusTest {
     @Test
     void aPopupNoLongerAnswersTheCursorOfAWindowThatClosed() {
         TwoWindows windows = TwoWindows.aFieldWithItsCursorInAPopup();
-        AxBridge host = AxBridge.withoutThePlatform();
-        AxBridge popup = AxBridge.withoutThePlatform();
-        AxBridge third = AxBridge.withoutThePlatform();
+        AxBridge host = PlatformFreeBridges.make();
+        AxBridge popup = PlatformFreeBridges.make();
+        AxBridge third = PlatformFreeBridges.make();
         try {
             // A third window stays open throughout, so the popup is never the only one left.
             third.publish(aFocusedListWithACursor(0), false);
@@ -332,8 +334,8 @@ class AxFocusTest {
     @Test
     void aDetachedWindowNoLongerAnswersForAnotherWindowsCursor() {
         TwoWindows windows = TwoWindows.aFieldWithItsCursorInAPopup();
-        AxBridge host = AxBridge.withoutThePlatform();
-        AxBridge popup = AxBridge.withoutThePlatform();
+        AxBridge host = PlatformFreeBridges.make();
+        AxBridge popup = PlatformFreeBridges.make();
         try {
             popup.publish(windows.popup(), false);
             host.publish(windows.host(), false);

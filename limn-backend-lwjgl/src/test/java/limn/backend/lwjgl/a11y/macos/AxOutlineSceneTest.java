@@ -17,6 +17,7 @@ import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * under it, Pictures closed, Readme a leaf — so each answer here can be read against what the
  * native outline answered for the same row.
  */
+@ExtendWith(PlatformFreeBridges.class)
 class AxOutlineSceneTest {
 
     record Node(String name, List<Node> children) {
@@ -100,7 +102,7 @@ class AxOutlineSceneTest {
         root.add(new SizedBox(300, 400, widget));
         scene = new Scene(root, nanos::get);
         ProbeWindow window = new ProbeWindow();
-        bridge = AxBridge.withoutThePlatform();
+        bridge = PlatformFreeBridges.make();
         bridge.trace(trace::add);
         window.accessibility = bridge;
         scene.bind(window);

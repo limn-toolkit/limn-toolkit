@@ -8,6 +8,7 @@ import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The instrument measures the right thing: a sample is one frame that published or emitted, carrying
  * the events emitted since the previous frame ended, which are the events that frame's end drained.
  */
+@ExtendWith(PlatformFreeBridges.class)
 class TimingBridgeTest {
 
     /** Remembers what reached it, so the wrapper can be shown to pass everything through. */
@@ -116,7 +118,7 @@ class TimingBridgeTest {
 
     @Test
     void overThePlatformsBridgeASampleCarriesTheDrainsOwnTimeAndCount() {
-        AxBridge ax = AxBridge.withoutThePlatform();
+        AxBridge ax = PlatformFreeBridges.make();
         TimingBridge timing = new TimingBridge(ax);
         AccessibleTree tree = aWindowWithTwoButtons();
         timing.publish(tree, false);
@@ -142,7 +144,7 @@ class TimingBridgeTest {
 
     @Test
     void aReentrantPublishsEventsAreDrainedAtTheEndOfTheFrameThatFollows() {
-        AxBridge ax = AxBridge.withoutThePlatform();
+        AxBridge ax = PlatformFreeBridges.make();
         TimingBridge timing = new TimingBridge(ax);
         AccessibleTree tree = aWindowWithTwoButtons();
         timing.publish(tree, false);

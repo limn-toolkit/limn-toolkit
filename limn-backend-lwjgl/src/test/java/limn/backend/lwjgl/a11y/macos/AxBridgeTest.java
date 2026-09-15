@@ -8,6 +8,7 @@ import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * what is asserted is the assembly and never the conversation with a reader. That conversation is
  * the guest's to verify, and it is the one thing this phase still owes.
  */
+@ExtendWith(PlatformFreeBridges.class)
 class AxBridgeTest {
 
     /** A window with a group, and a button inside the group: three levels, which is the point. */
@@ -155,7 +157,7 @@ class AxBridgeTest {
             assertSame(refused, logged.get(1).getThrown());
 
             logged.clear();
-            AxBridge opened = AxBridge.withoutThePlatform();
+            AxBridge opened = PlatformFreeBridges.make();
             assertSame(opened, AxBridge.openedOrSaid(() -> opened));
             assertSame(AccessibilityBridge.NONE, AxBridge.openedOrSaid(() -> AccessibilityBridge.NONE),
                     "a machine with no AppKit answers NONE by design");
@@ -167,12 +169,12 @@ class AxBridgeTest {
 
     @Test
     void thisPlatformIsTheOneThatAsksForAPrimingPublish() {
-        assertTrue(AxBridge.withoutThePlatform().needsPrimingPublish());
+        assertTrue(PlatformFreeBridges.make().needsPrimingPublish());
     }
 
     @Test
     void nothingIsListeningUntilSomethingHasAsked() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(aNestedWindow(2), false);
         assertFalse(bridge.isListening(),
                 "there is no UiaClientsAreListening here; the gate is 'someone has asked'");
@@ -222,7 +224,7 @@ class AxBridgeTest {
      */
     @Test
     void aNodesRelationsAreItsLinkedElementsMintedOnTheAsk() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindowWithRelations();
         bridge.publish(tree, false);
         assertEquals(1, bridge.elementCount(), "only the pushed level exists before anyone asks");
@@ -241,7 +243,7 @@ class AxBridgeTest {
 
     @Test
     void theWindowRootIsNotVendedAndItsChildrenAreWhatGetsPushed() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(2);
         bridge.publish(tree, false);
         // One element, for the group. AppKit already vends the window, and a second one inside it
@@ -252,7 +254,7 @@ class AxBridgeTest {
 
     @Test
     void aChildOfTheRootAnswersTheContentViewAsItsParent() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
         // 0 is the content view here, which is what withoutThePlatform stands in with -- the point
@@ -264,7 +266,7 @@ class AxBridgeTest {
 
     @Test
     void everythingBelowThePushedLevelIsMintedOnlyWhenAsked() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(2);
         bridge.publish(tree, false);
         assertEquals(1, bridge.elementCount());
@@ -282,7 +284,7 @@ class AxBridgeTest {
         // reached the client as a zero-size rectangle at the origin. A walk reads that perfectly --
         // names, roles and identifiers were all correct -- and a hit test cannot resolve it at all,
         // which is why it took a client to see it (§13.21).
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
         double[] box = bridge.lastFrameOf(1001);
@@ -292,7 +294,7 @@ class AxBridgeTest {
 
     @Test
     void anElementMintedByAPullGetsItsBoxAtOnceRatherThanNextFrame() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
         bridge.childElementsOf(tree.find(1001));
@@ -303,7 +305,7 @@ class AxBridgeTest {
 
     @Test
     void aNodesBoxIsConvertedAgainstItsOwnParentAndNotTheScene() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
         bridge.childElementsOf(tree.find(1001));   // mint the button
@@ -318,7 +320,7 @@ class AxBridgeTest {
 
     @Test
     void theRootsChildrenArePushedAgainOnlyWhenTheyChange() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(aNestedWindow(1), false);
         assertEquals(1, bridge.pushes());
         bridge.publish(aNestedWindow(1), false);
@@ -331,7 +333,7 @@ class AxBridgeTest {
 
     @Test
     void aReentrantPublishPushesNothingAtAll() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(aNestedWindow(1), false);
         int before = bridge.pushes();
         bridge.publish(AccessibleTree.EMPTY, true);
@@ -342,7 +344,7 @@ class AxBridgeTest {
 
     @Test
     void attachingOverALiveTreeInvalidatesEveryElement() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(2);
         bridge.publish(tree, false);
         bridge.childElementsOf(tree.find(1001));
@@ -355,7 +357,7 @@ class AxBridgeTest {
 
     @Test
     void detachingDemotesEveryElementAndRestoresTheViewBeforeItFreesTheClosures() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(2);
         bridge.publish(tree, false);
         bridge.childElementsOf(tree.find(1001));
@@ -377,7 +379,7 @@ class AxBridgeTest {
 
     @Test
     void aMessageToAnElementWhoseNodeIsGoneAnswersNothingRatherThanFailing() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
         long element = bridge.pushedElements()[0];
@@ -393,7 +395,7 @@ class AxBridgeTest {
         // and asserted that the next publish posted it; a scene publishes only when its tree
         // changed, so "the next publish" was "the next change", and a still window never told the
         // last thing that happened. The frame's end is where it goes out now.
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = traced(bridge);
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
@@ -417,7 +419,7 @@ class AxBridgeTest {
         // AccessibleIdleCostTest asks of a frame with a live bridge and a clean tree: nothing.
         org.junit.jupiter.api.Assumptions.assumeTrue(limn.testing.AllocationProbe.isSupported(),
                 "this virtual machine does not count per-thread allocation");
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(aNestedWindow(2), false);
         bridge.frameEnded();
         Runnable quietFrameEnd = bridge::frameEnded;
@@ -427,7 +429,7 @@ class AxBridgeTest {
 
     @Test
     void aReentrantPublishPostsNothingAndKeepsTheEvents() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = traced(bridge);
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
@@ -444,7 +446,7 @@ class AxBridgeTest {
 
     @Test
     void theFrameAfterAReentrantPublishPushesTheRootItDeferred() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(aNestedWindow(1), false);
         int before = bridge.pushes();
         // The root's children changed inside an AX callback: a second group is a new root child.
@@ -458,7 +460,7 @@ class AxBridgeTest {
 
     @Test
     void anEventNamingANodeNoClientHasAskedAboutIsPostedOnNothing() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = traced(bridge);
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
@@ -472,7 +474,7 @@ class AxBridgeTest {
 
     @Test
     void theEventsThisPlatformIsNotToldAreNotPosted() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = traced(bridge);
         AccessibleTree tree = aNestedWindow(1);
         bridge.publish(tree, false);
@@ -486,7 +488,7 @@ class AxBridgeTest {
 
     @Test
     void aCollapsedQueueSweepsTheRegistryAndForcesAFreshPush() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(2);
         bridge.publish(tree, false);
         bridge.childElementsOf(tree.find(1001));
@@ -508,7 +510,7 @@ class AxBridgeTest {
 
     @Test
     void aCollapseOverALiveTreePushesTheRootAgainWhenTheFrameEndsAndNotAtTheNextChange() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(2);
         bridge.publish(tree, false);
         int before = bridge.pushes();
@@ -528,7 +530,7 @@ class AxBridgeTest {
         // to be delivered; being able to answer "where am I" afterwards was not, and a reader that
         // is told the focus moved and cannot find out where it went does nothing at all -- which is
         // exactly what VoiceOver did until this was answered.
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindowWithFocus(1002);
         bridge.publish(tree, false);
         assertEquals(bridge.childElementsOf(tree.find(1001))[0], bridge.focusedElement());
@@ -536,7 +538,7 @@ class AxBridgeTest {
 
     @Test
     void nothingFocusedIsAnsweredWithNilRatherThanWithSomethingNearby() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(aNestedWindow(1), false);
         assertEquals(0L, bridge.focusedElement(),
                 "answering the view itself would put the reader on a thing with no name");
@@ -544,7 +546,7 @@ class AxBridgeTest {
 
     @Test
     void aFocusedNodeThatLeftTheTreeIsNotVendedAsFocused() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(aNestedWindowWithFocus(1002), false);
         bridge.publish(AccessibleTree.EMPTY, false);
         assertEquals(0L, bridge.focusedElement());
@@ -552,7 +554,7 @@ class AxBridgeTest {
 
     @Test
     void anActionWithNoHostIsRefusedRatherThanDroppedSilently() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(aNestedWindow(1), false);
         assertFalse(bridge.perform(1002, Accessible.Action.PRESS),
                 "between a detach and an attach the scene that owned the widget is gone");
@@ -561,7 +563,7 @@ class AxBridgeTest {
     @Test
     void anActionGoesStraightToTheHostAndAnswersWhatItAnswers() {
         boolean[] asked = {false};
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.attach(new AccessibilityBridge.Host() {
             @Override public void requestRepublish() { }
             @Override public void requestRestamp() { }
@@ -591,7 +593,7 @@ class AxBridgeTest {
      */
     @Test
     void aLongSessionWithTheTraceOffRetainsNothingPerEventPostOrAsk() throws Exception {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindowWithFocus(1002);
         bridge.publish(tree, false);
         bridge.childElementsOf(tree.find(1001));   // mint the button, so value changes are posted
@@ -617,7 +619,7 @@ class AxBridgeTest {
     void withTheTraceOffAnEmitAndAFocusAskBuildNoLine() {
         org.junit.jupiter.api.Assumptions.assumeTrue(limn.testing.AllocationProbe.isSupported(),
                 "this virtual machine does not count per-thread allocation");
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindowWithFocus(1002);
         bridge.publish(tree, false);
         bridge.childElementsOf(tree.find(1001));   // the focused button has its element
@@ -655,7 +657,7 @@ class AxBridgeTest {
                 "a focus ask with no trace attached allocates only its registry lookup, no line");
         assertTrue(bridge.focusedElement() != 0, "and it answered an element, not the none path");
 
-        AxBridge nobodyFocused = AxBridge.withoutThePlatform();
+        AxBridge nobodyFocused = PlatformFreeBridges.make();
         nobodyFocused.publish(aNestedWindow(1), false);
         Runnable askNone = nobodyFocused::focusedElement;
         assertEquals(0, limn.testing.AllocationProbe.leastAllocatedBy(askNone, 60),
@@ -703,7 +705,7 @@ class AxBridgeTest {
 
     @Test
     void theTraceSaysWhatWasEmittedPostedAndAnsweredWhileOneIsAttached() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindowWithFocus(1002);
         bridge.publish(tree, false);
         List<String> trace = traced(bridge);
@@ -721,8 +723,23 @@ class AxBridgeTest {
     }
 
     @Test
+    void aDetachedBridgeTakesNoFurtherPublishAndNeverReentersTheOpenWindows() {
+        AxBridge bridge = PlatformFreeBridges.make();
+        AccessibleTree tree = aNestedWindow(2);
+        bridge.publish(tree, false);
+        assertTrue(bridge.isOpen());
+        bridge.detach();
+        int pushes = bridge.pushes();
+        bridge.publish(tree, false);
+        assertFalse(bridge.isOpen(), "a detached bridge's closures are freed; another window's focus ask "
+                + "must never reach its registry through the open windows");
+        assertEquals(0, bridge.tree().nodeCount(), "and it answers from nothing");
+        assertEquals(pushes, bridge.pushes(), "nor hands the content view elements of a freed class");
+    }
+
+    @Test
     void theTeardownRecordIsOnlyTheLastDetachs() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         AccessibleTree tree = aNestedWindow(2);
         bridge.publish(tree, false);
         bridge.childElementsOf(tree.find(1001));
@@ -744,7 +761,7 @@ class AxBridgeTest {
 
     @Test
     void everyNodeInTheTreeIsCountedAsLiveForTheReconciliationSweep() {
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(aNestedWindow(2), false);
         assertEquals(4, bridge.liveNodeIds().size());
     }

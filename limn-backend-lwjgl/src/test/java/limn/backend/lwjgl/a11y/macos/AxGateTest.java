@@ -6,6 +6,7 @@ import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Locale;
 
@@ -16,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Which installed selectors each node offers: {@code isAccessibilitySelectorAllowed:}, which AppKit
  * honours for a getter as it does for an action (read on the guest, readings/macos-summary.md §6).
  */
+@ExtendWith(PlatformFreeBridges.class)
 class AxGateTest {
 
     /**
@@ -78,7 +80,7 @@ class AxGateTest {
 
     private static Gate gate() {
         AccessibleTree tree = aWindow();
-        AxBridge bridge = AxBridge.withoutThePlatform();
+        AxBridge bridge = PlatformFreeBridges.make();
         bridge.publish(tree, false);
         return new Gate(tree, new AxGrid(bridge));
     }
