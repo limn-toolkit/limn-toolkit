@@ -89,9 +89,14 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
     private static final class Outline implements Tree.Model<Node> {
         private final List<Node> roots;
-        private final float rowHeight;
+        private final ToDoubleFunction<Node> rowHeight;
 
         Outline(float rowHeight, List<Node> roots) {
+            this(node -> rowHeight, roots);
+        }
+
+        /** An outline whose rows each measure the height {@code rowHeight} gives their node. */
+        Outline(ToDoubleFunction<Node> rowHeight, List<Node> roots) {
             this.roots = roots;
             this.rowHeight = rowHeight;
         }
@@ -108,7 +113,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
         @Override
         public Widget cellFor(Node node) {
-            return new Cell(rowHeight);
+            return new Cell((float) rowHeight.applyAsDouble(node));
         }
 
         @Override
@@ -606,6 +611,227 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * Every verb the kept cursor row publishes is performed while a wheel holds it out of the box
+     * (decision 22 read with semantics 5): the verbs are the tree's, and the tree is on the glass.
+     * Until 2026-09-15 the scene gated a delegated verb on the row showing, exempting only
+     * {@code SCROLL_INTO_VIEW}, so a reader standing on the row it had scrolled away from was told
+     * yes by {@code Host.perform} for {@code EXPAND}, {@code COLLAPSE}, {@code DESELECT},
+     * {@code ADD_TO_SELECTION}, {@code SELECT} and {@code FOCUS}, and nothing happened.
+     * {@code FOCUS} on the row the cursor is already on changes nothing but where the tree is
+     * scrolled, which is the next case's.
+     */
+    @Test
+    void everyVerbTheKeptCursorRowPublishesIsPerformedWhileItIsWheeledOutOfTheBox()
+            throws Exception {
+        List<Node> roots = leaves(40);
+        Node branch = Node.of("row 2", Node.leaf("row 2.1"));
+        roots.set(1, branch);
+        bindTree(ROW_H, roots);
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        scene.requestFocus(tree);
+        tree.setSelected(branch);
+        frame();
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        scene.scrolled(0, -20, x, y);
+        scene.inputBatchEnded();
+        frame();
+        long kept = node("row 2").id();
+
+        assertOutOfTheBox("before EXPAND");
+        assertTrue(perform(kept, Accessible.Action.EXPAND, Accessible.Argument.NONE));
+        frame();
+        assertTrue(tree.isExpanded(branch), "EXPAND opened the kept row: " + describe(tree()));
+
+        assertOutOfTheBox("before COLLAPSE");
+        assertTrue(perform(kept, Accessible.Action.COLLAPSE, Accessible.Argument.NONE));
+        frame();
+        assertFalse(tree.isExpanded(branch), "COLLAPSE closed it: " + describe(tree()));
+
+        assertOutOfTheBox("before DESELECT");
+        assertTrue(perform(kept, Accessible.Action.DESELECT, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(), tree.selectedNodes(), "DESELECT took it out of the selection");
+
+        assertOutOfTheBox("before ADD_TO_SELECTION");
+        assertTrue(perform(kept, Accessible.Action.ADD_TO_SELECTION, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(branch), tree.selectedNodes(), "ADD_TO_SELECTION put it back");
+
+        assertTrue(perform(node("row 40").id(), Accessible.Action.ADD_TO_SELECTION,
+                Accessible.Argument.NONE));
+        frame();
+        assertOutOfTheBox("before SELECT");
+        assertTrue(perform(kept, Accessible.Action.SELECT, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(branch), tree.selectedNodes(),
+                "SELECT made it the only selected row: " + describe(tree()));
+    }
+
+    /**
+     * A verb that reveals the kept cursor row brings it back where it stands, however far the
+     * wheel carried the box from it: {@code SCROLL_INTO_VIEW}, {@code SELECT} and {@code FOCUS}
+     * through the scene, and Space, the gesture that toggles the cursor row, alike. The kept row is
+     * laid out at the viewport's edge and not at its place in the outline (decision 22), and the
+     * reveal read that edge as the row's top, so it scrolled one row's height towards it and left
+     * it out of the box.
+     */
+    @Test
+    void aRevealOfTheKeptCursorRowBringsItBackIntoTheBox() throws Exception {
+        Node second = Node.leaf("row 2");
+        bindTree(ROW_H, leaves(40));
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        scene.requestFocus(tree);
+        tree.setSelected(second);
+        frame();
+        long kept = node("row 2").id();
+
+        for (Accessible.Action verb : List.of(Accessible.Action.SCROLL_INTO_VIEW,
+                Accessible.Action.SELECT, Accessible.Action.FOCUS)) {
+            wheelToTheEnd();
+            assertOutOfTheBox("before " + verb);
+            assertTrue(perform(kept, verb, Accessible.Argument.NONE));
+            frame();
+            assertTrue(node("row 2").has(Accessible.State.SHOWING),
+                    verb + " brought the kept row back into the box: " + describe(tree()));
+            assertEquals(kept, tree().activeDescendant(), describe(tree()));
+        }
+
+        wheelToTheEnd();
+        assertOutOfTheBox("before Space");
+        scene.keyEvent(limn.input.Keys.SPACE, true, false, 0);
+        scene.keyEvent(limn.input.Keys.SPACE, false, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(List.of(), tree.selectedNodes(), "Space toggled the cursor row off");
+        assertTrue(node("row 2").has(Accessible.State.SHOWING),
+                "and revealed it, as the toggle it is: " + describe(tree()));
+    }
+
+    /**
+     * The reveal of a row outside the viewport lands it exactly at the edge it comes in from, over
+     * rows of uneven height: the kept cursor row wheeled out above the box comes back with its top
+     * on the box's top, and wheeled out below, with its bottom on the box's bottom. The reveal
+     * scrolled by the anchor's estimate — the row's distance from the anchor counted in average
+     * rows — and the average is taken over the rows at hand, so with taller rows between the two
+     * the scroll stopped short and the row stayed out of the box (the fixtree review, 2026-09-15).
+     */
+    @Test
+    void aRevealOverRowsOfUnevenHeightLandsTheKeptRowAtTheEdgeItComesInFrom() throws Exception {
+        List<Node> roots = leaves(40);
+        // Twenty-point rows at either end, where the average is taken, and ten of eighty between.
+        tree = new Tree<>(new Outline(node -> {
+            int n = Integer.parseInt(node.name().toString().substring("row ".length()));
+            return n >= 16 && n <= 25 ? 80 : ROW_H;
+        }, roots));
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.requestFocus(tree);
+
+        for (Accessible.Action verb : List.of(Accessible.Action.SCROLL_INTO_VIEW,
+                Accessible.Action.SELECT)) {
+            tree.setSelected(Node.leaf("row 2"));
+            frame();
+            wheelUntilShowing("row 40", -20);
+            assertFalse(node("row 2").has(Accessible.State.SHOWING),
+                    "the wheel carried row 2 out above the box: " + describe(tree()));
+            assertTrue(perform(node("row 2").id(), verb, Accessible.Argument.NONE));
+            frame();
+            AccessibleNode above = node("row 2");
+            assertTrue(above.has(Accessible.State.SHOWING),
+                    verb + " brought row 2 back from above: " + describe(tree()));
+            assertEquals(treeNode().y(), above.y(), 0.01f,
+                    "with its top on the box's top, the least scroll that shows it");
+
+            tree.setSelected(Node.leaf("row 39"));
+            frame();
+            wheelUntilShowing("row 1", 20);
+            assertFalse(node("row 39").has(Accessible.State.SHOWING),
+                    "the wheel carried row 39 out below the box: " + describe(tree()));
+            assertTrue(perform(node("row 39").id(), verb, Accessible.Argument.NONE));
+            frame();
+            AccessibleNode below = node("row 39");
+            assertTrue(below.has(Accessible.State.SHOWING),
+                    verb + " brought row 39 back from below: " + describe(tree()));
+            assertEquals(treeNode().y() + BOX_H, below.y() + below.height(), 0.01f,
+                    "with its bottom on the box's bottom: " + describe(tree()));
+        }
+    }
+
+    /**
+     * Two reveals before a frame keep the later one. A reveal of a row outside the box is settled
+     * by the next pass, and nothing moves until then; End and then Home in one input batch end
+     * with the first row in the box and the cursor on it, not with the last row's reveal settled
+     * over the first row's; and End then a wheel notch end one notch from the top, the scroll
+     * moving from where the rows stand.
+     */
+    @Test
+    void theLaterOfTwoRevealsInOneBatchIsTheOneThatLands() {
+        bindTree(ROW_H, leaves(40));
+        scene.requestFocus(tree);
+        tree.setSelected(Node.leaf("row 1"));
+        frame();
+
+        for (int key : new int[] {limn.input.Keys.END, limn.input.Keys.HOME}) {
+            scene.keyEvent(key, true, false, 0);
+            scene.keyEvent(key, false, false, 0);
+        }
+        scene.inputBatchEnded();
+        frame();
+
+        assertEquals(List.of(Node.leaf("row 1")), tree.selectedNodes(), "Home selected the first row");
+        assertTrue(showing("row 1"), "and the first row is in the box: " + describe(tree()));
+        assertFalse(showing("row 40"), "not the last: " + describe(tree()));
+
+        // And a scroll after a reveal the pass has not settled moves from where the rows stand.
+        scene.keyEvent(limn.input.Keys.END, true, false, 0);
+        scene.keyEvent(limn.input.Keys.END, false, false, 0);
+        scene.scrolled(0, -1, tree.localToSceneX() + tree.width() / 2,
+                tree.localToSceneY() + tree.height() / 2);
+        scene.inputBatchEnded();
+        frame();
+        assertFalse(showing("row 1"), "the notch scrolled from the top: " + describe(tree()));
+        assertTrue(showing("row 4"), "by one notch: " + describe(tree()));
+        assertFalse(showing("row 40"), "and End's reveal gave way to it: " + describe(tree()));
+    }
+
+    /** Wheels {@code notches} at a time, up to ten times, until the named row is in the box. */
+    private void wheelUntilShowing(String name, int notches) {
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        for (int i = 0; i < 10 && !showing(name); i++) {
+            scene.scrolled(0, notches, x, y);
+            scene.inputBatchEnded();
+            frame();
+        }
+        assertTrue(showing(name), "wheeled to " + name + ": " + describe(tree()));
+    }
+
+    /** Whether a row of that name is published and in the box; a row not mounted is not. */
+    private boolean showing(String name) {
+        AccessibleNode row = limn.testing.AccessibleTrees.named(tree(), name);
+        return row != null && row.has(Accessible.State.SHOWING);
+    }
+
+    /** Twenty wheel notches over the tree: past the box, clamped to the end. */
+    private void wheelToTheEnd() {
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        scene.scrolled(0, -20, x, y);
+        scene.inputBatchEnded();
+        frame();
+    }
+
+    /** Asserts the kept cursor row is published, the same node, and outside the box. */
+    private void assertOutOfTheBox(String when) {
+        AccessibleNode row = node("row 2");
+        assertFalse(row.has(Accessible.State.SHOWING),
+                when + ", the fixture holds the cursor row out of the box: " + describe(tree()));
+        assertTrue(row.has(Accessible.State.ACTIVE), when + ": " + describe(tree()));
+    }
+
+    /**
      * A refresh releases every cell, and the cursor row comes back fresh from the model at the
      * height it measures, like a placed row. It came back mounted and never laid out, at height
      * zero: a zero-height {@code ACTIVE} node to a reader, and a zero in the average row height
@@ -819,7 +1045,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertEquals(List.of(one, two), tree.selectedNodes(), "two joined, one stayed");
         assertEquals(two, tree.leadNode());
-        assertEquals(two, tree.cursorNode());
+        assertEquals(one, tree.cursorNode(), "the cursor stays put (decision 20)");
         assertTrue(node("two").actions().has(Accessible.Action.DESELECT),
                 "and its verb turned over: " + describe(tree()));
 
@@ -833,7 +1059,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertEquals(List.of(two), tree.selectedNodes(), "one left");
         assertEquals(two, tree.leadNode(), "the lead was already elsewhere");
-        assertEquals(one, tree.cursorNode(), "and the cursor is on the row that was addressed");
+        assertEquals(one, tree.cursorNode(), "and the cursor, never moved, is still on it");
 
         tree.setSelectionMode(Tree.SelectionMode.SINGLE);
         frame();
@@ -842,6 +1068,59 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                     "SINGLE has nothing to add to: " + describe(tree()));
             assertFalse(row.actions().has(Accessible.Action.DESELECT));
         }
+    }
+
+    /**
+     * {@code ADD_TO_SELECTION} and {@code DESELECT} change what is selected and nothing else: the
+     * cursor, the row a reader stands on, and the range anchor Shift extends from stay where they
+     * were (decision 20 of 2026-09-14, semantics 5: only {@code SELECT} and {@code FOCUS} move a
+     * cursor). Until 2026-09-15 both went through the command-click's seam, which lands the
+     * cursor and the anchor on the row clicked — right for the pointer, which is where the user
+     * is, and wrong for a reader, who adds a row to the selection without leaving the one it is
+     * on. The command-click itself still moves both ({@code TreeTest}).
+     */
+    @Test
+    void addingOrRemovingARowLeavesTheCursorAndTheAnchorWhereTheyWere() throws Exception {
+        Node one = Node.leaf("one");
+        Node two = Node.leaf("two");
+        Node three = Node.leaf("three");
+        bindTree(ROW_H, List.of(one, two, three, Node.leaf("four")));
+        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        scene.requestFocus(tree);
+        tree.setSelected(one);
+        frame();
+        long cursorRow = node("one").id();
+        assertEquals(cursorRow, tree().activeDescendant(), describe(tree()));
+        List<limn.scene.Change> changes = new ArrayList<>();
+        scene.observeChanges((source, change) -> changes.add(change));
+        bridge.events.clear();
+
+        assertTrue(perform(node("three").id(), Accessible.Action.ADD_TO_SELECTION,
+                Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(one, three), tree.selectedNodes(), "three joined the selection");
+        assertEquals(one, tree.cursorNode(), "and the cursor stayed on the row it was on");
+        assertEquals(cursorRow, tree().activeDescendant(),
+                "so the reader is still where it was: " + describe(tree()));
+        assertTrue(bridge.eventsOf(limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED)
+                .isEmpty(), "and no cursor event was raised: " + bridge.events);
+
+        assertTrue(perform(node("three").id(), Accessible.Action.DESELECT, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(one), tree.selectedNodes(), "three left again");
+        assertEquals(one, tree.cursorNode(), "and the cursor did not follow it");
+        assertEquals(List.of(limn.scene.Change.Aspect.SELECTION, limn.scene.Change.Aspect.SELECTION),
+                changes.stream().map(limn.scene.Change::aspect).toList(),
+                "two selection changes and no cursor move: " + changes);
+
+        // The anchor: Shift+Down from the cursor extends from where the anchor is. Had either
+        // verb moved it onto "three", the range would run from there.
+        scene.keyEvent(limn.input.Keys.DOWN, true, false, limn.input.Keys.MOD_SHIFT);
+        scene.keyEvent(limn.input.Keys.DOWN, false, false, limn.input.Keys.MOD_SHIFT);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(List.of(one, two), tree.selectedNodes(),
+                "the range runs from the anchor the verbs left on the first row");
     }
 
     /**

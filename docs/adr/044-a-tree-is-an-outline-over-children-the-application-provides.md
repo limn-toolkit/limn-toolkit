@@ -216,6 +216,27 @@ and a shorter one stopped the tree short of its last row (also found in review).
 `TreeTest` holds all of it over a tree inside a `ScrollView`; a trackpad's momentum events over
 the same fixture are phase 5's live check.
 
+**Amendment, 2026-09-15: a reveal of the kept cursor row scrolls to where it stands.** The kept
+row is laid out at the viewport's edge, not at its place in the outline, and the reveal took a
+mounted row's box as its position, so `SCROLL_INTO_VIEW`, `SELECT` or `FOCUS` on that row, or Space
+on it, scrolled one row's height and left it outside the box — reachable since the scene stopped
+refusing a delegated verb on a row that is not showing (ADR 039 §1.5's amendment of this date). A
+mounted row whose box does not overlap the viewport is now revealed from the anchor's estimate,
+as an unmounted row is. Pinned by `TreeAccessibilityTest.aRevealOfTheKeptCursorRowBringsItBackIntoTheBox`.
+
+**Amendment, 2026-09-15 (review of the above): the reveal of a row outside the box is settled by
+the next pass, from measured heights.** "Revealed from the anchor's estimate" is superseded: the
+estimate counts the rows between the anchor and the row in average rows, and the average is taken
+over the rows in the box, so over rows of uneven height the scroll stopped short and the row stayed
+out (ten rows of eighty points between two runs of twenty left row 2 out above the box). A row
+whose box does not overlap the viewport, mounted or not, is now handed to the next layout pass,
+which sets the anchor on the row itself — its top on the box's top when it lies above, its bottom on
+the box's bottom when it lies below (its top on the top when it is taller than the box) — so the
+distance is exact whatever the rows between measure. Nothing moves until that pass, so a later
+reveal of a row in the box, or a scroll, replaces an unsettled one: End then Home in one input batch
+ends on the first row. Pinned by `TreeAccessibilityTest.aRevealOverRowsOfUnevenHeightLandsTheKeptRowAtTheEdgeItComesInFrom`
+and `theLaterOfTwoRevealsInOneBatchIsTheOneThatLands`.
+
 ## 4. Accessibility: two new roles, and what they cost
 
 A tree publishes `TREE`, with one `TREE_ITEM` per realized row carrying `ExpandFacet`, its depth,
@@ -397,6 +418,16 @@ recommended, is implemented so the branch is whole: `FOCUS_RING_THIN` in `theme.
 keyboard, clipped to the viewport where the cell runs past it. It stays inside the band a cursor
 move already damaged, and the damage ratchet's shares for the tree row did not move (DOWN 6%,
 click 12%, command-click 6%, measured twice). His pick on the renders may replace it.
+
+**Amendment, 2026-09-15: a reader's add or remove leaves the cursor where it is.** The row-verb
+bullet above sent `ADD_TO_SELECTION` and `DESELECT` through the command-click's toggle, and that
+seam lands the cursor and the range anchor on the row it toggles, so a reader adding a row to the
+selection was moved onto it and its next Shift range ran from there. Decision 20 and cross-bridge
+semantics 5 say only `SELECT` and `FOCUS` move a cursor. The two verbs now change the membership,
+the lead and the row's damage and nothing else — no cursor move, no anchor move, no reveal, no
+`ACTIVE` announcement — while the command-click and Space keep moving both, because the pointer and
+the keyboard are where the user is. Pinned by
+`TreeAccessibilityTest.addingOrRemovingARowLeavesTheCursorAndTheAnchorWhereTheyWere`.
 
 ## 7. Damage
 

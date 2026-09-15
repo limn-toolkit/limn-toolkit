@@ -1334,6 +1334,15 @@ public class ListView extends Widget implements Scrollable {
         }
         switch (action) {
             case SELECT -> {
+                if (index == selectedIndex) {
+                    // A click on the row already selected lands on it where it is: the reveal
+                    // select() skips when nothing moves, which is what a reader's SELECT on the
+                    // kept cursor row scrolled out of the box asks for (decision 22), as the
+                    // tree's selectOnly already reveals an unchanged selection.
+                    ensureVisible(index);
+                    invalidate();
+                    return true;
+                }
                 select(index, true, Change.Origin.USER);
                 return true;
             }

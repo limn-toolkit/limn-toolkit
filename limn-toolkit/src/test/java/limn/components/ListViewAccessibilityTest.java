@@ -663,6 +663,40 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(rowNode(0).id(), tree().activeDescendant(), describe(tree()));
     }
 
+    /**
+     * The kept cursor row's {@code SELECT} is performed although the row is wheeled out of the
+     * box (decision 22 read with semantics 5): the verb is the list's, which is on the glass, and
+     * a click on the row already selected reveals it where it stands, as the tree's does. Until
+     * 2026-09-15 the scene gated every delegated verb but {@code SCROLL_INTO_VIEW} on the row
+     * showing, so {@code Host.perform} answered yes and the verb was dropped on the UI thread.
+     */
+    @Test
+    void theKeptCursorRowsSelectIsPerformedWhileItIsWheeledOutOfTheBox() throws Exception {
+        ListView list = bindNamed(500, 50);
+        list.requestFocus();
+        list.setSelectedIndex(0);
+        frame();
+        float x = list.localToSceneX() + list.width() / 2;
+        float y = list.localToSceneY() + list.height() / 2;
+        scene.scrolled(0, -10, x, y);
+        scene.inputBatchEnded();
+        frame();
+        AccessibleNode kept = rowNode(0);
+        assertNotNull(kept, "the cursor row is kept while the list holds the keyboard: "
+                + describe(tree()));
+        assertFalse(kept.has(Accessible.State.SHOWING), "and the wheel carried it out of the box: "
+                + describe(tree()));
+        assertTrue(kept.actions().has(Accessible.Action.SELECT), describe(tree()));
+
+        assertTrue(perform(kept.id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
+        frame();
+
+        assertTrue(rowNode(0).has(Accessible.State.SHOWING),
+                "the list performed it, revealing the row it selects: " + describe(tree()));
+        assertEquals(0, list.firstVisibleIndex());
+        assertEquals(0, list.selectedIndex(), "on the row that was already selected");
+    }
+
     @Test
     void aRowThatCanTakeTheKeyboardGetsTheWalksFreeVerbsAndTheListDelegatesNoneOfThem() {
         bindList(new Rows(500, 50, true, height -> {

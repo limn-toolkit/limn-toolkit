@@ -383,6 +383,12 @@ public class Tree<T> extends Widget implements Scrollable {
     /** Mean measured row height, or 0 until a pass has measured one; the step's seed stands in. */
     private float measuredRowHeight;
     /**
+     * The node {@link #revealNode} left for the next pass to bring into the box, or null: a row
+     * outside the viewport is revealed where the pass can measure the rows between, see
+     * {@link #settleReveal}.
+     */
+    private T revealPending;
+    /**
      * How far the outline is scrolled sideways, in points from its leading edge.
      *
      * <p>Depth is what makes this necessary and a list never needs it: every level charges an
@@ -1122,28 +1128,41 @@ public class Tree<T> extends Widget implements Scrollable {
 
     /**
      * Adds or removes one node, which is what the command modifier and Space do in {@code MULTI}.
-     * The cursor lands on the node either way; the lead leaves a node toggled off and falls back
-     * to the most recently selected node still in the selection, as {@code Table}'s does, so a
-     * handler reading the lead is never handed the row that was just deselected.
+     * The lead leaves a node toggled off and falls back to the most recently selected node still
+     * in the selection, as {@code Table}'s does, so a handler reading the lead is never handed
+     * the row that was just deselected.
+     *
+     * @param moveCursor whether the cursor and the range anchor land on the node, revealed: the
+     *                   gesture's answer (a click is where the user is), and not the reader
+     *                   verbs' — {@code ADD_TO_SELECTION} and {@code DESELECT} change the
+     *                   selection and leave the cursor and the anchor where they were (decision 20
+     *                   of 2026-09-14, semantics 5: only {@code SELECT} and {@code FOCUS} move a
+     *                   cursor)
      */
-    private void toggleSelection(T node, Change.Origin origin) {
+    private void toggleSelection(T node, boolean moveCursor, Change.Origin origin) {
         if (selectionMode != SelectionMode.MULTI) {
             selectOnly(node, true, origin);
             return;
         }
         T wasCursor = cursor;
-        cursor = node;
-        rangeAnchor = node;
+        if (moveCursor) {
+            cursor = node;
+            rangeAnchor = node;
+        }
         if (!selected.remove(node)) {
             selected.add(node);
             lead = node;
         } else if (Objects.equals(lead, node)) {
             lead = lastSelected();
         }
-        revealNode(node);
+        if (moveCursor) {
+            revealNode(node);
+        }
         damageNode(node);
-        damageCursorMove(wasCursor);
-        announceCursor(wasCursor, origin);
+        if (moveCursor) {
+            damageCursorMove(wasCursor);
+            announceCursor(wasCursor, origin);
+        }
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
@@ -1596,6 +1615,9 @@ public class Tree<T> extends Widget implements Scrollable {
         // out at, which past the clamp is wider than the box.
         normalizeUp(contentWidth);
         normalizeDown(count, contentWidth);
+        if (revealPending != null) {
+            settleReveal(count, viewH);
+        }
         float bottom = placeDown(count, rowX, w, viewH);
         if (bottom < viewH && !(anchorIndex == 0 && anchorTop >= 0)) {
             anchorTop += viewH - bottom;
@@ -1609,6 +1631,39 @@ public class Tree<T> extends Widget implements Scrollable {
         updateAverageHeight();
         vBar.refresh();
         hBar.refresh();
+    }
+
+    /**
+     * Brings the row {@link #revealNode} deferred into the viewport by the least scroll, from the
+     * rows' measured heights: a row above the box, or cut by its top, is placed with its top on
+     * the box's top; a row below it, or cut by its foot, with its bottom on the box's bottom — or
+     * its top on the top, when it is taller than the box, which is {@link #revealVertically}'s
+     * rule. The anchor is set to the row itself, so the distance is exact whatever the rows between
+     * measure; only the rows from the anchor to the box's foot are measured to see whether the row
+     * is already in it, and those the pass places anyway. A node no longer visible is dropped.
+     */
+    private void settleReveal(int count, float viewH) {
+        int index = indexOf(revealPending);
+        revealPending = null;
+        if (index < 0 || index >= count) {
+            return;
+        }
+        if (index < anchorIndex || (index == anchorIndex && anchorTop < 0)) {
+            anchorIndex = index;
+            anchorTop = 0;
+            return;
+        }
+        float top = anchorTop;
+        for (int i = anchorIndex; i < index && top < viewH; i++) {
+            top += measuredHeight(i, contentWidth);
+        }
+        float rowH = measuredHeight(index, contentWidth);
+        if (top < viewH && top + rowH <= viewH) {
+            return;
+        }
+        anchorIndex = index;
+        anchorTop = Math.max(0, viewH - rowH);
+        normalizeUp(contentWidth);
     }
 
     private void normalizeUp(float w) {
@@ -1867,6 +1922,7 @@ public class Tree<T> extends Widget implements Scrollable {
     /** Scrolls by a delta in logical points (positive = toward the end). UI thread only. */
     public void scrollBy(float dy) {
         Ui.checkUiThread();
+        revealPending = null; // a scroll after a reveal the pass has not settled moves from here
         SizeTokens t = tokens();
         float offset = estimatedOffset(t);
         float max = Math.max(0, estimatedContentHeight(t) - viewportHeight());
@@ -1979,10 +2035,24 @@ public class Tree<T> extends Widget implements Scrollable {
             return;
         }
         SizeTokens t = tokens();
-        float rowH = avgRowHeight(t);
         Widget cell = cellFor(index);
-        float top = cell != null ? cell.y() : (index - anchorIndex) * rowH + anchorTop;
-        revealVertically(top, cell != null ? cell.height() : rowH);
+        if (cell != null && cell.y() + cell.height() > 0 && cell.y() < viewportHeight()) {
+            // Nothing moves until a pass settles a deferred reveal, so this box is where the row
+            // stands; the later reveal is the one kept (End then Home in one batch ends on top).
+            revealPending = null;
+            revealVertically(cell.y(), cell.height());
+        } else {
+            // A row outside the viewport has no box that says how far to scroll: one not mounted
+            // has none, and one kept mounted there — the cursor row while the tree holds the
+            // keyboard (decision 22), or a cell holding the focus — is laid out at the viewport's
+            // edge and not where it stands in the outline. The anchor's estimate counted the
+            // rows between in average rows and stopped short over rows of uneven height, so the
+            // pass settles it from their measured heights instead (settleReveal).
+            revealPending = node;
+            markNeedsContainedLayout();
+            invalidate();
+            vBar.onScrolled();
+        }
         if (pointerPress) {
             return;
         }
@@ -2085,7 +2155,7 @@ public class Tree<T> extends Widget implements Scrollable {
             }
             case Keys.SPACE -> {
                 if (cursor != null && selectionMode == SelectionMode.MULTI) {
-                    consumeAnd(event, () -> toggleSelection(cursor, Change.Origin.USER));
+                    consumeAnd(event, () -> toggleSelection(cursor, true, Change.Origin.USER));
                 }
             }
             default -> {
@@ -2286,7 +2356,7 @@ public class Tree<T> extends Widget implements Scrollable {
         pointerPress = true;
         try {
             if (selectionMode == SelectionMode.MULTI && command) {
-                toggleSelection(row.node, Change.Origin.USER);
+                toggleSelection(row.node, true, Change.Origin.USER);
             } else if (selectionMode == SelectionMode.MULTI && shift) {
                 selectRange(index);
             } else {
@@ -2796,12 +2866,14 @@ public class Tree<T> extends Widget implements Scrollable {
     /**
      * A verb the tree claimed on a row's cell, each through the seam the equivalent gesture
      * takes at {@code USER}: {@code SELECT} is a click on the row; {@code ADD_TO_SELECTION} and
-     * {@code DESELECT} are the command-click that toggles it, accepted only in the state that
-     * published them; {@code EXPAND} and {@code COLLAPSE} are the triangle, which never moves
-     * the cursor; {@code FOCUS} moves the cursor onto the row and nothing else, taking the
-     * keyboard so the cursor is published; {@code SCROLL_INTO_VIEW} reveals the row. A verb the
-     * row did not publish is refused, which the platform never learns of (the published list is
-     * the only refusal it sees, ADR 039 §1.5).
+     * {@code DESELECT} toggle it as the command-click does, accepted only in the state that
+     * published them, but leave the cursor and the range anchor where they were (decision 20:
+     * only {@code SELECT} and {@code FOCUS} move the cursor; the click moves it because the
+     * pointer is where the user is); {@code EXPAND} and {@code COLLAPSE} are the triangle, which
+     * never moves the cursor; {@code FOCUS} moves the cursor onto the row and nothing else,
+     * taking the keyboard so the cursor is published; {@code SCROLL_INTO_VIEW} reveals the row. A
+     * verb the row did not publish is refused, which the platform never learns of (the published
+     * list is the only refusal it sees, ADR 039 §1.5).
      */
     @Override
     protected boolean onAccessibilityChildAction(Widget child, long key, Accessible.Action action,
@@ -2824,7 +2896,7 @@ public class Tree<T> extends Widget implements Scrollable {
                         || member != (action == Accessible.Action.DESELECT)) {
                     return false;
                 }
-                toggleSelection(row.node, Change.Origin.USER);
+                toggleSelection(row.node, false, Change.Origin.USER);
                 return true;
             }
             case EXPAND, COLLAPSE -> {

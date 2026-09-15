@@ -969,9 +969,22 @@ public final class Scene implements WindowInput {
         // (ADR 039 §1.5, amended 2026-09-14; decision 20): a list's cursor row kept outside the
         // viewport is exactly the node a reader sends it to, and a showing gate would refuse
         // the one verb whose purpose is the not-showing case.
+        // Every other delegated verb is gated on the container showing and the child visible by
+        // its own flag, not on the child showing (ADR 039 §1.5, amended 2026-09-15; decision 22
+        // read with semantics 5): the container performs it, and a kept cursor row outside the
+        // viewport publishes SELECT, EXPAND and the rest, which Host.perform has already said
+        // yes to. A container clipped off the glass is refused like any widget that is.
         boolean revealing = free || (delegated
                 && action == limn.accessibility.Accessible.Action.SCROLL_INTO_VIEW);
-        if (revealing ? !isVisibleThroughAncestry(owner) : !owner.isShowing()) {
+        boolean refused;
+        if (revealing) {
+            refused = !isVisibleThroughAncestry(owner);
+        } else if (delegated) {
+            refused = !owner.isVisible() || !container.isShowing();
+        } else {
+            refused = !owner.isShowing();
+        }
+        if (refused) {
             return;
         }
         for (Widget at = owner; at != null; at = at.parent()) {

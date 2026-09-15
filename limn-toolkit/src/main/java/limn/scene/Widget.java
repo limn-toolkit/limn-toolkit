@@ -2049,7 +2049,10 @@ public abstract class Widget {
      * 2026-09-14).
      *
      * <p>Called on the UI thread from a posted task, after the scene re-checked the child the
-     * way it re-checks any node an action lands on, and that this widget is still its parent.
+     * way it re-checks any node an action lands on, and that this widget is still its parent —
+     * with one difference: the child need only be visible, and it is this widget that must be
+     * showing, because this widget performs the verb and a cursor row kept outside its viewport
+     * is not showing (ADR 039 §1.5, amended 2026-09-15).
      * The child is named twice on purpose: by the key this widget gave it in
      * {@link #onAccessibilityChildIdentity}, which is how a pooling container thinks of a row,
      * and by the widget itself, for a container that keys nothing. Every verb the child
