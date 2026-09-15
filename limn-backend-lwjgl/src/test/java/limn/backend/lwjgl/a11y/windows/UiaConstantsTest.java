@@ -113,8 +113,11 @@ class UiaConstantsTest {
     }
 
     /**
-     * The three constants the guest could not answer, pinned so that a change to any of them is a
-     * deliberate edit rather than a typo nobody sees. Each is sourced in {@link UiaIds}'s javadoc.
+     * The three constants no identifier table carries, pinned so that a change to any of them is a
+     * deliberate edit rather than a typo nobody sees. Each was read on the guest on 2026-09-13 from
+     * the managed side (the provider API's AppendRuntimeId; the exceptions' HResults and the
+     * internal constants), and each reading is cited in {@link UiaIds}'s javadoc; their header
+     * spellings are not read.
      */
     @Test
     void theConstantsNoInteropAssemblyCarriesAreTheDocumentedOnes() {

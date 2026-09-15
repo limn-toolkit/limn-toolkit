@@ -252,18 +252,20 @@ final class UiaIds {
     static final int NAVIGATE_DIRECTION_FIRST_CHILD = 3;
     static final int NAVIGATE_DIRECTION_LAST_CHILD = 4;
 
-    // ---- NOT read here (no Windows SDK on this guest): UiaAppendRuntimeId,
-
-    // ---- not readable from the interop assembly, and each named with what sources it
+    // ---- read from the managed side, not from the interop assembly's identifier tables; each
+    // names its reading. The header spellings (UiaAppendRuntimeId, UIA_E_ELEMENTNOTAVAILABLE,
+    // UIA_E_INVALIDOPERATION) need a Windows SDK the guest does not carry and are NOT read.
     /**
      * The marker a runtime id begins with, so that UI Automation replaces it with the host
      * window's own runtime id and the result is unique across processes.
      *
-     * <p>From {@code uiautomationcoreapi.h}, which needs a Windows SDK the guest does not carry.
-     * What was read on the guest is its <em>behaviour</em>: the spike handed UIA an array
-     * beginning with this value and watched it come back with the leading element replaced, which
-     * is the contract. A wrong value here would be visible as the fragment failing to be found
-     * from its own runtime id.
+     * <p>Read on the Windows 11 ARM64 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9278) on
+     * 2026-09-13 by {@code scripts/a11y/windows/dump-uia-constants.ps1}
+     * (readings/windows-dump-uia-constants.txt): the public const
+     * {@code System.Windows.Automation.Provider.AutomationInteropProvider.AppendRuntimeId} is 3 in
+     * UIAutomationProvider. The header spelling {@code UiaAppendRuntimeId} is not read. Its
+     * <em>behaviour</em> was read before that, in the spike: UIA was handed an array beginning with
+     * this value and it came back with the leading element replaced.
      */
     static final int APPEND_RUNTIME_ID = 3;
 
@@ -320,9 +322,34 @@ final class UiaIds {
      */
     static final int INVALIDATE_LIMIT = 20;
 
-    /** {@code UIA_E_ELEMENTNOTAVAILABLE}: what a stale element answers until its refcount drops. */
+    /**
+     * {@code UIA_E_ELEMENTNOTAVAILABLE}: what a stale element answers until its refcount drops.
+     *
+     * <p>Read on the Windows 11 ARM64 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9278) on
+     * 2026-09-13 by {@code scripts/a11y/windows/dump-uia-hresults.ps1}
+     * (readings/windows-dump-uia-hresults.txt): the internal constants
+     * {@code MS.Internal.Automation.UiaCoreTypesApi.UIA_E_ELEMENTNOTAVAILABLE},
+     * {@code UiaCoreProviderApi}'s and {@code UiaCoreApi}'s of the same name, all 0x80040201 in the
+     * 4.8.9347 assemblies; the HResult of {@code ElementNotAvailableException}; and, measured, what
+     * a managed provider's COM wrapper returns when its verb throws that exception.
+     */
     static final int E_ELEMENT_NOT_AVAILABLE = 0x80040201;
 
-    /** {@code UIA_E_INVALIDOPERATION}: what a provider answers for a verb it cannot perform. */
+    /**
+     * What a provider answers for a verb it cannot perform: the HRESULT of the managed
+     * {@code System.InvalidOperationException}, which is what a managed provider returns when its
+     * verb throws one.
+     *
+     * <p>Read on the Windows 11 ARM64 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9278) on
+     * 2026-09-13 by {@code scripts/a11y/windows/dump-uia-hresults.ps1}
+     * (readings/windows-dump-uia-hresults.txt): {@code new InvalidOperationException().HResult} is
+     * 0x80131509, mscorlib (4.8.9345) names it {@code System.__HResults.COR_E_INVALIDOPERATION},
+     * {@code Marshal.GetExceptionForHR} maps it back to {@code InvalidOperationException}, and a
+     * managed {@code IInvokeProvider.Invoke} throwing that exception returned 0x80131509 through its
+     * COM wrapper. <b>The header spelling {@code UIA_E_INVALIDOPERATION} is not read</b>: none
+     * of the six assemblies searched carries a constant by that name, and no type library any
+     * HRESULT (readings/windows-summary.md §2, §5), so the name is unverified and the number is the
+     * managed one.
+     */
     static final int E_INVALID_OPERATION = 0x80131509;
 }
