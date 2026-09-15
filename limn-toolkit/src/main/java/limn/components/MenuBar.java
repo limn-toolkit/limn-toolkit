@@ -811,8 +811,12 @@ public final class MenuBar extends Widget {
             if (!entry.menu().isEmpty()) {
                 a.state(Accessible.State.HAS_POPUP);
                 // From the popup and not from openIndex: the index is set before the popup is
-                // asked to show, and the ask is routinely refused.
-                a.expand(i == openIndex && showing);
+                // asked to show, and the ask is routinely refused. The verbs below read the same
+                // boolean and onSyntheticAction asks the same question (decision 2, "by state";
+                // until 2026-09-15 the verbs read openIndex, so a refused title published
+                // collapsed with COLLAPSE, the one verb a collapsed control refuses).
+                boolean down = i == openIndex && showing;
+                a.expand(down);
                 // The verbs the title accepts, by its state, and no other (ADR 039 §1.5,
                 // amended 2026-09-14; decision 2): a closed title opens on SHOW_MENU and on its
                 // synonym EXPAND, and the open one closes on COLLAPSE alone, which is exactly
@@ -822,7 +826,7 @@ public final class MenuBar extends Widget {
                 // was a control one platform invoked through its expand pattern and another
                 // could not see; PRESS was accepted the same way and is refused now. The two-
                 // argument form; the variable-argument one allocates an array per call.
-                if (i == openIndex) {
+                if (down) {
                     a.action(Accessible.Action.COLLAPSE);
                 } else {
                     a.action(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND);
@@ -857,6 +861,12 @@ public final class MenuBar extends Widget {
      * cascade down and builds another one, which the pointer never does. And a collapse addressed
      * to a title that is not the open one is refused rather than quietly closing whatever is.
      *
+     * <p>"Down" is the fact the describe hook publishes: this title is the open one <em>and</em> a
+     * cascade is on screen. A title whose show was refused is published collapsed with the verbs
+     * that open it, so its {@code EXPAND} asks for the open again and its {@code COLLAPSE} is
+     * refused (decision 2; until 2026-09-15 this hook and the verbs read the index alone, and the
+     * refused title published {@code COLLAPSE} beside {@code collapsed}).
+     *
      * <p>The verbs answered are exactly the verbs {@link #onAccessibility} publishes for the
      * title's state: {@code SHOW_MENU} and {@code EXPAND} open a closed title, {@code COLLAPSE}
      * closes the open one, and {@code PRESS} — accepted here as a third synonym until 2026-09-14
@@ -879,16 +889,17 @@ public final class MenuBar extends Widget {
         if (i < 0 || i >= entries.size() || entries.get(i).menu().isEmpty()) {
             return false;
         }
+        boolean down = i == openIndex && isShowingDropdown();
         switch (action) {
             case SHOW_MENU, EXPAND -> {
-                if (i == openIndex) {
+                if (down) {
                     return false;
                 }
                 openMenu(i);
                 return isShowingDropdown();
             }
             case COLLAPSE -> {
-                if (i != openIndex) {
+                if (!down) {
                     return false;
                 }
                 closeMenu();
