@@ -518,9 +518,17 @@ final class DBus {
         static Conn open(String address) throws IOException {
             String path = unixPathOf(address);
             SocketChannel ch = SocketChannel.open(StandardProtocolFamily.UNIX);
-            ch.connect(UnixDomainSocketAddress.of(path));
-            Conn c = new Conn(address, ch);
-            c.auth();
+            Conn c;
+            try {
+                ch.connect(UnixDomainSocketAddress.of(path));
+                c = new Conn(address, ch);
+                c.auth();
+            } catch (IOException | RuntimeException e) {
+                // A socket that connected and then failed its handshake is still a descriptor; one
+                // left behind per failed join is how a retry loop runs a process out of them.
+                try { ch.close(); } catch (IOException ignored) { }
+                throw e;
+            }
             // The reader thread must be running before the first call(): call() parks on a queue
             // that only the reader thread ever fills, so calling Hello first would deadlock until
             // the timeout. (It did, on the first live run.)

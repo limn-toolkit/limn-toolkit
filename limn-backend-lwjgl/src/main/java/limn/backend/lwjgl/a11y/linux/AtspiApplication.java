@@ -2,9 +2,16 @@ package limn.backend.lwjgl.a11y.linux;
 
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
+import limn.concurrent.Threads;
 
 import java.io.IOException;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 /**
  * The one AT-SPI2 application a Limn process is, with every window it opens as a frame beneath it.
@@ -18,20 +25,29 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * {@code /org/a11y/atspi/accessible/root} and one frame child per window that has published a tree;
  * each window's {@link AtspiBridge} is a facade that registers its snapshot with this object.
  *
+ * <p><b>The join never runs on the user-interface thread.</b> It is up to four round trips, each of
+ * which may wait for a peer — the session bus's {@code Hello} and {@code GetAddress}, the
+ * accessibility bus's {@code Hello}, the registry's {@code Embed} — and a frame that waited on them
+ * would freeze the window it is trying to make readable. So the first publish that has a tree starts
+ * one short-lived daemon thread that joins and ends; a publish while it runs does nothing; a join
+ * that fails closes everything it opened and is not tried again until a back-off has passed, rather
+ * than on every frame. Events emitted before the join completes are dropped, as they always were.
+ *
  * <p><b>Who touches what.</b> The table of windows is copy-on-write: the user-interface thread adds a
  * window on its first publish and removes it on its detach, and the reader thread iterates it on
- * every root query. The link is a {@code volatile} reference written by whichever thread joins or
- * leaves the bus and read by the user-interface thread when it emits. The per-window bookkeeping
- * kept on each facade ({@code member}, {@code shownAsFrame}, {@code frameId}) is the user-interface
- * thread's alone.
+ * every root query. The joined state is one atomic reference, set by the joiner thread and cleared
+ * by whichever thread lets the connection go; the rest of what the joiner writes is volatile. The
+ * per-window bookkeeping kept on each facade ({@code member}, {@code shownAsFrame},
+ * {@code frameId}) is the user-interface thread's alone.
  *
  * <p><b>Joined only once some window has a tree</b> (docs/design/accessibility.md): at-spi2-core
  * 2.60 reads an application as it registers and never lists one that answers "no children". A
  * window that arrives after the join, or leaves before the process does, is announced from the
  * application object as an ordinary {@code ChildrenChanged} carrying the frame's reference, which is
  * the one shape libatspi 2.60.6 updates a cached child list from
- * ({@code cache_process_children_changed}, readings/upstream-at-spi2-core-2.60.6-libatspi.txt).
- * When the last window leaves, the connection goes with it, so the next window registers with a
+ * ({@code cache_process_children_changed}, readings/upstream-at-spi2-core-2.60.6-libatspi.txt); it
+ * removes the child before inserting it, so an arrival told twice is harmless and one never told is
+ * not. When the last window leaves, the connection goes with it, so the next window registers with a
  * tree again rather than into an application the registry already decided was empty.
  */
 final class AtspiApplication {
@@ -53,44 +69,101 @@ final class AtspiApplication {
     /** Joins the accessibility bus as this application and hands the registry its root. */
     interface Connector {
         /**
+         * Runs on the joiner thread, never on the user-interface thread.
+         *
          * @param objects what every inbound call is answered by; the connector names its bus name
          *                and desktop and exports its handler before the embed
          * @return the joined link
-         * @throws IOException when any step fails; the application then stays unjoined
+         * @throws IOException when any step fails, having closed everything it opened; the
+         *                     application then stays unjoined until the back-off has passed
          */
         Link join(AtspiTree objects) throws IOException;
+    }
+
+    /** How the joiner thread is started: a daemon thread, or the caller's own thread in a test. */
+    interface Starter {
+        /** Runs the body on the calling thread; only for tests that want the join synchronous. */
+        Starter ON_THE_CALLER = (name, body) -> body.run();
+
+        /** A daemon thread per call, which ends when the body does. */
+        Starter DAEMON = Threads::daemon;
+
+        void start(String name, Runnable body);
+    }
+
+    /** One accessibility connection, as the steps of a join see it. */
+    interface Bus {
+        String hello() throws IOException;
+
+        void exportFallback(DBus.Handler handler);
+
+        /** {@code Socket.Embed} of the application root; answers the registry's socket reference. */
+        Object[] embed(Object[] root) throws IOException;
+
+        Link link();
+
+        void close();
+    }
+
+    /** Where a join finds its accessibility bus, and how it opens a connection to it. */
+    interface Buses {
+        /** @return the accessibility bus's address, asked of the session bus */
+        String a11yAddress() throws IOException;
+
+        Bus open(String address) throws IOException;
+    }
+
+    /** The first wait after a failed join; each further failure doubles it. */
+    static final long FIRST_RETRY_NANOS = TimeUnit.SECONDS.toNanos(1);
+
+    /** The longest wait between two joins, however many have failed. */
+    static final long LONGEST_RETRY_NANOS = TimeUnit.SECONDS.toNanos(60);
+
+    /** The joined state: the link, which join it was, and the frames the registry read at it. */
+    private record Joined(Link link, int generation, Map<AtspiBridge, Long> framesAtJoin) {
     }
 
     private static final Object PROCESS_LOCK = new Object();
     private static AtspiApplication process;
 
     /**
-     * @return an application of its own that joins this machine's bus the real way, for a test that
-     *         must not share the process's
+     * @return an application of its own that joins this machine's bus the real way, on a thread of
+     *         its own, for a test that must not share the process's
      */
     static AtspiApplication forThisMachine() {
-        return new AtspiApplication(AtspiApplication::joinTheBus);
+        return new AtspiApplication(AtspiApplication::joinTheBus, Starter.DAEMON, System::nanoTime);
     }
 
     /** @return the process's application, made on the first ask; it opens nothing until a join */
     static AtspiApplication process() {
         synchronized (PROCESS_LOCK) {
             if (process == null) {
-                process = new AtspiApplication(AtspiApplication::joinTheBus);
+                process = forThisMachine();
             }
             return process;
         }
     }
 
     private final Connector connector;
+    private final Starter starter;
+    private final LongSupplier clock;
     private final CopyOnWriteArrayList<AtspiBridge> windows = new CopyOnWriteArrayList<>();
     private final AtspiTree objects;
+    private final AtomicReference<Joined> joined = new AtomicReference<>();
+    private final AtomicBoolean joining = new AtomicBoolean();
     private volatile String name = "";
-    private volatile Link link;
+    /** When the next join may start, meaningful only while {@code failures} is above zero. */
+    private volatile long retryAt;
+    private volatile int failures;
+    private volatile int generations;
+    /** The join whose frames the windows' bookkeeping describes. User-interface thread. */
+    private int caughtUpGeneration;
     private int joinAttempts;
 
-    AtspiApplication(Connector connector) {
+    AtspiApplication(Connector connector, Starter starter, LongSupplier clock) {
         this.connector = connector;
+        this.starter = starter;
+        this.clock = clock;
         this.objects = new AtspiTree(() -> windows, () -> name);
     }
 
@@ -123,16 +196,16 @@ final class AtspiApplication {
 
     /** @return whether the application has joined the accessibility bus */
     boolean isJoined() {
-        return link != null;
+        return joined.get() != null;
     }
 
-    /** @return how many times a publish decided there was something worth registering */
+    /** @return how many joins a publish has started */
     int joinAttempts() {
         return joinAttempts;
     }
 
     /**
-     * A window published. User-interface thread.
+     * A window published. User-interface thread; returns without waiting on anything.
      *
      * @param window the facade that published
      * @param tree   what it published, already stored on the facade
@@ -142,13 +215,14 @@ final class AtspiApplication {
             windows.add(window);
             window.member = true;
         }
-        Link joined = link;
-        if (joined == null) {
+        Joined now = joined.get();
+        if (now == null) {
             if (tree.nodeCount() > 0) {
-                join();
+                requestJoin();
             }
             return;
         }
+        catchUp(now);
         boolean shows = tree.nodeCount() > 0;
         if (shows == window.shownAsFrame) {
             return;
@@ -156,11 +230,11 @@ final class AtspiApplication {
         if (shows) {
             window.frameId = tree.node(0).id();
             window.shownAsFrame = true;
-            announceFrame(joined, "add", frameIndexOf(window), window.frameId);
+            announceFrame(now.link(), "add", frameIndexOf(window), window.frameId);
         } else {
             int index = frameIndexOf(window);
             window.shownAsFrame = false;
-            announceFrame(joined, "remove", index, window.frameId);
+            announceFrame(now.link(), "remove", index, window.frameId);
         }
     }
 
@@ -173,16 +247,18 @@ final class AtspiApplication {
         if (!window.member) {
             return;
         }
-        Link joined = link;
-        if (joined != null && window.shownAsFrame) {
-            announceFrame(joined, "remove", frameIndexOf(window), window.frameId);
+        Joined now = joined.get();
+        if (now != null) {
+            catchUp(now);
+            if (window.shownAsFrame) {
+                announceFrame(now.link(), "remove", frameIndexOf(window), window.frameId);
+            }
         }
         window.shownAsFrame = false;
         windows.remove(window);
         window.member = false;
-        if (windows.isEmpty() && joined != null) {
-            link = null;
-            joined.close();
+        if (windows.isEmpty() && now != null) {
+            leave(now);
         }
     }
 
@@ -193,8 +269,8 @@ final class AtspiApplication {
      * @param event what the difference between two published trees found
      */
     void emit(AccessibleEvent event) {
-        Link joined = link;
-        if (joined == null) {
+        Joined now = joined.get();
+        if (now == null) {
             return;
         }
         AtspiEvents.Signal signal = AtspiEvents.of(event);
@@ -204,8 +280,27 @@ final class AtspiApplication {
         // From the node the event is about, so a client that subscribed by path hears it, and as a
         // signal rather than a reply, so it is the one kind the connection may refuse when a peer
         // has stopped draining.
-        joined.signal(DBus.Msg.signal(pathOf(event.nodeId()), signal.iface(), signal.member(),
+        now.link().signal(DBus.Msg.signal(pathOf(event.nodeId()), signal.iface(), signal.member(),
                 AtspiEvents.SIGNATURE, AtspiEvents.body(signal, objects.rootRef())));
+    }
+
+    /**
+     * Brings every window's bookkeeping up to a join the user-interface thread has not seen yet: a
+     * frame the registry read at the join is already known to clients, anything else is not. Once
+     * per join, so an ordinary publish walks no window table.
+     */
+    private void catchUp(Joined now) {
+        if (caughtUpGeneration == now.generation()) {
+            return;
+        }
+        caughtUpGeneration = now.generation();
+        for (AtspiBridge window : windows) {
+            Long frame = now.framesAtJoin().get(window);
+            window.shownAsFrame = frame != null;
+            if (frame != null) {
+                window.frameId = frame;
+            }
+        }
     }
 
     /** The object path an event's node is at; node zero's is the application's. */
@@ -232,33 +327,70 @@ final class AtspiApplication {
      * root with the index in {@code detail1} and the frame's own reference as the value, which is
      * the struct libatspi turns into an accessible and inserts at that index (or removes).
      */
-    private void announceFrame(Link joined, String detail, int index, long frameId) {
+    private void announceFrame(Link link, String detail, int index, long frameId) {
         AtspiEvents.Signal signal = new AtspiEvents.Signal(AtspiEvents.I_EVENT_OBJECT,
                 "ChildrenChanged", detail, index, 0,
                 new DBus.Variant("(so)", objects.refOf(frameId).toStruct()));
-        joined.signal(DBus.Msg.signal(Atspi.PATH_ROOT, signal.iface(), signal.member(),
+        link.signal(DBus.Msg.signal(Atspi.PATH_ROOT, signal.iface(), signal.member(),
                 AtspiEvents.SIGNATURE, AtspiEvents.body(signal, objects.rootRef())));
     }
 
-    /** Joins now, on the calling thread; a failure leaves the application unjoined. */
-    private void join() {
-        joinAttempts++;
-        Link joined;
-        try {
-            joined = connector.join(objects);
-        } catch (IOException | RuntimeException e) {
+    /**
+     * Starts a join unless one is running or the last one failed too recently. User-interface
+     * thread: a compare-and-set and, at most once per join, a thread start.
+     */
+    private void requestJoin() {
+        // failures before retryAt: the joiner writes them in the other order, so a failure seen
+        // here always comes with its own wait.
+        if (failures > 0 && clock.getAsLong() - retryAt < 0) {
             return;
         }
-        // Every window with a tree at this moment is a child the registry has just read; only a
-        // change from here on is news.
+        if (!joining.compareAndSet(false, true)) {
+            return;
+        }
+        joinAttempts++;
+        starter.start("limn-a11y-atspi-join", this::joinNow);
+    }
+
+    /** The joiner thread's whole body. */
+    private void joinNow() {
+        // The frames the registry will read: every window with a tree before the embed. A window
+        // that gains one during the join is announced when it next publishes, which at worst tells
+        // a client of a frame it already read, and libatspi removes before it inserts.
+        Map<AtspiBridge, Long> frames = new IdentityHashMap<>();
         for (AtspiBridge window : windows) {
             AccessibleTree tree = window.tree();
-            window.shownAsFrame = tree.nodeCount() > 0;
-            if (window.shownAsFrame) {
-                window.frameId = tree.node(0).id();
+            if (tree.nodeCount() > 0) {
+                frames.put(window, tree.node(0).id());
             }
         }
-        link = joined;
+        Link link;
+        try {
+            link = connector.join(objects);
+        } catch (IOException | RuntimeException e) {
+            int failed = failures + 1;
+            long wait = Math.min(LONGEST_RETRY_NANOS, FIRST_RETRY_NANOS << Math.min(failed - 1, 16));
+            retryAt = clock.getAsLong() + wait;
+            failures = failed;
+            joining.set(false);
+            return;
+        }
+        failures = 0;
+        Joined now = new Joined(link, ++generations, Map.copyOf(frames));
+        joined.set(now);
+        joining.set(false);
+        if (windows.isEmpty()) {
+            // Every window left while the join ran: an application with no frame is what the next
+            // window must not register into.
+            leave(now);
+        }
+    }
+
+    /** Lets a join go, once, whichever thread gets here first. */
+    private void leave(Joined now) {
+        if (joined.compareAndSet(now, null)) {
+            now.link().close();
+        }
     }
 
     /**
@@ -268,30 +400,89 @@ final class AtspiApplication {
      * may call back the moment it has the plug and a path with no handler answers UnknownMethod.
      */
     private static Link joinTheBus(AtspiTree objects) throws IOException {
-        String session = System.getenv("DBUS_SESSION_BUS_ADDRESS");
-        if (session == null) {
-            throw new IOException("no session bus address in this process's environment");
-        }
-        String where;
-        try (DBus.Conn bus = DBus.Conn.open(session)) {
-            bus.hello();
-            Object[] address = bus.callArgs("org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus",
-                    "GetAddress", null);
-            if (address.length == 0 || !(address[0] instanceof String found)) {
-                throw new IOException("org.a11y.Bus.GetAddress answered no address");
-            }
-            where = found;
-        }
-        DBus.Conn a11y = DBus.Conn.open(where);
-        objects.busName(a11y.hello());
-        a11y.exportFallback(objects::handle);
-        Object[] socket = a11y.callArgs(Atspi.REGISTRY, Atspi.PATH_ROOT, Atspi.I_SOCKET,
-                "Embed", "(so)", (Object) objects.rootRef().toStruct());
-        if (socket.length > 0) {
-            objects.desktop(DBus.Ref.of(socket[0]));
-        }
-        return linkOver(a11y);
+        return join(REAL_BUSES, objects);
     }
+
+    /**
+     * The join's steps over any pair of buses, closing the accessibility connection on every path
+     * that does not end joined.
+     *
+     * <p>It used not to: the connection was opened outside any {@code try}, so a {@code Hello} or an
+     * {@code Embed} that timed out or answered an error left a socket and its reader and writer
+     * threads behind, once per attempt, and the attempt was repeated on every frame (LINUX-NEW-12).
+     *
+     * @throws IOException when a step fails
+     */
+    static Link join(Buses buses, AtspiTree objects) throws IOException {
+        Bus a11y = buses.open(buses.a11yAddress());
+        boolean done = false;
+        try {
+            objects.busName(a11y.hello());
+            a11y.exportFallback(objects::handle);
+            Object[] socket = a11y.embed(objects.rootRef().toStruct());
+            if (socket.length > 0) {
+                objects.desktop(DBus.Ref.of(socket[0]));
+            }
+            Link link = a11y.link();
+            done = true;
+            return link;
+        } catch (RuntimeException e) {
+            throw new IOException("the join failed: " + e, e);
+        } finally {
+            if (!done) {
+                a11y.close();
+            }
+        }
+    }
+
+    /** The session bus from the environment, and the accessibility bus it names. */
+    private static final Buses REAL_BUSES = new Buses() {
+        @Override
+        public String a11yAddress() throws IOException {
+            String session = System.getenv("DBUS_SESSION_BUS_ADDRESS");
+            if (session == null) {
+                throw new IOException("no session bus address in this process's environment");
+            }
+            try (DBus.Conn bus = DBus.Conn.open(session)) {
+                bus.hello();
+                Object[] address = bus.callArgs("org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus",
+                        "GetAddress", null);
+                if (address.length == 0 || !(address[0] instanceof String found)) {
+                    throw new IOException("org.a11y.Bus.GetAddress answered no address");
+                }
+                return found;
+            } catch (RuntimeException e) {
+                throw new IOException("the session bus refused GetAddress: " + e, e);
+            }
+        }
+
+        @Override
+        public Bus open(String address) throws IOException {
+            DBus.Conn connection = DBus.Conn.open(address);
+            return new Bus() {
+                @Override public String hello() throws IOException {
+                    return connection.hello();
+                }
+
+                @Override public void exportFallback(DBus.Handler handler) {
+                    connection.exportFallback(handler);
+                }
+
+                @Override public Object[] embed(Object[] root) throws IOException {
+                    return connection.callArgs(Atspi.REGISTRY, Atspi.PATH_ROOT, Atspi.I_SOCKET,
+                            "Embed", "(so)", (Object) root);
+                }
+
+                @Override public Link link() {
+                    return linkOver(connection);
+                }
+
+                @Override public void close() {
+                    connection.close();
+                }
+            };
+        }
+    };
 
     /** The link a real connection is. */
     static Link linkOver(DBus.Conn connection) {

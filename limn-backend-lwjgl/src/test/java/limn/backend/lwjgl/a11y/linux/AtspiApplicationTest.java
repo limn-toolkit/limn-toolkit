@@ -102,6 +102,11 @@ class AtspiApplicationTest {
         return new Published(a.publish(0, 0, 0, 1f, true), window, control);
     }
 
+    /** An application joining through {@code bus} on the calling thread, so a publish has joined. */
+    private static AtspiApplication anApplication(FakeBus bus) {
+        return new AtspiApplication(bus, AtspiApplication.Starter.ON_THE_CALLER, System::nanoTime);
+    }
+
     private static String path(long id) {
         return "/org/a11y/atspi/accessible/" + id;
     }
@@ -126,7 +131,7 @@ class AtspiApplicationTest {
     @Test
     void twoWindowsAreTwoFramesOfOneApplicationOnOneConnection() {
         FakeBus bus = new FakeBus();
-        AtspiApplication app = new AtspiApplication(bus);
+        AtspiApplication app = anApplication(bus);
         app.name("Kitchen Sink");
         AtspiBridge main = app.window();
         AtspiBridge popup = app.window();
@@ -177,7 +182,7 @@ class AtspiApplicationTest {
     @Test
     void aPopupsRootNamesTheFieldThatOpenedItInTheOtherWindow() {
         FakeBus bus = new FakeBus();
-        AtspiApplication app = new AtspiApplication(bus);
+        AtspiApplication app = anApplication(bus);
         AtspiBridge main = app.window();
         AtspiBridge popup = app.window();
         Published opener = aWindow("Main", 0);
@@ -199,7 +204,7 @@ class AtspiApplicationTest {
     @Test
     void aFrameArrivingOrLeavingAfterTheJoinIsAnnouncedFromTheApplication() {
         FakeBus bus = new FakeBus();
-        AtspiApplication app = new AtspiApplication(bus);
+        AtspiApplication app = anApplication(bus);
         AtspiBridge main = app.window();
         AtspiBridge popup = app.window();
         Published first = aWindow("Main", 0);

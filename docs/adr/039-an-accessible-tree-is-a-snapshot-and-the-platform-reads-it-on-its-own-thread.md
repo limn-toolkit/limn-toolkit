@@ -2319,7 +2319,7 @@ with that name and not with its own title. Windows and macOS read nothing from i
 **Not changed here, and whose it is.** `Cache.GetItems` is still built per request rather than
 pre-marshalled against a publish counter; `Cache.AddAccessible`/`RemoveAccessible` for a frame and
 `Event.Window` `Create`/`Destroy` are the events item of the Linux lane (LINUX-NEW-1, LINUX-NEW-2).
-When and on which thread the join happens is the next amendment's.
+When and on which thread the join happens is §3.3's amendment of the same date.
 
 ### 2.4 The events, side by side
 
@@ -2570,6 +2570,27 @@ hundred nodes would cost thousands.
 reader thread is ours, the snapshot is already published, and every read is answered. Only actions
 queue. This is the one place Linux is strictly better off than the other two, and it falls straight out
 of owning the transport.
+
+#### Amendment 2026-09-15 — the join has a thread of its own, and a failed one costs nothing twice
+
+**What was wrong.** "The UI thread blocks on nothing" was not true of the join (LINUX-NEW-12). The
+first publish with a tree called the join inline: the session bus's `Hello` and `GetAddress`, the
+accessibility bus's `Hello` and the registry's `Embed`, each waiting up to 15 s for its reply, on the
+user-interface thread. A step that failed returned without closing the accessibility connection it
+had opened — a socket and its reader and writer threads — and the next publish, one frame later,
+did it all again.
+
+**What the code does now.** The first publish that has a tree starts one daemon thread,
+`limn-a11y-atspi-join`, which joins and ends; a publish while it runs starts nothing (a
+compare-and-set), and events emitted before it completes are dropped as before. Every step runs
+inside a `try` that closes the accessibility connection unless the join completed, and a socket
+whose handshake fails is closed before the error leaves `DBus.Conn.open`. A failed join is tried
+again only after a back-off — one second, doubling per consecutive failure, capped at sixty — and
+only when a later publish asks, so an idle window with a broken bus spends nothing. The joiner writes
+the joined state as one atomic reference together with the frames the registry read at the join, and
+the user-interface thread brings its per-window bookkeeping up to that state on its next publish
+(§2.3's amendment of this date). The registration rule is unchanged: nothing joins before some window
+has a tree.
 
 ### 3.4 The bridge's own mutable state, and which thread owns each piece
 
