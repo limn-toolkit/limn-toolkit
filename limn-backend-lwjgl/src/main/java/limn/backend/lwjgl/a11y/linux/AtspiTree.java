@@ -559,15 +559,26 @@ final class AtspiTree {
      *
      * <p>Posted as {@code SET_VALUE} with the number only where the node accepts it now — a
      * writable facet on an {@code ENABLED} node (semantics 5 as amended 2026-09-15) — and refused
-     * with {@code org.freedesktop.DBus.Error.Failed} otherwise, or for any other property of
-     * Value, which are all read-only in the installed XML. A refusal is an error and not a silent
-     * success: the caller would otherwise believe a read-only progress bar took the number.
+     * with {@code org.freedesktop.DBus.Error.Failed} otherwise. That refusal is this bridge's
+     * choice and not a toolkit's: on the Fedora guest GTK 3's ATK bridge and GTK 4.22.4 both answer
+     * success to a {@code CurrentValue} write on an insensitive spin button and on a level bar, the
+     * level bar keeping its number under GTK 4 (readings/fedora-gtk3-interface-replies.txt,
+     * fedora-gtk4-interface-replies.txt, section 5, 2026-09-15) — the silent success that would
+     * have a caller believe a read-only progress bar took the number. Another property of Value,
+     * all read-only in the installed XML, is answered {@code PropertyReadOnly} as the ATK bridge
+     * answers it; a name Value does not have, or a {@code CurrentValue} that is not a number,
+     * {@code InvalidArgs}, as {@code Get} answers a name it does not have.
      */
     private DBus.Msg setValue(DBus.Msg m, Located at) {
         String property = m.body.length > 1 ? String.valueOf(m.body[1]) : "";
         Object given = m.body.length > 2 && m.body[2] instanceof DBus.Variant v ? v.value : null;
-        if (!"CurrentValue".equals(property) || !(given instanceof Number number)) {
-            return DBus.Msg.err(m, DBus.Conn.FAILED, "Value." + property + " cannot be set");
+        if (!"CurrentValue".equals(property)) {
+            boolean declared = propertiesOf(Atspi.I_VALUE, false, at).containsKey(property);
+            return DBus.Msg.err(m, declared ? DBus.Conn.PROPERTY_READ_ONLY : DBus.Conn.INVALID_ARGS,
+                    "Value." + property + (declared ? " is read-only" : " is no property"));
+        }
+        if (!(given instanceof Number number)) {
+            return DBus.Msg.err(m, DBus.Conn.INVALID_ARGS, "Value.CurrentValue is a double");
         }
         if (!performFirst(at, at.node(), new Accessible.Argument.OfValue(number.doubleValue()),
                 Accessible.Action.SET_VALUE)) {

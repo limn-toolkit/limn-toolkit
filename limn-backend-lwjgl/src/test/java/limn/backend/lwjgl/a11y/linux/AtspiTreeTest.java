@@ -657,7 +657,14 @@ class AtspiTreeTest {
         }
         DBus.Msg minimum = call(path(9001), Atspi.I_PROPS, "Set", "ssv", Atspi.I_VALUE,
                 "MinimumValue", new DBus.Variant("d", 3.0));
-        assertEquals(DBus.Conn.FAILED, minimum.errorName, "the other properties are read-only");
+        assertEquals(DBus.Conn.PROPERTY_READ_ONLY, minimum.errorName,
+                "the other properties are read-only, and say so as GTK 3's ATK bridge does");
+        DBus.Msg unknown = call(path(9001), Atspi.I_PROPS, "Set", "ssv", Atspi.I_VALUE,
+                "NoSuchProperty", new DBus.Variant("d", 3.0));
+        assertEquals(DBus.Conn.INVALID_ARGS, unknown.errorName, "a name Value does not have");
+        DBus.Msg word = call(path(9001), Atspi.I_PROPS, "Set", "ssv", Atspi.I_VALUE,
+                "CurrentValue", new DBus.Variant("s", "twenty"));
+        assertEquals(DBus.Conn.INVALID_ARGS, word.errorName, "a CurrentValue that is no number");
         assertEquals(List.of(), performed, "and nothing reached a widget");
     }
 

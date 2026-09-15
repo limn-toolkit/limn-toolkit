@@ -2415,6 +2415,18 @@ installed interface carries a `Text` property and Orca 50.2 reads it with the nu
 `org.freedesktop.DBus.Error.Failed`, which reaches the caller's `GError`; so is a write to any other
 `Value` property. A display form is also served through `Text` (its own amendment below).
 
+**Read 2026-09-15 (review of the interfaces item): what a toolkit answers a refused write.** Neither
+toolkit on the Fedora KDE 44 guest refuses a `CurrentValue` write with an error: GTK 3.24.52's ATK bridge
+answers success on an insensitive spin button and on a level bar and moves both, and GTK 4.22.4 answers
+success on both and leaves the level bar's number where it was
+(readings/fedora-gtk3-interface-replies.txt and fedora-gtk4-interface-replies.txt, section 5,
+`scripts/a11y/linux/read-gtk-interface-replies.py`). Answering `Failed` where `AccessibleNode#accepts` refuses stays this bridge's choice, made
+knowingly against both: a success a widget then ignores is what a caller cannot detect. A write to a
+read-only `Value` property is now answered `org.freedesktop.DBus.Error.PropertyReadOnly`, as the ATK
+bridge answers it (GTK 4 answers `InvalidArgs`), and a name `Value` does not have, or a `CurrentValue`
+that is not a number, `InvalidArgs`, as `Get` answers an unknown name; the error name `Failed` itself is
+from readings/fedora-dbus-bus-facts.txt.
+
 #### Amendment 2026-09-15 — `Text` is served, over a text and over a value's display form
 
 **What was wrong (LINUX-NEW-4).** The `Text` row promised an interface no code served, while the

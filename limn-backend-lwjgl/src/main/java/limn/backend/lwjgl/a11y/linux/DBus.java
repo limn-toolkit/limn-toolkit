@@ -1044,6 +1044,16 @@ final class DBus {
         static final String UNKNOWN_METHOD = "org.freedesktop.DBus.Error.UnknownMethod";
 
         /**
+         * The error {@code Properties.Set} of a property declared read-only gets. What GTK
+         * 3.24.52's ATK bridge (at-spi2-atk 2.60.6) answers to {@code Set(org.a11y.atspi.Value,
+         * MinimumValue, d)} on a spin button and a level bar, read 2026-09-15 on the Fedora KDE 44
+         * guest (readings/fedora-gtk3-interface-replies.txt, section 5,
+         * scripts/a11y/linux/read-gtk-interface-replies.py); GTK 4.22.4 answers
+         * {@code InvalidArgs} there (readings/fedora-gtk4-interface-replies.txt).
+         */
+        static final String PROPERTY_READ_ONLY = "org.freedesktop.DBus.Error.PropertyReadOnly";
+
+        /**
          * The reply a method call is owed, whatever its handler does: the handler's own, an
          * {@code UnknownMethod} when there is no handler or it declines, and an error when it
          * throws. Never null and never a throw.
