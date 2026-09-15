@@ -2114,6 +2114,21 @@ tree (decision 5), `GetFocus` hands over that window's fragment pointer from tha
 provider, and that element is the one answering `HasKeyboardFocus` true. `HasKeyboardFocus` is
 therefore answered by the provider from the tree, not by the per-node property table.
 
+**Amended 2026-09-15 (phase 3, Windows; decisions 9, 10; semantics 1 and 5; W1's Selection half,
+WINDOWS-NEW-9, WINDOWS-NEW-11): `ISelectionProvider` is served, and the `SelectionItem` verbs are
+candidate lists.** The row above lists `ISelectionProvider` as "to be built"; the pattern was
+claimed from `SelectionFacet` and a client's `GetPatternProvider` got a null. `GetSelection` now
+answers a `SAFEARRAY` of simple pointers to the realized selected members whose selection container,
+resolved once at publish (`AccessibleNode#selectionContainer`), is this node — a selected row the
+widget has not realized is not listed (§4.1) — and `get_CanSelectMultiple`/`get_IsSelectionRequired`
+answer the facet. `get_SelectionContainer` answers that same resolved container, where it had
+climbed to any ancestor with a selection. `Select` posts `SELECT`, `AddToSelection` the first of
+`ADD_TO_SELECTION`, `SELECT` the node publishes, `RemoveFromSelection` `DESELECT`; a node publishing
+none of its list is refused with `0x80131509` and nothing is posted (it had posted `SELECT` for
+both of the first two, whatever the node published). Every `BOOL*` getter writes four bytes of `1`
+or `0`, read on the guest (readings/windows-dump-uia-marshalling.txt); it had written a
+`VARIANT_BOOL`'s two.
+
 ### 2.2 macOS: NSAccessibility
 
 | Attribute / action / notification | Answered from | Note |
@@ -2353,6 +2368,14 @@ re-raises the focus on the effective focus; the root-targeted `INVALIDATED` the 
 `LayoutInvalidated` and sweeps nothing. The `HasKeyboardFocus` property change the `FOCUS_CHANGED`
 row promises is **not** raised: NVDA 2024.4.2 subscribes to no `HasKeyboardFocus` change (the same
 reading, §3), and the mapping of the remaining unmapped events is a later item of the Windows lane.
+`SELECTION_CHANGED`, as built: more than `InvalidateLimit` members entering and leaving (20, the
+managed provider API's own constant, read on the guest 2026-09-15, and the comparison the
+platform's `SelectorAutomationPeer` makes with it: twenty is still per member) is one
+`Selection_Invalidated` on the container; otherwise a single-select container raises
+`ElementSelected` on the member that entered (or `ElementRemovedFromSelection` on the one that left
+when none entered) and a multi-select one `ElementAddedToSelection`/`ElementRemovedFromSelection` on
+each member. Each is raised only for an element a client holds. NVDA 2024.4.2 speaks none of these
+for a generic item (the same reading, §2); the reader hears the cursor through the focus rows above.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that

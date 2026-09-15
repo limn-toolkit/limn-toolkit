@@ -68,6 +68,8 @@ class UiaPatternProvidersTest {
         COVERED.put("IValueProvider", List.of("SetValue", "get_Value", "get_IsReadOnly"));
         COVERED.put("IRangeValueProvider", List.of("SetValue", "get_Value", "get_IsReadOnly",
                 "get_Maximum", "get_Minimum", "get_LargeChange", "get_SmallChange"));
+        COVERED.put("ISelectionProvider", List.of("GetSelection", "get_CanSelectMultiple",
+                "get_IsSelectionRequired"));
         COVERED.put("IExpandCollapseProvider", List.of("Expand", "Collapse",
                 "get_ExpandCollapseState"));
         COVERED.put("ISelectionItemProvider", List.of("Select", "AddToSelection",
@@ -171,10 +173,14 @@ class UiaPatternProvidersTest {
      *   1005 SPIN_BUTTON 7 "07"        1006 PROGRESS_BAR 40 read-only
      *   1007 COMBO_BOX expanded
      *   1008 LIST multi
-     *     1009 LIST_ITEM selected 1/2
-     *     1010 GROUP
-     *       1011 LIST_ITEM 2/2
-     *   1012 LIST_ITEM with no container
+     *     1009 LIST_ITEM selected 1/2 [deselect]
+     *     1010 GROUP (a widget, not synthetic)
+     *       1011 LIST_ITEM 2/2 [select, add to selection]
+     *   1012 LIST_ITEM with no container [select]
+     *   1013 LIST_ITEM with no verb
+     *   1060 TABLE (a calendar grid) single, selection required
+     *     synthetic ROW
+     *       synthetic CELL "15" selected     synthetic CELL "16"
      *   1020 TABLE 2x2
      *     1021 GROUP (the header)  1022 COLUMN_HEADER (-1,0)  1023 COLUMN_HEADER (-1,1)
      *     1024 ROW 1/2             1025 CELL (0,0)            1026 CELL (0,1)
@@ -216,15 +222,37 @@ class UiaPatternProvidersTest {
         a.selection(true, false);
         node(a, 1009, list, Accessible.Role.LIST_ITEM);
         a.selectionItem(true, 1, 2);
+        a.action(Accessible.Action.DESELECT);
         a.end();
         int padding = node(a, 1010, list, Accessible.Role.GROUP);
         node(a, 1011, padding, Accessible.Role.LIST_ITEM);
         a.selectionItem(false, 2, 2);
+        a.action(Accessible.Action.SELECT, Accessible.Action.ADD_TO_SELECTION);
         a.end();
         a.end();
         a.end();
         node(a, 1012, window, Accessible.Role.LIST_ITEM);
         a.selectionItem(false, 1, 1);
+        a.action(Accessible.Action.SELECT);
+        a.end();
+        node(a, 1013, window, Accessible.Role.LIST_ITEM);
+        a.selectionItem(false, 1, 1);
+        a.end();
+        node(a, 1060, window, Accessible.Role.TABLE);
+        a.selection(false, true);
+        a.child(1);
+        a.role(Accessible.Role.ROW);
+        a.child(15);
+        a.role(Accessible.Role.CELL);
+        a.name(I18nString.literal("15"), Accessible.NameFrom.CONTENT);
+        a.selectionItem(true, 15, 30);
+        a.endChild();
+        a.child(16);
+        a.role(Accessible.Role.CELL);
+        a.name(I18nString.literal("16"), Accessible.NameFrom.CONTENT);
+        a.selectionItem(false, 16, 30);
+        a.endChild();
+        a.endChild();
         a.end();
         int table = node(a, 1020, window, Accessible.Role.TABLE);
         a.table(2, 2);
@@ -321,6 +349,16 @@ class UiaPatternProvidersTest {
         assertEquals(expected ? 1 : 0, MemoryUtil.memGetInt(out),
                 "a four-byte BOOL, as the guest's own provider writes it");
         assertEquals(0xAAAAAAAA, MemoryUtil.memGetInt(out + 4), "and nothing past it");
+    }
+
+    /** The id the fixture's synthetic node named {@code name} was minted. */
+    private long idNamed(String name) {
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            if (tree.node(i).name().equals(name)) {
+                return tree.node(i).id();
+            }
+        }
+        throw new AssertionError("no node named " + name);
     }
 
     private void goneFromTheTree() {
@@ -504,15 +542,35 @@ class UiaPatternProvidersTest {
 
     // ---- SelectionItem
 
+    /**
+     * Decision 10 and semantics 5's candidate lists (WINDOWS-NEW-9): Select posts SELECT,
+     * AddToSelection the first of [ADD_TO_SELECTION, SELECT] the node publishes, RemoveFromSelection
+     * DESELECT; a node publishing none of its candidates is refused synchronously. Until
+     * 2026-09-15 AddToSelection posted SELECT, which selects only that item, and every one of the
+     * three was posted whatever the node published.
+     */
     @Test
-    void selectAddAndRemoveArePosted() {
+    void selectAddAndRemovePostTheFirstVerbOfTheirListTheNodePublishes() {
         assertEquals(UiaIds.S_OK, verb(UiaIds.SELECTION_ITEM_PATTERN, 1011, "Select"));
         assertEquals(UiaIds.S_OK, verb(UiaIds.SELECTION_ITEM_PATTERN, 1011, "AddToSelection"));
+        assertEquals(UiaIds.S_OK, verb(UiaIds.SELECTION_ITEM_PATTERN, 1012, "AddToSelection"));
         assertEquals(UiaIds.S_OK, verb(UiaIds.SELECTION_ITEM_PATTERN, 1009, "RemoveFromSelection"));
-        // Pinned as of 048f7d0: AddToSelection posts SELECT, which selects only that item
-        // (WINDOWS-NEW-9; decision 10 maps it to [ADD_TO_SELECTION, SELECT]).
-        assertEquals(List.of("1011 SELECT None[]", "1011 SELECT None[]", "1009 DESELECT None[]"),
-                posted);
+        assertEquals(List.of("1011 SELECT None[]", "1011 ADD_TO_SELECTION None[]",
+                "1012 SELECT None[]", "1009 DESELECT None[]"), posted,
+                "add is ADD_TO_SELECTION where offered and a click where the container has only that");
+
+        posted.clear();
+        assertEquals(UiaIds.E_INVALID_OPERATION,
+                verb(UiaIds.SELECTION_ITEM_PATTERN, 1013, "Select"));
+        assertEquals(UiaIds.E_INVALID_OPERATION,
+                verb(UiaIds.SELECTION_ITEM_PATTERN, 1013, "AddToSelection"));
+        assertEquals(UiaIds.E_INVALID_OPERATION,
+                verb(UiaIds.SELECTION_ITEM_PATTERN, 1011, "RemoveFromSelection"));
+        assertEquals(List.of(), posted, "a verb the node does not publish is never posted");
+
+        goneFromTheTree();
+        assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
+                verb(UiaIds.SELECTION_ITEM_PATTERN, 1011, "Select"));
     }
 
     @Test
@@ -528,12 +586,25 @@ class UiaPatternProvidersTest {
                 get(UiaIds.SELECTION_ITEM_PATTERN, 1001, "get_IsSelected", buffer()));
     }
 
+    /**
+     * Semantics 1: the container resolved at publish, climbed to through synthetic ancestors only.
+     * Until 2026-09-15 this climbed through any ancestor, and answered the list for 1011 under a
+     * widget group, which the model's SELECTION_CHANGED and the other bridges do not.
+     */
     @Test
-    void theSelectionContainerIsTheNearestAncestorWithASelectionAndNullWhenNone() {
+    void theSelectionContainerIsTheOneResolvedAtPublishAndNullWhenNone() {
         long out = buffer();
         assertEquals(UiaIds.S_OK,
+                get(UiaIds.SELECTION_ITEM_PATTERN, 1009, "get_SelectionContainer", out));
+        assertEquals(SIMPLE + 1008, MemoryUtil.memGetAddress(out));
+        assertEquals(UiaIds.S_OK,
+                get(UiaIds.SELECTION_ITEM_PATTERN, idNamed("15"), "get_SelectionContainer", out));
+        assertEquals(SIMPLE + 1060, MemoryUtil.memGetAddress(out),
+                "a day's grid, past the synthetic week row");
+        assertEquals(UiaIds.S_OK,
                 get(UiaIds.SELECTION_ITEM_PATTERN, 1011, "get_SelectionContainer", out));
-        assertEquals(SIMPLE + 1008, MemoryUtil.memGetAddress(out), "through the padding group");
+        assertEquals(0L, MemoryUtil.memGetAddress(out),
+                "a climb that meets a widget first finds no container");
         assertEquals(UiaIds.S_OK,
                 get(UiaIds.SELECTION_ITEM_PATTERN, 1012, "get_SelectionContainer", out));
         assertEquals(0L, MemoryUtil.memGetAddress(out), "an item under no container names none");
@@ -541,6 +612,47 @@ class UiaPatternProvidersTest {
         goneFromTheTree();
         assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
                 get(UiaIds.SELECTION_ITEM_PATTERN, 1011, "get_SelectionContainer", out));
+    }
+
+    // ---- Selection
+
+    /**
+     * W1's Selection half (semantics 1): GetSelection lists the realized selected members whose
+     * container is this one, as a SAFEARRAY of simple pointers (GetColumnHeaders' shape); the two
+     * flags are four-byte BOOLs. Until 2026-09-15 the interface was claimed and never served.
+     */
+    @Test
+    void getSelectionListsTheContainersOwnSelectedMembersAndTheFlagsAreBools() {
+        long out = buffer();
+        assertEquals(UiaIds.S_OK, get(UiaIds.SELECTION_PATTERN, 1008, "GetSelection", out));
+        assertEquals(ARRAY, MemoryUtil.memGetAddress(out));
+        assertArrayEquals(new long[] {SIMPLE + 1009}, arrays.get(0),
+                "the list's own selected row; 1011 is not its member");
+        assertEquals(UiaIds.S_OK, get(UiaIds.SELECTION_PATTERN, 1060, "GetSelection", out));
+        assertArrayEquals(new long[] {SIMPLE + idNamed("15")}, arrays.get(1),
+                "the grid's selected day, found past its synthetic row");
+
+        long multi = buffer();
+        long required = buffer();
+        assertEquals(UiaIds.S_OK, get(UiaIds.SELECTION_PATTERN, 1008, "get_CanSelectMultiple", multi));
+        assertEquals(UiaIds.S_OK,
+                get(UiaIds.SELECTION_PATTERN, 1008, "get_IsSelectionRequired", required));
+        assertBool(true, multi);
+        assertBool(false, required);
+        assertEquals(UiaIds.S_OK, get(UiaIds.SELECTION_PATTERN, 1060, "get_CanSelectMultiple", multi));
+        assertEquals(UiaIds.S_OK,
+                get(UiaIds.SELECTION_PATTERN, 1060, "get_IsSelectionRequired", required));
+        assertBool(false, multi);
+        assertBool(true, required);
+
+        assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
+                get(UiaIds.SELECTION_PATTERN, 1001, "GetSelection", out), "no selection facet");
+        goneFromTheTree();
+        for (String name : List.of("GetSelection", "get_CanSelectMultiple",
+                "get_IsSelectionRequired")) {
+            assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
+                    get(UiaIds.SELECTION_PATTERN, 1008, name, buffer()), name);
+        }
     }
 
     // ---- ScrollItem

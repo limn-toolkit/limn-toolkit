@@ -415,9 +415,12 @@ public final class UiaBridge extends PlatformBridge {
             raiseFocus(event.type().name());
             return;
         }
+        if (event.type() == AccessibleEvent.Type.SELECTION_CHANGED) {
+            raiseSelection(event);
+            return;
+        }
         int eventId = switch (event.type()) {
             case INVOKED -> UiaIds.INVOKE_INVOKED;
-            case SELECTION_CHANGED -> UiaIds.SELECTION_ITEM_ELEMENT_SELECTED;
             case STRUCTURE_CHANGED -> UiaIds.STRUCTURE_CHANGED;
             case ANNOUNCEMENT -> UiaIds.NOTIFICATION;
             case WINDOW_OPENED -> UiaIds.WINDOW_OPENED;
@@ -525,6 +528,76 @@ public final class UiaBridge extends PlatformBridge {
         UiaWindow.say("raised " + cause + " for node " + target + where + " in "
                 + (System.nanoTime() - started) / 1_000 + " us on "
                 + Thread.currentThread().getName());
+    }
+
+    /**
+     * What one container's {@code SELECTION_CHANGED} raises, as {@code {eventId, nodeId}} pairs in
+     * order (decision 9; semantics 1): {@code Selection_Invalidated} on the container when more
+     * than {@link UiaIds#INVALIDATE_LIMIT} members entered and left it; otherwise, in a container
+     * that selects one, {@code ElementSelected} on the member that entered, and
+     * {@code ElementRemovedFromSelection} on each that left when none entered; in a container that
+     * selects many, {@code ElementAddedToSelection} on each member that entered and
+     * {@code ElementRemovedFromSelection} on each that left. Replaces the single
+     * {@code ElementSelected} this bridge raised on the container itself, which is an item event
+     * raised on something that is not an item (WINDOWS-NEW-5).
+     *
+     * <p>A decision only: which of them reaches a client is {@link #raiseSelection}'s held-element
+     * gate. NVDA 2024.4.2 speaks none of them for a generic item (readings/nvda-2024.4.2-uia.md §2:
+     * ElementSelected needs the focus's ControllerFor, the other two map to a state change on a
+     * non-focus object); what it speaks as the cursor moves is the focus change of item 3. The
+     * events are raised for the clients that do subscribe to selection.
+     *
+     * @param event a {@code SELECTION_CHANGED}
+     * @return the raises, container first when it is bulk
+     */
+    static List<long[]> selectionRaises(AccessibleEvent event) {
+        List<Long> added = event.addedMembers();
+        List<Long> removed = event.removedMembers();
+        List<long[]> raises = new ArrayList<>();
+        if (added.size() + removed.size() > UiaIds.INVALIDATE_LIMIT) {
+            raises.add(new long[] {UiaIds.SELECTION_INVALIDATED, event.nodeId()});
+            return raises;
+        }
+        if (!event.multiSelectable() && added.size() == 1) {
+            raises.add(new long[] {UiaIds.SELECTION_ITEM_ELEMENT_SELECTED, added.get(0)});
+            return raises;
+        }
+        for (long member : added) {
+            raises.add(new long[] {UiaIds.SELECTION_ITEM_ELEMENT_ADDED_TO_SELECTION, member});
+        }
+        for (long member : removed) {
+            raises.add(new long[] {UiaIds.SELECTION_ITEM_ELEMENT_REMOVED_FROM_SELECTION, member});
+        }
+        return raises;
+    }
+
+    /**
+     * Raises {@link #selectionRaises} for the elements a client holds, and nothing for the rest:
+     * the member that just entered a selection is not minted for it, because a client that never
+     * asked for it reads its selected state when it does (§13.28's cost argument), and a member
+     * that left the tree has no element left to raise on.
+     */
+    private void raiseSelection(AccessibleEvent event) {
+        boolean anything = false;
+        for (long[] raise : selectionRaises(event)) {
+            UiaElement element = elements.peek(raise[1]);
+            if (element == null) {
+                continue;
+            }
+            long started = System.nanoTime();
+            Uia.raiseAutomationEvent(element.pointer(), (int) raise[0]);
+            anything = true;
+            UiaWindow.say("raised SELECTION_CHANGED as event " + raise[0] + " for node " + raise[1]
+                    + " of container " + event.nodeId() + " in "
+                    + (System.nanoTime() - started) / 1_000 + " us on "
+                    + Thread.currentThread().getName());
+        }
+        if (anything) {
+            owedAnEvent = false;
+        } else {
+            UiaWindow.say("SELECTION_CHANGED of container " + event.nodeId()
+                    + " reached no held element");
+        }
     }
 
     /**
@@ -1058,7 +1131,7 @@ public final class UiaBridge extends PlatformBridge {
     private static final int[] PATTERNS = {
             UiaIds.INVOKE_PATTERN, UiaIds.TOGGLE_PATTERN, UiaIds.VALUE_PATTERN,
             UiaIds.RANGE_VALUE_PATTERN, UiaIds.EXPAND_COLLAPSE_PATTERN,
-            UiaIds.SELECTION_ITEM_PATTERN, UiaIds.SCROLL_ITEM_PATTERN,
+            UiaIds.SELECTION_PATTERN, UiaIds.SELECTION_ITEM_PATTERN, UiaIds.SCROLL_ITEM_PATTERN,
             UiaIds.GRID_PATTERN, UiaIds.TABLE_PATTERN, UiaIds.GRID_ITEM_PATTERN,
             UiaIds.TABLE_ITEM_PATTERN,
     };

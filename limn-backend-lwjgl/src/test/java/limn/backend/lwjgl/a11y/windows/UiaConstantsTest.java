@@ -132,6 +132,13 @@ class UiaConstantsTest {
         assertEquals(-1, UiaVariant.TRUE, "which is not the VARIANT_BOOL a VARIANT carries");
     }
 
+    /** Read 2026-09-15 (readings/windows-dump-uia-invalidate-limits.txt). */
+    @Test
+    void theSelectionBulkThresholdIsTheProviderApisInvalidateLimit() {
+        assertEquals(20, UiaIds.INVALIDATE_LIMIT,
+                "AutomationInteropProvider.InvalidateLimit, and SelectorAutomationPeer's own ble.s 20");
+    }
+
     /**
      * A handful of readings spot-checked against what §2.1 says the bridge answers with, so that a
      * re-run of the dump script that renamed or renumbered something fails here rather than in a

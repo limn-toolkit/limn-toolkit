@@ -41,6 +41,7 @@ final class UiaPatternProviders {
             case UiaIds.TOGGLE_PATTERN -> UiaInterfaces.TOGGLE_PROVIDER;
             case UiaIds.VALUE_PATTERN -> UiaInterfaces.VALUE_PROVIDER;
             case UiaIds.RANGE_VALUE_PATTERN -> UiaInterfaces.RANGE_VALUE_PROVIDER;
+            case UiaIds.SELECTION_PATTERN -> UiaInterfaces.SELECTION_PROVIDER;
             case UiaIds.EXPAND_COLLAPSE_PATTERN -> UiaInterfaces.EXPAND_COLLAPSE_PROVIDER;
             case UiaIds.SELECTION_ITEM_PATTERN -> UiaInterfaces.SELECTION_ITEM_PROVIDER;
             case UiaIds.SCROLL_ITEM_PATTERN -> UiaInterfaces.SCROLL_ITEM_PROVIDER;
@@ -164,16 +165,49 @@ final class UiaPatternProviders {
                 });
             }
 
+            // ISelectionProvider (W1's Selection half; semantics 1): the container's members are the
+            // realized nodes whose selection container, resolved once at publish, is this node.
+            case UiaIds.SELECTION_PATTERN -> {
+                slots.put("GetSelection", (UiaCom.PP) (self, out) -> {
+                    AccessibleTree tree = context.tree();
+                    int container = tree.indexOf(nodeId);
+                    if (container < 0 || tree.node(container).selection() == null) {
+                        return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+                    }
+                    long[] pointers = selectedMembersOf(tree, container, context);
+                    MemoryUtil.memPutAddress(out, context.unknownArray(pointers));
+                    return UiaIds.S_OK;
+                });
+                slots.put("get_CanSelectMultiple", (UiaCom.PP) (self, out) -> {
+                    AccessibleNode node = context.tree().find(nodeId);
+                    if (node == null || node.selection() == null) {
+                        return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+                    }
+                    putBool(out, node.selection().multiSelectable());
+                    return UiaIds.S_OK;
+                });
+                slots.put("get_IsSelectionRequired", (UiaCom.PP) (self, out) -> {
+                    AccessibleNode node = context.tree().find(nodeId);
+                    if (node == null || node.selection() == null) {
+                        return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+                    }
+                    putBool(out, node.selection().required());
+                    return UiaIds.S_OK;
+                });
+            }
+
+            // Decision 10 and semantics 5's candidate lists: Select is a click, SELECT; "add" is
+            // ADD_TO_SELECTION where the container offers it and a click where it does not (a
+            // single-select container's only way to add is to select); remove is DESELECT. The
+            // first verb the node publishes is posted, and a node publishing none is refused
+            // synchronously rather than told S_OK for a verb its widget will refuse.
             case UiaIds.SELECTION_ITEM_PATTERN -> {
-                slots.put("Select", (UiaCom.P) self -> accepted(
-                        context.perform(nodeId, Accessible.Action.SELECT,
-                                Accessible.Argument.NONE)));
-                slots.put("AddToSelection", (UiaCom.P) self -> accepted(
-                        context.perform(nodeId, Accessible.Action.SELECT,
-                                Accessible.Argument.NONE)));
-                slots.put("RemoveFromSelection", (UiaCom.P) self -> accepted(
-                        context.perform(nodeId, Accessible.Action.DESELECT,
-                                Accessible.Argument.NONE)));
+                slots.put("Select", (UiaCom.P) self -> postFirstAccepted(context, nodeId,
+                        Accessible.Action.SELECT));
+                slots.put("AddToSelection", (UiaCom.P) self -> postFirstAccepted(context, nodeId,
+                        Accessible.Action.ADD_TO_SELECTION, Accessible.Action.SELECT));
+                slots.put("RemoveFromSelection", (UiaCom.P) self -> postFirstAccepted(context,
+                        nodeId, Accessible.Action.DESELECT));
                 slots.put("get_IsSelected", (UiaCom.PP) (self, out) -> {
                     AccessibleNode node = context.tree().find(nodeId);
                     if (node == null || node.selectionItem() == null) {
@@ -188,19 +222,16 @@ final class UiaPatternProviders {
                     if (item == null) {
                         return UiaIds.E_ELEMENT_NOT_AVAILABLE;
                     }
-                    // The nearest ancestor that carries a selection, which is the list or the group
-                    // this item belongs to. Not simply the parent: a row inside a padding inside a
-                    // list would name the padding.
-                    long container = 0;
-                    for (int at = item.parent(); at != AccessibleNode.NONE;
-                            at = tree.node(at).parent()) {
-                        if (tree.node(at).selection() != null) {
-                            // The simple interface: get_SelectionContainer's declared out type.
-                            container = context.simpleElementFor(tree.node(at).id());
-                            break;
-                        }
-                    }
-                    MemoryUtil.memPutAddress(out, container);
+                    // The member's container by semantics 1, resolved once at publish: the nearest
+                    // ancestor with a selection facet, climbed to through synthetic ancestors only
+                    // (a calendar day's grid past its week row), and none for a member that
+                    // declared itself containerless or whose climb met a widget first. The same
+                    // rule GetSelection, the model's SELECTION_CHANGED and the other two bridges
+                    // read. Until 2026-09-15 this climbed through any ancestor.
+                    int at = item.selectionContainer();
+                    // The simple interface: get_SelectionContainer's declared out type.
+                    MemoryUtil.memPutAddress(out, at == AccessibleNode.NONE ? 0
+                            : context.simpleElementFor(tree.node(at).id()));
                     return UiaIds.S_OK;
                 });
             }
@@ -410,6 +441,58 @@ final class UiaPatternProviders {
             return UiaIds.E_ELEMENT_NOT_AVAILABLE;
         }
         return node.has(Accessible.State.ENABLED) ? UiaIds.S_OK : UiaIds.E_INVALID_OPERATION;
+    }
+
+    /**
+     * The simple pointers of a container's realized selected members, in reading order: every node
+     * of the snapshot carrying a selected {@code SelectionItemFacet} whose resolved selection
+     * container is this one. A selected member the widget has not realized (a row scrolled far
+     * away) has no node and is not listed, the degradation ADR 039 §4.1 accepts.
+     */
+    private static long[] selectedMembersOf(AccessibleTree tree, int container,
+                                            UiaProvider.Context context) {
+        int count = 0;
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            AccessibleNode node = tree.node(i);
+            if (node.selectionContainer() == container && node.selectionItem().selected()) {
+                count++;
+            }
+        }
+        long[] pointers = new long[count];
+        int at = 0;
+        for (int i = 0; i < tree.nodeCount() && at < count; i++) {
+            AccessibleNode node = tree.node(i);
+            if (node.selectionContainer() == container && node.selectionItem().selected()) {
+                pointers[at++] = context.simpleElementFor(node.id());
+            }
+        }
+        return pointers;
+    }
+
+    /**
+     * Posts the first of an ordered candidate list the node accepts now (semantics 5, read through
+     * {@link AccessibleNode#accepts}), and refuses synchronously when it accepts none.
+     *
+     * @param context    what to read and post through
+     * @param nodeId     the node the pattern was vended for
+     * @param candidates the verbs in the order the platform entry point maps them
+     * @return {@code S_OK} when posted and accepted by the scene; {@code E_ELEMENT_NOT_AVAILABLE}
+     *         for a node gone from the snapshot (or refused by the scene, which is what a refusal
+     *         there almost always is); {@code E_INVALID_OPERATION} for a node that publishes none
+     *         of the candidates
+     */
+    static int postFirstAccepted(UiaProvider.Context context, long nodeId,
+                                 Accessible.Action... candidates) {
+        AccessibleNode node = context.tree().find(nodeId);
+        if (node == null) {
+            return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+        }
+        for (Accessible.Action candidate : candidates) {
+            if (node.accepts(candidate)) {
+                return accepted(context.perform(nodeId, candidate, Accessible.Argument.NONE));
+            }
+        }
+        return UiaIds.E_INVALID_OPERATION;
     }
 
     /**

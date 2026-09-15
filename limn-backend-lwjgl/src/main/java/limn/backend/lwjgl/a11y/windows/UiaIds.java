@@ -302,6 +302,24 @@ final class UiaIds {
     /** @see #BOOL_TRUE */
     static final int BOOL_FALSE = 0;
 
+    /**
+     * How many members may enter and leave a container's selection in one change before a
+     * provider stops raising {@code ElementAddedToSelection}/{@code ElementRemovedFromSelection}
+     * per member and raises one {@code Selection_Invalidated} on the container: more than this is
+     * bulk, this many is still per member.
+     *
+     * <p>Read on the Windows 11 ARM64 guest (UIAutomationCore.dll 7.2.26100.9457) on 2026-09-15 by
+     * {@code scripts/a11y/windows/dump-uia-invalidate-limits.ps1}
+     * (readings/windows-dump-uia-invalidate-limits.txt):
+     * {@code System.Windows.Automation.Provider.AutomationInteropProvider.InvalidateLimit} is the
+     * public const 20 in UIAutomationProvider 4.8.9347; and the platform's own provider uses it
+     * so, decoded from the IL of {@code SelectorAutomationPeer::RaiseSelectionEvents}
+     * (PresentationFramework) the script prints: {@code ldloc added; ldloc removed; add;
+     * ldc.i4.s 20; ble.s} to the per-member loops, else {@code SelectionPatternOnInvalidated} on
+     * the container.
+     */
+    static final int INVALIDATE_LIMIT = 20;
+
     /** {@code UIA_E_ELEMENTNOTAVAILABLE}: what a stale element answers until its refcount drops. */
     static final int E_ELEMENT_NOT_AVAILABLE = 0x80040201;
 

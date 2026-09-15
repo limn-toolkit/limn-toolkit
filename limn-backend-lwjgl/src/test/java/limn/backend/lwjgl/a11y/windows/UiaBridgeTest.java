@@ -1010,4 +1010,124 @@ class UiaBridgeTest {
             made.forEach(UiaObject::free);
         }
     }
+
+    // ---- selection (decisions 9, 10; semantics 1; WINDOWS-NEW-5, W1's Selection half)
+
+    private static String raisesOf(AccessibleEvent event) {
+        StringBuilder out = new StringBuilder();
+        for (long[] raise : UiaBridge.selectionRaises(event)) {
+            if (out.length() > 0) {
+                out.append(", ");
+            }
+            out.append(raise[0]).append('@').append(raise[1]);
+        }
+        return out.toString();
+    }
+
+    /**
+     * WINDOWS-NEW-5: a single-select container's move raises ElementSelected on the member that
+     * entered, never on the container; before 2026-09-15 it raised ElementSelected on the
+     * container (the event's node), once.
+     */
+    @Test
+    void aSingleSelectMoveRaisesElementSelectedOnTheMemberThatEntered() {
+        assertEquals(UiaIds.SELECTION_ITEM_ELEMENT_SELECTED + "@1003",
+                raisesOf(AccessibleEvent.selection(1001, false, new long[] {1003},
+                        new long[] {1002})));
+        assertEquals(UiaIds.SELECTION_ITEM_ELEMENT_REMOVED_FROM_SELECTION + "@1002",
+                raisesOf(AccessibleEvent.selection(1001, false, new long[0], new long[] {1002})),
+                "a selection cleared: the member that left, told it left");
+    }
+
+    /** Decision 9: a multi-select container's change names every member that entered and left. */
+    @Test
+    void aMultiSelectChangeRaisesAddedAndRemovedOnEachMember() {
+        assertEquals(UiaIds.SELECTION_ITEM_ELEMENT_ADDED_TO_SELECTION + "@1003, "
+                        + UiaIds.SELECTION_ITEM_ELEMENT_ADDED_TO_SELECTION + "@1004, "
+                        + UiaIds.SELECTION_ITEM_ELEMENT_REMOVED_FROM_SELECTION + "@1002",
+                raisesOf(AccessibleEvent.selection(1001, true, new long[] {1003, 1004},
+                        new long[] {1002})));
+    }
+
+    /**
+     * Past InvalidateLimit (20, read 2026-09-15) the change is bulk: one Selection_Invalidated on the
+     * container. Twenty is still per member, as the platform's own SelectorAutomationPeer decides.
+     */
+    @Test
+    void moreThanTheInvalidateLimitIsOneSelectionInvalidatedOnTheContainer() {
+        long[] twenty = new long[20];
+        for (int i = 0; i < twenty.length; i++) {
+            twenty[i] = 2000 + i;
+        }
+        assertEquals(20, UiaBridge.selectionRaises(
+                AccessibleEvent.selection(1001, true, twenty, new long[0])).size());
+        assertEquals(UiaIds.SELECTION_INVALIDATED + "@1001",
+                raisesOf(AccessibleEvent.selection(1001, true, twenty, new long[] {1002})));
+        assertEquals(UiaIds.SELECTION_INVALIDATED + "@1001",
+                raisesOf(AccessibleEvent.selection(1001, false, twenty, new long[] {1002})),
+                "whatever the container's multi flag");
+    }
+
+    /** A LIST (1001, multi when asked) holding two rows, 1002 selected and 1003 not. */
+    private static AccessibleTree aList(boolean multi, boolean secondSelected) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int list = a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.LIST);
+        a.selection(multi, false);
+        a.inherited(true, true, true, true, false);
+        a.child(2);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.selectionItem(true, 1, 2);
+        a.endChild();
+        a.child(3);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.selectionItem(secondSelected, 2, 2);
+        a.endChild();
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    /**
+     * W1's Selection half: a container with a SelectionFacet serves ISelectionProvider; and a
+     * SELECTION_CHANGED is raised on the member elements a client holds, the rest paying nothing.
+     */
+    @Test
+    void aSelectionContainerServesSelectionAndItsChangeIsRaisedOnTheHeldMembers() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            AccessibleTree tree = aList(true, true);
+            bridge.publish(tree, false);
+            assertNotEquals(0L, bridge.objectFor(1001).pointerFor(UiaInterfaces.SELECTION_PROVIDER),
+                    "a list with a selection facet serves ISelectionProvider");
+            assertNotEquals(0L,
+                    bridge.contextForTests().patternProviderFor(1001, UiaIds.SELECTION_PATTERN));
+            long first = tree.node(2).id();
+            long second = tree.node(3).id();
+            bridge.objectFor(second);
+            bridge.noteAsked();
+
+            bridge.emit(AccessibleEvent.selection(1001, true, new long[] {first, second},
+                    new long[0]));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised SELECTION_CHANGED as event "
+                    + UiaIds.SELECTION_ITEM_ELEMENT_ADDED_TO_SELECTION + " for node " + second
+                    + " of container 1001 in ")), "raised on the held member: " + trace);
+            synchronized (trace) {
+                assertTrue(trace.stream().noneMatch(l -> l.contains("for node " + first + " ")),
+                        "and not on the member nobody holds: " + trace);
+            }
+            assertFalse(bridge.holdsElementFor(first), "which was not minted for it");
+            assertFalse(bridge.owesAnEvent());
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
 }
