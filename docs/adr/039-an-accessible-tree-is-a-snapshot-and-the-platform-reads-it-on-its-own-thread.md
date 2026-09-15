@@ -2496,6 +2496,29 @@ KDE 44 guest's at-spi2-atk 2.60.6 for `Selection`, `Value`, `Text`, `EditableTex
 `TableCell` (readings/fedora-dbus-<Interface>.xml) — plus the three standard interfaces; a path that
 names nothing is declined.
 
+#### Amendment 2026-09-15 — a header's sort direction: read on Fedora, and not carried yet
+
+**What decision 36 asked.** A sortable header cell publishes its direction, and how each platform
+carries one is read on the guest before any code.
+
+**What was read.** A GTK 4 `Gtk.ColumnView` sorted ascending, descending, by another column and by
+nothing on the Fedora KDE 44 guest (gtk4 4.22.4, at-spi2-core 2.60.6) carries **no** sort direction:
+each title is a `filler` whose name is the column's, with `{toolkit: GTK}` alone as attributes, the same
+states in every step, and no event naming the header (readings/fedora-gtk4-column-sort.txt,
+`scripts/a11y/linux/read-gtk4-column-sort.py`, 2026-09-15). Orca 50.2 reads a table header's direction
+from the object attribute **`sort`** — `ascending` → "sorted ascending", `descending` → "sorted
+descending", `none` or absent → nothing, any other value → "sorted" (`ax_utilities_table.py:259-275`,
+readings/fedora-orca-interface-calls.txt). So the carrier on this platform is that attribute, as ADR 041
+§7's amendment of 2026-09-14 anticipated; no native toolkit on the guest was found sending it.
+
+**Why nothing is mapped yet.** The model has no fact to map: `Table` carries the direction as the sorted
+header's localized description (`TableStrings.SORTED_ASCENDING`/`SORTED_DESCENDING`, ADR 041 §7), and a
+bridge cannot recover `ascending` from "Ordenado em ordem crescente". Carrying it needs a model
+carrier — a facet or a state on the header cell — that the three bridges read alike, which is not this
+bridge's to add alone while the Windows and macOS bridges are changed in parallel. Once it exists, this
+bridge answers `sort` = `ascending`/`descending` on that header cell in `GetAttributes` (§2.3's
+attributes amendment) and nothing when unsorted; until then a Linux reader hears the description.
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |
